@@ -16,12 +16,12 @@ from .verification import Verifier
 
 
 class TriadeRunner:
-    """Ejecuta el ciclo mínimo: input → señales → memoria → cristal → plan → safety → output → reporte."""
+    """Ejecuta el ciclo: input → señales → memoria → cristal → plan → safety → output → reporte."""
 
-    def __init__(self, runs_dir: str | Path = "runs") -> None:
+    def __init__(self, runs_dir: str | Path = "runs", db_path: str | Path = "triade/memory/triade.db") -> None:
         self.runs_dir = Path(runs_dir)
         self.hypothalamus = Hypothalamus()
-        self.bodega = Bodega()
+        self.bodega = Bodega(db_path=db_path)
         self.crystal = Crystal()
         self.central = Central()
         self.safety = Safety()
@@ -29,6 +29,8 @@ class TriadeRunner:
 
     def run(self, user_input: str, source: str = "console") -> dict[str, Any]:
         input_packet = InputPacket(user_input=user_input, source=source)
+        self.bodega.create_run(input_packet)
+
         run_path = self.runs_dir / input_packet.run_id
         run_path.mkdir(parents=True, exist_ok=True)
 
@@ -46,7 +48,7 @@ class TriadeRunner:
         else:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
 
-        memory_diff = self.bodega.diff_from_output(output)
+        memory_diff = self.bodega.store_episode(input_packet, output)
         output.memory_diff = memory_diff
         report = self.verifier.verify(output, safety)
 
@@ -69,6 +71,8 @@ class TriadeRunner:
             "run_id": input_packet.run_id,
             "status": report.status,
             "artifacts": sorted(artifacts.keys()),
+            "database": memory_diff.get("db_path"),
+            "episode_id": memory_diff.get("episode_id"),
             "closed": True,
         }
         self._write_json(run_path / "integrity.json", integrity)
@@ -79,8 +83,21 @@ class TriadeRunner:
             "response": output.response,
             "safety": safety.to_dict(),
             "report": report.to_dict(),
+            "memory_diff": memory_diff,
             "run_path": str(run_path),
         }
+
+    def recall(self, query: str, limit: int = 10) -> dict[str, Any]:
+        """Consulta memoria episódica reciente. La búsqueda semántica completa queda para siguiente fase."""
+        episodes = self.bodega.list_recent_episodes(limit=limit)
+        if query:
+            episodes = [
+                ep for ep in episodes
+                if query.lower() in (ep.get("title") or "").lower()
+                or query.lower() in (ep.get("summary") or "").lower()
+                or query.lower() in (ep.get("tags") or "").lower()
+            ]
+        return {"query": query, "count": len(episodes), "episodes": episodes}
 
     @staticmethod
     def _write_json(path: Path, payload: dict[str, Any]) -> None:
