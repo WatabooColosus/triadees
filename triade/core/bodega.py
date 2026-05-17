@@ -1,48 +1,182 @@
-"""Bodega de Almacenamiento · MVP.
+"""Bodega de Almacenamiento · SQLite MVP real.
 
-Implementación mínima sin base de datos activa. Sirve como puente hacia SQLite.
+Esta versión inicializa SQLite, carga el esquema base, recupera identidad,
+consulta memoria simple y guarda episodios por run.
 """
 
 from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+from typing import Any
 
 from .contracts import InputPacket, MemoryPacket, OutputPacket
 
 
 class Bodega:
-    """Memoria funcional inicial.
+    """Memoria funcional con persistencia SQLite."""
 
-    En esta versión no consulta SQLite todavía; devuelve identidad semilla
-    y prepara el contrato para persistencia futura.
-    """
+    def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
+        self.db_path = Path(db_path)
+        self.schema_path = Path("triade/memory/schemas.sql")
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON;")
+        return conn
+
+    def _init_db(self) -> None:
+        if not self.schema_path.exists():
+            raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
+        with self._connect() as conn:
+            conn.executescript(self.schema_path.read_text(encoding="utf-8"))
 
     def recall(self, packet: InputPacket) -> MemoryPacket:
-        identity = [
-            {
-                "key": "entity_name",
-                "value": "Tríade Ω",
-                "confidence": 1.0,
-            },
-            {
-                "key": "core_mission",
-                "value": "Sistema cognitivo modular en construcción verificable",
-                "confidence": 1.0,
-            },
-            {
-                "key": "ethical_principle",
-                "value": "Toda alma cuenta",
-                "confidence": 1.0,
-            },
-        ]
+        """Recupera identidad y memoria simple relacionada con la entrada."""
+        identity = self._fetch_identity()
+        semantic = self._search_semantic(packet.user_input)
+        episodic = self._search_episodic(packet.user_input)
+
+        confidence = 0.4
+        if identity:
+            confidence += 0.2
+        if semantic or episodic:
+            confidence += 0.3
 
         return MemoryPacket(
             run_id=packet.run_id,
             identity_matches=identity,
-            confidence=0.6,
+            semantic_matches=semantic,
+            episodic_matches=episodic,
+            confidence=min(confidence, 1.0),
         )
 
+    def create_run(self, packet: InputPacket) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO runs (run_id, source, user_input, status, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (packet.run_id, packet.source, packet.user_input, "created", packet.timestamp),
+            )
+
+    def store_episode(self, input_packet: InputPacket, output: OutputPacket) -> dict[str, Any]:
+        """Guarda un episodio básico del run."""
+        title = self._make_title(input_packet.user_input)
+        content = f"Usuario: {input_packet.user_input}\nRespuesta: {output.response}"
+        summary = output.response[:280]
+        tags = "triade,mvp,run"
+
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE runs
+                SET status = ?, closed_at = ?
+                WHERE run_id = ?
+                """,
+                (output.status, output.timestamp, input_packet.run_id),
+            )
+            cursor = conn.execute(
+                """
+                INSERT INTO episodic_memory (run_id, title, content, summary, tags, importance, confidence)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (input_packet.run_id, title, content, summary, tags, 0.5, 0.75),
+            )
+            episode_id = cursor.lastrowid
+
+        return {
+            "run_id": output.run_id,
+            "stored": True,
+            "episode_id": episode_id,
+            "db_path": str(self.db_path),
+        }
+
     def diff_from_output(self, output: OutputPacket) -> dict[str, object]:
+        """Compatibilidad con versiones anteriores; runner usa store_episode."""
         return {
             "run_id": output.run_id,
             "stored": False,
-            "reason": "MVP sin persistencia activa; listo para conectar SQLite.",
+            "reason": "Usar store_episode(input_packet, output) para persistencia real.",
         }
+
+    def list_recent_episodes(self, limit: int = 10) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, run_id, title, summary, tags, confidence, created_at
+                FROM episodic_memory
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def _fetch_identity(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT key, value, category, confidence
+                FROM identity_core
+                ORDER BY id ASC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def _search_semantic(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        terms = self._terms(query)
+        if not terms:
+            return []
+        like_clauses = " OR ".join(["value LIKE ? OR key LIKE ? OR domain LIKE ?" for _ in terms])
+        params: list[str] = []
+        for term in terms:
+            pattern = f"%{term}%"
+            params.extend([pattern, pattern, pattern])
+        sql = f"""
+            SELECT key, value, domain, source_ref, confidence, status
+            FROM semantic_memory
+            WHERE {like_clauses}
+            ORDER BY confidence DESC
+            LIMIT ?
+        """
+        params.append(str(limit))
+        with self._connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(row) for row in rows]
+
+    def _search_episodic(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        terms = self._terms(query)
+        if not terms:
+            return []
+        like_clauses = " OR ".join(["content LIKE ? OR summary LIKE ? OR title LIKE ? OR tags LIKE ?" for _ in terms])
+        params: list[str] = []
+        for term in terms:
+            pattern = f"%{term}%"
+            params.extend([pattern, pattern, pattern, pattern])
+        sql = f"""
+            SELECT id, run_id, title, summary, tags, confidence, created_at
+            FROM episodic_memory
+            WHERE {like_clauses}
+            ORDER BY id DESC
+            LIMIT ?
+        """
+        params.append(str(limit))
+        with self._connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(row) for row in rows]
+
+    @staticmethod
+    def _terms(query: str) -> list[str]:
+        stop = {"el", "la", "los", "las", "un", "una", "de", "del", "y", "o", "a", "en", "que", "por", "para"}
+        words = [w.strip(".,:;!?¡¿()[]{}\"'").lower() for w in query.split()]
+        return [w for w in words if len(w) >= 4 and w not in stop][:6]
+
+    @staticmethod
+    def _make_title(text: str) -> str:
+        clean = " ".join(text.strip().split())
+        return clean[:80] if clean else "Run sin título"
