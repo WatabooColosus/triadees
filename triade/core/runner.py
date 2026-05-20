@@ -27,13 +27,15 @@ class TriadeRunner:
         db_path: str | Path = "triade/memory/triade.db",
         config_path: str | Path = "triade.yml",
         use_ollama: bool = True,
+        hypothalamus_model: str | None = None,
+        central_model: str | None = None,
     ) -> None:
         self.runs_dir = Path(runs_dir)
         self.config = load_config(config_path)
         model_cfg = self.config.get("models", {})
         roles = model_cfg.get("roles", {})
-        self.central_model = str(roles.get("central", "qwen2.5:3b-instruct"))
-        self.hypothalamus_model = str(roles.get("hypothalamus", "qwen2.5:3b-instruct"))
+        self.central_model = central_model or str(roles.get("central", "qwen2.5:3b-instruct"))
+        self.hypothalamus_model = hypothalamus_model or str(roles.get("hypothalamus", "qwen2.5:3b-instruct"))
         self.model_provider = str(model_cfg.get("provider", "ollama"))
 
         self.model_client = None
@@ -59,6 +61,7 @@ class TriadeRunner:
 
         signals = self.hypothalamus.analyze(input_packet)
         hypothalamus_model_result = dict(self.hypothalamus.last_model_result)
+        hypothalamus_quality = self._score_hypothalamus(signals, hypothalamus_model_result)
         signal_id = self.bodega.store_signal(signals)
 
         memory = self.bodega.recall(input_packet)
@@ -78,10 +81,31 @@ class TriadeRunner:
         else:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
 
+        central_quality = self._score_central(output.response, output.model_ok)
+
         self.bodega.update_run_models(
             run_id=input_packet.run_id,
             model_hypothalamus=hypothalamus_model_result.get("name", self.hypothalamus_model),
             model_central=output.model_name,
+        )
+
+        hypothalamus_event_id = self.bodega.store_model_event(
+            run_id=input_packet.run_id,
+            role="hypothalamus",
+            provider=str(hypothalamus_model_result.get("provider")),
+            model_name=str(hypothalamus_model_result.get("name")),
+            ok=bool(hypothalamus_model_result.get("ok")),
+            error=hypothalamus_model_result.get("error"),
+            quality_score=hypothalamus_quality,
+        )
+        central_event_id = self.bodega.store_model_event(
+            run_id=input_packet.run_id,
+            role="central",
+            provider=output.model_provider,
+            model_name=output.model_name,
+            ok=output.model_ok,
+            error=output.model_error,
+            quality_score=central_quality,
         )
 
         memory_diff = self.bodega.store_episode(input_packet, output)
@@ -94,11 +118,14 @@ class TriadeRunner:
             "hypothalamus_model_name": hypothalamus_model_result.get("name"),
             "hypothalamus_model_ok": hypothalamus_model_result.get("ok"),
             "hypothalamus_model_error": hypothalamus_model_result.get("error"),
+            "hypothalamus_quality_score": hypothalamus_quality,
+            "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider,
             "central_model_name": output.model_name,
             "central_model_ok": output.model_ok,
             "central_model_error": output.model_error,
-            # Backward compatible aliases for 0.4.
+            "central_quality_score": central_quality,
+            "central_model_event_id": central_event_id,
             "model_provider": output.model_provider,
             "model_name": output.model_name,
             "model_ok": output.model_ok,
@@ -136,10 +163,13 @@ class TriadeRunner:
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"),
             "hypothalamus_model_name": hypothalamus_model_result.get("name"),
             "hypothalamus_model_ok": hypothalamus_model_result.get("ok"),
+            "hypothalamus_quality_score": hypothalamus_quality,
+            "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider,
             "central_model_name": output.model_name,
             "central_model_ok": output.model_ok,
-            # Backward compatible aliases for 0.4.
+            "central_quality_score": central_quality,
+            "central_model_event_id": central_event_id,
             "model_provider": output.model_provider,
             "model_name": output.model_name,
             "model_ok": output.model_ok,
@@ -155,12 +185,14 @@ class TriadeRunner:
             "report": report.to_dict(),
             "memory_diff": output.memory_diff,
             "models": {
-                "hypothalamus": hypothalamus_model_result,
+                "hypothalamus": {**hypothalamus_model_result, "quality_score": hypothalamus_quality, "event_id": hypothalamus_event_id},
                 "central": {
                     "provider": output.model_provider,
                     "name": output.model_name,
                     "ok": output.model_ok,
                     "error": output.model_error,
+                    "quality_score": central_quality,
+                    "event_id": central_event_id,
                 },
             },
             "model": {
@@ -173,7 +205,6 @@ class TriadeRunner:
         }
 
     def recall(self, query: str, limit: int = 10) -> dict[str, Any]:
-        """Consulta memoria episódica reciente."""
         episodes = self.bodega.list_recent_episodes(limit=limit)
         if query:
             episodes = [
@@ -185,7 +216,6 @@ class TriadeRunner:
         return {"query": query, "count": len(episodes), "episodes": episodes}
 
     def doctor(self) -> dict[str, Any]:
-        """Diagnóstico local de Tríade."""
         status = self.bodega.doctor(runs_dir=self.runs_dir)
         status["models"] = {
             "provider": self.model_provider,
@@ -194,6 +224,37 @@ class TriadeRunner:
             "ollama": self.model_client.health() if self.model_client else {"ok": False, "disabled": True},
         }
         return status
+
+    @staticmethod
+    def _score_hypothalamus(signals: Any, model_result: dict[str, Any]) -> float:
+        score = 0.35
+        if model_result.get("ok"):
+            score += 0.25
+        if signals.intent in {"conversation", "build_or_update", "analyze", "memory"}:
+            score += 0.10
+        if signals.urgency in {"low", "medium", "high"}:
+            score += 0.10
+        if signals.risk in {"low", "medium", "high", "critical"}:
+            score += 0.10
+        if len(signals.pv7) >= 7:
+            score += 0.10
+        return round(min(score, 1.0), 2)
+
+    @staticmethod
+    def _score_central(response: str, model_ok: bool) -> float:
+        text = response.strip()
+        score = 0.35
+        if model_ok:
+            score += 0.25
+        if len(text) >= 40:
+            score += 0.15
+        if len(text) <= 1800:
+            score += 0.10
+        if "Tríade" in text or "Triade" in text:
+            score += 0.05
+        if text.endswith((".", "!", "?")):
+            score += 0.10
+        return round(min(score, 1.0), 2)
 
     @staticmethod
     def _write_json(path: Path, payload: dict[str, Any]) -> None:
