@@ -142,6 +142,21 @@ CREATE TABLE IF NOT EXISTS knowledge_patterns (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Eventos de modelos por rol.
+CREATE TABLE IF NOT EXISTS model_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model_name TEXT NOT NULL,
+    ok INTEGER DEFAULT 0,
+    error TEXT,
+    quality_score REAL DEFAULT 0.0,
+    latency_ms INTEGER,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (run_id) REFERENCES runs(run_id)
+);
+
 -- Nodos federados autorizados.
 CREATE TABLE IF NOT EXISTS federated_nodes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -210,6 +225,8 @@ CREATE INDEX IF NOT EXISTS idx_semantic_memory_domain ON semantic_memory(domain)
 CREATE INDEX IF NOT EXISTS idx_learning_queue_status ON learning_queue(status);
 CREATE INDEX IF NOT EXISTS idx_neurons_status ON neurons(status);
 CREATE INDEX IF NOT EXISTS idx_verification_reports_run_id ON verification_reports(run_id);
+CREATE INDEX IF NOT EXISTS idx_model_events_run_id ON model_events(run_id);
+CREATE INDEX IF NOT EXISTS idx_model_events_role ON model_events(role);
 
 -- Semilla mínima de identidad.
 INSERT OR IGNORE INTO identity_core (key, value, category, confidence)
