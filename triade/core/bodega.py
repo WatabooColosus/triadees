@@ -1,7 +1,7 @@
 """Bodega de Almacenamiento · SQLite MVP real.
 
 Inicializa SQLite, carga el esquema base, recupera identidad, consulta memoria simple
-y guarda episodios, señales, cristal, safety, reportes y modelos usados por run.
+y guarda episodios, señales, cristal, safety, reportes y eventos de modelos por run.
 """
 
 from __future__ import annotations
@@ -83,6 +83,28 @@ class Bodega:
                 """,
                 (model_hypothalamus, model_central, run_id),
             )
+
+    def store_model_event(
+        self,
+        run_id: str,
+        role: str,
+        provider: str,
+        model_name: str,
+        ok: bool,
+        error: str | None = None,
+        quality_score: float = 0.0,
+        latency_ms: int | None = None,
+    ) -> int:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO model_events
+                (run_id, role, provider, model_name, ok, error, quality_score, latency_ms)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (run_id, role, provider, model_name, 1 if ok else 0, error, quality_score, latency_ms),
+            )
+            return int(cursor.lastrowid)
 
     def store_signal(self, signals: SignalPacket) -> int:
         with self._connect() as conn:
@@ -236,12 +258,21 @@ class Bodega:
             crystal_count = conn.execute("SELECT COUNT(*) AS c FROM crystal_states").fetchone()["c"]
             verification_count = conn.execute("SELECT COUNT(*) AS c FROM verification_reports").fetchone()["c"]
             safety_count = conn.execute("SELECT COUNT(*) AS c FROM knowledge_patterns WHERE domain = 'safety'").fetchone()["c"]
+            model_event_count = conn.execute("SELECT COUNT(*) AS c FROM model_events").fetchone()["c"]
             model_rows = conn.execute(
                 """
                 SELECT model_hypothalamus, model_central, COUNT(*) AS c
                 FROM runs
                 WHERE model_hypothalamus IS NOT NULL OR model_central IS NOT NULL
                 GROUP BY model_hypothalamus, model_central
+                ORDER BY c DESC
+                """
+            ).fetchall()
+            model_event_rows = conn.execute(
+                """
+                SELECT role, provider, model_name, ok, COUNT(*) AS c, AVG(quality_score) AS avg_quality
+                FROM model_events
+                GROUP BY role, provider, model_name, ok
                 ORDER BY c DESC
                 """
             ).fetchall()
@@ -262,8 +293,10 @@ class Bodega:
                 "crystals": crystal_count,
                 "safety_events": safety_count,
                 "verification_reports": verification_count,
+                "model_events": model_event_count,
             },
             "model_usage": [dict(row) for row in model_rows],
+            "model_events": [dict(row) for row in model_event_rows],
         }
 
     def _fetch_identity(self) -> list[dict[str, Any]]:
