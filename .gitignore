@@ -1,0 +1,31 @@
+# Entornos Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runs y memoria local
+runs/
+triade/memory/triade.db
+triade/memory/triade.db-*
+*.sqlite
+*.sqlite3
+
+# Variables y secretos
+.env
+.env.*
+*.key
+*.pem
+
+# Sistema / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
