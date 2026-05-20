@@ -2,18 +2,37 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from triade import __version__
 from triade.core.runner import TriadeRunner
 
+API_KEY_ENV = "TRIADE_API_KEY"
+CORS_ORIGINS_ENV = "TRIADE_CORS_ORIGINS"
+
+
+def _cors_origins() -> list[str]:
+    raw = os.getenv(CORS_ORIGINS_ENV, "http://127.0.0.1:5678,http://localhost:5678")
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
 app = FastAPI(
     title="Tríade Ω Local API",
     version=__version__,
     description="API local para ejecutar runs auditables de Tríade Ω.",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type", "X-TRIADE-API-Key"],
 )
 
 
@@ -32,6 +51,21 @@ class RecallResponse(BaseModel):
     query: str
     count: int
     episodes: list[dict[str, Any]]
+
+
+def api_key_enabled() -> bool:
+    return bool(os.getenv(API_KEY_ENV))
+
+
+def require_api_key(x_triade_api_key: str | None = Header(default=None)) -> None:
+    expected = os.getenv(API_KEY_ENV)
+    if not expected:
+        return
+    if x_triade_api_key != expected:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key inválida o ausente.",
+        )
 
 
 def build_runner(
@@ -60,11 +94,15 @@ def health() -> dict[str, Any]:
         "status": "ok",
         "entity": "Tríade Ω",
         "version": __version__,
+        "security": {
+            "api_key_required": api_key_enabled(),
+            "cors_origins": _cors_origins(),
+        },
         "doctor": doctor,
     }
 
 
-@app.post("/triade/run")
+@app.post("/triade/run", dependencies=[Depends(require_api_key)])
 def triade_run(request: RunRequest) -> dict[str, Any]:
     runner = build_runner(
         runs_dir=request.runs_dir,
@@ -77,13 +115,13 @@ def triade_run(request: RunRequest) -> dict[str, Any]:
     return runner.run(request.text, source=request.source)
 
 
-@app.get("/triade/recall", response_model=RecallResponse)
+@app.get("/triade/recall", response_model=RecallResponse, dependencies=[Depends(require_api_key)])
 def triade_recall(query: str = "", limit: int = 10) -> dict[str, Any]:
     runner = build_runner(use_ollama=False)
     return runner.recall(query=query, limit=limit)
 
 
-@app.get("/triade/doctor")
+@app.get("/triade/doctor", dependencies=[Depends(require_api_key)])
 def triade_doctor(use_ollama: bool = True) -> dict[str, Any]:
     runner = build_runner(use_ollama=use_ollama)
     return runner.doctor()
