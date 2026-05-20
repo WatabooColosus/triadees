@@ -123,6 +123,10 @@ class OutputPacket:
     actions_taken: list[str] = field(default_factory=list)
     memory_diff: dict[str, Any] = field(default_factory=dict)
     status: Status = "ok"
+    model_provider: str = "template"
+    model_name: str = "template-fallback"
+    model_ok: bool = False
+    model_error: str | None = None
     timestamp: str = field(default_factory=utc_now)
 
     def to_dict(self) -> dict[str, Any]:
