@@ -39,6 +39,12 @@ def test_runner_creates_auditable_run(tmp_path: Path) -> None:
     assert integrity["model_provider"] == "template"
     assert integrity["model_name"] == "template-fallback"
     assert integrity["model_ok"] is False
+    assert integrity["hypothalamus_model_provider"] == "rules"
+    assert integrity["hypothalamus_model_name"] == "rules-fallback"
+    assert integrity["hypothalamus_model_ok"] is False
+    assert integrity["central_model_provider"] == "template"
+    assert integrity["central_model_name"] == "template-fallback"
+    assert integrity["central_model_ok"] is False
     assert db_path.exists()
 
 
@@ -78,5 +84,11 @@ def test_runner_records_model_metadata(tmp_path: Path) -> None:
 
     assert result["model"]["provider"] == "template"
     assert result["model"]["name"] == "template-fallback"
+    assert result["models"]["hypothalamus"]["provider"] == "rules"
+    assert result["models"]["hypothalamus"]["name"] == "rules-fallback"
+    assert result["models"]["central"]["provider"] == "template"
+    assert result["models"]["central"]["name"] == "template-fallback"
     assert result["memory_diff"]["model_provider"] == "template"
     assert result["memory_diff"]["model_name"] == "template-fallback"
+    assert result["memory_diff"]["hypothalamus_model_provider"] == "rules"
+    assert result["memory_diff"]["central_model_provider"] == "template"
