@@ -6,8 +6,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from triade.models.ollama_client import OllamaClient
+
 from .bodega import Bodega
 from .central import Central
+from .config import load_config
 from .contracts import InputPacket
 from .crystal import Crystal
 from .hypothalamus import Hypothalamus
@@ -18,12 +21,32 @@ from .verification import Verifier
 class TriadeRunner:
     """Ejecuta el ciclo: input → señales → memoria → cristal → plan → safety → output → reporte."""
 
-    def __init__(self, runs_dir: str | Path = "runs", db_path: str | Path = "triade/memory/triade.db") -> None:
+    def __init__(
+        self,
+        runs_dir: str | Path = "runs",
+        db_path: str | Path = "triade/memory/triade.db",
+        config_path: str | Path = "triade.yml",
+        use_ollama: bool = True,
+    ) -> None:
         self.runs_dir = Path(runs_dir)
+        self.config = load_config(config_path)
+        model_cfg = self.config.get("models", {})
+        roles = model_cfg.get("roles", {})
+        self.central_model = str(roles.get("central", "qwen2.5:3b-instruct"))
+        self.hypothalamus_model = str(roles.get("hypothalamus", "qwen2.5:3b-instruct"))
+        self.model_provider = str(model_cfg.get("provider", "ollama"))
+
+        self.model_client = None
+        if use_ollama and self.model_provider == "ollama":
+            self.model_client = OllamaClient(
+                base_url=str(model_cfg.get("base_url", "http://127.0.0.1:11434")),
+                timeout=int(model_cfg.get("timeout", 60)),
+            )
+
         self.hypothalamus = Hypothalamus()
         self.bodega = Bodega(db_path=db_path)
         self.crystal = Crystal()
-        self.central = Central()
+        self.central = Central(model_client=self.model_client, central_model=self.central_model)
         self.safety = Safety()
         self.verifier = Verifier()
 
@@ -54,12 +77,22 @@ class TriadeRunner:
         else:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
 
+        self.bodega.update_run_models(
+            run_id=input_packet.run_id,
+            model_hypothalamus=self.hypothalamus_model,
+            model_central=output.model_name,
+        )
+
         memory_diff = self.bodega.store_episode(input_packet, output)
         output.memory_diff = {
             **memory_diff,
             "signal_id": signal_id,
             "crystal_id": crystal_id,
             "safety_id": safety_id,
+            "model_provider": output.model_provider,
+            "model_name": output.model_name,
+            "model_ok": output.model_ok,
+            "model_error": output.model_error,
         }
         report = self.verifier.verify(output, safety)
         verification_id = self.bodega.store_verification_report(report)
@@ -90,6 +123,9 @@ class TriadeRunner:
             "crystal_id": crystal_id,
             "safety_id": safety_id,
             "verification_report_id": verification_id,
+            "model_provider": output.model_provider,
+            "model_name": output.model_name,
+            "model_ok": output.model_ok,
             "closed": True,
         }
         self._write_json(run_path / "integrity.json", integrity)
@@ -101,6 +137,12 @@ class TriadeRunner:
             "safety": safety.to_dict(),
             "report": report.to_dict(),
             "memory_diff": output.memory_diff,
+            "model": {
+                "provider": output.model_provider,
+                "name": output.model_name,
+                "ok": output.model_ok,
+                "error": output.model_error,
+            },
             "run_path": str(run_path),
         }
 
@@ -118,7 +160,14 @@ class TriadeRunner:
 
     def doctor(self) -> dict[str, Any]:
         """Diagnóstico local de Tríade."""
-        return self.bodega.doctor(runs_dir=self.runs_dir)
+        status = self.bodega.doctor(runs_dir=self.runs_dir)
+        status["models"] = {
+            "provider": self.model_provider,
+            "hypothalamus": self.hypothalamus_model,
+            "central": self.central_model,
+            "ollama": self.model_client.health() if self.model_client else {"ok": False, "disabled": True},
+        }
+        return status
 
     @staticmethod
     def _write_json(path: Path, payload: dict[str, Any]) -> None:
