@@ -48,6 +48,11 @@ def main() -> None:
     doctor_parser = subparsers.add_parser("doctor", help="Diagnostica instalación local de Tríade")
     add_common_args(doctor_parser)
 
+    api_parser = subparsers.add_parser("api", help="Levanta API local FastAPI")
+    api_parser.add_argument("--host", default="127.0.0.1", help="Host de escucha")
+    api_parser.add_argument("--port", type=int, default=8000, help="Puerto de escucha")
+    api_parser.add_argument("--reload", action="store_true", help="Recarga automática para desarrollo")
+
     args = parser.parse_args()
 
     if args.command == "run":
@@ -99,6 +104,12 @@ def main() -> None:
         runner = make_runner(args)
         result = runner.doctor()
         print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if args.command == "api":
+        import uvicorn
+
+        uvicorn.run("apps.api_app:app", host=args.host, port=args.port, reload=args.reload)
         return
 
     parser.print_help()
