@@ -57,17 +57,29 @@ class Verifier:
                 ]
             )
 
-        if output.model_provider == "ollama" and output.model_ok:
+        hypothalamus_ok = bool(output.memory_diff.get("hypothalamus_model_ok"))
+        central_ok = bool(output.memory_diff.get("central_model_ok"))
+        central_requested_ollama = output.model_provider == "ollama"
+
+        if hypothalamus_ok and central_ok:
+            usefulness_score = 0.85
+            recommendations.extend(
+                [
+                    "Agregar selección de modelo por CLI para Hipotálamo y Central.",
+                    "Crear métricas de calidad de señales y respuesta por rol.",
+                    "Crear tabla dedicada para eventos de modelo por run.",
+                ]
+            )
+        elif central_requested_ollama and output.model_ok and not hypothalamus_ok:
             usefulness_score = 0.80
             recommendations.extend(
                 [
-                    "Conectar modelo de Hipotálamo para producir señales con modelo local.",
-                    "Agregar selección de modelo por CLI para Hipotálamo y Central.",
-                    "Mejorar prompts por rol y registrar métricas de calidad del modelo.",
+                    "Revisar por qué el Hipotálamo usó fallback y mejorar su prompt JSON.",
+                    "Ejecutar python triade_digimon.py doctor para revisar estado de Ollama.",
                 ]
             )
-        elif output.model_provider == "ollama" and not output.model_ok:
-            warnings.append("Ollama fue solicitado pero no generó respuesta; se usó fallback por plantilla.")
+        elif central_requested_ollama and not output.model_ok:
+            warnings.append("Ollama fue solicitado pero no generó respuesta central; se usó fallback por plantilla.")
             recommendations.extend(
                 [
                     "Verificar que Ollama esté corriendo en http://127.0.0.1:11434.",
