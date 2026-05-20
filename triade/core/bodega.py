@@ -1,16 +1,25 @@
 """Bodega de Almacenamiento · SQLite MVP real.
 
-Esta versión inicializa SQLite, carga el esquema base, recupera identidad,
-consulta memoria simple y guarda episodios por run.
+Inicializa SQLite, carga el esquema base, recupera identidad, consulta memoria simple
+y guarda episodios, señales, cristal, safety y reportes de verificación por run.
 """
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 from typing import Any
 
-from .contracts import InputPacket, MemoryPacket, OutputPacket
+from .contracts import (
+    CrystalPacket,
+    InputPacket,
+    MemoryPacket,
+    OutputPacket,
+    SafetyPacket,
+    SignalPacket,
+    VerificationReport,
+)
 
 
 class Bodega:
@@ -64,6 +73,100 @@ class Bodega:
                 (packet.run_id, packet.source, packet.user_input, "created", packet.timestamp),
             )
 
+    def store_signal(self, signals: SignalPacket) -> int:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO signal_states (run_id, intent, tone, urgency, risk, pv7, notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    signals.run_id,
+                    signals.intent,
+                    signals.tone,
+                    signals.urgency,
+                    signals.risk,
+                    json.dumps(signals.pv7, ensure_ascii=False),
+                    json.dumps(signals.notes, ensure_ascii=False),
+                    signals.timestamp,
+                ),
+            )
+            return int(cursor.lastrowid)
+
+    def store_crystal(self, crystal: CrystalPacket) -> int:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO crystal_states (run_id, ethics, depth, creativity, relation, decision_notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    crystal.run_id,
+                    crystal.ethics,
+                    crystal.depth,
+                    crystal.creativity,
+                    crystal.relation,
+                    json.dumps(crystal.decision_notes, ensure_ascii=False),
+                    crystal.timestamp,
+                ),
+            )
+            return int(cursor.lastrowid)
+
+    def store_safety(self, safety: SafetyPacket) -> int:
+        """Guarda safety como evento semántico de auditoría mínima.
+
+        El esquema actual no tiene tabla dedicada para safety, así que se registra como
+        knowledge_pattern auditable por run. En una migración futura puede moverse a
+        una tabla `safety_states`.
+        """
+        pattern_id = f"safety-{safety.run_id}"
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT OR REPLACE INTO knowledge_patterns
+                (pattern_id, name, description, domain, pattern_body, source_ref, confidence, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    pattern_id,
+                    "SafetyPacket",
+                    safety.reason,
+                    "safety",
+                    json.dumps(safety.to_dict(), ensure_ascii=False),
+                    safety.run_id,
+                    0.8,
+                    safety.status,
+                    safety.timestamp,
+                    safety.timestamp,
+                ),
+            )
+            return int(cursor.lastrowid)
+
+    def store_verification_report(self, report: VerificationReport) -> int:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO verification_reports
+                (run_id, status, coherence_score, memory_score, safety_score, usefulness_score,
+                 traceability_score, errors, warnings, recommendations, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    report.run_id,
+                    report.status,
+                    report.coherence_score,
+                    report.memory_score,
+                    report.safety_score,
+                    report.usefulness_score,
+                    report.traceability_score,
+                    json.dumps(report.errors, ensure_ascii=False),
+                    json.dumps(report.warnings, ensure_ascii=False),
+                    json.dumps(report.recommendations, ensure_ascii=False),
+                    report.timestamp,
+                ),
+            )
+            return int(cursor.lastrowid)
+
     def store_episode(self, input_packet: InputPacket, output: OutputPacket) -> dict[str, Any]:
         """Guarda un episodio básico del run."""
         title = self._make_title(input_packet.user_input)
@@ -116,6 +219,37 @@ class Bodega:
                 (limit,),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def doctor(self, runs_dir: str | Path = "runs") -> dict[str, Any]:
+        """Diagnóstico local de instalación, memoria y runs."""
+        runs_path = Path(runs_dir)
+        with self._connect() as conn:
+            tables = [row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()]
+            run_count = conn.execute("SELECT COUNT(*) AS c FROM runs").fetchone()["c"]
+            episode_count = conn.execute("SELECT COUNT(*) AS c FROM episodic_memory").fetchone()["c"]
+            signal_count = conn.execute("SELECT COUNT(*) AS c FROM signal_states").fetchone()["c"]
+            crystal_count = conn.execute("SELECT COUNT(*) AS c FROM crystal_states").fetchone()["c"]
+            verification_count = conn.execute("SELECT COUNT(*) AS c FROM verification_reports").fetchone()["c"]
+            safety_count = conn.execute("SELECT COUNT(*) AS c FROM knowledge_patterns WHERE domain = 'safety'").fetchone()["c"]
+
+        return {
+            "status": "ok",
+            "db_path": str(self.db_path),
+            "db_exists": self.db_path.exists(),
+            "schema_path": str(self.schema_path),
+            "schema_exists": self.schema_path.exists(),
+            "runs_dir": str(runs_path),
+            "runs_dir_exists": runs_path.exists(),
+            "tables": tables,
+            "counts": {
+                "runs": run_count,
+                "episodes": episode_count,
+                "signals": signal_count,
+                "crystals": crystal_count,
+                "safety_events": safety_count,
+                "verification_reports": verification_count,
+            },
+        }
 
     def _fetch_identity(self) -> list[dict[str, Any]]:
         with self._connect() as conn:
