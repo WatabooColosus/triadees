@@ -9,18 +9,32 @@ import json
 from triade.core.runner import TriadeRunner
 
 
+def add_common_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--runs-dir", default="runs", help="Carpeta donde se guardan runs")
+    parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    parser.add_argument("--config", default="triade.yml", help="Ruta de configuración")
+    parser.add_argument("--no-ollama", action="store_true", help="Desactiva Ollama y usa fallback por plantilla")
+
+
+def make_runner(args: argparse.Namespace) -> TriadeRunner:
+    return TriadeRunner(
+        runs_dir=args.runs_dir,
+        db_path=args.db,
+        config_path=args.config,
+        use_ollama=not args.no_ollama,
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Tríade Ω · MVP local auditable con memoria SQLite")
     subparsers = parser.add_subparsers(dest="command")
 
     run_parser = subparsers.add_parser("run", help="Ejecuta un mensaje como run auditable")
     run_parser.add_argument("text", help="Texto de entrada para Tríade")
-    run_parser.add_argument("--runs-dir", default="runs", help="Carpeta donde se guardan runs")
-    run_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    add_common_args(run_parser)
 
     chat_parser = subparsers.add_parser("chat", help="Abre consola interactiva")
-    chat_parser.add_argument("--runs-dir", default="runs", help="Carpeta donde se guardan runs")
-    chat_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    add_common_args(chat_parser)
 
     recall_parser = subparsers.add_parser("recall", help="Consulta memoria episódica reciente")
     recall_parser.add_argument("query", nargs="?", default="", help="Texto a buscar en memoria")
@@ -28,19 +42,18 @@ def main() -> None:
     recall_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
 
     doctor_parser = subparsers.add_parser("doctor", help="Diagnostica instalación local de Tríade")
-    doctor_parser.add_argument("--runs-dir", default="runs", help="Carpeta donde se guardan runs")
-    doctor_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    add_common_args(doctor_parser)
 
     args = parser.parse_args()
 
     if args.command == "run":
-        runner = TriadeRunner(runs_dir=args.runs_dir, db_path=args.db)
+        runner = make_runner(args)
         result = runner.run(args.text)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return
 
     if args.command == "chat":
-        runner = TriadeRunner(runs_dir=args.runs_dir, db_path=args.db)
+        runner = make_runner(args)
         print("Tríade Ω · chat local auditable")
         print("Comandos: /exit, /recall <texto>, /doctor")
         while True:
@@ -66,6 +79,7 @@ def main() -> None:
             result = runner.run(text)
             print(f"Tríade Ω > {result['response']}")
             print(f"run: {result['run_id']} | path: {result['run_path']}")
+            print(f"model: {result['model']['provider']}:{result['model']['name']} ok={result['model']['ok']}")
         return
 
     if args.command == "recall":
@@ -75,7 +89,7 @@ def main() -> None:
         return
 
     if args.command == "doctor":
-        runner = TriadeRunner(runs_dir=args.runs_dir, db_path=args.db)
+        runner = make_runner(args)
         result = runner.doctor()
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return
