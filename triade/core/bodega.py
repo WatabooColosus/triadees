@@ -1,7 +1,7 @@
 """Bodega de Almacenamiento · SQLite MVP real.
 
 Inicializa SQLite, carga el esquema base, recupera identidad, consulta memoria simple
-y guarda episodios, señales, cristal, safety y reportes de verificación por run.
+y guarda episodios, señales, cristal, safety, reportes y modelos usados por run.
 """
 
 from __future__ import annotations
@@ -73,6 +73,17 @@ class Bodega:
                 (packet.run_id, packet.source, packet.user_input, "created", packet.timestamp),
             )
 
+    def update_run_models(self, run_id: str, model_hypothalamus: str, model_central: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE runs
+                SET model_hypothalamus = ?, model_central = ?
+                WHERE run_id = ?
+                """,
+                (model_hypothalamus, model_central, run_id),
+            )
+
     def store_signal(self, signals: SignalPacket) -> int:
         with self._connect() as conn:
             cursor = conn.execute(
@@ -113,12 +124,7 @@ class Bodega:
             return int(cursor.lastrowid)
 
     def store_safety(self, safety: SafetyPacket) -> int:
-        """Guarda safety como evento semántico de auditoría mínima.
-
-        El esquema actual no tiene tabla dedicada para safety, así que se registra como
-        knowledge_pattern auditable por run. En una migración futura puede moverse a
-        una tabla `safety_states`.
-        """
+        """Guarda safety como evento semántico de auditoría mínima."""
         pattern_id = f"safety-{safety.run_id}"
         with self._connect() as conn:
             cursor = conn.execute(
@@ -200,7 +206,6 @@ class Bodega:
         }
 
     def diff_from_output(self, output: OutputPacket) -> dict[str, object]:
-        """Compatibilidad con versiones anteriores; runner usa store_episode."""
         return {
             "run_id": output.run_id,
             "stored": False,
@@ -231,6 +236,15 @@ class Bodega:
             crystal_count = conn.execute("SELECT COUNT(*) AS c FROM crystal_states").fetchone()["c"]
             verification_count = conn.execute("SELECT COUNT(*) AS c FROM verification_reports").fetchone()["c"]
             safety_count = conn.execute("SELECT COUNT(*) AS c FROM knowledge_patterns WHERE domain = 'safety'").fetchone()["c"]
+            model_rows = conn.execute(
+                """
+                SELECT model_hypothalamus, model_central, COUNT(*) AS c
+                FROM runs
+                WHERE model_hypothalamus IS NOT NULL OR model_central IS NOT NULL
+                GROUP BY model_hypothalamus, model_central
+                ORDER BY c DESC
+                """
+            ).fetchall()
 
         return {
             "status": "ok",
@@ -249,6 +263,7 @@ class Bodega:
                 "safety_events": safety_count,
                 "verification_reports": verification_count,
             },
+            "model_usage": [dict(row) for row in model_rows],
         }
 
     def _fetch_identity(self) -> list[dict[str, Any]]:
