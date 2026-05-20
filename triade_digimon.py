@@ -79,7 +79,10 @@ def main() -> None:
             result = runner.run(text)
             print(f"Tríade Ω > {result['response']}")
             print(f"run: {result['run_id']} | path: {result['run_path']}")
-            print(f"model: {result['model']['provider']}:{result['model']['name']} ok={result['model']['ok']}")
+            hyp = result["models"]["hypothalamus"]
+            cen = result["models"]["central"]
+            print(f"hipotálamo: {hyp['provider']}:{hyp['name']} ok={hyp['ok']}")
+            print(f"central: {cen['provider']}:{cen['name']} ok={cen['ok']}")
         return
 
     if args.command == "recall":
