@@ -27,6 +27,10 @@ def main() -> None:
     recall_parser.add_argument("--limit", type=int, default=10, help="Cantidad máxima de episodios")
     recall_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
 
+    doctor_parser = subparsers.add_parser("doctor", help="Diagnostica instalación local de Tríade")
+    doctor_parser.add_argument("--runs-dir", default="runs", help="Carpeta donde se guardan runs")
+    doctor_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+
     args = parser.parse_args()
 
     if args.command == "run":
@@ -38,7 +42,7 @@ def main() -> None:
     if args.command == "chat":
         runner = TriadeRunner(runs_dir=args.runs_dir, db_path=args.db)
         print("Tríade Ω · chat local auditable")
-        print("Comandos: /exit, /recall <texto>")
+        print("Comandos: /exit, /recall <texto>, /doctor")
         while True:
             try:
                 text = input("Tú > ").strip()
@@ -55,6 +59,9 @@ def main() -> None:
                 query = text.replace("/recall", "", 1).strip()
                 print(json.dumps(runner.recall(query=query), ensure_ascii=False, indent=2))
                 continue
+            if text == "/doctor":
+                print(json.dumps(runner.doctor(), ensure_ascii=False, indent=2))
+                continue
 
             result = runner.run(text)
             print(f"Tríade Ω > {result['response']}")
@@ -64,6 +71,12 @@ def main() -> None:
     if args.command == "recall":
         runner = TriadeRunner(db_path=args.db)
         result = runner.recall(query=args.query, limit=args.limit)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if args.command == "doctor":
+        runner = TriadeRunner(runs_dir=args.runs_dir, db_path=args.db)
+        result = runner.doctor()
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return
 
