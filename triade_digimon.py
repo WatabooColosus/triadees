@@ -14,6 +14,8 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
     parser.add_argument("--config", default="triade.yml", help="Ruta de configuración")
     parser.add_argument("--no-ollama", action="store_true", help="Desactiva Ollama y usa fallback por plantilla")
+    parser.add_argument("--hypothalamus-model", default=None, help="Modelo Ollama para Hipotálamo")
+    parser.add_argument("--central-model", default=None, help="Modelo Ollama para Central")
 
 
 def make_runner(args: argparse.Namespace) -> TriadeRunner:
@@ -22,6 +24,8 @@ def make_runner(args: argparse.Namespace) -> TriadeRunner:
         db_path=args.db,
         config_path=args.config,
         use_ollama=not args.no_ollama,
+        hypothalamus_model=args.hypothalamus_model,
+        central_model=args.central_model,
     )
 
 
@@ -81,8 +85,8 @@ def main() -> None:
             print(f"run: {result['run_id']} | path: {result['run_path']}")
             hyp = result["models"]["hypothalamus"]
             cen = result["models"]["central"]
-            print(f"hipotálamo: {hyp['provider']}:{hyp['name']} ok={hyp['ok']}")
-            print(f"central: {cen['provider']}:{cen['name']} ok={cen['ok']}")
+            print(f"hipotálamo: {hyp['provider']}:{hyp['name']} ok={hyp['ok']} quality={hyp.get('quality_score')}")
+            print(f"central: {cen['provider']}:{cen['name']} ok={cen['ok']} quality={cen.get('quality_score')}")
         return
 
     if args.command == "recall":
