@@ -35,10 +35,16 @@ class TriadeRunner:
         run_path.mkdir(parents=True, exist_ok=True)
 
         signals = self.hypothalamus.analyze(input_packet)
+        signal_id = self.bodega.store_signal(signals)
+
         memory = self.bodega.recall(input_packet)
+
         crystal = self.crystal.regulate(signals, memory)
+        crystal_id = self.bodega.store_crystal(crystal)
+
         plan = self.central.plan(input_packet, signals, memory, crystal)
         safety = self.safety.review(signals, plan)
+        safety_id = self.bodega.store_safety(safety)
 
         if safety.status == "blocked":
             response = "La acción fue bloqueada por Safety."
@@ -49,8 +55,15 @@ class TriadeRunner:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
 
         memory_diff = self.bodega.store_episode(input_packet, output)
-        output.memory_diff = memory_diff
+        output.memory_diff = {
+            **memory_diff,
+            "signal_id": signal_id,
+            "crystal_id": crystal_id,
+            "safety_id": safety_id,
+        }
         report = self.verifier.verify(output, safety)
+        verification_id = self.bodega.store_verification_report(report)
+        output.memory_diff["verification_report_id"] = verification_id
 
         artifacts = {
             "input.json": input_packet.to_dict(),
@@ -60,7 +73,7 @@ class TriadeRunner:
             "plan.json": plan.to_dict(),
             "safety.json": safety.to_dict(),
             "output.json": output.to_dict(),
-            "memory_diff.json": memory_diff,
+            "memory_diff.json": output.memory_diff,
             "report.json": report.to_dict(),
         }
 
@@ -73,6 +86,10 @@ class TriadeRunner:
             "artifacts": sorted(artifacts.keys()),
             "database": memory_diff.get("db_path"),
             "episode_id": memory_diff.get("episode_id"),
+            "signal_id": signal_id,
+            "crystal_id": crystal_id,
+            "safety_id": safety_id,
+            "verification_report_id": verification_id,
             "closed": True,
         }
         self._write_json(run_path / "integrity.json", integrity)
@@ -83,12 +100,12 @@ class TriadeRunner:
             "response": output.response,
             "safety": safety.to_dict(),
             "report": report.to_dict(),
-            "memory_diff": memory_diff,
+            "memory_diff": output.memory_diff,
             "run_path": str(run_path),
         }
 
     def recall(self, query: str, limit: int = 10) -> dict[str, Any]:
-        """Consulta memoria episódica reciente. La búsqueda semántica completa queda para siguiente fase."""
+        """Consulta memoria episódica reciente."""
         episodes = self.bodega.list_recent_episodes(limit=limit)
         if query:
             episodes = [
@@ -98,6 +115,10 @@ class TriadeRunner:
                 or query.lower() in (ep.get("tags") or "").lower()
             ]
         return {"query": query, "count": len(episodes), "episodes": episodes}
+
+    def doctor(self) -> dict[str, Any]:
+        """Diagnóstico local de Tríade."""
+        return self.bodega.doctor(runs_dir=self.runs_dir)
 
     @staticmethod
     def _write_json(path: Path, payload: dict[str, Any]) -> None:
