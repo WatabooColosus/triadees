@@ -11,9 +11,12 @@ class Verifier:
     def verify(self, output: OutputPacket, safety: SafetyPacket) -> VerificationReport:
         warnings: list[str] = []
         errors: list[str] = []
+        recommendations: list[str] = []
 
         status = output.status
         safety_score = 0.9
+        memory_score = 0.55
+        traceability_score = 0.80
 
         if safety.status in {"approved_with_warning", "requires_human_approval"}:
             warnings.append(safety.reason)
@@ -24,18 +27,31 @@ class Verifier:
             status = "blocked"
             safety_score = 0.2
 
+        memory_stored = bool(output.memory_diff.get("stored"))
+        if memory_stored:
+            memory_score = 0.80
+            traceability_score = 0.90
+        else:
+            warnings.append("El episodio no fue persistido en memoria SQLite.")
+            recommendations.append("Revisar Bodega.store_episode y la ruta de triade.db.")
+
+        recommendations.extend(
+            [
+                "Persistir SignalPacket, CrystalPacket, SafetyPacket y VerificationReport en SQLite.",
+                "Agregar comando doctor para diagnóstico local.",
+                "Conectar adaptador Ollama para respuestas generadas por modelo local.",
+            ]
+        )
+
         return VerificationReport(
             run_id=output.run_id,
             status=status,
             coherence_score=0.75,
-            memory_score=0.55,
+            memory_score=memory_score,
             safety_score=safety_score,
             usefulness_score=0.70,
-            traceability_score=0.80,
+            traceability_score=traceability_score,
             errors=errors,
             warnings=warnings,
-            recommendations=[
-                "Conectar persistencia SQLite en Bodega.",
-                "Agregar tests automatizados del ciclo cognitivo.",
-            ],
+            recommendations=recommendations,
         )
