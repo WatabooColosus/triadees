@@ -45,6 +45,8 @@ def test_runner_creates_auditable_run(tmp_path: Path) -> None:
     assert integrity["central_model_provider"] == "template"
     assert integrity["central_model_name"] == "template-fallback"
     assert integrity["central_model_ok"] is False
+    assert integrity["hypothalamus_model_event_id"] is not None
+    assert integrity["central_model_event_id"] is not None
     assert db_path.exists()
 
 
@@ -74,7 +76,9 @@ def test_doctor_reports_full_persistence_counts(tmp_path: Path) -> None:
     assert report["counts"]["crystals"] >= 1
     assert report["counts"]["safety_events"] >= 1
     assert report["counts"]["verification_reports"] >= 1
+    assert report["counts"]["model_events"] >= 2
     assert "models" in report
+    assert "model_events" in report
     assert report["models"]["ollama"]["disabled"] is True
 
 
@@ -88,7 +92,24 @@ def test_runner_records_model_metadata(tmp_path: Path) -> None:
     assert result["models"]["hypothalamus"]["name"] == "rules-fallback"
     assert result["models"]["central"]["provider"] == "template"
     assert result["models"]["central"]["name"] == "template-fallback"
+    assert result["models"]["hypothalamus"]["quality_score"] >= 0
+    assert result["models"]["central"]["quality_score"] >= 0
     assert result["memory_diff"]["model_provider"] == "template"
     assert result["memory_diff"]["model_name"] == "template-fallback"
     assert result["memory_diff"]["hypothalamus_model_provider"] == "rules"
     assert result["memory_diff"]["central_model_provider"] == "template"
+    assert result["memory_diff"]["hypothalamus_model_event_id"] is not None
+    assert result["memory_diff"]["central_model_event_id"] is not None
+
+
+def test_runner_accepts_model_overrides(tmp_path: Path) -> None:
+    runner = TriadeRunner(
+        runs_dir=tmp_path / "runs",
+        db_path=tmp_path / "triade.db",
+        use_ollama=False,
+        hypothalamus_model="test-hyp-model",
+        central_model="test-central-model",
+    )
+
+    assert runner.hypothalamus_model == "test-hyp-model"
+    assert runner.central_model == "test-central-model"
