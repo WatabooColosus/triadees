@@ -1,0 +1,104 @@
+{
+  "name": "Triade Basic Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "triade-basic",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-triade-basic",
+      "name": "Webhook · Entrada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/triade/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-TRIADE-API-Key",
+              "value": "={{$env.TRIADE_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": {{$json.body.message ? JSON.stringify($json.body.message) : JSON.stringify($json.message || 'Hola Tríade desde n8n')}},\n  \"source\": \"n8n-webhook\",\n  \"use_ollama\": {{$json.body.use_ollama === false ? false : true}},\n  \"hypothalamus_model\": {{$json.body.hypothalamus_model ? JSON.stringify($json.body.hypothalamus_model) : JSON.stringify('qwen2.5:3b-instruct')}},\n  \"central_model\": {{$json.body.central_model ? JSON.stringify($json.body.central_model) : JSON.stringify('qwen2.5:3b-instruct')}}\n}",
+        "options": {}
+      },
+      "id": "http-triade-run",
+      "name": "HTTP · Tríade Run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "respond-triade-output",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        520,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook · Entrada": {
+      "main": [
+        [
+          {
+            "node": "HTTP · Tríade Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP · Tríade Run": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "triade-basic-1-1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [
+    {
+      "name": "triade"
+    }
+  ]
+}
