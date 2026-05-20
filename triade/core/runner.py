@@ -43,7 +43,7 @@ class TriadeRunner:
                 timeout=int(model_cfg.get("timeout", 60)),
             )
 
-        self.hypothalamus = Hypothalamus()
+        self.hypothalamus = Hypothalamus(model_client=self.model_client, model_name=self.hypothalamus_model)
         self.bodega = Bodega(db_path=db_path)
         self.crystal = Crystal()
         self.central = Central(model_client=self.model_client, central_model=self.central_model)
@@ -58,6 +58,7 @@ class TriadeRunner:
         run_path.mkdir(parents=True, exist_ok=True)
 
         signals = self.hypothalamus.analyze(input_packet)
+        hypothalamus_model_result = dict(self.hypothalamus.last_model_result)
         signal_id = self.bodega.store_signal(signals)
 
         memory = self.bodega.recall(input_packet)
@@ -79,7 +80,7 @@ class TriadeRunner:
 
         self.bodega.update_run_models(
             run_id=input_packet.run_id,
-            model_hypothalamus=self.hypothalamus_model,
+            model_hypothalamus=hypothalamus_model_result.get("name", self.hypothalamus_model),
             model_central=output.model_name,
         )
 
@@ -89,6 +90,15 @@ class TriadeRunner:
             "signal_id": signal_id,
             "crystal_id": crystal_id,
             "safety_id": safety_id,
+            "hypothalamus_model_provider": hypothalamus_model_result.get("provider"),
+            "hypothalamus_model_name": hypothalamus_model_result.get("name"),
+            "hypothalamus_model_ok": hypothalamus_model_result.get("ok"),
+            "hypothalamus_model_error": hypothalamus_model_result.get("error"),
+            "central_model_provider": output.model_provider,
+            "central_model_name": output.model_name,
+            "central_model_ok": output.model_ok,
+            "central_model_error": output.model_error,
+            # Backward compatible aliases for 0.4.
             "model_provider": output.model_provider,
             "model_name": output.model_name,
             "model_ok": output.model_ok,
@@ -123,6 +133,13 @@ class TriadeRunner:
             "crystal_id": crystal_id,
             "safety_id": safety_id,
             "verification_report_id": verification_id,
+            "hypothalamus_model_provider": hypothalamus_model_result.get("provider"),
+            "hypothalamus_model_name": hypothalamus_model_result.get("name"),
+            "hypothalamus_model_ok": hypothalamus_model_result.get("ok"),
+            "central_model_provider": output.model_provider,
+            "central_model_name": output.model_name,
+            "central_model_ok": output.model_ok,
+            # Backward compatible aliases for 0.4.
             "model_provider": output.model_provider,
             "model_name": output.model_name,
             "model_ok": output.model_ok,
@@ -137,6 +154,15 @@ class TriadeRunner:
             "safety": safety.to_dict(),
             "report": report.to_dict(),
             "memory_diff": output.memory_diff,
+            "models": {
+                "hypothalamus": hypothalamus_model_result,
+                "central": {
+                    "provider": output.model_provider,
+                    "name": output.model_name,
+                    "ok": output.model_ok,
+                    "error": output.model_error,
+                },
+            },
             "model": {
                 "provider": output.model_provider,
                 "name": output.model_name,
