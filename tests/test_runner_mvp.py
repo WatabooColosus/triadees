@@ -11,7 +11,7 @@ from triade.core.runner import TriadeRunner
 def test_runner_creates_auditable_run(tmp_path: Path) -> None:
     runs_dir = tmp_path / "runs"
     db_path = tmp_path / "triade.db"
-    runner = TriadeRunner(runs_dir=runs_dir, db_path=db_path)
+    runner = TriadeRunner(runs_dir=runs_dir, db_path=db_path, use_ollama=False)
 
     result = runner.run("Hola Tríade, crea memoria real")
 
@@ -36,11 +36,14 @@ def test_runner_creates_auditable_run(tmp_path: Path) -> None:
     assert integrity["crystal_id"] is not None
     assert integrity["safety_id"] is not None
     assert integrity["verification_report_id"] is not None
+    assert integrity["model_provider"] == "template"
+    assert integrity["model_name"] == "template-fallback"
+    assert integrity["model_ok"] is False
     assert db_path.exists()
 
 
 def test_recall_returns_recent_episode(tmp_path: Path) -> None:
-    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db")
+    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
     runner.run("Guardar episodio de prueba sobre memoria viva")
 
     recalled = runner.recall("memoria", limit=5)
@@ -50,7 +53,7 @@ def test_recall_returns_recent_episode(tmp_path: Path) -> None:
 
 
 def test_doctor_reports_full_persistence_counts(tmp_path: Path) -> None:
-    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db")
+    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
     runner.run("Doctor debe detectar persistencia completa")
 
     report = runner.doctor()
@@ -65,3 +68,15 @@ def test_doctor_reports_full_persistence_counts(tmp_path: Path) -> None:
     assert report["counts"]["crystals"] >= 1
     assert report["counts"]["safety_events"] >= 1
     assert report["counts"]["verification_reports"] >= 1
+    assert "models" in report
+    assert report["models"]["ollama"]["disabled"] is True
+
+
+def test_runner_records_model_metadata(tmp_path: Path) -> None:
+    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+    result = runner.run("Registrar modelo usado por el run")
+
+    assert result["model"]["provider"] == "template"
+    assert result["model"]["name"] == "template-fallback"
+    assert result["memory_diff"]["model_provider"] == "template"
+    assert result["memory_diff"]["model_name"] == "template-fallback"
