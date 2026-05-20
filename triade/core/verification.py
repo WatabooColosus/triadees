@@ -28,9 +28,14 @@ class Verifier:
             safety_score = 0.2
 
         memory_stored = bool(output.memory_diff.get("stored"))
-        full_persistence = all(
+
+        # Nota: verification_report_id todavía no existe en este punto, porque
+        # el VerificationReport se guarda después de ejecutar este verificador.
+        # Por eso la persistencia completa verificable aquí se mide con los
+        # paquetes previos: episodio, señal, cristal y safety.
+        full_pre_report_persistence = memory_stored and all(
             output.memory_diff.get(key) is not None
-            for key in ["signal_id", "crystal_id", "safety_id", "verification_report_id"]
+            for key in ["episode_id", "signal_id", "crystal_id", "safety_id"]
         )
 
         if memory_stored:
@@ -40,7 +45,7 @@ class Verifier:
             warnings.append("El episodio no fue persistido en memoria SQLite.")
             recommendations.append("Revisar Bodega.store_episode y la ruta de triade.db.")
 
-        if full_persistence:
+        if full_pre_report_persistence:
             memory_score = 0.90
             traceability_score = 0.95
             recommendations.extend(
@@ -53,7 +58,7 @@ class Verifier:
         else:
             recommendations.extend(
                 [
-                    "Completar persistencia de SignalPacket, CrystalPacket, SafetyPacket y VerificationReport.",
+                    "Completar persistencia previa al reporte: episodio, señal, cristal y safety.",
                     "Ejecutar python triade_digimon.py doctor para verificar conteos de persistencia.",
                 ]
             )
