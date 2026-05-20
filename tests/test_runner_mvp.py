@@ -32,6 +32,10 @@ def test_runner_creates_auditable_run(tmp_path: Path) -> None:
     integrity = json.loads((run_path / "integrity.json").read_text(encoding="utf-8"))
     assert integrity["closed"] is True
     assert integrity["episode_id"] is not None
+    assert integrity["signal_id"] is not None
+    assert integrity["crystal_id"] is not None
+    assert integrity["safety_id"] is not None
+    assert integrity["verification_report_id"] is not None
     assert db_path.exists()
 
 
@@ -43,3 +47,21 @@ def test_recall_returns_recent_episode(tmp_path: Path) -> None:
 
     assert recalled["count"] >= 1
     assert "episodes" in recalled
+
+
+def test_doctor_reports_full_persistence_counts(tmp_path: Path) -> None:
+    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db")
+    runner.run("Doctor debe detectar persistencia completa")
+
+    report = runner.doctor()
+
+    assert report["status"] == "ok"
+    assert report["db_exists"] is True
+    assert report["schema_exists"] is True
+    assert report["runs_dir_exists"] is True
+    assert report["counts"]["runs"] >= 1
+    assert report["counts"]["episodes"] >= 1
+    assert report["counts"]["signals"] >= 1
+    assert report["counts"]["crystals"] >= 1
+    assert report["counts"]["safety_events"] >= 1
+    assert report["counts"]["verification_reports"] >= 1
