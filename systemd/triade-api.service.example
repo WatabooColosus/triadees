@@ -1,0 +1,37 @@
+# Tríade Ω API · systemd service example
+#
+# Instalación sugerida:
+# sudo cp systemd/triade-api.service.example /etc/systemd/system/triade-api.service
+# sudo nano /etc/systemd/system/triade-api.service
+# sudo systemctl daemon-reload
+# sudo systemctl enable triade-api
+# sudo systemctl start triade-api
+# sudo systemctl status triade-api
+
+[Unit]
+Description=Tríade Omega Local API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=santiago
+Group=santiago
+WorkingDirectory=/home/santiago/triadees
+Environment="PATH=/home/santiago/triadees/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="TRIADE_API_KEY=cambia-esta-clave-local"
+Environment="TRIADE_CORS_ORIGINS=http://127.0.0.1:5678,http://localhost:5678,http://192.168.0.126:5678"
+ExecStart=/home/santiago/triadees/.venv/bin/python /home/santiago/triadees/triade_digimon.py api --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGINT
+
+# Seguridad básica local. Ajustar si alguna integración lo requiere.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/home/santiago/triadees
+
+[Install]
+WantedBy=multi-user.target
