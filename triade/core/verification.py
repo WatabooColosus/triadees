@@ -17,6 +17,7 @@ class Verifier:
         safety_score = 0.9
         memory_score = 0.55
         traceability_score = 0.80
+        usefulness_score = 0.70
 
         if safety.status in {"approved_with_warning", "requires_human_approval"}:
             warnings.append(safety.reason)
@@ -48,18 +49,36 @@ class Verifier:
         if full_pre_report_persistence:
             memory_score = 0.90
             traceability_score = 0.95
-            recommendations.extend(
-                [
-                    "Conectar adaptador Ollama para respuestas generadas por modelo local.",
-                    "Agregar configuración de modelos por rol: Hipotálamo y Central.",
-                    "Registrar el modelo usado en cada run dentro de SQLite.",
-                ]
-            )
         else:
             recommendations.extend(
                 [
                     "Completar persistencia previa al reporte: episodio, señal, cristal y safety.",
                     "Ejecutar python triade_digimon.py doctor para verificar conteos de persistencia.",
+                ]
+            )
+
+        if output.model_provider == "ollama" and output.model_ok:
+            usefulness_score = 0.80
+            recommendations.extend(
+                [
+                    "Conectar modelo de Hipotálamo para producir señales con modelo local.",
+                    "Agregar selección de modelo por CLI para Hipotálamo y Central.",
+                    "Mejorar prompts por rol y registrar métricas de calidad del modelo.",
+                ]
+            )
+        elif output.model_provider == "ollama" and not output.model_ok:
+            warnings.append("Ollama fue solicitado pero no generó respuesta; se usó fallback por plantilla.")
+            recommendations.extend(
+                [
+                    "Verificar que Ollama esté corriendo en http://127.0.0.1:11434.",
+                    "Ejecutar ollama list y confirmar que el modelo configurado existe.",
+                ]
+            )
+        else:
+            recommendations.extend(
+                [
+                    "Ejecutar sin --no-ollama para validar respuesta con modelo local.",
+                    "Usar python triade_digimon.py doctor para revisar estado de Ollama.",
                 ]
             )
 
@@ -69,7 +88,7 @@ class Verifier:
             coherence_score=0.75,
             memory_score=memory_score,
             safety_score=safety_score,
-            usefulness_score=0.70,
+            usefulness_score=usefulness_score,
             traceability_score=traceability_score,
             errors=errors,
             warnings=warnings,
