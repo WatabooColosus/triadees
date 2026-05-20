@@ -28,6 +28,11 @@ class Verifier:
             safety_score = 0.2
 
         memory_stored = bool(output.memory_diff.get("stored"))
+        full_persistence = all(
+            output.memory_diff.get(key) is not None
+            for key in ["signal_id", "crystal_id", "safety_id", "verification_report_id"]
+        )
+
         if memory_stored:
             memory_score = 0.80
             traceability_score = 0.90
@@ -35,13 +40,23 @@ class Verifier:
             warnings.append("El episodio no fue persistido en memoria SQLite.")
             recommendations.append("Revisar Bodega.store_episode y la ruta de triade.db.")
 
-        recommendations.extend(
-            [
-                "Persistir SignalPacket, CrystalPacket, SafetyPacket y VerificationReport en SQLite.",
-                "Agregar comando doctor para diagnóstico local.",
-                "Conectar adaptador Ollama para respuestas generadas por modelo local.",
-            ]
-        )
+        if full_persistence:
+            memory_score = 0.90
+            traceability_score = 0.95
+            recommendations.extend(
+                [
+                    "Conectar adaptador Ollama para respuestas generadas por modelo local.",
+                    "Agregar configuración de modelos por rol: Hipotálamo y Central.",
+                    "Registrar el modelo usado en cada run dentro de SQLite.",
+                ]
+            )
+        else:
+            recommendations.extend(
+                [
+                    "Completar persistencia de SignalPacket, CrystalPacket, SafetyPacket y VerificationReport.",
+                    "Ejecutar python triade_digimon.py doctor para verificar conteos de persistencia.",
+                ]
+            )
 
         return VerificationReport(
             run_id=output.run_id,
