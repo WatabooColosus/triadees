@@ -1,13 +1,13 @@
 [Unit]
-Description=Tríade Omega Local Chat UI
-After=network.target triade-api.service
-Wants=triade-api.service
+Description=Tríade Omega Single Port App
+After=network.target ollama.service
+Wants=ollama.service
 
 [Service]
 Type=simple
 User=santiago
 WorkingDirectory=/home/santiago/triadees
-ExecStart=/home/santiago/triadees/.venv/bin/python -m uvicorn apps.chat_ui_app:app --host 127.0.0.1 --port 8010
+ExecStart=/home/santiago/triadees/.venv/bin/python -m uvicorn apps.single_port_app:app --host 127.0.0.1 --port 8010
 Restart=always
 RestartSec=5
 Environment="PYTHONUNBUFFERED=1"
