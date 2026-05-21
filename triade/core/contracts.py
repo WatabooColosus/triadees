@@ -81,6 +81,12 @@ class CrystalPacket:
     depth: float = 0.6
     creativity: float = 0.5
     relation: float = 0.7
+    pv7_score: float = 0.5
+    stability: float = 0.5
+    intensity: float = 0.5
+    q_crystal: float = 0.0
+    ethics_vector: dict[str, float] = field(default_factory=dict)
+    regulation_notes: list[str] = field(default_factory=list)
     decision_notes: list[str] = field(default_factory=list)
     timestamp: str = field(default_factory=utc_now)
 
