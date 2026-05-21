@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 
+from triade.core.alignment import CoreAlignment
 from triade.core.neuron_creator import NeuronCreator
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.neuron_trainer import NeuronTrainer
@@ -127,6 +128,9 @@ def main() -> None:
     doctor_parser = subparsers.add_parser("doctor", help="Diagnostica instalación local de Tríade")
     add_common_args(doctor_parser)
 
+    align_parser = subparsers.add_parser("align", help="Audita alineación teórica de órganos internos")
+    align_parser.add_argument("--artifacts", nargs="*", default=None, help="Lista opcional de artefactos de un run")
+
     api_parser = subparsers.add_parser("api", help="Levanta API local FastAPI")
     api_parser.add_argument("--host", default="127.0.0.1", help="Host de escucha")
     api_parser.add_argument("--port", type=int, default=8000, help="Puerto de escucha")
@@ -215,6 +219,14 @@ def main() -> None:
         runner = make_runner(args)
         result = runner.doctor()
         print_json(result)
+        return
+
+    if args.command == "align":
+        alignment = CoreAlignment()
+        payload = alignment.evaluate_static_core()
+        if args.artifacts is not None:
+            payload["artifacts"] = alignment.evaluate_run_artifacts(args.artifacts)
+        print_json(payload)
         return
 
     if args.command == "api":
