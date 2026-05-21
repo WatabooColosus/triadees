@@ -10,6 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from triade import __version__
+from triade.core.neuron_creator import NeuronCreator
+from triade.core.neuron_registry import NeuronRegistry
+from triade.core.neuron_trainer import NeuronTrainer
 from triade.core.runner import TriadeRunner
 
 API_KEY_ENV = "TRIADE_API_KEY"
@@ -45,6 +48,14 @@ class RunRequest(BaseModel):
     use_ollama: bool = Field(default=True, description="Usar Ollama si está disponible")
     hypothalamus_model: str | None = Field(default=None, description="Modelo de Hipotálamo")
     central_model: str | None = Field(default=None, description="Modelo de Central")
+
+
+class NeuronCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, description="Nombre de la neurona")
+    mission: str = Field(..., min_length=1, description="Misión de la neurona")
+    domain: str = Field(default="general", description="Dominio operativo")
+    rules: list[str] = Field(default_factory=list, description="Reglas operativas")
+    db_path: str = Field(default="triade/memory/triade.db", description="Ruta SQLite")
 
 
 class RecallResponse(BaseModel):
@@ -125,3 +136,43 @@ def triade_recall(query: str = "", limit: int = 10) -> dict[str, Any]:
 def triade_doctor(use_ollama: bool = True) -> dict[str, Any]:
     runner = build_runner(use_ollama=use_ollama)
     return runner.doctor()
+
+
+@app.get("/triade/neurons", dependencies=[Depends(require_api_key)])
+def triade_neuron_list(limit: int = 20, db_path: str = "triade/memory/triade.db") -> dict[str, Any]:
+    registry = NeuronRegistry(db_path=db_path)
+    neurons = registry.list_neurons(limit=limit)
+    return {"status": "ok", "count": len(neurons), "neurons": neurons}
+
+
+@app.get("/triade/neurons/{name}", dependencies=[Depends(require_api_key)])
+def triade_neuron_show(name: str, limit: int = 10, db_path: str = "triade/memory/triade.db") -> dict[str, Any]:
+    registry = NeuronRegistry(db_path=db_path)
+    neuron = registry.get_neuron(name)
+    if neuron is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Neurona no encontrada.")
+    training = registry.list_training(neuron_id=int(neuron["id"]), limit=limit)
+    return {"status": "ok", "neuron": neuron, "training": training}
+
+
+@app.post("/triade/neurons", dependencies=[Depends(require_api_key)])
+def triade_neuron_create(request: NeuronCreateRequest) -> dict[str, Any]:
+    creator = NeuronCreator()
+    trainer = NeuronTrainer()
+    registry = NeuronRegistry(db_path=request.db_path)
+    spec = creator.create(
+        name=request.name,
+        mission=request.mission,
+        domain=request.domain,
+        rules=request.rules,
+    )
+    result = trainer.evaluate(spec)
+    neuron_id = registry.register(spec)
+    training_id = registry.store_training(neuron_id, result)
+    return {
+        "status": "ok",
+        "neuron_id": neuron_id,
+        "training_id": training_id,
+        "spec": spec.to_dict(),
+        "training": result.to_dict(),
+    }
