@@ -1,0 +1,50 @@
+{
+  "name": "Triade Neuron Create",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "triade-neurons-create",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-neuron-create",
+      "name": "Webhook · Crear Neurona",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/triade/neurons",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Content-Type", "value": "application/json"},
+            {"name": "X-TRIADE-API-Key", "value": "REEMPLAZA_TU_API_KEY_AQUI"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"name\": {{$json.body.name ? JSON.stringify($json.body.name) : JSON.stringify('Neurona n8n')}},\n  \"mission\": {{$json.body.mission ? JSON.stringify($json.body.mission) : JSON.stringify('Crear una neurona desde n8n para validar automatización interna de Tríade.')}},\n  \"domain\": {{$json.body.domain ? JSON.stringify($json.body.domain) : JSON.stringify('n8n')}},\n  \"rules\": {{$json.body.rules ? JSON.stringify($json.body.rules) : JSON.stringify(['Debe registrar evidencia.', 'Debe ser verificable.'])}}\n}",
+        "options": {}
+      },
+      "id": "http-neuron-create",
+      "name": "HTTP · Crear Neurona",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [300, 0]
+    }
+  ],
+  "connections": {
+    "Webhook · Crear Neurona": {
+      "main": [[{"node": "HTTP · Crear Neurona", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1"},
+  "pinData": {},
+  "versionId": "triade-neuron-create-1-2e",
+  "meta": {"templateCredsSetupCompleted": true},
+  "tags": [{"name": "triade"}, {"name": "neurons"}]
+}
