@@ -1,14 +1,15 @@
-"""Model Router · selección de modelos por rol y tarea.
+"""Model Router · selección de modelos por rol, tarea y hardware.
 
-Fase 1.6: recomienda modelos Ollama disponibles sin modificar todavía
-el ciclo principal. Sirve como órgano de decisión para Hipotálamo, Central,
-Creadora, Formadora, código, embeddings y modo rápido.
+Fase 1.7B: recomienda modelos Ollama disponibles considerando rol,
+intención, urgencia y capacidad del sistema.
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from typing import Any
+
+from .hardware_profile import HardwareProfile
 
 
 @dataclass(slots=True)
@@ -19,13 +20,15 @@ class ModelRouteDecision:
     reason: str = ""
     fallback_used: bool = False
     candidates: list[str] = field(default_factory=list)
+    hardware_tier: str = "unknown"
+    rejected_by_hardware: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 class ModelRouter:
-    """Recomienda modelos por rol según disponibilidad e intención."""
+    """Recomienda modelos por rol según disponibilidad, intención y hardware."""
 
     DEFAULTS = {
         "hypothalamus": ["qwen2.5:3b-instruct", "qwen3:1.7b", "qwen3:4b"],
@@ -38,8 +41,21 @@ class ModelRouter:
         "deep": ["llama3.1:8b", "llama3:latest", "qwen3:4b", "qwen2.5:3b-instruct"],
     }
 
-    def __init__(self, available_models: list[str] | None = None) -> None:
+    MODEL_RAM_GB = {
+        "qwen3:1.7b": 2.5,
+        "qwen2.5-coder:1.5b-base": 2.5,
+        "qwen2.5:3b-instruct": 4.0,
+        "qwen2.5-coder:3b": 4.0,
+        "qwen3:4b": 5.5,
+        "llama3:latest": 7.0,
+        "llama3.1:8b": 8.5,
+        "nomic-embed-text:latest": 1.0,
+        "qwen3-embedding:0.6b": 1.0,
+    }
+
+    def __init__(self, available_models: list[str] | None = None, hardware: HardwareProfile | None = None) -> None:
         self.available_models = available_models or []
+        self.hardware = hardware
 
     def route(
         self,
@@ -51,24 +67,31 @@ class ModelRouter:
     ) -> ModelRouteDecision:
         normalized_role = self._normalize_role(role, intent, prefer_speed, prefer_depth)
         candidates = self.DEFAULTS.get(normalized_role, self.DEFAULTS["central"])
-        selected = self._first_available(candidates)
+        hardware_candidates, rejected = self._filter_by_hardware(candidates)
+        selected = self._first_available(hardware_candidates)
+        hardware_tier = self.hardware.tier if self.hardware else "unknown"
 
         if selected:
             return ModelRouteDecision(
                 role=normalized_role,
                 selected_model=selected,
-                reason=self._reason(normalized_role, selected, urgency, prefer_speed, prefer_depth),
+                reason=self._reason(normalized_role, selected, urgency, prefer_speed, prefer_depth, hardware_tier),
                 fallback_used=False,
-                candidates=candidates,
+                candidates=hardware_candidates,
+                hardware_tier=hardware_tier,
+                rejected_by_hardware=rejected,
             )
 
-        fallback = candidates[-1] if candidates else "qwen2.5:3b-instruct"
+        fallback_pool = hardware_candidates or candidates
+        fallback = fallback_pool[-1] if fallback_pool else "qwen2.5:3b-instruct"
         return ModelRouteDecision(
             role=normalized_role,
             selected_model=fallback,
-            reason="No se encontró candidato instalado; se recomienda fallback configurado.",
+            reason="No se encontró candidato instalado compatible; se recomienda fallback configurado.",
             fallback_used=True,
-            candidates=candidates,
+            candidates=hardware_candidates,
+            hardware_tier=hardware_tier,
+            rejected_by_hardware=rejected,
         )
 
     def route_many(self, intent: str = "conversation", urgency: str = "medium") -> dict[str, Any]:
@@ -77,6 +100,7 @@ class ModelRouter:
         roles = ["hypothalamus", "central", "creator", "trainer", "coder", "embedding", "fast", "deep"]
         return {
             "available_models": self.available_models,
+            "hardware": self.hardware.to_dict() if self.hardware else None,
             "intent": intent,
             "urgency": urgency,
             "decisions": {
@@ -84,6 +108,34 @@ class ModelRouter:
                 for role in roles
             },
         }
+
+    def _filter_by_hardware(self, candidates: list[str]) -> tuple[list[str], list[str]]:
+        if self.hardware is None:
+            return candidates, []
+        allowed: list[str] = []
+        rejected: list[str] = []
+        for model in candidates:
+            if self._model_fits(model):
+                allowed.append(model)
+            else:
+                rejected.append(model)
+        return allowed or candidates[-2:], rejected
+
+    def _model_fits(self, model: str) -> bool:
+        if self.hardware is None:
+            return True
+        required = self.MODEL_RAM_GB.get(model, 4.0)
+        available = self.hardware.ram_available_gb
+        tier = self.hardware.tier
+        if model in {"nomic-embed-text:latest", "qwen3-embedding:0.6b"}:
+            return True
+        if tier == "low":
+            return required <= 4.0 and available >= 2.0
+        if tier == "medium":
+            return required <= 8.5 and available >= min(required, 5.0)
+        if tier == "high":
+            return available >= min(required, 6.0)
+        return available == 0.0 or available >= required
 
     def _first_available(self, candidates: list[str]) -> str | None:
         installed = set(self.available_models)
@@ -118,13 +170,14 @@ class ModelRouter:
         return clean if clean in ModelRouter.DEFAULTS else "central"
 
     @staticmethod
-    def _reason(role: str, model: str, urgency: str, prefer_speed: bool, prefer_depth: bool) -> str:
+    def _reason(role: str, model: str, urgency: str, prefer_speed: bool, prefer_depth: bool, hardware_tier: str) -> str:
+        hw = f" Perfil hardware={hardware_tier}."
         if role == "fast" or prefer_speed:
-            return f"Seleccionado {model} por prioridad de velocidad/urgencia {urgency}."
+            return f"Seleccionado {model} por prioridad de velocidad/urgencia {urgency}.{hw}"
         if role == "deep" or prefer_depth:
-            return f"Seleccionado {model} por prioridad de profundidad analítica."
+            return f"Seleccionado {model} por prioridad de profundidad analítica compatible con el sistema.{hw}"
         if role == "coder":
-            return f"Seleccionado {model} por tarea relacionada con código."
+            return f"Seleccionado {model} por tarea relacionada con código.{hw}"
         if role == "embedding":
-            return f"Seleccionado {model} para memoria semántica o embeddings."
-        return f"Seleccionado {model} como mejor candidato disponible para rol {role}."
+            return f"Seleccionado {model} para memoria semántica o embeddings.{hw}"
+        return f"Seleccionado {model} como mejor candidato disponible para rol {role}.{hw}"
