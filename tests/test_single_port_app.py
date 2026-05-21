@@ -42,3 +42,15 @@ def test_single_port_router_doctor() -> None:
     assert "hardware" in payload
     assert "router" in payload
     assert "decisions" in payload["router"]
+
+
+def test_single_port_model_compatibility() -> None:
+    response = client.get("/api/models/compatibility")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["mode"] == "single-port"
+    assert "matrix" in payload
+    assert "models" in payload["matrix"]
+    assert "counts" in payload["matrix"]
