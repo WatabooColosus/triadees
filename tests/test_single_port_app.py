@@ -56,6 +56,18 @@ def test_single_port_model_compatibility() -> None:
     assert "counts" in payload["matrix"]
 
 
+def test_single_port_model_install_queue() -> None:
+    response = client.get("/api/models/install-queue")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["mode"] == "install-queue"
+    assert "policy" in payload
+    assert payload["policy"]["auto_install"] is False
+    assert "candidates" in payload
+
+
 def test_single_port_run_accepts_auto_select_models() -> None:
     response = client.post(
         "/api/run",
