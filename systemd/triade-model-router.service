@@ -1,0 +1,16 @@
+[Unit]
+Description=Tríade Omega Model Router API
+After=network.target ollama.service
+Wants=ollama.service
+
+[Service]
+Type=simple
+User=santiago
+WorkingDirectory=/home/santiago/triadees
+ExecStart=/home/santiago/triadees/.venv/bin/python -m uvicorn apps.model_router_api:app --host 127.0.0.1 --port 8020
+Restart=always
+RestartSec=5
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target
