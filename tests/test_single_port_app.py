@@ -54,3 +54,21 @@ def test_single_port_model_compatibility() -> None:
     assert "matrix" in payload
     assert "models" in payload["matrix"]
     assert "counts" in payload["matrix"]
+
+
+def test_single_port_run_accepts_auto_select_models() -> None:
+    response = client.post(
+        "/api/run",
+        json={
+            "text": "Prueba auto selección desde single port",
+            "use_ollama": False,
+            "hypothalamus_model": "",
+            "central_model": "",
+            "auto_select_models": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["run_id"]
+    assert "model_selection" in payload
