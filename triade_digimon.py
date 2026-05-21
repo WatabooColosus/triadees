@@ -10,6 +10,8 @@ from triade.core.neuron_creator import NeuronCreator
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.neuron_trainer import NeuronTrainer
 from triade.core.runner import TriadeRunner
+from triade.models.model_router import ModelRouter
+from triade.models.ollama_client import OllamaClient
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -84,6 +86,28 @@ def handle_neuron(args: argparse.Namespace) -> None:
     raise SystemExit("Comando neuron inválido")
 
 
+def handle_models(args: argparse.Namespace) -> None:
+    health = OllamaClient(base_url=args.ollama_url).health()
+    router = ModelRouter(available_models=health.get("models", []))
+
+    if args.models_command == "route":
+        decision = router.route(
+            role=args.role,
+            intent=args.intent,
+            urgency=args.urgency,
+            prefer_speed=args.prefer_speed,
+            prefer_depth=args.prefer_depth,
+        )
+        print_json({"status": "ok", "ollama": health, "decision": decision.to_dict()})
+        return
+
+    if args.models_command == "doctor":
+        print_json({"status": "ok", "ollama": health, "router": router.route_many(intent=args.intent, urgency=args.urgency)})
+        return
+
+    raise SystemExit("Comando models inválido")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Tríade Ω · MVP local auditable con memoria SQLite")
     subparsers = parser.add_subparsers(dest="command")
@@ -124,6 +148,21 @@ def main() -> None:
     neuron_show = neuron_subparsers.add_parser("show", help="Muestra una neurona y su entrenamiento")
     neuron_show.add_argument("name", help="Nombre exacto de la neurona")
     neuron_show.add_argument("--limit", type=int, default=10, help="Cantidad máxima de entrenamientos")
+
+    models_parser = subparsers.add_parser("models", help="Recomienda modelos por rol/tarea")
+    models_parser.add_argument("--ollama-url", default="http://127.0.0.1:11434", help="URL local de Ollama")
+    models_subparsers = models_parser.add_subparsers(dest="models_command")
+
+    models_route = models_subparsers.add_parser("route", help="Recomienda un modelo para un rol")
+    models_route.add_argument("--role", default="central", help="Rol: hypothalamus, central, creator, trainer, coder, embedding, fast, deep")
+    models_route.add_argument("--intent", default="conversation", help="Intención detectada")
+    models_route.add_argument("--urgency", default="medium", help="Urgencia: low, medium, high")
+    models_route.add_argument("--prefer-speed", action="store_true", help="Prioriza velocidad")
+    models_route.add_argument("--prefer-depth", action="store_true", help="Prioriza profundidad")
+
+    models_doctor = models_subparsers.add_parser("doctor", help="Muestra recomendaciones para todos los roles")
+    models_doctor.add_argument("--intent", default="conversation", help="Intención detectada")
+    models_doctor.add_argument("--urgency", default="medium", help="Urgencia: low, medium, high")
 
     args = parser.parse_args()
 
@@ -186,6 +225,10 @@ def main() -> None:
 
     if args.command == "neuron":
         handle_neuron(args)
+        return
+
+    if args.command == "models":
+        handle_models(args)
         return
 
     parser.print_help()
