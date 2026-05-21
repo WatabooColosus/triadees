@@ -103,6 +103,12 @@ CREATE TABLE IF NOT EXISTS crystal_states (
     depth REAL DEFAULT 0.6,
     creativity REAL DEFAULT 0.5,
     relation REAL DEFAULT 0.7,
+    pv7_score REAL DEFAULT 0.5,
+    stability REAL DEFAULT 0.5,
+    intensity REAL DEFAULT 0.5,
+    q_crystal REAL DEFAULT 0.0,
+    ethics_vector TEXT,
+    regulation_notes TEXT,
     decision_notes TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
@@ -227,6 +233,8 @@ CREATE INDEX IF NOT EXISTS idx_neurons_status ON neurons(status);
 CREATE INDEX IF NOT EXISTS idx_verification_reports_run_id ON verification_reports(run_id);
 CREATE INDEX IF NOT EXISTS idx_model_events_run_id ON model_events(run_id);
 CREATE INDEX IF NOT EXISTS idx_model_events_role ON model_events(role);
+CREATE INDEX IF NOT EXISTS idx_crystal_states_run_id ON crystal_states(run_id);
+CREATE INDEX IF NOT EXISTS idx_crystal_states_q_crystal ON crystal_states(q_crystal);
 
 -- Semilla mínima de identidad.
 INSERT OR IGNORE INTO identity_core (key, value, category, confidence)
