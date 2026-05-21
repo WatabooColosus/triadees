@@ -25,6 +25,15 @@ from .contracts import (
 class Bodega:
     """Memoria funcional con persistencia SQLite."""
 
+    CRYSTAL_V2_COLUMNS = {
+        "pv7_score": "REAL DEFAULT 0.5",
+        "stability": "REAL DEFAULT 0.5",
+        "intensity": "REAL DEFAULT 0.5",
+        "q_crystal": "REAL DEFAULT 0.0",
+        "ethics_vector": "TEXT",
+        "regulation_notes": "TEXT",
+    }
+
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
         self.schema_path = Path("triade/memory/schemas.sql")
@@ -42,6 +51,15 @@ class Bodega:
             raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
+            self._migrate_crystal_v2(conn)
+
+    def _migrate_crystal_v2(self, conn: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(crystal_states)").fetchall()}
+        for column, definition in self.CRYSTAL_V2_COLUMNS.items():
+            if column not in columns:
+                conn.execute(f"ALTER TABLE crystal_states ADD COLUMN {column} {definition}")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_crystal_states_run_id ON crystal_states(run_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_crystal_states_q_crystal ON crystal_states(q_crystal)")
 
     def recall(self, packet: InputPacket) -> MemoryPacket:
         """Recupera identidad y memoria simple relacionada con la entrada."""
@@ -130,8 +148,10 @@ class Bodega:
         with self._connect() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO crystal_states (run_id, ethics, depth, creativity, relation, decision_notes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO crystal_states
+                (run_id, ethics, depth, creativity, relation, pv7_score, stability, intensity,
+                 q_crystal, ethics_vector, regulation_notes, decision_notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     crystal.run_id,
@@ -139,6 +159,12 @@ class Bodega:
                     crystal.depth,
                     crystal.creativity,
                     crystal.relation,
+                    crystal.pv7_score,
+                    crystal.stability,
+                    crystal.intensity,
+                    crystal.q_crystal,
+                    json.dumps(crystal.ethics_vector, ensure_ascii=False),
+                    json.dumps(crystal.regulation_notes, ensure_ascii=False),
                     json.dumps(crystal.decision_notes, ensure_ascii=False),
                     crystal.timestamp,
                 ),
@@ -276,6 +302,15 @@ class Bodega:
                 ORDER BY c DESC
                 """
             ).fetchall()
+            crystal_quality = conn.execute(
+                """
+                SELECT AVG(q_crystal) AS avg_q_crystal,
+                       AVG(stability) AS avg_stability,
+                       AVG(intensity) AS avg_intensity,
+                       AVG(pv7_score) AS avg_pv7_score
+                FROM crystal_states
+                """
+            ).fetchone()
 
         return {
             "status": "ok",
@@ -295,6 +330,7 @@ class Bodega:
                 "verification_reports": verification_count,
                 "model_events": model_event_count,
             },
+            "crystal_quality": dict(crystal_quality) if crystal_quality else {},
             "model_usage": [dict(row) for row in model_rows],
             "model_events": [dict(row) for row in model_event_rows],
         }
