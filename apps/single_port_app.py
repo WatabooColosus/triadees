@@ -21,7 +21,7 @@ from triade.models.model_install_queue import ModelInstallQueue
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
 
-app = FastAPI(title="Tríade Ω Single Port", version="0.7.0")
+app = FastAPI(title="Tríade Ω Single Port", version="0.8.0")
 
 
 class RunRequest(BaseModel):
@@ -32,6 +32,11 @@ class RunRequest(BaseModel):
     central_model: str | None = None
     auto_select_models: bool = True
     context: dict[str, Any] = Field(default_factory=dict)
+    semantic_recall_enabled: bool = False
+    semantic_model: str | None = None
+    semantic_limit: int = Field(default=3, ge=1, le=20)
+    semantic_min_similarity: float = Field(default=0.55, ge=-1.0, le=1.0)
+    semantic_domain: str | None = None
 
 
 class RouterRequest(BaseModel):
@@ -82,13 +87,7 @@ def system_payload() -> tuple[object, dict[str, Any]]:
 def router_payload(intent: str = "conversation", urgency: str = "medium") -> dict[str, Any]:
     hardware, ollama = system_payload()
     router = ModelRouter(available_models=ollama.get("models", []), hardware=hardware)
-    return {
-        "status": "ok",
-        "mode": "single-port",
-        "hardware": hardware.to_dict(),
-        "ollama": ollama,
-        "router": router.route_many(intent=intent, urgency=urgency),
-    }
+    return {"status": "ok", "mode": "single-port", "hardware": hardware.to_dict(), "ollama": ollama, "router": router.route_many(intent=intent, urgency=urgency)}
 
 
 @app.get("/health")
@@ -97,14 +96,9 @@ def health() -> dict[str, Any]:
     runner = TriadeRunner(use_ollama=False)
     hardware, ollama = system_payload()
     return {
-        "status": "ok",
-        "entity": "Tríade Ω",
-        "mode": "single-port",
-        "port": 8010,
+        "status": "ok", "entity": "Tríade Ω", "mode": "single-port", "port": 8010,
         "security": {"api_key_required": bool(os.getenv("TRIADE_API_KEY"))},
-        "hardware": hardware.to_dict(),
-        "ollama": ollama,
-        "doctor": runner.doctor(),
+        "hardware": hardware.to_dict(), "ollama": ollama, "doctor": runner.doctor(),
     }
 
 
@@ -133,44 +127,21 @@ def semantic_doctor() -> dict[str, Any]:
 
 
 @app.post("/api/semantic/ingest-and-embed")
-def semantic_ingest_and_embed(
-    request: SemanticIngestRequest,
-    x_triade_api_key: str | None = Header(default=None),
-) -> dict[str, Any]:
+def semantic_ingest_and_embed(request: SemanticIngestRequest, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
     require_key(x_triade_api_key)
-    return SemanticEmbeddingEngine().ingest_and_embed(
-        content=request.content,
-        domain=request.domain,
-        source_type=request.source_type,
-        source_ref=request.source_ref,
-        metadata=request.metadata,
-        model=clean_model(request.model),
-    )
+    return SemanticEmbeddingEngine().ingest_and_embed(content=request.content, domain=request.domain, source_type=request.source_type, source_ref=request.source_ref, metadata=request.metadata, model=clean_model(request.model))
 
 
 @app.post("/api/semantic/documents/{document_id}/embed")
-def semantic_embed_document(
-    document_id: str,
-    request: SemanticEmbedRequest,
-    x_triade_api_key: str | None = Header(default=None),
-) -> dict[str, Any]:
+def semantic_embed_document(document_id: str, request: SemanticEmbedRequest, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
     require_key(x_triade_api_key)
     return SemanticEmbeddingEngine().embed_document(document_id, model=clean_model(request.model)).to_dict()
 
 
 @app.post("/api/semantic/search")
-def semantic_search(
-    request: SemanticSearchRequest,
-    x_triade_api_key: str | None = Header(default=None),
-) -> dict[str, Any]:
+def semantic_search(request: SemanticSearchRequest, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
     require_key(x_triade_api_key)
-    return SemanticSearchEngine().search(
-        query=request.query,
-        model=clean_model(request.model),
-        limit=request.limit,
-        min_similarity=request.min_similarity,
-        domain=request.domain,
-    )
+    return SemanticSearchEngine().search(query=request.query, model=clean_model(request.model), limit=request.limit, min_similarity=request.min_similarity, domain=request.domain)
 
 
 @app.post("/api/run")
@@ -183,7 +154,16 @@ def run_triade(request: RunRequest, x_triade_api_key: str | None = Header(defaul
         central_model=clean_model(request.central_model),
         auto_select_models=request.auto_select_models,
     )
-    return runner.run(request.text, source=request.source, context=request.context)
+    return runner.run(
+        request.text,
+        source=request.source,
+        context=request.context,
+        semantic_recall_enabled=request.semantic_recall_enabled,
+        semantic_model=clean_model(request.semantic_model),
+        semantic_limit=request.semantic_limit,
+        semantic_min_similarity=request.semantic_min_similarity,
+        semantic_domain=request.semantic_domain,
+    )
 
 
 HTML = """
@@ -207,7 +187,7 @@ async function compat(){try{let r=await fetch('/api/models/compatibility');let j
 async function installQueue(){try{let r=await fetch('/api/models/install-queue?include_allowed=false');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.summary,count:j.count,policy:j.policy,candidates:j.candidates},null,2);status('Cola OK',true)}catch(e){status('Cola falló: '+e.message)}}
 async function semanticDoctor(){try{let r=await fetch('/api/semantic/doctor');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify(j,null,2);status('Memoria semántica consultada',true)}catch(e){status('Memoria semántica falló: '+e.message)}}
 function apply(){if(!lastRouter){status('Consulta router primero');return}let d=lastRouter.router.decisions;if(d.hypothalamus?.selected_model)$('hyp').value=d.hypothalamus.selected_model;if(d.central?.selected_model)$('cen').value=d.central.selected_model;$('ollama').checked=true;$('auto').checked=false;save();status('Recomendados aplicados manualmente',true)}
-async function send(){save();let text=$('msg').value.trim();if(!text)return;$('msg').value='';add('user',text);status('Procesando...');try{let r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-TRIADE-API-Key':$('key').value},body:JSON.stringify({text,source:'single-port-ui',use_ollama:$('ollama').checked,hypothalamus_model:$('hyp').value,central_model:$('cen').value,auto_select_models:$('auto').checked,context:context()})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);let t=j.crystal_temporal_state||{};add('bot',j.response,[j.run_id,'Q '+t.status,'scope '+t.context_scope,'ctx '+t.context_key,'H '+j.models?.hypothalamus?.name,'C '+j.models?.central?.name].filter(Boolean).join(' · '));status('Respuesta recibida',true)}catch(e){add('bot','Error: '+e.message);status('Error')}}function clearChat(){$('chat').innerHTML=''}function keysend(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send()}load();add('bot','Tríade Ω lista. Define proyecto o neurona para que el Cristal compare contextos equivalentes.');
+async function send(){save();let text=$('msg').value.trim();if(!text)return;$('msg').value='';add('user',text);status('Procesando...');try{let r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-TRIADE-API-Key':$('key').value},body:JSON.stringify({text,source:'single-port-ui',use_ollama:$('ollama').checked,hypothalamus_model:$('hyp').value,central_model:$('cen').value,auto_select_models:$('auto').checked,context:context()})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);let t=j.crystal_temporal_state||{};add('bot',j.response,[j.run_id,'Q '+t.status,'scope '+t.context_scope,'ctx '+t.context_key,'H '+j.models?.hypothalamus?.name,'C '+j.models?.central?.name].filter(Boolean).join(' · '));status('Respuesta recibida',true)}catch(e){add('bot','Error: '+e.message);status('Error')}}function clearChat(){$('chat').innerHTML=''}function keysend(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send()}load();add('bot','Tríade Ω lista. La API permite activar semantic_recall para validar recuerdos vectoriales dentro del run.');
 </script></body></html>
 """
 
