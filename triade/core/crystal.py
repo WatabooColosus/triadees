@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from statistics import mean
+from typing import Any
 
 from .contracts import CrystalPacket, MemoryPacket, SignalPacket
 
@@ -10,17 +11,17 @@ from .contracts import CrystalPacket, MemoryPacket, SignalPacket
 class Crystal:
     """Regulador de ética, profundidad, creatividad, relación y Q_cristal.
 
-    Fase 1.8C: Q_cristal usa una aproximación operativa más cercana a la
-    fórmula teórica oficial:
-
-    S_rel(t) = α·S^H(t) + β·S^T(t)
-    Q_cristal(t) = ((S_rel(t) + C'(t)) / I'(t)) ^ R'(t) · Φ(M,t)
-
-    La fórmula se mantiene normalizada en [0, 1] para uso práctico dentro
-    del ciclo cognitivo.
+    Fase 1.8D: Q_cristal conserva fórmula relacional operativa y compara el
+    estado presente contra una ventana histórica de cristales persistidos.
     """
 
-    def regulate(self, signals: SignalPacket, memory: MemoryPacket) -> CrystalPacket:
+    def regulate(
+        self,
+        signals: SignalPacket,
+        memory: MemoryPacket,
+        history: list[dict[str, Any]] | None = None,
+    ) -> CrystalPacket:
+        history = history or []
         pv7_score = self.pv7_score(signals)
         intensity = self.intensity(signals)
         stability = self.stability(signals, memory, pv7_score)
@@ -31,7 +32,7 @@ class Crystal:
         relation = self._clamp(0.55 + pv7_score * 0.20 + memory.confidence * 0.10)
 
         regulation_notes: list[str] = [
-            "Cristal v2 1.8C aplicado.",
+            "Cristal v2 1.8D aplicado.",
             "Q_cristal calculado con fórmula relacional operativa.",
         ]
 
@@ -56,10 +57,15 @@ class Crystal:
             risk=signals.risk,
         )
         q_crystal = q_payload["q_crystal"]
+        temporal = self.temporal_state(q_crystal=q_crystal, stability=stability, history=history)
+        regulation_notes.extend(temporal["alerts"])
+
         ethics_vector = self.ethics_vector(signals, pv7_score, stability, intensity)
         ethics_vector["q_crystal"] = q_crystal
         ethics_vector["s_rel"] = q_payload["s_rel"]
         ethics_vector["phi_memory"] = q_payload["phi_memory"]
+        ethics_vector["q_delta"] = temporal["q_delta"]
+        ethics_vector["stability_delta"] = temporal["stability_delta"]
 
         decision_notes = [
             *regulation_notes,
@@ -71,6 +77,10 @@ class Crystal:
             f"i_prime={q_payload['i_prime']}",
             f"r_prime={q_payload['r_prime']}",
             f"phi_memory={q_payload['phi_memory']}",
+            f"temporal_status={temporal['status']}",
+            f"q_delta={temporal['q_delta']}",
+            f"stability_delta={temporal['stability_delta']}",
+            f"history_window={temporal['history_window']}",
         ]
 
         return CrystalPacket(
@@ -86,6 +96,13 @@ class Crystal:
             ethics_vector=ethics_vector,
             regulation_notes=regulation_notes,
             decision_notes=decision_notes,
+            previous_q_crystal=temporal["previous_q_crystal"],
+            previous_stability=temporal["previous_stability"],
+            q_delta=temporal["q_delta"],
+            stability_delta=temporal["stability_delta"],
+            temporal_status=temporal["status"],
+            temporal_alerts=temporal["alerts"],
+            history_window=temporal["history_window"],
         )
 
     @staticmethod
@@ -122,7 +139,6 @@ class Crystal:
         intensity: float,
         memory_confidence: float,
     ) -> float:
-        """Compatibilidad hacia atrás: retorna solo el valor Q."""
         return cls.q_crystal_payload(
             ethics=ethics,
             depth=depth,
@@ -148,13 +164,6 @@ class Crystal:
         memory_confidence: float,
         risk: str,
     ) -> dict[str, float]:
-        """Fórmula relacional operativa de Q_cristal.
-
-        S^H aproxima señal afectivo-ética del Hipotálamo.
-        S^T aproxima señal técnica/central desde coherencia y profundidad.
-        I' penaliza intensidad y riesgo. R' eleva o estabiliza según estabilidad.
-        Φ(M,t) pondera continuidad de memoria.
-        """
         risk_pressure = {"low": 0.10, "medium": 0.35, "high": 0.70, "critical": 1.0}.get(risk, 0.35)
         s_h = cls._clamp((pv7_score * 0.48) + ((1.0 - intensity) * 0.30) + ((1.0 - risk_pressure) * 0.22))
         s_t = cls._clamp((ethics * 0.28) + (depth * 0.24) + (relation * 0.20) + (stability * 0.18) + (creativity * 0.10))
@@ -178,6 +187,55 @@ class Crystal:
             "i_prime": round(i_prime, 3),
             "r_prime": round(r_prime, 3),
             "phi_memory": round(phi_memory, 3),
+        }
+
+    @classmethod
+    def temporal_state(cls, q_crystal: float, stability: float, history: list[dict[str, Any]]) -> dict[str, Any]:
+        if not history:
+            return {
+                "status": "baseline",
+                "previous_q_crystal": None,
+                "previous_stability": None,
+                "q_delta": 0.0,
+                "stability_delta": 0.0,
+                "history_window": 0,
+                "alerts": ["Línea base temporal iniciada; aún no hay historial comparable."],
+            }
+
+        latest = history[0]
+        previous_q = float(latest.get("q_crystal") or 0.0)
+        previous_stability = float(latest.get("stability") or 0.0)
+        q_delta = round(q_crystal - previous_q, 3)
+        stability_delta = round(stability - previous_stability, 3)
+        historic_q = [float(item.get("q_crystal") or 0.0) for item in history]
+        historic_avg = round(mean(historic_q), 3) if historic_q else previous_q
+        alerts: list[str] = []
+
+        if q_crystal < 0.30 or stability < 0.35:
+            status = "critical"
+            alerts.append("Alerta temporal crítica: Q_cristal o estabilidad en umbral bajo.")
+        elif q_delta <= -0.15 or stability_delta <= -0.15:
+            status = "degrading"
+            alerts.append("Alerta temporal: degradación marcada frente al ciclo anterior.")
+        elif q_delta >= 0.10 and stability_delta >= 0.05:
+            status = "improving"
+            alerts.append("Tendencia temporal favorable: Q_cristal y estabilidad mejoran.")
+        else:
+            status = "stable"
+            alerts.append("Continuidad temporal estable dentro de umbrales operativos.")
+
+        if q_crystal < historic_avg - 0.12 and status not in {"critical", "degrading"}:
+            status = "degrading"
+            alerts.append("Q_cristal actual por debajo del promedio histórico reciente.")
+
+        return {
+            "status": status,
+            "previous_q_crystal": round(previous_q, 3),
+            "previous_stability": round(previous_stability, 3),
+            "q_delta": q_delta,
+            "stability_delta": stability_delta,
+            "history_window": len(history),
+            "alerts": alerts,
         }
 
     @staticmethod
