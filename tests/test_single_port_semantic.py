@@ -1,4 +1,4 @@
-"""Tests de endpoints semánticos de la Single Port App 1.9B."""
+"""Tests de endpoints semánticos de la Single Port App 1.9B/1.9C."""
 
 from __future__ import annotations
 
@@ -45,6 +45,25 @@ class FakeSemanticEngine:
         return Event()
 
 
+class FakeSearchEngine:
+    def search(self, **kwargs):
+        return {
+            "status": "ok",
+            "mode": "semantic-similarity-search-1.9C",
+            "query": kwargs["query"],
+            "model": kwargs.get("model") or "nomic-embed-text:latest",
+            "results": [
+                {
+                    "document_id": "sem-crystal",
+                    "similarity": 0.923,
+                    "domain": "crystal",
+                    "content": "El Cristal conserva continuidad contextual.",
+                }
+            ],
+            "runner_integration": "pending_1.9D",
+        }
+
+
 def test_semantic_doctor_endpoint_exposes_engine_status() -> None:
     with patch("apps.single_port_app.SemanticEmbeddingEngine", return_value=FakeSemanticEngine()):
         response = client.get("/api/semantic/doctor")
@@ -86,3 +105,24 @@ def test_embed_existing_document_endpoint_accepts_model() -> None:
     assert payload["document_id"] == "sem-existing"
     assert payload["model"] == "qwen3-embedding:0.6b"
     assert payload["status"] == "stored"
+
+
+def test_semantic_search_endpoint_exposes_ranked_matches() -> None:
+    with patch("apps.single_port_app.SemanticSearchEngine", return_value=FakeSearchEngine()):
+        response = client.post(
+            "/api/semantic/search",
+            json={
+                "query": "regulación de memoria contextual",
+                "model": "nomic-embed-text:latest",
+                "limit": 3,
+                "min_similarity": 0.5,
+                "domain": "crystal",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "semantic-similarity-search-1.9C"
+    assert payload["runner_integration"] == "pending_1.9D"
+    assert payload["results"][0]["document_id"] == "sem-crystal"
+    assert payload["results"][0]["similarity"] == 0.923
