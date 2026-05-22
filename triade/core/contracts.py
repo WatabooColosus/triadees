@@ -95,6 +95,9 @@ class CrystalPacket:
     temporal_status: str = "baseline"
     temporal_alerts: list[str] = field(default_factory=list)
     history_window: int = 0
+    context_scope: str = "source_intent"
+    context_key: str = ""
+    comparison_basis: dict[str, Any] = field(default_factory=dict)
     timestamp: str = field(default_factory=utc_now)
 
     def to_dict(self) -> dict[str, Any]:
