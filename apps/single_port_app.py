@@ -14,13 +14,14 @@ from pydantic import BaseModel, Field
 
 from triade.core.runner import TriadeRunner
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
+from triade.memory.semantic_search import SemanticSearchEngine
 from triade.models.compatibility_matrix import ModelCompatibilityMatrix
 from triade.models.hardware_profile import HardwareProfiler
 from triade.models.model_install_queue import ModelInstallQueue
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
 
-app = FastAPI(title="Tríade Ω Single Port", version="0.6.0")
+app = FastAPI(title="Tríade Ω Single Port", version="0.7.0")
 
 
 class RunRequest(BaseModel):
@@ -49,6 +50,14 @@ class SemanticIngestRequest(BaseModel):
 
 class SemanticEmbedRequest(BaseModel):
     model: str | None = None
+
+
+class SemanticSearchRequest(BaseModel):
+    query: str = Field(..., min_length=1)
+    model: str | None = None
+    limit: int = Field(default=5, ge=1, le=50)
+    min_similarity: float = Field(default=-1.0, ge=-1.0, le=1.0)
+    domain: str | None = None
 
 
 def clean_model(value: str | None) -> str | None:
@@ -149,6 +158,21 @@ def semantic_embed_document(
     return SemanticEmbeddingEngine().embed_document(document_id, model=clean_model(request.model)).to_dict()
 
 
+@app.post("/api/semantic/search")
+def semantic_search(
+    request: SemanticSearchRequest,
+    x_triade_api_key: str | None = Header(default=None),
+) -> dict[str, Any]:
+    require_key(x_triade_api_key)
+    return SemanticSearchEngine().search(
+        query=request.query,
+        model=clean_model(request.model),
+        limit=request.limit,
+        min_similarity=request.min_similarity,
+        domain=request.domain,
+    )
+
+
 @app.post("/api/run")
 @app.post("/triade/run")
 def run_triade(request: RunRequest, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
@@ -168,7 +192,7 @@ HTML = """
 <style>
 body{margin:0;background:#080b10;color:#edf2ff;font-family:Inter,system-ui,sans-serif;padding:18px}.app{max-width:1180px;margin:auto;display:grid;grid-template-columns:350px 1fr;gap:16px}.card{background:#121722;border:1px solid #263246;border-radius:20px}.side{padding:18px;overflow:auto;max-height:calc(100vh - 36px)}.main{height:calc(100vh - 36px);display:flex;flex-direction:column}label{display:block;color:#9aa7bd;font-size:12px;margin:12px 0 6px}input,select,textarea{width:100%;box-sizing:border-box;background:#171f2e;color:#edf2ff;border:1px solid #263246;border-radius:12px;padding:10px}button{width:100%;margin-top:10px;border:0;border-radius:12px;padding:11px;font-weight:800;background:linear-gradient(135deg,#73c7ff,#9bffb1);color:#061018}.secondary{background:#223047;color:#edf2ff;border:1px solid #263246}.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.chat{flex:1;overflow:auto;padding:16px}.msg{padding:13px;border-radius:16px;margin:10px 0;white-space:pre-wrap}.user{background:#1f6feb;margin-left:12%}.bot{background:#171f2e;border:1px solid #263246;margin-right:12%}.meta{font-size:12px;color:#9aa7bd;margin-top:8px}.composer{display:grid;grid-template-columns:1fr 120px;gap:10px;padding:14px;border-top:1px solid #263246}.box{background:#0d121c;border:1px solid #263246;border-radius:12px;padding:10px;margin-top:10px;font-size:12px;white-space:pre-wrap;max-height:260px;overflow:auto}.top{padding:14px;border-bottom:1px solid #263246;color:#9aa7bd}.ok{color:#9bffb1}.hint{font-size:11px;color:#8292ad;margin-top:4px}@media(max-width:850px){.app{grid-template-columns:1fr}.composer{grid-template-columns:1fr}}
 </style></head><body><div class='app'><aside class='card side'>
-<h2>Tríade Ω</h2><p style='color:#9aa7bd'>Single Port App: conversación, modelos y Cristal contextual en 8010.</p>
+<h2>Tríade Ω</h2><p style='color:#9aa7bd'>Single Port App: conversación, modelos, Cristal y memoria semántica en 8010.</p>
 <label>API key</label><input id='key' type='password'/><div class='row'><div><label>Intención router</label><select id='intent'><option>conversation</option><option>analyze</option><option>memory</option><option>build_or_update</option></select></div><div><label>Urgencia</label><select id='urgency'><option>medium</option><option>low</option><option>high</option></select></div></div>
 <label>Hipotálamo (vacío = automático)</label><input id='hyp' value=''/><label>Central (vacío = automático)</label><input id='cen' value=''/><label><input id='ollama' type='checkbox'/> Usar Ollama</label><label><input id='auto' type='checkbox' checked/> Auto elegir modelos</label>
 <hr style='border-color:#263246;margin:16px 0'/><b style='font-size:13px'>Contexto del Cristal</b><div class='hint'>Evita comparar runs de proyectos o neuronas diferentes.</div>
