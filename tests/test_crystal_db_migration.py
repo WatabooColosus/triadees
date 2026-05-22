@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 from triade.core.bodega import Bodega
-from triade.core.contracts import MemoryPacket, SignalPacket
+from triade.core.contracts import InputPacket, MemoryPacket, SignalPacket
 from triade.core.crystal import Crystal
 
 
@@ -27,21 +27,23 @@ def test_crystal_states_has_v2_columns(tmp_path) -> None:
 def test_store_crystal_persists_v2_fields(tmp_path) -> None:
     db_path = tmp_path / "triade.db"
     bodega = Bodega(db_path=db_path)
+    run_id = "run-crystal-db"
+    bodega.create_run(InputPacket(user_input="Prueba crystal db", source="test", run_id=run_id))
     signals = SignalPacket(
-        run_id="run-crystal-db",
+        run_id=run_id,
         intent="conversation",
         tone="constructive",
         urgency="medium",
         risk="low",
         pv7={"humildad": 0.8, "generosidad": 0.8, "respeto": 0.9, "paciencia": 0.7, "templanza": 0.8, "caridad": 0.8, "diligencia": 0.9},
     )
-    memory = MemoryPacket(run_id="run-crystal-db", confidence=0.8)
+    memory = MemoryPacket(run_id=run_id, confidence=0.8)
     crystal = Crystal().regulate(signals, memory)
 
     bodega.store_crystal(crystal)
 
     with bodega._connect() as conn:
-        row = conn.execute("SELECT * FROM crystal_states WHERE run_id = ?", ("run-crystal-db",)).fetchone()
+        row = conn.execute("SELECT * FROM crystal_states WHERE run_id = ?", (run_id,)).fetchone()
 
     assert row["pv7_score"] == crystal.pv7_score
     assert row["stability"] == crystal.stability
