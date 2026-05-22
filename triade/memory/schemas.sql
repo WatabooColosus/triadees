@@ -223,7 +223,7 @@ CREATE TABLE IF NOT EXISTS goals (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Índices básicos.
+-- Índices básicos seguros para tablas nuevas y existentes.
 CREATE INDEX IF NOT EXISTS idx_runs_run_id ON runs(run_id);
 CREATE INDEX IF NOT EXISTS idx_episodic_memory_run_id ON episodic_memory(run_id);
 CREATE INDEX IF NOT EXISTS idx_episodic_memory_tags ON episodic_memory(tags);
@@ -234,7 +234,7 @@ CREATE INDEX IF NOT EXISTS idx_verification_reports_run_id ON verification_repor
 CREATE INDEX IF NOT EXISTS idx_model_events_run_id ON model_events(run_id);
 CREATE INDEX IF NOT EXISTS idx_model_events_role ON model_events(role);
 CREATE INDEX IF NOT EXISTS idx_crystal_states_run_id ON crystal_states(run_id);
-CREATE INDEX IF NOT EXISTS idx_crystal_states_q_crystal ON crystal_states(q_crystal);
+-- idx_crystal_states_q_crystal se crea en Bodega._migrate_crystal_v2 tras asegurar columna.
 
 -- Semilla mínima de identidad.
 INSERT OR IGNORE INTO identity_core (key, value, category, confidence)
