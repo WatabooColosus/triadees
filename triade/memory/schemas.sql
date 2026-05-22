@@ -5,7 +5,6 @@
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
--- Identidad núcleo del sistema.
 CREATE TABLE IF NOT EXISTS identity_core (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     key TEXT NOT NULL UNIQUE,
@@ -16,7 +15,6 @@ CREATE TABLE IF NOT EXISTS identity_core (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Runs auditables del sistema.
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL UNIQUE,
@@ -29,7 +27,6 @@ CREATE TABLE IF NOT EXISTS runs (
     closed_at TEXT
 );
 
--- Memoria episódica: eventos, interacciones y decisiones.
 CREATE TABLE IF NOT EXISTS episodic_memory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT,
@@ -43,7 +40,6 @@ CREATE TABLE IF NOT EXISTS episodic_memory (
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 
--- Memoria semántica: conocimiento consolidado.
 CREATE TABLE IF NOT EXISTS semantic_memory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     key TEXT NOT NULL UNIQUE,
@@ -56,7 +52,6 @@ CREATE TABLE IF NOT EXISTS semantic_memory (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Registro de neuronas.
 CREATE TABLE IF NOT EXISTS neurons (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
@@ -69,7 +64,6 @@ CREATE TABLE IF NOT EXISTS neurons (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Entrenamiento y evaluación de neuronas.
 CREATE TABLE IF NOT EXISTS neuron_training (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     neuron_id INTEGER NOT NULL,
@@ -81,7 +75,6 @@ CREATE TABLE IF NOT EXISTS neuron_training (
     FOREIGN KEY (neuron_id) REFERENCES neurons(id)
 );
 
--- Señales del Hipotálamo por run.
 CREATE TABLE IF NOT EXISTS signal_states (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL,
@@ -95,7 +88,6 @@ CREATE TABLE IF NOT EXISTS signal_states (
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 
--- Estado del Cristal Morfológico por run.
 CREATE TABLE IF NOT EXISTS crystal_states (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL,
@@ -109,12 +101,18 @@ CREATE TABLE IF NOT EXISTS crystal_states (
     q_crystal REAL DEFAULT 0.0,
     ethics_vector TEXT,
     regulation_notes TEXT,
+    previous_q_crystal REAL,
+    previous_stability REAL,
+    q_delta REAL DEFAULT 0.0,
+    stability_delta REAL DEFAULT 0.0,
+    temporal_status TEXT DEFAULT 'baseline',
+    temporal_alerts TEXT,
+    history_window INTEGER DEFAULT 0,
     decision_notes TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 
--- Cola de aprendizaje provisional.
 CREATE TABLE IF NOT EXISTS learning_queue (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     candidate_id TEXT NOT NULL UNIQUE,
@@ -133,7 +131,6 @@ CREATE TABLE IF NOT EXISTS learning_queue (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Patrones de conocimiento o uso ya verificados.
 CREATE TABLE IF NOT EXISTS knowledge_patterns (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pattern_id TEXT NOT NULL UNIQUE,
@@ -148,7 +145,6 @@ CREATE TABLE IF NOT EXISTS knowledge_patterns (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Eventos de modelos por rol.
 CREATE TABLE IF NOT EXISTS model_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL,
@@ -163,7 +159,6 @@ CREATE TABLE IF NOT EXISTS model_events (
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 
--- Nodos federados autorizados.
 CREATE TABLE IF NOT EXISTS federated_nodes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     node_id TEXT NOT NULL UNIQUE,
@@ -178,7 +173,6 @@ CREATE TABLE IF NOT EXISTS federated_nodes (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Registro de intercambios federados.
 CREATE TABLE IF NOT EXISTS federated_exchange_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     exchange_id TEXT NOT NULL UNIQUE,
@@ -194,7 +188,6 @@ CREATE TABLE IF NOT EXISTS federated_exchange_log (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Reportes de verificación.
 CREATE TABLE IF NOT EXISTS verification_reports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT,
@@ -211,7 +204,6 @@ CREATE TABLE IF NOT EXISTS verification_reports (
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 
--- Objetivos activos o futuros del sistema.
 CREATE TABLE IF NOT EXISTS goals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
@@ -223,7 +215,6 @@ CREATE TABLE IF NOT EXISTS goals (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Índices básicos seguros para tablas nuevas y existentes.
 CREATE INDEX IF NOT EXISTS idx_runs_run_id ON runs(run_id);
 CREATE INDEX IF NOT EXISTS idx_episodic_memory_run_id ON episodic_memory(run_id);
 CREATE INDEX IF NOT EXISTS idx_episodic_memory_tags ON episodic_memory(tags);
@@ -234,9 +225,8 @@ CREATE INDEX IF NOT EXISTS idx_verification_reports_run_id ON verification_repor
 CREATE INDEX IF NOT EXISTS idx_model_events_run_id ON model_events(run_id);
 CREATE INDEX IF NOT EXISTS idx_model_events_role ON model_events(role);
 CREATE INDEX IF NOT EXISTS idx_crystal_states_run_id ON crystal_states(run_id);
--- idx_crystal_states_q_crystal se crea en Bodega._migrate_crystal_v2 tras asegurar columna.
+-- Índices sobre columnas migrables del Cristal se crean en Bodega tras asegurar columnas.
 
--- Semilla mínima de identidad.
 INSERT OR IGNORE INTO identity_core (key, value, category, confidence)
 VALUES
 ('entity_name', 'Tríade Ω', 'identity', 1.0),
