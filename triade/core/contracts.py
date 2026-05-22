@@ -67,6 +67,7 @@ class MemoryPacket:
     episodic_matches: list[dict[str, Any]] = field(default_factory=list)
     semantic_matches: list[dict[str, Any]] = field(default_factory=list)
     identity_matches: list[dict[str, Any]] = field(default_factory=list)
+    semantic_recall: dict[str, Any] = field(default_factory=dict)
     confidence: float = 0.0
     timestamp: str = field(default_factory=utc_now)
 
