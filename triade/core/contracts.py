@@ -88,6 +88,13 @@ class CrystalPacket:
     ethics_vector: dict[str, float] = field(default_factory=dict)
     regulation_notes: list[str] = field(default_factory=list)
     decision_notes: list[str] = field(default_factory=list)
+    previous_q_crystal: float | None = None
+    previous_stability: float | None = None
+    q_delta: float = 0.0
+    stability_delta: float = 0.0
+    temporal_status: str = "baseline"
+    temporal_alerts: list[str] = field(default_factory=list)
+    history_window: int = 0
     timestamp: str = field(default_factory=utc_now)
 
     def to_dict(self) -> dict[str, Any]:
