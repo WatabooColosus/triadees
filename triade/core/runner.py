@@ -90,7 +90,7 @@ class TriadeRunner:
         crystal = self.crystal.regulate(signals, memory, history=crystal_history)
         crystal_id = self.bodega.store_crystal(crystal)
         plan = self.central.plan(input_packet, signals, memory, crystal)
-        safety = self.safety.review(signals, plan)
+        safety = self.safety.review(signals, plan, crystal=crystal)
         safety_id = self.bodega.store_safety(safety)
         if safety.status == "blocked":
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
@@ -117,7 +117,7 @@ class TriadeRunner:
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_model_error": output.model_error, "central_quality_score": central_quality, "central_model_event_id": central_event_id,
             "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_error": output.model_error, "model_selection": self.model_selection,
         }
-        report = self.verifier.verify(output, safety)
+        report = self.verifier.verify(output, safety, crystal=crystal)
         verification_id = self.bodega.store_verification_report(report)
         output.memory_diff["verification_report_id"] = verification_id
         artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan.to_dict(), "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict()}
@@ -126,6 +126,7 @@ class TriadeRunner:
         integrity = {
             "run_id": input_packet.run_id, "status": report.status, "artifacts": sorted(artifacts.keys()), "database": memory_diff.get("db_path"), "episode_id": memory_diff.get("episode_id"), "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id, "verification_report_id": verification_id,
             "crystal_temporal_state": temporal_state,
+            "safety_crystal_feedback": {"status": safety.status, "risk_types": safety.risk_types, "controls": safety.required_controls},
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_quality_score": central_quality, "central_model_event_id": central_event_id, "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_selection": self.model_selection, "closed": True,
         }
