@@ -1,7 +1,8 @@
 """Bodega de Almacenamiento · SQLite MVP real.
 
 Inicializa SQLite, recupera identidad y memoria, y persiste evidencia auditable
-por run. Crystal v2 conserva historial temporal contextualizado.
+por run. Crystal v2 conserva historial temporal contextualizado. Desde 1.9D,
+Bodega puede incorporar recuerdos vectoriales de manera explícita y auditable.
 """
 
 from __future__ import annotations
@@ -49,9 +50,10 @@ class Bodega:
         "active_neuron": "TEXT",
     }
 
-    def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
+    def __init__(self, db_path: str | Path = "triade/memory/triade.db", semantic_search_engine: Any | None = None) -> None:
         self.db_path = Path(db_path)
         self.schema_path = Path("triade/memory/schemas.sql")
+        self.semantic_search_engine = semantic_search_engine
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
@@ -78,20 +80,80 @@ class Bodega:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_crystal_states_temporal_status ON crystal_states(temporal_status)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_crystal_states_context_key ON crystal_states(context_key)")
 
-    def recall(self, packet: InputPacket) -> MemoryPacket:
+    def recall(
+        self,
+        packet: InputPacket,
+        semantic_recall_enabled: bool = False,
+        semantic_model: str | None = None,
+        semantic_limit: int = 3,
+        semantic_min_similarity: float = 0.55,
+        semantic_domain: str | None = None,
+    ) -> MemoryPacket:
         identity = self._fetch_identity()
-        semantic = self._search_semantic(packet.user_input)
+        keyword_semantic = [
+            {**match, "retrieval_type": "legacy_keyword"}
+            for match in self._search_semantic(packet.user_input)
+        ]
         episodic = self._search_episodic(packet.user_input)
+        vector_semantic: list[dict[str, Any]] = []
+        semantic_recall: dict[str, Any] = {
+            "enabled": semantic_recall_enabled,
+            "mode": "vector_similarity" if semantic_recall_enabled else "disabled",
+            "model": semantic_model,
+            "limit": semantic_limit,
+            "min_similarity": semantic_min_similarity,
+            "domain": semantic_domain,
+            "status": "disabled" if not semantic_recall_enabled else "pending",
+            "matches_count": 0,
+        }
+
+        if semantic_recall_enabled:
+            if self.semantic_search_engine is None:
+                semantic_recall.update({
+                    "status": "unavailable",
+                    "error": "SemanticSearchEngine no fue configurado para este run.",
+                })
+            else:
+                search_result = self.semantic_search_engine.search(
+                    query=packet.user_input,
+                    model=semantic_model,
+                    limit=semantic_limit,
+                    min_similarity=semantic_min_similarity,
+                    domain=semantic_domain,
+                )
+                semantic_recall.update({
+                    "status": search_result.get("status", "failed"),
+                    "model": search_result.get("model", semantic_model),
+                    "query_dimensions": search_result.get("query_dimensions"),
+                    "candidate_embeddings": search_result.get("candidate_embeddings", 0),
+                    "matching_candidates": search_result.get("matching_candidates", 0),
+                    "skipped_model": search_result.get("skipped_model", 0),
+                    "skipped_dimensions": search_result.get("skipped_dimensions", 0),
+                    "error": search_result.get("error"),
+                })
+                if search_result.get("status") == "ok":
+                    vector_semantic = [
+                        {**match, "retrieval_type": "vector_similarity"}
+                        for match in search_result.get("results", [])
+                    ]
+                    semantic_recall["matches_count"] = len(vector_semantic)
+
+        semantic = vector_semantic + keyword_semantic
         confidence = 0.4
         if identity:
             confidence += 0.2
-        if semantic or episodic:
-            confidence += 0.3
+        if episodic or keyword_semantic:
+            confidence += 0.2
+        if vector_semantic:
+            strongest = max(float(match.get("similarity", 0.0)) for match in vector_semantic)
+            confidence += 0.2 if strongest >= semantic_min_similarity else 0.1
+            semantic_recall["strongest_similarity"] = round(strongest, 6)
         return MemoryPacket(
             run_id=packet.run_id,
             identity_matches=identity,
             semantic_matches=semantic,
             episodic_matches=episodic,
+            semantic_recall=semantic_recall,
             confidence=min(confidence, 1.0),
         )
 
