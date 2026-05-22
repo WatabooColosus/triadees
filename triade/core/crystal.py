@@ -10,8 +10,14 @@ from .contracts import CrystalPacket, MemoryPacket, SignalPacket
 class Crystal:
     """Regulador de ética, profundidad, creatividad, relación y Q_cristal.
 
-    Fase 1.8A: las métricas profundas dejan de vivir solo en notas y pasan
-    a ser campos reales del CrystalPacket.
+    Fase 1.8C: Q_cristal usa una aproximación operativa más cercana a la
+    fórmula teórica oficial:
+
+    S_rel(t) = α·S^H(t) + β·S^T(t)
+    Q_cristal(t) = ((S_rel(t) + C'(t)) / I'(t)) ^ R'(t) · Φ(M,t)
+
+    La fórmula se mantiene normalizada en [0, 1] para uso práctico dentro
+    del ciclo cognitivo.
     """
 
     def regulate(self, signals: SignalPacket, memory: MemoryPacket) -> CrystalPacket:
@@ -25,8 +31,8 @@ class Crystal:
         relation = self._clamp(0.55 + pv7_score * 0.20 + memory.confidence * 0.10)
 
         regulation_notes: list[str] = [
-            "Cristal v2 1.8A aplicado.",
-            "Métricas profundas registradas como campos reales.",
+            "Cristal v2 1.8C aplicado.",
+            "Q_cristal calculado con fórmula relacional operativa.",
         ]
 
         if signals.risk in {"high", "critical"}:
@@ -38,7 +44,7 @@ class Crystal:
             depth = min(depth, 0.55)
             regulation_notes.append("Memoria con baja confianza: respuesta prudente.")
 
-        q_crystal = self.q_crystal(
+        q_payload = self.q_crystal_payload(
             ethics=ethics,
             depth=depth,
             creativity=creativity,
@@ -47,8 +53,13 @@ class Crystal:
             stability=stability,
             intensity=intensity,
             memory_confidence=memory.confidence,
+            risk=signals.risk,
         )
+        q_crystal = q_payload["q_crystal"]
         ethics_vector = self.ethics_vector(signals, pv7_score, stability, intensity)
+        ethics_vector["q_crystal"] = q_crystal
+        ethics_vector["s_rel"] = q_payload["s_rel"]
+        ethics_vector["phi_memory"] = q_payload["phi_memory"]
 
         decision_notes = [
             *regulation_notes,
@@ -56,6 +67,10 @@ class Crystal:
             f"stability={stability}",
             f"intensity={intensity}",
             f"q_crystal={q_crystal}",
+            f"s_rel={q_payload['s_rel']}",
+            f"i_prime={q_payload['i_prime']}",
+            f"r_prime={q_payload['r_prime']}",
+            f"phi_memory={q_payload['phi_memory']}",
         ]
 
         return CrystalPacket(
@@ -107,15 +122,63 @@ class Crystal:
         intensity: float,
         memory_confidence: float,
     ) -> float:
-        """Aproximación operativa inicial de Q_cristal.
+        """Compatibilidad hacia atrás: retorna solo el valor Q."""
+        return cls.q_crystal_payload(
+            ethics=ethics,
+            depth=depth,
+            creativity=creativity,
+            relation=relation,
+            pv7_score=pv7_score,
+            stability=stability,
+            intensity=intensity,
+            memory_confidence=memory_confidence,
+            risk="low",
+        )["q_crystal"]
 
-        No pretende cerrar la fórmula filosófica completa; crea una métrica
-        verificable y estable para regular el ciclo.
+    @classmethod
+    def q_crystal_payload(
+        cls,
+        ethics: float,
+        depth: float,
+        creativity: float,
+        relation: float,
+        pv7_score: float,
+        stability: float,
+        intensity: float,
+        memory_confidence: float,
+        risk: str,
+    ) -> dict[str, float]:
+        """Fórmula relacional operativa de Q_cristal.
+
+        S^H aproxima señal afectivo-ética del Hipotálamo.
+        S^T aproxima señal técnica/central desde coherencia y profundidad.
+        I' penaliza intensidad y riesgo. R' eleva o estabiliza según estabilidad.
+        Φ(M,t) pondera continuidad de memoria.
         """
-        coherence = (ethics * 0.30) + (depth * 0.18) + (creativity * 0.12) + (relation * 0.16)
-        regulators = (pv7_score * 0.10) + (stability * 0.10) + (memory_confidence * 0.04)
-        penalty = intensity * 0.10
-        return round(cls._clamp(coherence + regulators - penalty), 3)
+        risk_pressure = {"low": 0.10, "medium": 0.35, "high": 0.70, "critical": 1.0}.get(risk, 0.35)
+        s_h = cls._clamp((pv7_score * 0.48) + ((1.0 - intensity) * 0.30) + ((1.0 - risk_pressure) * 0.22))
+        s_t = cls._clamp((ethics * 0.28) + (depth * 0.24) + (relation * 0.20) + (stability * 0.18) + (creativity * 0.10))
+        alpha = cls._clamp(0.55 + pv7_score * 0.10 - risk_pressure * 0.10)
+        beta = cls._clamp(1.0 - alpha)
+        s_rel = cls._clamp((alpha * s_h) + (beta * s_t))
+        c_prime = cls._clamp(creativity * 0.22 + depth * 0.08)
+        i_prime = 1.0 + (intensity * 0.55) + (risk_pressure * 0.35)
+        r_prime = 1.0 + (stability * 0.45) + (ethics * 0.10)
+        phi_memory = cls._clamp(0.62 + memory_confidence * 0.38)
+        base = cls._clamp((s_rel + c_prime) / i_prime)
+        q_value = cls._clamp((base ** r_prime) * phi_memory)
+        return {
+            "q_crystal": round(q_value, 3),
+            "s_h": round(s_h, 3),
+            "s_t": round(s_t, 3),
+            "s_rel": round(s_rel, 3),
+            "alpha": round(alpha, 3),
+            "beta": round(beta, 3),
+            "c_prime": round(c_prime, 3),
+            "i_prime": round(i_prime, 3),
+            "r_prime": round(r_prime, 3),
+            "phi_memory": round(phi_memory, 3),
+        }
 
     @staticmethod
     def ethics_vector(signals: SignalPacket, pv7_score: float, stability: float, intensity: float) -> dict[str, float]:
