@@ -1,20 +1,26 @@
-"""Verificación · MVP."""
+"""Verificación · calidad, trazabilidad y retroalimentación del Cristal."""
 
 from __future__ import annotations
 
-from .contracts import OutputPacket, SafetyPacket, VerificationReport
+from .contracts import CrystalPacket, OutputPacket, SafetyPacket, VerificationReport
 
 
 class Verifier:
-    """Genera un reporte simple de calidad e integridad."""
+    """Genera reporte verificable e incorpora continuidad temporal del Cristal."""
 
-    def verify(self, output: OutputPacket, safety: SafetyPacket) -> VerificationReport:
+    def verify(
+        self,
+        output: OutputPacket,
+        safety: SafetyPacket,
+        crystal: CrystalPacket | None = None,
+    ) -> VerificationReport:
         warnings: list[str] = []
         errors: list[str] = []
         recommendations: list[str] = []
 
         status = output.status
-        safety_score = 0.9
+        coherence_score = 0.75
+        safety_score = 0.90
         memory_score = 0.55
         traceability_score = 0.80
         usefulness_score = 0.70
@@ -26,14 +32,9 @@ class Verifier:
         if safety.status == "blocked":
             errors.append("Safety bloqueó la ejecución.")
             status = "blocked"
-            safety_score = 0.2
+            safety_score = 0.20
 
         memory_stored = bool(output.memory_diff.get("stored"))
-
-        # Nota: verification_report_id todavía no existe en este punto, porque
-        # el VerificationReport se guarda después de ejecutar este verificador.
-        # Por eso la persistencia completa verificable aquí se mide con los
-        # paquetes previos: episodio, señal, cristal y safety.
         full_pre_report_persistence = memory_stored and all(
             output.memory_diff.get(key) is not None
             for key in ["episode_id", "signal_id", "crystal_id", "safety_id"]
@@ -57,19 +58,42 @@ class Verifier:
                 ]
             )
 
+        if crystal is not None:
+            temporal_status = crystal.temporal_status
+            if temporal_status == "degrading":
+                warnings.append(
+                    f"Cristal detectó degradación temporal: ΔQ={crystal.q_delta}, "
+                    f"Δestabilidad={crystal.stability_delta}."
+                )
+                coherence_score = min(coherence_score, 0.60)
+                safety_score = min(safety_score, 0.65)
+                recommendations.append(
+                    "Revisar la causa de degradación temporal antes de consolidar cambios estructurales."
+                )
+                if status == "ok":
+                    status = "warning"
+            elif temporal_status == "critical":
+                warnings.append(
+                    f"Cristal en estado temporal crítico: Q={crystal.q_crystal}, "
+                    f"estabilidad={crystal.stability}."
+                )
+                coherence_score = min(coherence_score, 0.35)
+                safety_score = min(safety_score, 0.40)
+                recommendations.append(
+                    "Suspender acciones expansivas y exigir revisión humana antes de cambios sensibles."
+                )
+                if status == "ok":
+                    status = "warning"
+            elif temporal_status == "improving":
+                recommendations.append("Mantener trazabilidad mientras continúa la mejora temporal del Cristal.")
+
         hypothalamus_ok = bool(output.memory_diff.get("hypothalamus_model_ok"))
         central_ok = bool(output.memory_diff.get("central_model_ok"))
         central_requested_ollama = output.model_provider == "ollama"
 
         if hypothalamus_ok and central_ok:
             usefulness_score = 0.85
-            recommendations.extend(
-                [
-                    "Agregar selección de modelo por CLI para Hipotálamo y Central.",
-                    "Crear métricas de calidad de señales y respuesta por rol.",
-                    "Crear tabla dedicada para eventos de modelo por run.",
-                ]
-            )
+            recommendations.append("Continuar registrando métricas de calidad por rol de modelo.")
         elif central_requested_ollama and output.model_ok and not hypothalamus_ok:
             usefulness_score = 0.80
             recommendations.extend(
@@ -89,20 +113,20 @@ class Verifier:
         else:
             recommendations.extend(
                 [
-                    "Ejecutar sin --no-ollama para validar respuesta con modelo local.",
+                    "Ejecutar con Ollama activo para validar respuesta con modelo local.",
                     "Usar python triade_digimon.py doctor para revisar estado de Ollama.",
                 ]
             )
 
         return VerificationReport(
             run_id=output.run_id,
-            status=status,
-            coherence_score=0.75,
+            status=status,  # type: ignore[arg-type]
+            coherence_score=coherence_score,
             memory_score=memory_score,
             safety_score=safety_score,
             usefulness_score=usefulness_score,
             traceability_score=traceability_score,
             errors=errors,
-            warnings=warnings,
-            recommendations=recommendations,
+            warnings=list(dict.fromkeys(warnings)),
+            recommendations=list(dict.fromkeys(recommendations)),
         )
