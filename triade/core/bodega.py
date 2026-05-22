@@ -1,7 +1,7 @@
 """Bodega de Almacenamiento · SQLite MVP real.
 
-Inicializa SQLite, carga el esquema base, recupera identidad, consulta memoria simple
-y guarda episodios, señales, cristal, safety, reportes y eventos de modelos por run.
+Inicializa SQLite, recupera identidad y memoria, y persiste evidencia auditable
+por run. Crystal v2 conserva historial temporal contextualizado.
 """
 
 from __future__ import annotations
@@ -39,6 +39,14 @@ class Bodega:
         "temporal_status": "TEXT DEFAULT 'baseline'",
         "temporal_alerts": "TEXT",
         "history_window": "INTEGER DEFAULT 0",
+        "context_scope": "TEXT DEFAULT 'source_intent'",
+        "context_key": "TEXT",
+        "comparison_basis": "TEXT",
+        "source": "TEXT",
+        "intent": "TEXT",
+        "session_id": "TEXT",
+        "project_id": "TEXT",
+        "active_neuron": "TEXT",
     }
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
@@ -68,6 +76,7 @@ class Bodega:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_crystal_states_run_id ON crystal_states(run_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_crystal_states_q_crystal ON crystal_states(q_crystal)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_crystal_states_temporal_status ON crystal_states(temporal_status)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_crystal_states_context_key ON crystal_states(context_key)")
 
     def recall(self, packet: InputPacket) -> MemoryPacket:
         identity = self._fetch_identity()
@@ -139,14 +148,16 @@ class Bodega:
             return int(cursor.lastrowid)
 
     def store_crystal(self, crystal: CrystalPacket) -> int:
+        basis = crystal.comparison_basis or {}
         with self._connect() as conn:
             cursor = conn.execute(
                 """INSERT INTO crystal_states
                 (run_id, ethics, depth, creativity, relation, pv7_score, stability, intensity,
                  q_crystal, ethics_vector, regulation_notes, previous_q_crystal, previous_stability,
                  q_delta, stability_delta, temporal_status, temporal_alerts, history_window,
-                 decision_notes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                 context_scope, context_key, comparison_basis, source, intent, session_id,
+                 project_id, active_neuron, decision_notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     crystal.run_id,
                     crystal.ethics,
@@ -166,19 +177,36 @@ class Bodega:
                     crystal.temporal_status,
                     json.dumps(crystal.temporal_alerts, ensure_ascii=False),
                     crystal.history_window,
+                    crystal.context_scope,
+                    crystal.context_key,
+                    json.dumps(basis, ensure_ascii=False),
+                    basis.get("source"),
+                    basis.get("intent"),
+                    basis.get("session_id"),
+                    basis.get("project_id"),
+                    basis.get("active_neuron"),
                     json.dumps(crystal.decision_notes, ensure_ascii=False),
                     crystal.timestamp,
                 ),
             )
             return int(cursor.lastrowid)
 
-    def list_recent_crystals(self, limit: int = 5) -> list[dict[str, Any]]:
+    def list_recent_crystals(self, limit: int = 5, context_key: str | None = None) -> list[dict[str, Any]]:
         with self._connect() as conn:
-            rows = conn.execute(
-                """SELECT run_id, q_crystal, stability, intensity, pv7_score, temporal_status, created_at
-                FROM crystal_states ORDER BY id DESC LIMIT ?""",
-                (limit,),
-            ).fetchall()
+            if context_key:
+                rows = conn.execute(
+                    """SELECT run_id, q_crystal, stability, intensity, pv7_score, temporal_status,
+                    context_scope, context_key, source, intent, session_id, project_id, active_neuron, created_at
+                    FROM crystal_states WHERE context_key = ? ORDER BY id DESC LIMIT ?""",
+                    (context_key, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT run_id, q_crystal, stability, intensity, pv7_score, temporal_status,
+                    context_scope, context_key, source, intent, session_id, project_id, active_neuron, created_at
+                    FROM crystal_states ORDER BY id DESC LIMIT ?""",
+                    (limit,),
+                ).fetchall()
         return [dict(row) for row in rows]
 
     def store_safety(self, safety: SafetyPacket) -> int:
@@ -286,6 +314,11 @@ class Bodega:
                 """SELECT temporal_status, COUNT(*) AS c FROM crystal_states
                 GROUP BY temporal_status ORDER BY c DESC"""
             ).fetchall()
+            context_rows = conn.execute(
+                """SELECT context_scope, context_key, COUNT(*) AS c FROM crystal_states
+                WHERE context_key IS NOT NULL AND context_key != ''
+                GROUP BY context_scope, context_key ORDER BY c DESC LIMIT 20"""
+            ).fetchall()
         return {
             "status": "ok",
             "db_path": str(self.db_path),
@@ -306,15 +339,14 @@ class Bodega:
             },
             "crystal_quality": dict(crystal_quality) if crystal_quality else {},
             "crystal_temporal_status": [dict(row) for row in temporal_rows],
+            "crystal_contexts": [dict(row) for row in context_rows],
             "model_usage": [dict(row) for row in model_rows],
             "model_events": [dict(row) for row in model_event_rows],
         }
 
     def _fetch_identity(self) -> list[dict[str, Any]]:
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT key, value, category, confidence FROM identity_core ORDER BY id ASC"
-            ).fetchall()
+            rows = conn.execute("SELECT key, value, category, confidence FROM identity_core ORDER BY id ASC").fetchall()
         return [dict(row) for row in rows]
 
     def _search_semantic(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
