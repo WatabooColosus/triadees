@@ -11,8 +11,8 @@ from .contracts import CrystalPacket, MemoryPacket, SignalPacket
 class Crystal:
     """Regulador de ética, profundidad, creatividad, relación y Q_cristal.
 
-    Fase 1.8D: Q_cristal conserva fórmula relacional operativa y compara el
-    estado presente contra una ventana histórica de cristales persistidos.
+    Fase 1.8F: Q_cristal conserva fórmula relacional operativa y compara el
+    estado presente únicamente contra una ventana histórica contextualizada.
     """
 
     def regulate(
@@ -20,8 +20,15 @@ class Crystal:
         signals: SignalPacket,
         memory: MemoryPacket,
         history: list[dict[str, Any]] | None = None,
+        comparison_basis: dict[str, Any] | None = None,
     ) -> CrystalPacket:
         history = history or []
+        comparison_basis = comparison_basis or {
+            "context_scope": "source_intent",
+            "context_key": "",
+            "source": None,
+            "intent": signals.intent,
+        }
         pv7_score = self.pv7_score(signals)
         intensity = self.intensity(signals)
         stability = self.stability(signals, memory, pv7_score)
@@ -32,8 +39,9 @@ class Crystal:
         relation = self._clamp(0.55 + pv7_score * 0.20 + memory.confidence * 0.10)
 
         regulation_notes: list[str] = [
-            "Cristal v2 1.8D aplicado.",
+            "Cristal v2 1.8F aplicado.",
             "Q_cristal calculado con fórmula relacional operativa.",
+            f"Historial comparable filtrado por contexto: {comparison_basis.get('context_scope', 'source_intent')}.",
         ]
 
         if signals.risk in {"high", "critical"}:
@@ -81,6 +89,8 @@ class Crystal:
             f"q_delta={temporal['q_delta']}",
             f"stability_delta={temporal['stability_delta']}",
             f"history_window={temporal['history_window']}",
+            f"context_scope={comparison_basis.get('context_scope', 'source_intent')}",
+            f"context_key={comparison_basis.get('context_key', '')}",
         ]
 
         return CrystalPacket(
@@ -103,6 +113,9 @@ class Crystal:
             temporal_status=temporal["status"],
             temporal_alerts=temporal["alerts"],
             history_window=temporal["history_window"],
+            context_scope=str(comparison_basis.get("context_scope", "source_intent")),
+            context_key=str(comparison_basis.get("context_key", "")),
+            comparison_basis=dict(comparison_basis),
         )
 
     @staticmethod
@@ -201,7 +214,6 @@ class Crystal:
                 "history_window": 0,
                 "alerts": ["Línea base temporal iniciada; aún no hay historial comparable."],
             }
-
         latest = history[0]
         previous_q = float(latest.get("q_crystal") or 0.0)
         previous_stability = float(latest.get("stability") or 0.0)
@@ -210,7 +222,6 @@ class Crystal:
         historic_q = [float(item.get("q_crystal") or 0.0) for item in history]
         historic_avg = round(mean(historic_q), 3) if historic_q else previous_q
         alerts: list[str] = []
-
         if q_crystal < 0.30 or stability < 0.35:
             status = "critical"
             alerts.append("Alerta temporal crítica: Q_cristal o estabilidad en umbral bajo.")
@@ -223,11 +234,9 @@ class Crystal:
         else:
             status = "stable"
             alerts.append("Continuidad temporal estable dentro de umbrales operativos.")
-
         if q_crystal < historic_avg - 0.12 and status not in {"critical", "degrading"}:
             status = "degrading"
             alerts.append("Q_cristal actual por debajo del promedio histórico reciente.")
-
         return {
             "status": status,
             "previous_q_crystal": round(previous_q, 3),
