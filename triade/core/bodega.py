@@ -32,6 +32,13 @@ class Bodega:
         "q_crystal": "REAL DEFAULT 0.0",
         "ethics_vector": "TEXT",
         "regulation_notes": "TEXT",
+        "previous_q_crystal": "REAL",
+        "previous_stability": "REAL",
+        "q_delta": "REAL DEFAULT 0.0",
+        "stability_delta": "REAL DEFAULT 0.0",
+        "temporal_status": "TEXT DEFAULT 'baseline'",
+        "temporal_alerts": "TEXT",
+        "history_window": "INTEGER DEFAULT 0",
     }
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
@@ -60,19 +67,17 @@ class Bodega:
                 conn.execute(f"ALTER TABLE crystal_states ADD COLUMN {column} {definition}")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_crystal_states_run_id ON crystal_states(run_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_crystal_states_q_crystal ON crystal_states(q_crystal)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_crystal_states_temporal_status ON crystal_states(temporal_status)")
 
     def recall(self, packet: InputPacket) -> MemoryPacket:
-        """Recupera identidad y memoria simple relacionada con la entrada."""
         identity = self._fetch_identity()
         semantic = self._search_semantic(packet.user_input)
         episodic = self._search_episodic(packet.user_input)
-
         confidence = 0.4
         if identity:
             confidence += 0.2
         if semantic or episodic:
             confidence += 0.3
-
         return MemoryPacket(
             run_id=packet.run_id,
             identity_matches=identity,
@@ -84,21 +89,14 @@ class Bodega:
     def create_run(self, packet: InputPacket) -> None:
         with self._connect() as conn:
             conn.execute(
-                """
-                INSERT OR IGNORE INTO runs (run_id, source, user_input, status, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
+                "INSERT OR IGNORE INTO runs (run_id, source, user_input, status, created_at) VALUES (?, ?, ?, ?, ?)",
                 (packet.run_id, packet.source, packet.user_input, "created", packet.timestamp),
             )
 
     def update_run_models(self, run_id: str, model_hypothalamus: str, model_central: str) -> None:
         with self._connect() as conn:
             conn.execute(
-                """
-                UPDATE runs
-                SET model_hypothalamus = ?, model_central = ?
-                WHERE run_id = ?
-                """,
+                "UPDATE runs SET model_hypothalamus = ?, model_central = ? WHERE run_id = ?",
                 (model_hypothalamus, model_central, run_id),
             )
 
@@ -115,11 +113,9 @@ class Bodega:
     ) -> int:
         with self._connect() as conn:
             cursor = conn.execute(
-                """
-                INSERT INTO model_events
+                """INSERT INTO model_events
                 (run_id, role, provider, model_name, ok, error, quality_score, latency_ms)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (run_id, role, provider, model_name, 1 if ok else 0, error, quality_score, latency_ms),
             )
             return int(cursor.lastrowid)
@@ -127,10 +123,8 @@ class Bodega:
     def store_signal(self, signals: SignalPacket) -> int:
         with self._connect() as conn:
             cursor = conn.execute(
-                """
-                INSERT INTO signal_states (run_id, intent, tone, urgency, risk, pv7, notes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                """INSERT INTO signal_states (run_id, intent, tone, urgency, risk, pv7, notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     signals.run_id,
                     signals.intent,
@@ -147,12 +141,12 @@ class Bodega:
     def store_crystal(self, crystal: CrystalPacket) -> int:
         with self._connect() as conn:
             cursor = conn.execute(
-                """
-                INSERT INTO crystal_states
+                """INSERT INTO crystal_states
                 (run_id, ethics, depth, creativity, relation, pv7_score, stability, intensity,
-                 q_crystal, ethics_vector, regulation_notes, decision_notes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                 q_crystal, ethics_vector, regulation_notes, previous_q_crystal, previous_stability,
+                 q_delta, stability_delta, temporal_status, temporal_alerts, history_window,
+                 decision_notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     crystal.run_id,
                     crystal.ethics,
@@ -165,22 +159,35 @@ class Bodega:
                     crystal.q_crystal,
                     json.dumps(crystal.ethics_vector, ensure_ascii=False),
                     json.dumps(crystal.regulation_notes, ensure_ascii=False),
+                    crystal.previous_q_crystal,
+                    crystal.previous_stability,
+                    crystal.q_delta,
+                    crystal.stability_delta,
+                    crystal.temporal_status,
+                    json.dumps(crystal.temporal_alerts, ensure_ascii=False),
+                    crystal.history_window,
                     json.dumps(crystal.decision_notes, ensure_ascii=False),
                     crystal.timestamp,
                 ),
             )
             return int(cursor.lastrowid)
 
+    def list_recent_crystals(self, limit: int = 5) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT run_id, q_crystal, stability, intensity, pv7_score, temporal_status, created_at
+                FROM crystal_states ORDER BY id DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def store_safety(self, safety: SafetyPacket) -> int:
-        """Guarda safety como evento semántico de auditoría mínima."""
         pattern_id = f"safety-{safety.run_id}"
         with self._connect() as conn:
             cursor = conn.execute(
-                """
-                INSERT OR REPLACE INTO knowledge_patterns
+                """INSERT OR REPLACE INTO knowledge_patterns
                 (pattern_id, name, description, domain, pattern_body, source_ref, confidence, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     pattern_id,
                     "SafetyPacket",
@@ -199,12 +206,10 @@ class Bodega:
     def store_verification_report(self, report: VerificationReport) -> int:
         with self._connect() as conn:
             cursor = conn.execute(
-                """
-                INSERT INTO verification_reports
+                """INSERT INTO verification_reports
                 (run_id, status, coherence_score, memory_score, safety_score, usefulness_score,
                  traceability_score, errors, warnings, recommendations, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     report.run_id,
                     report.status,
@@ -222,59 +227,36 @@ class Bodega:
             return int(cursor.lastrowid)
 
     def store_episode(self, input_packet: InputPacket, output: OutputPacket) -> dict[str, Any]:
-        """Guarda un episodio básico del run."""
         title = self._make_title(input_packet.user_input)
         content = f"Usuario: {input_packet.user_input}\nRespuesta: {output.response}"
         summary = output.response[:280]
         tags = "triade,mvp,run"
-
         with self._connect() as conn:
             conn.execute(
-                """
-                UPDATE runs
-                SET status = ?, closed_at = ?
-                WHERE run_id = ?
-                """,
+                "UPDATE runs SET status = ?, closed_at = ? WHERE run_id = ?",
                 (output.status, output.timestamp, input_packet.run_id),
             )
             cursor = conn.execute(
-                """
-                INSERT INTO episodic_memory (run_id, title, content, summary, tags, importance, confidence)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
+                """INSERT INTO episodic_memory (run_id, title, content, summary, tags, importance, confidence)
+                VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (input_packet.run_id, title, content, summary, tags, 0.5, 0.75),
             )
             episode_id = cursor.lastrowid
-
-        return {
-            "run_id": output.run_id,
-            "stored": True,
-            "episode_id": episode_id,
-            "db_path": str(self.db_path),
-        }
+        return {"run_id": output.run_id, "stored": True, "episode_id": episode_id, "db_path": str(self.db_path)}
 
     def diff_from_output(self, output: OutputPacket) -> dict[str, object]:
-        return {
-            "run_id": output.run_id,
-            "stored": False,
-            "reason": "Usar store_episode(input_packet, output) para persistencia real.",
-        }
+        return {"run_id": output.run_id, "stored": False, "reason": "Usar store_episode(input_packet, output) para persistencia real."}
 
     def list_recent_episodes(self, limit: int = 10) -> list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
-                """
-                SELECT id, run_id, title, summary, tags, confidence, created_at
-                FROM episodic_memory
-                ORDER BY id DESC
-                LIMIT ?
-                """,
+                """SELECT id, run_id, title, summary, tags, confidence, created_at
+                FROM episodic_memory ORDER BY id DESC LIMIT ?""",
                 (limit,),
             ).fetchall()
         return [dict(row) for row in rows]
 
     def doctor(self, runs_dir: str | Path = "runs") -> dict[str, Any]:
-        """Diagnóstico local de instalación, memoria y runs."""
         runs_path = Path(runs_dir)
         with self._connect() as conn:
             tables = [row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()]
@@ -286,32 +268,24 @@ class Bodega:
             safety_count = conn.execute("SELECT COUNT(*) AS c FROM knowledge_patterns WHERE domain = 'safety'").fetchone()["c"]
             model_event_count = conn.execute("SELECT COUNT(*) AS c FROM model_events").fetchone()["c"]
             model_rows = conn.execute(
-                """
-                SELECT model_hypothalamus, model_central, COUNT(*) AS c
-                FROM runs
+                """SELECT model_hypothalamus, model_central, COUNT(*) AS c FROM runs
                 WHERE model_hypothalamus IS NOT NULL OR model_central IS NOT NULL
-                GROUP BY model_hypothalamus, model_central
-                ORDER BY c DESC
-                """
+                GROUP BY model_hypothalamus, model_central ORDER BY c DESC"""
             ).fetchall()
             model_event_rows = conn.execute(
-                """
-                SELECT role, provider, model_name, ok, COUNT(*) AS c, AVG(quality_score) AS avg_quality
-                FROM model_events
-                GROUP BY role, provider, model_name, ok
-                ORDER BY c DESC
-                """
+                """SELECT role, provider, model_name, ok, COUNT(*) AS c, AVG(quality_score) AS avg_quality
+                FROM model_events GROUP BY role, provider, model_name, ok ORDER BY c DESC"""
             ).fetchall()
             crystal_quality = conn.execute(
-                """
-                SELECT AVG(q_crystal) AS avg_q_crystal,
-                       AVG(stability) AS avg_stability,
-                       AVG(intensity) AS avg_intensity,
-                       AVG(pv7_score) AS avg_pv7_score
-                FROM crystal_states
-                """
+                """SELECT AVG(q_crystal) AS avg_q_crystal, AVG(stability) AS avg_stability,
+                AVG(intensity) AS avg_intensity, AVG(pv7_score) AS avg_pv7_score,
+                AVG(q_delta) AS avg_q_delta, AVG(stability_delta) AS avg_stability_delta
+                FROM crystal_states"""
             ).fetchone()
-
+            temporal_rows = conn.execute(
+                """SELECT temporal_status, COUNT(*) AS c FROM crystal_states
+                GROUP BY temporal_status ORDER BY c DESC"""
+            ).fetchall()
         return {
             "status": "ok",
             "db_path": str(self.db_path),
@@ -331,6 +305,7 @@ class Bodega:
                 "model_events": model_event_count,
             },
             "crystal_quality": dict(crystal_quality) if crystal_quality else {},
+            "crystal_temporal_status": [dict(row) for row in temporal_rows],
             "model_usage": [dict(row) for row in model_rows],
             "model_events": [dict(row) for row in model_event_rows],
         }
@@ -338,11 +313,7 @@ class Bodega:
     def _fetch_identity(self) -> list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
-                """
-                SELECT key, value, category, confidence
-                FROM identity_core
-                ORDER BY id ASC
-                """
+                "SELECT key, value, category, confidence FROM identity_core ORDER BY id ASC"
             ).fetchall()
         return [dict(row) for row in rows]
 
@@ -355,13 +326,8 @@ class Bodega:
         for term in terms:
             pattern = f"%{term}%"
             params.extend([pattern, pattern, pattern])
-        sql = f"""
-            SELECT key, value, domain, source_ref, confidence, status
-            FROM semantic_memory
-            WHERE {like_clauses}
-            ORDER BY confidence DESC
-            LIMIT ?
-        """
+        sql = f"""SELECT key, value, domain, source_ref, confidence, status
+            FROM semantic_memory WHERE {like_clauses} ORDER BY confidence DESC LIMIT ?"""
         params.append(str(limit))
         with self._connect() as conn:
             rows = conn.execute(sql, params).fetchall()
@@ -376,13 +342,8 @@ class Bodega:
         for term in terms:
             pattern = f"%{term}%"
             params.extend([pattern, pattern, pattern, pattern])
-        sql = f"""
-            SELECT id, run_id, title, summary, tags, confidence, created_at
-            FROM episodic_memory
-            WHERE {like_clauses}
-            ORDER BY id DESC
-            LIMIT ?
-        """
+        sql = f"""SELECT id, run_id, title, summary, tags, confidence, created_at
+            FROM episodic_memory WHERE {like_clauses} ORDER BY id DESC LIMIT ?"""
         params.append(str(limit))
         with self._connect() as conn:
             rows = conn.execute(sql, params).fetchall()
