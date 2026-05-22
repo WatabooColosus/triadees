@@ -76,8 +76,8 @@ class TriadeRunner:
         self.model_selection = {"enabled": True, "reason": "auto_selected_by_hardware_router", "hardware": hardware.to_dict(), "ollama": health, "hypothalamus": hyp.to_dict(), "central": cen.to_dict()}
         return {"hypothalamus": hyp.selected_model, "central": cen.selected_model}
 
-    def run(self, user_input: str, source: str = "console") -> dict[str, Any]:
-        input_packet = InputPacket(user_input=user_input, source=source)
+    def run(self, user_input: str, source: str = "console", context: dict[str, Any] | None = None) -> dict[str, Any]:
+        input_packet = InputPacket(user_input=user_input, source=source, context=context or {})
         self.bodega.create_run(input_packet)
         run_path = self.runs_dir / input_packet.run_id
         run_path.mkdir(parents=True, exist_ok=True)
@@ -86,8 +86,9 @@ class TriadeRunner:
         hypothalamus_quality = self._score_hypothalamus(signals, hypothalamus_model_result)
         signal_id = self.bodega.store_signal(signals)
         memory = self.bodega.recall(input_packet)
-        crystal_history = self.bodega.list_recent_crystals(limit=5)
-        crystal = self.crystal.regulate(signals, memory, history=crystal_history)
+        comparison_basis = self._build_comparison_basis(input_packet, signals.intent)
+        crystal_history = self.bodega.list_recent_crystals(limit=5, context_key=comparison_basis["context_key"])
+        crystal = self.crystal.regulate(signals, memory, history=crystal_history, comparison_basis=comparison_basis)
         crystal_id = self.bodega.store_crystal(crystal)
         plan = self.central.plan(input_packet, signals, memory, crystal)
         safety = self.safety.review(signals, plan, crystal=crystal)
@@ -109,6 +110,9 @@ class TriadeRunner:
             "stability_delta": crystal.stability_delta,
             "history_window": crystal.history_window,
             "alerts": crystal.temporal_alerts,
+            "context_scope": crystal.context_scope,
+            "context_key": crystal.context_key,
+            "comparison_basis": crystal.comparison_basis,
         }
         output.memory_diff = {
             **memory_diff, "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id,
@@ -133,6 +137,58 @@ class TriadeRunner:
         self._write_json(run_path / "integrity.json", integrity)
         (run_path / "CLOSED").write_text("closed\n", encoding="utf-8")
         return {"run_id": input_packet.run_id, "response": output.response, "safety": safety.to_dict(), "report": report.to_dict(), "memory_diff": output.memory_diff, "crystal_temporal_state": temporal_state, "models": {"hypothalamus": {**hypothalamus_model_result, "quality_score": hypothalamus_quality, "event_id": hypothalamus_event_id}, "central": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error, "quality_score": central_quality, "event_id": central_event_id}}, "model": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error}, "model_selection": self.model_selection, "run_path": str(run_path)}
+
+    @staticmethod
+    def _build_comparison_basis(input_packet: InputPacket, intent: str) -> dict[str, Any]:
+        context = input_packet.context or {}
+        session_id = str(context.get("session_id", "")).strip() or None
+        project_id = str(context.get("project_id", "")).strip() or None
+        active_neuron = str(context.get("active_neuron", "")).strip() or None
+        explicit_scope = str(context.get("context_scope", "")).strip() or None
+
+        if explicit_scope and explicit_scope not in {"source_intent", "session", "project", "neuron", "project_neuron"}:
+            explicit_scope = None
+
+        if explicit_scope == "project_neuron" and project_id and active_neuron:
+            scope = "project_neuron"
+        elif explicit_scope == "neuron" and active_neuron:
+            scope = "neuron"
+        elif explicit_scope == "project" and project_id:
+            scope = "project"
+        elif explicit_scope == "session" and session_id:
+            scope = "session"
+        elif project_id and active_neuron:
+            scope = "project_neuron"
+        elif active_neuron:
+            scope = "neuron"
+        elif project_id:
+            scope = "project"
+        elif session_id:
+            scope = "session"
+        else:
+            scope = "source_intent"
+
+        fields: list[tuple[str, str]] = [("intent", intent)]
+        if scope == "project_neuron":
+            fields.extend([("project_id", project_id or ""), ("active_neuron", active_neuron or "")])
+        elif scope == "neuron":
+            fields.append(("active_neuron", active_neuron or ""))
+        elif scope == "project":
+            fields.append(("project_id", project_id or ""))
+        elif scope == "session":
+            fields.append(("session_id", session_id or ""))
+        else:
+            fields.append(("source", input_packet.source))
+        context_key = scope + "|" + "|".join(f"{key}={value}" for key, value in fields)
+        return {
+            "context_scope": scope,
+            "context_key": context_key,
+            "source": input_packet.source,
+            "intent": intent,
+            "session_id": session_id,
+            "project_id": project_id,
+            "active_neuron": active_neuron,
+        }
 
     def recall(self, query: str, limit: int = 10) -> dict[str, Any]:
         episodes = self.bodega.list_recent_episodes(limit=limit)
