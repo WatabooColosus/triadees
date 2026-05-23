@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from triade.core.runner import TriadeRunner
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
+from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
 from triade.models.compatibility_matrix import ModelCompatibilityMatrix
 from triade.models.hardware_profile import HardwareProfiler
@@ -21,7 +22,7 @@ from triade.models.model_install_queue import ModelInstallQueue
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
 
-app = FastAPI(title="Tríade Ω Single Port", version="0.8.0")
+app = FastAPI(title="Tríade Ω Single Port", version="0.9.0")
 
 
 class RunRequest(BaseModel):
@@ -37,6 +38,7 @@ class RunRequest(BaseModel):
     semantic_limit: int = Field(default=3, ge=1, le=20)
     semantic_min_similarity: float = Field(default=0.55, ge=-1.0, le=1.0)
     semantic_domain: str | None = None
+    semantic_allow_experimental: bool = False
 
 
 class RouterRequest(BaseModel):
@@ -63,6 +65,13 @@ class SemanticSearchRequest(BaseModel):
     limit: int = Field(default=5, ge=1, le=50)
     min_similarity: float = Field(default=-1.0, ge=-1.0, le=1.0)
     domain: str | None = None
+
+
+class SemanticTransitionRequest(BaseModel):
+    new_status: str = Field(..., min_length=1)
+    reason: str = Field(..., min_length=1)
+    approved_by: str = "human"
+    evidence: dict[str, Any] = Field(default_factory=dict)
 
 
 def clean_model(value: str | None) -> str | None:
@@ -126,6 +135,11 @@ def semantic_doctor() -> dict[str, Any]:
     return SemanticEmbeddingEngine().doctor()
 
 
+@app.get("/api/semantic/governance/doctor")
+def semantic_governance_doctor() -> dict[str, Any]:
+    return SemanticMemoryGovernance().doctor()
+
+
 @app.post("/api/semantic/ingest-and-embed")
 def semantic_ingest_and_embed(request: SemanticIngestRequest, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
     require_key(x_triade_api_key)
@@ -136,6 +150,21 @@ def semantic_ingest_and_embed(request: SemanticIngestRequest, x_triade_api_key: 
 def semantic_embed_document(document_id: str, request: SemanticEmbedRequest, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
     require_key(x_triade_api_key)
     return SemanticEmbeddingEngine().embed_document(document_id, model=clean_model(request.model)).to_dict()
+
+
+@app.post("/api/semantic/documents/{document_id}/transition")
+def semantic_transition_document(document_id: str, request: SemanticTransitionRequest, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
+    require_key(x_triade_api_key)
+    try:
+        return SemanticMemoryGovernance().transition_document(
+            document_id=document_id,
+            new_status=request.new_status,
+            reason=request.reason,
+            approved_by=request.approved_by,
+            evidence=request.evidence,
+        )
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @app.post("/api/semantic/search")
@@ -163,6 +192,7 @@ def run_triade(request: RunRequest, x_triade_api_key: str | None = Header(defaul
         semantic_limit=request.semantic_limit,
         semantic_min_similarity=request.semantic_min_similarity,
         semantic_domain=request.semantic_domain,
+        semantic_allow_experimental=request.semantic_allow_experimental,
     )
 
 
@@ -185,9 +215,9 @@ async function health(){try{let r=await fetch('/api/health');let j=await r.json(
 async function router(){try{let r=await fetch('/api/router/doctor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent:$('intent').value,urgency:$('urgency').value})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);lastRouter=j;let d=j.router.decisions;$('box').textContent=JSON.stringify({central:d.central?.selected_model,hypothalamus:d.hypothalamus?.selected_model,fast:d.fast?.selected_model,deep:d.deep?.selected_model},null,2);status('Router OK',true)}catch(e){status('Router falló: '+e.message)}}
 async function compat(){try{let r=await fetch('/api/models/compatibility');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.matrix.summary,counts:j.matrix.counts,models:j.matrix.models},null,2);status('Compatibilidad OK',true)}catch(e){status('Compatibilidad falló: '+e.message)}}
 async function installQueue(){try{let r=await fetch('/api/models/install-queue?include_allowed=false');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.summary,count:j.count,policy:j.policy,candidates:j.candidates},null,2);status('Cola OK',true)}catch(e){status('Cola falló: '+e.message)}}
-async function semanticDoctor(){try{let r=await fetch('/api/semantic/doctor');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify(j,null,2);status('Memoria semántica consultada',true)}catch(e){status('Memoria semántica falló: '+e.message)}}
+async function semanticDoctor(){try{let r=await fetch('/api/semantic/governance/doctor');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify(j,null,2);status('Gobierno semántico consultado',true)}catch(e){status('Memoria semántica falló: '+e.message)}}
 function apply(){if(!lastRouter){status('Consulta router primero');return}let d=lastRouter.router.decisions;if(d.hypothalamus?.selected_model)$('hyp').value=d.hypothalamus.selected_model;if(d.central?.selected_model)$('cen').value=d.central.selected_model;$('ollama').checked=true;$('auto').checked=false;save();status('Recomendados aplicados manualmente',true)}
-async function send(){save();let text=$('msg').value.trim();if(!text)return;$('msg').value='';add('user',text);status('Procesando...');try{let r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-TRIADE-API-Key':$('key').value},body:JSON.stringify({text,source:'single-port-ui',use_ollama:$('ollama').checked,hypothalamus_model:$('hyp').value,central_model:$('cen').value,auto_select_models:$('auto').checked,context:context()})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);let t=j.crystal_temporal_state||{};add('bot',j.response,[j.run_id,'Q '+t.status,'scope '+t.context_scope,'ctx '+t.context_key,'H '+j.models?.hypothalamus?.name,'C '+j.models?.central?.name].filter(Boolean).join(' · '));status('Respuesta recibida',true)}catch(e){add('bot','Error: '+e.message);status('Error')}}function clearChat(){$('chat').innerHTML=''}function keysend(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send()}load();add('bot','Tríade Ω lista. La API permite activar semantic_recall para validar recuerdos vectoriales dentro del run.');
+async function send(){save();let text=$('msg').value.trim();if(!text)return;$('msg').value='';add('user',text);status('Procesando...');try{let r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-TRIADE-API-Key':$('key').value},body:JSON.stringify({text,source:'single-port-ui',use_ollama:$('ollama').checked,hypothalamus_model:$('hyp').value,central_model:$('cen').value,auto_select_models:$('auto').checked,context:context()})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);let t=j.crystal_temporal_state||{};add('bot',j.response,[j.run_id,'Q '+t.status,'scope '+t.context_scope,'ctx '+t.context_key,'H '+j.models?.hypothalamus?.name,'C '+j.models?.central?.name].filter(Boolean).join(' · '));status('Respuesta recibida',true)}catch(e){add('bot','Error: '+e.message);status('Error')}}function clearChat(){$('chat').innerHTML=''}function keysend(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send()}load();add('bot','Tríade Ω lista. La memoria semántica autorizada requiere estado stable o autorización experimental explícita.');
 </script></body></html>
 """
 
