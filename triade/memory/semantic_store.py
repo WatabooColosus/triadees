@@ -1,8 +1,7 @@
-"""Memoria semántica persistente · Tríade Ω 1.9A.
+"""Memoria semántica persistente · Tríade Ω 1.9A/1.9E.
 
-Esta fase construye el almacén documental/vectorial sobre SQLite. No genera
-embeddings por sí sola; acepta vectores producidos por una capa posterior
-(Ollama embeddings en 1.9B) y los persiste de forma trazable.
+Almacena documentos y vectores; desde 1.9E protege el estado gobernado de un
+documento para que una reingestión no degrade silenciosamente memoria aprobada.
 """
 
 from __future__ import annotations
@@ -49,6 +48,8 @@ class SemanticEmbedding:
 class SemanticMemoryStore:
     """Almacén SQLite para documentos y embeddings semánticos."""
 
+    VALID_DOCUMENT_STATUSES = {"candidate", "experimental", "stable", "rejected"}
+
     def __init__(
         self,
         db_path: str | Path = "triade/memory/triade.db",
@@ -84,16 +85,32 @@ class SemanticMemoryStore:
         normalized = self.normalize_content(content)
         if not normalized:
             raise ValueError("El contenido semántico no puede estar vacío.")
+        requested_status = status.strip().lower()
+        if requested_status not in self.VALID_DOCUMENT_STATUSES:
+            raise ValueError(f"Estado semántico inválido: {requested_status}")
         content_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-        document_id = document_id or f"sem-{uuid4().hex[:16]}"
+        requested_id = document_id or f"sem-{uuid4().hex[:16]}"
         metadata = metadata or {}
+        effective_status = requested_status
         with self._connect() as conn:
-            existing = conn.execute(
-                "SELECT document_id FROM semantic_documents WHERE content_hash = ? LIMIT 1",
+            duplicate = conn.execute(
+                "SELECT document_id, status FROM semantic_documents WHERE content_hash = ? LIMIT 1",
                 (content_hash,),
             ).fetchone()
-            if existing and existing["document_id"] != document_id:
-                document_id = str(existing["document_id"])
+            current = conn.execute(
+                "SELECT document_id, content_hash, status FROM semantic_documents WHERE document_id = ? LIMIT 1",
+                (requested_id,),
+            ).fetchone()
+            if duplicate and duplicate["document_id"] != requested_id:
+                requested_id = str(duplicate["document_id"])
+                effective_status = str(duplicate["status"] or "candidate")
+            elif current:
+                current_status = str(current["status"] or "candidate")
+                if str(current["content_hash"]) != content_hash and current_status != "candidate":
+                    raise ValueError(
+                        "No se puede sobrescribir contenido de una memoria gobernada; cree un nuevo documento candidato."
+                    )
+                effective_status = current_status
             conn.execute(
                 """
                 INSERT INTO semantic_documents
@@ -108,11 +125,10 @@ class SemanticMemoryStore:
                     source_type = excluded.source_type,
                     source_ref = excluded.source_ref,
                     metadata = excluded.metadata,
-                    status = excluded.status,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
-                    document_id,
+                    requested_id,
                     content,
                     normalized,
                     content_hash,
@@ -120,11 +136,11 @@ class SemanticMemoryStore:
                     source_type.strip() or "manual",
                     source_ref,
                     json.dumps(metadata, ensure_ascii=False),
-                    status,
+                    effective_status,
                 ),
             )
         return SemanticDocument(
-            document_id=document_id,
+            document_id=requested_id,
             content=content,
             normalized_content=normalized,
             content_hash=content_hash,
@@ -132,7 +148,7 @@ class SemanticMemoryStore:
             source_type=source_type.strip() or "manual",
             source_ref=source_ref,
             metadata=metadata,
-            status=status,
+            status=effective_status,
         )
 
     def store_embedding(
@@ -226,15 +242,19 @@ class SemanticMemoryStore:
             models = conn.execute(
                 "SELECT embedding_model, COUNT(*) AS c FROM semantic_embeddings GROUP BY embedding_model ORDER BY c DESC"
             ).fetchall()
+            status_rows = conn.execute(
+                "SELECT status, COUNT(*) AS c FROM semantic_documents GROUP BY status ORDER BY status"
+            ).fetchall()
         return {
             "status": "ok",
-            "mode": "semantic-store-1.9A",
+            "mode": "semantic-store-1.9E",
             "db_path": str(self.db_path),
             "documents": documents,
             "embeddings": embeddings,
             "documents_without_embedding": pending,
+            "documents_by_status": [dict(row) for row in status_rows],
             "embedding_models": [dict(row) for row in models],
-            "embedding_generation": "pending_1.9B",
+            "embedding_generation": "available_1.9B",
         }
 
     @staticmethod
