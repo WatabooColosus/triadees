@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
+from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.models.hardware_profile import HardwareProfiler
@@ -24,7 +25,7 @@ from .verification import Verifier
 
 
 class TriadeRunner:
-    """Ejecuta el ciclo: input → señales → memoria → cristal → plan → safety → output → reporte."""
+    """Ejecuta: input → señales → memoria → gobierno → cristal → plan → safety → output → reporte."""
 
     def __init__(
         self,
@@ -36,6 +37,7 @@ class TriadeRunner:
         central_model: str | None = None,
         auto_select_models: bool = True,
         semantic_search_engine: Any | None = None,
+        semantic_governance: Any | None = None,
     ) -> None:
         self.runs_dir = Path(runs_dir)
         self.db_path = Path(db_path)
@@ -59,6 +61,7 @@ class TriadeRunner:
         self.hypothalamus_model = selected["hypothalamus"]
         self.central_model = selected["central"]
         self.semantic_search_engine = semantic_search_engine
+        self.semantic_governance = semantic_governance
         self.hypothalamus = Hypothalamus(model_client=self.model_client, model_name=self.hypothalamus_model)
         self.bodega = Bodega(db_path=self.db_path, semantic_search_engine=semantic_search_engine)
         self.crystal = Crystal()
@@ -84,15 +87,16 @@ class TriadeRunner:
     def _get_semantic_search_engine(self) -> SemanticSearchEngine:
         if self.semantic_search_engine is not None:
             return self.semantic_search_engine
-        semantic_store = SemanticMemoryStore(db_path=self.db_path)
-        semantic_client = OllamaClient(base_url=self.ollama_base_url, timeout=self.ollama_timeout)
-        embedding_engine = SemanticEmbeddingEngine(store=semantic_store, client=semantic_client)
-        self.semantic_search_engine = SemanticSearchEngine(
-            store=semantic_store,
-            client=semantic_client,
-            embedding_engine=embedding_engine,
-        )
+        store = SemanticMemoryStore(db_path=self.db_path)
+        client = OllamaClient(base_url=self.ollama_base_url, timeout=self.ollama_timeout)
+        embedding = SemanticEmbeddingEngine(store=store, client=client)
+        self.semantic_search_engine = SemanticSearchEngine(store=store, client=client, embedding_engine=embedding)
         return self.semantic_search_engine
+
+    def _get_semantic_governance(self) -> SemanticMemoryGovernance:
+        if self.semantic_governance is None:
+            self.semantic_governance = SemanticMemoryGovernance(db_path=self.db_path)
+        return self.semantic_governance
 
     def run(
         self,
@@ -104,6 +108,7 @@ class TriadeRunner:
         semantic_limit: int = 3,
         semantic_min_similarity: float = 0.55,
         semantic_domain: str | None = None,
+        semantic_allow_experimental: bool = False,
     ) -> dict[str, Any]:
         input_packet = InputPacket(user_input=user_input, source=source, context=context or {})
         self.bodega.create_run(input_packet)
@@ -123,12 +128,14 @@ class TriadeRunner:
             semantic_min_similarity=semantic_min_similarity,
             semantic_domain=semantic_domain,
         )
+        if semantic_recall_enabled:
+            memory = self._get_semantic_governance().govern_memory(memory, allow_experimental=semantic_allow_experimental)
         comparison_basis = self._build_comparison_basis(input_packet, signals.intent)
         crystal_history = self.bodega.list_recent_crystals(limit=5, context_key=comparison_basis["context_key"])
         crystal = self.crystal.regulate(signals, memory, history=crystal_history, comparison_basis=comparison_basis)
         crystal_id = self.bodega.store_crystal(crystal)
         plan = self.central.plan(input_packet, signals, memory, crystal)
-        safety = self.safety.review(signals, plan, crystal=crystal)
+        safety = self.safety.review(signals, plan, crystal=crystal, memory=memory)
         safety_id = self.bodega.store_safety(safety)
         if safety.status == "blocked":
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
@@ -142,26 +149,20 @@ class TriadeRunner:
         central_event_id = self.bodega.store_model_event(input_packet.run_id, "central", output.model_provider, output.model_name, output.model_ok, output.model_error, central_quality)
         memory_diff = self.bodega.store_episode(input_packet, output)
         temporal_state = {
-            "status": crystal.temporal_status,
-            "q_delta": crystal.q_delta,
-            "stability_delta": crystal.stability_delta,
-            "history_window": crystal.history_window,
-            "alerts": crystal.temporal_alerts,
-            "context_scope": crystal.context_scope,
-            "context_key": crystal.context_key,
-            "comparison_basis": crystal.comparison_basis,
+            "status": crystal.temporal_status, "q_delta": crystal.q_delta, "stability_delta": crystal.stability_delta,
+            "history_window": crystal.history_window, "alerts": crystal.temporal_alerts, "context_scope": crystal.context_scope,
+            "context_key": crystal.context_key, "comparison_basis": crystal.comparison_basis,
         }
         semantic_state = dict(memory.semantic_recall)
-        semantic_state["matches"] = memory.semantic_matches
+        semantic_state["authorized_matches"] = memory.semantic_matches
         output.memory_diff = {
             **memory_diff, "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id,
-            "crystal_temporal_state": temporal_state,
-            "semantic_recall": semantic_state,
+            "crystal_temporal_state": temporal_state, "semantic_recall": semantic_state,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_model_error": hypothalamus_model_result.get("error"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_model_error": output.model_error, "central_quality_score": central_quality, "central_model_event_id": central_event_id,
             "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_error": output.model_error, "model_selection": self.model_selection,
         }
-        report = self.verifier.verify(output, safety, crystal=crystal)
+        report = self.verifier.verify(output, safety, crystal=crystal, memory=memory)
         verification_id = self.bodega.store_verification_report(report)
         output.memory_diff["verification_report_id"] = verification_id
         artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan.to_dict(), "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict()}
@@ -169,8 +170,7 @@ class TriadeRunner:
             self._write_json(run_path / filename, payload)
         integrity = {
             "run_id": input_packet.run_id, "status": report.status, "artifacts": sorted(artifacts.keys()), "database": memory_diff.get("db_path"), "episode_id": memory_diff.get("episode_id"), "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id, "verification_report_id": verification_id,
-            "crystal_temporal_state": temporal_state,
-            "semantic_recall": semantic_state,
+            "crystal_temporal_state": temporal_state, "semantic_recall": semantic_state,
             "safety_crystal_feedback": {"status": safety.status, "risk_types": safety.risk_types, "controls": safety.required_controls},
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_quality_score": central_quality, "central_model_event_id": central_event_id, "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_selection": self.model_selection, "closed": True,
@@ -186,44 +186,28 @@ class TriadeRunner:
         project_id = str(context.get("project_id", "")).strip() or None
         active_neuron = str(context.get("active_neuron", "")).strip() or None
         explicit_scope = str(context.get("context_scope", "")).strip() or None
-        if explicit_scope and explicit_scope not in {"source_intent", "session", "project", "neuron", "project_neuron"}:
-            explicit_scope = None
-        if explicit_scope == "project_neuron" and project_id and active_neuron:
-            scope = "project_neuron"
-        elif explicit_scope == "neuron" and active_neuron:
-            scope = "neuron"
-        elif explicit_scope == "project" and project_id:
-            scope = "project"
-        elif explicit_scope == "session" and session_id:
-            scope = "session"
-        elif project_id and active_neuron:
-            scope = "project_neuron"
-        elif active_neuron:
-            scope = "neuron"
-        elif project_id:
-            scope = "project"
-        elif session_id:
-            scope = "session"
-        else:
-            scope = "source_intent"
+        if explicit_scope and explicit_scope not in {"source_intent", "session", "project", "neuron", "project_neuron"}: explicit_scope = None
+        if explicit_scope == "project_neuron" and project_id and active_neuron: scope = "project_neuron"
+        elif explicit_scope == "neuron" and active_neuron: scope = "neuron"
+        elif explicit_scope == "project" and project_id: scope = "project"
+        elif explicit_scope == "session" and session_id: scope = "session"
+        elif project_id and active_neuron: scope = "project_neuron"
+        elif active_neuron: scope = "neuron"
+        elif project_id: scope = "project"
+        elif session_id: scope = "session"
+        else: scope = "source_intent"
         fields: list[tuple[str, str]] = [("intent", intent)]
-        if scope == "project_neuron":
-            fields.extend([("project_id", project_id or ""), ("active_neuron", active_neuron or "")])
-        elif scope == "neuron":
-            fields.append(("active_neuron", active_neuron or ""))
-        elif scope == "project":
-            fields.append(("project_id", project_id or ""))
-        elif scope == "session":
-            fields.append(("session_id", session_id or ""))
-        else:
-            fields.append(("source", input_packet.source))
+        if scope == "project_neuron": fields.extend([("project_id", project_id or ""), ("active_neuron", active_neuron or "")])
+        elif scope == "neuron": fields.append(("active_neuron", active_neuron or ""))
+        elif scope == "project": fields.append(("project_id", project_id or ""))
+        elif scope == "session": fields.append(("session_id", session_id or ""))
+        else: fields.append(("source", input_packet.source))
         context_key = scope + "|" + "|".join(f"{key}={value}" for key, value in fields)
         return {"context_scope": scope, "context_key": context_key, "source": input_packet.source, "intent": intent, "session_id": session_id, "project_id": project_id, "active_neuron": active_neuron}
 
     def recall(self, query: str, limit: int = 10) -> dict[str, Any]:
         episodes = self.bodega.list_recent_episodes(limit=limit)
-        if query:
-            episodes = [ep for ep in episodes if query.lower() in (ep.get("title") or "").lower() or query.lower() in (ep.get("summary") or "").lower() or query.lower() in (ep.get("tags") or "").lower()]
+        if query: episodes = [ep for ep in episodes if query.lower() in (ep.get("title") or "").lower() or query.lower() in (ep.get("summary") or "").lower() or query.lower() in (ep.get("tags") or "").lower()]
         return {"query": query, "count": len(episodes), "episodes": episodes}
 
     def doctor(self) -> dict[str, Any]:
@@ -243,8 +227,7 @@ class TriadeRunner:
 
     @staticmethod
     def _score_central(response: str, model_ok: bool) -> float:
-        text = response.strip()
-        score = 0.35
+        text = response.strip(); score = 0.35
         if model_ok: score += 0.25
         if len(text) >= 40: score += 0.15
         if len(text) <= 1800: score += 0.10
