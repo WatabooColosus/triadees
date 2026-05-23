@@ -1,18 +1,19 @@
-"""Verificación · calidad, trazabilidad y retroalimentación del Cristal."""
+"""Verificación · calidad, trazabilidad y retroalimentación del Cristal y memoria."""
 
 from __future__ import annotations
 
-from .contracts import CrystalPacket, OutputPacket, SafetyPacket, VerificationReport
+from .contracts import CrystalPacket, MemoryPacket, OutputPacket, SafetyPacket, VerificationReport
 
 
 class Verifier:
-    """Genera reporte verificable e incorpora continuidad temporal del Cristal."""
+    """Genera reporte verificable e incorpora continuidad y gobierno semántico."""
 
     def verify(
         self,
         output: OutputPacket,
         safety: SafetyPacket,
         crystal: CrystalPacket | None = None,
+        memory: MemoryPacket | None = None,
     ) -> VerificationReport:
         warnings: list[str] = []
         errors: list[str] = []
@@ -57,6 +58,25 @@ class Verifier:
                     "Ejecutar python triade_digimon.py doctor para verificar conteos de persistencia.",
                 ]
             )
+
+        if memory is not None:
+            governance = memory.semantic_recall.get("governance", {})
+            quarantined = int(governance.get("quarantined_vector_matches", 0) or 0)
+            allowed = int(governance.get("allowed_vector_matches", 0) or 0)
+            if quarantined > 0:
+                warnings.append(
+                    f"Gobierno semántico dejó en cuarentena {quarantined} recuerdo(s) recuperado(s) no autorizado(s)."
+                )
+                recommendations.append(
+                    "Promover memorias verificadas mediante transición auditable antes de permitir su influencia en Central."
+                )
+                memory_score = min(memory_score, 0.75)
+                if status == "ok":
+                    status = "warning"
+            if allowed > 0:
+                recommendations.append(
+                    "Mantener atribución literal de document_id, source_ref y document_status para memoria semántica autorizada."
+                )
 
         if crystal is not None:
             temporal_status = crystal.temporal_status
