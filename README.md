@@ -1,5 +1,5 @@
 # Tríade Ω  
-### Arquitectura Triádica de Inteligencia Viva, Relacional y Verificable
+### Arquitectura Triádica de Inteligencia Viva, Relacional y Verificable ""
 
 **Tríade Ω** es una arquitectura conceptual, operativa y técnica de inteligencia artificial basada en una **estructura triádica viva**, diseñada para aprender, crear, recordar, verificar y relacionarse de forma ética, evolutiva y trazable.
 
