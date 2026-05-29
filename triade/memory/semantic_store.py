@@ -1,7 +1,7 @@
 """Memoria semántica persistente · Tríade Ω 1.9A/1.9E.
 
 Almacena documentos y vectores; desde 1.9E protege el estado gobernado de un
-documento para que una reingestión no degrade silenciosamente memoria aprobada.
+ documento para que una reingestión no degrade silenciosamente memoria aprobada.
 """
 
 from __future__ import annotations
@@ -175,18 +175,60 @@ class SemanticMemoryStore:
 
         return SemanticEmbedding(document_id, embedding_model.strip(), values, len(values), round(norm, 8), status)
 
+    # =========================
+    # 1.9F COMPATIBILITY LAYER
+    # =========================
+
+    def get_document(self, document_id: str):
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM semantic_documents WHERE document_id=?",
+                (document_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_documents(self):
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT document_id FROM semantic_documents"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_embeddings(self, document_id: str = None):
+        with self._connect() as conn:
+            if document_id:
+                rows = conn.execute(
+                    "SELECT * FROM semantic_embeddings WHERE document_id=?",
+                    (document_id,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM semantic_embeddings"
+                ).fetchall()
+        return [dict(r) for r in rows]
+
     def doctor(self) -> dict[str, Any]:
         with self._connect() as conn:
             documents = conn.execute("SELECT COUNT(*) AS c FROM semantic_documents").fetchone()["c"]
             embeddings = conn.execute("SELECT COUNT(*) AS c FROM semantic_embeddings").fetchone()["c"]
 
+            docs_without_emb = conn.execute("""
+                SELECT COUNT(*) as c
+                FROM semantic_documents d
+                LEFT JOIN semantic_embeddings e
+                ON d.document_id = e.document_id
+                WHERE e.document_id IS NULL
+            """).fetchone()["c"]
+
         return {
             "status": "ok",
-            "mode": "semantic-store-1.9E",
+            "mode": "semantic-store-1.9F",
             "documents": documents,
             "embeddings": embeddings,
-            "documents_without_embedding": documents,  # simplified for test context
-            "embedding_generation": "pending_1.9B" if embeddings == 0 else "available_1.9B",
+            "documents_without_embedding": docs_without_emb,
+            "embedding_generation": (
+                "pending_1.9B" if docs_without_emb > 0 else "available_1.9B"
+            ),
         }
 
     @staticmethod
