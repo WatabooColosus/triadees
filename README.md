@@ -381,22 +381,32 @@ Cada neurona debe tener:
 
 ```text
 triadees/
-├── README.md
-├── Base.docx
-├── triade_formulas_v0_1.pdf
-├── Manifiesto/
-├── Inicio/
-└── IngeniaInversa1/
+├── triade/
+│   ├── core/        # central, hypothalamus, bodega, crystal, safety,
+│   │                # verification, contracts, runner, neuron_*, alignment
+│   ├── memory/      # schemas.sql, migrations/, capa semántica 1.9A–F
+│   └── models/      # ollama_client, model_router, hardware_profile, ...
+├── apps/            # 5 superficies FastAPI (api, chat_ui, single_port, ...)
+├── tests/           # 31 archivos de test (pytest)
+├── docs/            # arquitectura, safety, learning, federation, STATUS_*
+├── n8n/             # 4 workflows de orquestación
+├── systemd/         # units de despliegue local
+├── triade_digimon.py  # CLI (run, chat, recall, doctor, align, neuron, models)
+├── triade.yml · requirements.txt · pyproject.toml
+├── AUDIT_REPORT.md · ARCHITECTURE_MAP.md · ROADMAP.md  # auditoría Fase 0
+├── README.md · Base.docx · triade_formulas_v0_1.pdf
+└── Manifiesto/ · Inicio/ · IngeniaInversa1/
 ```
 
-Estado del repositorio al momento de esta actualización:
+Estado real del proyecto (frontera técnica ≈ v1.9F):
 
-- Repositorio: `WatabooColosus/triadees`
-- Rama principal: `main`
-- Visibilidad: pública
-- Estado: no archivado
-- Tamaño aproximado: 68 KB
-- Permisos del propietario conectado: admin, maintain, pull, push y triage
+- Repositorio: `WatabooColosus/triadees` · rama principal `main`.
+- MVP local **operativo y auditable**: el ciclo cognitivo corre de extremo a
+  extremo y persiste evidencia por run en SQLite.
+- Núcleo triádico funcional (Central + Hipotálamo + Bodega + Cristal + Safety +
+  Verification); Learning Pipeline y Federation son aún visión documentada.
+- Diagnóstico vigente: ver `AUDIT_REPORT.md`, mapa en `ARCHITECTURE_MAP.md` y
+  ruta priorizada en `ROADMAP.md`.
 
 ---
 

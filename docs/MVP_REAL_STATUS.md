@@ -118,12 +118,19 @@ Tablas preparadas para fases siguientes:
 
 ## Limitaciones actuales
 
-- El lenguaje de respuesta todavía es una plantilla MVP.
-- No hay integración real con modelos locales Ollama todavía.
-- La búsqueda de memoria es simple por términos.
-- No persiste aún señales, cristal, safety ni verification reports en tablas dedicadas.
-- No existe API FastAPI todavía.
-- No existe integración n8n todavía.
+> ⚠️ **Documento histórico.** Esta sección describe el hito
+> `MVP_REAL_SQLITE_0.1`. Varias de estas limitaciones ya fueron superadas en
+> fases posteriores (1.6–1.9). Para el estado vigente consulta
+> `AUDIT_REPORT.md` y `ROADMAP.md` en la raíz del repositorio.
+
+Limitaciones tal como se registraron en el hito `MVP_REAL_SQLITE_0.1`
+(la mayoría ya resueltas — se conservan como traza histórica):
+
+- ~~El lenguaje de respuesta todavía es una plantilla MVP.~~ → Central usa Ollama con fallback por plantilla.
+- ~~No hay integración real con modelos locales Ollama.~~ → Integrada (Hipotálamo + Central) con Model Router por hardware.
+- La búsqueda de memoria episódica/keyword sigue siendo simple por términos (la semántica vectorial 1.9 es opt-in).
+- ~~No persiste señales, cristal, safety ni verification reports.~~ → Persistidos en tablas dedicadas.
+- ~~No existe API FastAPI.~~ → Existe (`apps/`), con 4 workflows n8n y units systemd.
 
 ---
 

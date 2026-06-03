@@ -1,4 +1,10 @@
-# Roadmap Verificable · Tríade Ω
+# Roadmap Verificable · Tríade Ω (conceptual / histórico)
+
+> ⚠️ **Roadmap conceptual original.** Sus estados de fase (Fases 2–5 marcadas
+> como "pendiente") quedaron **desactualizados**: ya están implementadas. Para
+> la ruta alineada al estado real (frontera v1.9F, fases A–E priorizadas)
+> consulta **`/ROADMAP.md`** en la raíz del repositorio. Este documento se
+> conserva como traza de la visión por fases original.
 
 ## Propósito
 
