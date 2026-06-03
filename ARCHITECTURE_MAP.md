@@ -101,8 +101,11 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 ### Verification 🟢
 - `core/verification.py` — `Verifier.verify() → VerificationReport` (coherencia, memoria, safety, utilidad, trazabilidad).
 
-### Learning Pipeline 🔴
-- Solo `docs/LEARNING.md` + tabla `learning_queue` (vacía, sin código). Subconjunto implementado en `semantic_governance.py`.
+### Learning Pipeline 🟢 (Fase C)
+- `triade/learning/pipeline.py` (`LearningPipeline`) sobre `learning_queue`:
+  `candidate → evaluated → verified → consolidated | rejected | archived`.
+- Consolidación vía gobernanza semántica 1.9E (candidate→experimental→stable). Nunca toca `identity_core`. CLI `learn`. Tests en `tests/test_learning_pipeline.py`.
+- Pendiente: enganche automático con `run()` (aprendizaje post-run) y sandbox real.
 
 ### Federation 🔴
 - Solo `docs/FEDERATION.md` + tablas `federated_nodes`, `federated_exchange_log` (vacías, sin código).
@@ -133,7 +136,7 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 | `neurons` / `neuron_training` | NeuronRegistry (CLI) | 🟡 activa solo vía CLI |
 | `semantic_memory` (keyword legacy) | Bodega `_search_semantic` | 🟡 activa pero vacía |
 | `semantic_documents` / `semantic_embeddings` / `semantic_governance_events` (migración 1.9A/1.9E) | capa semántica | 🟡 activa, con regresión 1.9F |
-| `learning_queue` | — | 🔴 muerta (0 código, 0 filas) |
+| `learning_queue` | LearningPipeline (Fase C) | 🟢 activa |
 | `federated_nodes` | — | 🔴 muerta |
 | `federated_exchange_log` | — | 🔴 muerta |
 | `goals` | — | 🔴 muerta |
@@ -165,7 +168,7 @@ Verification ███████░░░  operativo   — 5 scores, retroalim
 Safety       ███████░░░  operativo   — 4/5 estados (falta sandbox_only)
 Crystal      ███████░░░  operativo   — Q_cristal + temporal contextual
 Central      ██████░░░░  parcial     — N Creadora/Formadora fuera del ciclo
-Semántica    █████░░░░░  con regresión— frontera 1.9, rota por 1.9F (D-01/D-02)
-Learning     ██░░░░░░░░  solo visión — doc + tabla, sin código
+Semántica    ████████░░  operativa   — regresión 1.9F reparada (Fase A.1)
+Learning     ███████░░░  operativo   — pipeline Fase C sobre learning_queue
 Federation   █░░░░░░░░░  solo visión — doc + 2 tablas, sin código
 ```

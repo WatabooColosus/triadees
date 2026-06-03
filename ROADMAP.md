@@ -29,8 +29,9 @@ Estado base: 2026-06-02 · commit `90c548f` · frontera técnica ≈ **v1.9F**.
 ## Registro de progreso
 
 - **Fase A · ✅ COMPLETA** (A.1, A.2, A.3). Suite verde, base verificable restaurada, docs sincronizados, `align` dinámico.
-- **Fase B.1 · ✅ COMPLETA** — N Creadora/Formadora integradas al ciclo `run()` como propuesta auditable (candidate, sin activación). `align` mide central 1.00 · score global 0.89.
-- **Siguiente:** Fase B.2 (recall semántico de primera clase) / B.3 (`sandbox_only`) → Fase C (Learning Pipeline).
+- **Fase B.1 · ✅ COMPLETA** — N Creadora/Formadora integradas al ciclo `run()` como propuesta auditable (candidate, sin activación).
+- **Fase C · ✅ COMPLETA** — Learning Pipeline sobre `learning_queue` (candidate→evaluated→verified→consolidated), consolidación vía gobernanza semántica 1.9E, CLI `learn`. `align` mide **0.93 (strong)**; `learning_queue` deja de ser tabla muerta.
+- **Pendiente real (medido por `align`):** estado emocional longitudinal (Hipotálamo) y aprendizaje post-run en el ciclo (runner) → Fase B.2/B.3 y enganche C↔run.
 
 ---
 
@@ -72,15 +73,15 @@ Estado base: 2026-06-02 · commit `90c548f` · frontera técnica ≈ **v1.9F**.
 
 ---
 
-## Fase C · Learning Pipeline (cerrar promesa)
+## Fase C · Learning Pipeline (cerrar promesa)  ✅ COMPLETA
 **Prioridad P2 · de visión a código, reutilizando lo que existe.**
 
-- Implementar el pipeline mínimo sobre la tabla `learning_queue` (hoy muerta):
-  `candidate → evaluated → (sandbox) → verified → consolidated | rejected`.
-- Reutilizar la maquinaria de gobernanza semántica 1.9E (transiciones auditables con razón/evidencia) como motor de consolidación.
-- Conectar con Safety (bloqueo/cuarentena) y Verification (reporte previo a consolidar).
-- **Regla innegociable:** ningún aprendizaje toca memoria estable ni identidad núcleo sin verificación y aprobación (ya respetado por diseño en 1.9E).
-- **Evidencia de cierre:** un candidato externo recorre el pipeline y deja `learning_candidate.json` + `evaluation.json` + `verification_report.json` + `memory_diff.json`.
+- ✅ Pipeline implementado en `triade/learning/pipeline.py` (`LearningPipeline`) sobre `learning_queue`:
+  `candidate → evaluated → verified → consolidated | rejected` (+ `archived`).
+- ✅ Consolidación reutiliza la gobernanza semántica 1.9E (candidate→experimental→stable con razón/evidencia) como motor de memoria estable.
+- ✅ Reglas duras: nada se consolida sin `verified` + aprobación humana (`approved_by`) + `source_ref`; riesgo `critical` no auto-avanza; un intento de alterar identidad se rechaza en evaluación; el pipeline **nunca** escribe en `identity_core` (test lo garantiza).
+- ✅ Evidencia: `verification_notes` acumula historial por paso (ingested/evaluated/verified/consolidated) en la fila; CLI `learn` (ingest/evaluate/verify/consolidate/reject/list/doctor); tests en `tests/test_learning_pipeline.py`.
+- **Pendiente menor (Fase futura):** enganche automático C↔`run()` (proponer candidato de aprendizaje desde el episodio post-run) y un sandbox real (B.3). Artefactos por paso en disco quedan opcionales (la traza vive en `verification_notes`).
 
 ---
 

@@ -11,6 +11,7 @@ from triade.core.neuron_creator import NeuronCreator
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.neuron_trainer import NeuronTrainer
 from triade.core.runner import TriadeRunner
+from triade.learning.pipeline import LearningPipeline
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
 
@@ -109,6 +110,36 @@ def handle_models(args: argparse.Namespace) -> None:
     raise SystemExit("Comando models inválido")
 
 
+def handle_learn(args: argparse.Namespace) -> None:
+    pipe = LearningPipeline(db_path=args.db)
+
+    if args.learn_command == "ingest":
+        print_json(pipe.ingest(content=args.content, source_type=args.source_type,
+                               source_ref=args.source_ref, title=args.title,
+                               domain=args.domain, risk_level=args.risk))
+        return
+    if args.learn_command == "evaluate":
+        print_json(pipe.evaluate(args.candidate_id))
+        return
+    if args.learn_command == "verify":
+        print_json(pipe.verify(args.candidate_id))
+        return
+    if args.learn_command == "consolidate":
+        print_json(pipe.consolidate(args.candidate_id, approved_by=args.approved_by))
+        return
+    if args.learn_command == "reject":
+        print_json(pipe.reject(args.candidate_id, reason=args.reason))
+        return
+    if args.learn_command == "list":
+        print_json({"status": "ok", "candidates": pipe.list_candidates(status=args.status, limit=args.limit)})
+        return
+    if args.learn_command == "doctor":
+        print_json(pipe.doctor())
+        return
+
+    raise SystemExit("Comando learn inválido")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Tríade Ω · MVP local auditable con memoria SQLite")
     subparsers = parser.add_subparsers(dest="command")
@@ -167,6 +198,39 @@ def main() -> None:
     models_doctor = models_subparsers.add_parser("doctor", help="Muestra recomendaciones para todos los roles")
     models_doctor.add_argument("--intent", default="conversation", help="Intención detectada")
     models_doctor.add_argument("--urgency", default="medium", help="Urgencia: low, medium, high")
+
+    learn_parser = subparsers.add_parser("learn", help="Pipeline de aprendizaje controlado (learning_queue)")
+    learn_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    learn_subparsers = learn_parser.add_subparsers(dest="learn_command")
+
+    learn_ingest = learn_subparsers.add_parser("ingest", help="Ingesta un candidato de aprendizaje")
+    learn_ingest.add_argument("content", help="Contenido del candidato")
+    learn_ingest.add_argument("--source-type", dest="source_type", default="conversation",
+                              help="conversation|document|web|repo|model|node|tool")
+    learn_ingest.add_argument("--source-ref", dest="source_ref", default=None, help="Referencia de fuente")
+    learn_ingest.add_argument("--title", default=None, help="Título del candidato")
+    learn_ingest.add_argument("--domain", default="general", help="Dominio del candidato")
+    learn_ingest.add_argument("--risk", default="low", help="low|medium|high|critical")
+
+    learn_eval = learn_subparsers.add_parser("evaluate", help="Evalúa utilidad, confianza y riesgo")
+    learn_eval.add_argument("candidate_id", help="ID del candidato")
+
+    learn_verify = learn_subparsers.add_parser("verify", help="Verifica un candidato evaluado")
+    learn_verify.add_argument("candidate_id", help="ID del candidato")
+
+    learn_consol = learn_subparsers.add_parser("consolidate", help="Consolida a memoria estable (requiere aprobación)")
+    learn_consol.add_argument("candidate_id", help="ID del candidato")
+    learn_consol.add_argument("--approved-by", dest="approved_by", required=True, help="Aprobador humano")
+
+    learn_reject = learn_subparsers.add_parser("reject", help="Rechaza un candidato")
+    learn_reject.add_argument("candidate_id", help="ID del candidato")
+    learn_reject.add_argument("--reason", required=True, help="Razón del rechazo")
+
+    learn_list = learn_subparsers.add_parser("list", help="Lista candidatos de aprendizaje")
+    learn_list.add_argument("--status", default=None, help="Filtrar por estado")
+    learn_list.add_argument("--limit", type=int, default=50, help="Cantidad máxima")
+
+    learn_subparsers.add_parser("doctor", help="Diagnóstico del pipeline de aprendizaje")
 
     args = parser.parse_args()
 
@@ -241,6 +305,10 @@ def main() -> None:
 
     if args.command == "models":
         handle_models(args)
+        return
+
+    if args.command == "learn":
+        handle_learn(args)
         return
 
     parser.print_help()

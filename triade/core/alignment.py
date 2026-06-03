@@ -270,12 +270,17 @@ class CoreAlignment:
 
     @staticmethod
     def _learning_code_refs() -> str:
-        """Concatena el código que *debería* operar la cola de aprendizaje.
+        """Devuelve el código que opera la cola de aprendizaje (Fase C).
 
-        Hoy ningún módulo referencia learning_queue, por lo que esta sonda
-        devuelve vacío y el check correspondiente queda como pendiente real.
+        Si el pipeline no estuviera implementado, la sonda devuelve vacío y el
+        check correspondiente queda como pendiente real.
         """
-        return ""
+        try:
+            from triade.learning.pipeline import LearningPipeline
+
+            return _source(LearningPipeline)
+        except Exception:
+            return ""
 
     @staticmethod
     def _read(path: str) -> str:
