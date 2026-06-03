@@ -31,6 +31,7 @@ Estado base: 2026-06-02 · commit `90c548f` · frontera técnica ≈ **v1.9F**.
 - **Fase A · ✅ COMPLETA** (A.1, A.2, A.3). Suite verde, base verificable restaurada, docs sincronizados, `align` dinámico.
 - **Fase B.1 · ✅ COMPLETA** — N Creadora/Formadora integradas al ciclo `run()` como propuesta auditable (candidate, sin activación).
 - **Fase C · ✅ COMPLETA** — Learning Pipeline sobre `learning_queue` (candidate→evaluated→verified→consolidated), consolidación vía gobernanza semántica 1.9E, CLI `learn`. `align` mide **0.93 (strong)**; `learning_queue` deja de ser tabla muerta.
+- **Fase D · ✅ COMPLETA** — Federación de nodos sobre `federated_nodes`/`federated_exchange_log`: registro con permisos/confianza, recepción gated (autenticación→permiso→Safety→log→Learning Pipeline como candidato), envío con bloqueo de fuga, revocación. CLI `federate`. Solo queda `goals` como tabla muerta.
 - **Pendiente real (medido por `align`):** estado emocional longitudinal (Hipotálamo) y aprendizaje post-run en el ciclo (runner) → Fase B.2/B.3 y enganche C↔run.
 
 ---
@@ -85,14 +86,14 @@ Estado base: 2026-06-02 · commit `90c548f` · frontera técnica ≈ **v1.9F**.
 
 ---
 
-## Fase D · Federación entre Nodos (cerrar promesa)
+## Fase D · Federación entre Nodos (cerrar promesa)  ✅ COMPLETA
 **Prioridad P3 · las tablas ya existen, falta toda la lógica.**
 
-- Implementar `FederatedNode` + `FederatedExchangePacket` sobre `federated_nodes` / `federated_exchange_log`.
-- Flujo de recepción: autenticación → permisos → Safety → log → learning_queue → verificación → decisión de Central.
-- Niveles de confianza (low/medium/high), permisos por tipo, revocación.
-- **Depende de Fase C** (todo lo recibido entra al pipeline de aprendizaje como candidato).
-- **Evidencia de cierre:** un intercambio simulado entre dos nodos locales queda registrado y pasa por Safety sin consolidación automática.
+- ✅ `Federation` (`triade/federation/federation.py`) sobre `federated_nodes` / `federated_exchange_log`.
+- ✅ Flujo de recepción: autenticación → validación de permiso → Safety → log → Learning Pipeline (candidato). Nada se consolida automáticamente (reusa Fase C).
+- ✅ Niveles de confianza (low/medium/high), permisos por tipo, permisos prohibidos rechazados al registrar, revocación/pausa, envío con bloqueo de fuga de datos sensibles.
+- ✅ **Evidencia:** intercambios registrados en `federated_exchange_log` con safety_status y decisión; CLI `federate`; tests en `tests/test_federation.py`.
+- **Pendiente (futuro):** transporte real entre nodos (red/HTTP + firma con public_key); hoy el registro y la gobernanza son locales y verificables.
 
 ---
 

@@ -11,6 +11,7 @@ from triade.core.neuron_creator import NeuronCreator
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.neuron_trainer import NeuronTrainer
 from triade.core.runner import TriadeRunner
+from triade.federation.federation import Federation
 from triade.learning.pipeline import LearningPipeline
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
@@ -140,6 +141,38 @@ def handle_learn(args: argparse.Namespace) -> None:
     raise SystemExit("Comando learn inválido")
 
 
+def handle_federate(args: argparse.Namespace) -> None:
+    federation = Federation(db_path=args.db)
+
+    if args.federate_command == "register":
+        print_json(federation.register_node(node_id=args.node_id, name=args.name, owner=args.owner,
+                                            endpoint=args.endpoint, trust_level=args.trust,
+                                            permissions=args.permission or []))
+        return
+    if args.federate_command == "list":
+        print_json({"status": "ok", "nodes": federation.list_nodes(status=args.status)})
+        return
+    if args.federate_command == "revoke":
+        print_json(federation.revoke_node(args.node_id, reason=args.reason or ""))
+        return
+    if args.federate_command == "receive":
+        print_json(federation.receive_exchange(source_node_id=args.node_id, exchange_type=args.type,
+                                               payload=args.payload, risk_level=args.risk, domain=args.domain))
+        return
+    if args.federate_command == "send":
+        print_json(federation.send_exchange(target_node_id=args.node_id, exchange_type=args.type,
+                                            payload=args.payload, risk_level=args.risk))
+        return
+    if args.federate_command == "exchanges":
+        print_json({"status": "ok", "exchanges": federation.list_exchanges(node_id=args.node_id, limit=args.limit)})
+        return
+    if args.federate_command == "doctor":
+        print_json(federation.doctor())
+        return
+
+    raise SystemExit("Comando federate inválido")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Tríade Ω · MVP local auditable con memoria SQLite")
     subparsers = parser.add_subparsers(dest="command")
@@ -232,6 +265,44 @@ def main() -> None:
 
     learn_subparsers.add_parser("doctor", help="Diagnóstico del pipeline de aprendizaje")
 
+    fed_parser = subparsers.add_parser("federate", help="Federación entre nodos autorizados")
+    fed_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    fed_subparsers = fed_parser.add_subparsers(dest="federate_command")
+
+    fed_register = fed_subparsers.add_parser("register", help="Registra o actualiza un nodo federado")
+    fed_register.add_argument("node_id", help="Identificador del nodo")
+    fed_register.add_argument("--name", required=True, help="Nombre del nodo")
+    fed_register.add_argument("--owner", default=None, help="Propietario del nodo")
+    fed_register.add_argument("--endpoint", default=None, help="Endpoint del nodo")
+    fed_register.add_argument("--trust", default="low", help="low|medium|high")
+    fed_register.add_argument("--permission", action="append", help="Permiso autorizado; se puede repetir")
+
+    fed_list = fed_subparsers.add_parser("list", help="Lista nodos federados")
+    fed_list.add_argument("--status", default=None, help="Filtrar por estado")
+
+    fed_revoke = fed_subparsers.add_parser("revoke", help="Revoca un nodo")
+    fed_revoke.add_argument("node_id", help="Identificador del nodo")
+    fed_revoke.add_argument("--reason", default="", help="Razón de la revocación")
+
+    fed_receive = fed_subparsers.add_parser("receive", help="Recibe un intercambio de un nodo")
+    fed_receive.add_argument("node_id", help="Nodo origen")
+    fed_receive.add_argument("--type", required=True, help="knowledge|pattern|neuron_spec|verification|learning_candidate")
+    fed_receive.add_argument("--payload", required=True, help="Contenido del intercambio")
+    fed_receive.add_argument("--risk", default="low", help="low|medium|high|critical")
+    fed_receive.add_argument("--domain", default="federated", help="Dominio del candidato")
+
+    fed_send = fed_subparsers.add_parser("send", help="Envía un intercambio a un nodo")
+    fed_send.add_argument("node_id", help="Nodo destino")
+    fed_send.add_argument("--type", required=True, help="knowledge|pattern|neuron_spec|verification|learning_candidate")
+    fed_send.add_argument("--payload", required=True, help="Contenido del intercambio")
+    fed_send.add_argument("--risk", default="low", help="low|medium|high|critical")
+
+    fed_exchanges = fed_subparsers.add_parser("exchanges", help="Lista el log de intercambios")
+    fed_exchanges.add_argument("--node-id", dest="node_id", default=None, help="Filtrar por nodo")
+    fed_exchanges.add_argument("--limit", type=int, default=50, help="Cantidad máxima")
+
+    fed_subparsers.add_parser("doctor", help="Diagnóstico de la federación")
+
     args = parser.parse_args()
 
     if args.command == "run":
@@ -309,6 +380,10 @@ def main() -> None:
 
     if args.command == "learn":
         handle_learn(args)
+        return
+
+    if args.command == "federate":
+        handle_federate(args)
         return
 
     parser.print_help()

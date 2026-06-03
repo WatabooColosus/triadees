@@ -107,8 +107,9 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 - Consolidación vía gobernanza semántica 1.9E (candidate→experimental→stable). Nunca toca `identity_core`. CLI `learn`. Tests en `tests/test_learning_pipeline.py`.
 - Pendiente: enganche automático con `run()` (aprendizaje post-run) y sandbox real.
 
-### Federation 🔴
-- Solo `docs/FEDERATION.md` + tablas `federated_nodes`, `federated_exchange_log` (vacías, sin código).
+### Federation 🟢 (Fase D)
+- `triade/federation/federation.py` (`Federation`): registro de nodos (permisos/confianza/estado), recepción gated (autenticación → permiso → Safety → log → Learning Pipeline como candidato), envío con bloqueo de fuga de datos, revocación.
+- Permisos prohibidos por defecto (modify_identity_core, write_stable_memory, …) rechazados al registrar. Nada recibido se consolida automáticamente. CLI `federate`. Tests en `tests/test_federation.py`.
 
 ### Capa de Modelos (transversal) 🟢
 - `models/ollama_client.py` — health, generate, embed.
@@ -137,9 +138,9 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 | `semantic_memory` (keyword legacy) | Bodega `_search_semantic` | 🟡 activa pero vacía |
 | `semantic_documents` / `semantic_embeddings` / `semantic_governance_events` (migración 1.9A/1.9E) | capa semántica | 🟡 activa, con regresión 1.9F |
 | `learning_queue` | LearningPipeline (Fase C) | 🟢 activa |
-| `federated_nodes` | — | 🔴 muerta |
-| `federated_exchange_log` | — | 🔴 muerta |
-| `goals` | — | 🔴 muerta |
+| `federated_nodes` | Federation (Fase D) | 🟢 activa |
+| `federated_exchange_log` | Federation (Fase D) | 🟢 activa |
+| `goals` | — | 🔴 muerta (única restante) |
 
 *Nota:* `triade.db` está en `.gitignore` (correcto); la única DB versionada es `backups/triade-before-systemd.db` (24 runs, 14 ciclos cristal/señal/safety/verificación, 10 eventos de modelo; tablas muertas en 0).
 
@@ -170,5 +171,5 @@ Crystal      ███████░░░  operativo   — Q_cristal + tempora
 Central      ██████░░░░  parcial     — N Creadora/Formadora fuera del ciclo
 Semántica    ████████░░  operativa   — regresión 1.9F reparada (Fase A.1)
 Learning     ███████░░░  operativo   — pipeline Fase C sobre learning_queue
-Federation   █░░░░░░░░░  solo visión — doc + 2 tablas, sin código
+Federation   ███████░░░  operativo   — nodos + intercambio gated (Fase D)
 ```
