@@ -109,6 +109,7 @@ class TriadeRunner:
         semantic_min_similarity: float = 0.55,
         semantic_domain: str | None = None,
         semantic_allow_experimental: bool = False,
+        propose_neurons: bool = True,
     ) -> dict[str, Any]:
         input_packet = InputPacket(user_input=user_input, source=source, context=context or {})
         self.bodega.create_run(input_packet)
@@ -144,6 +145,9 @@ class TriadeRunner:
         else:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
         central_quality = self._score_central(output.response, output.model_ok)
+        neuron_proposal = None
+        if propose_neurons and signals.intent == "build_or_update" and safety.status != "blocked":
+            neuron_proposal = self._propose_neuron_candidate(input_packet, signals)
         self.bodega.update_run_models(input_packet.run_id, hypothalamus_model_result.get("name", self.hypothalamus_model), output.model_name)
         hypothalamus_event_id = self.bodega.store_model_event(input_packet.run_id, "hypothalamus", str(hypothalamus_model_result.get("provider")), str(hypothalamus_model_result.get("name")), bool(hypothalamus_model_result.get("ok")), hypothalamus_model_result.get("error"), hypothalamus_quality)
         central_event_id = self.bodega.store_model_event(input_packet.run_id, "central", output.model_provider, output.model_name, output.model_ok, output.model_error, central_quality)
@@ -157,6 +161,7 @@ class TriadeRunner:
         semantic_state["authorized_matches"] = memory.semantic_matches
         output.memory_diff = {
             **memory_diff, "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id,
+            "neuron_proposal": neuron_proposal,
             "crystal_temporal_state": temporal_state, "semantic_recall": semantic_state,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_model_error": hypothalamus_model_result.get("error"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_model_error": output.model_error, "central_quality_score": central_quality, "central_model_event_id": central_event_id,
@@ -166,18 +171,79 @@ class TriadeRunner:
         verification_id = self.bodega.store_verification_report(report)
         output.memory_diff["verification_report_id"] = verification_id
         artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan.to_dict(), "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict()}
+        if neuron_proposal is not None:
+            artifacts["neuron_candidate.json"] = neuron_proposal
         for filename, payload in artifacts.items():
             self._write_json(run_path / filename, payload)
         integrity = {
             "run_id": input_packet.run_id, "status": report.status, "artifacts": sorted(artifacts.keys()), "database": memory_diff.get("db_path"), "episode_id": memory_diff.get("episode_id"), "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id, "verification_report_id": verification_id,
             "crystal_temporal_state": temporal_state, "semantic_recall": semantic_state,
             "safety_crystal_feedback": {"status": safety.status, "risk_types": safety.risk_types, "controls": safety.required_controls},
+            "neuron_proposal": neuron_proposal,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_quality_score": central_quality, "central_model_event_id": central_event_id, "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_selection": self.model_selection, "closed": True,
         }
         self._write_json(run_path / "integrity.json", integrity)
         (run_path / "CLOSED").write_text("closed\n", encoding="utf-8")
-        return {"run_id": input_packet.run_id, "response": output.response, "safety": safety.to_dict(), "report": report.to_dict(), "memory_diff": output.memory_diff, "semantic_recall": semantic_state, "crystal_temporal_state": temporal_state, "models": {"hypothalamus": {**hypothalamus_model_result, "quality_score": hypothalamus_quality, "event_id": hypothalamus_event_id}, "central": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error, "quality_score": central_quality, "event_id": central_event_id}}, "model": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error}, "model_selection": self.model_selection, "run_path": str(run_path)}
+        return {"run_id": input_packet.run_id, "response": output.response, "safety": safety.to_dict(), "report": report.to_dict(), "memory_diff": output.memory_diff, "semantic_recall": semantic_state, "crystal_temporal_state": temporal_state, "models": {"hypothalamus": {**hypothalamus_model_result, "quality_score": hypothalamus_quality, "event_id": hypothalamus_event_id}, "central": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error, "quality_score": central_quality, "event_id": central_event_id}}, "model": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error}, "model_selection": self.model_selection, "neuron_proposal": neuron_proposal, "run_path": str(run_path)}
+
+    def _propose_neuron_candidate(self, input_packet: InputPacket, signals: Any) -> dict[str, Any]:
+        """Propone (sin activar) una neurona candidata cuando la intención es de creación.
+
+        Fase B · propuesta auditable: crea un NeuronSpec, lo evalúa como evidencia
+        y lo registra SIEMPRE como `candidate`. La promoción a experimental/stable
+        es una decisión humana posterior. Nunca degrada una neurona ya promovida.
+        """
+        from .neuron_creator import NeuronCreator
+        from .neuron_registry import NeuronRegistry
+        from .neuron_trainer import NeuronTrainer
+
+        context = input_packet.context or {}
+        name = (
+            str(context.get("active_neuron", "")).strip()
+            or str(context.get("project_id", "")).strip()
+            or self._slug(input_packet.user_input)
+        )
+        domain = str(context.get("domain", "")).strip() or str(signals.intent) or "general"
+        registry = NeuronRegistry(db_path=self.db_path)
+
+        existing = registry.get_neuron(name)
+        if existing and str(existing.get("status")) in {"experimental", "stable"}:
+            return {
+                "name": name,
+                "source_run": input_packet.run_id,
+                "registered_as": "skipped_existing_promoted",
+                "existing_status": existing.get("status"),
+                "activation": "requires_human_promotion",
+                "note": "No se degrada una neurona ya promovida; propuesta omitida.",
+            }
+
+        spec = NeuronCreator().create(name=name, mission=input_packet.user_input, domain=domain)
+        spec.status = "candidate"
+        spec.created_by = "run_auto_proposal"
+        assessment = NeuronTrainer().evaluate(spec)
+        neuron_id = registry.register(spec)  # permanece como candidate; no se llama store_training (no promueve)
+        return {
+            "neuron_id": neuron_id,
+            "name": spec.name,
+            "domain": spec.domain,
+            "registered_as": "candidate",
+            "activation": "requires_human_promotion",
+            "source_run": input_packet.run_id,
+            "assessment": {
+                "score": assessment.score,
+                "assessed_status": assessment.status,
+                "strengths": assessment.strengths,
+                "warnings": assessment.warnings,
+                "recommendations": assessment.recommendations,
+            },
+        }
+
+    @staticmethod
+    def _slug(text: str) -> str:
+        cleaned = "".join(char.lower() if (char.isalnum() or char.isspace()) else " " for char in text)
+        words = [word for word in cleaned.split() if len(word) >= 4][:3]
+        return ("neurona-" + "-".join(words)) if words else "neurona-candidata"
 
     @staticmethod
     def _build_comparison_basis(input_packet: InputPacket, intent: str) -> dict[str, Any]:

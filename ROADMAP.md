@@ -26,7 +26,15 @@ Estado base: 2026-06-02 · commit `90c548f` · frontera técnica ≈ **v1.9F**.
 
 ---
 
-## Fase A · Estabilización y Verdad de Estado  ← **PRÓXIMO PASO RECOMENDADO**
+## Registro de progreso
+
+- **Fase A · ✅ COMPLETA** (A.1, A.2, A.3). Suite verde, base verificable restaurada, docs sincronizados, `align` dinámico.
+- **Fase B.1 · ✅ COMPLETA** — N Creadora/Formadora integradas al ciclo `run()` como propuesta auditable (candidate, sin activación). `align` mide central 1.00 · score global 0.89.
+- **Siguiente:** Fase B.2 (recall semántico de primera clase) / B.3 (`sandbox_only`) → Fase C (Learning Pipeline).
+
+---
+
+## Fase A · Estabilización y Verdad de Estado  ✅ COMPLETA
 **Prioridad P0/P1 · sin features nuevas · objetivo: restaurar la base verificable.**
 
 ### A.1 Reparar regresión 1.9F (P0)
@@ -50,9 +58,10 @@ Estado base: 2026-06-02 · commit `90c548f` · frontera técnica ≈ **v1.9F**.
 ## Fase B · Integración de Órganos Existentes
 **Prioridad P2 · conectar lo ya construido pero desconectado.**
 
-### B.1 N Creadora / N Formadora dentro del ciclo
-- Permitir que `run()` pueda proponer/evaluar neuronas candidatas como parte del gobierno cognitivo (no solo vía CLR `neuron`).
-- **Evidencia:** un run con intención de creación genera un `NeuronSpec` candidato trazable.
+### B.1 N Creadora / N Formadora dentro del ciclo  ✅ COMPLETA
+- `run()` propone y evalúa neuronas candidatas cuando la intención es `build_or_update` (gobierno cognitivo), no solo vía CLI `neuron`.
+- Propuesta **auditable**: se registra siempre como `candidate`, nunca se activa ni degrada una neurona ya promovida; promoción = decisión humana.
+- **Evidencia:** artefacto `neuron_candidate.json` por run + campo `neuron_proposal` en `memory_diff`/`integrity`/resultado. Tests en `tests/test_neuron_proposal.py`. Controlable con `propose_neurons=False`.
 
 ### B.2 Recall semántico como ciudadano de primera clase
 - Evaluar activar recall vectorial por defecto (hoy es flag opt-in), con la gobernanza 1.9E ya implementada como filtro de seguridad.
