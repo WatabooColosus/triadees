@@ -179,33 +179,57 @@ class SemanticMemoryStore:
     # 1.9F COMPATIBILITY LAYER
     # =========================
 
-    def get_document(self, document_id: str):
+    def get_document(self, document_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT * FROM semantic_documents WHERE document_id=?",
-                (document_id,)
+                (document_id,),
             ).fetchone()
-        return dict(row) if row else None
+        return self._decode_document(dict(row)) if row else None
 
-    def list_documents(self):
+    def list_documents(self, limit: int | None = None) -> list[dict[str, Any]]:
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT document_id FROM semantic_documents"
-            ).fetchall()
-        return [dict(r) for r in rows]
+            if limit is None:
+                rows = conn.execute(
+                    "SELECT * FROM semantic_documents ORDER BY id ASC"
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM semantic_documents ORDER BY id DESC LIMIT ?",
+                    (int(limit),),
+                ).fetchall()
+        return [self._decode_document(dict(row)) for row in rows]
 
-    def list_embeddings(self, document_id: str = None):
+    def list_embeddings(self, document_id: str | None = None) -> list[dict[str, Any]]:
         with self._connect() as conn:
             if document_id:
                 rows = conn.execute(
                     "SELECT * FROM semantic_embeddings WHERE document_id=?",
-                    (document_id,)
+                    (document_id,),
                 ).fetchall()
             else:
                 rows = conn.execute(
                     "SELECT * FROM semantic_embeddings"
                 ).fetchall()
-        return [dict(r) for r in rows]
+        return [self._decode_embedding(dict(row)) for row in rows]
+
+    @staticmethod
+    def _decode_document(row: dict[str, Any]) -> dict[str, Any]:
+        raw = row.get("metadata")
+        try:
+            row["metadata"] = json.loads(raw) if raw else {}
+        except (json.JSONDecodeError, TypeError):
+            row["metadata"] = {}
+        return row
+
+    @staticmethod
+    def _decode_embedding(row: dict[str, Any]) -> dict[str, Any]:
+        raw = row.get("vector_json")
+        try:
+            row["vector"] = [float(value) for value in json.loads(raw)] if raw else []
+        except (json.JSONDecodeError, TypeError, ValueError):
+            row["vector"] = []
+        return row
 
     def doctor(self) -> dict[str, Any]:
         with self._connect() as conn:
