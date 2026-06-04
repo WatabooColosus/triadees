@@ -182,3 +182,42 @@ def test_sync_native_android_node_marks_cpu_feed(tmp_path):
     assert node["capabilities"]["native_android"] is True
     assert support["recommended_use"] == "android_native_cpu_feed"
     assert "background_cpu_feed" in support["can_assist"]
+
+
+def test_sync_preserves_existing_benchmark_score(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "nodes": [
+                    {
+                        "node_id": "android-phone",
+                        "display_name": "Android nativo",
+                        "online": True,
+                        "capabilities": {
+                            "native_android": True,
+                            "app_node": True,
+                            "background_execution": True,
+                            "cpu_count": 8,
+                            "ram_available_gb": 4,
+                        },
+                    }
+                ]
+            },
+        )
+
+    federation = Federation(db_path=tmp_path / "triade.db")
+    federation.register_node(
+        "android-phone",
+        name="Android nativo",
+        permissions=["publish_capabilities", "request_compute"],
+        capabilities={"native_android": True, "online": True, "cpu_count": 8, "ram_available_gb": 4, "benchmark_score": 1234},
+    )
+    client = PublicRelayClient("https://relay.test", "admin", client=make_client(handler))
+
+    client.sync_nodes_to_federation(federation)
+    node = federation.get_node("android-phone")
+
+    assert node is not None
+    assert node["capabilities"]["benchmark_score"] == 1234
+    assert node["capabilities"]["model_support"]["benchmark_score"] == 1234

@@ -6,6 +6,8 @@ Puerto único 8010 para UI, health, router, compatibilidad, memoria semántica y
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, status
@@ -14,6 +16,8 @@ from pydantic import BaseModel, Field
 
 from triade.core.runner import TriadeRunner
 from triade.core.repo_info import repo_info
+from triade.federation.federation import Federation
+from triade.federation.relay_client import PublicRelayClient
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
@@ -100,6 +104,133 @@ def router_payload(intent: str = "conversation", urgency: str = "medium") -> dic
     return {"status": "ok", "mode": "single-port", "hardware": hardware.to_dict(), "ollama": ollama, "router": router.route_many(intent=intent, urgency=urgency)}
 
 
+def relay_settings() -> dict[str, str | None]:
+    url = os.getenv("TRIADE_RELAY_URL", "https://web-production-8cffa0.up.railway.app")
+    token = os.getenv("TRIADE_RELAY_ADMIN_TOKEN")
+    token_path = os.getenv("TRIADE_RELAY_TOKEN_FILE", ".triade-relay.tokens.local")
+    if not token and os.path.exists(token_path):
+        for line in open(token_path, encoding="utf-8", errors="ignore"):
+            if line.startswith("TRIADE_RELAY_ADMIN_TOKEN="):
+                token = line.split("=", 1)[1].strip()
+                break
+    return {"url": url, "admin_token": token}
+
+
+def tool_status(name: str, command: list[str]) -> dict[str, Any]:
+    path = shutil.which(command[0])
+    if not path:
+        return {"installed": False, "path": None, "ok": False, "version": "not_found"}
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=5, check=False)
+        text = (result.stdout or result.stderr or "").strip().splitlines()
+        return {"installed": True, "path": path, "ok": result.returncode == 0, "version": text[0] if text else "unknown"}
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"installed": True, "path": path, "ok": False, "version": "error", "error": str(exc)}
+
+
+def node_model_readiness(node: dict[str, Any]) -> dict[str, Any]:
+    caps = node.get("capabilities") or {}
+    support = caps.get("model_support") or {}
+    ram = float(caps.get("ram_available_gb") or caps.get("device_memory_gb") or 0.0)
+    cpu = int(caps.get("cpu_count") or 1)
+    native_android = bool(caps.get("native_android"))
+    can_host_llm = bool(support.get("can_host_llm"))
+    feed_ready = bool(support.get("ready_for_model_management")) or bool(caps.get("online"))
+    missing: list[str] = []
+    if not caps.get("online"):
+        missing.append("heartbeat online reciente")
+    if native_android and not can_host_llm:
+        missing.append("runtime nativo de modelos en Android (Ollama/llama.cpp/ONNX)")
+    if ram < 4:
+        missing.append("RAM libre >= 4 GB para modelos 3B tranquilos")
+    if ram < 8:
+        missing.append("RAM libre >= 8 GB para 7B/8B")
+    if not caps.get("gpus"):
+        missing.append("GPU/VRAM reportada para aceleracion")
+    runnable = []
+    feed_only = []
+    for model, required in ModelRouter.MODEL_RAM_GB.items():
+        if can_host_llm and ram >= required:
+            runnable.append(model)
+        elif feed_ready and cpu >= 2:
+            feed_only.append(model)
+    return {
+        "node_id": node.get("node_id"),
+        "name": node.get("name") or node.get("display_name"),
+        "online": caps.get("online"),
+        "native_android": native_android,
+        "cpu_count": cpu,
+        "ram_available_gb": ram,
+        "benchmark_score": caps.get("benchmark_score", 0),
+        "recommended_use": support.get("recommended_use", "unknown"),
+        "can_host_llm": can_host_llm,
+        "can_feed_local_models": feed_ready,
+        "runnable_models": runnable,
+        "feed_targets": feed_only,
+        "missing_for_comfortable_models": missing,
+        "capabilities": caps,
+    }
+
+
+def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
+    hardware, ollama = system_payload()
+    matrix = ModelCompatibilityMatrix(hardware=hardware, available_models=ollama.get("models", [])).build()
+    federation = Federation()
+    relay = relay_settings()
+    relay_sync: dict[str, Any] = {"attempted": False}
+    if sync_relay and relay.get("admin_token"):
+        try:
+            relay_sync = PublicRelayClient(str(relay["url"]), str(relay["admin_token"]), timeout=12).sync_nodes_to_federation(federation)
+            relay_sync["attempted"] = True
+        except Exception as exc:  # pragma: no cover - depends on public network
+            relay_sync = {"attempted": True, "status": "error", "error": str(exc)}
+    nodes = [node_model_readiness(node) for node in federation.list_nodes(status="active")]
+    recommended = [item for item in matrix["models"] if item["status"] == "recommended"]
+    allowed = [item for item in matrix["models"] if item["status"] == "allowed"]
+    blocked = [item for item in matrix["models"] if item["status"] == "blocked"]
+    local_missing: list[str] = []
+    if not ollama.get("ok"):
+        local_missing.append("Ollama local activo")
+    if hardware.ram_available_gb < 4:
+        local_missing.append("RAM libre >= 4 GB para modelos 3B")
+    if hardware.ram_available_gb < 8:
+        local_missing.append("RAM libre >= 8 GB para modelos 7B/8B")
+    if not any(gpu.cuda_available or gpu.vram_total_gb > 0 for gpu in hardware.gpus):
+        local_missing.append("GPU/VRAM detectable para acelerar modelos")
+    if not recommended:
+        local_missing.append("modelos instalados compatibles/recomendados")
+    docker = tool_status("docker", ["docker", "--version"])
+    return {
+        "status": "ok",
+        "mode": "model-capacity",
+        "local": {
+            "hardware": hardware.to_dict(),
+            "ollama": ollama,
+            "docker": docker,
+            "python": tool_status("python", ["python", "--version"]),
+            "node": tool_status("node", ["node", "-v"]),
+            "model_matrix_summary": matrix["summary"],
+            "counts": matrix["counts"],
+            "recommended_models": recommended,
+            "allowed_models": allowed,
+            "blocked_models": blocked,
+            "missing_for_comfortable_models": local_missing,
+        },
+        "federation": {
+            "relay": {"url": relay.get("url"), "has_admin_token": bool(relay.get("admin_token")), "sync": relay_sync},
+            "nodes": nodes,
+            "online_feeders": [node for node in nodes if node["can_feed_local_models"]],
+            "llm_hosts": [node for node in nodes if node["can_host_llm"]],
+        },
+        "constants": {
+            "router": "single-port ModelRouter activo en /api/router/doctor",
+            "docker": "disponible" if docker["ok"] else "pendiente/no disponible",
+            "relay": "public relay Railway",
+            "policy": "nodos Android alimentan CPU/contexto; hospedar modelos requiere runtime nativo adicional",
+        },
+    }
+
+
 @app.get("/health")
 @app.get("/api/health")
 def health() -> dict[str, Any]:
@@ -129,6 +260,11 @@ def model_install_queue(include_allowed: bool = False) -> dict[str, Any]:
     hardware, ollama = system_payload()
     queue = ModelInstallQueue(hardware=hardware, available_models=ollama.get("models", []))
     return queue.build(include_allowed=include_allowed)
+
+
+@app.get("/api/system/model-capacity")
+def system_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
+    return build_model_capacity(sync_relay=sync_relay)
 
 
 @app.get("/api/semantic/doctor")
@@ -208,7 +344,7 @@ body{margin:0;background:#080b10;color:#edf2ff;font-family:Inter,system-ui,sans-
 <label>Hipotálamo (vacío = automático)</label><input id='hyp' value=''/><label>Central (vacío = automático)</label><input id='cen' value=''/><label><input id='ollama' type='checkbox'/> Usar Ollama</label><label><input id='auto' type='checkbox' checked/> Auto elegir modelos</label>
 <hr style='border-color:#263246;margin:16px 0'/><b style='font-size:13px'>Contexto del Cristal</b><div class='hint'>Evita comparar runs de proyectos o neuronas diferentes.</div>
 <label>Proyecto (opcional)</label><input id='project' placeholder='triade-local, xiaos, elestial...'/><label>Neurona activa (opcional)</label><input id='neuron' placeholder='cristal, xiaos, bodega...'/><label>Sesión (opcional)</label><input id='session' placeholder='sesion-prueba-01'/><label>Scope</label><select id='scope'><option value=''>Automático</option><option value='source_intent'>Source + intent</option><option value='session'>Sesión</option><option value='project'>Proyecto</option><option value='neuron'>Neurona</option><option value='project_neuron'>Proyecto + neurona</option></select>
-<button onclick='save()'>Guardar</button><button class='secondary' onclick='health()'>Health 8010</button><button class='secondary' onclick='router()'>Consultar Router</button><button class='secondary' onclick='compat()'>Compatibilidad</button><button class='secondary' onclick='installQueue()'>Cola modelos</button><button class='secondary' onclick='semanticDoctor()'>Memoria semántica</button><button class='secondary' onclick='apply()'>Aplicar recomendados</button><button class='secondary' onclick='clearChat()'>Limpiar</button><div id='box' class='box'>Sin consultar.</div>
+<button onclick='save()'>Guardar</button><button class='secondary' onclick='health()'>Health 8010</button><button class='secondary' onclick='capacity()'>Capacidad y nodos</button><button class='secondary' onclick='router()'>Consultar Router</button><button class='secondary' onclick='compat()'>Compatibilidad</button><button class='secondary' onclick='installQueue()'>Cola modelos</button><button class='secondary' onclick='semanticDoctor()'>Memoria semántica</button><button class='secondary' onclick='apply()'>Aplicar recomendados</button><button class='secondary' onclick='clearChat()'>Limpiar</button><div id='box' class='box'>Sin consultar.</div>
 </aside><main class='card main'><div class='top'><b>Chat local auditable</b><br><span id='status'>Listo</span></div><section id='chat' class='chat'></section><div class='composer'><textarea id='msg' placeholder='Escribe... Ctrl+Enter' onkeydown='keysend(event)'></textarea><button onclick='send()'>Enviar</button></div></main></div>
 <script>
 const $=id=>document.getElementById(id);let lastRouter=null;const settings=['key','hyp','cen','intent','urgency','project','neuron','session','scope'];function save(){settings.forEach(k=>localStorage.setItem('triade_sp_'+k,$(k).value));localStorage.setItem('triade_sp_ollama',$('ollama').checked);localStorage.setItem('triade_sp_auto',$('auto').checked);status('Guardado',true)}function load(){settings.forEach(k=>{const v=localStorage.getItem('triade_sp_'+k);if(v!==null)$(k).value=v});$('ollama').checked=localStorage.getItem('triade_sp_ollama')==='true';$('auto').checked=localStorage.getItem('triade_sp_auto')!=='false'}function status(t,ok=false){$('status').textContent=t;$('status').className=ok?'ok':''}function add(cls,text,meta=''){let d=document.createElement('div');d.className='msg '+cls;d.textContent=text;if(meta){let m=document.createElement('div');m.className='meta';m.textContent=meta;d.appendChild(m)}$('chat').appendChild(d);$('chat').scrollTop=$('chat').scrollHeight}function context(){let c={};if($('project').value.trim())c.project_id=$('project').value.trim();if($('neuron').value.trim())c.active_neuron=$('neuron').value.trim();if($('session').value.trim())c.session_id=$('session').value.trim();if($('scope').value)c.context_scope=$('scope').value;return c}
@@ -216,6 +352,7 @@ async function health(){try{let r=await fetch('/api/health');let j=await r.json(
 async function router(){try{let r=await fetch('/api/router/doctor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent:$('intent').value,urgency:$('urgency').value})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);lastRouter=j;let d=j.router.decisions;$('box').textContent=JSON.stringify({central:d.central?.selected_model,hypothalamus:d.hypothalamus?.selected_model,fast:d.fast?.selected_model,deep:d.deep?.selected_model},null,2);status('Router OK',true)}catch(e){status('Router falló: '+e.message)}}
 async function compat(){try{let r=await fetch('/api/models/compatibility');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.matrix.summary,counts:j.matrix.counts,models:j.matrix.models},null,2);status('Compatibilidad OK',true)}catch(e){status('Compatibilidad falló: '+e.message)}}
 async function installQueue(){try{let r=await fetch('/api/models/install-queue?include_allowed=false');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.summary,count:j.count,policy:j.policy,candidates:j.candidates},null,2);status('Cola OK',true)}catch(e){status('Cola falló: '+e.message)}}
+async function capacity(){try{let r=await fetch('/api/system/model-capacity?sync_relay=true');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);box.textContent=JSON.stringify({pc:{tier:j.local.hardware.tier,ram_free:j.local.hardware.ram_available_gb,ollama:j.local.ollama.ok,docker:j.local.docker.ok,missing:j.local.missing_for_comfortable_models,counts:j.local.counts},nodos:j.federation.nodes.map(n=>({name:n.name,node_id:n.node_id,online:n.online,native_android:n.native_android,cpu:n.cpu_count,ram_free:n.ram_available_gb,score:n.benchmark_score,use:n.recommended_use,feed:n.can_feed_local_models,host:n.can_host_llm,missing:n.missing_for_comfortable_models})),constantes:j.constants},null,2);status('Capacidad actualizada',true)}catch(e){status('Capacidad falló: '+e.message)}}
 async function semanticDoctor(){try{let r=await fetch('/api/semantic/governance/doctor');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify(j,null,2);status('Gobierno semántico consultado',true)}catch(e){status('Memoria semántica falló: '+e.message)}}
 function apply(){if(!lastRouter){status('Consulta router primero');return}let d=lastRouter.router.decisions;if(d.hypothalamus?.selected_model)$('hyp').value=d.hypothalamus.selected_model;if(d.central?.selected_model)$('cen').value=d.central.selected_model;$('ollama').checked=true;$('auto').checked=false;save();status('Recomendados aplicados manualmente',true)}
 async function send(){save();let text=$('msg').value.trim();if(!text)return;$('msg').value='';add('user',text);status('Procesando...');try{let r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-TRIADE-API-Key':$('key').value},body:JSON.stringify({text,source:'single-port-ui',use_ollama:$('ollama').checked,hypothalamus_model:$('hyp').value,central_model:$('cen').value,auto_select_models:$('auto').checked,context:context()})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);let t=j.crystal_temporal_state||{};add('bot',j.response,[j.run_id,'Q '+t.status,'scope '+t.context_scope,'ctx '+t.context_key,'H '+j.models?.hypothalamus?.name,'C '+j.models?.central?.name].filter(Boolean).join(' · '));status('Respuesta recibida',true)}catch(e){add('bot','Error: '+e.message);status('Error')}}function clearChat(){$('chat').innerHTML=''}function keysend(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send()}load();add('bot','Tríade Ω lista. La memoria semántica autorizada requiere estado stable o autorización experimental explícita.');

@@ -18,6 +18,8 @@ def test_single_port_ui_serves_html() -> None:
     assert "Tríade Ω Single Port" in response.text
     assert "/api/run" in response.text
     assert "/api/router/doctor" in response.text
+    assert "Capacidad y nodos" in response.text
+    assert "/api/system/model-capacity" in response.text
 
 
 def test_single_port_health() -> None:
@@ -66,6 +68,20 @@ def test_single_port_model_install_queue() -> None:
     assert "policy" in payload
     assert payload["policy"]["auto_install"] is False
     assert "candidates" in payload
+
+
+def test_single_port_model_capacity() -> None:
+    response = client.get("/api/system/model-capacity")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["mode"] == "model-capacity"
+    assert "local" in payload
+    assert "federation" in payload
+    assert "missing_for_comfortable_models" in payload["local"]
+    assert "nodes" in payload["federation"]
+    assert "constants" in payload
 
 
 def test_single_port_run_accepts_auto_select_models() -> None:

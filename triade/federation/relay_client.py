@@ -65,6 +65,14 @@ class PublicRelayClient:
             if not node_id:
                 continue
             capabilities = relay_capabilities_for_federation(node, self.base_url)
+            existing = federation.get_node(node_id)
+            if existing:
+                previous = existing.get("capabilities") or {}
+                for key in ("benchmark_score", "last_benchmark", "compute_status", "last_benchmark_error"):
+                    if key in previous and key not in capabilities:
+                        capabilities[key] = previous[key]
+                if "benchmark_score" in capabilities:
+                    capabilities["model_support"] = model_support_from_capabilities(capabilities)
             registered = federation.register_node(
                 node_id=node_id,
                 name=str(node.get("display_name") or node_id),
