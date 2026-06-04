@@ -144,21 +144,31 @@ class PublicRelayClient:
 def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> dict[str, Any]:
     raw = dict(node.get("capabilities") or {})
     cpu = int(raw.get("cpu_count") or raw.get("hardware_concurrency") or 1)
-    memory = float(raw.get("device_memory_gb") or 0.0)
+    memory = float(raw.get("ram_available_gb") or raw.get("device_memory_gb") or 0.0)
     online = bool(node.get("online"))
+    native_android = bool(raw.get("native_android") or raw.get("app_node"))
     capability_tier = _browser_tier(cpu, memory)
+    allowed_tasks = raw.get("allowed_tasks") if isinstance(raw.get("allowed_tasks"), list) else ["echo", "sha256", "browser_benchmark", "preprocess_text"]
     capabilities = {
         **raw,
         "source": "public_relay",
         "relay_url": relay_url.rstrip("/"),
         "relay_node_id": node.get("node_id"),
         "online": online,
-        "tier": capability_tier,
+        "tier": "medium" if native_android and capability_tier == "low" and cpu >= 4 else capability_tier,
         "browser_tier": raw.get("tier", "browser"),
+        "native_android": native_android,
         "cpu_count": cpu,
         "device_memory_gb": memory,
-        "allowed_tasks": ["echo", "sha256", "browser_benchmark", "preprocess_text"],
-        "model_support": model_support_from_capabilities({"cpu_count": cpu, "device_memory_gb": memory, "online": online}),
+        "ram_available_gb": memory,
+        "allowed_tasks": allowed_tasks,
+        "model_support": model_support_from_capabilities({
+            "cpu_count": cpu,
+            "device_memory_gb": memory,
+            "online": online,
+            "native_android": native_android,
+            "background_execution": bool(raw.get("background_execution")),
+        }),
     }
     return capabilities
 
@@ -168,15 +178,21 @@ def model_support_from_capabilities(capabilities: dict[str, Any]) -> dict[str, A
     score = int(capabilities.get("benchmark_score") or 0)
     cpu = int(capabilities.get("cpu_count") or 1)
     memory = float(capabilities.get("device_memory_gb") or 0.0)
+    native_android = bool(capabilities.get("native_android"))
     ready = online and cpu >= 2 and memory >= 1.0
+    recommended = "android_native_cpu_feed" if ready and native_android else ("browser_preprocess" if ready else "heartbeat_only")
+    assist = ["hashing", "benchmark", "preprocess", "context_chunking", "background_cpu_feed"] if ready and native_android else (
+        ["hashing", "benchmark", "preprocess", "context_chunking"] if ready else ["heartbeat"]
+    )
     return {
         "ready_for_model_management": ready,
         "local_ollama": False,
-        "recommended_use": "browser_preprocess" if ready else "heartbeat_only",
+        "recommended_use": recommended,
         "can_host_llm": False,
-        "can_assist": ["hashing", "benchmark", "preprocess", "context_chunking"] if ready else ["heartbeat"],
+        "can_assist": assist,
         "benchmark_score": score,
-        "note": "Nodo browser: alimenta planificación y tareas ligeras; no hospeda Ollama ni modelos nativos.",
+        "note": "Nodo Android nativo: alimenta modelos locales con CPU/RAM y servicio en primer plano." if native_android
+        else "Nodo browser: alimenta planificación y tareas ligeras; no hospeda Ollama ni modelos nativos.",
     }
 
 

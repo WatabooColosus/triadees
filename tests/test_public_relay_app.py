@@ -92,3 +92,47 @@ def test_public_relay_serves_persistent_browser_node_ui(tmp_path, monkeypatch) -
     assert "triade_public_relay_node" in html
     assert "resumeStoredNode" in html
     assert "wakeLock" in html
+
+
+def test_public_relay_recognizes_native_android_node(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(public_relay_app, "DB_PATH", tmp_path / "relay.db")
+    monkeypatch.setattr(public_relay_app, "PAIRING_TOKEN", "pair")
+    monkeypatch.setattr(public_relay_app, "ADMIN_TOKEN", "admin")
+    client = TestClient(app)
+
+    registered = client.post(
+        "/api/register",
+        json={
+            "pairing_token": "pair",
+            "display_name": "Android nativo",
+            "capabilities": {
+                "native_android": True,
+                "app_node": True,
+                "foreground_service": True,
+                "background_execution": True,
+                "cpu_count": 8,
+                "ram_available_gb": 4,
+                "allowed_tasks": ["sha256", "preprocess_text"],
+            },
+        },
+    )
+
+    assert registered.status_code == 200
+    caps = registered.json()["capabilities"]
+    assert caps["native_android"] is True
+    assert caps["browser_node"] is False
+    assert caps["background_execution"] is True
+    assert caps["tier"] == "android-native"
+
+
+def test_public_relay_serves_android_download_page(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(public_relay_app, "DB_PATH", tmp_path / "relay.db")
+    monkeypatch.setattr(public_relay_app, "ANDROID_APK_PATH", tmp_path / "missing.apk")
+    client = TestClient(app)
+
+    page = client.get("/downloads/android-node")
+    apk = client.get("/downloads/triade-android-node.apk")
+
+    assert page.status_code == 200
+    assert "APK pendiente de compilacion" in page.text
+    assert apk.status_code == 404

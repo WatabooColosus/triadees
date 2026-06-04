@@ -23,6 +23,7 @@ triade/memory/public_relay.db-*
 *.pem
 mobile_node_state.json
 .triade-relay.tokens.local
+apps/static/*.apk
 
 # Sistema / editores
 .DS_Store

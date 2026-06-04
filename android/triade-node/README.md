@@ -1,0 +1,36 @@
+# Triade Android Node
+
+Nodo Android nativo para alimentar la Tríade local/federada desde dispositivos autorizados.
+
+## Rol
+
+- Se registra contra el relay público de Tríade.
+- Mantiene un servicio en primer plano con notificación visible.
+- Publica capacidades del dispositivo.
+- Ejecuta tareas CPU ligeras:
+  - `echo`
+  - `sha256`
+  - `browser_benchmark`
+  - `preprocess_text`
+
+Este nodo no instala modelos ni accede a archivos privados por defecto. Es el primer puente nativo para usar CPU/RAM del dispositivo de forma consentida.
+
+## Build
+
+Requiere JDK 17+ y Android SDK. Desde `android/triade-node`:
+
+```bash
+gradle assembleDebug
+```
+
+APK esperado:
+
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+Cuando exista, se puede publicar como descarga del relay en:
+
+```text
+apps/static/triade-android-node.apk
+```

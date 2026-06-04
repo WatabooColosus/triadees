@@ -16,13 +16,14 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 
 DB_PATH = Path(os.environ.get("TRIADE_RELAY_DB", "triade/memory/public_relay.db"))
 PAIRING_TOKEN = os.environ.get("TRIADE_RELAY_PAIRING_TOKEN", "triade-public-pair")
 ADMIN_TOKEN = os.environ.get("TRIADE_RELAY_ADMIN_TOKEN", "triade-public-admin")
+ANDROID_APK_PATH = Path(os.environ.get("TRIADE_ANDROID_APK", "apps/static/triade-android-node.apk"))
 
 app = FastAPI(title="Triade Public Relay", version="0.1")
 
@@ -112,6 +113,19 @@ def manifest() -> JSONResponse:
         },
         media_type="application/manifest+json",
     )
+
+
+@app.get("/downloads/android-node", response_class=HTMLResponse)
+def android_node_download() -> str:
+    apk_status = "APK disponible." if ANDROID_APK_PATH.exists() else "APK pendiente de compilacion."
+    return ANDROID_DOWNLOAD_HTML.replace("__APK_STATUS__", apk_status)
+
+
+@app.get("/downloads/triade-android-node.apk")
+def download_android_apk() -> FileResponse:
+    if not ANDROID_APK_PATH.exists():
+        raise HTTPException(status_code=404, detail="APK aun no compilado en este relay.")
+    return FileResponse(ANDROID_APK_PATH, media_type="application/vnd.android.package-archive", filename="triade-android-node.apk")
 
 
 @app.post("/api/register")
@@ -235,19 +249,28 @@ def _decode_node(row: sqlite3.Row) -> dict[str, Any]:
 
 
 def _normalize_capabilities(payload: dict[str, Any]) -> dict[str, Any]:
+    native_android = bool(payload.get("native_android") or payload.get("app_node"))
     return {
-        "tier": "browser",
-        "browser_node": True,
-        "cpu_count": int(payload.get("hardware_concurrency") or 1),
-        "device_memory_gb": float(payload.get("device_memory_gb") or 0.0),
+        "tier": "android-native" if native_android else "browser",
+        "browser_node": not native_android,
+        "native_android": native_android,
+        "app_node": bool(payload.get("app_node")),
+        "foreground_service": bool(payload.get("foreground_service")),
+        "cpu_count": int(payload.get("cpu_count") or payload.get("hardware_concurrency") or 1),
+        "device_memory_gb": float(payload.get("device_memory_gb") or payload.get("ram_available_gb") or 0.0),
+        "ram_available_gb": float(payload.get("ram_available_gb") or payload.get("device_memory_gb") or 0.0),
+        "ram_total_gb": float(payload.get("ram_total_gb") or 0.0),
         "platform": str(payload.get("platform") or "unknown")[:120],
+        "device": str(payload.get("device") or "")[:120],
+        "app_version": str(payload.get("app_version") or "")[:40],
         "user_agent": str(payload.get("user_agent") or "unknown")[:300],
         "screen": payload.get("screen") if isinstance(payload.get("screen"), dict) else {},
         "public_relay": True,
         "webgpu_available": bool(payload.get("webgpu_available")),
         "wake_lock_available": bool(payload.get("wake_lock_available")),
         "persistent_browser_identity": bool(payload.get("persistent_browser_identity")),
-        "background_execution": False,
+        "background_execution": bool(payload.get("background_execution")) if native_android else False,
+        "allowed_tasks": payload.get("allowed_tasks") if isinstance(payload.get("allowed_tasks"), list) else ["echo", "sha256", "browser_benchmark", "preprocess_text"],
     }
 
 
@@ -344,6 +367,34 @@ async function preprocessText(payload){
 }
 function benchmark(seconds){const end=performance.now()+seconds*1000;let loops=0,x=1;while(performance.now()<end){x=(x*1664525+1013904223)>>>0;loops++}return {task:"browser_benchmark",seconds,loops,score:Math.round(loops/seconds),seed:x}}
 </script>
+</body>
+</html>
+"""
+
+
+ANDROID_DOWNLOAD_HTML = """
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Triade Android Node</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:0;background:#101216;color:#f4f6f8}
+    main{max-width:720px;margin:0 auto;padding:28px 18px}
+    a,button{display:block;box-sizing:border-box;width:100%;padding:12px;border-radius:8px;background:#61c184;color:#07130c;font-weight:800;text-align:center;text-decoration:none;margin:10px 0}
+    code{background:#171b22;border:1px solid #303946;border-radius:6px;padding:2px 6px}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Triade Android Node</h1>
+  <p>Aplicacion nativa para convertir este Android en nodo CPU/RAM de la federacion Triade.</p>
+  <p>Estado: <strong>__APK_STATUS__</strong></p>
+  <a href="/downloads/triade-android-node.apk">Descargar APK</a>
+  <p>Android pedira permitir instalacion desde el navegador. Luego abre la app, escribe la URL del relay y el token de emparejamiento.</p>
+  <p>Relay: <code>https://web-production-8cffa0.up.railway.app</code></p>
+</main>
 </body>
 </html>
 """

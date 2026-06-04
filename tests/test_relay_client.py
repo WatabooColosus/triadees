@@ -146,3 +146,39 @@ def test_preprocess_text_online_returns_model_feed(tmp_path):
     assert result["model_feed"]["ready_for_local_model"] is True
     assert result["model_feed"]["keywords"][0]["term"] == "triade"
     assert result["model_feed"]["chunks"][0]["node_id"] == "web-phone"
+
+
+def test_sync_native_android_node_marks_cpu_feed(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "nodes": [
+                    {
+                        "node_id": "android-phone",
+                        "display_name": "Android nativo",
+                        "online": True,
+                        "capabilities": {
+                            "native_android": True,
+                            "app_node": True,
+                            "background_execution": True,
+                            "cpu_count": 8,
+                            "ram_available_gb": 4,
+                            "allowed_tasks": ["sha256", "preprocess_text"],
+                        },
+                    }
+                ]
+            },
+        )
+
+    federation = Federation(db_path=tmp_path / "triade.db")
+    client = PublicRelayClient("https://relay.test", "admin", client=make_client(handler))
+
+    client.sync_nodes_to_federation(federation)
+    node = federation.get_node("android-phone")
+
+    assert node is not None
+    support = node["capabilities"]["model_support"]
+    assert node["capabilities"]["native_android"] is True
+    assert support["recommended_use"] == "android_native_cpu_feed"
+    assert "background_cpu_feed" in support["can_assist"]
