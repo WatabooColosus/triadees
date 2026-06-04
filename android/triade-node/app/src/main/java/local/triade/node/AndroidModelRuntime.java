@@ -6,9 +6,12 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.util.concurrent.TimeUnit;
 
 public final class AndroidModelRuntime {
-    private static final String BACKEND = "none";
+    private static final String BACKEND_LLAMA_CPP = "llama.cpp";
     private final Context context;
 
     public AndroidModelRuntime(Context context) {
@@ -17,32 +20,107 @@ public final class AndroidModelRuntime {
 
     public JSONObject doctor() throws Exception {
         JSONArray formats = new JSONArray()
-                .put("gguf")
-                .put("onnx");
+                .put("gguf");
         JSONArray models = modelInventory();
+        File executable = llamaExecutable();
+        boolean nativeBackendPresent = executable != null && executable.exists() && executable.canExecute();
+        boolean canRun = nativeBackendPresent && resolveModel("") != null;
         return new JSONObject()
                 .put("task", "android_model_doctor")
-                .put("backend", BACKEND)
-                .put("native_backend_present", false)
-                .put("can_run_local_llm", false)
+                .put("backend", nativeBackendPresent ? BACKEND_LLAMA_CPP : "none")
+                .put("native_backend_present", nativeBackendPresent)
+                .put("can_run_local_llm", canRun)
                 .put("supported_model_formats", formats)
                 .put("models_dir", modelsDir().getAbsolutePath())
+                .put("backend_dir", binDir().getAbsolutePath())
+                .put("backend_executable", executable == null ? "" : executable.getAbsolutePath())
                 .put("available_models", models)
-                .put("note", "Contrato listo. Falta integrar backend nativo llama.cpp/ONNX para ejecutar modelos reales.");
+                .put("install_contract", installContract())
+                .put("note", canRun
+                        ? "Backend llama.cpp detectado con modelo GGUF local. Este nodo puede ejecutar android_local_generate."
+                        : "Falta instalar un binario nativo llama-cli ejecutable y al menos un modelo .gguf en el directorio models.");
     }
 
     public JSONObject generate(JSONObject payload) throws Exception {
         String prompt = payload.optString("prompt", "");
         String model = payload.optString("model", "");
+        int maxTokens = clamp(payload.optInt("max_tokens", 128), 1, 1024);
+        int contextTokens = clamp(payload.optInt("context_tokens", 2048), 256, 8192);
+        int threads = clamp(payload.optInt("threads", authorizedThreads()), 1, Runtime.getRuntime().availableProcessors());
+        long timeoutSeconds = clamp(payload.optInt("timeout_seconds", 120), 5, 600);
+        File executable = llamaExecutable();
+        File modelFile = resolveModel(model);
+        JSONObject doctor = doctor();
+        if (executable == null || !executable.exists() || !executable.canExecute() || modelFile == null) {
+            return new JSONObject()
+                    .put("task", "android_local_generate")
+                    .put("ok", false)
+                    .put("status", "unavailable")
+                    .put("backend", doctor.getString("backend"))
+                    .put("model", model)
+                    .put("prompt_sha256", TextPreprocessor.sha256(prompt == null ? "" : prompt))
+                    .put("error", "No hay backend nativo listo. Instala llama-cli ejecutable en bin/ y un modelo .gguf en models/.")
+                    .put("doctor", doctor);
+        }
+        ProcessBuilder builder = new ProcessBuilder(
+                executable.getAbsolutePath(),
+                "-m", modelFile.getAbsolutePath(),
+                "-p", prompt == null ? "" : prompt,
+                "-n", String.valueOf(maxTokens),
+                "-c", String.valueOf(contextTokens),
+                "-t", String.valueOf(threads)
+        );
+        builder.redirectErrorStream(true);
+        long started = System.currentTimeMillis();
+        final Process process = builder.start();
+        final StringBuilder output = new StringBuilder();
+        Thread readerThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), "UTF-8"))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        output.append(line).append('\n');
+                        if (output.length() > 262144) {
+                            break;
+                        }
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        });
+        readerThread.start();
+        boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+        if (!finished) {
+            process.destroyForcibly();
+            readerThread.join(1000);
+            return new JSONObject()
+                    .put("task", "android_local_generate")
+                    .put("ok", false)
+                    .put("status", "timeout")
+                    .put("backend", BACKEND_LLAMA_CPP)
+                    .put("model", modelFile.getName())
+                    .put("threads", threads)
+                    .put("elapsed_ms", System.currentTimeMillis() - started)
+                    .put("prompt_sha256", TextPreprocessor.sha256(prompt == null ? "" : prompt))
+                    .put("error", "Tiempo agotado ejecutando llama-cli en Android.");
+        }
+        readerThread.join(1000);
+        int exitCode = process.exitValue();
         return new JSONObject()
                 .put("task", "android_local_generate")
-                .put("ok", false)
-                .put("status", "unavailable")
-                .put("backend", BACKEND)
-                .put("model", model)
+                .put("ok", exitCode == 0)
+                .put("status", exitCode == 0 ? "completed" : "failed")
+                .put("backend", BACKEND_LLAMA_CPP)
+                .put("model", modelFile.getName())
+                .put("threads", threads)
+                .put("max_tokens", maxTokens)
+                .put("context_tokens", contextTokens)
+                .put("elapsed_ms", System.currentTimeMillis() - started)
                 .put("prompt_sha256", TextPreprocessor.sha256(prompt == null ? "" : prompt))
-                .put("error", "No hay backend nativo de modelos en la APK. Integrar llama.cpp/ONNX antes de generar tokens en Android.")
-                .put("doctor", doctor());
+                .put("response", output.toString().trim())
+                .put("error", exitCode == 0 ? JSONObject.NULL : "llama-cli termino con codigo " + exitCode)
+                .put("doctor", doctor);
     }
 
     public JSONObject capabilities() throws Exception {
@@ -81,6 +159,49 @@ public final class AndroidModelRuntime {
         return models;
     }
 
+    private JSONObject installContract() throws Exception {
+        return new JSONObject()
+                .put("backend", BACKEND_LLAMA_CPP)
+                .put("binary_names", new JSONArray().put("llama-cli").put("llama-cli-arm64-v8a").put("main"))
+                .put("bin_dir", binDir().getAbsolutePath())
+                .put("models_dir", modelsDir().getAbsolutePath())
+                .put("model_format", "gguf")
+                .put("execution", "La APK ejecuta el binario nativo con ProcessBuilder; Android decide limites finales de memoria/proceso.");
+    }
+
+    private File llamaExecutable() {
+        File dir = binDir();
+        String[] names = new String[]{"llama-cli", "llama-cli-arm64-v8a", "main"};
+        for (String name : names) {
+            File candidate = new File(dir, name);
+            if (candidate.exists()) {
+                candidate.setExecutable(true);
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private File resolveModel(String requested) {
+        File dir = modelsDir();
+        if (requested != null && !requested.trim().isEmpty()) {
+            File exact = new File(dir, requested.trim());
+            if (exact.exists() && exact.isFile()) {
+                return exact;
+            }
+        }
+        File[] files = dir.listFiles();
+        if (files == null) {
+            return null;
+        }
+        for (File file : files) {
+            if (file.isFile() && file.getName().toLowerCase().endsWith(".gguf")) {
+                return file;
+            }
+        }
+        return null;
+    }
+
     private File modelsDir() {
         File external = context.getExternalFilesDir("models");
         File dir = external != null ? external : new File(context.getFilesDir(), "models");
@@ -88,5 +209,24 @@ public final class AndroidModelRuntime {
             dir.mkdirs();
         }
         return dir;
+    }
+
+    private File binDir() {
+        File external = context.getExternalFilesDir("bin");
+        File dir = external != null ? external : new File(context.getFilesDir(), "bin");
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+        return dir;
+    }
+
+    private int authorizedThreads() {
+        NodeConfig config = NodeConfig.load(context);
+        int cpu = Runtime.getRuntime().availableProcessors();
+        return Math.max(1, (int) Math.floor(cpu * (config.resourceLimitPercent / 100.0)));
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 }

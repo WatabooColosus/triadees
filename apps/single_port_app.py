@@ -92,6 +92,16 @@ class DistributedModelDoctorRequest(BaseModel):
     wait_timeout: float = Field(default=30.0, ge=1.0, le=120.0)
 
 
+class AndroidLocalGenerateRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+    model: str | None = None
+    node_id: str | None = None
+    max_tokens: int = Field(default=128, ge=1, le=1024)
+    context_tokens: int = Field(default=2048, ge=256, le=8192)
+    threads: int | None = Field(default=None, ge=1, le=64)
+    wait_timeout: float = Field(default=90.0, ge=5.0, le=600.0)
+
+
 class SemanticIngestRequest(BaseModel):
     content: str = Field(..., min_length=1)
     domain: str = "general"
@@ -246,6 +256,19 @@ def local_federated_nodes(task: str | None = None) -> list[dict[str, Any]]:
             continue
         nodes.append(node)
     return nodes
+
+
+def android_llm_host_nodes(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    hosts = []
+    for node in nodes:
+        caps = node.get("capabilities") or {}
+        support = caps.get("model_support") or {}
+        allowed = caps.get("allowed_tasks") if isinstance(caps.get("allowed_tasks"), list) else []
+        if "android_local_generate" not in allowed:
+            continue
+        if bool(support.get("can_host_llm") or caps.get("can_run_local_llm") or caps.get("local_model_runtime_ready")):
+            hosts.append(node)
+    return hosts
 
 
 def split_text_for_nodes(text: str, count: int) -> list[str]:
@@ -717,6 +740,36 @@ def local_node_job_result(job_id: str, request: LocalNodeJobResultRequest) -> di
                     "prompt_sha256": request.result.get("prompt_sha256"),
                     "updated_at": job["updated_at"],
                 }
+            elif task == "android_model_doctor":
+                capabilities["last_android_model_doctor"] = {
+                    **request.result,
+                    "job_id": job_id,
+                    "updated_at": job["updated_at"],
+                }
+                capabilities["edge_model_runtime"] = True
+                capabilities["model_runtime_backend"] = request.result.get("backend") or capabilities.get("model_runtime_backend") or "none"
+                capabilities["can_run_local_llm"] = bool(request.result.get("can_run_local_llm"))
+                capabilities["local_model_runtime_ready"] = bool(request.result.get("native_backend_present") and request.result.get("can_run_local_llm"))
+                capabilities["available_local_models"] = request.result.get("available_models") or capabilities.get("available_local_models") or []
+                capabilities["supported_model_formats"] = request.result.get("supported_model_formats") or capabilities.get("supported_model_formats") or []
+                capabilities = local_node_capabilities(request.node_id, capabilities)
+            elif task == "android_local_generate":
+                capabilities["last_android_local_generate"] = {
+                    "job_id": job_id,
+                    "status": request.result.get("status"),
+                    "ok": request.result.get("ok"),
+                    "backend": request.result.get("backend"),
+                    "model": request.result.get("model"),
+                    "threads": request.result.get("threads"),
+                    "elapsed_ms": request.result.get("elapsed_ms"),
+                    "prompt_sha256": request.result.get("prompt_sha256"),
+                    "updated_at": job["updated_at"],
+                }
+                if request.result.get("ok"):
+                    capabilities["can_run_local_llm"] = True
+                    capabilities["local_model_runtime_ready"] = True
+                    capabilities["model_runtime_backend"] = request.result.get("backend") or capabilities.get("model_runtime_backend")
+                    capabilities = local_node_capabilities(request.node_id, capabilities)
             capabilities["compute_status"] = "ready"
             capabilities["distributed_runtime_status"] = "active"
             federation.update_capabilities(request.node_id, capabilities)
@@ -882,6 +935,68 @@ def distributed_runtime_android_model_doctor(request: DistributedModelDoctorRequ
     }
 
 
+@app.post("/api/distributed-runtime/android-local-generate")
+def distributed_runtime_android_local_generate(request: AndroidLocalGenerateRequest) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "prompt": request.prompt,
+        "model": request.model or "",
+        "max_tokens": request.max_tokens,
+        "context_tokens": request.context_tokens,
+        "timeout_seconds": int(request.wait_timeout),
+        "signal": "android_native_llm_generation",
+    }
+    if request.threads:
+        payload["threads"] = request.threads
+
+    local_nodes = android_llm_host_nodes(local_federated_nodes("android_local_generate"))
+    if request.node_id:
+        local_nodes = [node for node in local_nodes if str(node.get("node_id")) == request.node_id]
+    if local_nodes:
+        node = local_nodes[0]
+        job = create_local_job(str(node["node_id"]), task="android_local_generate", payload=payload, seconds=1.0)
+        result = wait_local_job(str(job["job_id"]), timeout=request.wait_timeout)
+        completed = result.get("status") == "completed" and bool((result.get("result") or {}).get("ok"))
+        return {
+            "status": "ok" if completed else result.get("status", "degraded"),
+            "mode": "distributed-runtime",
+            "task": "android_local_generate",
+            "transport": "lan_8010",
+            "node_id": node["node_id"],
+            "job": result,
+            "response": (result.get("result") or {}).get("response"),
+            "truth": "Generacion ejecutada por backend LLM nativo en Android." if completed else "El nodo Android acepto el job pero no completo generacion LLM real.",
+        }
+
+    relay = relay_settings()
+    if relay.get("admin_token"):
+        federation = Federation()
+        client = PublicRelayClient(str(relay["url"]), str(relay["admin_token"]), timeout=12)
+        sync = client.sync_nodes_to_federation(federation)
+        relay_hosts = android_llm_host_nodes(sync.get("nodes", []))
+        if request.node_id:
+            relay_hosts = [node for node in relay_hosts if str(node.get("node_id")) == request.node_id]
+        if relay_hosts:
+            node = relay_hosts[0]
+            job_id = client.create_job(str(node["node_id"]), task="android_local_generate", payload=payload, seconds=1.0)
+            job = client.wait_for_job(job_id, timeout=request.wait_timeout)
+            completed = job.get("status") == "completed" and bool((job.get("result") or {}).get("ok"))
+            return {
+                "status": "ok" if completed else job.get("status", "degraded"),
+                "mode": "distributed-runtime",
+                "task": "android_local_generate",
+                "transport": "public_relay_fallback",
+                "node_id": node["node_id"],
+                "job": job,
+                "response": (job.get("result") or {}).get("response"),
+                "truth": "Generacion ejecutada por backend LLM nativo en Android via relay publico." if completed else "El relay encontro host Android, pero la generacion no completo correctamente.",
+            }
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="No hay host LLM Android real. Ejecuta Doctor Android y prepara la APK con llama-cli ejecutable en bin/ y un modelo .gguf en models/.",
+    )
+
+
 @app.get("/api/semantic/doctor")
 def semantic_doctor() -> dict[str, Any]:
     return SemanticEmbeddingEngine().doctor()
@@ -1036,6 +1151,7 @@ TRIADE_REACT_UI_HTML = r"""
       queue: '/api/models/install-queue?include_allowed=false',
       semantic: '/api/semantic/governance/doctor',
       androidDoctor: '/api/distributed-runtime/android-model-doctor',
+      androidGenerate: '/api/distributed-runtime/android-local-generate',
       preprocess: '/api/distributed-runtime/preprocess',
       probe: '/api/distributed-runtime/probe'
     };
@@ -1154,6 +1270,7 @@ TRIADE_REACT_UI_HTML = r"""
           e('div', {className:'section'}, e('h2', null, 'Acciones 24/7'),
             e('button', {onClick:()=>refresh(true), disabled:busy}, 'Actualizar pulso'),
             e('button', {className:'secondary', onClick:()=>action('Doctor Android', () => json(routes.androidDoctor, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({wait_timeout:35})}))}, 'Doctor Android'),
+            e('button', {className:'secondary', onClick:()=>action('LLM Android', () => json(routes.androidGenerate, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt:form.text || 'Responde desde el backend LLM Android de Tríade.', max_tokens:128, wait_timeout:90})}))}, 'Generar en Android'),
             e('button', {className:'secondary', onClick:()=>action('Runtime probe', () => json(routes.probe, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt:form.text || 'Pulso distribuido Tríade', iterations:250000, wait_timeout:35})}))}, 'Probar runtime distribuido'),
             e('button', {className:'secondary', onClick:()=>action('Preproceso', () => json(routes.preprocess, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:form.text || 'Preparar contexto con nodos Android autorizados.', max_chunk_chars:1200, wait_timeout:35})}))}, 'Preprocesar en nodos'),
             e('button', {className:'secondary', onClick:()=>action('Router', () => json(routes.router, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({intent:form.intent, urgency:form.urgency})}))}, 'Router'),

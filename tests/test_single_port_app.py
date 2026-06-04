@@ -393,6 +393,67 @@ def test_distributed_runtime_android_model_doctor_reports_unavailable_backend(mo
     assert payload["doctors"][0]["backend"] == "none"
 
 
+def test_android_local_generate_requires_real_llm_host(monkeypatch) -> None:
+    monkeypatch.setattr(single_port_app, "local_federated_nodes", lambda task=None: [])
+    monkeypatch.setattr(single_port_app, "relay_settings", lambda: {"url": "https://relay.test", "admin_token": None})
+
+    response = client.post(
+        "/api/distributed-runtime/android-local-generate",
+        json={"prompt": "hola desde android", "wait_timeout": 5},
+    )
+
+    assert response.status_code == 404
+    assert "No hay host LLM Android real" in response.json()["detail"]
+
+
+def test_android_local_generate_uses_ready_local_host(monkeypatch) -> None:
+    single_port_app.LOCAL_JOBS.clear()
+    monkeypatch.setattr(
+        single_port_app,
+        "local_federated_nodes",
+        lambda task=None: [
+            {
+                "node_id": "android-llm",
+                "capabilities": {
+                    "allowed_tasks": ["android_local_generate"],
+                    "can_run_local_llm": True,
+                    "local_model_runtime_ready": True,
+                    "model_support": {"can_host_llm": True},
+                },
+            }
+        ],
+    )
+
+    def fake_wait(job_id: str, timeout: float = 25.0, interval: float = 0.5):
+        job = single_port_app.LOCAL_JOBS[job_id]
+        return {
+            **job,
+            "status": "completed",
+            "result": {
+                "task": "android_local_generate",
+                "ok": True,
+                "status": "completed",
+                "backend": "llama.cpp",
+                "model": "tiny.gguf",
+                "response": "respuesta android",
+                "threads": 4,
+            },
+        }
+
+    monkeypatch.setattr(single_port_app, "wait_local_job", fake_wait)
+    response = client.post(
+        "/api/distributed-runtime/android-local-generate",
+        json={"prompt": "hola desde android", "model": "tiny.gguf", "max_tokens": 16, "wait_timeout": 5},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["transport"] == "lan_8010"
+    assert payload["response"] == "respuesta android"
+    assert single_port_app.LOCAL_JOBS[payload["job"]["job_id"]]["payload"]["model"] == "tiny.gguf"
+
+
 def test_single_port_run_accepts_auto_select_models() -> None:
     response = client.post(
         "/api/run",

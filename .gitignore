@@ -27,8 +27,10 @@ mobile_node_state.json
 apps/static/*.apk
 !apps/static/triade-android-node.apk
 .tools/
+.codex-tools/
 android/triade-node/.gradle/
 android/triade-node/app/build/
+android/triade-node/local.properties
 
 # Sistema / editores
 .DS_Store
