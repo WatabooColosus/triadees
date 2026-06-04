@@ -392,6 +392,7 @@ ANDROID_DOWNLOAD_HTML = """
   <p>Aplicacion nativa para convertir este Android en nodo CPU/RAM de la federacion Triade.</p>
   <p>Estado: <strong>__APK_STATUS__</strong></p>
   <a href="/downloads/triade-android-node.apk">Descargar APK</a>
+  <a href="https://github.com/WatabooColosus/triadees/actions/workflows/android-node-apk.yml">Abrir builds en GitHub Actions</a>
   <p>Android pedira permitir instalacion desde el navegador. Luego abre la app, escribe la URL del relay y el token de emparejamiento.</p>
   <p>Relay: <code>https://web-production-8cffa0.up.railway.app</code></p>
 </main>
