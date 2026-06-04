@@ -18,7 +18,8 @@ def test_single_port_ui_serves_html() -> None:
     assert "Tríade Ω Single Port" in response.text
     assert "/api/run" in response.text
     assert "/api/router/doctor" in response.text
-    assert "Capacidad y nodos" in response.text
+    assert "Pulso vivo" in response.text
+    assert "Herramientas ocasionales" in response.text
     assert "/api/system/model-capacity" in response.text
 
 
