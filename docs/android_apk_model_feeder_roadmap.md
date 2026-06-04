@@ -13,6 +13,37 @@ Convertir `Triade Android Node` en un alimentador real para Tríade local:
 
 Importante: varios Android no se convierten automáticamente en una sola memoria de Ollama. Para eso se necesita un runtime distribuido real. La ruta correcta es avanzar por contratos verificables.
 
+## Requisito no negociable: runtime real
+
+El runtime debe ser real, no simulado.
+
+Para marcar un nodo Android como runtime de modelos, debe existir evidencia tecnica de:
+
+1. Backend nativo cargado en el dispositivo.
+   - llama.cpp, ONNX Runtime, MediaPipe LLM Inference u otro motor local verificable.
+   - No cuenta un mock, benchmark, preproceso o respuesta por plantilla.
+
+2. Modelo local cargado desde Android.
+   - Inventario de archivo real `.gguf`, `.onnx` u otro formato soportado.
+   - Tamaño, ruta privada/permitida y hash del modelo.
+
+3. Generacion local comprobada.
+   - `android_local_generate` debe devolver texto generado por el backend nativo.
+   - Debe incluir `backend`, `model`, `tokens_generated`, `elapsed_ms` y `ok=true`.
+
+4. Doctor verificable.
+   - `android_model_doctor` solo puede reportar `can_run_local_llm=true` si paso un smoke test real.
+   - Si no hay backend, debe responder `backend=none`, `can_run_local_llm=false`.
+
+5. Evidencia en 8010.
+   - El tablero solo puede mostrar `can_host_llm=true` cuando el nodo cumple lo anterior.
+   - Los jobs de preproceso/probe siguen siendo utiles, pero no cuentan como inferencia local.
+
+6. Auditoria por run.
+   - Cada uso del runtime debe guardar nodo, APK, backend, modelo, hashes, tiempos y resultado.
+
+Regla: si no genera tokens en el dispositivo con un motor local verificable, no es runtime real de modelos.
+
 ## Fase 0: Estado base ya logrado
 
 Hecho:
