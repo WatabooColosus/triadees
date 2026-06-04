@@ -46,6 +46,17 @@ Desde `0.7.0`, la pantalla principal permite preparar el host sin copiar rutas m
 
 Despues de importar ambos archivos, toca `Doctor LLM local`; si devuelve `can_run_local_llm=true`, el siguiente heartbeat del servicio hara que el `8010` pueda usar el nodo como host LLM Android real.
 
+Desde `0.8.0`, la APK usa modo dedicado: reporta 100% de la CPU/RAM disponible del dispositivo y elimina el selector 60/90/95. Android conserva sus limites reales de bateria, temperatura, memoria por proceso y permisos del sistema.
+
+Permisos expuestos por la app:
+
+- servicio en primer plano y wake lock para mantener el nodo conectado;
+- exclusión de optimizacion de bateria, si el usuario la concede;
+- acceso amplio a archivos mediante la pantalla de permisos de Android, si el usuario lo concede;
+- selector de archivos Android para importar `llama-cli` y `.gguf`.
+
+La APK no pide camara porque la camara no alimenta inferencia LLM ni CPU/RAM/GPU. Si en el futuro un modulo visual necesita camara, debe agregarse como permiso separado y visible.
+
 ## Build
 
 Requiere JDK 17+ y Android SDK. Desde `android/triade-node`:

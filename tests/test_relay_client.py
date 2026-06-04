@@ -165,9 +165,9 @@ def test_sync_native_android_node_marks_cpu_feed(tmp_path):
                             "background_execution": True,
                             "cpu_count": 8,
                             "ram_available_gb": 4,
-                            "resource_limit_percent": 60,
-                            "cpu_authorized_count": 4,
-                            "ram_authorized_gb": 2.4,
+                            "resource_limit_percent": 100,
+                            "cpu_authorized_count": 8,
+                            "ram_authorized_gb": 4.0,
                             "allowed_tasks": ["sha256", "preprocess_text"],
                         },
                     }
@@ -185,12 +185,12 @@ def test_sync_native_android_node_marks_cpu_feed(tmp_path):
     support = node["capabilities"]["model_support"]
     assert node["capabilities"]["native_android"] is True
     assert node["capabilities"]["federation_complete"] is True
-    assert node["capabilities"]["resource_limit_percent"] == 60
-    assert node["capabilities"]["cpu_authorized_count"] == 4
-    assert node["capabilities"]["ram_authorized_gb"] == 2.4
+    assert node["capabilities"]["resource_limit_percent"] == 100
+    assert node["capabilities"]["cpu_authorized_count"] == 8
+    assert node["capabilities"]["ram_authorized_gb"] == 4.0
     assert support["recommended_use"] == "android_native_cpu_feed"
-    assert support["authorized_cpu_count"] == 4
-    assert support["authorized_ram_gb"] == 2.4
+    assert support["authorized_cpu_count"] == 8
+    assert support["authorized_ram_gb"] == 4.0
     assert "background_cpu_feed" in support["can_assist"]
 
 
@@ -209,7 +209,7 @@ def test_sync_native_android_model_runtime_can_host_llm_when_backend_ready(tmp_p
                             "app_node": True,
                             "cpu_count": 8,
                             "ram_available_gb": 6,
-                            "resource_limit_percent": 90,
+                            "resource_limit_percent": 100,
                             "cpu_authorized_count": 7,
                             "ram_authorized_gb": 5.4,
                             "edge_model_runtime": True,
@@ -266,9 +266,9 @@ def test_sync_native_android_marks_missing_resource_limit_as_assumed(tmp_path):
 
     assert node is not None
     caps = node["capabilities"]
-    assert caps["resource_limit_percent"] == 60
+    assert caps["resource_limit_percent"] == 100
     assert caps["resource_limit_reported"] is False
-    assert caps["resource_limit_source"] == "default_60_missing_from_relay"
+    assert caps["resource_limit_source"] == "dedicated_100_missing_from_relay"
 
 
 def test_sync_preserves_existing_benchmark_score(tmp_path):

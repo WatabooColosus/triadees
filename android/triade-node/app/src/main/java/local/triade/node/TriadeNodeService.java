@@ -51,7 +51,7 @@ public final class TriadeNodeService extends Service {
         while (running) {
             try {
                 NodeConfig config = client.ensureRegistered();
-                updateNotification("Nodo activo: " + config.nodeId + " · " + config.resourceLimitPercent + "% autorizado");
+                updateNotification("Nodo activo: " + config.nodeId + " - modo dedicado 100%");
                 client.heartbeat(config);
                 JSONObject next = client.nextJob(config);
                 if ("ok".equals(next.optString("status"))) {

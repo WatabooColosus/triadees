@@ -112,9 +112,9 @@ def test_public_relay_recognizes_native_android_node(tmp_path, monkeypatch) -> N
                 "background_execution": True,
                 "cpu_count": 8,
                 "ram_available_gb": 4,
-                "resource_limit_percent": 60,
-                "cpu_authorized_count": 4,
-                "ram_authorized_gb": 2.4,
+                "resource_limit_percent": 100,
+                "cpu_authorized_count": 8,
+                "ram_authorized_gb": 4.0,
                 "allowed_tasks": ["sha256", "preprocess_text"],
             },
         },
@@ -126,9 +126,9 @@ def test_public_relay_recognizes_native_android_node(tmp_path, monkeypatch) -> N
     assert caps["browser_node"] is False
     assert caps["background_execution"] is True
     assert caps["tier"] == "android-native"
-    assert caps["resource_limit_percent"] == 60
-    assert caps["cpu_authorized_count"] == 4
-    assert caps["ram_authorized_gb"] == 2.4
+    assert caps["resource_limit_percent"] == 100
+    assert caps["cpu_authorized_count"] == 8
+    assert caps["ram_authorized_gb"] == 4.0
 
 
 def test_public_relay_serves_android_download_page(tmp_path, monkeypatch) -> None:

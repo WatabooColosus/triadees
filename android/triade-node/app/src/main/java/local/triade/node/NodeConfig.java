@@ -30,7 +30,7 @@ public final class NodeConfig {
                 prefs.getString("displayName", "Android Node"),
                 prefs.getString("nodeId", ""),
                 prefs.getString("nodeToken", ""),
-                prefs.getInt("resourceLimitPercent", 60)
+                prefs.getInt("resourceLimitPercent", 100)
         );
     }
 
@@ -68,8 +68,8 @@ public final class NodeConfig {
         if (value < 10) {
             return 10;
         }
-        if (value > 95) {
-            return 95;
+        if (value > 100) {
+            return 100;
         }
         return value;
     }

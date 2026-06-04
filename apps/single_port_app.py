@@ -1314,10 +1314,10 @@ TRIADE_REACT_UI_HTML = r"""
           e('div', {className:'section'}, e('h2', null, 'Modelos por suma'), runnable.length ? runnable.map(item => e('span', {className:'pill ok', key:item.model}, item.model)) : e('div', {className:'empty'}, 'La suma de RAM ayuda a preparar trabajos, pero aún no hospeda inferencia LLM única.')),
           e('div', {className:'section'}, e('h2', null, 'Nodos federados reales'),
             nodes.length ? nodes.map(node => e('div', {className:'node ready', key:node.node_id},
-              e('div', {className:'node-head'}, e('b', null, node.name || node.device_name || node.node_id), e('span', {className:'tag'}, String(node.resource_limit_percent || 0) + '%')),
+              e('div', {className:'node-head'}, e('b', null, node.name || node.device_name || node.node_id), e('span', {className:'tag'}, (Number(node.resource_limit_percent || 0) >= 100 ? 'dedicado' : String(node.resource_limit_percent || 0) + '%'))),
               e('div', {className:'small'}, 'CPU ' + (node.cpu_authorized_count || node.cpu_authorized || 0) + '/' + (node.cpu_count || '?') + ' · RAM ' + n(node.ram_authorized_gb) + '/' + n(node.ram_available_gb) + ' GB'),
               e('div', {className:'small'}, (node.capabilities?.app_version || node.app_version || '?') + ' · ' + (node.transport || node.capabilities?.source || 'local') + ' · ' + (node.can_host_llm ? 'hospeda LLM' : 'no hospeda LLM')),
-              e('div', {className:'small'}, node.resource_limit_reported ? 'porcentaje reportado por APK' : 'porcentaje asumido: relay sin campos nuevos')
+              e('div', {className:'small'}, node.resource_limit_reported ? 'modo reportado por APK' : 'modo dedicado asumido: relay sin campos nuevos')
             )) : e('div', {className:'empty'}, 'Ningún Android nativo online con jobs.')
           ),
           e('div', {className:'live'}, 'Sincronización cada 15 s. Browser no cuenta como nodo; solo Android nativo con CPU/RAM/GPU autorizada.')

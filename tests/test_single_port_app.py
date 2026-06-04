@@ -127,10 +127,10 @@ def test_federation_resource_lease_tracks_transports_and_resources() -> None:
                 "online": True,
                 "can_feed_local_models": True,
                 "federation_complete": True,
-                "cpu_authorized_count": 7,
-                "ram_authorized_gb": 3.1,
+                "cpu_authorized_count": 8,
+                "ram_authorized_gb": 3.3,
                 "ram_available_gb": 3.3,
-                "resource_limit_percent": 95,
+                "resource_limit_percent": 100,
                 "resource_limit_reported": True,
                 "edge_model_runtime": True,
                 "model_runtime_backend": "none",
@@ -149,9 +149,9 @@ def test_federation_resource_lease_tracks_transports_and_resources() -> None:
                 "can_feed_local_models": True,
                 "federation_complete": True,
                 "cpu_authorized_count": 4,
-                "ram_authorized_gb": 1.5,
+                "ram_authorized_gb": 2.0,
                 "ram_available_gb": 2.0,
-                "resource_limit_percent": 60,
+                "resource_limit_percent": 100,
                 "resource_limit_reported": False,
                 "edge_model_runtime": False,
                 "model_runtime_backend": "none",
@@ -164,9 +164,9 @@ def test_federation_resource_lease_tracks_transports_and_resources() -> None:
     assert lease["totals"]["devices"] == 2
     assert lease["totals"]["direct_lan_devices"] == 1
     assert lease["totals"]["relay_devices"] == 1
-    assert lease["totals"]["cpu_authorized_count"] == 11
-    assert lease["totals"]["ram_authorized_gb"] == 4.6
-    assert lease["leases"][0]["resource_limit_percent"] == 95
+    assert lease["totals"]["cpu_authorized_count"] == 12
+    assert lease["totals"]["ram_authorized_gb"] == 5.3
+    assert lease["leases"][0]["resource_limit_percent"] == 100
     assert lease["leases"][0]["lease_status"] == "job_worker_ready"
 
 
@@ -195,9 +195,9 @@ def test_single_port_accepts_local_android_node_heartbeat(tmp_path, monkeypatch)
                 "app_node": True,
                 "cpu_count": 8,
                 "ram_available_gb": 2.0,
-                "resource_limit_percent": 95,
-                "cpu_authorized_count": 7,
-                "ram_authorized_gb": 1.9,
+                "resource_limit_percent": 100,
+                "cpu_authorized_count": 8,
+                "ram_authorized_gb": 2.0,
             },
         },
     )
@@ -214,18 +214,18 @@ def test_single_port_accepts_local_android_node_heartbeat(tmp_path, monkeypatch)
                 "app_node": True,
                 "cpu_count": 8,
                 "ram_available_gb": 2.0,
-                "resource_limit_percent": 95,
-                "cpu_authorized_count": 7,
-                "ram_authorized_gb": 1.9,
+                "resource_limit_percent": 100,
+                "cpu_authorized_count": 8,
+                "ram_authorized_gb": 2.0,
             },
         },
     )
 
     assert heartbeat.status_code == 200
     caps = heartbeat.json()["node"]["capabilities"]
-    assert caps["resource_limit_percent"] == 95
-    assert caps["cpu_authorized_count"] == 7
-    assert caps["ram_authorized_gb"] == 1.9
+    assert caps["resource_limit_percent"] == 100
+    assert caps["cpu_authorized_count"] == 8
+    assert caps["ram_authorized_gb"] == 2.0
 
 
 def test_single_port_local_job_cycle(tmp_path, monkeypatch) -> None:

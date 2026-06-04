@@ -14,7 +14,6 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.SeekBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -29,7 +28,6 @@ public final class MainActivity extends Activity {
     private EditText relayUrl;
     private EditText pairingToken;
     private EditText displayName;
-    private SeekBar resourceLimit;
     private TextView resourceLimitLabel;
     private TextView status;
     private TextView runtimeStatus;
@@ -68,26 +66,6 @@ public final class MainActivity extends Activity {
 
         resourceLimitLabel = new TextView(this);
         root.addView(resourceLimitLabel);
-        resourceLimit = new SeekBar(this);
-        resourceLimit.setMax(85);
-        resourceLimit.setProgress(50);
-        resourceLimit.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                updateResourceLabel();
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-                saveCurrentConfig();
-                status.setText("Recursos actualizados: " + selectedResourcePercent() + "%. El servicio los reportara en el siguiente pulso.");
-            }
-        });
-        root.addView(resourceLimit);
 
         Button start = button("Guardar y conectar");
         start.setOnClickListener(v -> startNode());
@@ -100,6 +78,10 @@ public final class MainActivity extends Activity {
         Button battery = button("Abrir ajuste de batería");
         battery.setOnClickListener(v -> openBatterySettings());
         root.addView(battery);
+
+        Button files = button("Abrir permiso de archivos");
+        files.setOnClickListener(v -> openAllFilesSettings());
+        root.addView(files);
 
         Button doctor = button("Doctor LLM local");
         doctor.setOnClickListener(v -> showRuntimeDoctor());
@@ -126,7 +108,6 @@ public final class MainActivity extends Activity {
         relayUrl.setText(config.relayUrl);
         pairingToken.setText(config.pairingToken);
         displayName.setText(config.displayName);
-        resourceLimit.setProgress(config.resourceLimitPercent - 10);
         updateResourceLabel();
         status.setText(config.hasIdentity() ? "Nodo guardado: " + config.nodeId : "Sin identidad registrada.");
         showRuntimeDoctor();
@@ -151,12 +132,12 @@ public final class MainActivity extends Activity {
     }
 
     private int selectedResourcePercent() {
-        return resourceLimit.getProgress() + 10;
+        return 100;
     }
 
     private void updateResourceLabel() {
-        if (resourceLimitLabel != null && resourceLimit != null) {
-            resourceLimitLabel.setText("Recursos autorizados para Triade: " + selectedResourcePercent() + "%");
+        if (resourceLimitLabel != null) {
+            resourceLimitLabel.setText("Modo dedicado: Triade reporta 100% de CPU/RAM disponible. Android conserva limites termicos y de memoria del sistema.");
         }
     }
 
@@ -181,6 +162,20 @@ public final class MainActivity extends Activity {
             Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
             intent.setData(Uri.parse("package:" + getPackageName()));
             startActivity(intent);
+        } catch (Exception ignored) {
+            startActivity(new Intent(Settings.ACTION_SETTINGS));
+        }
+    }
+
+    private void openAllFilesSettings() {
+        try {
+            if (Build.VERSION.SDK_INT >= 30) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            } else {
+                startActivity(new Intent(Settings.ACTION_SETTINGS));
+            }
         } catch (Exception ignored) {
             startActivity(new Intent(Settings.ACTION_SETTINGS));
         }

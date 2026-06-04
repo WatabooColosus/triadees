@@ -156,7 +156,7 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
     online = bool(node.get("online"))
     native_android = bool(raw.get("native_android") or raw.get("app_node"))
     has_reported_limit = "resource_limit_percent" in raw
-    resource_limit = max(0, min(100, int(raw.get("resource_limit_percent") or 60))) if native_android else 0
+    resource_limit = max(0, min(100, int(raw.get("resource_limit_percent") or 100))) if native_android else 0
     authorized_cpu = int(raw.get("cpu_authorized_count") or max(1, int(cpu * (resource_limit / 100.0)))) if native_android else 0
     authorized_memory = float(raw.get("ram_authorized_gb") or (memory * (resource_limit / 100.0))) if native_android else 0.0
     capability_tier = _browser_tier(cpu, memory)
@@ -177,7 +177,7 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
         "ram_authorized_gb": authorized_memory,
         "resource_limit_percent": resource_limit,
         "resource_limit_reported": bool(has_reported_limit and native_android),
-        "resource_limit_source": "device_reported" if has_reported_limit and native_android else ("default_60_missing_from_relay" if native_android else "not_native"),
+        "resource_limit_source": "device_reported" if has_reported_limit and native_android else ("dedicated_100_missing_from_relay" if native_android else "not_native"),
         "federation_complete": bool(native_android and online and resource_limit > 0),
         "allowed_tasks": allowed_tasks,
         "model_support": model_support_from_capabilities({
@@ -190,7 +190,7 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
             "background_execution": bool(raw.get("background_execution")),
             "resource_limit_percent": resource_limit,
             "resource_limit_reported": bool(has_reported_limit and native_android),
-            "resource_limit_source": "device_reported" if has_reported_limit and native_android else ("default_60_missing_from_relay" if native_android else "not_native"),
+            "resource_limit_source": "device_reported" if has_reported_limit and native_android else ("dedicated_100_missing_from_relay" if native_android else "not_native"),
             "edge_model_runtime": bool(raw.get("edge_model_runtime")),
             "model_runtime_backend": raw.get("model_runtime_backend"),
             "can_run_local_llm": bool(raw.get("can_run_local_llm")),

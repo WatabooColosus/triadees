@@ -250,7 +250,7 @@ def _decode_node(row: sqlite3.Row) -> dict[str, Any]:
 
 def _normalize_capabilities(payload: dict[str, Any]) -> dict[str, Any]:
     native_android = bool(payload.get("native_android") or payload.get("app_node"))
-    resource_limit = max(10, min(90, int(payload.get("resource_limit_percent") or 100)))
+    resource_limit = max(10, min(100, int(payload.get("resource_limit_percent") or 100)))
     cpu_count = int(payload.get("cpu_count") or payload.get("hardware_concurrency") or 1)
     ram_available = float(payload.get("ram_available_gb") or payload.get("device_memory_gb") or 0.0)
     cpu_authorized = int(payload.get("cpu_authorized_count") or max(1, int(cpu_count * (resource_limit / 100.0))))
