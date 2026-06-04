@@ -244,6 +244,37 @@ def test_distributed_runtime_preprocess_merges_android_results(monkeypatch) -> N
     assert payload["model_feed"]["keywords"][0]["term"] == "triade"
 
 
+def test_distributed_runtime_preprocess_falls_back_to_public_relay(monkeypatch) -> None:
+    monkeypatch.setattr(single_port_app, "local_federated_nodes", lambda task=None: [])
+    monkeypatch.setattr(single_port_app, "relay_settings", lambda: {"url": "https://relay.test", "admin_token": "token"})
+
+    class FakeRelayClient:
+        def __init__(self, url: str, admin_token: str, timeout: float = 12.0) -> None:
+            self.url = url
+            self.admin_token = admin_token
+
+        def preprocess_text_online(self, federation, text: str, max_chunk_chars: int = 1200, wait_timeout: float = 45.0):
+            return {
+                "status": "ok",
+                "submitted": 1,
+                "completed": 1,
+                "results": [{"node_id": "relay-android", "job": {"status": "completed"}}],
+                "model_feed": {"ready_for_local_model": True, "keywords": [{"term": "relay", "count": 1}]},
+            }
+
+    monkeypatch.setattr(single_port_app, "PublicRelayClient", FakeRelayClient)
+    response = client.post(
+        "/api/distributed-runtime/preprocess",
+        json={"text": "relay alimenta triade", "wait_timeout": 1},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["transport"] == "public_relay_fallback"
+    assert payload["completed"] == 1
+    assert payload["model_feed"]["ready_for_local_model"] is True
+
+
 def test_distributed_runtime_probe_reports_remote_ops(monkeypatch) -> None:
     single_port_app.LOCAL_JOBS.clear()
     monkeypatch.setattr(

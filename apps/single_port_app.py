@@ -643,7 +643,29 @@ def distributed_runtime_status() -> dict[str, Any]:
 def distributed_runtime_preprocess(request: DistributedRuntimeRequest) -> dict[str, Any]:
     nodes = local_federated_nodes("preprocess_text")
     if not nodes:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No hay nodos Android locales con preprocess_text online.")
+        relay = relay_settings()
+        if relay.get("admin_token"):
+            federation = Federation()
+            result = PublicRelayClient(str(relay["url"]), str(relay["admin_token"]), timeout=12).preprocess_text_online(
+                federation,
+                text=request.text,
+                max_chunk_chars=request.max_chunk_chars,
+                wait_timeout=request.wait_timeout,
+            )
+            if result.get("completed"):
+                return {
+                    "status": "ok",
+                    "mode": "distributed-runtime",
+                    "task": "preprocess_text",
+                    "transport": "public_relay_fallback",
+                    "submitted": result.get("submitted", 0),
+                    "completed": result.get("completed", 0),
+                    "nodes_used": [item.get("node_id") for item in result.get("results", [])],
+                    "jobs": result.get("results", []),
+                    "model_feed": result.get("model_feed", {}),
+                    "truth": "Preproceso ejecutado por relay publico porque no hay nodos LAN directos al 8010.",
+                }
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No hay nodos Android locales con preprocess_text online ni respuesta util via relay publico.")
     shards = split_text_for_nodes(request.text, len(nodes))
     jobs = []
     for index, shard in enumerate(shards):
