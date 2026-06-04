@@ -79,6 +79,10 @@ def test_doctor_reports_full_persistence_counts(tmp_path: Path) -> None:
     assert report["counts"]["model_events"] >= 2
     assert "models" in report
     assert "model_events" in report
+    assert "runtime" in report
+    assert report["runtime"]["python_version"]
+    assert report["runtime"]["python_executable"]
+    assert "in_virtual_env" in report["runtime"]
     assert report["models"]["ollama"]["disabled"] is True
 
 

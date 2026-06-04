@@ -11,6 +11,8 @@ __pycache__/
 runs/
 triade/memory/triade.db
 triade/memory/triade.db-*
+triade/memory/public_relay.db
+triade/memory/public_relay.db-*
 *.sqlite
 *.sqlite3
 
@@ -19,6 +21,7 @@ triade/memory/triade.db-*
 .env.*
 *.key
 *.pem
+mobile_node_state.json
 
 # Sistema / editores
 .DS_Store

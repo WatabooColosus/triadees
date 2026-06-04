@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: triade-public-relay
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn apps.public_relay_app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: TRIADE_RELAY_PAIRING_TOKEN
+        generateValue: true
+      - key: TRIADE_RELAY_ADMIN_TOKEN
+        generateValue: true

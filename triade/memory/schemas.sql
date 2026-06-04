@@ -176,6 +176,9 @@ CREATE TABLE IF NOT EXISTS federated_nodes (
     public_key TEXT,
     trust_level TEXT DEFAULT 'low',
     permissions TEXT,
+    capabilities TEXT,
+    capability_status TEXT DEFAULT 'unknown',
+    last_seen_at TEXT,
     status TEXT DEFAULT 'active',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP

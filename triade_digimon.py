@@ -5,6 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+from pathlib import Path
+
+import httpx
 
 from triade.core.alignment import CoreAlignment
 from triade.core.neuron_creator import NeuronCreator
@@ -38,7 +42,65 @@ def make_runner(args: argparse.Namespace) -> TriadeRunner:
 
 
 def print_json(payload: object) -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def load_run_learning_candidate(
+    run_ref: str,
+    runs_dir: str | Path = "runs",
+    title: str | None = None,
+    domain: str = "triade-runs",
+    risk_override: str | None = None,
+) -> dict[str, str]:
+    run_path = Path(run_ref)
+    if not run_path.exists():
+        run_path = Path(runs_dir) / run_ref
+    if not run_path.exists() or not run_path.is_dir():
+        raise FileNotFoundError(f"No existe el run auditable: {run_ref}")
+
+    input_payload = _read_run_json(run_path, "input.json")
+    output_payload = _read_run_json(run_path, "output.json")
+    report_payload = _read_run_json(run_path, "report.json", required=False)
+    safety_payload = _read_run_json(run_path, "safety.json", required=False)
+
+    run_id = str(output_payload.get("run_id") or input_payload.get("run_id") or run_path.name)
+    user_input = str(input_payload.get("user_input") or "").strip()
+    response = str(output_payload.get("response") or "").strip()
+    if not user_input or not response:
+        raise ValueError(f"El run {run_id} no contiene input/output suficiente para aprendizaje.")
+
+    actions = output_payload.get("actions_taken") or []
+    report_status = report_payload.get("status") if isinstance(report_payload, dict) else None
+    risk_level = risk_override or str(safety_payload.get("risk_level") or "low")
+    content = "\n".join(
+        [
+            f"Run auditable: {run_id}",
+            f"Entrada: {user_input}",
+            f"Respuesta: {response}",
+            f"Acciones: {', '.join(actions) if isinstance(actions, list) else actions}",
+            f"Reporte: {report_status or 'unknown'}",
+            f"Riesgo: {risk_level}",
+        ]
+    )
+    return {
+        "content": content,
+        "source_type": "conversation",
+        "source_ref": f"run:{run_id}",
+        "title": title or f"Aprendizaje desde {run_id}",
+        "domain": domain,
+        "risk_level": risk_level,
+    }
+
+
+def _read_run_json(run_path: Path, name: str, required: bool = True) -> dict[str, object]:
+    path = run_path / name
+    if not path.exists():
+        if required:
+            raise FileNotFoundError(f"Falta artefacto requerido: {path}")
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def handle_neuron(args: argparse.Namespace) -> None:
@@ -119,6 +181,16 @@ def handle_learn(args: argparse.Namespace) -> None:
                                source_ref=args.source_ref, title=args.title,
                                domain=args.domain, risk_level=args.risk))
         return
+    if args.learn_command == "from-run":
+        candidate = load_run_learning_candidate(
+            args.run,
+            runs_dir=args.runs_dir,
+            title=args.title,
+            domain=args.domain,
+            risk_override=args.risk,
+        )
+        print_json(pipe.ingest(**candidate))
+        return
     if args.learn_command == "evaluate":
         print_json(pipe.evaluate(args.candidate_id))
         return
@@ -145,15 +217,25 @@ def handle_federate(args: argparse.Namespace) -> None:
     federation = Federation(db_path=args.db)
 
     if args.federate_command == "register":
+        capabilities = json.loads(args.capabilities) if args.capabilities else None
         print_json(federation.register_node(node_id=args.node_id, name=args.name, owner=args.owner,
                                             endpoint=args.endpoint, trust_level=args.trust,
-                                            permissions=args.permission or []))
+                                            permissions=args.permission or [], capabilities=capabilities))
         return
     if args.federate_command == "list":
         print_json({"status": "ok", "nodes": federation.list_nodes(status=args.status)})
         return
     if args.federate_command == "revoke":
         print_json(federation.revoke_node(args.node_id, reason=args.reason or ""))
+        return
+    if args.federate_command == "capabilities":
+        print_json(federation.update_capabilities(args.node_id, json.loads(args.payload)))
+        return
+    if args.federate_command == "detect-capabilities":
+        print_json(federation.update_local_capabilities(args.node_id))
+        return
+    if args.federate_command == "capable":
+        print_json({"status": "ok", "nodes": federation.list_capable_nodes(min_tier=args.min_tier, require_gpu=args.require_gpu)})
         return
     if args.federate_command == "receive":
         print_json(federation.receive_exchange(source_node_id=args.node_id, exchange_type=args.type,
@@ -171,6 +253,40 @@ def handle_federate(args: argparse.Namespace) -> None:
         return
 
     raise SystemExit("Comando federate inválido")
+
+
+def handle_relay(args: argparse.Namespace) -> None:
+    base_url = args.url.rstrip("/")
+    headers = {"Authorization": f"Bearer {args.admin_token}"} if args.admin_token else {}
+
+    if args.relay_command == "health":
+        response = httpx.get(f"{base_url}/health", timeout=15)
+        response.raise_for_status()
+        print_json(response.json())
+        return
+    if args.relay_command == "nodes":
+        response = httpx.get(f"{base_url}/api/nodes", headers=headers, timeout=20)
+        response.raise_for_status()
+        print_json(response.json())
+        return
+    if args.relay_command == "jobs":
+        response = httpx.get(f"{base_url}/api/jobs", headers=headers, timeout=20)
+        response.raise_for_status()
+        print_json(response.json())
+        return
+    if args.relay_command == "create-job":
+        payload = json.loads(args.payload) if args.payload else {}
+        response = httpx.post(
+            f"{base_url}/api/jobs",
+            headers=headers,
+            json={"node_id": args.node_id, "task": args.task, "payload": payload, "seconds": args.seconds},
+            timeout=20,
+        )
+        response.raise_for_status()
+        print_json(response.json())
+        return
+
+    raise SystemExit("Comando relay invalido")
 
 
 def main() -> None:
@@ -245,6 +361,13 @@ def main() -> None:
     learn_ingest.add_argument("--domain", default="general", help="Dominio del candidato")
     learn_ingest.add_argument("--risk", default="low", help="low|medium|high|critical")
 
+    learn_from_run = learn_subparsers.add_parser("from-run", help="Crea candidato desde un run auditable")
+    learn_from_run.add_argument("run", help="ID del run o ruta a carpeta de run")
+    learn_from_run.add_argument("--runs-dir", default="runs", help="Carpeta base de runs")
+    learn_from_run.add_argument("--title", default=None, help="Título del candidato")
+    learn_from_run.add_argument("--domain", default="triade-runs", help="Dominio del candidato")
+    learn_from_run.add_argument("--risk", default=None, help="Override de riesgo: low|medium|high|critical")
+
     learn_eval = learn_subparsers.add_parser("evaluate", help="Evalúa utilidad, confianza y riesgo")
     learn_eval.add_argument("candidate_id", help="ID del candidato")
 
@@ -276,6 +399,7 @@ def main() -> None:
     fed_register.add_argument("--endpoint", default=None, help="Endpoint del nodo")
     fed_register.add_argument("--trust", default="low", help="low|medium|high")
     fed_register.add_argument("--permission", action="append", help="Permiso autorizado; se puede repetir")
+    fed_register.add_argument("--capabilities", default=None, help="Perfil hardware JSON opcional del nodo")
 
     fed_list = fed_subparsers.add_parser("list", help="Lista nodos federados")
     fed_list.add_argument("--status", default=None, help="Filtrar por estado")
@@ -283,6 +407,17 @@ def main() -> None:
     fed_revoke = fed_subparsers.add_parser("revoke", help="Revoca un nodo")
     fed_revoke.add_argument("node_id", help="Identificador del nodo")
     fed_revoke.add_argument("--reason", default="", help="Razón de la revocación")
+
+    fed_capabilities = fed_subparsers.add_parser("capabilities", help="Actualiza capacidades hardware de un nodo")
+    fed_capabilities.add_argument("node_id", help="Identificador del nodo")
+    fed_capabilities.add_argument("--payload", required=True, help="Perfil hardware/capacidades en JSON")
+
+    fed_local_capabilities = fed_subparsers.add_parser("detect-capabilities", help="Detecta y guarda capacidades locales para un nodo")
+    fed_local_capabilities.add_argument("node_id", help="Identificador del nodo")
+
+    fed_capable = fed_subparsers.add_parser("capable", help="Lista nodos activos aptos para computo")
+    fed_capable.add_argument("--min-tier", default="low", help="low|medium|high")
+    fed_capable.add_argument("--require-gpu", action="store_true", help="Exige GPU/VRAM detectada")
 
     fed_receive = fed_subparsers.add_parser("receive", help="Recibe un intercambio de un nodo")
     fed_receive.add_argument("node_id", help="Nodo origen")
@@ -302,6 +437,21 @@ def main() -> None:
     fed_exchanges.add_argument("--limit", type=int, default=50, help="Cantidad máxima")
 
     fed_subparsers.add_parser("doctor", help="Diagnóstico de la federación")
+
+    relay_parser = subparsers.add_parser("relay", help="Controla un relay publico Triade")
+    relay_parser.add_argument("--url", required=True, help="URL publica del relay")
+    relay_parser.add_argument("--admin-token", default=None, help="Token admin del relay")
+    relay_subparsers = relay_parser.add_subparsers(dest="relay_command")
+
+    relay_subparsers.add_parser("health", help="Consulta salud del relay")
+    relay_subparsers.add_parser("nodes", help="Lista nodos conectados")
+    relay_subparsers.add_parser("jobs", help="Lista jobs recientes")
+
+    relay_job = relay_subparsers.add_parser("create-job", help="Crea job para un nodo web")
+    relay_job.add_argument("node_id", help="Nodo destino")
+    relay_job.add_argument("--task", default="browser_benchmark", help="echo|sha256|browser_benchmark")
+    relay_job.add_argument("--payload", default="{}", help="JSON de entrada")
+    relay_job.add_argument("--seconds", type=float, default=2.0, help="Duracion para benchmark")
 
     args = parser.parse_args()
 
@@ -384,6 +534,10 @@ def main() -> None:
 
     if args.command == "federate":
         handle_federate(args)
+        return
+
+    if args.command == "relay":
+        handle_relay(args)
         return
 
     parser.print_help()

@@ -96,3 +96,36 @@ def test_doctor_reports_policy_and_counts(tmp_path: Path) -> None:
     assert doctor["policy"]["identity_core_protected"] is True
     assert "modify_identity_core" in doctor["policy"]["forbidden_permissions"]
     assert doctor["nodes_by_status"]["active"] == 1
+
+
+def test_federation_tracks_capable_compute_nodes(tmp_path: Path) -> None:
+    federation = fed(tmp_path)
+    low = {
+        "tier": "low",
+        "cpu_count": 2,
+        "ram_available_gb": 2.0,
+        "gpus": [],
+    }
+    high = {
+        "tier": "high",
+        "cpu_count": 16,
+        "ram_available_gb": 24.0,
+        "gpus": [{"name": "RTX Test", "vram_total_gb": 12.0, "cuda_available": True}],
+    }
+
+    federation.register_node("small", "Nodo CPU pequeno", permissions=["publish_capabilities"], capabilities=low)
+    federation.register_node(
+        "gpu",
+        "Nodo GPU",
+        trust_level="high",
+        permissions=["publish_capabilities", "request_compute"],
+        capabilities=high,
+    )
+
+    capable = federation.list_capable_nodes(min_tier="medium")
+    assert [node["node_id"] for node in capable] == ["gpu"]
+    assert federation.list_capable_nodes(min_tier="medium", require_gpu=True)[0]["node_id"] == "gpu"
+
+    doctor = federation.doctor()
+    assert doctor["nodes_by_capability"]["high"] == 1
+    assert doctor["compute_ready_nodes"] == 1

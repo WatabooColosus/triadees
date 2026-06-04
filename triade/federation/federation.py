@@ -26,6 +26,7 @@ from uuid import uuid4
 
 from triade.core.contracts import utc_now
 from triade.learning.pipeline import LearningPipeline
+from triade.models.hardware_profile import HardwareProfiler
 
 TRUST_LEVELS = {"low", "medium", "high"}
 NODE_STATUSES = {"active", "paused", "revoked", "archived"}
@@ -37,6 +38,7 @@ ALLOWED_PERMISSIONS = {
     "send_patterns", "receive_patterns",
     "send_neuron_specs", "receive_neuron_specs",
     "request_verification", "request_sandbox_test",
+    "publish_capabilities", "request_compute",
 }
 FORBIDDEN_PERMISSIONS = {
     "read_full_memory", "write_stable_memory", "modify_identity_core",
@@ -83,6 +85,19 @@ class Federation:
             raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
+            self._ensure_capability_columns(conn)
+
+    @staticmethod
+    def _ensure_capability_columns(conn: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(federated_nodes)").fetchall()}
+        additions = {
+            "capabilities": "TEXT",
+            "capability_status": "TEXT DEFAULT 'unknown'",
+            "last_seen_at": "TEXT",
+        }
+        for name, ddl in additions.items():
+            if name not in columns:
+                conn.execute(f"ALTER TABLE federated_nodes ADD COLUMN {name} {ddl}")
 
     # ------------------------------------------------------------------
     # Registro de nodos
@@ -97,6 +112,7 @@ class Federation:
         public_key: str | None = None,
         trust_level: str = "low",
         permissions: list[str] | None = None,
+        capabilities: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         clean_id = (node_id or "").strip()
         if not clean_id:
@@ -116,16 +132,40 @@ class Federation:
         with self._connect() as conn:
             conn.execute(
                 """INSERT INTO federated_nodes
-                (node_id, name, owner, endpoint, public_key, trust_level, permissions, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
+                (node_id, name, owner, endpoint, public_key, trust_level, permissions, capabilities, capability_status, last_seen_at, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
                 ON CONFLICT(node_id) DO UPDATE SET
                     name = excluded.name, owner = excluded.owner, endpoint = excluded.endpoint,
                     public_key = excluded.public_key, trust_level = excluded.trust_level,
-                    permissions = excluded.permissions, updated_at = CURRENT_TIMESTAMP""",
+                    permissions = excluded.permissions, capabilities = COALESCE(excluded.capabilities, federated_nodes.capabilities),
+                    capability_status = COALESCE(excluded.capability_status, federated_nodes.capability_status),
+                    last_seen_at = COALESCE(excluded.last_seen_at, federated_nodes.last_seen_at),
+                    updated_at = CURRENT_TIMESTAMP""",
                 (clean_id, name.strip() or clean_id, owner, endpoint, public_key, trust,
-                 json.dumps(sorted(set(requested)), ensure_ascii=False)),
+                 json.dumps(sorted(set(requested)), ensure_ascii=False),
+                 json.dumps(capabilities, ensure_ascii=False) if capabilities else None,
+                 self._capability_status(capabilities),
+                 utc_now() if capabilities else None),
             )
         return self.get_node(clean_id) or {}
+
+    def update_capabilities(self, node_id: str, capabilities: dict[str, Any]) -> dict[str, Any]:
+        self._require_node(node_id)
+        if not isinstance(capabilities, dict) or not capabilities:
+            raise ValueError("capabilities debe ser un objeto no vacío.")
+        status = self._capability_status(capabilities)
+        with self._connect() as conn:
+            conn.execute(
+                """UPDATE federated_nodes
+                SET capabilities = ?, capability_status = ?, last_seen_at = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE node_id = ?""",
+                (json.dumps(capabilities, ensure_ascii=False), status, utc_now(), node_id),
+            )
+        return self.get_node(node_id) or {}
+
+    def update_local_capabilities(self, node_id: str) -> dict[str, Any]:
+        capabilities = HardwareProfiler().detect().to_dict()
+        return self.update_capabilities(node_id, capabilities)
 
     def set_trust(self, node_id: str, trust_level: str) -> dict[str, Any]:
         trust = trust_level.strip().lower()
@@ -158,6 +198,30 @@ class Federation:
             else:
                 rows = conn.execute("SELECT * FROM federated_nodes ORDER BY id DESC").fetchall()
         return [self._decode_node(dict(row)) for row in rows]
+
+    def list_capable_nodes(self, min_tier: str | None = None, require_gpu: bool = False) -> list[dict[str, Any]]:
+        tier_rank = {"unknown": 0, "low": 1, "medium": 2, "high": 3}
+        min_rank = tier_rank.get((min_tier or "low").strip().lower(), 1)
+        nodes = []
+        for node in self.list_nodes(status="active"):
+            capabilities = node.get("capabilities") or {}
+            tier = str(capabilities.get("tier") or node.get("capability_status") or "unknown").lower()
+            gpus = capabilities.get("gpus") if isinstance(capabilities.get("gpus"), list) else []
+            has_gpu = any(float(gpu.get("vram_total_gb") or 0.0) > 0 or bool(gpu.get("cuda_available")) for gpu in gpus if isinstance(gpu, dict))
+            if tier_rank.get(tier, 0) < min_rank:
+                continue
+            if require_gpu and not has_gpu:
+                continue
+            nodes.append(node)
+        return sorted(
+            nodes,
+            key=lambda node: (
+                tier_rank.get(str((node.get("capabilities") or {}).get("tier") or node.get("capability_status") or "unknown").lower(), 0),
+                float((node.get("capabilities") or {}).get("ram_available_gb") or 0.0),
+                self._max_vram(node.get("capabilities") or {}),
+            ),
+            reverse=True,
+        )
 
     # ------------------------------------------------------------------
     # Recepción de intercambios (autenticación → permisos → Safety → log → learning)
@@ -293,6 +357,8 @@ class Federation:
         with self._connect() as conn:
             nodes_by_status = {row["status"]: row["c"] for row in conn.execute(
                 "SELECT status, COUNT(*) AS c FROM federated_nodes GROUP BY status").fetchall()}
+            nodes_by_capability = {row["capability_status"]: row["c"] for row in conn.execute(
+                "SELECT capability_status, COUNT(*) AS c FROM federated_nodes GROUP BY capability_status").fetchall()}
             exchanges_by_decision = {row["decision"]: row["c"] for row in conn.execute(
                 "SELECT decision, COUNT(*) AS c FROM federated_exchange_log GROUP BY decision").fetchall()}
         return {
@@ -307,6 +373,8 @@ class Federation:
                 "identity_core_protected": True,
             },
             "nodes_by_status": nodes_by_status,
+            "nodes_by_capability": nodes_by_capability,
+            "compute_ready_nodes": len(self.list_capable_nodes(min_tier="medium")),
             "exchanges_by_decision": exchanges_by_decision,
         }
 
@@ -361,4 +429,34 @@ class Federation:
             row["permissions"] = json.loads(row.get("permissions") or "[]")
         except (json.JSONDecodeError, TypeError):
             row["permissions"] = []
+        try:
+            row["capabilities"] = json.loads(row.get("capabilities") or "{}")
+        except (json.JSONDecodeError, TypeError):
+            row["capabilities"] = {}
+        row["capability_status"] = row.get("capability_status") or "unknown"
         return row
+
+    @staticmethod
+    def _capability_status(capabilities: dict[str, Any] | None) -> str:
+        if not capabilities:
+            return "unknown"
+        tier = str(capabilities.get("tier") or "").strip().lower()
+        if tier in {"low", "medium", "high"}:
+            return tier
+        ram = float(capabilities.get("ram_available_gb") or capabilities.get("ram_total_gb") or 0.0)
+        cpu = int(capabilities.get("cpu_count") or 0)
+        max_vram = Federation._max_vram(capabilities)
+        if max_vram >= 8 or (ram >= 12 and cpu >= 8):
+            return "high"
+        if ram >= 5 and cpu >= 4:
+            return "medium"
+        return "low"
+
+    @staticmethod
+    def _max_vram(capabilities: dict[str, Any]) -> float:
+        gpus = capabilities.get("gpus") if isinstance(capabilities.get("gpus"), list) else []
+        values = []
+        for gpu in gpus:
+            if isinstance(gpu, dict):
+                values.append(float(gpu.get("vram_total_gb") or 0.0))
+        return max(values, default=0.0)

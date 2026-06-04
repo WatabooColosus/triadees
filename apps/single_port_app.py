@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from triade.core.runner import TriadeRunner
+from triade.core.repo_info import repo_info
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
@@ -107,7 +108,7 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok", "entity": "Tríade Ω", "mode": "single-port", "port": 8010,
         "security": {"api_key_required": bool(os.getenv("TRIADE_API_KEY"))},
-        "hardware": hardware.to_dict(), "ollama": ollama, "doctor": runner.doctor(),
+        "repo": repo_info(), "hardware": hardware.to_dict(), "ollama": ollama, "doctor": runner.doctor(),
     }
 
 

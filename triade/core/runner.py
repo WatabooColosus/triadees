@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -279,7 +282,21 @@ class TriadeRunner:
     def doctor(self) -> dict[str, Any]:
         status = self.bodega.doctor(runs_dir=self.runs_dir)
         status["models"] = {"provider": self.model_provider, "hypothalamus": self.hypothalamus_model, "central": self.central_model, "selection": self.model_selection, "ollama": self.model_client.health() if self.model_client else {"ok": False, "disabled": True}}
+        status["runtime"] = self._runtime_status()
         return status
+
+    @staticmethod
+    def _runtime_status() -> dict[str, Any]:
+        virtual_env = os.environ.get("VIRTUAL_ENV")
+        return {
+            "python_version": platform.python_version(),
+            "python_executable": sys.executable,
+            "platform": platform.platform(),
+            "cwd": str(Path.cwd()),
+            "stdout_encoding": getattr(sys.stdout, "encoding", None),
+            "virtual_env": virtual_env,
+            "in_virtual_env": bool(virtual_env) or sys.prefix != sys.base_prefix,
+        }
 
     @staticmethod
     def _score_hypothalamus(signals: Any, model_result: dict[str, Any]) -> float:
