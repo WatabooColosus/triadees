@@ -12,4 +12,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn apps.public_relay_app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["python", "-m", "apps.public_relay_entrypoint"]
