@@ -7,14 +7,16 @@ public final class NodeConfig {
     private static final String PREFS = "triade_node";
 
     public final String relayUrl;
+    public final String runtimeUrl;
     public final String pairingToken;
     public final String displayName;
     public final String nodeId;
     public final String nodeToken;
     public final int resourceLimitPercent;
 
-    private NodeConfig(String relayUrl, String pairingToken, String displayName, String nodeId, String nodeToken, int resourceLimitPercent) {
+    private NodeConfig(String relayUrl, String runtimeUrl, String pairingToken, String displayName, String nodeId, String nodeToken, int resourceLimitPercent) {
         this.relayUrl = trimTrailingSlash(relayUrl);
+        this.runtimeUrl = trimTrailingSlash(runtimeUrl);
         this.pairingToken = pairingToken;
         this.displayName = displayName;
         this.nodeId = nodeId;
@@ -26,6 +28,7 @@ public final class NodeConfig {
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         return new NodeConfig(
                 prefs.getString("relayUrl", "https://web-production-8cffa0.up.railway.app"),
+                prefs.getString("runtimeUrl", "http://127.0.0.1:8010"),
                 prefs.getString("pairingToken", ""),
                 prefs.getString("displayName", "Android Node"),
                 prefs.getString("nodeId", ""),
@@ -34,10 +37,11 @@ public final class NodeConfig {
         );
     }
 
-    public static void saveUserConfig(Context context, String relayUrl, String pairingToken, String displayName, int resourceLimitPercent) {
+    public static void saveUserConfig(Context context, String relayUrl, String runtimeUrl, String pairingToken, String displayName, int resourceLimitPercent) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
                 .putString("relayUrl", trimTrailingSlash(relayUrl))
+                .putString("runtimeUrl", trimTrailingSlash(runtimeUrl))
                 .putString("pairingToken", pairingToken.trim())
                 .putString("displayName", displayName.trim().isEmpty() ? "Android Node" : displayName.trim())
                 .putInt("resourceLimitPercent", clampPercent(resourceLimitPercent))

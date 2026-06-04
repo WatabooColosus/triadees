@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, status
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from triade.core.runner import TriadeRunner
@@ -32,6 +32,9 @@ from triade.models.ollama_client import OllamaClient
 
 app = FastAPI(title="Tríade Ω Single Port", version="0.9.0")
 ANDROID_APK_PATH = Path(os.environ.get("TRIADE_ANDROID_APK", "apps/static/triade-android-node.apk"))
+ANDROID_RUNTIME_DIR = Path(os.environ.get("TRIADE_ANDROID_RUNTIME_DIR", "apps/static/android-runtime"))
+ANDROID_LLAMA_CLI_PATH = Path(os.environ.get("TRIADE_ANDROID_LLAMA_CLI", str(ANDROID_RUNTIME_DIR / "llama-cli")))
+ANDROID_BASE_MODEL_PATH = Path(os.environ.get("TRIADE_ANDROID_BASE_MODEL", str(ANDROID_RUNTIME_DIR / "triade-base.gguf")))
 LOCAL_JOBS: dict[str, dict[str, Any]] = {}
 
 
@@ -666,6 +669,79 @@ def download_android_node_apk() -> FileResponse:
         media_type="application/vnd.android.package-archive",
         filename="triade-android-node.apk",
     )
+
+
+@app.get("/downloads/android/runtime-manifest")
+def android_runtime_manifest() -> dict[str, Any]:
+    llama_ready = ANDROID_LLAMA_CLI_PATH.exists()
+    model_ready = ANDROID_BASE_MODEL_PATH.exists()
+    return {
+        "status": "ok" if llama_ready and model_ready else "incomplete",
+        "mode": "android-runtime-bootstrap",
+        "llama_cli": {
+            "ready": llama_ready,
+            "url": "/downloads/android/llama-cli",
+            "expected_path": str(ANDROID_LLAMA_CLI_PATH),
+            "install_target": "APK private bin/llama-cli",
+        },
+        "base_model": {
+            "ready": model_ready,
+            "url": "/downloads/android/base-model.gguf",
+            "expected_path": str(ANDROID_BASE_MODEL_PATH),
+            "install_target": "APK private models/triade-base.gguf",
+        },
+        "termux_bootstrap": {
+            "url": "/downloads/android/termux-bootstrap.sh",
+            "note": "La APK no puede ejecutar comandos dentro de Termux; el usuario debe abrir Termux y ejecutar el script si quiere preparar ese entorno.",
+        },
+        "truth": "8010 sirve los artefactos si existen localmente. No descarga modelos con licencia por su cuenta ni instala paquetes en Termux desde otra app.",
+    }
+
+
+@app.get("/downloads/android/llama-cli")
+def download_android_llama_cli() -> FileResponse:
+    if not ANDROID_LLAMA_CLI_PATH.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"llama-cli Android no encontrado. Coloca el binario arm64 en {ANDROID_LLAMA_CLI_PATH}.",
+        )
+    return FileResponse(ANDROID_LLAMA_CLI_PATH, media_type="application/octet-stream", filename="llama-cli")
+
+
+@app.get("/downloads/android/base-model.gguf")
+def download_android_base_model() -> FileResponse:
+    if not ANDROID_BASE_MODEL_PATH.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Modelo base GGUF no encontrado. Coloca un modelo pequeno en {ANDROID_BASE_MODEL_PATH}.",
+        )
+    return FileResponse(ANDROID_BASE_MODEL_PATH, media_type="application/octet-stream", filename="triade-base.gguf")
+
+
+@app.get("/downloads/android/termux-bootstrap.sh", response_class=PlainTextResponse)
+def download_android_termux_bootstrap() -> str:
+    return """#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+echo "[triade] Preparando Termux para nodo Android..."
+pkg update -y
+pkg install -y git curl wget proot clang cmake make python
+python -m ensurepip --upgrade || true
+python -m pip install --upgrade pip wheel || true
+
+mkdir -p "$HOME/triade-runtime/bin" "$HOME/triade-runtime/models"
+echo "[triade] Directorios listos:"
+echo "  $HOME/triade-runtime/bin"
+echo "  $HOME/triade-runtime/models"
+echo
+echo "[triade] Descarga o compila llama.cpp para Android/Termux y copia llama-cli a:"
+echo "  $HOME/triade-runtime/bin/llama-cli"
+echo "[triade] Copia un modelo GGUF pequeno a:"
+echo "  $HOME/triade-runtime/models/triade-base.gguf"
+echo
+echo "[triade] Nota: la APK no puede instalar paquetes dentro de Termux desde otra app."
+echo "[triade] Este script prepara Termux cuando lo ejecutas manualmente dentro de Termux."
+"""
 
 
 @app.post("/api/register")

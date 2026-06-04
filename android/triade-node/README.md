@@ -57,6 +57,21 @@ Permisos expuestos por la app:
 
 La APK no pide camara porque la camara no alimenta inferencia LLM ni CPU/RAM/GPU. Si en el futuro un modulo visual necesita camara, debe agregarse como permiso separado y visible.
 
+Desde `0.9.0`, la APK puede pedir al `8010` los artefactos base:
+
+- campo `8010 Runtime URL`;
+- `Descargar runtime desde 8010` descarga `/downloads/android/llama-cli` a `bin/llama-cli` y `/downloads/android/base-model.gguf` a `models/triade-base.gguf`;
+- `Abrir instalador Termux 8010` abre `/downloads/android/termux-bootstrap.sh`.
+
+El `8010` solo sirve esos archivos si existen localmente. Por defecto espera:
+
+```text
+apps/static/android-runtime/llama-cli
+apps/static/android-runtime/triade-base.gguf
+```
+
+La APK no puede instalar paquetes dentro de Termux desde otra app; Android aisla las aplicaciones. El script Termux debe ejecutarse dentro de Termux por el usuario.
+
 ## Build
 
 Requiere JDK 17+ y Android SDK. Desde `android/triade-node`:

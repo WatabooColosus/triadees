@@ -178,6 +178,41 @@ def test_single_port_serves_android_apk() -> None:
     assert int(response.headers["content-length"]) > 20000
 
 
+def test_single_port_android_runtime_manifest_reports_missing_assets(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(single_port_app, "ANDROID_LLAMA_CLI_PATH", tmp_path / "missing-llama-cli")
+    monkeypatch.setattr(single_port_app, "ANDROID_BASE_MODEL_PATH", tmp_path / "missing-model.gguf")
+
+    response = client.get("/downloads/android/runtime-manifest")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "incomplete"
+    assert payload["llama_cli"]["ready"] is False
+    assert payload["base_model"]["ready"] is False
+
+
+def test_single_port_serves_android_runtime_assets(tmp_path, monkeypatch) -> None:
+    llama = tmp_path / "llama-cli"
+    model = tmp_path / "triade-base.gguf"
+    llama.write_bytes(b"llama-bin")
+    model.write_bytes(b"gguf-model")
+    monkeypatch.setattr(single_port_app, "ANDROID_LLAMA_CLI_PATH", llama)
+    monkeypatch.setattr(single_port_app, "ANDROID_BASE_MODEL_PATH", model)
+
+    manifest = client.get("/downloads/android/runtime-manifest")
+    llama_response = client.get("/downloads/android/llama-cli")
+    model_response = client.get("/downloads/android/base-model.gguf")
+    script_response = client.get("/downloads/android/termux-bootstrap.sh")
+
+    assert manifest.json()["status"] == "ok"
+    assert llama_response.status_code == 200
+    assert llama_response.content == b"llama-bin"
+    assert model_response.status_code == 200
+    assert model_response.content == b"gguf-model"
+    assert script_response.status_code == 200
+    assert "pkg install" in script_response.text
+
+
 def test_single_port_accepts_local_android_node_heartbeat(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(single_port_app, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
 
