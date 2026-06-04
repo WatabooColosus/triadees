@@ -16,7 +16,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 
@@ -94,6 +94,24 @@ def health() -> dict[str, Any]:
 @app.get("/", response_class=HTMLResponse)
 def index(token: str = "") -> str:
     return HTML.replace("__TOKEN__", _escape(token))
+
+
+@app.get("/manifest.webmanifest")
+def manifest() -> JSONResponse:
+    return JSONResponse(
+        {
+            "name": "Triade Omega Node",
+            "short_name": "Triade Node",
+            "start_url": "/",
+            "scope": "/",
+            "display": "standalone",
+            "background_color": "#101216",
+            "theme_color": "#61c184",
+            "description": "Nodo navegador autorizado para alimentar la federacion local de Triade.",
+            "icons": [],
+        },
+        media_type="application/manifest+json",
+    )
 
 
 @app.post("/api/register")
@@ -227,6 +245,8 @@ def _normalize_capabilities(payload: dict[str, Any]) -> dict[str, Any]:
         "screen": payload.get("screen") if isinstance(payload.get("screen"), dict) else {},
         "public_relay": True,
         "webgpu_available": bool(payload.get("webgpu_available")),
+        "wake_lock_available": bool(payload.get("wake_lock_available")),
+        "persistent_browser_identity": bool(payload.get("persistent_browser_identity")),
         "background_execution": False,
     }
 
@@ -241,6 +261,8 @@ HTML = """
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="theme-color" content="#61c184"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
   <title>Tríade Ω · Nodo Web Público</title>
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:0;background:#101216;color:#f4f6f8}
@@ -258,20 +280,31 @@ HTML = """
   <input id="name" value="Dispositivo web"/>
   <input id="token" value="__TOKEN__" placeholder="Token de emparejamiento"/>
   <button onclick="registerNode()">Conectar dispositivo</button>
+  <button onclick="resumeStoredNode()">Reanudar nodo autorizado</button>
   <button onclick="stopLoop()">Pausar trabajos</button>
   <p id="status">Sin conectar.</p>
   <pre id="out"></pre>
 </main>
 <script>
-let nodeId="", nodeToken="", running=false;
-function caps(){return {hardware_concurrency:navigator.hardwareConcurrency||1,device_memory_gb:navigator.deviceMemory||0,platform:navigator.platform,user_agent:navigator.userAgent,webgpu_available:!!navigator.gpu,screen:{width:screen.width,height:screen.height,pixel_ratio:devicePixelRatio||1}}}
+let nodeId="", nodeToken="", running=false, wakeLock=null;
+const STORE_KEY="triade_public_relay_node";
+function caps(){return {hardware_concurrency:navigator.hardwareConcurrency||1,device_memory_gb:navigator.deviceMemory||0,platform:navigator.platform,user_agent:navigator.userAgent,webgpu_available:!!navigator.gpu,wake_lock_available:"wakeLock" in navigator,persistent_browser_identity:true,screen:{width:screen.width,height:screen.height,pixel_ratio:devicePixelRatio||1}}}
 function show(x){document.getElementById("out").textContent=typeof x==="string"?x:JSON.stringify(x,null,2)}
 async function registerNode(){
   const r=await fetch("/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pairing_token:document.getElementById("token").value.trim(),display_name:document.getElementById("name").value.trim()||"Dispositivo web",capabilities:caps()})});
   const j=await r.json(); if(!r.ok){document.getElementById("status").textContent=JSON.stringify(j);return}
-  nodeId=j.node_id; nodeToken=j.node_token; running=true; document.getElementById("status").textContent="Conectado: "+nodeId; show(j); loop();
+  nodeId=j.node_id; nodeToken=j.node_token; localStorage.setItem(STORE_KEY,JSON.stringify({nodeId,nodeToken,displayName:document.getElementById("name").value.trim(),savedAt:Date.now()})); running=true; await requestWakeLock(); document.getElementById("status").textContent="Conectado: "+nodeId; show(j); loop();
 }
-function stopLoop(){running=false;document.getElementById("status").textContent="Pausado."}
+async function resumeStoredNode(){
+  const stored=JSON.parse(localStorage.getItem(STORE_KEY)||"null");
+  if(!stored||!stored.nodeId||!stored.nodeToken){document.getElementById("status").textContent="No hay nodo guardado.";return}
+  nodeId=stored.nodeId; nodeToken=stored.nodeToken; running=true; await requestWakeLock(); document.getElementById("status").textContent="Reanudado: "+nodeId; loop();
+}
+function stopLoop(){running=false;releaseWakeLock();document.getElementById("status").textContent="Pausado."}
+async function requestWakeLock(){try{if("wakeLock" in navigator) wakeLock=await navigator.wakeLock.request("screen")}catch(e){show("Wake lock no disponible: "+e.message)}}
+function releaseWakeLock(){try{if(wakeLock) wakeLock.release()}catch(e){} wakeLock=null}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&running) requestWakeLock()});
+window.addEventListener("load",()=>{if(localStorage.getItem(STORE_KEY)) document.getElementById("status").textContent="Nodo autorizado guardado. Pulsa reanudar."});
 async function loop(){
   while(running){
     try{

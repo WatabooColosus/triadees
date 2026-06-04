@@ -78,3 +78,17 @@ def test_public_relay_accepts_preprocess_text_job(tmp_path, monkeypatch) -> None
     assert created.status_code == 200
     next_job = client.get("/api/jobs/next", params={"node_id": node["node_id"], "node_token": node["node_token"]})
     assert next_job.json()["job"]["task"] == "preprocess_text"
+
+
+def test_public_relay_serves_persistent_browser_node_ui(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(public_relay_app, "DB_PATH", tmp_path / "relay.db")
+    client = TestClient(app)
+
+    html = client.get("/").text
+    manifest = client.get("/manifest.webmanifest")
+
+    assert manifest.status_code == 200
+    assert manifest.json()["display"] == "standalone"
+    assert "triade_public_relay_node" in html
+    assert "resumeStoredNode" in html
+    assert "wakeLock" in html
