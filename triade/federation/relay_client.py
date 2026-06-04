@@ -160,7 +160,7 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
     authorized_cpu = int(raw.get("cpu_authorized_count") or max(1, int(cpu * (resource_limit / 100.0)))) if native_android else 0
     authorized_memory = float(raw.get("ram_authorized_gb") or (memory * (resource_limit / 100.0))) if native_android else 0.0
     capability_tier = _browser_tier(cpu, memory)
-    allowed_tasks = raw.get("allowed_tasks") if isinstance(raw.get("allowed_tasks"), list) else ["echo", "sha256", "browser_benchmark", "preprocess_text"]
+    allowed_tasks = raw.get("allowed_tasks") if isinstance(raw.get("allowed_tasks"), list) else ["echo", "sha256", "browser_benchmark", "preprocess_text", "federated_inference_probe"]
     capabilities = {
         **raw,
         "source": "public_relay",
@@ -205,7 +205,7 @@ def model_support_from_capabilities(capabilities: dict[str, Any]) -> dict[str, A
     memory = float(capabilities.get("ram_authorized_gb") or capabilities.get("device_memory_gb") or 0.0) if native_android else 0.0
     ready = online and native_android and authorized_cpu >= 1 and memory >= 0.5
     recommended = "android_native_cpu_feed" if ready else "not_federated"
-    assist = ["hashing", "benchmark", "preprocess", "context_chunking", "background_cpu_feed"] if ready else ["heartbeat"]
+    assist = ["hashing", "benchmark", "preprocess", "context_chunking", "federated_inference_probe", "background_cpu_feed"] if ready else ["heartbeat"]
     return {
         "ready_for_model_management": ready,
         "local_ollama": False,

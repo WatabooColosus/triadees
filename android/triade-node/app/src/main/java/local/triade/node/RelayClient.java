@@ -75,6 +75,9 @@ public final class RelayClient {
         if ("preprocess_text".equals(task)) {
             return TextPreprocessor.preprocess(payload.optString("text", ""), payload.optInt("max_chunk_chars", 1200));
         }
+        if ("federated_inference_probe".equals(task)) {
+            return TextPreprocessor.inferenceProbe(payload.optString("prompt", ""), payload.optInt("iterations", 250000));
+        }
         return benchmark(job.optDouble("seconds", 2.0));
     }
 
@@ -110,7 +113,8 @@ public final class RelayClient {
                 .put("echo")
                 .put("sha256")
                 .put("browser_benchmark")
-                .put("preprocess_text");
+                .put("preprocess_text")
+                .put("federated_inference_probe");
         return new JSONObject()
                 .put("native_android", true)
                 .put("app_node", true)
@@ -124,7 +128,7 @@ public final class RelayClient {
                 .put("ram_total_gb", memory.totalMem / 1073741824.0)
                 .put("platform", "Android " + Build.VERSION.RELEASE)
                 .put("device", Build.MANUFACTURER + " " + Build.MODEL)
-                .put("app_version", "0.2.1")
+                .put("app_version", "0.3.0")
                 .put("allowed_tasks", tasks);
     }
 

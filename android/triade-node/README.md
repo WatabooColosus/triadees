@@ -12,8 +12,9 @@ Nodo Android nativo para alimentar la Tríade local/federada desde dispositivos 
   - `sha256`
   - `browser_benchmark`
   - `preprocess_text`
+  - `federated_inference_probe`
 
-Este nodo no instala modelos ni accede a archivos privados por defecto. Es el primer puente nativo para usar CPU/RAM del dispositivo de forma consentida.
+Este nodo no instala modelos ni accede a archivos privados por defecto. Es el primer puente nativo para usar CPU/RAM del dispositivo de forma consentida. El runtime distribuido actual ejecuta jobs verificables y devuelve contexto/resultados al 8010; todavia no convierte la RAM del telefono en RAM unificada de Ollama.
 
 ## Build
 

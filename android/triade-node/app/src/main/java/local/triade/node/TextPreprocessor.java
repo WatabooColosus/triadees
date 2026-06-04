@@ -70,4 +70,30 @@ public final class TextPreprocessor {
         }
         return builder.toString();
     }
+
+    public static JSONObject inferenceProbe(String prompt, int iterations) throws Exception {
+        String clean = prompt == null ? "" : prompt.replaceAll("\\s+", " ").trim();
+        int safeIterations = Math.max(1000, Math.min(2000000, iterations));
+        long start = System.nanoTime();
+        long state = clean.length() + 17L;
+        for (int i = 0; i < safeIterations; i++) {
+            state ^= (state << 13);
+            state ^= (state >>> 7);
+            state ^= (state << 17);
+            state += (long) i * 31L;
+        }
+        long elapsedNs = Math.max(1L, System.nanoTime() - start);
+        long opsPerSecond = Math.round(safeIterations / (elapsedNs / 1_000_000_000.0));
+        JSONObject signal = preprocess(clean, 1200);
+        return new JSONObject()
+                .put("task", "federated_inference_probe")
+                .put("status", "completed")
+                .put("prompt_sha256", sha256(clean))
+                .put("prompt_chars", clean.length())
+                .put("iterations", safeIterations)
+                .put("ops", safeIterations)
+                .put("ops_per_second", opsPerSecond)
+                .put("state", state)
+                .put("model_feed", signal);
+    }
 }

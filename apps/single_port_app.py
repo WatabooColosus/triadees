@@ -76,6 +76,18 @@ class LocalNodeJobResultRequest(BaseModel):
     error: str | None = None
 
 
+class DistributedRuntimeRequest(BaseModel):
+    text: str = Field(..., min_length=1)
+    max_chunk_chars: int = Field(default=1200, ge=200, le=8000)
+    wait_timeout: float = Field(default=30.0, ge=1.0, le=120.0)
+
+
+class DistributedProbeRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+    iterations: int = Field(default=250000, ge=1000, le=2000000)
+    wait_timeout: float = Field(default=30.0, ge=1.0, le=120.0)
+
+
 class SemanticIngestRequest(BaseModel):
     content: str = Field(..., min_length=1)
     domain: str = "general"
@@ -215,6 +227,74 @@ def wait_local_job(job_id: str, timeout: float = 25.0, interval: float = 0.5) ->
     return job
 
 
+def local_federated_nodes(task: str | None = None) -> list[dict[str, Any]]:
+    nodes = []
+    for node in Federation().list_nodes(status="active"):
+        caps = node.get("capabilities") or {}
+        allowed = caps.get("allowed_tasks") if isinstance(caps.get("allowed_tasks"), list) else []
+        relay_url = str(caps.get("relay_url") or node.get("endpoint") or "")
+        is_direct_local = "127.0.0.1:8010" in relay_url or "localhost:8010" in relay_url or "192.168." in relay_url
+        if not (caps.get("federation_complete") and caps.get("online")):
+            continue
+        if not is_direct_local:
+            continue
+        if task and task not in allowed:
+            continue
+        nodes.append(node)
+    return nodes
+
+
+def split_text_for_nodes(text: str, count: int) -> list[str]:
+    clean = " ".join(str(text).split())
+    if count <= 1 or len(clean) <= 1:
+        return [clean]
+    target = max(1, len(clean) // count)
+    shards: list[str] = []
+    start = 0
+    for index in range(count):
+        if index == count - 1:
+            shards.append(clean[start:].strip())
+            break
+        end = min(len(clean), start + target)
+        boundary = clean.rfind(" ", start, min(len(clean), end + 200))
+        if boundary <= start:
+            boundary = end
+        shards.append(clean[start:boundary].strip())
+        start = min(len(clean), boundary + 1)
+    return [shard for shard in shards if shard]
+
+
+def merge_local_preprocess_results(completed_jobs: list[dict[str, Any]]) -> dict[str, Any]:
+    keyword_counts: dict[str, int] = {}
+    chunks: list[dict[str, Any]] = []
+    total_words = 0
+    total_chars = 0
+    for job in completed_jobs:
+        result = job.get("result") or {}
+        total_words += int(result.get("word_count") or 0)
+        total_chars += int(result.get("chars") or 0)
+        for keyword in result.get("keywords") or []:
+            term = str(keyword.get("term") or "").strip().lower()
+            if term:
+                keyword_counts[term] = keyword_counts.get(term, 0) + int(keyword.get("count") or 0)
+        for chunk in result.get("chunks") or []:
+            if isinstance(chunk, dict):
+                chunks.append({**chunk, "node_id": job.get("node_id"), "source_job_id": job.get("job_id")})
+    keywords = [
+        {"term": term, "count": count}
+        for term, count in sorted(keyword_counts.items(), key=lambda pair: (-pair[1], pair[0]))[:24]
+    ]
+    return {
+        "ready_for_local_model": bool(completed_jobs),
+        "chars": total_chars,
+        "word_count": total_words,
+        "approx_tokens": int(total_words * 1.35) if total_words else 0,
+        "keywords": keywords,
+        "chunks": chunks,
+        "note": "Contexto procesado por nodos Android nativos y devuelto al 8010 para alimentar el modelo local.",
+    }
+
+
 def tool_status(name: str, command: list[str]) -> dict[str, Any]:
     path = shutil.which(command[0])
     if not path:
@@ -284,6 +364,15 @@ def node_model_readiness(node: dict[str, Any]) -> dict[str, Any]:
 
 def federated_model_plan(nodes: list[dict[str, Any]]) -> dict[str, Any]:
     feeders = [node for node in nodes if node["can_feed_local_models"] and node["federation_complete"]]
+    runtime_ready = [
+        node for node in feeders
+        if "preprocess_text" in ((node.get("capabilities") or {}).get("allowed_tasks") or [])
+        and (
+            "127.0.0.1:8010" in str((node.get("capabilities") or {}).get("relay_url") or "")
+            or "localhost:8010" in str((node.get("capabilities") or {}).get("relay_url") or "")
+            or "192.168." in str((node.get("capabilities") or {}).get("relay_url") or "")
+        )
+    ]
     total_cpu = sum(int(node.get("cpu_authorized_count") or 0) for node in feeders)
     total_ram = round(sum(float(node.get("ram_authorized_gb") or 0.0) for node in feeders), 2)
     total_available_ram = round(sum(float(node.get("ram_available_gb") or 0.0) for node in feeders), 2)
@@ -311,6 +400,7 @@ def federated_model_plan(nodes: list[dict[str, Any]]) -> dict[str, Any]:
     missing.append("runtime distribuido de inferencia para sumar RAM entre dispositivos (llama.cpp RPC/worker propio)")
     return {
         "device_count": len(feeders),
+        "runtime_node_count": len(runtime_ready),
         "cpu_authorized_count": total_cpu,
         "ram_authorized_gb": total_ram,
         "ram_available_gb": total_available_ram,
@@ -318,11 +408,18 @@ def federated_model_plan(nodes: list[dict[str, Any]]) -> dict[str, Any]:
         "gpu_node_count": gpu_nodes,
         "can_parallel_feed": bool(feeders),
         "can_run_single_llm_by_sum": False,
-        "runtime": "pending_distributed_inference_runtime",
+        "runtime": "active_job_runtime" if runtime_ready else "pending_distributed_inference_runtime",
+        "active_job_runtime": bool(runtime_ready),
+        "supported_runtime_tasks": sorted({
+            task
+            for node in runtime_ready
+            for task in (((node.get("capabilities") or {}).get("allowed_tasks") or []))
+            if task in {"preprocess_text", "federated_inference_probe"}
+        }),
         "runnable_by_aggregate_ram": runnable_by_sum,
         "candidate_models": candidate_models,
         "missing_for_real_distributed_models": missing,
-        "note": "La suma federada sirve para jobs paralelos/preproceso hoy; no equivale a RAM compartida de Ollama hasta tener runtime distribuido.",
+        "note": "Runtime por jobs activo para preproceso/probes si hay nodos compatibles; no equivale a RAM compartida de Ollama ni a inferencia tensor-paralela.",
     }
 
 
@@ -384,6 +481,7 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
             "docker": "disponible" if docker["ok"] else "pendiente/no disponible",
             "relay": "public relay Railway",
             "policy": "solo dispositivos nativos/autorizados que invierten CPU/RAM/GPU cuentan como nodos federados",
+            "distributed_runtime": "jobs Android nativos: preprocess_text y federated_inference_probe alimentan al modelo local",
         },
     }
 
@@ -487,28 +585,127 @@ def local_node_job_result(job_id: str, request: LocalNodeJobResultRequest) -> di
         node = federation.get_node(request.node_id)
         if node:
             capabilities = dict(node.get("capabilities") or {})
-            capabilities["last_benchmark"] = request.result
-            capabilities["benchmark_score"] = int(request.result.get("score") or capabilities.get("benchmark_score") or 0)
+            task = str(job.get("task") or request.result.get("task") or "")
+            if task == "browser_benchmark":
+                capabilities["last_benchmark"] = request.result
+                capabilities["benchmark_score"] = int(request.result.get("score") or capabilities.get("benchmark_score") or 0)
+            elif task == "preprocess_text":
+                capabilities["last_preprocess"] = {
+                    "job_id": job_id,
+                    "chars": request.result.get("chars"),
+                    "word_count": request.result.get("word_count"),
+                    "approx_tokens": request.result.get("approx_tokens"),
+                    "updated_at": job["updated_at"],
+                }
+            elif task == "federated_inference_probe":
+                capabilities["last_inference_probe"] = {
+                    "job_id": job_id,
+                    "status": request.result.get("status", "completed"),
+                    "ops": request.result.get("ops"),
+                    "prompt_sha256": request.result.get("prompt_sha256"),
+                    "updated_at": job["updated_at"],
+                }
             capabilities["compute_status"] = "ready"
+            capabilities["distributed_runtime_status"] = "active"
             federation.update_capabilities(request.node_id, capabilities)
     return {"status": "ok", "job_id": job_id, "accepted": True}
 
 
 @app.post("/api/local-federation/benchmark")
 def local_federation_benchmark(seconds: float = 1.0, wait_timeout: float = 25.0) -> dict[str, Any]:
-    federation = Federation()
-    nodes = [
-        node
-        for node in federation.list_nodes(status="active")
-        if (node.get("capabilities") or {}).get("federation_complete")
-        and (node.get("capabilities") or {}).get("online")
-    ]
+    nodes = local_federated_nodes("browser_benchmark")
     if not nodes:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No hay dispositivos federados locales online.")
     node = nodes[0]
     job = create_local_job(str(node["node_id"]), task="browser_benchmark", seconds=seconds)
     result = wait_local_job(str(job["job_id"]), timeout=wait_timeout)
     return {"status": "ok" if result.get("status") == "completed" else result.get("status"), "node_id": node["node_id"], "job": result}
+
+
+@app.get("/api/distributed-runtime/status")
+def distributed_runtime_status() -> dict[str, Any]:
+    capacity = build_model_capacity(sync_relay=False)
+    authorized = capacity["federation"]["authorized"]
+    active = bool(authorized["active_job_runtime"])
+    return {
+        "status": "ok",
+        "mode": "distributed-runtime",
+        "runtime": authorized["runtime"],
+        "active_job_runtime": active,
+        "nodes": local_federated_nodes(),
+        "supported_tasks": authorized["supported_runtime_tasks"],
+        "truth": "Activo para jobs de CPU/preproceso; pendiente runtime tensor-paralelo para una sola inferencia LLM distribuida."
+        if active else "Pendiente: conecta la app Android directamente al 8010/LAN para que tome jobs locales. La inferencia LLM tensor-paralela sigue pendiente.",
+    }
+
+
+@app.post("/api/distributed-runtime/preprocess")
+def distributed_runtime_preprocess(request: DistributedRuntimeRequest) -> dict[str, Any]:
+    nodes = local_federated_nodes("preprocess_text")
+    if not nodes:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No hay nodos Android locales con preprocess_text online.")
+    shards = split_text_for_nodes(request.text, len(nodes))
+    jobs = []
+    for index, shard in enumerate(shards):
+        node = nodes[index % len(nodes)]
+        job = create_local_job(
+            str(node["node_id"]),
+            task="preprocess_text",
+            payload={
+                "text": shard,
+                "max_chunk_chars": request.max_chunk_chars,
+                "shard_index": index,
+                "shard_count": len(shards),
+                "signal": "feed_local_model_context",
+            },
+            seconds=1.0,
+        )
+        jobs.append(job)
+    results = [wait_local_job(str(job["job_id"]), timeout=request.wait_timeout) for job in jobs]
+    completed = [job for job in results if job.get("status") == "completed"]
+    return {
+        "status": "ok" if completed else "degraded",
+        "mode": "distributed-runtime",
+        "task": "preprocess_text",
+        "submitted": len(jobs),
+        "completed": len(completed),
+        "nodes_used": sorted({str(job.get("node_id")) for job in jobs}),
+        "jobs": results,
+        "model_feed": merge_local_preprocess_results(completed),
+    }
+
+
+@app.post("/api/distributed-runtime/probe")
+def distributed_runtime_probe(request: DistributedProbeRequest) -> dict[str, Any]:
+    nodes = local_federated_nodes("federated_inference_probe")
+    if not nodes:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No hay nodos Android locales con federated_inference_probe online.")
+    jobs = []
+    for node in nodes:
+        jobs.append(
+            create_local_job(
+                str(node["node_id"]),
+                task="federated_inference_probe",
+                payload={
+                    "prompt": request.prompt,
+                    "iterations": request.iterations,
+                    "signal": "probe_distributed_inference_runtime",
+                },
+                seconds=1.0,
+            )
+        )
+    results = [wait_local_job(str(job["job_id"]), timeout=request.wait_timeout) for job in jobs]
+    completed = [job for job in results if job.get("status") == "completed"]
+    return {
+        "status": "ok" if completed else "degraded",
+        "mode": "distributed-runtime",
+        "task": "federated_inference_probe",
+        "submitted": len(jobs),
+        "completed": len(completed),
+        "total_ops": sum(int((job.get("result") or {}).get("ops") or 0) for job in completed),
+        "jobs": results,
+        "truth": "Probe ejecutado en Android. Aun no es inferencia LLM tensor-paralela ni memoria unificada de Ollama.",
+    }
 
 
 @app.get("/api/semantic/doctor")
@@ -613,15 +810,17 @@ TRIADE_UI_HTML = """
 <aside class='rail'><div class='brand'><h1>Tríade Ω</h1><span id='liveDot' class='state-dot'></span></div><div class='hint'>8010 local: conversación, memoria, modelos y federación.</div>
 <div class='section'><h2>Modo</h2><label>API key</label><input id='key' type='password'/><div class='row'><div><label>Intención</label><select id='intent'><option>conversation</option><option>analyze</option><option>memory</option><option>build_or_update</option></select></div><div><label>Urgencia</label><select id='urgency'><option>medium</option><option>low</option><option>high</option></select></div></div><label class='toggle'><input id='ollama' type='checkbox'/> Usar Ollama</label><label class='toggle'><input id='auto' type='checkbox' checked/> Auto elegir modelos</label><button onclick='save()'>Guardar estado</button></div>
 <div class='section'><h2>Cristal</h2><label>Proyecto</label><input id='project' placeholder='triade-local'/><label>Neurona activa</label><input id='neuron' placeholder='cristal, bodega...'/><details><summary>Contexto especial</summary><label>Sesión</label><input id='session' placeholder='sesion-prueba-01'/><label>Scope</label><select id='scope'><option value=''>Automático</option><option value='source_intent'>Source + intent</option><option value='session'>Sesión</option><option value='project'>Proyecto</option><option value='neuron'>Neurona</option><option value='project_neuron'>Proyecto + neurona</option></select><label>Hipotálamo</label><input id='hyp' value=''/><label>Central</label><input id='cen' value=''/></details></div>
-<div class='section'><h2>Acciones</h2><button onclick='capacity(true)'>Actualizar pulso</button><button class='secondary' onclick='router()'>Recomendar modelos</button><a href='/downloads/triade-android-node.apk'><button class='secondary' type='button'>Descargar Android Node</button></a><details><summary>Herramientas ocasionales</summary><button class='secondary' onclick='health()'>Health completo</button><button class='secondary' onclick='compat()'>Compatibilidad</button><button class='secondary' onclick='installQueue()'>Cola modelos</button><button class='secondary' onclick='semanticDoctor()'>Memoria semántica</button><button class='ghost' onclick='apply()'>Aplicar recomendados</button><button class='ghost' onclick='clearChat()'>Limpiar chat</button></details><div id='box' class='box'>Pulso inicial pendiente.</div></div></aside>
+<div class='section'><h2>Acciones</h2><button onclick='capacity(true)'>Actualizar pulso</button><button class='secondary' onclick='runtimeProbe()'>Probar runtime distribuido</button><button class='secondary' onclick='runtimePreprocess()'>Preprocesar en nodos</button><button class='secondary' onclick='router()'>Recomendar modelos</button><a href='/downloads/triade-android-node.apk'><button class='secondary' type='button'>Descargar Android Node</button></a><details><summary>Herramientas ocasionales</summary><button class='secondary' onclick='health()'>Health completo</button><button class='secondary' onclick='compat()'>Compatibilidad</button><button class='secondary' onclick='installQueue()'>Cola modelos</button><button class='secondary' onclick='semanticDoctor()'>Memoria semántica</button><button class='ghost' onclick='apply()'>Aplicar recomendados</button><button class='ghost' onclick='clearChat()'>Limpiar chat</button></details><div id='box' class='box'>Pulso inicial pendiente.</div></div></aside>
 <main class='main'><div class='top'><div><b>Chat local auditable</b><br><span id='status' class='muted'>Iniciando pulso...</span></div><div class='organs'><span id='orgCentral' class='organ'>Central</span><span id='orgHyp' class='organ'>Hipotálamo</span><span id='orgMem' class='organ'>Bodega</span><span id='orgFed' class='organ'>Federación</span></div></div><section id='chat' class='chat'></section><div class='composer'><textarea id='msg' placeholder='Escribe... Ctrl+Enter' onkeydown='keysend(event)'></textarea><button onclick='send()'>Enviar</button></div></main>
 <aside class='pulse'><h2>Pulso vivo</h2><div id='summary' class='grid2'><div class='metric'><b>...</b><span>PC</span></div><div class='metric'><b>...</b><span>Nodos</span></div></div><div id='missing' class='section'></div><div class='section'><h2>Modelos</h2><div id='models' class='model-list'><span class='empty'>Sin lectura todavía.</span></div></div><div class='section'><h2>Nodos que alimentan</h2><div id='nodes'><span class='empty'>Sin nodos sincronizados.</span></div></div><div class='live-line' id='liveLine'>Sincronización cada 15 s.</div></aside>
 </div><script>
 const $=id=>document.getElementById(id);let lastRouter=null,lastCapacity=null;const settings=['key','hyp','cen','intent','urgency','project','neuron','session','scope'];function save(){settings.forEach(k=>localStorage.setItem('triade_sp_'+k,$(k).value));localStorage.setItem('triade_sp_ollama',$('ollama').checked);localStorage.setItem('triade_sp_auto',$('auto').checked);status('Estado guardado',true)}function load(){settings.forEach(k=>{const v=localStorage.getItem('triade_sp_'+k);if(v!==null)$(k).value=v});$('ollama').checked=localStorage.getItem('triade_sp_ollama')==='true';$('auto').checked=localStorage.getItem('triade_sp_auto')!=='false'}function status(t,ok=false){$('status').textContent=t;$('status').className=ok?'oktxt':'muted'}function add(cls,text,meta=''){let d=document.createElement('div');d.className='msg '+cls;d.textContent=text;if(meta){let m=document.createElement('div');m.className='meta';m.textContent=meta;d.appendChild(m)}$('chat').appendChild(d);$('chat').scrollTop=$('chat').scrollHeight}function context(){let c={};if($('project').value.trim())c.project_id=$('project').value.trim();if($('neuron').value.trim())c.active_neuron=$('neuron').value.trim();if($('session').value.trim())c.session_id=$('session').value.trim();if($('scope').value)c.context_scope=$('scope').value;return c}
 function fmt(n){return Number.isFinite(Number(n))?Number(n).toFixed(1):'--'}function cls(ok){return ok?'oktxt':'badtxt'}function setOrgan(id,on){$(id).className='organ '+(on?'ok':'')}function briefMissing(items){return (items||[]).slice(0,4).map(x=>`<div class='metric critical'><b>Falta</b><span>${x}</span></div>`).join('')||`<div class='metric ready'><b>Listo</b><span>Sin bloqueos principales.</span></div>`}
-function renderCapacity(j){lastCapacity=j;let h=j.local.hardware, f=j.federation, feeders=f.online_feeders||[], hosts=f.llm_hosts||[], a=f.authorized||{};$('liveDot').className='state-dot ok';setOrgan('orgCentral',j.local.ollama.ok);setOrgan('orgHyp',j.local.ollama.ok);setOrgan('orgMem',true);setOrgan('orgFed',feeders.length>0);$('summary').innerHTML=`<div class='metric ${h.tier==='low'?'critical':'ready'}'><b>${h.tier}</b><span>PC local · ${fmt(h.ram_available_gb)} GB RAM libre</span></div><div class='metric ${feeders.length?'ready':'critical'}'><b>${feeders.length}</b><span>dispositivos federados · ${hosts.length} hosts LLM</span></div><div class='metric ${feeders.length?'ready':'critical'}'><b>${a.cpu_authorized_count||0}</b><span>CPU autorizada federada</span></div><div class='metric ${a.ram_authorized_gb>=4?'ready':'critical'}'><b>${fmt(a.ram_authorized_gb)}</b><span>GB RAM federada por suma</span></div><div class='metric ${a.gpu_node_count?'ready':'critical'}'><b>${fmt(a.vram_authorized_gb)}</b><span>GB VRAM/GPU federada</span></div><div class='metric ${a.can_run_single_llm_by_sum?'ready':'critical'}'><b>${a.can_run_single_llm_by_sum?'listo':'pendiente'}</b><span>runtime inferencia distribuida</span></div><div class='metric'><b class='${cls(j.local.ollama.ok)}'>${j.local.ollama.ok?'activo':'apagado'}</b><span>Ollama</span></div><div class='metric'><b class='${cls(j.local.docker.ok)}'>${j.local.docker.ok?'listo':'pendiente'}</b><span>Docker</span></div>`;$('missing').innerHTML=`<h2>Qué falta</h2>${briefMissing([...(j.local.missing_for_comfortable_models||[]),...(a.missing_for_real_distributed_models||[])])}`;$('models').innerHTML=(a.runnable_by_aggregate_ram||[]).map(m=>`<span class='pill oktxt'>${m.model} por suma</span>`).join('')||[...(j.local.recommended_models||[]).map(m=>`<span class='pill oktxt'>${m.model}</span>`),...(j.local.allowed_models||[]).map(m=>`<span class='pill'>${m.model}</span>`)].join('')||'<span class="empty">No hay modelos que quepan por RAM federada autorizada.</span>';$('nodes').innerHTML=feeders.map(n=>{let source=n.resource_limit_reported?'reportado por app':'asumido: relay no envio porcentaje';return `<div class='node ready'><div class='node-head'><b>${n.name||n.node_id}</b><span class='tag'>${n.resource_limit_percent||0}% ${n.resource_limit_reported?'autorizado':'asumido'}</span></div><div class='hint'>CPU ${n.cpu_authorized_count}/${n.cpu_count} · RAM ${fmt(n.ram_authorized_gb)}/${fmt(n.ram_available_gb)} GB · score ${n.benchmark_score||0}</div><div class='hint'>app ${n.capabilities?.app_version||'?'} · ${source} · ${n.capabilities?.source||'local'}</div><div class='hint'><span class='feed'>invierte estructura en jobs federados</span> · <span class='host'>${n.can_host_llm?'hospeda LLM':'no hospeda LLM'}</span></div></div>`}).join('')||'<span class="empty">Ningún dispositivo federado autorizado online.</span>';$('box').textContent=`PC local ${h.tier}: ${fmt(h.ram_available_gb)} GB libres. Federación: ${a.cpu_authorized_count||0} CPU, ${fmt(a.ram_authorized_gb)} GB RAM y ${fmt(a.vram_authorized_gb)} GB VRAM. Modelos por suma: ${(a.runnable_by_aggregate_ram||[]).length}. Runtime distribuido: ${a.runtime}.`;let now=new Date().toLocaleTimeString();$('liveLine').textContent=`Último pulso ${now} · relay ${f.relay?.has_admin_token?'sincronizado':'sin token admin'} · browser no cuenta como nodo`;status('Pulso actualizado',true)}
+function renderCapacity(j){lastCapacity=j;let h=j.local.hardware, f=j.federation, feeders=f.online_feeders||[], hosts=f.llm_hosts||[], a=f.authorized||{};$('liveDot').className='state-dot ok';setOrgan('orgCentral',j.local.ollama.ok);setOrgan('orgHyp',j.local.ollama.ok);setOrgan('orgMem',true);setOrgan('orgFed',feeders.length>0);$('summary').innerHTML=`<div class='metric ${h.tier==='low'?'critical':'ready'}'><b>${h.tier}</b><span>PC local · ${fmt(h.ram_available_gb)} GB RAM libre</span></div><div class='metric ${feeders.length?'ready':'critical'}'><b>${feeders.length}</b><span>dispositivos federados · ${hosts.length} hosts LLM</span></div><div class='metric ${feeders.length?'ready':'critical'}'><b>${a.cpu_authorized_count||0}</b><span>CPU autorizada federada</span></div><div class='metric ${a.ram_authorized_gb>=4?'ready':'critical'}'><b>${fmt(a.ram_authorized_gb)}</b><span>GB RAM federada por suma</span></div><div class='metric ${a.gpu_node_count?'ready':'critical'}'><b>${fmt(a.vram_authorized_gb)}</b><span>GB VRAM/GPU federada</span></div><div class='metric ${a.active_job_runtime?'ready':'critical'}'><b>${a.active_job_runtime?'activo':'pendiente'}</b><span>runtime por jobs · LLM único aún pendiente</span></div><div class='metric'><b class='${cls(j.local.ollama.ok)}'>${j.local.ollama.ok?'activo':'apagado'}</b><span>Ollama</span></div><div class='metric'><b class='${cls(j.local.docker.ok)}'>${j.local.docker.ok?'listo':'pendiente'}</b><span>Docker</span></div>`;$('missing').innerHTML=`<h2>Qué falta</h2>${briefMissing([...(j.local.missing_for_comfortable_models||[]),...(a.missing_for_real_distributed_models||[])])}`;$('models').innerHTML=(a.runnable_by_aggregate_ram||[]).map(m=>`<span class='pill oktxt'>${m.model} por suma</span>`).join('')||[...(j.local.recommended_models||[]).map(m=>`<span class='pill oktxt'>${m.model}</span>`),...(j.local.allowed_models||[]).map(m=>`<span class='pill'>${m.model}</span>`)].join('')||'<span class="empty">No hay modelos que quepan por RAM federada autorizada.</span>';$('nodes').innerHTML=feeders.map(n=>{let source=n.resource_limit_reported?'reportado por app':'asumido: relay no envio porcentaje';let tasks=(n.capabilities?.allowed_tasks||[]).join(', ');return `<div class='node ready'><div class='node-head'><b>${n.name||n.node_id}</b><span class='tag'>${n.resource_limit_percent||0}% ${n.resource_limit_reported?'autorizado':'asumido'}</span></div><div class='hint'>CPU ${n.cpu_authorized_count}/${n.cpu_count} · RAM ${fmt(n.ram_authorized_gb)}/${fmt(n.ram_available_gb)} GB · score ${n.benchmark_score||0}</div><div class='hint'>app ${n.capabilities?.app_version||'?'} · ${source} · ${n.capabilities?.source||'local'}</div><div class='hint'><span class='feed'>jobs: ${tasks||'heartbeat'}</span> · <span class='host'>${n.can_host_llm?'hospeda LLM':'no hospeda LLM'}</span></div></div>`}).join('')||'<span class="empty">Ningún dispositivo federado autorizado online.</span>';$('box').textContent=`PC local ${h.tier}: ${fmt(h.ram_available_gb)} GB libres. Federación: ${a.cpu_authorized_count||0} CPU, ${fmt(a.ram_authorized_gb)} GB RAM y ${fmt(a.vram_authorized_gb)} GB VRAM. Modelos por suma: ${(a.runnable_by_aggregate_ram||[]).length}. Runtime: ${a.runtime}.`;let now=new Date().toLocaleTimeString();$('liveLine').textContent=`Último pulso ${now} · relay ${f.relay?.has_admin_token?'sincronizado':'sin token admin'} · runtime nodes ${a.runtime_node_count||0} · browser no cuenta como nodo`;status('Pulso actualizado',true)}
 async function capacity(manual=false){try{let r=await fetch('/api/system/model-capacity?sync_relay=true');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);renderCapacity(j);if(manual)add('bot','Pulso vivo actualizado: revisé PC, modelos, nodos y constantes.')}catch(e){$('liveDot').className='state-dot';status('Pulso falló: '+e.message);$('box').textContent='Error de pulso: '+e.message}}
 async function health(){try{let r=await fetch('/api/health');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({mode:j.mode,hardware:j.hardware,contexts:j.doctor?.crystal_contexts,ollama:j.ollama?.ok,runs:j.doctor?.counts?.runs},null,2);status('Health OK',true)}catch(e){status('Health falló: '+e.message)}}async function router(){try{let r=await fetch('/api/router/doctor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent:$('intent').value,urgency:$('urgency').value})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);lastRouter=j;let d=j.router.decisions;$('box').textContent=JSON.stringify({central:d.central?.selected_model,hypothalamus:d.hypothalamus?.selected_model,fast:d.fast?.selected_model,deep:d.deep?.selected_model},null,2);status('Router OK',true)}catch(e){status('Router falló: '+e.message)}}async function compat(){try{let r=await fetch('/api/models/compatibility');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.matrix.summary,counts:j.matrix.counts,models:j.matrix.models},null,2);status('Compatibilidad OK',true)}catch(e){status('Compatibilidad falló: '+e.message)}}async function installQueue(){try{let r=await fetch('/api/models/install-queue?include_allowed=false');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.summary,count:j.count,policy:j.policy,candidates:j.candidates},null,2);status('Cola OK',true)}catch(e){status('Cola falló: '+e.message)}}async function semanticDoctor(){try{let r=await fetch('/api/semantic/governance/doctor');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify(j,null,2);status('Gobierno semántico consultado',true)}catch(e){status('Memoria semántica falló: '+e.message)}}function apply(){if(!lastRouter){status('Consulta router primero');return}let d=lastRouter.router.decisions;if(d.hypothalamus?.selected_model)$('hyp').value=d.hypothalamus.selected_model;if(d.central?.selected_model)$('cen').value=d.central.selected_model;$('ollama').checked=true;$('auto').checked=false;save();status('Recomendados aplicados',true)}
+async function runtimeProbe(){let prompt=$('msg').value.trim()||'Pulso de inferencia distribuida Tríade';status('Enviando señal a nodos...');try{let r=await fetch('/api/distributed-runtime/probe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,iterations:250000,wait_timeout:35})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({status:j.status,submitted:j.submitted,completed:j.completed,total_ops:j.total_ops,truth:j.truth},null,2);add('bot',`Runtime distribuido: ${j.completed}/${j.submitted} nodos respondieron · ops ${j.total_ops||0}`);capacity(false)}catch(e){$('box').textContent='Runtime falló: '+e.message;status('Runtime falló: '+e.message)}}
+async function runtimePreprocess(){let text=$('msg').value.trim()||'Tríade necesita preparar contexto local con CPU de dispositivos federados autorizados.';status('Preprocesando en nodos...');try{let r=await fetch('/api/distributed-runtime/preprocess',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,max_chunk_chars:1200,wait_timeout:35})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({status:j.status,submitted:j.submitted,completed:j.completed,nodes_used:j.nodes_used,model_feed:j.model_feed},null,2);add('bot',`Preproceso federado listo: ${j.model_feed.word_count||0} palabras, ${j.model_feed.approx_tokens||0} tokens aprox, ${j.completed}/${j.submitted} nodos.`);capacity(false)}catch(e){$('box').textContent='Preproceso falló: '+e.message;status('Preproceso falló: '+e.message)}}
 async function send(){save();let text=$('msg').value.trim();if(!text)return;$('msg').value='';add('user',text);status('Procesando...');try{let r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-TRIADE-API-Key':$('key').value},body:JSON.stringify({text,source:'single-port-ui',use_ollama:$('ollama').checked,hypothalamus_model:$('hyp').value,central_model:$('cen').value,auto_select_models:$('auto').checked,context:context()})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);let t=j.crystal_temporal_state||{};add('bot',j.response,[j.run_id,'Q '+t.status,'scope '+t.context_scope,'ctx '+t.context_key,'H '+j.models?.hypothalamus?.name,'C '+j.models?.central?.name].filter(Boolean).join(' · '));status('Respuesta recibida',true);capacity(false)}catch(e){add('bot','Error: '+e.message);status('Error')}}function clearChat(){$('chat').innerHTML=''}function keysend(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send()}load();add('bot','Tríade Ω lista. Mantengo pulso vivo de PC, modelos y nodos.');capacity(false);setInterval(()=>capacity(false),15000);
 </script></body></html>
 """

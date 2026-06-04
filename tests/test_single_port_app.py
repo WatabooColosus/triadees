@@ -203,6 +203,82 @@ def test_single_port_local_job_cycle(tmp_path, monkeypatch) -> None:
     assert single_port_app.LOCAL_JOBS[job["job_id"]]["result"]["score"] == 12345
 
 
+def test_distributed_runtime_preprocess_merges_android_results(monkeypatch) -> None:
+    single_port_app.LOCAL_JOBS.clear()
+    monkeypatch.setattr(
+        single_port_app,
+        "local_federated_nodes",
+        lambda task=None: [
+            {"node_id": "android-a", "capabilities": {"allowed_tasks": ["preprocess_text"]}},
+            {"node_id": "android-b", "capabilities": {"allowed_tasks": ["preprocess_text"]}},
+        ],
+    )
+
+    def fake_wait(job_id: str, timeout: float = 25.0, interval: float = 0.5):
+        job = single_port_app.LOCAL_JOBS[job_id]
+        return {
+            **job,
+            "status": "completed",
+            "result": {
+                "task": "preprocess_text",
+                "chars": len(job["payload"]["text"]),
+                "word_count": 2,
+                "approx_tokens": 3,
+                "keywords": [{"term": "triade", "count": 1}],
+                "chunks": [{"index": 0, "text": job["payload"]["text"]}],
+            },
+        }
+
+    monkeypatch.setattr(single_port_app, "wait_local_job", fake_wait)
+    response = client.post(
+        "/api/distributed-runtime/preprocess",
+        json={"text": "triade federada alimenta modelo local con contexto distribuido", "wait_timeout": 1},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["submitted"] == 2
+    assert payload["completed"] == 2
+    assert payload["model_feed"]["ready_for_local_model"] is True
+    assert payload["model_feed"]["keywords"][0]["term"] == "triade"
+
+
+def test_distributed_runtime_probe_reports_remote_ops(monkeypatch) -> None:
+    single_port_app.LOCAL_JOBS.clear()
+    monkeypatch.setattr(
+        single_port_app,
+        "local_federated_nodes",
+        lambda task=None: [{"node_id": "android-a", "capabilities": {"allowed_tasks": ["federated_inference_probe"]}}],
+    )
+
+    def fake_wait(job_id: str, timeout: float = 25.0, interval: float = 0.5):
+        job = single_port_app.LOCAL_JOBS[job_id]
+        return {
+            **job,
+            "status": "completed",
+            "result": {
+                "task": "federated_inference_probe",
+                "status": "completed",
+                "ops": job["payload"]["iterations"],
+                "prompt_sha256": "abc123",
+            },
+        }
+
+    monkeypatch.setattr(single_port_app, "wait_local_job", fake_wait)
+    response = client.post(
+        "/api/distributed-runtime/probe",
+        json={"prompt": "prueba runtime", "iterations": 5000, "wait_timeout": 1},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["completed"] == 1
+    assert payload["total_ops"] == 5000
+    assert "tensor-paralela" in payload["truth"]
+
+
 def test_single_port_run_accepts_auto_select_models() -> None:
     response = client.post(
         "/api/run",
