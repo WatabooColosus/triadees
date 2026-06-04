@@ -82,6 +82,7 @@ def test_single_port_model_capacity() -> None:
     assert "federation" in payload
     assert "missing_for_comfortable_models" in payload["local"]
     assert "nodes" in payload["federation"]
+    assert "observers" not in payload["federation"]
     assert "constants" in payload
 
 

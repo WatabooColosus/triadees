@@ -199,7 +199,7 @@ def model_support_from_capabilities(capabilities: dict[str, Any]) -> dict[str, A
     authorized_cpu = int(capabilities.get("cpu_authorized_count") or (cpu if native_android else 0))
     memory = float(capabilities.get("ram_authorized_gb") or capabilities.get("device_memory_gb") or 0.0) if native_android else 0.0
     ready = online and native_android and authorized_cpu >= 1 and memory >= 0.5
-    recommended = "android_native_cpu_feed" if ready else ("browser_observer" if online else "heartbeat_only")
+    recommended = "android_native_cpu_feed" if ready else "not_federated"
     assist = ["hashing", "benchmark", "preprocess", "context_chunking", "background_cpu_feed"] if ready else ["heartbeat"]
     return {
         "ready_for_model_management": ready,
@@ -212,7 +212,7 @@ def model_support_from_capabilities(capabilities: dict[str, Any]) -> dict[str, A
         "authorized_ram_gb": memory,
         "resource_limit_percent": int(capabilities.get("resource_limit_percent") or 0),
         "note": "Nodo Android nativo: alimenta modelos locales con CPU/RAM autorizadas y servicio en primer plano." if native_android
-        else "Nodo browser: observador ligero; no cuenta como federacion completa para modelos.",
+        else "Browser descartado: no invierte recursos nativos en el modelo local.",
     }
 
 

@@ -43,7 +43,7 @@ def test_sync_nodes_to_federation(tmp_path):
     node = federation.get_node("web-phone")
     assert node is not None
     assert node["permissions"] == ["publish_capabilities", "request_compute"]
-    assert node["capabilities"]["model_support"]["recommended_use"] == "browser_observer"
+    assert node["capabilities"]["model_support"]["recommended_use"] == "not_federated"
     assert node["capabilities"]["model_support"]["ready_for_model_management"] is False
     assert node["capability_status"] == "medium"
 
