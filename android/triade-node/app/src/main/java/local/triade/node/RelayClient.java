@@ -95,11 +95,17 @@ public final class RelayClient {
     }
 
     private JSONObject capabilities() throws Exception {
+        NodeConfig config = NodeConfig.load(context);
         ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
         ActivityManager manager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         if (manager != null) {
             manager.getMemoryInfo(memory);
         }
+        int cpuTotal = Runtime.getRuntime().availableProcessors();
+        int percent = config.resourceLimitPercent;
+        int cpuAuthorized = Math.max(1, (int) Math.floor(cpuTotal * (percent / 100.0)));
+        double ramAvailableGb = memory.availMem / 1073741824.0;
+        double ramAuthorizedGb = ramAvailableGb * (percent / 100.0);
         JSONArray tasks = new JSONArray()
                 .put("echo")
                 .put("sha256")
@@ -110,12 +116,15 @@ public final class RelayClient {
                 .put("app_node", true)
                 .put("foreground_service", true)
                 .put("background_execution", true)
-                .put("cpu_count", Runtime.getRuntime().availableProcessors())
-                .put("ram_available_gb", memory.availMem / 1073741824.0)
+                .put("resource_limit_percent", percent)
+                .put("cpu_count", cpuTotal)
+                .put("cpu_authorized_count", cpuAuthorized)
+                .put("ram_available_gb", ramAvailableGb)
+                .put("ram_authorized_gb", ramAuthorizedGb)
                 .put("ram_total_gb", memory.totalMem / 1073741824.0)
                 .put("platform", "Android " + Build.VERSION.RELEASE)
                 .put("device", Build.MANUFACTURER + " " + Build.MODEL)
-                .put("app_version", "0.1.0")
+                .put("app_version", "0.2.0")
                 .put("allowed_tasks", tasks);
     }
 

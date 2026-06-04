@@ -155,6 +155,9 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
     memory = float(raw.get("ram_available_gb") or raw.get("device_memory_gb") or 0.0)
     online = bool(node.get("online"))
     native_android = bool(raw.get("native_android") or raw.get("app_node"))
+    resource_limit = max(0, min(100, int(raw.get("resource_limit_percent") or 60))) if native_android else 0
+    authorized_cpu = int(raw.get("cpu_authorized_count") or max(1, int(cpu * (resource_limit / 100.0)))) if native_android else 0
+    authorized_memory = float(raw.get("ram_authorized_gb") or (memory * (resource_limit / 100.0))) if native_android else 0.0
     capability_tier = _browser_tier(cpu, memory)
     allowed_tasks = raw.get("allowed_tasks") if isinstance(raw.get("allowed_tasks"), list) else ["echo", "sha256", "browser_benchmark", "preprocess_text"]
     capabilities = {
@@ -167,15 +170,22 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
         "browser_tier": raw.get("tier", "browser"),
         "native_android": native_android,
         "cpu_count": cpu,
+        "cpu_authorized_count": authorized_cpu,
         "device_memory_gb": memory,
         "ram_available_gb": memory,
+        "ram_authorized_gb": authorized_memory,
+        "resource_limit_percent": resource_limit,
+        "federation_complete": bool(native_android and online and resource_limit > 0),
         "allowed_tasks": allowed_tasks,
         "model_support": model_support_from_capabilities({
             "cpu_count": cpu,
+            "cpu_authorized_count": authorized_cpu,
             "device_memory_gb": memory,
+            "ram_authorized_gb": authorized_memory,
             "online": online,
             "native_android": native_android,
             "background_execution": bool(raw.get("background_execution")),
+            "resource_limit_percent": resource_limit,
         }),
     }
     return capabilities
@@ -185,13 +195,12 @@ def model_support_from_capabilities(capabilities: dict[str, Any]) -> dict[str, A
     online = bool(capabilities.get("online", True))
     score = int(capabilities.get("benchmark_score") or 0)
     cpu = int(capabilities.get("cpu_count") or 1)
-    memory = float(capabilities.get("device_memory_gb") or 0.0)
     native_android = bool(capabilities.get("native_android"))
-    ready = online and cpu >= 2 and memory >= 1.0
-    recommended = "android_native_cpu_feed" if ready and native_android else ("browser_preprocess" if ready else "heartbeat_only")
-    assist = ["hashing", "benchmark", "preprocess", "context_chunking", "background_cpu_feed"] if ready and native_android else (
-        ["hashing", "benchmark", "preprocess", "context_chunking"] if ready else ["heartbeat"]
-    )
+    authorized_cpu = int(capabilities.get("cpu_authorized_count") or (cpu if native_android else 0))
+    memory = float(capabilities.get("ram_authorized_gb") or capabilities.get("device_memory_gb") or 0.0) if native_android else 0.0
+    ready = online and native_android and authorized_cpu >= 1 and memory >= 0.5
+    recommended = "android_native_cpu_feed" if ready else ("browser_observer" if online else "heartbeat_only")
+    assist = ["hashing", "benchmark", "preprocess", "context_chunking", "background_cpu_feed"] if ready else ["heartbeat"]
     return {
         "ready_for_model_management": ready,
         "local_ollama": False,
@@ -199,8 +208,11 @@ def model_support_from_capabilities(capabilities: dict[str, Any]) -> dict[str, A
         "can_host_llm": False,
         "can_assist": assist,
         "benchmark_score": score,
-        "note": "Nodo Android nativo: alimenta modelos locales con CPU/RAM y servicio en primer plano." if native_android
-        else "Nodo browser: alimenta planificación y tareas ligeras; no hospeda Ollama ni modelos nativos.",
+        "authorized_cpu_count": authorized_cpu,
+        "authorized_ram_gb": memory,
+        "resource_limit_percent": int(capabilities.get("resource_limit_percent") or 0),
+        "note": "Nodo Android nativo: alimenta modelos locales con CPU/RAM autorizadas y servicio en primer plano." if native_android
+        else "Nodo browser: observador ligero; no cuenta como federacion completa para modelos.",
     }
 
 

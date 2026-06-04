@@ -11,13 +11,15 @@ public final class NodeConfig {
     public final String displayName;
     public final String nodeId;
     public final String nodeToken;
+    public final int resourceLimitPercent;
 
-    private NodeConfig(String relayUrl, String pairingToken, String displayName, String nodeId, String nodeToken) {
+    private NodeConfig(String relayUrl, String pairingToken, String displayName, String nodeId, String nodeToken, int resourceLimitPercent) {
         this.relayUrl = trimTrailingSlash(relayUrl);
         this.pairingToken = pairingToken;
         this.displayName = displayName;
         this.nodeId = nodeId;
         this.nodeToken = nodeToken;
+        this.resourceLimitPercent = clampPercent(resourceLimitPercent);
     }
 
     public static NodeConfig load(Context context) {
@@ -27,16 +29,18 @@ public final class NodeConfig {
                 prefs.getString("pairingToken", ""),
                 prefs.getString("displayName", "Android Node"),
                 prefs.getString("nodeId", ""),
-                prefs.getString("nodeToken", "")
+                prefs.getString("nodeToken", ""),
+                prefs.getInt("resourceLimitPercent", 60)
         );
     }
 
-    public static void saveUserConfig(Context context, String relayUrl, String pairingToken, String displayName) {
+    public static void saveUserConfig(Context context, String relayUrl, String pairingToken, String displayName, int resourceLimitPercent) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
                 .putString("relayUrl", trimTrailingSlash(relayUrl))
                 .putString("pairingToken", pairingToken.trim())
                 .putString("displayName", displayName.trim().isEmpty() ? "Android Node" : displayName.trim())
+                .putInt("resourceLimitPercent", clampPercent(resourceLimitPercent))
                 .apply();
     }
 
@@ -58,5 +62,15 @@ public final class NodeConfig {
             clean = clean.substring(0, clean.length() - 1);
         }
         return clean;
+    }
+
+    private static int clampPercent(int value) {
+        if (value < 10) {
+            return 10;
+        }
+        if (value > 90) {
+            return 90;
+        }
+        return value;
     }
 }

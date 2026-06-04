@@ -11,12 +11,15 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.SeekBar;
 import android.widget.TextView;
 
 public final class MainActivity extends Activity {
     private EditText relayUrl;
     private EditText pairingToken;
     private EditText displayName;
+    private SeekBar resourceLimit;
+    private TextView resourceLimitLabel;
     private TextView status;
 
     @Override
@@ -49,6 +52,27 @@ public final class MainActivity extends Activity {
         root.addView(pairingToken);
         root.addView(displayName);
 
+        resourceLimitLabel = new TextView(this);
+        root.addView(resourceLimitLabel);
+        resourceLimit = new SeekBar(this);
+        resourceLimit.setMax(80);
+        resourceLimit.setProgress(50);
+        resourceLimit.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                updateResourceLabel();
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+        root.addView(resourceLimit);
+
         Button start = button("Guardar y conectar");
         start.setOnClickListener(v -> startNode());
         root.addView(start);
@@ -71,11 +95,19 @@ public final class MainActivity extends Activity {
         relayUrl.setText(config.relayUrl);
         pairingToken.setText(config.pairingToken);
         displayName.setText(config.displayName);
+        resourceLimit.setProgress(config.resourceLimitPercent - 10);
+        updateResourceLabel();
         status.setText(config.hasIdentity() ? "Nodo guardado: " + config.nodeId : "Sin identidad registrada.");
     }
 
     private void startNode() {
-        NodeConfig.saveUserConfig(this, relayUrl.getText().toString(), pairingToken.getText().toString(), displayName.getText().toString());
+        NodeConfig.saveUserConfig(
+                this,
+                relayUrl.getText().toString(),
+                pairingToken.getText().toString(),
+                displayName.getText().toString(),
+                selectedResourcePercent()
+        );
         Intent intent = new Intent(this, TriadeNodeService.class);
         if (Build.VERSION.SDK_INT >= 26) {
             startForegroundService(intent);
@@ -90,6 +122,16 @@ public final class MainActivity extends Activity {
         intent.setAction(TriadeNodeService.ACTION_STOP);
         startService(intent);
         status.setText("Solicitud de detención enviada.");
+    }
+
+    private int selectedResourcePercent() {
+        return resourceLimit.getProgress() + 10;
+    }
+
+    private void updateResourceLabel() {
+        if (resourceLimitLabel != null && resourceLimit != null) {
+            resourceLimitLabel.setText("Recursos autorizados para Triade: " + selectedResourcePercent() + "%");
+        }
     }
 
     private void requestNotificationPermission() {

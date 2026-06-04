@@ -132,27 +132,32 @@ def node_model_readiness(node: dict[str, Any]) -> dict[str, Any]:
     caps = node.get("capabilities") or {}
     support = caps.get("model_support") or {}
     ram = float(caps.get("ram_available_gb") or caps.get("device_memory_gb") or 0.0)
+    authorized_ram = float(caps.get("ram_authorized_gb") or support.get("authorized_ram_gb") or 0.0)
     cpu = int(caps.get("cpu_count") or 1)
+    authorized_cpu = int(caps.get("cpu_authorized_count") or support.get("authorized_cpu_count") or 0)
     native_android = bool(caps.get("native_android"))
     can_host_llm = bool(support.get("can_host_llm"))
-    feed_ready = bool(support.get("ready_for_model_management")) or bool(caps.get("online"))
+    federation_complete = bool(caps.get("federation_complete") or (native_android and caps.get("online") and authorized_cpu > 0))
+    feed_ready = bool(support.get("ready_for_model_management")) and federation_complete
     missing: list[str] = []
     if not caps.get("online"):
         missing.append("heartbeat online reciente")
     if native_android and not can_host_llm:
         missing.append("runtime nativo de modelos en Android (Ollama/llama.cpp/ONNX)")
-    if ram < 4:
+    effective_ram = authorized_ram if native_android else ram
+    effective_cpu = authorized_cpu if native_android else 0
+    if effective_ram < 4:
         missing.append("RAM libre >= 4 GB para modelos 3B tranquilos")
-    if ram < 8:
+    if effective_ram < 8:
         missing.append("RAM libre >= 8 GB para 7B/8B")
     if not caps.get("gpus"):
         missing.append("GPU/VRAM reportada para aceleracion")
     runnable = []
     feed_only = []
     for model, required in ModelRouter.MODEL_RAM_GB.items():
-        if can_host_llm and ram >= required:
+        if can_host_llm and effective_ram >= required:
             runnable.append(model)
-        elif feed_ready and cpu >= 2:
+        elif feed_ready and effective_cpu >= 1:
             feed_only.append(model)
     return {
         "node_id": node.get("node_id"),
@@ -160,7 +165,11 @@ def node_model_readiness(node: dict[str, Any]) -> dict[str, Any]:
         "online": caps.get("online"),
         "native_android": native_android,
         "cpu_count": cpu,
+        "cpu_authorized_count": authorized_cpu,
         "ram_available_gb": ram,
+        "ram_authorized_gb": authorized_ram,
+        "resource_limit_percent": int(caps.get("resource_limit_percent") or support.get("resource_limit_percent") or 0),
+        "federation_complete": federation_complete,
         "benchmark_score": caps.get("benchmark_score", 0),
         "recommended_use": support.get("recommended_use", "unknown"),
         "can_host_llm": can_host_llm,
@@ -185,6 +194,7 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
         except Exception as exc:  # pragma: no cover - depends on public network
             relay_sync = {"attempted": True, "status": "error", "error": str(exc)}
     nodes = [node_model_readiness(node) for node in federation.list_nodes(status="active")]
+    online_feeders = [node for node in nodes if node["can_feed_local_models"] and node["federation_complete"]]
     recommended = [item for item in matrix["models"] if item["status"] == "recommended"]
     allowed = [item for item in matrix["models"] if item["status"] == "allowed"]
     blocked = [item for item in matrix["models"] if item["status"] == "blocked"]
@@ -219,7 +229,8 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
         "federation": {
             "relay": {"url": relay.get("url"), "has_admin_token": bool(relay.get("admin_token")), "sync": relay_sync},
             "nodes": nodes,
-            "online_feeders": [node for node in nodes if node["can_feed_local_models"]],
+            "online_feeders": online_feeders,
+            "observers": [node for node in nodes if node["online"] and not node["federation_complete"]],
             "llm_hosts": [node for node in nodes if node["can_host_llm"]],
         },
         "constants": {
@@ -375,7 +386,7 @@ TRIADE_UI_HTML = """
 </div><script>
 const $=id=>document.getElementById(id);let lastRouter=null,lastCapacity=null;const settings=['key','hyp','cen','intent','urgency','project','neuron','session','scope'];function save(){settings.forEach(k=>localStorage.setItem('triade_sp_'+k,$(k).value));localStorage.setItem('triade_sp_ollama',$('ollama').checked);localStorage.setItem('triade_sp_auto',$('auto').checked);status('Estado guardado',true)}function load(){settings.forEach(k=>{const v=localStorage.getItem('triade_sp_'+k);if(v!==null)$(k).value=v});$('ollama').checked=localStorage.getItem('triade_sp_ollama')==='true';$('auto').checked=localStorage.getItem('triade_sp_auto')!=='false'}function status(t,ok=false){$('status').textContent=t;$('status').className=ok?'oktxt':'muted'}function add(cls,text,meta=''){let d=document.createElement('div');d.className='msg '+cls;d.textContent=text;if(meta){let m=document.createElement('div');m.className='meta';m.textContent=meta;d.appendChild(m)}$('chat').appendChild(d);$('chat').scrollTop=$('chat').scrollHeight}function context(){let c={};if($('project').value.trim())c.project_id=$('project').value.trim();if($('neuron').value.trim())c.active_neuron=$('neuron').value.trim();if($('session').value.trim())c.session_id=$('session').value.trim();if($('scope').value)c.context_scope=$('scope').value;return c}
 function fmt(n){return Number.isFinite(Number(n))?Number(n).toFixed(1):'--'}function cls(ok){return ok?'oktxt':'badtxt'}function setOrgan(id,on){$(id).className='organ '+(on?'ok':'')}function briefMissing(items){return (items||[]).slice(0,4).map(x=>`<div class='metric critical'><b>Falta</b><span>${x}</span></div>`).join('')||`<div class='metric ready'><b>Listo</b><span>Sin bloqueos principales.</span></div>`}
-function renderCapacity(j){lastCapacity=j;let h=j.local.hardware, f=j.federation, feeders=f.online_feeders||[], hosts=f.llm_hosts||[];$('liveDot').className='state-dot ok';setOrgan('orgCentral',j.local.ollama.ok);setOrgan('orgHyp',j.local.ollama.ok);setOrgan('orgMem',true);setOrgan('orgFed',feeders.length>0);$('summary').innerHTML=`<div class='metric ${h.tier==='low'?'critical':'ready'}'><b>${h.tier}</b><span>PC · ${fmt(h.ram_available_gb)} GB RAM libre</span></div><div class='metric ${feeders.length?'ready':'critical'}'><b>${feeders.length}</b><span>nodos alimentando · ${hosts.length} hosts LLM</span></div><div class='metric'><b class='${cls(j.local.ollama.ok)}'>${j.local.ollama.ok?'activo':'apagado'}</b><span>Ollama</span></div><div class='metric'><b class='${cls(j.local.docker.ok)}'>${j.local.docker.ok?'listo':'pendiente'}</b><span>Docker</span></div>`;$('missing').innerHTML=`<h2>Qué falta</h2>${briefMissing(j.local.missing_for_comfortable_models)}`;$('models').innerHTML=[...(j.local.recommended_models||[]).map(m=>`<span class='pill oktxt'>${m.model}</span>`),...(j.local.allowed_models||[]).map(m=>`<span class='pill'>${m.model}</span>`)].join('')||'<span class="empty">No hay modelos recomendados para este estado.</span>';$('nodes').innerHTML=(f.nodes||[]).filter(n=>n.online||n.can_feed_local_models).map(n=>`<div class='node ${n.can_feed_local_models?'ready':''}'><div class='node-head'><b>${n.name||n.node_id}</b><span class='tag'>${n.native_android?'Android app':'browser/local'}</span></div><div class='hint'>CPU ${n.cpu_count} · RAM ${fmt(n.ram_available_gb)} GB · score ${n.benchmark_score||0}</div><div class='hint'><span class='feed'>${n.can_feed_local_models?'alimenta':'no alimenta'}</span> · <span class='host'>${n.can_host_llm?'hospeda LLM':'no hospeda LLM'}</span></div></div>`).join('')||'<span class="empty">Ningún nodo online.</span>';$('box').textContent=`PC ${h.tier}: ${fmt(h.ram_available_gb)} GB libres. Feeders ${feeders.length}. Hosts LLM ${hosts.length}. Docker ${j.local.docker.ok?'ok':'pendiente'}.`;let now=new Date().toLocaleTimeString();$('liveLine').textContent=`Último pulso ${now} · relay ${f.relay?.has_admin_token?'sincronizado':'sin token admin'}`;status('Pulso actualizado',true)}
+function renderCapacity(j){lastCapacity=j;let h=j.local.hardware, f=j.federation, feeders=f.online_feeders||[], hosts=f.llm_hosts||[], observers=f.observers||[];$('liveDot').className='state-dot ok';setOrgan('orgCentral',j.local.ollama.ok);setOrgan('orgHyp',j.local.ollama.ok);setOrgan('orgMem',true);setOrgan('orgFed',feeders.length>0);$('summary').innerHTML=`<div class='metric ${h.tier==='low'?'critical':'ready'}'><b>${h.tier}</b><span>PC · ${fmt(h.ram_available_gb)} GB RAM libre</span></div><div class='metric ${feeders.length?'ready':'critical'}'><b>${feeders.length}</b><span>nodos Android · ${observers.length} observadores</span></div><div class='metric'><b class='${cls(j.local.ollama.ok)}'>${j.local.ollama.ok?'activo':'apagado'}</b><span>Ollama</span></div><div class='metric'><b class='${cls(j.local.docker.ok)}'>${j.local.docker.ok?'listo':'pendiente'}</b><span>Docker</span></div>`;$('missing').innerHTML=`<h2>Qué falta</h2>${briefMissing(j.local.missing_for_comfortable_models)}`;$('models').innerHTML=[...(j.local.recommended_models||[]).map(m=>`<span class='pill oktxt'>${m.model}</span>`),...(j.local.allowed_models||[]).map(m=>`<span class='pill'>${m.model}</span>`)].join('')||'<span class="empty">No hay modelos recomendados para este estado.</span>';$('nodes').innerHTML=feeders.map(n=>`<div class='node ready'><div class='node-head'><b>${n.name||n.node_id}</b><span class='tag'>${n.resource_limit_percent||0}% autorizado</span></div><div class='hint'>CPU ${n.cpu_authorized_count}/${n.cpu_count} · RAM ${fmt(n.ram_authorized_gb)}/${fmt(n.ram_available_gb)} GB · score ${n.benchmark_score||0}</div><div class='hint'><span class='feed'>alimenta modelo local</span> · <span class='host'>${n.can_host_llm?'hospeda LLM':'no hospeda LLM'}</span></div></div>`).join('')||'<span class="empty">Ningún Android app autorizado online.</span>';$('box').textContent=`PC ${h.tier}: ${fmt(h.ram_available_gb)} GB libres. Android feeders ${feeders.length}. Observadores ${observers.length}. Hosts LLM ${hosts.length}. Docker ${j.local.docker.ok?'ok':'pendiente'}.`;let now=new Date().toLocaleTimeString();$('liveLine').textContent=`Último pulso ${now} · relay ${f.relay?.has_admin_token?'sincronizado':'sin token admin'}`;status('Pulso actualizado',true)}
 async function capacity(manual=false){try{let r=await fetch('/api/system/model-capacity?sync_relay=true');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);renderCapacity(j);if(manual)add('bot','Pulso vivo actualizado: revisé PC, modelos, nodos y constantes.')}catch(e){$('liveDot').className='state-dot';status('Pulso falló: '+e.message);$('box').textContent='Error de pulso: '+e.message}}
 async function health(){try{let r=await fetch('/api/health');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({mode:j.mode,hardware:j.hardware,contexts:j.doctor?.crystal_contexts,ollama:j.ollama?.ok,runs:j.doctor?.counts?.runs},null,2);status('Health OK',true)}catch(e){status('Health falló: '+e.message)}}async function router(){try{let r=await fetch('/api/router/doctor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent:$('intent').value,urgency:$('urgency').value})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);lastRouter=j;let d=j.router.decisions;$('box').textContent=JSON.stringify({central:d.central?.selected_model,hypothalamus:d.hypothalamus?.selected_model,fast:d.fast?.selected_model,deep:d.deep?.selected_model},null,2);status('Router OK',true)}catch(e){status('Router falló: '+e.message)}}async function compat(){try{let r=await fetch('/api/models/compatibility');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.matrix.summary,counts:j.matrix.counts,models:j.matrix.models},null,2);status('Compatibilidad OK',true)}catch(e){status('Compatibilidad falló: '+e.message)}}async function installQueue(){try{let r=await fetch('/api/models/install-queue?include_allowed=false');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.summary,count:j.count,policy:j.policy,candidates:j.candidates},null,2);status('Cola OK',true)}catch(e){status('Cola falló: '+e.message)}}async function semanticDoctor(){try{let r=await fetch('/api/semantic/governance/doctor');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify(j,null,2);status('Gobierno semántico consultado',true)}catch(e){status('Memoria semántica falló: '+e.message)}}function apply(){if(!lastRouter){status('Consulta router primero');return}let d=lastRouter.router.decisions;if(d.hypothalamus?.selected_model)$('hyp').value=d.hypothalamus.selected_model;if(d.central?.selected_model)$('cen').value=d.central.selected_model;$('ollama').checked=true;$('auto').checked=false;save();status('Recomendados aplicados',true)}
 async function send(){save();let text=$('msg').value.trim();if(!text)return;$('msg').value='';add('user',text);status('Procesando...');try{let r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-TRIADE-API-Key':$('key').value},body:JSON.stringify({text,source:'single-port-ui',use_ollama:$('ollama').checked,hypothalamus_model:$('hyp').value,central_model:$('cen').value,auto_select_models:$('auto').checked,context:context()})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);let t=j.crystal_temporal_state||{};add('bot',j.response,[j.run_id,'Q '+t.status,'scope '+t.context_scope,'ctx '+t.context_key,'H '+j.models?.hypothalamus?.name,'C '+j.models?.central?.name].filter(Boolean).join(' · '));status('Respuesta recibida',true);capacity(false)}catch(e){add('bot','Error: '+e.message);status('Error')}}function clearChat(){$('chat').innerHTML=''}function keysend(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send()}load();add('bot','Tríade Ω lista. Mantengo pulso vivo de PC, modelos y nodos.');capacity(false);setInterval(()=>capacity(false),15000);

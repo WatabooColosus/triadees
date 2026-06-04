@@ -43,7 +43,8 @@ def test_sync_nodes_to_federation(tmp_path):
     node = federation.get_node("web-phone")
     assert node is not None
     assert node["permissions"] == ["publish_capabilities", "request_compute"]
-    assert node["capabilities"]["model_support"]["recommended_use"] == "browser_preprocess"
+    assert node["capabilities"]["model_support"]["recommended_use"] == "browser_observer"
+    assert node["capabilities"]["model_support"]["ready_for_model_management"] is False
     assert node["capability_status"] == "medium"
 
 
@@ -164,6 +165,9 @@ def test_sync_native_android_node_marks_cpu_feed(tmp_path):
                             "background_execution": True,
                             "cpu_count": 8,
                             "ram_available_gb": 4,
+                            "resource_limit_percent": 60,
+                            "cpu_authorized_count": 4,
+                            "ram_authorized_gb": 2.4,
                             "allowed_tasks": ["sha256", "preprocess_text"],
                         },
                     }
@@ -180,7 +184,13 @@ def test_sync_native_android_node_marks_cpu_feed(tmp_path):
     assert node is not None
     support = node["capabilities"]["model_support"]
     assert node["capabilities"]["native_android"] is True
+    assert node["capabilities"]["federation_complete"] is True
+    assert node["capabilities"]["resource_limit_percent"] == 60
+    assert node["capabilities"]["cpu_authorized_count"] == 4
+    assert node["capabilities"]["ram_authorized_gb"] == 2.4
     assert support["recommended_use"] == "android_native_cpu_feed"
+    assert support["authorized_cpu_count"] == 4
+    assert support["authorized_ram_gb"] == 2.4
     assert "background_cpu_feed" in support["can_assist"]
 
 

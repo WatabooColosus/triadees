@@ -250,15 +250,23 @@ def _decode_node(row: sqlite3.Row) -> dict[str, Any]:
 
 def _normalize_capabilities(payload: dict[str, Any]) -> dict[str, Any]:
     native_android = bool(payload.get("native_android") or payload.get("app_node"))
+    resource_limit = max(10, min(90, int(payload.get("resource_limit_percent") or 100)))
+    cpu_count = int(payload.get("cpu_count") or payload.get("hardware_concurrency") or 1)
+    ram_available = float(payload.get("ram_available_gb") or payload.get("device_memory_gb") or 0.0)
+    cpu_authorized = int(payload.get("cpu_authorized_count") or max(1, int(cpu_count * (resource_limit / 100.0))))
+    ram_authorized = float(payload.get("ram_authorized_gb") or (ram_available * (resource_limit / 100.0)))
     return {
         "tier": "android-native" if native_android else "browser",
         "browser_node": not native_android,
         "native_android": native_android,
         "app_node": bool(payload.get("app_node")),
         "foreground_service": bool(payload.get("foreground_service")),
-        "cpu_count": int(payload.get("cpu_count") or payload.get("hardware_concurrency") or 1),
-        "device_memory_gb": float(payload.get("device_memory_gb") or payload.get("ram_available_gb") or 0.0),
-        "ram_available_gb": float(payload.get("ram_available_gb") or payload.get("device_memory_gb") or 0.0),
+        "resource_limit_percent": resource_limit,
+        "cpu_count": cpu_count,
+        "cpu_authorized_count": cpu_authorized,
+        "device_memory_gb": ram_available,
+        "ram_available_gb": ram_available,
+        "ram_authorized_gb": ram_authorized,
         "ram_total_gb": float(payload.get("ram_total_gb") or 0.0),
         "platform": str(payload.get("platform") or "unknown")[:120],
         "device": str(payload.get("device") or "")[:120],
