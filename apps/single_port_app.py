@@ -311,6 +311,34 @@ def tool_status(name: str, command: list[str]) -> dict[str, Any]:
         return {"installed": True, "path": path, "ok": False, "version": "error", "error": str(exc)}
 
 
+def docker_status() -> dict[str, Any]:
+    docker_path = shutil.which("docker")
+    candidates = [
+        Path(r"C:\Program Files\Docker\Docker\resources\bin\docker.exe"),
+        Path(r"C:\Program Files\Docker\Docker\DockerCli.exe"),
+    ]
+    if not docker_path:
+        docker_path = next((str(candidate) for candidate in candidates if candidate.exists()), None)
+    if not docker_path:
+        return {"installed": False, "path": None, "ok": False, "version": "not_found", "engine": "not_found"}
+    try:
+        version = subprocess.run([docker_path, "--version"], capture_output=True, text=True, timeout=5, check=False)
+        info = subprocess.run([docker_path, "info", "--format", "{{json .ServerVersion}}"], capture_output=True, text=True, timeout=8, check=False)
+        version_text = (version.stdout or version.stderr or "").strip().splitlines()
+        error_text = (info.stderr or "").strip()
+        return {
+            "installed": True,
+            "path": docker_path,
+            "ok": info.returncode == 0,
+            "version": version_text[0] if version_text else "unknown",
+            "engine": "running" if info.returncode == 0 else "stopped",
+            "server_version": (info.stdout or "").strip().strip('"') if info.returncode == 0 else None,
+            "error": error_text or None,
+        }
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"installed": True, "path": docker_path, "ok": False, "version": "error", "engine": "error", "error": str(exc)}
+
+
 def node_model_readiness(node: dict[str, Any]) -> dict[str, Any]:
     caps = node.get("capabilities") or {}
     support = caps.get("model_support") or {}
@@ -523,7 +551,7 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
         local_missing.append("GPU/VRAM detectable para acelerar modelos")
     if not recommended:
         local_missing.append("modelos instalados compatibles/recomendados")
-    docker = tool_status("docker", ["docker", "--version"])
+    docker = docker_status()
     return {
         "status": "ok",
         "mode": "model-capacity",
@@ -550,7 +578,7 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
         },
         "constants": {
             "router": "single-port ModelRouter activo en /api/router/doctor",
-            "docker": "disponible" if docker["ok"] else "pendiente/no disponible",
+            "docker": "motor activo" if docker["ok"] else ("instalado, motor pendiente" if docker["installed"] else "pendiente/no disponible"),
             "relay": "public relay Railway",
             "policy": "solo dispositivos nativos/autorizados que invierten CPU/RAM/GPU cuentan como nodos federados",
             "distributed_runtime": "jobs Android nativos: preprocess_text y federated_inference_probe alimentan al modelo local",
@@ -973,7 +1001,221 @@ async function send(){save();let text=$('msg').value.trim();if(!text)return;$('m
 """
 
 
+TRIADE_REACT_UI_HTML = r"""
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tríade Ω Single Port</title>
+  <!-- TrÃ­ade Î© Single Port -->
+  <style>
+    :root{color-scheme:dark;--bg:#090a0d;--panel:#14161b;--panel2:#101217;--line:#2b3038;--text:#eef1f5;--muted:#9aa3b2;--ok:#78d68f;--warn:#f5c15d;--bad:#ef7f7f;--accent:#7cc7e8}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,system-ui,sans-serif}.app{min-height:100vh;display:grid;grid-template-columns:320px minmax(420px,1fr) 360px}.panel{background:var(--panel);border-color:var(--line);overflow:auto}.left{border-right:1px solid var(--line);padding:16px}.right{border-left:1px solid var(--line);padding:16px}.main{display:flex;flex-direction:column;min-width:0;background:#0b0d11}.brand{display:flex;align-items:center;justify-content:space-between;gap:10px}.brand h1{font-size:22px;margin:0}.small{font-size:12px;color:var(--muted);line-height:1.35}.section{border-top:1px solid var(--line);margin-top:16px;padding-top:14px}.section h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#c9d2df;margin:0 0 10px}label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}input,select,textarea{width:100%;background:#191c23;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px}textarea{min-height:58px;resize:vertical}.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.toggle{display:flex;align-items:center;gap:8px;color:#d5dbe5}.toggle input{width:auto}button,.btn{display:inline-flex;align-items:center;justify-content:center;width:100%;min-height:38px;border:0;border-radius:8px;padding:9px 10px;font-weight:800;background:var(--accent);color:#061018;text-decoration:none;margin-top:8px;cursor:pointer}.secondary{background:#222733;color:var(--text);border:1px solid var(--line)}.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}details{border:1px solid var(--line);border-radius:8px;background:#10131a;margin-top:10px;padding:10px}summary{cursor:pointer;font-weight:800}.alert{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);background:#11141a}.dot{width:12px;height:12px;border-radius:99px;background:var(--warn);box-shadow:0 0 16px currentColor}.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}.status{font-weight:900}.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.organs{display:flex;gap:8px;flex-wrap:wrap}.organ{border:1px solid var(--line);border-radius:999px;padding:5px 8px;font-size:12px;color:#cbd4df}.organ.on{border-color:#3f8755;color:var(--ok)}.chat{flex:1;overflow:auto;padding:18px}.msg{padding:12px;border-radius:8px;margin:10px 0;white-space:pre-wrap;line-height:1.45}.user{background:#244f8f;margin-left:14%}.bot{background:#151922;border:1px solid var(--line);margin-right:14%}.meta{font-size:12px;color:var(--muted);margin-top:8px}.composer{display:grid;grid-template-columns:1fr 110px;gap:10px;padding:14px;border-top:1px solid var(--line)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.metric,.node,.box{border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:10px}.metric b{display:block;font-size:20px}.metric span{font-size:12px;color:var(--muted)}.ready{border-color:#365c43}.critical{border-color:#704148}.node{margin:8px 0}.node-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.tag{border-radius:999px;background:#252b36;color:#d8dee8;padding:3px 7px;font-size:11px;white-space:nowrap}.box{white-space:pre-wrap;max-height:260px;overflow:auto;font-size:12px;color:#d8dee8}.pill{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:4px 8px;margin:3px;font-size:12px}.live{font-size:12px;color:var(--muted);margin-top:8px}.empty{color:var(--muted);font-size:13px}@media(max-width:1120px){.app{grid-template-columns:1fr}.left,.right{border:0;border-bottom:1px solid var(--line)}.main{min-height:70vh}.composer{grid-template-columns:1fr}.user,.bot{margin-left:0;margin-right:0}}
+  </style>
+</head>
+<body>
+  <div id="root" data-routes="/api/run /api/router/doctor /api/system/model-capacity">
+    <main class="app">
+      <aside class="panel left"><h1>Tríade Ω</h1><p class="small">Pulso vivo · Herramientas ocasionales · /downloads/triade-android-node.apk</p></aside>
+      <section class="main"><div class="alert"><span class="dot"></span><b>Iniciando tablero React...</b><span class="small">8010</span></div></section>
+      <aside class="panel right"><h2>Pulso vivo</h2></aside>
+    </main>
+  </div>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script>
+    const e = React.createElement;
+    const routes = {
+      capacity: '/api/system/model-capacity?sync_relay=true',
+      lease: '/api/federation/resource-lease?sync_relay=true',
+      run: '/api/run',
+      router: '/api/router/doctor',
+      health: '/api/health',
+      compat: '/api/models/compatibility',
+      queue: '/api/models/install-queue?include_allowed=false',
+      semantic: '/api/semantic/governance/doctor',
+      androidDoctor: '/api/distributed-runtime/android-model-doctor',
+      preprocess: '/api/distributed-runtime/preprocess',
+      probe: '/api/distributed-runtime/probe'
+    };
+
+    function n(value, fallback='--') {
+      const number = Number(value);
+      return Number.isFinite(number) ? number.toFixed(1) : fallback;
+    }
+
+    function PanelMetric({label, value, tone, hint}) {
+      return e('div', {className: 'metric ' + (tone || '')}, e('b', null, value), e('span', null, label), hint ? e('div', {className: 'small'}, hint) : null);
+    }
+
+    function App() {
+      const [cap, setCap] = React.useState(null);
+      const [lease, setLease] = React.useState(null);
+      const [log, setLog] = React.useState('Pulso inicial pendiente.');
+      const [chat, setChat] = React.useState([{who:'bot', text:'Tríade Ω lista. Mantengo pulso vivo de PC, modelos y nodos.'}]);
+      const [form, setForm] = React.useState({text:'', key: localStorage.triade_key || '', ollama: localStorage.triade_ollama === 'true', auto: localStorage.triade_auto !== 'false', intent:'conversation', urgency:'medium'});
+      const [busy, setBusy] = React.useState(false);
+
+      async function json(url, options) {
+        const response = await fetch(url, options);
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.detail || response.status);
+        return body;
+      }
+
+      async function refresh(manual=false) {
+        try {
+          const [capacity, resourceLease] = await Promise.all([json(routes.capacity), json(routes.lease)]);
+          setCap(capacity);
+          setLease(resourceLease);
+          if (manual) append('bot', 'Pulso vivo actualizado: revisé PC, Docker, Ollama, nodos Android y runtime.');
+        } catch (err) {
+          setLog('Pulso falló: ' + err.message);
+        }
+      }
+
+      React.useEffect(() => {
+        refresh(false);
+        const id = setInterval(() => refresh(false), 15000);
+        return () => clearInterval(id);
+      }, []);
+
+      function setField(field, value) {
+        const next = {...form, [field]: value};
+        setForm(next);
+        if (field === 'key') localStorage.triade_key = value;
+        if (field === 'ollama') localStorage.triade_ollama = String(value);
+        if (field === 'auto') localStorage.triade_auto = String(value);
+      }
+
+      function append(who, text, meta='') {
+        setChat(current => [...current, {who, text, meta}]);
+      }
+
+      async function action(name, fn) {
+        setBusy(true);
+        try {
+          const result = await fn();
+          setLog(JSON.stringify(result, null, 2));
+          await refresh(false);
+        } catch (err) {
+          setLog(name + ' falló: ' + err.message);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function send() {
+        const text = form.text.trim();
+        if (!text) return;
+        setField('text', '');
+        append('user', text);
+        await action('Chat', async () => {
+          const result = await json(routes.run, {
+            method:'POST',
+            headers:{'Content-Type':'application/json','X-TRIADE-API-Key':form.key},
+            body: JSON.stringify({text, source:'single-port-react-ui', use_ollama:form.ollama, auto_select_models:form.auto})
+          });
+          append('bot', result.response || JSON.stringify(result), [result.run_id, result.models?.hypothalamus?.name, result.models?.central?.name].filter(Boolean).join(' · '));
+          return {run_id: result.run_id, models: result.models, crystal_temporal_state: result.crystal_temporal_state};
+        });
+      }
+
+      const local = cap?.local || {};
+      const hardware = local.hardware || {};
+      const federation = cap?.federation || {};
+      const authorized = federation.authorized || {};
+      const totals = lease?.totals || {};
+      const nodes = federation.online_feeders || lease?.devices || [];
+      const issues = [];
+      if (!local.ollama?.ok) issues.push('Ollama apagado');
+      if (!local.docker?.ok) issues.push('Docker pendiente');
+      if ((hardware.ram_available_gb || 0) < 4) issues.push('RAM local baja');
+      if ((nodes.length || 0) < 1) issues.push('sin nodos federados activos');
+      if ((authorized.llm_hosts || totals.llm_hosts || 0) < 1) issues.push('sin host LLM Android real');
+      const level = issues.length === 0 ? 'ok' : issues.length <= 2 ? 'warn' : 'bad';
+      const alertText = level === 'ok' ? 'Todo activo' : level === 'warn' ? 'Activo con pendientes' : 'Degradado';
+      const runnable = authorized.runnable_by_aggregate_ram || [];
+
+      return e('main', {className:'app'},
+        e('aside', {className:'panel left'},
+          e('div', {className:'brand'}, e('h1', null, 'Tríade Ω'), e('span', {className:'tag'}, '8010')),
+          e('p', {className:'small'}, 'Single Port: conversación, doctor, router, modelos, memoria y federación real en un solo pulso.'),
+          e('div', {className:'section'}, e('h2', null, 'Modo'),
+            e('label', null, 'API key'), e('input', {type:'password', value:form.key, onChange:ev=>setField('key', ev.target.value)}),
+            e('div', {className:'row'},
+              e('div', null, e('label', null, 'Intención'), e('select', {value:form.intent, onChange:ev=>setField('intent', ev.target.value)}, ['conversation','analyze','memory','build_or_update'].map(x=>e('option', {key:x}, x)))),
+              e('div', null, e('label', null, 'Urgencia'), e('select', {value:form.urgency, onChange:ev=>setField('urgency', ev.target.value)}, ['medium','low','high'].map(x=>e('option', {key:x}, x))))
+            ),
+            e('label', {className:'toggle'}, e('input', {type:'checkbox', checked:form.ollama, onChange:ev=>setField('ollama', ev.target.checked)}), 'Usar Ollama'),
+            e('label', {className:'toggle'}, e('input', {type:'checkbox', checked:form.auto, onChange:ev=>setField('auto', ev.target.checked)}), 'Auto elegir modelos')
+          ),
+          e('div', {className:'section'}, e('h2', null, 'Acciones 24/7'),
+            e('button', {onClick:()=>refresh(true), disabled:busy}, 'Actualizar pulso'),
+            e('button', {className:'secondary', onClick:()=>action('Doctor Android', () => json(routes.androidDoctor, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({wait_timeout:35})}))}, 'Doctor Android'),
+            e('button', {className:'secondary', onClick:()=>action('Runtime probe', () => json(routes.probe, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt:form.text || 'Pulso distribuido Tríade', iterations:250000, wait_timeout:35})}))}, 'Probar runtime distribuido'),
+            e('button', {className:'secondary', onClick:()=>action('Preproceso', () => json(routes.preprocess, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:form.text || 'Preparar contexto con nodos Android autorizados.', max_chunk_chars:1200, wait_timeout:35})}))}, 'Preprocesar en nodos'),
+            e('button', {className:'secondary', onClick:()=>action('Router', () => json(routes.router, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({intent:form.intent, urgency:form.urgency})}))}, 'Router'),
+            e('a', {className:'btn secondary', href:'/downloads/triade-android-node.apk'}, 'Descargar Android Node'),
+            e('details', null,
+              e('summary', null, 'Herramientas ocasionales'),
+              e('button', {className:'secondary', onClick:()=>action('Health', () => json(routes.health))}, 'Health completo'),
+              e('button', {className:'secondary', onClick:()=>action('Compatibilidad', () => json(routes.compat))}, 'Compatibilidad'),
+              e('button', {className:'secondary', onClick:()=>action('Cola modelos', () => json(routes.queue))}, 'Cola modelos'),
+              e('button', {className:'secondary', onClick:()=>action('Memoria semántica', () => json(routes.semantic))}, 'Memoria semántica'),
+              e('button', {className:'ghost', onClick:()=>setChat([])}, 'Limpiar chat')
+            ),
+            e('div', {className:'box'}, log)
+          )
+        ),
+        e('section', {className:'main'},
+          e('div', {className:'alert'},
+            e('span', {className:'dot ' + level}),
+            e('div', null, e('div', {className:'status ' + level}, alertText), e('div', {className:'small'}, issues.length ? issues.join(' · ') : 'Ollama, Docker, RAM y nodos listos.')),
+            e('div', {className:'organs'}, ['Central','Hipotálamo','Bodega','Federación'].map((name, i) => e('span', {key:name, className:'organ ' + ((i < 3 ? local.ollama?.ok : nodes.length) ? 'on' : '')}, name)))
+          ),
+          e('section', {className:'chat'}, chat.map((m, i) => e('div', {key:i, className:'msg ' + (m.who === 'user' ? 'user' : 'bot')}, m.text, m.meta ? e('div', {className:'meta'}, m.meta) : null))),
+          e('div', {className:'composer'},
+            e('textarea', {value:form.text, placeholder:'Escribe... Ctrl+Enter', onChange:ev=>setField('text', ev.target.value), onKeyDown:ev=>{if(ev.key==='Enter' && (ev.ctrlKey || ev.metaKey)) send();}}),
+            e('button', {onClick:send, disabled:busy}, busy ? '...' : 'Enviar')
+          )
+        ),
+        e('aside', {className:'panel right'},
+          e('div', {className:'section', style:{borderTop:0, marginTop:0, paddingTop:0}}, e('h2', null, 'Pulso vivo'),
+            e('div', {className:'grid'},
+              e(PanelMetric, {value: hardware.tier || '--', label:'PC local', tone: hardware.tier === 'low' ? 'critical' : 'ready', hint:n(hardware.ram_available_gb) + ' GB RAM libre'}),
+              e(PanelMetric, {value:String(nodes.length || 0), label:'nodos que alimentan', tone:nodes.length ? 'ready' : 'critical', hint:String(authorized.runtime_node_count || totals.devices || 0) + ' runtime'}),
+              e(PanelMetric, {value:String(authorized.cpu_authorized_count || totals.cpu_authorized || 0), label:'CPU autorizada', tone:'ready'}),
+              e(PanelMetric, {value:n(authorized.ram_authorized_gb || totals.ram_authorized_gb), label:'GB RAM federada', tone:(authorized.ram_authorized_gb || totals.ram_authorized_gb || 0) >= 4 ? 'ready' : 'critical'}),
+              e(PanelMetric, {value:n(authorized.vram_authorized_gb || totals.vram_authorized_gb || 0), label:'GB VRAM/GPU', tone:(authorized.vram_authorized_gb || totals.vram_authorized_gb || 0) > 0 ? 'ready' : 'critical'}),
+              e(PanelMetric, {value:String(authorized.llm_hosts || totals.llm_hosts || 0), label:'hosts LLM Android', tone:(authorized.llm_hosts || totals.llm_hosts || 0) ? 'ready' : 'critical'}),
+              e(PanelMetric, {value:local.ollama?.ok ? 'activo' : 'apagado', label:'Ollama local', tone:local.ollama?.ok ? 'ready' : 'critical'}),
+              e(PanelMetric, {value:local.docker?.ok ? 'activo' : (local.docker?.installed ? 'instalado' : 'pendiente'), label:'Docker', tone:local.docker?.ok ? 'ready' : 'critical', hint:local.docker?.engine || local.docker?.version || ''})
+            )
+          ),
+          e('div', {className:'section'}, e('h2', null, 'Modelos por suma'), runnable.length ? runnable.map(item => e('span', {className:'pill ok', key:item.model}, item.model)) : e('div', {className:'empty'}, 'La suma de RAM ayuda a preparar trabajos, pero aún no hospeda inferencia LLM única.')),
+          e('div', {className:'section'}, e('h2', null, 'Nodos federados reales'),
+            nodes.length ? nodes.map(node => e('div', {className:'node ready', key:node.node_id},
+              e('div', {className:'node-head'}, e('b', null, node.name || node.device_name || node.node_id), e('span', {className:'tag'}, String(node.resource_limit_percent || 0) + '%')),
+              e('div', {className:'small'}, 'CPU ' + (node.cpu_authorized_count || node.cpu_authorized || 0) + '/' + (node.cpu_count || '?') + ' · RAM ' + n(node.ram_authorized_gb) + '/' + n(node.ram_available_gb) + ' GB'),
+              e('div', {className:'small'}, (node.capabilities?.app_version || node.app_version || '?') + ' · ' + (node.transport || node.capabilities?.source || 'local') + ' · ' + (node.can_host_llm ? 'hospeda LLM' : 'no hospeda LLM')),
+              e('div', {className:'small'}, node.resource_limit_reported ? 'porcentaje reportado por APK' : 'porcentaje asumido: relay sin campos nuevos')
+            )) : e('div', {className:'empty'}, 'Ningún Android nativo online con jobs.')
+          ),
+          e('div', {className:'live'}, 'Sincronización cada 15 s. Browser no cuenta como nodo; solo Android nativo con CPU/RAM/GPU autorizada.')
+        )
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+  </script>
+</body>
+</html>
+"""
+
+
 @app.get("/", response_class=HTMLResponse)
 @app.get("/ui", response_class=HTMLResponse)
 def ui() -> str:
-    return TRIADE_UI_HTML
+    return TRIADE_REACT_UI_HTML
