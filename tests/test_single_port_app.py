@@ -20,6 +20,7 @@ def test_single_port_ui_serves_html() -> None:
     assert "/api/router/doctor" in response.text
     assert "Pulso vivo" in response.text
     assert "Herramientas ocasionales" in response.text
+    assert "/downloads/triade-android-node.apk" in response.text
     assert "/api/system/model-capacity" in response.text
 
 
@@ -82,8 +83,17 @@ def test_single_port_model_capacity() -> None:
     assert "federation" in payload
     assert "missing_for_comfortable_models" in payload["local"]
     assert "nodes" in payload["federation"]
+    assert "authorized" in payload["federation"]
     assert "observers" not in payload["federation"]
     assert "constants" in payload
+
+
+def test_single_port_serves_android_apk() -> None:
+    response = client.get("/downloads/triade-android-node.apk")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/vnd.android.package-archive"
+    assert int(response.headers["content-length"]) > 30000
 
 
 def test_single_port_run_accepts_auto_select_models() -> None:
