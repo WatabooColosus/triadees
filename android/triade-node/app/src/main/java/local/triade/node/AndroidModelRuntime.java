@@ -129,7 +129,7 @@ public final class AndroidModelRuntime {
                 .put("edge_model_runtime", true)
                 .put("model_runtime_backend", doctor.getString("backend"))
                 .put("can_run_local_llm", doctor.getBoolean("can_run_local_llm"))
-                .put("local_model_runtime_ready", doctor.getBoolean("native_backend_present"))
+                .put("local_model_runtime_ready", doctor.getBoolean("can_run_local_llm"))
                 .put("supported_model_formats", doctor.getJSONArray("supported_model_formats"))
                 .put("available_local_models", doctor.getJSONArray("available_models"))
                 .put("model_runtime_note", doctor.getString("note"));
@@ -202,7 +202,7 @@ public final class AndroidModelRuntime {
         return null;
     }
 
-    private File modelsDir() {
+    public File modelsDir() {
         File external = context.getExternalFilesDir("models");
         File dir = external != null ? external : new File(context.getFilesDir(), "models");
         if (!dir.exists()) {
@@ -211,7 +211,7 @@ public final class AndroidModelRuntime {
         return dir;
     }
 
-    private File binDir() {
+    public File binDir() {
         File external = context.getExternalFilesDir("bin");
         File dir = external != null ? external : new File(context.getFilesDir(), "bin");
         if (!dir.exists()) {

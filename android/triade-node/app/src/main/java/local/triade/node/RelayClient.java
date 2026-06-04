@@ -151,7 +151,7 @@ public final class RelayClient {
                 .put("native_large_heap_requested", true)
                 .put("platform", "Android " + Build.VERSION.RELEASE)
                 .put("device", Build.MANUFACTURER + " " + Build.MODEL)
-                .put("app_version", "0.6.0")
+                .put("app_version", "0.7.0")
                 .put("allowed_tasks", tasks)
                 .put("edge_model_runtime", modelRuntime.getBoolean("edge_model_runtime"))
                 .put("model_runtime_backend", modelRuntime.getString("model_runtime_backend"))

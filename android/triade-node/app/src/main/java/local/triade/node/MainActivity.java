@@ -2,25 +2,37 @@ package local.triade.node;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ContentResolver;
 import android.content.Intent;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+
 public final class MainActivity extends Activity {
+    private static final int REQUEST_IMPORT_LLAMA = 801;
+    private static final int REQUEST_IMPORT_MODEL = 802;
+
     private EditText relayUrl;
     private EditText pairingToken;
     private EditText displayName;
     private SeekBar resourceLimit;
     private TextView resourceLimitLabel;
     private TextView status;
+    private TextView runtimeStatus;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,10 +43,12 @@ public final class MainActivity extends Activity {
     }
 
     private void buildUi() {
+        ScrollView scroll = new ScrollView(this);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(18);
         root.setPadding(pad, pad, pad, pad);
+        scroll.addView(root);
 
         TextView title = new TextView(this);
         title.setText("Triade Android Node");
@@ -87,9 +101,24 @@ public final class MainActivity extends Activity {
         battery.setOnClickListener(v -> openBatterySettings());
         root.addView(battery);
 
+        Button doctor = button("Doctor LLM local");
+        doctor.setOnClickListener(v -> showRuntimeDoctor());
+        root.addView(doctor);
+
+        Button importLlama = button("Importar llama-cli");
+        importLlama.setOnClickListener(v -> openFilePicker(REQUEST_IMPORT_LLAMA));
+        root.addView(importLlama);
+
+        Button importModel = button("Importar modelo GGUF");
+        importModel.setOnClickListener(v -> openFilePicker(REQUEST_IMPORT_MODEL));
+        root.addView(importModel);
+
+        runtimeStatus = new TextView(this);
+        root.addView(runtimeStatus);
+
         status = new TextView(this);
         root.addView(status);
-        setContentView(root);
+        setContentView(scroll);
     }
 
     private void loadConfig() {
@@ -100,6 +129,7 @@ public final class MainActivity extends Activity {
         resourceLimit.setProgress(config.resourceLimitPercent - 10);
         updateResourceLabel();
         status.setText(config.hasIdentity() ? "Nodo guardado: " + config.nodeId : "Sin identidad registrada.");
+        showRuntimeDoctor();
     }
 
     private void startNode() {
@@ -154,6 +184,93 @@ public final class MainActivity extends Activity {
         } catch (Exception ignored) {
             startActivity(new Intent(Settings.ACTION_SETTINGS));
         }
+    }
+
+    private void showRuntimeDoctor() {
+        try {
+            AndroidModelRuntime runtime = new AndroidModelRuntime(this);
+            runtimeStatus.setText(runtime.doctor().toString(2));
+        } catch (Exception exc) {
+            runtimeStatus.setText("Doctor LLM fallo: " + exc.getMessage());
+        }
+    }
+
+    private void openFilePicker(int requestCode) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        startActivityForResult(intent, requestCode);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        Uri uri = data.getData();
+        try {
+            AndroidModelRuntime runtime = new AndroidModelRuntime(this);
+            if (requestCode == REQUEST_IMPORT_LLAMA) {
+                File target = new File(runtime.binDir(), "llama-cli");
+                copyUriToFile(uri, target);
+                target.setExecutable(true, false);
+                status.setText("llama-cli importado. El siguiente pulso reportara el backend.");
+            } else if (requestCode == REQUEST_IMPORT_MODEL) {
+                String name = displayNameForUri(uri);
+                if (!name.toLowerCase().endsWith(".gguf")) {
+                    throw new IllegalArgumentException("El modelo debe ser .gguf");
+                }
+                File target = new File(runtime.modelsDir(), safeFileName(name));
+                copyUriToFile(uri, target);
+                status.setText("Modelo GGUF importado: " + target.getName());
+            }
+            showRuntimeDoctor();
+        } catch (Exception exc) {
+            status.setText("Importacion fallo: " + exc.getMessage());
+            showRuntimeDoctor();
+        }
+    }
+
+    private void copyUriToFile(Uri uri, File target) throws Exception {
+        ContentResolver resolver = getContentResolver();
+        InputStream input = resolver.openInputStream(uri);
+        if (input == null) {
+            throw new IllegalArgumentException("No se pudo abrir el archivo seleccionado.");
+        }
+        File parent = target.getParentFile();
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs();
+        }
+        try (InputStream in = input; FileOutputStream out = new FileOutputStream(target, false)) {
+            byte[] buffer = new byte[1024 * 1024];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+            out.flush();
+        }
+    }
+
+    private String displayNameForUri(Uri uri) {
+        String name = null;
+        try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (index >= 0) {
+                    name = cursor.getString(index);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        if (name == null || name.trim().isEmpty()) {
+            name = "model.gguf";
+        }
+        return name;
+    }
+
+    private String safeFileName(String raw) {
+        return raw.replace("\\", "_").replace("/", "_").replace(":", "_").trim();
     }
 
     private EditText input(String hint) {

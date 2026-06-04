@@ -38,6 +38,14 @@ backend_executable
 install_contract
 ```
 
+Desde `0.7.0`, la pantalla principal permite preparar el host sin copiar rutas manualmente:
+
+- `Doctor LLM local` muestra `bin_dir`, `models_dir`, backend detectado y si `can_run_local_llm` esta activo.
+- `Importar llama-cli` abre el selector de archivos de Android y copia el binario seleccionado como `bin/llama-cli`, marcandolo ejecutable.
+- `Importar modelo GGUF` abre el selector de archivos y copia el `.gguf` seleccionado a `models/`.
+
+Despues de importar ambos archivos, toca `Doctor LLM local`; si devuelve `can_run_local_llm=true`, el siguiente heartbeat del servicio hara que el `8010` pueda usar el nodo como host LLM Android real.
+
 ## Build
 
 Requiere JDK 17+ y Android SDK. Desde `android/triade-node`:
