@@ -13,8 +13,12 @@ Nodo Android nativo para alimentar la Tríade local/federada desde dispositivos 
   - `browser_benchmark`
   - `preprocess_text`
   - `federated_inference_probe`
+  - `android_model_doctor`
+  - `android_local_generate`
 
 Este nodo no instala modelos ni accede a archivos privados por defecto. Es el primer puente nativo para usar CPU/RAM del dispositivo de forma consentida. El runtime distribuido actual ejecuta jobs verificables y devuelve contexto/resultados al 8010; todavia no convierte la RAM del telefono en RAM unificada de Ollama.
+
+Desde `0.4.0`, la APK publica un contrato de runtime local de modelos (`android_model_doctor` y `android_local_generate`). La generacion local devuelve `unavailable` hasta integrar un backend nativo real como llama.cpp u ONNX Runtime.
 
 ## Build
 

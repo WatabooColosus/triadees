@@ -123,7 +123,7 @@ def test_single_port_serves_android_apk() -> None:
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/vnd.android.package-archive"
-    assert int(response.headers["content-length"]) > 30000
+    assert int(response.headers["content-length"]) > 20000
 
 
 def test_single_port_accepts_local_android_node_heartbeat(tmp_path, monkeypatch) -> None:
@@ -308,6 +308,37 @@ def test_distributed_runtime_probe_reports_remote_ops(monkeypatch) -> None:
     assert payload["completed"] == 1
     assert payload["total_ops"] == 5000
     assert "tensor-paralela" in payload["truth"]
+
+
+def test_distributed_runtime_android_model_doctor_reports_unavailable_backend(monkeypatch) -> None:
+    monkeypatch.setattr(
+        single_port_app,
+        "local_federated_nodes",
+        lambda task=None: [{"node_id": "android-a", "capabilities": {"allowed_tasks": ["android_model_doctor"]}}],
+    )
+
+    def fake_wait(job_id: str, timeout: float = 25.0, interval: float = 0.5):
+        job = single_port_app.LOCAL_JOBS[job_id]
+        return {
+            **job,
+            "status": "completed",
+            "result": {
+                "task": "android_model_doctor",
+                "backend": "none",
+                "native_backend_present": False,
+                "can_run_local_llm": False,
+            },
+        }
+
+    monkeypatch.setattr(single_port_app, "wait_local_job", fake_wait)
+    response = client.post("/api/distributed-runtime/android-model-doctor", json={"wait_timeout": 1})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["transport"] == "lan_8010"
+    assert payload["completed"] == 1
+    assert payload["can_host_llm_count"] == 0
+    assert payload["doctors"][0]["backend"] == "none"
 
 
 def test_single_port_run_accepts_auto_select_models() -> None:

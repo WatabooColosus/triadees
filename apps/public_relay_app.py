@@ -42,7 +42,7 @@ class HeartbeatRequest(BaseModel):
 
 class JobRequest(BaseModel):
     node_id: str
-    task: str = Field(..., pattern="^(echo|sha256|browser_benchmark|preprocess_text|federated_inference_probe)$")
+    task: str = Field(..., pattern="^(echo|sha256|browser_benchmark|preprocess_text|federated_inference_probe|android_model_doctor|android_local_generate)$")
     payload: dict[str, Any] = Field(default_factory=dict)
     seconds: float = Field(default=2.0, ge=0.1, le=20.0)
 
@@ -278,7 +278,7 @@ def _normalize_capabilities(payload: dict[str, Any]) -> dict[str, Any]:
         "wake_lock_available": bool(payload.get("wake_lock_available")),
         "persistent_browser_identity": bool(payload.get("persistent_browser_identity")),
         "background_execution": bool(payload.get("background_execution")) if native_android else False,
-        "allowed_tasks": payload.get("allowed_tasks") if isinstance(payload.get("allowed_tasks"), list) else ["echo", "sha256", "browser_benchmark", "preprocess_text", "federated_inference_probe"],
+        "allowed_tasks": payload.get("allowed_tasks") if isinstance(payload.get("allowed_tasks"), list) else ["echo", "sha256", "browser_benchmark", "preprocess_text", "federated_inference_probe", "android_model_doctor", "android_local_generate"],
     }
 
 

@@ -88,6 +88,10 @@ class DistributedProbeRequest(BaseModel):
     wait_timeout: float = Field(default=30.0, ge=1.0, le=120.0)
 
 
+class DistributedModelDoctorRequest(BaseModel):
+    wait_timeout: float = Field(default=30.0, ge=1.0, le=120.0)
+
+
 class SemanticIngestRequest(BaseModel):
     content: str = Field(..., min_length=1)
     domain: str = "general"
@@ -355,6 +359,9 @@ def node_model_readiness(node: dict[str, Any]) -> dict[str, Any]:
         "recommended_use": support.get("recommended_use", "unknown"),
         "can_host_llm": can_host_llm,
         "can_feed_local_models": feed_ready,
+        "edge_model_runtime": bool(caps.get("edge_model_runtime") or support.get("edge_model_runtime")),
+        "model_runtime_backend": caps.get("model_runtime_backend") or support.get("model_runtime_backend") or "none",
+        "local_model_runtime_ready": bool(caps.get("local_model_runtime_ready") or support.get("local_model_runtime_ready")),
         "runnable_models": runnable,
         "feed_targets": feed_only,
         "missing_for_comfortable_models": missing,
@@ -414,7 +421,7 @@ def federated_model_plan(nodes: list[dict[str, Any]]) -> dict[str, Any]:
             task
             for node in runtime_ready
             for task in (((node.get("capabilities") or {}).get("allowed_tasks") or []))
-            if task in {"preprocess_text", "federated_inference_probe"}
+            if task in {"preprocess_text", "federated_inference_probe", "android_model_doctor", "android_local_generate"}
         }),
         "runnable_by_aggregate_ram": runnable_by_sum,
         "candidate_models": candidate_models,
@@ -730,6 +737,46 @@ def distributed_runtime_probe(request: DistributedProbeRequest) -> dict[str, Any
     }
 
 
+@app.post("/api/distributed-runtime/android-model-doctor")
+def distributed_runtime_android_model_doctor(request: DistributedModelDoctorRequest) -> dict[str, Any]:
+    nodes = local_federated_nodes("android_model_doctor")
+    jobs = []
+    transport = "lan_8010"
+    if nodes:
+        for node in nodes:
+            jobs.append(create_local_job(str(node["node_id"]), task="android_model_doctor", seconds=1.0))
+        results = [wait_local_job(str(job["job_id"]), timeout=request.wait_timeout) for job in jobs]
+    else:
+        relay = relay_settings()
+        results = []
+        transport = "public_relay_fallback"
+        if relay.get("admin_token"):
+            federation = Federation()
+            client = PublicRelayClient(str(relay["url"]), str(relay["admin_token"]), timeout=12)
+            sync = client.sync_nodes_to_federation(federation)
+            for node in sync.get("nodes", []):
+                capabilities = node.get("capabilities") or {}
+                if not capabilities.get("online") or "android_model_doctor" not in capabilities.get("allowed_tasks", []):
+                    continue
+                job_id = client.create_job(str(node["node_id"]), task="android_model_doctor", seconds=1.0)
+                results.append({"job_id": job_id, "node_id": node["node_id"], "job": client.wait_for_job(job_id, timeout=request.wait_timeout)})
+    completed = [item for item in results if (item.get("status") == "completed" or (item.get("job") or {}).get("status") == "completed")]
+    doctors = [(item.get("result") or (item.get("job") or {}).get("result") or {}) for item in completed]
+    ready_hosts = [doctor for doctor in doctors if doctor.get("can_run_local_llm")]
+    return {
+        "status": "ok" if completed else "degraded",
+        "mode": "distributed-runtime",
+        "task": "android_model_doctor",
+        "transport": transport,
+        "submitted": len(jobs) if transport == "lan_8010" else len(results),
+        "completed": len(completed),
+        "can_host_llm_count": len(ready_hosts),
+        "doctors": doctors,
+        "jobs": results,
+        "truth": "Android puede hospedar modelos solo cuando can_run_local_llm=true y exista backend nativo cargado.",
+    }
+
+
 @app.get("/api/semantic/doctor")
 def semantic_doctor() -> dict[str, Any]:
     return SemanticEmbeddingEngine().doctor()
@@ -832,7 +879,7 @@ TRIADE_UI_HTML = """
 <aside class='rail'><div class='brand'><h1>Tríade Ω</h1><span id='liveDot' class='state-dot'></span></div><div class='hint'>8010 local: conversación, memoria, modelos y federación.</div>
 <div class='section'><h2>Modo</h2><label>API key</label><input id='key' type='password'/><div class='row'><div><label>Intención</label><select id='intent'><option>conversation</option><option>analyze</option><option>memory</option><option>build_or_update</option></select></div><div><label>Urgencia</label><select id='urgency'><option>medium</option><option>low</option><option>high</option></select></div></div><label class='toggle'><input id='ollama' type='checkbox'/> Usar Ollama</label><label class='toggle'><input id='auto' type='checkbox' checked/> Auto elegir modelos</label><button onclick='save()'>Guardar estado</button></div>
 <div class='section'><h2>Cristal</h2><label>Proyecto</label><input id='project' placeholder='triade-local'/><label>Neurona activa</label><input id='neuron' placeholder='cristal, bodega...'/><details><summary>Contexto especial</summary><label>Sesión</label><input id='session' placeholder='sesion-prueba-01'/><label>Scope</label><select id='scope'><option value=''>Automático</option><option value='source_intent'>Source + intent</option><option value='session'>Sesión</option><option value='project'>Proyecto</option><option value='neuron'>Neurona</option><option value='project_neuron'>Proyecto + neurona</option></select><label>Hipotálamo</label><input id='hyp' value=''/><label>Central</label><input id='cen' value=''/></details></div>
-<div class='section'><h2>Acciones</h2><button onclick='capacity(true)'>Actualizar pulso</button><button class='secondary' onclick='runtimeProbe()'>Probar runtime distribuido</button><button class='secondary' onclick='runtimePreprocess()'>Preprocesar en nodos</button><button class='secondary' onclick='router()'>Recomendar modelos</button><a href='/downloads/triade-android-node.apk'><button class='secondary' type='button'>Descargar Android Node</button></a><details><summary>Herramientas ocasionales</summary><button class='secondary' onclick='health()'>Health completo</button><button class='secondary' onclick='compat()'>Compatibilidad</button><button class='secondary' onclick='installQueue()'>Cola modelos</button><button class='secondary' onclick='semanticDoctor()'>Memoria semántica</button><button class='ghost' onclick='apply()'>Aplicar recomendados</button><button class='ghost' onclick='clearChat()'>Limpiar chat</button></details><div id='box' class='box'>Pulso inicial pendiente.</div></div></aside>
+<div class='section'><h2>Acciones</h2><button onclick='capacity(true)'>Actualizar pulso</button><button class='secondary' onclick='androidModelDoctor()'>Doctor modelos Android</button><button class='secondary' onclick='runtimeProbe()'>Probar runtime distribuido</button><button class='secondary' onclick='runtimePreprocess()'>Preprocesar en nodos</button><button class='secondary' onclick='router()'>Recomendar modelos</button><a href='/downloads/triade-android-node.apk'><button class='secondary' type='button'>Descargar Android Node</button></a><details><summary>Herramientas ocasionales</summary><button class='secondary' onclick='health()'>Health completo</button><button class='secondary' onclick='compat()'>Compatibilidad</button><button class='secondary' onclick='installQueue()'>Cola modelos</button><button class='secondary' onclick='semanticDoctor()'>Memoria semántica</button><button class='ghost' onclick='apply()'>Aplicar recomendados</button><button class='ghost' onclick='clearChat()'>Limpiar chat</button></details><div id='box' class='box'>Pulso inicial pendiente.</div></div></aside>
 <main class='main'><div class='top'><div><b>Chat local auditable</b><br><span id='status' class='muted'>Iniciando pulso...</span></div><div class='organs'><span id='orgCentral' class='organ'>Central</span><span id='orgHyp' class='organ'>Hipotálamo</span><span id='orgMem' class='organ'>Bodega</span><span id='orgFed' class='organ'>Federación</span></div></div><section id='chat' class='chat'></section><div class='composer'><textarea id='msg' placeholder='Escribe... Ctrl+Enter' onkeydown='keysend(event)'></textarea><button onclick='send()'>Enviar</button></div></main>
 <aside class='pulse'><h2>Pulso vivo</h2><div id='summary' class='grid2'><div class='metric'><b>...</b><span>PC</span></div><div class='metric'><b>...</b><span>Nodos</span></div></div><div id='missing' class='section'></div><div class='section'><h2>Modelos</h2><div id='models' class='model-list'><span class='empty'>Sin lectura todavía.</span></div></div><div class='section'><h2>Nodos que alimentan</h2><div id='nodes'><span class='empty'>Sin nodos sincronizados.</span></div></div><div class='live-line' id='liveLine'>Sincronización cada 15 s.</div></aside>
 </div><script>
@@ -842,6 +889,7 @@ function renderCapacity(j){lastCapacity=j;let h=j.local.hardware, f=j.federation
 async function capacity(manual=false){try{let r=await fetch('/api/system/model-capacity?sync_relay=true');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);renderCapacity(j);if(manual)add('bot','Pulso vivo actualizado: revisé PC, modelos, nodos y constantes.')}catch(e){$('liveDot').className='state-dot';status('Pulso falló: '+e.message);$('box').textContent='Error de pulso: '+e.message}}
 async function health(){try{let r=await fetch('/api/health');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({mode:j.mode,hardware:j.hardware,contexts:j.doctor?.crystal_contexts,ollama:j.ollama?.ok,runs:j.doctor?.counts?.runs},null,2);status('Health OK',true)}catch(e){status('Health falló: '+e.message)}}async function router(){try{let r=await fetch('/api/router/doctor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent:$('intent').value,urgency:$('urgency').value})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);lastRouter=j;let d=j.router.decisions;$('box').textContent=JSON.stringify({central:d.central?.selected_model,hypothalamus:d.hypothalamus?.selected_model,fast:d.fast?.selected_model,deep:d.deep?.selected_model},null,2);status('Router OK',true)}catch(e){status('Router falló: '+e.message)}}async function compat(){try{let r=await fetch('/api/models/compatibility');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.matrix.summary,counts:j.matrix.counts,models:j.matrix.models},null,2);status('Compatibilidad OK',true)}catch(e){status('Compatibilidad falló: '+e.message)}}async function installQueue(){try{let r=await fetch('/api/models/install-queue?include_allowed=false');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.summary,count:j.count,policy:j.policy,candidates:j.candidates},null,2);status('Cola OK',true)}catch(e){status('Cola falló: '+e.message)}}async function semanticDoctor(){try{let r=await fetch('/api/semantic/governance/doctor');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify(j,null,2);status('Gobierno semántico consultado',true)}catch(e){status('Memoria semántica falló: '+e.message)}}function apply(){if(!lastRouter){status('Consulta router primero');return}let d=lastRouter.router.decisions;if(d.hypothalamus?.selected_model)$('hyp').value=d.hypothalamus.selected_model;if(d.central?.selected_model)$('cen').value=d.central.selected_model;$('ollama').checked=true;$('auto').checked=false;save();status('Recomendados aplicados',true)}
 async function runtimeProbe(){let prompt=$('msg').value.trim()||'Pulso de inferencia distribuida Tríade';status('Enviando señal a nodos...');try{let r=await fetch('/api/distributed-runtime/probe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,iterations:250000,wait_timeout:35})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({status:j.status,submitted:j.submitted,completed:j.completed,total_ops:j.total_ops,truth:j.truth},null,2);add('bot',`Runtime distribuido: ${j.completed}/${j.submitted} nodos respondieron · ops ${j.total_ops||0}`);capacity(false)}catch(e){$('box').textContent='Runtime falló: '+e.message;status('Runtime falló: '+e.message)}}
+async function androidModelDoctor(){status('Consultando modelos Android...');try{let r=await fetch('/api/distributed-runtime/android-model-doctor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({wait_timeout:35})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({transport:j.transport,completed:j.completed,can_host_llm_count:j.can_host_llm_count,doctors:j.doctors,truth:j.truth},null,2);add('bot',`Doctor Android: ${j.completed} nodos respondieron · hosts LLM reales ${j.can_host_llm_count}.`);capacity(false)}catch(e){$('box').textContent='Doctor Android falló: '+e.message;status('Doctor Android falló: '+e.message)}}
 async function runtimePreprocess(){let text=$('msg').value.trim()||'Tríade necesita preparar contexto local con CPU de dispositivos federados autorizados.';status('Preprocesando en nodos...');try{let r=await fetch('/api/distributed-runtime/preprocess',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,max_chunk_chars:1200,wait_timeout:35})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({status:j.status,submitted:j.submitted,completed:j.completed,nodes_used:j.nodes_used,model_feed:j.model_feed},null,2);add('bot',`Preproceso federado listo: ${j.model_feed.word_count||0} palabras, ${j.model_feed.approx_tokens||0} tokens aprox, ${j.completed}/${j.submitted} nodos.`);capacity(false)}catch(e){$('box').textContent='Preproceso falló: '+e.message;status('Preproceso falló: '+e.message)}}
 async function send(){save();let text=$('msg').value.trim();if(!text)return;$('msg').value='';add('user',text);status('Procesando...');try{let r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-TRIADE-API-Key':$('key').value},body:JSON.stringify({text,source:'single-port-ui',use_ollama:$('ollama').checked,hypothalamus_model:$('hyp').value,central_model:$('cen').value,auto_select_models:$('auto').checked,context:context()})});let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);let t=j.crystal_temporal_state||{};add('bot',j.response,[j.run_id,'Q '+t.status,'scope '+t.context_scope,'ctx '+t.context_key,'H '+j.models?.hypothalamus?.name,'C '+j.models?.central?.name].filter(Boolean).join(' · '));status('Respuesta recibida',true);capacity(false)}catch(e){add('bot','Error: '+e.message);status('Error')}}function clearChat(){$('chat').innerHTML=''}function keysend(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send()}load();add('bot','Tríade Ω lista. Mantengo pulso vivo de PC, modelos y nodos.');capacity(false);setInterval(()=>capacity(false),15000);
 </script></body></html>

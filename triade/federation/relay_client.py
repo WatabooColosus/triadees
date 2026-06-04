@@ -160,7 +160,7 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
     authorized_cpu = int(raw.get("cpu_authorized_count") or max(1, int(cpu * (resource_limit / 100.0)))) if native_android else 0
     authorized_memory = float(raw.get("ram_authorized_gb") or (memory * (resource_limit / 100.0))) if native_android else 0.0
     capability_tier = _browser_tier(cpu, memory)
-    allowed_tasks = raw.get("allowed_tasks") if isinstance(raw.get("allowed_tasks"), list) else ["echo", "sha256", "browser_benchmark", "preprocess_text", "federated_inference_probe"]
+    allowed_tasks = raw.get("allowed_tasks") if isinstance(raw.get("allowed_tasks"), list) else ["echo", "sha256", "browser_benchmark", "preprocess_text", "federated_inference_probe", "android_model_doctor", "android_local_generate"]
     capabilities = {
         **raw,
         "source": "public_relay",
@@ -191,6 +191,12 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
             "resource_limit_percent": resource_limit,
             "resource_limit_reported": bool(has_reported_limit and native_android),
             "resource_limit_source": "device_reported" if has_reported_limit and native_android else ("default_60_missing_from_relay" if native_android else "not_native"),
+            "edge_model_runtime": bool(raw.get("edge_model_runtime")),
+            "model_runtime_backend": raw.get("model_runtime_backend"),
+            "can_run_local_llm": bool(raw.get("can_run_local_llm")),
+            "local_model_runtime_ready": bool(raw.get("local_model_runtime_ready")),
+            "supported_model_formats": raw.get("supported_model_formats") if isinstance(raw.get("supported_model_formats"), list) else [],
+            "available_local_models": raw.get("available_local_models") if isinstance(raw.get("available_local_models"), list) else [],
         }),
     }
     return capabilities
@@ -204,13 +210,17 @@ def model_support_from_capabilities(capabilities: dict[str, Any]) -> dict[str, A
     authorized_cpu = int(capabilities.get("cpu_authorized_count") or (cpu if native_android else 0))
     memory = float(capabilities.get("ram_authorized_gb") or capabilities.get("device_memory_gb") or 0.0) if native_android else 0.0
     ready = online and native_android and authorized_cpu >= 1 and memory >= 0.5
-    recommended = "android_native_cpu_feed" if ready else "not_federated"
-    assist = ["hashing", "benchmark", "preprocess", "context_chunking", "federated_inference_probe", "background_cpu_feed"] if ready else ["heartbeat"]
+    local_model_ready = bool(capabilities.get("can_run_local_llm") or capabilities.get("local_model_runtime_ready"))
+    can_host_llm = bool(ready and local_model_ready)
+    recommended = "android_local_llm_host" if can_host_llm else ("android_native_cpu_feed" if ready else "not_federated")
+    assist = ["hashing", "benchmark", "preprocess", "context_chunking", "federated_inference_probe", "android_model_doctor", "background_cpu_feed"] if ready else ["heartbeat"]
+    if can_host_llm:
+        assist.append("android_local_generate")
     return {
         "ready_for_model_management": ready,
         "local_ollama": False,
         "recommended_use": recommended,
-        "can_host_llm": False,
+        "can_host_llm": can_host_llm,
         "can_assist": assist,
         "benchmark_score": score,
         "authorized_cpu_count": authorized_cpu,
@@ -218,6 +228,9 @@ def model_support_from_capabilities(capabilities: dict[str, Any]) -> dict[str, A
         "resource_limit_percent": int(capabilities.get("resource_limit_percent") or 0),
         "resource_limit_reported": bool(capabilities.get("resource_limit_reported")),
         "resource_limit_source": str(capabilities.get("resource_limit_source") or "unknown"),
+        "edge_model_runtime": bool(capabilities.get("edge_model_runtime")),
+        "model_runtime_backend": capabilities.get("model_runtime_backend") or "none",
+        "local_model_runtime_ready": local_model_ready,
         "note": "Nodo Android nativo: alimenta modelos locales con CPU/RAM autorizadas y servicio en primer plano." if native_android
         else "Browser descartado: no invierte recursos nativos en el modelo local.",
     }

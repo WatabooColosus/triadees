@@ -78,6 +78,12 @@ public final class RelayClient {
         if ("federated_inference_probe".equals(task)) {
             return TextPreprocessor.inferenceProbe(payload.optString("prompt", ""), payload.optInt("iterations", 250000));
         }
+        if ("android_model_doctor".equals(task)) {
+            return new AndroidModelRuntime(context).doctor();
+        }
+        if ("android_local_generate".equals(task)) {
+            return new AndroidModelRuntime(context).generate(payload);
+        }
         return benchmark(job.optDouble("seconds", 2.0));
     }
 
@@ -114,7 +120,10 @@ public final class RelayClient {
                 .put("sha256")
                 .put("browser_benchmark")
                 .put("preprocess_text")
-                .put("federated_inference_probe");
+                .put("federated_inference_probe")
+                .put("android_model_doctor")
+                .put("android_local_generate");
+        JSONObject modelRuntime = new AndroidModelRuntime(context).capabilities();
         return new JSONObject()
                 .put("native_android", true)
                 .put("app_node", true)
@@ -128,8 +137,15 @@ public final class RelayClient {
                 .put("ram_total_gb", memory.totalMem / 1073741824.0)
                 .put("platform", "Android " + Build.VERSION.RELEASE)
                 .put("device", Build.MANUFACTURER + " " + Build.MODEL)
-                .put("app_version", "0.3.0")
-                .put("allowed_tasks", tasks);
+                .put("app_version", "0.4.0")
+                .put("allowed_tasks", tasks)
+                .put("edge_model_runtime", modelRuntime.getBoolean("edge_model_runtime"))
+                .put("model_runtime_backend", modelRuntime.getString("model_runtime_backend"))
+                .put("can_run_local_llm", modelRuntime.getBoolean("can_run_local_llm"))
+                .put("local_model_runtime_ready", modelRuntime.getBoolean("local_model_runtime_ready"))
+                .put("supported_model_formats", modelRuntime.getJSONArray("supported_model_formats"))
+                .put("available_local_models", modelRuntime.getJSONArray("available_local_models"))
+                .put("model_runtime_note", modelRuntime.getString("model_runtime_note"));
     }
 
     private JSONObject get(String url) throws Exception {

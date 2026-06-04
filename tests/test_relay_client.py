@@ -194,6 +194,49 @@ def test_sync_native_android_node_marks_cpu_feed(tmp_path):
     assert "background_cpu_feed" in support["can_assist"]
 
 
+def test_sync_native_android_model_runtime_can_host_llm_when_backend_ready(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "nodes": [
+                    {
+                        "node_id": "android-llm",
+                        "display_name": "Android LLM",
+                        "online": True,
+                        "capabilities": {
+                            "native_android": True,
+                            "app_node": True,
+                            "cpu_count": 8,
+                            "ram_available_gb": 6,
+                            "resource_limit_percent": 90,
+                            "cpu_authorized_count": 7,
+                            "ram_authorized_gb": 5.4,
+                            "edge_model_runtime": True,
+                            "model_runtime_backend": "llama.cpp",
+                            "can_run_local_llm": True,
+                            "local_model_runtime_ready": True,
+                            "allowed_tasks": ["android_model_doctor", "android_local_generate"],
+                        },
+                    }
+                ]
+            },
+        )
+
+    federation = Federation(db_path=tmp_path / "triade.db")
+    client = PublicRelayClient("https://relay.test", "admin", client=make_client(handler))
+
+    client.sync_nodes_to_federation(federation)
+    node = federation.get_node("android-llm")
+
+    assert node is not None
+    support = node["capabilities"]["model_support"]
+    assert support["recommended_use"] == "android_local_llm_host"
+    assert support["can_host_llm"] is True
+    assert support["model_runtime_backend"] == "llama.cpp"
+    assert "android_local_generate" in support["can_assist"]
+
+
 def test_sync_native_android_marks_missing_resource_limit_as_assumed(tmp_path):
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
