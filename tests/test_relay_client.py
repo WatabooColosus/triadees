@@ -194,6 +194,40 @@ def test_sync_native_android_node_marks_cpu_feed(tmp_path):
     assert "background_cpu_feed" in support["can_assist"]
 
 
+def test_sync_native_android_marks_missing_resource_limit_as_assumed(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "nodes": [
+                    {
+                        "node_id": "android-old-relay",
+                        "display_name": "Android sin porcentaje",
+                        "online": True,
+                        "capabilities": {
+                            "native_android": True,
+                            "app_node": True,
+                            "cpu_count": 8,
+                            "ram_available_gb": 2,
+                        },
+                    }
+                ]
+            },
+        )
+
+    federation = Federation(db_path=tmp_path / "triade.db")
+    client = PublicRelayClient("https://relay.test", "admin", client=make_client(handler))
+
+    client.sync_nodes_to_federation(federation)
+    node = federation.get_node("android-old-relay")
+
+    assert node is not None
+    caps = node["capabilities"]
+    assert caps["resource_limit_percent"] == 60
+    assert caps["resource_limit_reported"] is False
+    assert caps["resource_limit_source"] == "default_60_missing_from_relay"
+
+
 def test_sync_preserves_existing_benchmark_score(tmp_path):
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(

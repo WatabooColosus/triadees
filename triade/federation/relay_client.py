@@ -155,6 +155,7 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
     memory = float(raw.get("ram_available_gb") or raw.get("device_memory_gb") or 0.0)
     online = bool(node.get("online"))
     native_android = bool(raw.get("native_android") or raw.get("app_node"))
+    has_reported_limit = "resource_limit_percent" in raw
     resource_limit = max(0, min(100, int(raw.get("resource_limit_percent") or 60))) if native_android else 0
     authorized_cpu = int(raw.get("cpu_authorized_count") or max(1, int(cpu * (resource_limit / 100.0)))) if native_android else 0
     authorized_memory = float(raw.get("ram_authorized_gb") or (memory * (resource_limit / 100.0))) if native_android else 0.0
@@ -175,6 +176,8 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
         "ram_available_gb": memory,
         "ram_authorized_gb": authorized_memory,
         "resource_limit_percent": resource_limit,
+        "resource_limit_reported": bool(has_reported_limit and native_android),
+        "resource_limit_source": "device_reported" if has_reported_limit and native_android else ("default_60_missing_from_relay" if native_android else "not_native"),
         "federation_complete": bool(native_android and online and resource_limit > 0),
         "allowed_tasks": allowed_tasks,
         "model_support": model_support_from_capabilities({
@@ -186,6 +189,8 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
             "native_android": native_android,
             "background_execution": bool(raw.get("background_execution")),
             "resource_limit_percent": resource_limit,
+            "resource_limit_reported": bool(has_reported_limit and native_android),
+            "resource_limit_source": "device_reported" if has_reported_limit and native_android else ("default_60_missing_from_relay" if native_android else "not_native"),
         }),
     }
     return capabilities
@@ -211,6 +216,8 @@ def model_support_from_capabilities(capabilities: dict[str, Any]) -> dict[str, A
         "authorized_cpu_count": authorized_cpu,
         "authorized_ram_gb": memory,
         "resource_limit_percent": int(capabilities.get("resource_limit_percent") or 0),
+        "resource_limit_reported": bool(capabilities.get("resource_limit_reported")),
+        "resource_limit_source": str(capabilities.get("resource_limit_source") or "unknown"),
         "note": "Nodo Android nativo: alimenta modelos locales con CPU/RAM autorizadas y servicio en primer plano." if native_android
         else "Browser descartado: no invierte recursos nativos en el modelo local.",
     }
