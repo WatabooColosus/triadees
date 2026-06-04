@@ -55,3 +55,26 @@ def test_public_relay_registers_node_and_completes_job(tmp_path, monkeypatch) ->
 
     jobs = client.get("/api/jobs", headers=headers)
     assert jobs.json()["jobs"][0]["status"] == "completed"
+
+
+def test_public_relay_accepts_preprocess_text_job(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(public_relay_app, "DB_PATH", tmp_path / "relay.db")
+    monkeypatch.setattr(public_relay_app, "PAIRING_TOKEN", "pair")
+    monkeypatch.setattr(public_relay_app, "ADMIN_TOKEN", "admin")
+    client = TestClient(app)
+
+    node = client.post(
+        "/api/register",
+        json={"pairing_token": "pair", "display_name": "Tablet", "capabilities": {"hardware_concurrency": 8}},
+    ).json()
+    headers = {"Authorization": "Bearer admin"}
+
+    created = client.post(
+        "/api/jobs",
+        headers=headers,
+        json={"node_id": node["node_id"], "task": "preprocess_text", "payload": {"text": "hola triade"}},
+    )
+
+    assert created.status_code == 200
+    next_job = client.get("/api/jobs/next", params={"node_id": node["node_id"], "node_token": node["node_token"]})
+    assert next_job.json()["job"]["task"] == "preprocess_text"

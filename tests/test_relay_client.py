@@ -92,3 +92,57 @@ def test_benchmark_online_nodes_updates_model_feed(tmp_path):
     assert node["capabilities"]["benchmark_score"] == 1000
     assert node["capabilities"]["compute_status"] == "ready"
     assert node["capabilities"]["model_support"]["can_host_llm"] is False
+
+
+def test_preprocess_text_online_returns_model_feed(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/nodes":
+            return httpx.Response(
+                200,
+                json={
+                    "nodes": [
+                        {
+                            "node_id": "web-phone",
+                            "display_name": "Celular",
+                            "online": True,
+                            "capabilities": {"cpu_count": 8, "device_memory_gb": 8},
+                        }
+                    ]
+                },
+            )
+        if request.url.path == "/api/jobs" and request.method == "POST":
+            payload = request.read().decode("utf-8")
+            assert "preprocess_text" in payload
+            return httpx.Response(200, json={"status": "ok", "job_id": "rjob-pre"})
+        if request.url.path == "/api/jobs" and request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "jobs": [
+                        {
+                            "job_id": "rjob-pre",
+                            "node_id": "web-phone",
+                            "status": "completed",
+                            "result": {
+                                "task": "preprocess_text",
+                                "chars": 18,
+                                "word_count": 3,
+                                "approx_tokens": 5,
+                                "keywords": [{"term": "triade", "count": 2}],
+                                "chunks": [{"index": 0, "start": 0, "end": 18, "text": "triade usa nodos"}],
+                            },
+                        }
+                    ]
+                },
+            )
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    federation = Federation(db_path=tmp_path / "triade.db")
+    client = PublicRelayClient("https://relay.test", "admin", client=make_client(handler))
+
+    result = client.preprocess_text_online(federation, "triade usa nodos", wait_timeout=1)
+
+    assert result["completed"] == 1
+    assert result["model_feed"]["ready_for_local_model"] is True
+    assert result["model_feed"]["keywords"][0]["term"] == "triade"
+    assert result["model_feed"]["chunks"][0]["node_id"] == "web-phone"

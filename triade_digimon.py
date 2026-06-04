@@ -325,6 +325,19 @@ def handle_relay(args: argparse.Namespace) -> None:
             }
         )
         return
+    if args.relay_command == "preprocess-text":
+        _require_admin_token(args.admin_token)
+        federation = Federation(db_path=args.db)
+        client = PublicRelayClient(base_url=base_url, admin_token=args.admin_token)
+        print_json(
+            client.preprocess_text_online(
+                federation,
+                text=args.text,
+                max_chunk_chars=args.max_chunk_chars,
+                wait_timeout=args.wait_timeout,
+            )
+        )
+        return
 
     raise SystemExit("Comando relay invalido")
 
@@ -507,6 +520,11 @@ def main() -> None:
 
     relay_feed = relay_subparsers.add_parser("model-feed", help="Resume nodos que alimentan la planificacion local de modelos")
     relay_feed.add_argument("--min-tier", default="low", help="low|medium|high")
+
+    relay_preprocess = relay_subparsers.add_parser("preprocess-text", help="Preprocesa contexto en nodos browser para alimentar modelos locales")
+    relay_preprocess.add_argument("text", help="Texto/contexto a preparar")
+    relay_preprocess.add_argument("--max-chunk-chars", type=int, default=1200, help="Tamano maximo de chunk")
+    relay_preprocess.add_argument("--wait-timeout", type=float, default=45.0, help="Tiempo maximo de espera por job")
 
     args = parser.parse_args()
 

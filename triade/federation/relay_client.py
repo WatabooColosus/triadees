@@ -89,6 +89,39 @@ class PublicRelayClient:
             jobs.append({"job_id": job_id, "node_id": node["node_id"], "job": result_job, "node": updated})
         return {"status": "ok", "synced": sync["synced"], "benchmarks": jobs}
 
+    def preprocess_text_online(
+        self,
+        federation: Federation,
+        text: str,
+        max_chunk_chars: int = 1200,
+        wait_timeout: float = 45.0,
+    ) -> dict[str, Any]:
+        sync = self.sync_nodes_to_federation(federation)
+        jobs = []
+        for node in sync["nodes"]:
+            capabilities = node.get("capabilities") or {}
+            if not capabilities.get("online"):
+                continue
+            if "preprocess_text" not in capabilities.get("allowed_tasks", []):
+                continue
+            job_id = self.create_job(
+                str(node["node_id"]),
+                task="preprocess_text",
+                payload={"text": text, "max_chunk_chars": max_chunk_chars},
+                seconds=1.0,
+            )
+            result_job = self.wait_for_job(job_id, timeout=wait_timeout)
+            jobs.append({"job_id": job_id, "node_id": node["node_id"], "job": result_job})
+        completed = [job for job in jobs if job["job"].get("status") == "completed"]
+        return {
+            "status": "ok",
+            "synced": sync["synced"],
+            "submitted": len(jobs),
+            "completed": len(completed),
+            "results": jobs,
+            "model_feed": _merge_preprocess_results(completed),
+        }
+
     def _update_node_with_job_result(
         self,
         federation: Federation,
@@ -124,7 +157,7 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
         "browser_tier": raw.get("tier", "browser"),
         "cpu_count": cpu,
         "device_memory_gb": memory,
-        "allowed_tasks": ["echo", "sha256", "browser_benchmark"],
+        "allowed_tasks": ["echo", "sha256", "browser_benchmark", "preprocess_text"],
         "model_support": model_support_from_capabilities({"cpu_count": cpu, "device_memory_gb": memory, "online": online}),
     }
     return capabilities
@@ -141,7 +174,7 @@ def model_support_from_capabilities(capabilities: dict[str, Any]) -> dict[str, A
         "local_ollama": False,
         "recommended_use": "browser_preprocess" if ready else "heartbeat_only",
         "can_host_llm": False,
-        "can_assist": ["hashing", "benchmark", "preprocess"] if ready else ["heartbeat"],
+        "can_assist": ["hashing", "benchmark", "preprocess", "context_chunking"] if ready else ["heartbeat"],
         "benchmark_score": score,
         "note": "Nodo browser: alimenta planificación y tareas ligeras; no hospeda Ollama ni modelos nativos.",
     }
@@ -153,3 +186,34 @@ def _browser_tier(cpu: int, memory_gb: float) -> str:
     if cpu >= 4 and memory_gb >= 2:
         return "low"
     return "low"
+
+
+def _merge_preprocess_results(completed_jobs: list[dict[str, Any]]) -> dict[str, Any]:
+    keyword_counts: dict[str, int] = {}
+    chunks: list[dict[str, Any]] = []
+    total_words = 0
+    total_chars = 0
+    for item in completed_jobs:
+        result = item["job"].get("result") or {}
+        total_words = max(total_words, int(result.get("word_count") or 0))
+        total_chars = max(total_chars, int(result.get("chars") or 0))
+        for keyword in result.get("keywords") or []:
+            term = str(keyword.get("term") or "").strip().lower()
+            if term:
+                keyword_counts[term] = keyword_counts.get(term, 0) + int(keyword.get("count") or 0)
+        for chunk in result.get("chunks") or []:
+            if isinstance(chunk, dict):
+                chunks.append({**chunk, "node_id": item["node_id"]})
+    keywords = [
+        {"term": term, "count": count}
+        for term, count in sorted(keyword_counts.items(), key=lambda pair: (-pair[1], pair[0]))[:24]
+    ]
+    return {
+        "ready_for_local_model": bool(completed_jobs),
+        "chars": total_chars,
+        "word_count": total_words,
+        "approx_tokens": int(total_words * 1.35) if total_words else 0,
+        "keywords": keywords,
+        "chunks": chunks,
+        "note": "Contexto preprocesado por nodos browser autorizados antes de invocar modelos locales.",
+    }

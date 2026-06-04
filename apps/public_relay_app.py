@@ -41,7 +41,7 @@ class HeartbeatRequest(BaseModel):
 
 class JobRequest(BaseModel):
     node_id: str
-    task: str = Field(..., pattern="^(echo|sha256|browser_benchmark)$")
+    task: str = Field(..., pattern="^(echo|sha256|browser_benchmark|preprocess_text)$")
     payload: dict[str, Any] = Field(default_factory=dict)
     seconds: float = Field(default=2.0, ge=0.1, le=20.0)
 
@@ -226,6 +226,7 @@ def _normalize_capabilities(payload: dict[str, Any]) -> dict[str, Any]:
         "user_agent": str(payload.get("user_agent") or "unknown")[:300],
         "screen": payload.get("screen") if isinstance(payload.get("screen"), dict) else {},
         "public_relay": True,
+        "webgpu_available": bool(payload.get("webgpu_available")),
         "background_execution": False,
     }
 
@@ -263,7 +264,7 @@ HTML = """
 </main>
 <script>
 let nodeId="", nodeToken="", running=false;
-function caps(){return {hardware_concurrency:navigator.hardwareConcurrency||1,device_memory_gb:navigator.deviceMemory||0,platform:navigator.platform,user_agent:navigator.userAgent,screen:{width:screen.width,height:screen.height,pixel_ratio:devicePixelRatio||1}}}
+function caps(){return {hardware_concurrency:navigator.hardwareConcurrency||1,device_memory_gb:navigator.deviceMemory||0,platform:navigator.platform,user_agent:navigator.userAgent,webgpu_available:!!navigator.gpu,screen:{width:screen.width,height:screen.height,pixel_ratio:devicePixelRatio||1}}}
 function show(x){document.getElementById("out").textContent=typeof x==="string"?x:JSON.stringify(x,null,2)}
 async function registerNode(){
   const r=await fetch("/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pairing_token:document.getElementById("token").value.trim(),display_name:document.getElementById("name").value.trim()||"Dispositivo web",capabilities:caps()})});
@@ -287,6 +288,7 @@ async function runJob(job){
   try{
     if(job.task==="echo") result={echo:job.payload};
     else if(job.task==="sha256") result=await sha256(JSON.stringify(job.payload||{}));
+    else if(job.task==="preprocess_text") result=await preprocessText(job.payload||{});
     else result=benchmark(job.seconds||2);
     await fetch(`/api/jobs/${job.job_id}/result`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({node_id:nodeId,node_token:nodeToken,status:"completed",result})});
   }catch(e){
@@ -294,6 +296,19 @@ async function runJob(job){
   }
 }
 async function sha256(text){const data=new TextEncoder().encode(text);const hash=await crypto.subtle.digest("SHA-256",data);return {sha256:[...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,"0")).join(""),bytes:data.length}}
+async function preprocessText(payload){
+  const text=String(payload.text||"");
+  const maxChunkChars=Math.max(200,Math.min(8000,Number(payload.max_chunk_chars||1200)));
+  const clean=text.replace(/\\s+/g," ").trim();
+  const words=(clean.toLowerCase().match(/[a-záéíóúñü0-9_]{3,}/gi)||[]);
+  const counts={};
+  for(const word of words){counts[word]=(counts[word]||0)+1}
+  const keywords=Object.entries(counts).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,24).map(([term,count])=>({term,count}));
+  const chunks=[];
+  for(let i=0;i<clean.length;i+=maxChunkChars){chunks.push({index:chunks.length,start:i,end:Math.min(i+maxChunkChars,clean.length),text:clean.slice(i,i+maxChunkChars)})}
+  const digest=await sha256(clean);
+  return {task:"preprocess_text",chars:clean.length,word_count:words.length,approx_tokens:Math.ceil(words.length*1.35),sha256:digest.sha256,keywords,chunks};
+}
 function benchmark(seconds){const end=performance.now()+seconds*1000;let loops=0,x=1;while(performance.now()<end){x=(x*1664525+1013904223)>>>0;loops++}return {task:"browser_benchmark",seconds,loops,score:Math.round(loops/seconds),seed:x}}
 </script>
 </body>
