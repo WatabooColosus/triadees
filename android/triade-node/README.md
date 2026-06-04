@@ -20,6 +20,8 @@ Este nodo no instala modelos ni accede a archivos privados por defecto. Es el pr
 
 Desde `0.4.0`, la APK publica un contrato de runtime local de modelos (`android_model_doctor` y `android_local_generate`). La generacion local devuelve `unavailable` hasta integrar un backend nativo real como llama.cpp u ONNX Runtime.
 
+Desde `0.5.0`, la APK permite autorizar hasta 95% de recursos, solicita `largeHeap` y reporta memoria disponible, memoria total, umbral de baja memoria, `memoryClass`, `largeMemoryClass` y heap Java. Esto no garantiza RAM ilimitada: Android decide cuanta memoria entrega al proceso, pero Tríade ahora puede auditar y planificar con datos reales.
+
 ## Build
 
 Requiere JDK 17+ y Android SDK. Desde `android/triade-node`:

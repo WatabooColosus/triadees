@@ -70,6 +70,15 @@ Hecho:
 
 Pendiente inmediato: instalar APK `0.4.0` en los dispositivos y confirmar que `android_model_doctor` responde.
 
+Actualizacion 0.5.0:
+
+- La APK puede autorizar hasta 95% de recursos.
+- Solicita `largeHeap` para ampliar margen de procesos pesados.
+- Reporta `memoryClass`, `largeMemoryClass`, heap Java y baja memoria.
+- El 8010 expone `/api/federation/resource-lease` para ver recursos federados arrendables.
+
+Esto permite aprovechar mejor dispositivos con mas de 2 GB libres, sin afirmar que Android entregue toda la RAM total al proceso.
+
 ## Fase 1: Consolidar alimentador CPU real
 
 Meta: que Android aporte CPU de forma repetible a modelos locales sin requerir inferencia nativa todavía.

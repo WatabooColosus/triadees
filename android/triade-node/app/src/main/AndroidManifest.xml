@@ -9,6 +9,7 @@
     <application
         android:allowBackup="false"
         android:label="Triade Node"
+        android:largeHeap="true"
         android:theme="@style/AppTheme">
         <activity
             android:name=".MainActivity"

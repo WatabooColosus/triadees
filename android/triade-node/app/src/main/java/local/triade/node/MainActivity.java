@@ -55,7 +55,7 @@ public final class MainActivity extends Activity {
         resourceLimitLabel = new TextView(this);
         root.addView(resourceLimitLabel);
         resourceLimit = new SeekBar(this);
-        resourceLimit.setMax(80);
+        resourceLimit.setMax(85);
         resourceLimit.setProgress(50);
         resourceLimit.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override

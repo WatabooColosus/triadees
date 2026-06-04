@@ -68,8 +68,8 @@ public final class NodeConfig {
         if (value < 10) {
             return 10;
         }
-        if (value > 90) {
-            return 90;
+        if (value > 95) {
+            return 95;
         }
         return value;
     }

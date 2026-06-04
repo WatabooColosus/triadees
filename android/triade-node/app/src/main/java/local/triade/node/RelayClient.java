@@ -115,6 +115,12 @@ public final class RelayClient {
         int cpuAuthorized = Math.max(1, (int) Math.floor(cpuTotal * (percent / 100.0)));
         double ramAvailableGb = memory.availMem / 1073741824.0;
         double ramAuthorizedGb = ramAvailableGb * (percent / 100.0);
+        int memoryClassMb = manager == null ? 0 : manager.getMemoryClass();
+        int largeMemoryClassMb = manager == null ? 0 : manager.getLargeMemoryClass();
+        Runtime runtime = Runtime.getRuntime();
+        double javaHeapMaxGb = runtime.maxMemory() / 1073741824.0;
+        double javaHeapFreeGb = runtime.freeMemory() / 1073741824.0;
+        double javaHeapTotalGb = runtime.totalMemory() / 1073741824.0;
         JSONArray tasks = new JSONArray()
                 .put("echo")
                 .put("sha256")
@@ -135,9 +141,17 @@ public final class RelayClient {
                 .put("ram_available_gb", ramAvailableGb)
                 .put("ram_authorized_gb", ramAuthorizedGb)
                 .put("ram_total_gb", memory.totalMem / 1073741824.0)
+                .put("ram_threshold_gb", memory.threshold / 1073741824.0)
+                .put("ram_low_memory", memory.lowMemory)
+                .put("memory_class_mb", memoryClassMb)
+                .put("large_memory_class_mb", largeMemoryClassMb)
+                .put("java_heap_max_gb", javaHeapMaxGb)
+                .put("java_heap_total_gb", javaHeapTotalGb)
+                .put("java_heap_free_gb", javaHeapFreeGb)
+                .put("native_large_heap_requested", true)
                 .put("platform", "Android " + Build.VERSION.RELEASE)
                 .put("device", Build.MANUFACTURER + " " + Build.MODEL)
-                .put("app_version", "0.4.0")
+                .put("app_version", "0.5.0")
                 .put("allowed_tasks", tasks)
                 .put("edge_model_runtime", modelRuntime.getBoolean("edge_model_runtime"))
                 .put("model_runtime_backend", modelRuntime.getString("model_runtime_backend"))

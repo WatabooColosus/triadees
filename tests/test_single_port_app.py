@@ -118,6 +118,58 @@ def test_federated_model_plan_sums_authorized_resources() -> None:
     assert plan["runtime"] == "pending_distributed_inference_runtime"
 
 
+def test_federation_resource_lease_tracks_transports_and_resources() -> None:
+    lease = single_port_app.federation_resource_lease(
+        [
+            {
+                "node_id": "local-android",
+                "name": "Android LAN",
+                "online": True,
+                "can_feed_local_models": True,
+                "federation_complete": True,
+                "cpu_authorized_count": 7,
+                "ram_authorized_gb": 3.1,
+                "ram_available_gb": 3.3,
+                "resource_limit_percent": 95,
+                "resource_limit_reported": True,
+                "edge_model_runtime": True,
+                "model_runtime_backend": "none",
+                "can_host_llm": False,
+                "capabilities": {
+                    "relay_url": "http://192.168.1.12:8010",
+                    "allowed_tasks": ["preprocess_text", "android_model_doctor"],
+                    "app_version": "0.5.0",
+                    "large_memory_class_mb": 1024,
+                },
+            },
+            {
+                "node_id": "relay-android",
+                "name": "Android Relay",
+                "online": True,
+                "can_feed_local_models": True,
+                "federation_complete": True,
+                "cpu_authorized_count": 4,
+                "ram_authorized_gb": 1.5,
+                "ram_available_gb": 2.0,
+                "resource_limit_percent": 60,
+                "resource_limit_reported": False,
+                "edge_model_runtime": False,
+                "model_runtime_backend": "none",
+                "can_host_llm": False,
+                "capabilities": {"relay_url": "https://relay.test", "allowed_tasks": ["preprocess_text"]},
+            },
+        ]
+    )
+
+    assert lease["totals"]["devices"] == 2
+    assert lease["totals"]["direct_lan_devices"] == 1
+    assert lease["totals"]["relay_devices"] == 1
+    assert lease["totals"]["cpu_authorized_count"] == 11
+    assert lease["totals"]["ram_authorized_gb"] == 4.6
+    assert lease["leases"][0]["resource_limit_percent"] == 95
+    assert lease["leases"][0]["lease_status"] == "job_worker_ready"
+
+
 def test_single_port_serves_android_apk() -> None:
     response = client.get("/downloads/triade-android-node.apk")
 
@@ -143,9 +195,9 @@ def test_single_port_accepts_local_android_node_heartbeat(tmp_path, monkeypatch)
                 "app_node": True,
                 "cpu_count": 8,
                 "ram_available_gb": 2.0,
-                "resource_limit_percent": 90,
+                "resource_limit_percent": 95,
                 "cpu_authorized_count": 7,
-                "ram_authorized_gb": 1.8,
+                "ram_authorized_gb": 1.9,
             },
         },
     )
@@ -162,18 +214,18 @@ def test_single_port_accepts_local_android_node_heartbeat(tmp_path, monkeypatch)
                 "app_node": True,
                 "cpu_count": 8,
                 "ram_available_gb": 2.0,
-                "resource_limit_percent": 90,
+                "resource_limit_percent": 95,
                 "cpu_authorized_count": 7,
-                "ram_authorized_gb": 1.8,
+                "ram_authorized_gb": 1.9,
             },
         },
     )
 
     assert heartbeat.status_code == 200
     caps = heartbeat.json()["node"]["capabilities"]
-    assert caps["resource_limit_percent"] == 90
+    assert caps["resource_limit_percent"] == 95
     assert caps["cpu_authorized_count"] == 7
-    assert caps["ram_authorized_gb"] == 1.8
+    assert caps["ram_authorized_gb"] == 1.9
 
 
 def test_single_port_local_job_cycle(tmp_path, monkeypatch) -> None:

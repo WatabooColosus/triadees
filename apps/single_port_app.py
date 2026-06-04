@@ -430,6 +430,69 @@ def federated_model_plan(nodes: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def federation_resource_lease(nodes: list[dict[str, Any]]) -> dict[str, Any]:
+    leases = []
+    totals = {
+        "devices": 0,
+        "direct_lan_devices": 0,
+        "relay_devices": 0,
+        "cpu_authorized_count": 0,
+        "ram_authorized_gb": 0.0,
+        "ram_available_gb": 0.0,
+        "llm_hosts": 0,
+    }
+    for node in nodes:
+        if not (node.get("can_feed_local_models") and node.get("federation_complete")):
+            continue
+        caps = node.get("capabilities") or {}
+        relay_url = str(caps.get("relay_url") or "")
+        transport = "lan_8010" if ("127.0.0.1:8010" in relay_url or "localhost:8010" in relay_url or "192.168." in relay_url) else "public_relay"
+        cpu_authorized = int(node.get("cpu_authorized_count") or 0)
+        ram_authorized = round(float(node.get("ram_authorized_gb") or 0.0), 2)
+        ram_available = round(float(node.get("ram_available_gb") or 0.0), 2)
+        tasks = caps.get("allowed_tasks") if isinstance(caps.get("allowed_tasks"), list) else []
+        lease = {
+            "node_id": node.get("node_id"),
+            "name": node.get("name"),
+            "transport": transport,
+            "online": node.get("online"),
+            "app_version": caps.get("app_version"),
+            "device": caps.get("device"),
+            "resource_limit_percent": node.get("resource_limit_percent"),
+            "resource_limit_reported": node.get("resource_limit_reported"),
+            "cpu_authorized_count": cpu_authorized,
+            "ram_authorized_gb": ram_authorized,
+            "ram_available_gb": ram_available,
+            "ram_total_gb": caps.get("ram_total_gb"),
+            "memory_class_mb": caps.get("memory_class_mb"),
+            "large_memory_class_mb": caps.get("large_memory_class_mb"),
+            "java_heap_max_gb": caps.get("java_heap_max_gb"),
+            "native_large_heap_requested": bool(caps.get("native_large_heap_requested")),
+            "edge_model_runtime": node.get("edge_model_runtime"),
+            "model_runtime_backend": node.get("model_runtime_backend"),
+            "can_host_llm": node.get("can_host_llm"),
+            "allowed_tasks": tasks,
+            "lease_status": "llm_host_ready" if node.get("can_host_llm") else ("job_worker_ready" if tasks else "heartbeat_only"),
+        }
+        leases.append(lease)
+        totals["devices"] += 1
+        totals["direct_lan_devices"] += 1 if transport == "lan_8010" else 0
+        totals["relay_devices"] += 1 if transport == "public_relay" else 0
+        totals["cpu_authorized_count"] += cpu_authorized
+        totals["ram_authorized_gb"] += ram_authorized
+        totals["ram_available_gb"] += ram_available
+        totals["llm_hosts"] += 1 if node.get("can_host_llm") else 0
+    totals["ram_authorized_gb"] = round(totals["ram_authorized_gb"], 2)
+    totals["ram_available_gb"] = round(totals["ram_available_gb"], 2)
+    return {
+        "status": "ok",
+        "mode": "federation-resource-lease",
+        "totals": totals,
+        "leases": leases,
+        "truth": "Estos recursos son arrendables por jobs federados o modelos Android reales; no son RAM unificada de Ollama hasta tener runtime distribuido tensor-paralelo.",
+    }
+
+
 def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
     hardware, ollama = system_payload()
     matrix = ModelCompatibilityMatrix(hardware=hardware, available_models=ollama.get("models", [])).build()
@@ -445,6 +508,7 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
     nodes = [node_model_readiness(node) for node in federation.list_nodes(status="active")]
     online_feeders = [node for node in nodes if node["can_feed_local_models"] and node["federation_complete"]]
     federated_authorized = federated_model_plan(nodes)
+    resource_lease = federation_resource_lease(nodes)
     recommended = [item for item in matrix["models"] if item["status"] == "recommended"]
     allowed = [item for item in matrix["models"] if item["status"] == "allowed"]
     blocked = [item for item in matrix["models"] if item["status"] == "blocked"]
@@ -481,6 +545,7 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
             "nodes": nodes,
             "online_feeders": online_feeders,
             "authorized": federated_authorized,
+            "resource_lease": resource_lease,
             "llm_hosts": [node for node in nodes if node["can_host_llm"]],
         },
         "constants": {
@@ -527,6 +592,18 @@ def model_install_queue(include_allowed: bool = False) -> dict[str, Any]:
 @app.get("/api/system/model-capacity")
 def system_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
     return build_model_capacity(sync_relay=sync_relay)
+
+
+@app.get("/api/federation/resource-lease")
+def federation_resource_lease_endpoint(sync_relay: bool = True) -> dict[str, Any]:
+    capacity = build_model_capacity(sync_relay=sync_relay)
+    lease = capacity["federation"]["resource_lease"]
+    lease["local"] = {
+        "hardware": capacity["local"]["hardware"],
+        "ollama": capacity["local"]["ollama"],
+        "docker": capacity["local"]["docker"],
+    }
+    return lease
 
 
 @app.get("/downloads/triade-android-node.apk")
