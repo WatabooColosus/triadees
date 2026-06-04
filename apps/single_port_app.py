@@ -9,6 +9,7 @@ import os
 import secrets
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,7 @@ from triade.models.ollama_client import OllamaClient
 
 app = FastAPI(title="Tríade Ω Single Port", version="0.9.0")
 ANDROID_APK_PATH = Path(os.environ.get("TRIADE_ANDROID_APK", "apps/static/triade-android-node.apk"))
+LOCAL_JOBS: dict[str, dict[str, Any]] = {}
 
 
 class RunRequest(BaseModel):
@@ -180,6 +182,37 @@ def upsert_local_android_node(node_id: str, name: str, capabilities: dict[str, A
         permissions=["publish_capabilities", "request_compute"],
         capabilities=local_node_capabilities(node_id, capabilities),
     )
+
+
+def create_local_job(node_id: str, task: str, payload: dict[str, Any] | None = None, seconds: float = 1.0) -> dict[str, Any]:
+    job_id = "localjob-" + secrets.token_hex(6)
+    job = {
+        "job_id": job_id,
+        "node_id": node_id,
+        "task": task,
+        "payload": payload or {},
+        "seconds": seconds,
+        "status": "pending",
+        "created_at": time.time(),
+        "updated_at": time.time(),
+        "result": {},
+        "error": None,
+    }
+    LOCAL_JOBS[job_id] = job
+    return job
+
+
+def wait_local_job(job_id: str, timeout: float = 25.0, interval: float = 0.5) -> dict[str, Any]:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        job = LOCAL_JOBS.get(job_id) or {}
+        if job.get("status") in {"completed", "failed"}:
+            return job
+        time.sleep(interval)
+    job = LOCAL_JOBS.get(job_id) or {"job_id": job_id}
+    job["status"] = "timeout"
+    job["error"] = "Tiempo de espera agotado esperando al nodo local."
+    return job
 
 
 def tool_status(name: str, command: list[str]) -> dict[str, Any]:
@@ -387,12 +420,54 @@ def local_node_heartbeat(request: LocalNodeHeartbeatRequest) -> dict[str, Any]:
 
 @app.get("/api/jobs/next")
 def local_node_next_job(node_id: str, node_token: str = "") -> dict[str, Any]:
+    tokens = load_local_node_tokens()
+    if tokens.get(node_id) and tokens[node_id] != node_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de nodo inválido.")
+    for job in LOCAL_JOBS.values():
+        if job.get("node_id") == node_id and job.get("status") == "pending":
+            job["status"] = "running"
+            job["updated_at"] = time.time()
+            return {"status": "ok", "node_id": node_id, "job": job}
     return {"status": "idle", "node_id": node_id, "job": None}
 
 
 @app.post("/api/jobs/{job_id}/result")
 def local_node_job_result(job_id: str, request: LocalNodeJobResultRequest) -> dict[str, Any]:
+    tokens = load_local_node_tokens()
+    if tokens.get(request.node_id) and tokens[request.node_id] != request.node_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de nodo inválido.")
+    job = LOCAL_JOBS.setdefault(job_id, {"job_id": job_id, "node_id": request.node_id})
+    job["status"] = request.status
+    job["result"] = request.result
+    job["error"] = request.error
+    job["updated_at"] = time.time()
+    if request.status == "completed" and isinstance(request.result, dict):
+        federation = Federation()
+        node = federation.get_node(request.node_id)
+        if node:
+            capabilities = dict(node.get("capabilities") or {})
+            capabilities["last_benchmark"] = request.result
+            capabilities["benchmark_score"] = int(request.result.get("score") or capabilities.get("benchmark_score") or 0)
+            capabilities["compute_status"] = "ready"
+            federation.update_capabilities(request.node_id, capabilities)
     return {"status": "ok", "job_id": job_id, "accepted": True}
+
+
+@app.post("/api/local-federation/benchmark")
+def local_federation_benchmark(seconds: float = 1.0, wait_timeout: float = 25.0) -> dict[str, Any]:
+    federation = Federation()
+    nodes = [
+        node
+        for node in federation.list_nodes(status="active")
+        if (node.get("capabilities") or {}).get("federation_complete")
+        and (node.get("capabilities") or {}).get("online")
+    ]
+    if not nodes:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No hay dispositivos federados locales online.")
+    node = nodes[0]
+    job = create_local_job(str(node["node_id"]), task="browser_benchmark", seconds=seconds)
+    result = wait_local_job(str(job["job_id"]), timeout=wait_timeout)
+    return {"status": "ok" if result.get("status") == "completed" else result.get("status"), "node_id": node["node_id"], "job": result}
 
 
 @app.get("/api/semantic/doctor")

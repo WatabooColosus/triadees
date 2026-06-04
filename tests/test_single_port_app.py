@@ -147,6 +147,33 @@ def test_single_port_accepts_local_android_node_heartbeat(tmp_path, monkeypatch)
     assert caps["ram_authorized_gb"] == 1.8
 
 
+def test_single_port_local_job_cycle(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(single_port_app, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+    single_port_app.LOCAL_JOBS.clear()
+    node_id = "local-test-node"
+    job = single_port_app.create_local_job(node_id, "browser_benchmark", seconds=1)
+
+    next_job = client.get("/api/jobs/next", params={"node_id": node_id})
+
+    assert next_job.status_code == 200
+    payload = next_job.json()
+    assert payload["status"] == "ok"
+    assert payload["job"]["job_id"] == job["job_id"]
+
+    result = client.post(
+        f"/api/jobs/{job['job_id']}/result",
+        json={
+            "node_id": node_id,
+            "status": "completed",
+            "result": {"task": "browser_benchmark", "seconds": 1, "score": 12345},
+        },
+    )
+
+    assert result.status_code == 200
+    assert single_port_app.LOCAL_JOBS[job["job_id"]]["status"] == "completed"
+    assert single_port_app.LOCAL_JOBS[job["job_id"]]["result"]["score"] == 12345
+
+
 def test_single_port_run_accepts_auto_select_models() -> None:
     response = client.post(
         "/api/run",
