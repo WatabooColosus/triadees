@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from apps import single_port_app
-from apps.single_port_app import app
+from apps.single_port_app import app, federated_model_plan
 
 
 client = TestClient(app)
@@ -87,6 +87,35 @@ def test_single_port_model_capacity() -> None:
     assert "authorized" in payload["federation"]
     assert "observers" not in payload["federation"]
     assert "constants" in payload
+
+
+def test_federated_model_plan_sums_authorized_resources() -> None:
+    plan = federated_model_plan(
+        [
+            {
+                "can_feed_local_models": True,
+                "federation_complete": True,
+                "cpu_authorized_count": 4,
+                "ram_authorized_gb": 2.1,
+                "ram_available_gb": 2.5,
+                "capabilities": {},
+            },
+            {
+                "can_feed_local_models": True,
+                "federation_complete": True,
+                "cpu_authorized_count": 4,
+                "ram_authorized_gb": 2.2,
+                "ram_available_gb": 2.6,
+                "capabilities": {},
+            },
+        ]
+    )
+
+    assert plan["cpu_authorized_count"] == 8
+    assert plan["ram_authorized_gb"] == 4.3
+    assert any(item["model"] == "qwen2.5:3b-instruct" for item in plan["runnable_by_aggregate_ram"])
+    assert plan["can_run_single_llm_by_sum"] is False
+    assert plan["runtime"] == "pending_distributed_inference_runtime"
 
 
 def test_single_port_serves_android_apk() -> None:
