@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from apps import single_port_app
 from apps.single_port_app import app
 
 
@@ -94,6 +95,56 @@ def test_single_port_serves_android_apk() -> None:
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/vnd.android.package-archive"
     assert int(response.headers["content-length"]) > 30000
+
+
+def test_single_port_accepts_local_android_node_heartbeat(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(single_port_app, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+
+    def fake_upsert(node_id: str, name: str, capabilities: dict):
+        return {"node_id": node_id, "name": name, "capabilities": single_port_app.local_node_capabilities(node_id, capabilities)}
+
+    monkeypatch.setattr(single_port_app, "upsert_local_android_node", fake_upsert)
+
+    register = client.post(
+        "/api/register",
+        json={
+            "display_name": "Android local",
+            "capabilities": {
+                "native_android": True,
+                "app_node": True,
+                "cpu_count": 8,
+                "ram_available_gb": 2.0,
+                "resource_limit_percent": 90,
+                "cpu_authorized_count": 7,
+                "ram_authorized_gb": 1.8,
+            },
+        },
+    )
+
+    assert register.status_code == 200
+    identity = register.json()
+    heartbeat = client.post(
+        "/api/heartbeat",
+        json={
+            "node_id": identity["node_id"],
+            "node_token": identity["node_token"],
+            "capabilities": {
+                "native_android": True,
+                "app_node": True,
+                "cpu_count": 8,
+                "ram_available_gb": 2.0,
+                "resource_limit_percent": 90,
+                "cpu_authorized_count": 7,
+                "ram_authorized_gb": 1.8,
+            },
+        },
+    )
+
+    assert heartbeat.status_code == 200
+    caps = heartbeat.json()["node"]["capabilities"]
+    assert caps["resource_limit_percent"] == 90
+    assert caps["cpu_authorized_count"] == 7
+    assert caps["ram_authorized_gb"] == 1.8
 
 
 def test_single_port_run_accepts_auto_select_models() -> None:

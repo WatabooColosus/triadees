@@ -6,6 +6,7 @@ Puerto único 8010 para UI, health, router, compatibilidad, memoria semántica y
 from __future__ import annotations
 
 import os
+import secrets
 import shutil
 import subprocess
 from pathlib import Path
@@ -18,7 +19,7 @@ from pydantic import BaseModel, Field
 from triade.core.runner import TriadeRunner
 from triade.core.repo_info import repo_info
 from triade.federation.federation import Federation
-from triade.federation.relay_client import PublicRelayClient
+from triade.federation.relay_client import PublicRelayClient, relay_capabilities_for_federation
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
@@ -51,6 +52,26 @@ class RunRequest(BaseModel):
 class RouterRequest(BaseModel):
     intent: str = "conversation"
     urgency: str = "medium"
+
+
+class LocalNodeRegisterRequest(BaseModel):
+    pairing_token: str = ""
+    display_name: str = "Android Node"
+    capabilities: dict[str, Any] = Field(default_factory=dict)
+
+
+class LocalNodeHeartbeatRequest(BaseModel):
+    node_id: str
+    node_token: str = ""
+    capabilities: dict[str, Any] = Field(default_factory=dict)
+
+
+class LocalNodeJobResultRequest(BaseModel):
+    node_id: str
+    node_token: str = ""
+    status: str = "completed"
+    result: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
 
 
 class SemanticIngestRequest(BaseModel):
@@ -116,6 +137,49 @@ def relay_settings() -> dict[str, str | None]:
                 token = line.split("=", 1)[1].strip()
                 break
     return {"url": url, "admin_token": token}
+
+
+def local_node_token_path() -> Path:
+    return Path("triade/memory/local_node_tokens.json")
+
+
+def load_local_node_tokens() -> dict[str, str]:
+    path = local_node_token_path()
+    if not path.exists():
+        return {}
+    try:
+        import json
+
+        return dict(json.loads(path.read_text(encoding="utf-8")))
+    except Exception:
+        return {}
+
+
+def save_local_node_tokens(tokens: dict[str, str]) -> None:
+    import json
+
+    path = local_node_token_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(tokens, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def local_node_capabilities(node_id: str, capabilities: dict[str, Any]) -> dict[str, Any]:
+    return relay_capabilities_for_federation(
+        {"node_id": node_id, "online": True, "capabilities": capabilities},
+        "http://127.0.0.1:8010",
+    )
+
+
+def upsert_local_android_node(node_id: str, name: str, capabilities: dict[str, Any]) -> dict[str, Any]:
+    return Federation().register_node(
+        node_id=node_id,
+        name=name,
+        owner="single-port-local",
+        endpoint="http://127.0.0.1:8010",
+        trust_level="medium",
+        permissions=["publish_capabilities", "request_compute"],
+        capabilities=local_node_capabilities(node_id, capabilities),
+    )
 
 
 def tool_status(name: str, command: list[str]) -> dict[str, Any]:
@@ -295,6 +359,40 @@ def download_android_node_apk() -> FileResponse:
         media_type="application/vnd.android.package-archive",
         filename="triade-android-node.apk",
     )
+
+
+@app.post("/api/register")
+def local_node_register(request: LocalNodeRegisterRequest) -> dict[str, Any]:
+    node_id = "local-" + secrets.token_hex(5)
+    node_token = secrets.token_urlsafe(24)
+    tokens = load_local_node_tokens()
+    tokens[node_id] = node_token
+    save_local_node_tokens(tokens)
+    node = upsert_local_android_node(node_id, request.display_name, request.capabilities)
+    return {"status": "ok", "node_id": node_id, "node_token": node_token, "node": node, "capabilities": node["capabilities"]}
+
+
+@app.post("/api/heartbeat")
+def local_node_heartbeat(request: LocalNodeHeartbeatRequest) -> dict[str, Any]:
+    tokens = load_local_node_tokens()
+    known = tokens.get(request.node_id)
+    if known and request.node_token != known:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de nodo inválido.")
+    if not known:
+        tokens[request.node_id] = request.node_token or secrets.token_urlsafe(24)
+        save_local_node_tokens(tokens)
+    node = upsert_local_android_node(request.node_id, request.node_id, request.capabilities)
+    return {"status": "ok", "node": node}
+
+
+@app.get("/api/jobs/next")
+def local_node_next_job(node_id: str, node_token: str = "") -> dict[str, Any]:
+    return {"status": "idle", "node_id": node_id, "job": None}
+
+
+@app.post("/api/jobs/{job_id}/result")
+def local_node_job_result(job_id: str, request: LocalNodeJobResultRequest) -> dict[str, Any]:
+    return {"status": "ok", "job_id": job_id, "accepted": True}
 
 
 @app.get("/api/semantic/doctor")

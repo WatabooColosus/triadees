@@ -124,7 +124,7 @@ public final class RelayClient {
                 .put("ram_total_gb", memory.totalMem / 1073741824.0)
                 .put("platform", "Android " + Build.VERSION.RELEASE)
                 .put("device", Build.MANUFACTURER + " " + Build.MODEL)
-                .put("app_version", "0.2.0")
+                .put("app_version", "0.2.1")
                 .put("allowed_tasks", tasks);
     }
 

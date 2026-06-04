@@ -69,6 +69,8 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
+                saveCurrentConfig();
+                status.setText("Recursos actualizados: " + selectedResourcePercent() + "%. El servicio los reportara en el siguiente pulso.");
             }
         });
         root.addView(resourceLimit);
@@ -101,13 +103,7 @@ public final class MainActivity extends Activity {
     }
 
     private void startNode() {
-        NodeConfig.saveUserConfig(
-                this,
-                relayUrl.getText().toString(),
-                pairingToken.getText().toString(),
-                displayName.getText().toString(),
-                selectedResourcePercent()
-        );
+        saveCurrentConfig();
         Intent intent = new Intent(this, TriadeNodeService.class);
         if (Build.VERSION.SDK_INT >= 26) {
             startForegroundService(intent);
@@ -132,6 +128,16 @@ public final class MainActivity extends Activity {
         if (resourceLimitLabel != null && resourceLimit != null) {
             resourceLimitLabel.setText("Recursos autorizados para Triade: " + selectedResourcePercent() + "%");
         }
+    }
+
+    private void saveCurrentConfig() {
+        NodeConfig.saveUserConfig(
+                this,
+                relayUrl.getText().toString(),
+                pairingToken.getText().toString(),
+                displayName.getText().toString(),
+                selectedResourcePercent()
+        );
     }
 
     private void requestNotificationPermission() {

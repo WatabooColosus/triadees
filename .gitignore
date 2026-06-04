@@ -13,6 +13,7 @@ triade/memory/triade.db
 triade/memory/triade.db-*
 triade/memory/public_relay.db
 triade/memory/public_relay.db-*
+triade/memory/local_node_tokens.json
 *.sqlite
 *.sqlite3
 
