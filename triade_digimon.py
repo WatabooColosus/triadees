@@ -16,6 +16,7 @@ from triade.core.neuron_registry import NeuronRegistry
 from triade.core.neuron_trainer import NeuronTrainer
 from triade.core.runner import TriadeRunner
 from triade.federation.federation import Federation
+from triade.federation.relay_client import PublicRelayClient
 from triade.learning.pipeline import LearningPipeline
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
@@ -285,8 +286,52 @@ def handle_relay(args: argparse.Namespace) -> None:
         response.raise_for_status()
         print_json(response.json())
         return
+    if args.relay_command == "sync-nodes":
+        _require_admin_token(args.admin_token)
+        federation = Federation(db_path=args.db)
+        client = PublicRelayClient(base_url=base_url, admin_token=args.admin_token)
+        print_json(client.sync_nodes_to_federation(federation))
+        return
+    if args.relay_command == "benchmark":
+        _require_admin_token(args.admin_token)
+        federation = Federation(db_path=args.db)
+        client = PublicRelayClient(base_url=base_url, admin_token=args.admin_token)
+        print_json(client.benchmark_online_nodes(federation, seconds=args.seconds, wait_timeout=args.wait_timeout))
+        return
+    if args.relay_command == "model-feed":
+        _require_admin_token(args.admin_token)
+        federation = Federation(db_path=args.db)
+        nodes = federation.list_capable_nodes(min_tier=args.min_tier)
+        print_json(
+            {
+                "status": "ok",
+                "mode": "federated-model-feed",
+                "nodes": [
+                    {
+                        "node_id": node["node_id"],
+                        "name": node["name"],
+                        "capability_status": node.get("capability_status"),
+                        "online": (node.get("capabilities") or {}).get("online"),
+                        "benchmark_score": (node.get("capabilities") or {}).get("benchmark_score", 0),
+                        "model_support": (node.get("capabilities") or {}).get("model_support", {}),
+                    }
+                    for node in nodes
+                ],
+                "policy": {
+                    "browser_nodes_host_llm": False,
+                    "current_use": "preprocesamiento, hash, benchmark y planificación de capacidad",
+                    "next_step_for_real_model_workers": "agente nativo con Ollama/llama.cpp en dispositivo autorizado",
+                },
+            }
+        )
+        return
 
     raise SystemExit("Comando relay invalido")
+
+
+def _require_admin_token(admin_token: str | None) -> None:
+    if not admin_token:
+        raise SystemExit("Este comando requiere --admin-token.")
 
 
 def main() -> None:
@@ -441,6 +486,7 @@ def main() -> None:
     relay_parser = subparsers.add_parser("relay", help="Controla un relay publico Triade")
     relay_parser.add_argument("--url", required=True, help="URL publica del relay")
     relay_parser.add_argument("--admin-token", default=None, help="Token admin del relay")
+    relay_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
     relay_subparsers = relay_parser.add_subparsers(dest="relay_command")
 
     relay_subparsers.add_parser("health", help="Consulta salud del relay")
@@ -452,6 +498,15 @@ def main() -> None:
     relay_job.add_argument("--task", default="browser_benchmark", help="echo|sha256|browser_benchmark")
     relay_job.add_argument("--payload", default="{}", help="JSON de entrada")
     relay_job.add_argument("--seconds", type=float, default=2.0, help="Duracion para benchmark")
+
+    relay_subparsers.add_parser("sync-nodes", help="Sincroniza nodos online del relay a la federacion local")
+
+    relay_benchmark = relay_subparsers.add_parser("benchmark", help="Mide nodos browser y guarda su score en la federacion local")
+    relay_benchmark.add_argument("--seconds", type=float, default=2.0, help="Duracion de cada benchmark")
+    relay_benchmark.add_argument("--wait-timeout", type=float, default=45.0, help="Tiempo maximo de espera por job")
+
+    relay_feed = relay_subparsers.add_parser("model-feed", help="Resume nodos que alimentan la planificacion local de modelos")
+    relay_feed.add_argument("--min-tier", default="low", help="low|medium|high")
 
     args = parser.parse_args()
 
