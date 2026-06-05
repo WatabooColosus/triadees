@@ -11,6 +11,7 @@ from typing import Any
 
 from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
+from triade.memory.semantic_continuity import SemanticContinuity
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
 from triade.memory.semantic_store import SemanticMemoryStore
@@ -176,6 +177,8 @@ class TriadeRunner:
         output.memory_diff["verification_report_id"] = verification_id
         post_run_learning = self._post_run_learning_candidate(input_packet, output, report, signals.intent)
         output.memory_diff["post_run_learning"] = post_run_learning
+        semantic_continuity = self._semantic_continuity(input_packet, output, signals.intent, crystal)
+        output.memory_diff["semantic_continuity"] = semantic_continuity
         artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan.to_dict(), "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict()}
         if neuron_proposal is not None:
             artifacts["neuron_candidate.json"] = neuron_proposal
@@ -189,12 +192,36 @@ class TriadeRunner:
             "safety_crystal_feedback": {"status": safety.status, "risk_types": safety.risk_types, "controls": safety.required_controls},
             "neuron_proposal": neuron_proposal,
             "post_run_learning": post_run_learning,
+            "semantic_continuity": semantic_continuity,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_quality_score": central_quality, "central_model_event_id": central_event_id, "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_selection": self.model_selection, "closed": True,
         }
         self._write_json(run_path / "integrity.json", integrity)
         (run_path / "CLOSED").write_text("closed\n", encoding="utf-8")
         return {"run_id": input_packet.run_id, "response": output.response, "safety": safety.to_dict(), "report": report.to_dict(), "memory_diff": output.memory_diff, "semantic_recall": semantic_state, "crystal_temporal_state": temporal_state, "models": {"hypothalamus": {**hypothalamus_model_result, "quality_score": hypothalamus_quality, "event_id": hypothalamus_event_id}, "central": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error, "quality_score": central_quality, "event_id": central_event_id}}, "model": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error}, "model_selection": self.model_selection, "neuron_proposal": neuron_proposal, "run_path": str(run_path)}
+
+    def _semantic_continuity(self, input_packet: InputPacket, output: Any, intent: str, crystal: Any) -> dict[str, Any]:
+        try:
+            return SemanticContinuity(db_path=self.db_path, auto_ollama_embed=False).ingest_run(
+                run_id=input_packet.run_id,
+                user_input=input_packet.user_input,
+                response=output.response,
+                source=input_packet.source,
+                intent=intent,
+                q_crystal=crystal.q_crystal,
+                stability=crystal.stability,
+                model_summary={
+                    "central": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok},
+                    "selection": self.model_selection,
+                },
+            )
+        except Exception as exc:
+            return {
+                "status": "error",
+                "mode": "semantic-continuity",
+                "error": str(exc),
+                "policy": {"auto_consolidation": False, "identity_core_modified": False},
+            }
 
     def _post_run_learning_candidate(self, input_packet: InputPacket, output: Any, report: Any, intent: str) -> dict[str, Any]:
         enabled = str(os.environ.get("TRIADE_POST_RUN_LEARNING", "")).strip().lower() in {"1", "true", "yes", "on"}

@@ -11,13 +11,16 @@ from pathlib import Path
 import httpx
 
 from triade.core.alignment import CoreAlignment
+from triade.core.conversation_analyzer import ConversationAnalyzer, add_analyze_conversations_args
 from triade.core.neuron_creator import NeuronCreator
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.neuron_trainer import NeuronTrainer
 from triade.core.runner import TriadeRunner
+from triade.core.self_reflection import SelfReflectionEngine, add_reflect_core_args
 from triade.federation.federation import Federation
 from triade.federation.relay_client import PublicRelayClient
 from triade.learning.pipeline import LearningPipeline
+from triade.memory.semantic_continuity import SemanticContinuity
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
 
@@ -214,6 +217,48 @@ def handle_learn(args: argparse.Namespace) -> None:
     raise SystemExit("Comando learn inválido")
 
 
+def handle_analyze_conversations(args: argparse.Namespace) -> None:
+    analyzer = ConversationAnalyzer(db_path=args.db)
+    payload = analyzer.analyze(limit=args.limit, since=args.since, source=args.source)
+    exported = None
+    if args.export:
+        exported = analyzer.export_markdown(payload, args.export)
+        payload["exported_to"] = str(exported)
+    if args.json or not args.export:
+        print_json(payload)
+        return
+    print(f"Reporte exportado: {exported}")
+
+
+def handle_reflect_core(args: argparse.Namespace) -> None:
+    engine = SelfReflectionEngine(db_path=args.db)
+    payload = engine.reflect(
+        limit=args.limit,
+        since=args.since,
+        source=args.source,
+        register_neuron_candidates=args.register_neuron_candidates,
+    )
+    exported = None
+    if args.export:
+        exported = engine.export_markdown(payload, args.export)
+        payload["exported_to"] = str(exported)
+    if args.json or not args.export:
+        print_json(payload)
+        return
+    print(f"Reflexion exportada: {exported}")
+
+
+def handle_semantic_continuity(args: argparse.Namespace) -> None:
+    continuity = SemanticContinuity(db_path=args.db, auto_ollama_embed=not args.no_ollama_embed)
+    if args.semantic_continuity_command == "doctor":
+        print_json(continuity.doctor())
+        return
+    if args.semantic_continuity_command == "backfill-runs":
+        print_json(continuity.backfill_recent_runs(limit=args.limit))
+        return
+    raise SystemExit("Comando semantic-continuity inválido")
+
+
 def handle_federate(args: argparse.Namespace) -> None:
     federation = Federation(db_path=args.db)
 
@@ -365,6 +410,20 @@ def main() -> None:
 
     doctor_parser = subparsers.add_parser("doctor", help="Diagnostica instalación local de Tríade")
     add_common_args(doctor_parser)
+
+    analyze_parser = subparsers.add_parser("analyze-conversations", help="Analiza conversaciones locales en modo solo lectura")
+    add_analyze_conversations_args(analyze_parser)
+
+    reflect_parser = subparsers.add_parser("reflect-core", help="Reflexiona sobre el nucleo y propone mejoras/neuronas")
+    add_reflect_core_args(reflect_parser)
+
+    semantic_continuity_parser = subparsers.add_parser("semantic-continuity", help="Gestiona continuidad semántica real desde runs")
+    semantic_continuity_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    semantic_continuity_parser.add_argument("--no-ollama-embed", action="store_true", help="Usa solo embedding local hash")
+    semantic_continuity_sub = semantic_continuity_parser.add_subparsers(dest="semantic_continuity_command")
+    semantic_continuity_sub.add_parser("doctor", help="Diagnostica documentos/embeddings de continuidad")
+    semantic_backfill = semantic_continuity_sub.add_parser("backfill-runs", help="Crea documentos semánticos candidatos desde runs recientes")
+    semantic_backfill.add_argument("--limit", type=int, default=50, help="Cantidad de runs recientes")
 
     align_parser = subparsers.add_parser("align", help="Audita alineación teórica de órganos internos")
     align_parser.add_argument("--artifacts", nargs="*", default=None, help="Lista opcional de artefactos de un run")
@@ -577,6 +636,18 @@ def main() -> None:
         runner = make_runner(args)
         result = runner.doctor()
         print_json(result)
+        return
+
+    if args.command == "analyze-conversations":
+        handle_analyze_conversations(args)
+        return
+
+    if args.command == "reflect-core":
+        handle_reflect_core(args)
+        return
+
+    if args.command == "semantic-continuity":
+        handle_semantic_continuity(args)
         return
 
     if args.command == "align":
