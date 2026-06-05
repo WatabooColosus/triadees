@@ -17,6 +17,7 @@ class Central:
     exige atribución literal de fuente/estado cuando la memoria se menciona.
     Desde 1.9F, separa el paquete cognitivo interno de la respuesta final: las
     métricas y señales solo se exponen cuando el usuario pide auditoría/debug.
+    Desde 1.9G, no entrega el JSON interno al modelo en conversación normal.
     """
 
     INTERNAL_AUDIT_TERMS = {
@@ -110,15 +111,12 @@ class Central:
         prompt = self._build_prompt(identity, input_packet, signals, memory, crystal, plan, wants_internal_audit)
         system = (
             "Eres Tríade Ω, un sistema cognitivo modular en construcción verificable. "
-            "Responde en español, con claridad, honestidad y tono útil. "
-            "El paquete cognitivo interno es contexto privado: no lo expliques, no lo resumas y no lo trates como tema de conversación. "
-            "No menciones JSON, señales, plan, memoria interna, q_crystal, PV7, Cristal, Hipotálamo, continuidad temporal ni métricas internas, salvo que el usuario pida auditoría, debug o trazabilidad explícitamente. "
-            "Usa q_crystal y temporal_status solo para regular prudencia, profundidad y tono. "
-            "La memoria semántica incluida ya fue filtrada por gobernanza: usa solamente semantic_matches presentes. "
-            "No inventes el origen de una memoria, proyecto, neurona, documento, fuente o estado. "
-            "Si mencionas procedencia, usa únicamente source_ref, document_id, document_status o contexto literal del paquete. "
-            "Si no hay memoria semántica autorizada suficiente, dilo en vez de completar con suposiciones. "
-            "Para saludos, afecto o conversación casual, responde breve, humano y directo."
+            "Responde SIEMPRE en español al usuario final, no al paquete interno. "
+            "Tu salida debe contener solo la respuesta visible para el usuario. "
+            "Nunca hagas resúmenes de JSON, planes, señales, memoria, q_crystal, PV7, Cristal, Hipotálamo ni continuidad temporal, salvo petición explícita de auditoría/debug/trazabilidad. "
+            "Para saludos, afecto o conversación casual, responde breve, humano y directo. "
+            "Usa cualquier contexto técnico solo como regulación interna de tono, prudencia y profundidad. "
+            "No inventes origen de memoria, proyecto, neurona, documento, fuente o estado."
         )
         result = self.model_client.generate(self.central_model, prompt=prompt, system=system)
         if not result.ok or not result.text:
@@ -212,6 +210,22 @@ class Central:
         plan: PlanPacket,
         wants_internal_audit: bool = False,
     ) -> str:
+        if not wants_internal_audit:
+            memory_hint = ""
+            if memory.semantic_matches:
+                memory_hint = "Hay memoria autorizada disponible; úsala solo si ayuda directamente a responder."
+            return (
+                "MODO: RESPUESTA_FINAL_USUARIO.\n"
+                "No expliques tu proceso interno. No menciones plan, señales, JSON, memoria interna, Cristal, q_crystal, PV7 ni métricas.\n"
+                "Responde en español de forma natural, breve y útil.\n\n"
+                f"Identidad conversacional: {identity}\n"
+                f"Entrada del usuario: {input_packet.user_input}\n"
+                f"Tono detectado: {signals.tone}\n"
+                f"Intención detectada: {signals.intent}\n"
+                f"Nota de memoria: {memory_hint}\n\n"
+                "Salida requerida: escribe solo la respuesta final para el usuario."
+            )
+
         memory_summary = {
             "identity": memory.identity_matches[:5],
             "episodic_matches": memory.episodic_matches[:3],
@@ -229,19 +243,11 @@ class Central:
             "crystal_mode": Central._crystal_mode(crystal),
             "temporal_alerts": crystal.temporal_alerts,
             "plan": plan.to_dict(),
-            "response_mode": "internal_audit" if wants_internal_audit else "user_conversation",
+            "response_mode": "internal_audit",
         }
-        if wants_internal_audit:
-            instruction = (
-                "El usuario pidió auditoría, debug o trazabilidad. Puedes explicar señales, Cristal, memoria, plan y continuidad temporal de forma estructurada, "
-                "pero sin inventar procedencias ni hechos no presentes en el paquete."
-            )
-        else:
-            instruction = (
-                "Responde directamente al usuario final. El paquete cognitivo es privado y solo sirve para regular la respuesta. "
-                "No lo describas, no lo audites, no enumeres pasos internos y no menciones métricas internas. "
-                "Si la entrada es saludo, afecto o conversación casual, responde breve, cercano y natural. "
-                "Usa únicamente `semantic_matches_authorized_only` como recuerdos semánticos disponibles si son relevantes. "
-                "Los recuerdos en cuarentena son solo evidencia de control y no hechos para responder."
-            )
-        return instruction + "\n\nPAQUETE_INTERNO_PRIVADO:\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+        return (
+            "MODO: AUDITORIA_INTERNA_SOLICITADA.\n"
+            "El usuario pidió auditoría, debug o trazabilidad. Puedes explicar señales, Cristal, memoria, plan y continuidad temporal de forma estructurada, "
+            "pero sin inventar procedencias ni hechos no presentes en el paquete.\n\n"
+            + json.dumps(payload, ensure_ascii=False, indent=2)
+        )
