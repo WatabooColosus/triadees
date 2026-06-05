@@ -12,6 +12,13 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.UUID;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 public final class RelayClient {
     private final Context context;
@@ -43,16 +50,35 @@ public final class RelayClient {
     }
 
     public JSONObject nextJob(NodeConfig config) throws Exception {
-        String url = config.relayUrl + "/api/jobs/next?node_id=" + encode(config.nodeId) + "&node_token=" + encode(config.nodeToken);
-        return get(url);
+        try {
+            JSONObject payload = new JSONObject().put("request", "next_job");
+            return post(config.relayUrl + "/api/federation/transport/next", signedEnvelope(config, payload));
+        } catch (Exception signedError) {
+            String url = config.relayUrl + "/api/jobs/next?node_id=" + encode(config.nodeId) + "&node_token=" + encode(config.nodeToken);
+            return get(url);
+        }
     }
 
     public void submitResult(NodeConfig config, String jobId, String status, JSONObject result, String error) throws Exception {
+        JSONObject cleanResult = result == null ? new JSONObject() : result;
+        try {
+            JSONObject payload = new JSONObject()
+                    .put("job_id", jobId)
+                    .put("status", status)
+                    .put("result", cleanResult);
+            if (error != null) {
+                payload.put("error", error);
+            }
+            post(config.relayUrl + "/api/federation/transport/result", signedEnvelope(config, payload));
+            return;
+        } catch (Exception signedError) {
+            // Compatibilidad con relays anteriores mientras todos migran al transporte firmado.
+        }
         JSONObject request = new JSONObject()
                 .put("node_id", config.nodeId)
                 .put("node_token", config.nodeToken)
                 .put("status", status)
-                .put("result", result == null ? new JSONObject() : result);
+                .put("result", cleanResult);
         if (error != null) {
             request.put("error", error);
         }
@@ -152,7 +178,10 @@ public final class RelayClient {
                 .put("native_large_heap_requested", true)
                 .put("platform", "Android " + Build.VERSION.RELEASE)
                 .put("device", Build.MANUFACTURER + " " + Build.MODEL)
-                .put("app_version", "0.9.0")
+                .put("app_version", "0.10.0")
+                .put("signed_transport", true)
+                .put("transport_signature_alg", "hmac-sha256")
+                .put("public_key", config.publicKey)
                 .put("allowed_tasks", tasks)
                 .put("edge_model_runtime", modelRuntime.getBoolean("edge_model_runtime"))
                 .put("model_runtime_backend", modelRuntime.getString("model_runtime_backend"))
@@ -182,6 +211,74 @@ public final class RelayClient {
             output.write(payload.toString().getBytes("UTF-8"));
         }
         return readJson(conn);
+    }
+
+    private JSONObject signedEnvelope(NodeConfig config, JSONObject payload) throws Exception {
+        int timestamp = (int) (System.currentTimeMillis() / 1000L);
+        String nonce = UUID.randomUUID().toString();
+        String signature = sign(config.nodeToken, config.nodeId, timestamp, nonce, payload);
+        return new JSONObject()
+                .put("node_id", config.nodeId)
+                .put("timestamp", timestamp)
+                .put("nonce", nonce)
+                .put("payload", payload)
+                .put("signature", signature)
+                .put("public_key", config.publicKey)
+                .put("signature_alg", "hmac-sha256");
+    }
+
+    private static String sign(String secret, String nodeId, int timestamp, String nonce, JSONObject payload) throws Exception {
+        String message = nodeId + "." + timestamp + "." + nonce + "." + canonical(payload);
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(secret.getBytes("UTF-8"), "HmacSHA256"));
+        byte[] raw = mac.doFinal(message.getBytes("UTF-8"));
+        StringBuilder hex = new StringBuilder();
+        for (byte b : raw) {
+            hex.append(String.format("%02x", b & 0xff));
+        }
+        return hex.toString();
+    }
+
+    private static String canonical(Object value) throws Exception {
+        if (value == null || value == JSONObject.NULL) {
+            return "null";
+        }
+        if (value instanceof JSONObject) {
+            JSONObject object = (JSONObject) value;
+            ArrayList<String> keys = new ArrayList<>();
+            Iterator<String> iterator = object.keys();
+            while (iterator.hasNext()) {
+                keys.add(iterator.next());
+            }
+            Collections.sort(keys);
+            StringBuilder builder = new StringBuilder("{");
+            for (int i = 0; i < keys.size(); i++) {
+                if (i > 0) {
+                    builder.append(",");
+                }
+                String key = keys.get(i);
+                builder.append(JSONObject.quote(key)).append(":").append(canonical(object.get(key)));
+            }
+            return builder.append("}").toString();
+        }
+        if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            StringBuilder builder = new StringBuilder("[");
+            for (int i = 0; i < array.length(); i++) {
+                if (i > 0) {
+                    builder.append(",");
+                }
+                builder.append(canonical(array.get(i)));
+            }
+            return builder.append("]").toString();
+        }
+        if (value instanceof String) {
+            return JSONObject.quote((String) value);
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return String.valueOf(value);
+        }
+        return JSONObject.quote(String.valueOf(value));
     }
 
     private JSONObject readJson(HttpURLConnection conn) throws Exception {

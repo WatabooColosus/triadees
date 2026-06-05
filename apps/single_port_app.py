@@ -19,6 +19,13 @@ from pydantic import BaseModel, Field
 
 from triade.core.runner import TriadeRunner
 from triade.core.repo_info import repo_info
+from triade.federation.contracts import (
+    FederatedJobResultPayload,
+    FederatedTransportDoctor,
+    SignedEnvelope,
+    ensure_sandbox_task,
+    verify_envelope,
+)
 from triade.federation.federation import Federation
 from triade.federation.relay_client import PublicRelayClient, relay_capabilities_for_federation
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
@@ -214,6 +221,7 @@ def upsert_local_android_node(node_id: str, name: str, capabilities: dict[str, A
 
 
 def create_local_job(node_id: str, task: str, payload: dict[str, Any] | None = None, seconds: float = 1.0) -> dict[str, Any]:
+    task = ensure_sandbox_task(task)
     job_id = "localjob-" + secrets.token_hex(6)
     job = {
         "job_id": job_id,
@@ -229,6 +237,29 @@ def create_local_job(node_id: str, task: str, payload: dict[str, Any] | None = N
     }
     LOCAL_JOBS[job_id] = job
     return job
+
+
+def verify_signed_node_envelope(envelope: SignedEnvelope) -> None:
+    tokens = load_local_node_tokens()
+    secret = tokens.get(envelope.node_id)
+    if not secret:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nodo no registrado para transporte firmado.")
+    if not verify_envelope(envelope, secret):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Firma federada inválida o expirada.")
+    if envelope.public_key:
+        federation = Federation()
+        node = federation.get_node(envelope.node_id)
+        if node:
+            federation.register_node(
+                node_id=envelope.node_id,
+                name=str(node.get("name") or envelope.node_id),
+                owner=str(node.get("owner") or "single-port-local"),
+                endpoint=node.get("endpoint"),
+                public_key=envelope.public_key,
+                trust_level=str(node.get("trust_level") or "medium"),
+                permissions=node.get("permissions") or ["publish_capabilities", "request_compute"],
+                capabilities=node.get("capabilities") or {},
+            )
 
 
 def wait_local_job(job_id: str, timeout: float = 25.0, interval: float = 0.5) -> dict[str, Any]:
@@ -781,6 +812,24 @@ def local_node_next_job(node_id: str, node_token: str = "") -> dict[str, Any]:
     return {"status": "idle", "node_id": node_id, "job": None}
 
 
+@app.get("/api/federation/transport/doctor")
+def federated_transport_doctor() -> dict[str, Any]:
+    doctor = FederatedTransportDoctor()
+    return doctor.model_dump() if hasattr(doctor, "model_dump") else doctor.dict()
+
+
+@app.post("/api/federation/transport/next")
+def federated_transport_next(envelope: SignedEnvelope) -> dict[str, Any]:
+    verify_signed_node_envelope(envelope)
+    for job in LOCAL_JOBS.values():
+        if job.get("node_id") == envelope.node_id and job.get("status") == "pending":
+            ensure_sandbox_task(str(job.get("task") or ""))
+            job["status"] = "running"
+            job["updated_at"] = time.time()
+            return {"status": "ok", "node_id": envelope.node_id, "job": job}
+    return {"status": "idle", "node_id": envelope.node_id, "job": None}
+
+
 @app.post("/api/jobs/{job_id}/result")
 def local_node_job_result(job_id: str, request: LocalNodeJobResultRequest) -> dict[str, Any]:
     tokens = load_local_node_tokens()
@@ -850,6 +899,22 @@ def local_node_job_result(job_id: str, request: LocalNodeJobResultRequest) -> di
             capabilities["distributed_runtime_status"] = "active"
             federation.update_capabilities(request.node_id, capabilities)
     return {"status": "ok", "job_id": job_id, "accepted": True}
+
+
+@app.post("/api/federation/transport/result")
+def federated_transport_result(envelope: SignedEnvelope) -> dict[str, Any]:
+    verify_signed_node_envelope(envelope)
+    payload = FederatedJobResultPayload(**envelope.payload)
+    return local_node_job_result(
+        payload.job_id,
+        LocalNodeJobResultRequest(
+            node_id=envelope.node_id,
+            node_token=load_local_node_tokens().get(envelope.node_id, ""),
+            status=payload.status,
+            result=payload.result,
+            error=payload.error,
+        ),
+    )
 
 
 @app.post("/api/local-federation/benchmark")

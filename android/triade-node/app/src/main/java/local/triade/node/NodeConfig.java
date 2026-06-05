@@ -3,6 +3,8 @@ package local.triade.node;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import java.util.UUID;
+
 public final class NodeConfig {
     private static final String PREFS = "triade_node";
 
@@ -12,20 +14,27 @@ public final class NodeConfig {
     public final String displayName;
     public final String nodeId;
     public final String nodeToken;
+    public final String publicKey;
     public final int resourceLimitPercent;
 
-    private NodeConfig(String relayUrl, String runtimeUrl, String pairingToken, String displayName, String nodeId, String nodeToken, int resourceLimitPercent) {
+    private NodeConfig(String relayUrl, String runtimeUrl, String pairingToken, String displayName, String nodeId, String nodeToken, String publicKey, int resourceLimitPercent) {
         this.relayUrl = trimTrailingSlash(relayUrl);
         this.runtimeUrl = trimTrailingSlash(runtimeUrl);
         this.pairingToken = pairingToken;
         this.displayName = displayName;
         this.nodeId = nodeId;
         this.nodeToken = nodeToken;
+        this.publicKey = publicKey;
         this.resourceLimitPercent = clampPercent(resourceLimitPercent);
     }
 
     public static NodeConfig load(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String publicKey = prefs.getString("publicKey", "");
+        if (publicKey == null || publicKey.trim().isEmpty()) {
+            publicKey = "android-node-" + UUID.randomUUID();
+            prefs.edit().putString("publicKey", publicKey).apply();
+        }
         return new NodeConfig(
                 prefs.getString("relayUrl", "https://web-production-8cffa0.up.railway.app"),
                 prefs.getString("runtimeUrl", "http://127.0.0.1:8010"),
@@ -33,6 +42,7 @@ public final class NodeConfig {
                 prefs.getString("displayName", "Android Node"),
                 prefs.getString("nodeId", ""),
                 prefs.getString("nodeToken", ""),
+                publicKey,
                 prefs.getInt("resourceLimitPercent", 100)
         );
     }

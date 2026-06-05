@@ -106,6 +106,23 @@ def test_runner_records_model_metadata(tmp_path: Path) -> None:
     assert result["memory_diff"]["central_model_event_id"] is not None
 
 
+def test_runner_post_run_learning_creates_candidate_only(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("TRIADE_POST_RUN_LEARNING", "1")
+    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+
+    result = runner.run("Aprendizaje post-run controlado")
+
+    post_run = result["memory_diff"]["post_run_learning"]
+    run_path = Path(result["run_path"])
+    integrity = json.loads((run_path / "integrity.json").read_text(encoding="utf-8"))
+    assert post_run["enabled"] is True
+    assert post_run["mode"] == "candidate_only"
+    assert post_run["status"] == "candidate"
+    assert post_run["candidate_id"]
+    assert (run_path / "post_run_learning.json").exists()
+    assert integrity["post_run_learning"]["candidate_id"] == post_run["candidate_id"]
+
+
 def test_runner_accepts_model_overrides(tmp_path: Path) -> None:
     runner = TriadeRunner(
         runs_dir=tmp_path / "runs",

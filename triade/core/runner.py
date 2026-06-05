@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
@@ -173,9 +174,13 @@ class TriadeRunner:
         report = self.verifier.verify(output, safety, crystal=crystal, memory=memory)
         verification_id = self.bodega.store_verification_report(report)
         output.memory_diff["verification_report_id"] = verification_id
+        post_run_learning = self._post_run_learning_candidate(input_packet, output, report, signals.intent)
+        output.memory_diff["post_run_learning"] = post_run_learning
         artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan.to_dict(), "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict()}
         if neuron_proposal is not None:
             artifacts["neuron_candidate.json"] = neuron_proposal
+        if post_run_learning.get("enabled"):
+            artifacts["post_run_learning.json"] = post_run_learning
         for filename, payload in artifacts.items():
             self._write_json(run_path / filename, payload)
         integrity = {
@@ -183,12 +188,46 @@ class TriadeRunner:
             "crystal_temporal_state": temporal_state, "semantic_recall": semantic_state,
             "safety_crystal_feedback": {"status": safety.status, "risk_types": safety.risk_types, "controls": safety.required_controls},
             "neuron_proposal": neuron_proposal,
+            "post_run_learning": post_run_learning,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_quality_score": central_quality, "central_model_event_id": central_event_id, "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_selection": self.model_selection, "closed": True,
         }
         self._write_json(run_path / "integrity.json", integrity)
         (run_path / "CLOSED").write_text("closed\n", encoding="utf-8")
         return {"run_id": input_packet.run_id, "response": output.response, "safety": safety.to_dict(), "report": report.to_dict(), "memory_diff": output.memory_diff, "semantic_recall": semantic_state, "crystal_temporal_state": temporal_state, "models": {"hypothalamus": {**hypothalamus_model_result, "quality_score": hypothalamus_quality, "event_id": hypothalamus_event_id}, "central": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error, "quality_score": central_quality, "event_id": central_event_id}}, "model": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error}, "model_selection": self.model_selection, "neuron_proposal": neuron_proposal, "run_path": str(run_path)}
+
+    def _post_run_learning_candidate(self, input_packet: InputPacket, output: Any, report: Any, intent: str) -> dict[str, Any]:
+        enabled = str(os.environ.get("TRIADE_POST_RUN_LEARNING", "")).strip().lower() in {"1", "true", "yes", "on"}
+        if not enabled:
+            return {"enabled": False, "reason": "disabled_by_default", "policy": "set_TRIADE_POST_RUN_LEARNING=1_to_ingest_candidate"}
+        context = input_packet.context or {}
+        domain = str(context.get("domain", "")).strip() or str(intent or "general")
+        content = "\n".join(
+            [
+                f"run_id: {input_packet.run_id}",
+                f"source: {input_packet.source}",
+                f"intent: {intent}",
+                f"input: {input_packet.user_input}",
+                f"response: {output.response}",
+                f"verification_status: {report.status}",
+            ]
+        )
+        candidate = LearningPipeline(db_path=self.db_path).ingest(
+            content=content,
+            source_type="conversation",
+            source_ref=f"run:{input_packet.run_id}",
+            title=f"Post-run learning {input_packet.run_id}",
+            domain=domain,
+            risk_level="low",
+        )
+        return {
+            "enabled": True,
+            "mode": "candidate_only",
+            "candidate_id": candidate.get("candidate_id"),
+            "status": candidate.get("status"),
+            "source_ref": candidate.get("source_ref"),
+            "policy": "No se evalua, verifica ni consolida sin pasos explicitos posteriores.",
+        }
 
     def _propose_neuron_candidate(self, input_packet: InputPacket, signals: Any) -> dict[str, Any]:
         """Propone (sin activar) una neurona candidata cuando la intención es de creación.

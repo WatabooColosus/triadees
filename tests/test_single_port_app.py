@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import time
+
 from fastapi.testclient import TestClient
 
 from apps import single_port_app
 from apps.single_port_app import app, federated_model_plan
+from triade.federation.contracts import sign_payload
 
 
 client = TestClient(app)
@@ -288,6 +291,76 @@ def test_single_port_local_job_cycle(tmp_path, monkeypatch) -> None:
     assert result.status_code == 200
     assert single_port_app.LOCAL_JOBS[job["job_id"]]["status"] == "completed"
     assert single_port_app.LOCAL_JOBS[job["job_id"]]["result"]["score"] == 12345
+
+
+def test_signed_federated_transport_local_job_cycle(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(single_port_app, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+    single_port_app.LOCAL_JOBS.clear()
+    register = client.post("/api/register", json={"display_name": "Android firmado", "capabilities": {"native_android": True, "app_node": True}})
+    identity = register.json()
+    job = single_port_app.create_local_job(identity["node_id"], "sha256", payload={"hello": "triade"})
+
+    next_payload = {"request": "next_job"}
+    timestamp = int(time.time())
+    next_envelope = {
+        "node_id": identity["node_id"],
+        "timestamp": timestamp,
+        "nonce": "nonce-next-12345",
+        "payload": next_payload,
+        "signature": sign_payload(identity["node_token"], identity["node_id"], timestamp, "nonce-next-12345", next_payload),
+        "public_key": "android-test-key",
+    }
+    next_job = client.post("/api/federation/transport/next", json=next_envelope)
+
+    assert next_job.status_code == 200
+    assert next_job.json()["job"]["job_id"] == job["job_id"]
+    assert single_port_app.LOCAL_JOBS[job["job_id"]]["status"] == "running"
+
+    result_payload = {"job_id": job["job_id"], "status": "completed", "result": {"sha256": "abc"}, "error": None}
+    result_timestamp = int(time.time())
+    result_envelope = {
+        "node_id": identity["node_id"],
+        "timestamp": result_timestamp,
+        "nonce": "nonce-result-123",
+        "payload": result_payload,
+        "signature": sign_payload(identity["node_token"], identity["node_id"], result_timestamp, "nonce-result-123", result_payload),
+        "public_key": "android-test-key",
+    }
+    result = client.post("/api/federation/transport/result", json=result_envelope)
+
+    assert result.status_code == 200
+    assert single_port_app.LOCAL_JOBS[job["job_id"]]["status"] == "completed"
+    assert single_port_app.LOCAL_JOBS[job["job_id"]]["result"]["sha256"] == "abc"
+
+
+def test_signed_federated_transport_rejects_bad_signature(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(single_port_app, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+    single_port_app.LOCAL_JOBS.clear()
+    register = client.post("/api/register", json={"display_name": "Android firmado", "capabilities": {"native_android": True, "app_node": True}})
+    identity = register.json()
+    single_port_app.create_local_job(identity["node_id"], "sha256", payload={"hello": "triade"})
+
+    response = client.post(
+        "/api/federation/transport/next",
+        json={
+            "node_id": identity["node_id"],
+            "timestamp": int(time.time()),
+            "nonce": "nonce-bad-12345",
+            "payload": {"request": "next_job"},
+            "signature": "0" * 64,
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_local_jobs_only_accept_sandbox_tasks() -> None:
+    try:
+        single_port_app.create_local_job("node", "execute_system_commands")
+    except ValueError as exc:
+        assert "sandbox federado" in str(exc)
+    else:
+        raise AssertionError("create_local_job accepted a task outside the federation sandbox")
 
 
 def test_distributed_runtime_preprocess_merges_android_results(monkeypatch) -> None:
