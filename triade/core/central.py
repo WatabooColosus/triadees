@@ -15,7 +15,32 @@ class Central:
     Usa Ollama si está disponible y conserva fallback por plantilla si falla.
     Desde 1.9E, solo recibe recuerdos semánticos autorizados por gobernanza y
     exige atribución literal de fuente/estado cuando la memoria se menciona.
+    Desde 1.9F, separa el paquete cognitivo interno de la respuesta final: las
+    métricas y señales solo se exponen cuando el usuario pide auditoría/debug.
+    Desde 1.9G, no entrega el JSON interno al modelo en conversación normal.
+    Desde 1.9H, responde de forma determinística a interacciones sociales simples.
     """
+
+    INTERNAL_AUDIT_TERMS = {
+        "audita",
+        "auditoría",
+        "auditoria",
+        "analiza el run",
+        "analiza este run",
+        "diagnóstico técnico",
+        "diagnostico tecnico",
+        "debug",
+        "trazabilidad",
+        "q_crystal",
+        "cristal",
+        "hipotálamo",
+        "hipotalamo",
+        "pv7",
+        "paquete cognitivo",
+        "reporte interno",
+        "señales internas",
+        "senales internas",
+    }
 
     def __init__(self, model_client: OllamaClient | None = None, central_model: str = "qwen2.5:3b-instruct") -> None:
         self.model_client = model_client
@@ -70,8 +95,21 @@ class Central:
         plan: PlanPacket,
     ) -> OutputPacket:
         identity = next((item["value"] for item in memory.identity_matches if item.get("key") == "entity_name"), "Tríade Ω")
-        fallback_response = self._fallback_response(identity, input_packet, signals, crystal)
+        wants_internal_audit = self._wants_internal_audit(input_packet.user_input)
+        fallback_response = self._fallback_response(identity, input_packet, signals, crystal, wants_internal_audit)
         temporal_action = "crystal_temporal_regulation_applied"
+        deterministic_response = self._deterministic_user_response(identity, input_packet.user_input, wants_internal_audit)
+        if deterministic_response is not None:
+            return OutputPacket(
+                run_id=input_packet.run_id,
+                response=deterministic_response,
+                actions_taken=["plan_created", "crystal_regulation_applied", temporal_action, "deterministic_user_response_generated"],
+                memory_diff={"pending_persistence": True},
+                status="ok",
+                model_provider="template",
+                model_name="deterministic-user-response",
+                model_ok=True,
+            )
         if self.model_client is None:
             return OutputPacket(
                 run_id=input_packet.run_id,
@@ -83,15 +121,15 @@ class Central:
                 model_name="template-fallback",
                 model_ok=False,
             )
-        prompt = self._build_prompt(identity, input_packet, signals, memory, crystal, plan)
+        prompt = self._build_prompt(identity, input_packet, signals, memory, crystal, plan, wants_internal_audit)
         system = (
             "Eres Tríade Ω, un sistema cognitivo modular en construcción verificable. "
-            "Responde en español, con claridad, honestidad y tono útil. "
-            "Aplica q_crystal y temporal_status: ante degradación o criticidad, prioriza prudencia y verificación. "
-            "La memoria semántica incluida ya fue filtrada por gobernanza: usa solamente semantic_matches presentes. "
-            "No inventes el origen de una memoria, proyecto, neurona, documento, fuente o estado. "
-            "Si mencionas procedencia, usa únicamente source_ref, document_id, document_status o contexto literal del paquete. "
-            "Si no hay memoria semántica autorizada suficiente, dilo en vez de completar con suposiciones."
+            "Responde SIEMPRE en español al usuario final, no al paquete interno. "
+            "Tu salida debe contener solo la respuesta visible para el usuario. "
+            "Nunca hagas resúmenes de JSON, planes, señales, memoria, q_crystal, PV7, Cristal, Hipotálamo ni continuidad temporal, salvo petición explícita de auditoría/debug/trazabilidad. "
+            "Para saludos, afecto o conversación casual, responde breve, humano y directo. "
+            "Usa cualquier contexto técnico solo como regulación interna de tono, prudencia y profundidad. "
+            "No inventes origen de memoria, proyecto, neurona, documento, fuente o estado."
         )
         result = self.model_client.generate(self.central_model, prompt=prompt, system=system)
         if not result.ok or not result.text:
@@ -118,7 +156,18 @@ class Central:
         )
 
     @staticmethod
-    def _fallback_response(identity: str, input_packet: InputPacket, signals: SignalPacket, crystal: CrystalPacket) -> str:
+    def _fallback_response(
+        identity: str,
+        input_packet: InputPacket,
+        signals: SignalPacket,
+        crystal: CrystalPacket,
+        wants_internal_audit: bool = False,
+    ) -> str:
+        if not wants_internal_audit:
+            if Central._is_social_input(input_packet.user_input):
+                return f"Hola, soy {identity}. Estoy contigo y listo para ayudarte."
+            return f"{identity} recibió tu mensaje y lo atenderá con una respuesta clara y verificable."
+
         mode = Central._crystal_mode(crystal)
         return (
             f"{identity} procesó el run {input_packet.run_id}. "
@@ -140,6 +189,49 @@ class Central:
             return "profundidad estable"
         return "equilibrio operativo"
 
+    @classmethod
+    def _wants_internal_audit(cls, user_input: str) -> bool:
+        text = user_input.lower()
+        return any(term in text for term in cls.INTERNAL_AUDIT_TERMS)
+
+    @staticmethod
+    def _deterministic_user_response(identity: str, user_input: str, wants_internal_audit: bool) -> str | None:
+        if wants_internal_audit:
+            return None
+        text = user_input.lower().strip()
+        if Central._is_joke_request(text):
+            return "Claro: ¿Por qué el computador fue al médico? Porque tenía un virus y necesitaba reiniciarse la vida."
+        if Central._is_social_input(text):
+            if "me caes bien" in text:
+                return "Gracias. Me alegra acompañarte en este proceso. Sigamos construyendo con calma y precisión."
+            if "como estas" in text or "cómo estás" in text or "que tal" in text or "qué tal" in text:
+                return f"Estoy operativo y enfocado, como {identity}. Listo para ayudarte sin mostrarte el proceso interno."
+            return f"Hola, soy {identity}. Estoy contigo y listo para ayudarte."
+        return None
+
+    @staticmethod
+    def _is_joke_request(text: str) -> bool:
+        return any(term in text for term in {"chiste", "broma", "hazme reír", "hazme reir"})
+
+    @staticmethod
+    def _is_social_input(user_input: str) -> bool:
+        text = user_input.lower().strip()
+        social_terms = {
+            "hola",
+            "buenas",
+            "buenos días",
+            "buenos dias",
+            "buenas tardes",
+            "buenas noches",
+            "como estas",
+            "cómo estás",
+            "que tal",
+            "qué tal",
+            "me caes bien",
+            "gracias",
+        }
+        return text in social_terms or len(text.split()) <= 4 and any(term in text for term in social_terms)
+
     @staticmethod
     def _build_prompt(
         identity: str,
@@ -148,7 +240,24 @@ class Central:
         memory: MemoryPacket,
         crystal: CrystalPacket,
         plan: PlanPacket,
+        wants_internal_audit: bool = False,
     ) -> str:
+        if not wants_internal_audit:
+            memory_hint = ""
+            if memory.semantic_matches:
+                memory_hint = "Hay memoria autorizada disponible; úsala solo si ayuda directamente a responder."
+            return (
+                "MODO: RESPUESTA_FINAL_USUARIO.\n"
+                "No expliques tu proceso interno. No menciones plan, señales, JSON, memoria interna, Cristal, q_crystal, PV7 ni métricas.\n"
+                "Responde en español de forma natural, breve y útil.\n\n"
+                f"Identidad conversacional: {identity}\n"
+                f"Entrada del usuario: {input_packet.user_input}\n"
+                f"Tono detectado: {signals.tone}\n"
+                f"Intención detectada: {signals.intent}\n"
+                f"Nota de memoria: {memory_hint}\n\n"
+                "Salida requerida: escribe solo la respuesta final para el usuario."
+            )
+
         memory_summary = {
             "identity": memory.identity_matches[:5],
             "episodic_matches": memory.episodic_matches[:3],
@@ -166,11 +275,11 @@ class Central:
             "crystal_mode": Central._crystal_mode(crystal),
             "temporal_alerts": crystal.temporal_alerts,
             "plan": plan.to_dict(),
+            "response_mode": "internal_audit",
         }
         return (
-            "Procesa este paquete cognitivo de Tríade y responde al usuario. "
-            "La regulación del Cristal y su continuidad temporal no son decorativas: úsalas para ajustar prudencia, profundidad y tono. "
-            "Usa únicamente `semantic_matches_authorized_only` como recuerdos semánticos disponibles; los recuerdos en cuarentena son solo evidencia de control y no hechos para responder. "
-            "No afirmes procedencias que no aparezcan literalmente en `input_context` o en los campos de cada match autorizado.\n\n"
+            "MODO: AUDITORIA_INTERNA_SOLICITADA.\n"
+            "El usuario pidió auditoría, debug o trazabilidad. Puedes explicar señales, Cristal, memoria, plan y continuidad temporal de forma estructurada, "
+            "pero sin inventar procedencias ni hechos no presentes en el paquete.\n\n"
             + json.dumps(payload, ensure_ascii=False, indent=2)
         )
