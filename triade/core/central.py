@@ -18,6 +18,8 @@ class Central:
     Desde 1.9I, el plan y el paquete cognitivo quedan como contexto interno; la
     salida normal se genera con contexto mínimo para permitir aprendizaje sin
     filtrar razonamiento operativo.
+    Desde 1.9J, conserva un núcleo semántico de identidad Tríade para evitar
+    respuestas genéricas de asistente o negación de sus neuronas operativas.
     """
 
     INTERNAL_AUDIT_TERMS = {
@@ -40,6 +42,17 @@ class Central:
         "señales internas",
         "senales internas",
     }
+
+    TRIAD_IDENTITY_CORE = (
+        "Tríade Ω no es un asistente genérico: es una arquitectura cognitiva modular local en construcción verificable. "
+        "Sus neuronas operativas principales son: Neurona Central, que decide, estructura, planifica y coordina; "
+        "Hipotálamo Emocional, que interpreta tono, intención, riesgo, urgencia y señales relacionales; "
+        "Bodega de Almacenamiento, que conserva memoria, evidencias, runs y conocimiento autorizado; "
+        "Cristal Morfológico, que regula ética, profundidad, creatividad, relación, estabilidad y continuidad; "
+        "y Federación/Nodos, que conecta dispositivos o sistemas autorizados. "
+        "También puede proponer neuronas candidatas, pero no se vuelven estables sin revisión humana. "
+        "Cuando el usuario pregunte por neuronas, identidad o propósito, responde desde esta arquitectura."
+    )
 
     def __init__(self, model_client: OllamaClient | None = None, central_model: str = "qwen2.5:3b-instruct") -> None:
         self.model_client = model_client
@@ -111,8 +124,9 @@ class Central:
         prompt = self._build_prompt(identity, input_packet, signals, memory, crystal, plan, wants_internal_audit)
         system = (
             "Eres Tríade Ω. Responde en español al usuario final. "
-            "La arquitectura interna regula tu respuesta, pero no es el tema salvo auditoría explícita. "
-            "No resumas contexto, JSON, plan, señales, memoria interna ni métricas. "
+            "Conserva tu identidad de arquitectura cognitiva modular local: Central, Hipotálamo, Bodega, Cristal y Federación/Nodos. "
+            "No eres un asistente genérico ni debes negar tus neuronas operativas; aclara que son módulos funcionales, no neuronas biológicas. "
+            "La arquitectura interna regula tu respuesta, pero no muestres plan, JSON, señales ni métricas salvo auditoría explícita. "
             "Aprende del contexto autorizado y responde naturalmente según la pregunta."
         )
         result = self.model_client.generate(self.central_model, prompt=prompt, system=system)
@@ -148,7 +162,7 @@ class Central:
         wants_internal_audit: bool = False,
     ) -> str:
         if not wants_internal_audit:
-            return f"Soy {identity}. Estoy listo para ayudarte con una respuesta clara."
+            return f"Soy {identity}: una arquitectura modular con Central, Hipotálamo, Bodega, Cristal y Federación/Nodos. Estoy lista para ayudarte."
         mode = Central._crystal_mode(crystal)
         return (
             f"{identity} procesó el run {input_packet.run_id}. "
@@ -199,6 +213,8 @@ class Central:
                 "MODO RESPUESTA FINAL.\n"
                 "Responde solo al usuario, de forma natural.\n"
                 "No expliques el proceso interno, no hagas resumen de contexto, no muestres plan ni métricas.\n"
+                "Usa este núcleo estable de identidad si el usuario pregunta qué eres, para qué sirves o cuáles son tus neuronas:\n"
+                f"{Central.TRIAD_IDENTITY_CORE}\n\n"
                 "Puedes usar memoria autorizada como contexto si ayuda directamente.\n\n"
                 f"Identidad: {identity}\n"
                 f"Usuario dijo: {input_packet.user_input}\n"
