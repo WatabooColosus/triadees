@@ -49,9 +49,10 @@ class Central:
         "Hipotálamo Emocional, que interpreta tono, intención, riesgo, urgencia y señales relacionales; "
         "Bodega de Almacenamiento, que conserva memoria, evidencias, runs y conocimiento autorizado; "
         "Cristal Morfológico, que regula ética, profundidad, creatividad, relación, estabilidad y continuidad; "
-        "y Federación/Nodos, que conecta dispositivos o sistemas autorizados. "
-        "También puede proponer neuronas candidatas, pero no se vuelven estables sin revisión humana. "
-        "Cuando el usuario pregunte por neuronas, identidad o propósito, responde desde esta arquitectura."
+        "Federación/Nodos, que conecta dispositivos o sistemas autorizados; y Aprendizaje en segundo plano, "
+        "que registra candidatos post-run y propuestas sin consolidarlas como verdad estable hasta revisión humana. "
+        "El pulso vivo resume el estado operativo de PC, modelos, router, memoria semántica, Docker, relay, nodos Android, hosts LLM y eventos pendientes. "
+        "Cuando el usuario pregunte por neuronas, identidad, propósito, pulso vivo o aprendizaje en segundo plano, responde desde esta arquitectura."
     )
 
     def __init__(self, model_client: OllamaClient | None = None, central_model: str = "qwen2.5:3b-instruct") -> None:
@@ -124,7 +125,7 @@ class Central:
         prompt = self._build_prompt(identity, input_packet, signals, memory, crystal, plan, wants_internal_audit)
         system = (
             "Eres Tríade Ω. Responde en español al usuario final. "
-            "Conserva tu identidad de arquitectura cognitiva modular local: Central, Hipotálamo, Bodega, Cristal y Federación/Nodos. "
+            "Conserva tu identidad de arquitectura cognitiva modular local: Central, Hipotálamo, Bodega, Cristal, Federación/Nodos, pulso vivo y aprendizaje en segundo plano. "
             "No eres un asistente genérico ni debes negar tus neuronas operativas; aclara que son módulos funcionales, no neuronas biológicas. "
             "La arquitectura interna regula tu respuesta, pero no muestres plan, JSON, señales ni métricas salvo auditoría explícita. "
             "Aprende del contexto autorizado y responde naturalmente según la pregunta."
@@ -162,7 +163,7 @@ class Central:
         wants_internal_audit: bool = False,
     ) -> str:
         if not wants_internal_audit:
-            return f"Soy {identity}: una arquitectura modular con Central, Hipotálamo, Bodega, Cristal y Federación/Nodos. Estoy lista para ayudarte."
+            return f"Soy {identity}: una arquitectura modular con Central, Hipotálamo, Bodega, Cristal, Federación/Nodos, pulso vivo y aprendizaje en segundo plano. Estoy lista para ayudarte."
         mode = Central._crystal_mode(crystal)
         return (
             f"{identity} procesó el run {input_packet.run_id}. "
@@ -209,19 +210,25 @@ class Central:
             semantic_context = ""
             if safe_matches:
                 semantic_context = "\nMemoria autorizada útil, si aplica:\n" + json.dumps(safe_matches, ensure_ascii=False, indent=2)
+            pulse_summary = input_packet.context.get("system_pulse_summary") if isinstance(input_packet.context, dict) else None
+            pulse_context = ""
+            if pulse_summary:
+                pulse_context = "\nPulso vivo actual resumido:\n" + json.dumps(pulse_summary, ensure_ascii=False, indent=2)
             return (
                 "MODO RESPUESTA FINAL.\n"
                 "Responde solo al usuario, de forma natural.\n"
                 "No expliques el proceso interno, no hagas resumen de contexto, no muestres plan ni métricas.\n"
-                "Usa este núcleo estable de identidad si el usuario pregunta qué eres, para qué sirves o cuáles son tus neuronas:\n"
+                "Usa este núcleo estable de identidad si el usuario pregunta qué eres, para qué sirves, cuáles son tus neuronas, tu pulso vivo o tu aprendizaje en segundo plano:\n"
                 f"{Central.TRIAD_IDENTITY_CORE}\n\n"
-                "Puedes usar memoria autorizada como contexto si ayuda directamente.\n\n"
+                "Si el usuario pregunta por pulso vivo, usa el resumen de pulso si existe: explica estado, pendientes, nodos, modelos y aprendizaje sin inventar.\n"
+                "Si el usuario pregunta por aprendizaje en segundo plano, explica que registra candidatos y eventos, pero requiere evaluación/aprobación para consolidar.\n"
+                "Si el usuario pregunta por neuronas, habla de módulos funcionales y neuronas candidatas.\n\n"
                 f"Identidad: {identity}\n"
                 f"Usuario dijo: {input_packet.user_input}\n"
                 f"Intención orientativa: {signals.intent}\n"
                 f"Tono orientativo: {signals.tone}\n"
                 f"Riesgo orientativo: {signals.risk}\n"
-                f"{semantic_context}\n\n"
+                f"{pulse_context}{semantic_context}\n\n"
                 "Respuesta final:"
             )
 
