@@ -342,7 +342,8 @@ Resultado local:
 Resultado remoto:
 
 - Run `26991259145` sobre commit `d041350` fallo por la misma causa antes de esta correccion final.
-- Pendiente de verificar despues del siguiente push y nuevo run de GitHub Actions.
-- No declarar PR listo para merge hasta que `Python Tests` pase en GitHub.
+- Run `26991642541` (`Python Tests #11`, pull_request) sobre commit `560ad7a` termino en **success**.
+- Run `26991641592` (`Python Tests #10`, push) sobre commit `560ad7a` termino en **success**.
+- `Build Android Node APK #17` seguia `in_progress` al momento de esta actualizacion documental.
 
-Recomendacion actualizada: **merge condicionado**. El fallo real de `Python Tests` quedo corregido localmente con test dirigido y suite completa; el criterio final sigue exigiendo confirmacion verde del workflow remoto.
+Recomendacion actualizada: **merge condicionado**. `Python Tests` queda corregido y verificado local/remoto; el criterio pendiente para merge sigue siendo la validacion del artifact Android si aplica al cierre de PR #9.
