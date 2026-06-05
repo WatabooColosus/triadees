@@ -18,6 +18,7 @@ class Central:
     Desde 1.9F, separa el paquete cognitivo interno de la respuesta final: las
     métricas y señales solo se exponen cuando el usuario pide auditoría/debug.
     Desde 1.9G, no entrega el JSON interno al modelo en conversación normal.
+    Desde 1.9H, responde de forma determinística a interacciones sociales simples.
     """
 
     INTERNAL_AUDIT_TERMS = {
@@ -97,6 +98,18 @@ class Central:
         wants_internal_audit = self._wants_internal_audit(input_packet.user_input)
         fallback_response = self._fallback_response(identity, input_packet, signals, crystal, wants_internal_audit)
         temporal_action = "crystal_temporal_regulation_applied"
+        deterministic_response = self._deterministic_user_response(identity, input_packet.user_input, wants_internal_audit)
+        if deterministic_response is not None:
+            return OutputPacket(
+                run_id=input_packet.run_id,
+                response=deterministic_response,
+                actions_taken=["plan_created", "crystal_regulation_applied", temporal_action, "deterministic_user_response_generated"],
+                memory_diff={"pending_persistence": True},
+                status="ok",
+                model_provider="template",
+                model_name="deterministic-user-response",
+                model_ok=True,
+            )
         if self.model_client is None:
             return OutputPacket(
                 run_id=input_packet.run_id,
@@ -180,6 +193,25 @@ class Central:
     def _wants_internal_audit(cls, user_input: str) -> bool:
         text = user_input.lower()
         return any(term in text for term in cls.INTERNAL_AUDIT_TERMS)
+
+    @staticmethod
+    def _deterministic_user_response(identity: str, user_input: str, wants_internal_audit: bool) -> str | None:
+        if wants_internal_audit:
+            return None
+        text = user_input.lower().strip()
+        if Central._is_joke_request(text):
+            return "Claro: ¿Por qué el computador fue al médico? Porque tenía un virus y necesitaba reiniciarse la vida."
+        if Central._is_social_input(text):
+            if "me caes bien" in text:
+                return "Gracias. Me alegra acompañarte en este proceso. Sigamos construyendo con calma y precisión."
+            if "como estas" in text or "cómo estás" in text or "que tal" in text or "qué tal" in text:
+                return f"Estoy operativo y enfocado, como {identity}. Listo para ayudarte sin mostrarte el proceso interno."
+            return f"Hola, soy {identity}. Estoy contigo y listo para ayudarte."
+        return None
+
+    @staticmethod
+    def _is_joke_request(text: str) -> bool:
+        return any(term in text for term in {"chiste", "broma", "hazme reír", "hazme reir"})
 
     @staticmethod
     def _is_social_input(user_input: str) -> bool:
