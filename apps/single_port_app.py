@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from triade.core.runner import TriadeRunner
 from triade.core.repo_info import repo_info
+from triade.core.pulse_context import build_run_context_with_pulse
 from triade.federation.contracts import (
     FederatedJobResultPayload,
     FederatedTransportDoctor,
@@ -1293,7 +1294,7 @@ def run_triade(request: RunRequest, x_triade_api_key: str | None = Header(defaul
     return runner.run(
         request.text,
         source=request.source,
-        context=request.context,
+        context=build_run_context_with_pulse(request.context, build_system_pulse),
         semantic_recall_enabled=request.semantic_recall_enabled,
         semantic_model=clean_model(request.semantic_model),
         semantic_limit=request.semantic_limit,
