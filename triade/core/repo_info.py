@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -9,8 +10,8 @@ from typing import Any
 
 def repo_info(cwd: str | Path = ".") -> dict[str, Any]:
     root = Path(cwd)
-    origin = _git(["remote", "get-url", "origin"], root)
-    branch = _git(["branch", "--show-current"], root)
+    origin = _canonical_origin(_git(["remote", "get-url", "origin"], root))
+    branch = _git(["branch", "--show-current"], root) or os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME", "")
     commit = _git(["rev-parse", "--short", "HEAD"], root)
     upstream = _git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], root)
     status = _git(["status", "--short"], root)
@@ -41,3 +42,9 @@ def _git(args: list[str], cwd: Path) -> str:
     if result.returncode != 0:
         return ""
     return result.stdout.strip()
+
+
+def _canonical_origin(origin: str) -> str:
+    if origin.startswith("https://github.com/") and not origin.endswith(".git"):
+        return f"{origin}.git"
+    return origin

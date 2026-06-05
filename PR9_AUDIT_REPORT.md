@@ -303,7 +303,7 @@ Estado GitHub al cierre:
 
 Recomendacion final actualizada: **merge condicionado, no fusionar todavia** hasta que GitHub Actions confirme `Python Tests` y publique el artifact Android `triade-android-node-debug`.
 
-## Correccion Python Tests run 26990993902
+## Correccion Python Tests run 26990993902 / 26991259145
 
 Fecha: 2026-06-05.
 
@@ -313,30 +313,36 @@ Evidencia disponible:
 
 - `gh` no esta instalado en este entorno, por lo que no fue posible descargar logs con `gh run view`.
 - La descarga directa de logs por GitHub API respondio `403 Must have admin rights to Repository`.
-- La pagina del job en GitHub muestra fallo en el paso `Run tests` con exit code `1`, pero no expuso aqui el traceback completo.
+- Se uso el conector autenticado de GitHub para leer logs del run posterior `26991259145`, job `79651720407`.
+- El fallo real era reproducible solo en el checkout de PR de GitHub Actions:
+  - `tests/test_federation_pairing_app.py::test_pairing_app_exposes_repo_info`
+  - `tests/test_repo_info.py::test_repo_info_reports_connected_origin`
+- Causa: en Actions, `actions/checkout` configura origin como `https://github.com/WatabooColosus/triadees` sin sufijo `.git`, y el checkout de PR queda en detached HEAD. Los tests esperaban origin canonical con `.git` y branch no vacia.
 
 Cambio aplicado:
 
-- `apps/mobile_node_agent.py`: se reemplazo el uso directo de `request.model_dump()` por `model_to_dict(request)`.
-- Motivo tecnico: `model_dump()` existe en Pydantic v2, pero no en Pydantic v1. El workflow Python corre con Python 3.11 y puede resolver dependencias de forma distinta al entorno local; este cambio mantiene compatibilidad v1/v2 sin modificar el contrato del endpoint ni agregar funcionalidad.
-- `tests/test_mobile_node_agent.py`: se agrego una prueba minima para cubrir la forma Pydantic v1-compatible (`.dict()`).
+- `triade/core/repo_info.py`: canonicaliza origin HTTPS de GitHub agregando `.git` cuando falta.
+- `triade/core/repo_info.py`: usa `GITHUB_HEAD_REF` o `GITHUB_REF_NAME` como fallback de branch cuando Git esta en detached HEAD.
+- `tests/test_repo_info.py`: agrega cobertura del origin sin `.git` y del fallback de branch en CI.
+- No se agregaron endpoints ni features.
 
 Tests ejecutados:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests\test_mobile_node_agent.py -q
+.\.venv\Scripts\python.exe -m pytest tests\test_repo_info.py tests\test_federation_pairing_app.py -q
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
 Resultado local:
 
-- `tests/test_mobile_node_agent.py`: OK, 4 tests passed.
+- `tests/test_repo_info.py tests/test_federation_pairing_app.py`: OK, 7 tests passed.
 - `pytest -q`: OK, suite completa pasada.
 - Advertencia no bloqueante: `StarletteDeprecationWarning` por `fastapi.testclient`/`httpx`.
 
 Resultado remoto:
 
-- Pendiente de verificar despues de push y nuevo run de GitHub Actions.
+- Run `26991259145` sobre commit `d041350` fallo por la misma causa antes de esta correccion final.
+- Pendiente de verificar despues del siguiente push y nuevo run de GitHub Actions.
 - No declarar PR listo para merge hasta que `Python Tests` pase en GitHub.
 
-Recomendacion actualizada: **merge condicionado**. El fallo probable de compatibilidad Pydantic quedo corregido con test local, pero el criterio final sigue exigiendo confirmacion verde del workflow remoto.
+Recomendacion actualizada: **merge condicionado**. El fallo real de `Python Tests` quedo corregido localmente con test dirigido y suite completa; el criterio final sigue exigiendo confirmacion verde del workflow remoto.

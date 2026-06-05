@@ -31,13 +31,6 @@ from pydantic import BaseModel, Field
 DEFAULT_STATE_PATH = Path(os.environ.get("TRIADE_MOBILE_STATE", "mobile_node_state.json"))
 
 
-def model_to_dict(model: Any) -> dict[str, Any]:
-    """Compatibilidad Pydantic v1/v2 para runners con resoluciones distintas."""
-    if hasattr(model, "model_dump"):
-        return model.model_dump()
-    return model.dict()
-
-
 @dataclass
 class AgentConfig:
     node_id: str = "mobile-node"
@@ -130,7 +123,7 @@ class MobileNodeAgent:
         job = JobRecord(job_id=f"mjob-{uuid4().hex[:12]}", task=request.task)
         with self.lock:
             self.jobs[job.job_id] = job
-            job.result = {"request": model_to_dict(request)}
+            job.result = {"request": request.model_dump()}
         self.work_queue.put(job.job_id)
         return job
 
