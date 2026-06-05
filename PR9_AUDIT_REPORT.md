@@ -302,3 +302,41 @@ Estado GitHub al cierre:
 - Workflow `Build Android Node APK` para commit `67c9da2` aparece **In progress**.
 
 Recomendacion final actualizada: **merge condicionado, no fusionar todavia** hasta que GitHub Actions confirme `Python Tests` y publique el artifact Android `triade-android-node-debug`.
+
+## Correccion Python Tests run 26990993902
+
+Fecha: 2026-06-05.
+
+Solicitud atendida: estabilizar el fallo de `Python Tests` del run `26990993902`, job `79650908569`, sin agregar features.
+
+Evidencia disponible:
+
+- `gh` no esta instalado en este entorno, por lo que no fue posible descargar logs con `gh run view`.
+- La descarga directa de logs por GitHub API respondio `403 Must have admin rights to Repository`.
+- La pagina del job en GitHub muestra fallo en el paso `Run tests` con exit code `1`, pero no expuso aqui el traceback completo.
+
+Cambio aplicado:
+
+- `apps/mobile_node_agent.py`: se reemplazo el uso directo de `request.model_dump()` por `model_to_dict(request)`.
+- Motivo tecnico: `model_dump()` existe en Pydantic v2, pero no en Pydantic v1. El workflow Python corre con Python 3.11 y puede resolver dependencias de forma distinta al entorno local; este cambio mantiene compatibilidad v1/v2 sin modificar el contrato del endpoint ni agregar funcionalidad.
+- `tests/test_mobile_node_agent.py`: se agrego una prueba minima para cubrir la forma Pydantic v1-compatible (`.dict()`).
+
+Tests ejecutados:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_mobile_node_agent.py -q
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+Resultado local:
+
+- `tests/test_mobile_node_agent.py`: OK, 4 tests passed.
+- `pytest -q`: OK, suite completa pasada.
+- Advertencia no bloqueante: `StarletteDeprecationWarning` por `fastapi.testclient`/`httpx`.
+
+Resultado remoto:
+
+- Pendiente de verificar despues de push y nuevo run de GitHub Actions.
+- No declarar PR listo para merge hasta que `Python Tests` pase en GitHub.
+
+Recomendacion actualizada: **merge condicionado**. El fallo probable de compatibilidad Pydantic quedo corregido con test local, pero el criterio final sigue exigiendo confirmacion verde del workflow remoto.

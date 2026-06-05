@@ -4,11 +4,19 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from apps.mobile_node_agent import AgentConfig, agent, app
+from apps.mobile_node_agent import AgentConfig, agent, app, model_to_dict
 
 
 def test_mobile_agent_admin_is_disabled_by_default() -> None:
     assert AgentConfig().admin_enabled is False
+
+
+def test_mobile_agent_model_to_dict_supports_pydantic_v1_shape() -> None:
+    class LegacyModel:
+        def dict(self) -> dict[str, bool]:
+            return {"legacy": True}
+
+    assert model_to_dict(LegacyModel()) == {"legacy": True}
 
 
 def test_mobile_agent_requires_token_and_runs_job() -> None:
