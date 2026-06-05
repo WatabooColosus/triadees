@@ -2,6 +2,10 @@ name: Build Android Node APK
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "android/triade-node/**"
+      - ".github/workflows/android-node-apk.yml"
   push:
     paths:
       - "android/triade-node/**"
@@ -32,3 +36,4 @@ jobs:
         with:
           name: triade-android-node-debug
           path: android/triade-node/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

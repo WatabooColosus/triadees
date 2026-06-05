@@ -25,6 +25,10 @@ TRIADE_RELAY_ADMIN_TOKEN=<token para administrar nodos/jobs>
 TRIADE_RELAY_DB=/data/public_relay.db
 ```
 
+Si `TRIADE_RELAY_PAIRING_TOKEN` o `TRIADE_RELAY_ADMIN_TOKEN` no existen, el relay no acepta registros ni administracion y responde 503. No hay tokens por defecto seguros.
+
+El APK Android no se versiona dentro del repo. Se descarga desde el artifact de GitHub Actions `triade-android-node-debug` o se copia manualmente al servidor en `apps/static/triade-android-node.apk`.
+
 ## Docker
 
 ```bash

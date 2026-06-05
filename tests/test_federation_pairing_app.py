@@ -52,7 +52,8 @@ def test_pairing_app_exposes_repo_info() -> None:
     assert payload["branch"]
 
 
-def test_pairing_app_serves_termux_bootstrap() -> None:
+def test_pairing_app_serves_termux_bootstrap(monkeypatch) -> None:
+    monkeypatch.setattr(federation_pairing_app, "PAIRING_TOKEN", "secret-pair-token")
     client = TestClient(app)
 
     response = client.get("/downloads/termux-bootstrap.sh")
@@ -62,12 +63,15 @@ def test_pairing_app_serves_termux_bootstrap() -> None:
     assert 'git clone "$REPO_URL" "$APP_DIR"' in response.text
     assert "apps/mobile_node_agent.py" in response.text
     assert "triade-mobile-8790" in response.text
+    assert "secret-pair-token" not in response.text
 
 
-def test_admin_page_includes_single_install_command() -> None:
+def test_admin_page_includes_single_install_command(monkeypatch) -> None:
+    monkeypatch.setattr(federation_pairing_app, "PAIRING_TOKEN", "secret-pair-token")
     client = TestClient(app)
 
     response = client.get("/admin")
 
     assert response.status_code == 200
     assert "curl -fsSL http://testserver/downloads/termux-bootstrap.sh | bash" in response.text
+    assert "secret-pair-token" not in response.text

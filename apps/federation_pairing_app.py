@@ -16,7 +16,7 @@ from triade.core.repo_info import repo_info
 
 
 DB_PATH = os.environ.get("TRIADE_DB_PATH", "triade/memory/triade.db")
-PAIRING_TOKEN = os.environ.get("TRIADE_PAIRING_TOKEN", "triade-local-pairing")
+PAIRING_TOKEN = os.environ.get("TRIADE_PAIRING_TOKEN", "")
 
 app = FastAPI(title="Triade Federation Pairing", version="0.1")
 
@@ -49,7 +49,6 @@ def admin_help(request: Request) -> str:
     install_cmd = f"curl -fsSL {central_url}/downloads/termux-bootstrap.sh | bash"
     return (
         ADMIN_HELP_HTML
-        .replace("__PAIRING_TOKEN__", _escape(PAIRING_TOKEN))
         .replace("__INSTALL_CMD__", _escape(install_cmd))
     )
 
@@ -57,7 +56,7 @@ def admin_help(request: Request) -> str:
 @app.get("/downloads/termux-bootstrap.sh", response_class=PlainTextResponse)
 def termux_bootstrap(request: Request) -> PlainTextResponse:
     central_url = str(request.base_url).rstrip("/")
-    script = TERMUX_BOOTSTRAP.replace("__CENTRAL_URL__", central_url).replace("__PAIRING_TOKEN__", PAIRING_TOKEN)
+    script = TERMUX_BOOTSTRAP.replace("__CENTRAL_URL__", central_url).replace("__PAIRING_TOKEN__", "")
     return PlainTextResponse(
         script,
         media_type="text/x-shellscript; charset=utf-8",
@@ -67,6 +66,8 @@ def termux_bootstrap(request: Request) -> PlainTextResponse:
 
 @app.post("/api/pair")
 def pair_device(request: PairRequest) -> dict[str, Any]:
+    if not PAIRING_TOKEN:
+        raise HTTPException(status_code=503, detail="TRIADE_PAIRING_TOKEN no configurado.")
     if request.token != PAIRING_TOKEN:
         raise HTTPException(status_code=401, detail="Token de emparejamiento invalido.")
 
@@ -311,9 +312,9 @@ python triade_digimon.py federate register celular-termux `
   --capabilities ($CAPS | ConvertTo-Json -Depth 8)</pre>
 
   <h2>Portal de emparejamiento navegador</h2>
-  <p>Token actual del portal de la PC:</p>
-  <pre>__PAIRING_TOKEN__</pre>
-  <p>Ese portal solo registra el navegador; el acceso real a recursos requiere el agente Termux anterior.</p>
+  <p>El token de emparejamiento no se publica en esta pagina. Definelo como variable local y compartelo solo por un canal confiable.</p>
+  <pre>set TRIADE_PAIRING_TOKEN=token-local-seguro</pre>
+  <p>Ese portal solo registra el navegador; el acceso real a recursos requiere el agente nativo o Termux anterior.</p>
 </main>
 <script>
 async function copy(id){

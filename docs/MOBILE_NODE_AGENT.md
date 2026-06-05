@@ -33,6 +33,8 @@ python apps/mobile_node_agent.py \
   --admin-root /sdcard/Download
 ```
 
+Sin `--admin-root`, el modo admin permanece desactivado por defecto. Si no defines `TRIADE_NODE_TOKEN`, el agente genera un token local aleatorio y lo guarda en `mobile_node_state.json`.
+
 Luego abre en el navegador:
 
 ```text

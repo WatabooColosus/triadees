@@ -57,6 +57,19 @@ def test_public_relay_registers_node_and_completes_job(tmp_path, monkeypatch) ->
     assert jobs.json()["jobs"][0]["status"] == "completed"
 
 
+def test_public_relay_requires_configured_tokens(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(public_relay_app, "DB_PATH", tmp_path / "relay.db")
+    monkeypatch.setattr(public_relay_app, "PAIRING_TOKEN", "")
+    monkeypatch.setattr(public_relay_app, "ADMIN_TOKEN", "")
+    client = TestClient(app)
+
+    registered = client.post("/api/register", json={"pairing_token": "pair", "display_name": "Nodo", "capabilities": {}})
+    nodes = client.get("/api/nodes", headers={"Authorization": "Bearer admin"})
+
+    assert registered.status_code == 503
+    assert nodes.status_code == 503
+
+
 def test_public_relay_accepts_preprocess_text_job(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(public_relay_app, "DB_PATH", tmp_path / "relay.db")
     monkeypatch.setattr(public_relay_app, "PAIRING_TOKEN", "pair")

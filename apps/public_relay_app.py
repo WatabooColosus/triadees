@@ -21,8 +21,8 @@ from pydantic import BaseModel, Field
 
 
 DB_PATH = Path(os.environ.get("TRIADE_RELAY_DB", "triade/memory/public_relay.db"))
-PAIRING_TOKEN = os.environ.get("TRIADE_RELAY_PAIRING_TOKEN", "triade-public-pair")
-ADMIN_TOKEN = os.environ.get("TRIADE_RELAY_ADMIN_TOKEN", "triade-public-admin")
+PAIRING_TOKEN = os.environ.get("TRIADE_RELAY_PAIRING_TOKEN", "")
+ADMIN_TOKEN = os.environ.get("TRIADE_RELAY_ADMIN_TOKEN", "")
 ANDROID_APK_PATH = Path(os.environ.get("TRIADE_ANDROID_APK", "apps/static/triade-android-node.apk"))
 
 app = FastAPI(title="Triade Public Relay", version="0.1")
@@ -89,7 +89,7 @@ def connect() -> sqlite3.Connection:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "mode": "public-relay", "pairing_enabled": True}
+    return {"status": "ok", "mode": "public-relay", "pairing_enabled": bool(PAIRING_TOKEN), "admin_enabled": bool(ADMIN_TOKEN)}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -130,6 +130,8 @@ def download_android_apk() -> FileResponse:
 
 @app.post("/api/register")
 def register(request: RegisterRequest) -> dict[str, Any]:
+    if not PAIRING_TOKEN:
+        raise HTTPException(status_code=503, detail="TRIADE_RELAY_PAIRING_TOKEN no configurado.")
     if request.pairing_token != PAIRING_TOKEN:
         raise HTTPException(status_code=401, detail="Token de emparejamiento invalido.")
     node_id = f"web-{uuid4().hex[:10]}"
@@ -229,6 +231,8 @@ def list_jobs(authorization: str | None = Header(default=None)) -> dict[str, Any
 
 
 def require_admin(authorization: str | None) -> None:
+    if not ADMIN_TOKEN:
+        raise HTTPException(status_code=503, detail="TRIADE_RELAY_ADMIN_TOKEN no configurado.")
     if authorization != f"Bearer {ADMIN_TOKEN}":
         raise HTTPException(status_code=401, detail="Token admin invalido.")
 

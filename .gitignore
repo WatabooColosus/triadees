@@ -25,7 +25,9 @@ triade/memory/local_node_tokens.json
 mobile_node_state.json
 .triade-relay.tokens.local
 apps/static/*.apk
-!apps/static/triade-android-node.apk
+backups/*.db
+backups/*.sqlite
+backups/*.sqlite3
 .tools/
 .codex-tools/
 android/triade-node/.gradle/

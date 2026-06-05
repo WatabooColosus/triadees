@@ -13,6 +13,7 @@ import json
 import os
 import platform
 import queue
+import secrets
 import socket
 import subprocess
 import threading
@@ -38,7 +39,7 @@ class AgentConfig:
     max_workers: int = 2
     allow_jobs: bool = True
     battery_min_percent: int = 25
-    admin_enabled: bool = True
+    admin_enabled: bool = False
     admin_root: str = "."
     allowed_commands: dict[str, list[str]] = field(default_factory=lambda: {
         "python_version": ["python", "--version"],
@@ -280,7 +281,7 @@ def load_config(path: Path) -> AgentConfig:
     if path.exists():
         data = json.loads(path.read_text(encoding="utf-8"))
         return AgentConfig(**data)
-    token = os.environ.get("TRIADE_NODE_TOKEN", "change-me")
+    token = os.environ.get("TRIADE_NODE_TOKEN") or secrets.token_urlsafe(24)
     node_id = os.environ.get("TRIADE_NODE_ID", f"mobile-{socket.gethostname()}")
     config = AgentConfig(node_id=node_id, token=token)
     save_config(config, path)
@@ -401,6 +402,7 @@ def main() -> None:
         agent.config.target_usage_percent = max(5, min(90, args.usage))
     if args.admin_root:
         agent.config.admin_root = args.admin_root
+        agent.config.admin_enabled = True
     if args.admin_off:
         agent.config.admin_enabled = False
     save_config(agent.config, DEFAULT_STATE_PATH)

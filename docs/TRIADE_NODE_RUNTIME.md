@@ -77,3 +77,14 @@ No permitido por Android estándar:
 - Instalar Termux o paquetes del sistema desde otra app sin intervención del usuario.
 - Saltar límites térmicos, heap, permisos o políticas de batería.
 
+## APK y artefactos
+
+El APK debug no se versiona en Git. La fuente vive en `android/triade-node/` y el binario se genera con el workflow `Build Android Node APK`, que publica el artifact `triade-android-node-debug`.
+
+Para servirlo desde `8010` en una instalación local, copia el APK generado a:
+
+```text
+apps/static/triade-android-node.apk
+```
+
+Si el archivo no existe, `/downloads/triade-android-node.apk` responde 404 con un mensaje claro.

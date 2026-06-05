@@ -187,12 +187,24 @@ def test_federation_resource_lease_tracks_transports_and_resources() -> None:
     assert lease["leases"][0]["lease_status"] == "job_worker_ready"
 
 
-def test_single_port_serves_android_apk() -> None:
+def test_single_port_android_apk_missing_until_artifact_is_copied(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(single_port_app, "ANDROID_APK_PATH", tmp_path / "missing.apk")
+
+    response = client.get("/downloads/triade-android-node.apk")
+
+    assert response.status_code == 404
+
+
+def test_single_port_serves_android_apk_when_artifact_exists(tmp_path, monkeypatch) -> None:
+    apk = tmp_path / "triade-android-node.apk"
+    apk.write_bytes(b"PK\x03\x04" + b"apk" * 1024)
+    monkeypatch.setattr(single_port_app, "ANDROID_APK_PATH", apk)
+
     response = client.get("/downloads/triade-android-node.apk")
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/vnd.android.package-archive"
-    assert int(response.headers["content-length"]) > 20000
+    assert int(response.headers["content-length"]) == apk.stat().st_size
 
 
 def test_single_port_android_runtime_manifest_reports_missing_assets(tmp_path, monkeypatch) -> None:

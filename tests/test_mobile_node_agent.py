@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from apps.mobile_node_agent import agent, app
+from apps.mobile_node_agent import AgentConfig, agent, app
+
+
+def test_mobile_agent_admin_is_disabled_by_default() -> None:
+    assert AgentConfig().admin_enabled is False
 
 
 def test_mobile_agent_requires_token_and_runs_job() -> None:
