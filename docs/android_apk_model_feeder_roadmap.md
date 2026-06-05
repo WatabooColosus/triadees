@@ -2,6 +2,8 @@
 
 Fecha: 2026-06-04
 
+Actualizacion de ejecucion: 2026-06-05.
+
 ## Objetivo
 
 Convertir `Triade Android Node` en un alimentador real para Tríade local:
@@ -50,7 +52,7 @@ Hecho:
 
 - APK nativa con servicio en primer plano.
 - Registro/heartbeat contra 8010 o relay público.
-- Slider de recursos autorizados.
+- Modo dedicado reportando 100% de CPU/RAM disponible para Triade dentro de los limites reales de Android. Ya no debe describirse como selector 60/90/95.
 - Jobs:
   - `preprocess_text`
   - `federated_inference_probe`
@@ -68,16 +70,42 @@ Hecho:
   - `supported_model_formats`
   - `available_local_models`
 
-Pendiente inmediato: instalar APK `0.4.0` en los dispositivos y confirmar que `android_model_doctor` responde.
+Pendiente inmediato: instalar el artifact actual `triade-android-node-debug` en dispositivos fisicos y confirmar que `android_model_doctor` responde desde el relay/8010.
 
-Actualizacion 0.5.0:
+Actualizacion historica 0.5.0:
 
 - La APK puede autorizar hasta 95% de recursos.
 - Solicita `largeHeap` para ampliar margen de procesos pesados.
 - Reporta `memoryClass`, `largeMemoryClass`, heap Java y baja memoria.
 - El 8010 expone `/api/federation/resource-lease` para ver recursos federados arrendables.
 
-Esto permite aprovechar mejor dispositivos con mas de 2 GB libres, sin afirmar que Android entregue toda la RAM total al proceso.
+Esto permitio aprovechar mejor dispositivos con mas de 2 GB libres, sin afirmar que Android entregue toda la RAM total al proceso. En el estado actual, el modo dedicado reporta 100% disponible, pero Android conserva el control real de heap, memoria por proceso, temperatura, bateria y planificador.
+
+## Estado real 2026-06-05
+
+Lo que hace hoy:
+
+- Registra nodo Android y mantiene foreground service.
+- Publica capacidades de CPU/RAM/heap y estado de runtime local.
+- Ejecuta jobs sandbox como `sha256`, `preprocess_text`, `federated_inference_probe`, `android_model_doctor` y `android_local_generate`.
+- Intenta transporte firmado hacia 8010 y conserva fallback legacy cuando el servidor no soporta el transporte nuevo.
+- Puede descargar artefactos desde 8010 si existen localmente.
+
+Lo que no hace todavia:
+
+- No convierte varios Android en una sola RAM para Ollama.
+- No reparte capas/tensores de un mismo modelo entre dispositivos.
+- No instala Termux ni paquetes del sistema desde la APK.
+- No tiene GPU/NPU Android validado.
+- No incluye backend/modelo LLM por defecto en el APK.
+- No tiene prueba instrumentada automatica con dispositivo real.
+
+Clasificacion:
+
+- Alimentador CPU/preproceso: MVP funcional.
+- Host LLM Android: experimental.
+- Inferencia distribuida real: investigacion futura.
+- Producto de produccion: no.
 
 ## Fase 1: Consolidar alimentador CPU real
 

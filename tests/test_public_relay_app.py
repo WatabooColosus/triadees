@@ -29,6 +29,7 @@ def test_public_relay_registers_node_and_completes_job(tmp_path, monkeypatch) ->
     nodes = client.get("/api/nodes", headers=headers)
     assert nodes.status_code == 200
     assert nodes.json()["nodes"][0]["display_name"] == "Celular web"
+    assert "node_token" not in nodes.json()["nodes"][0]
 
     created = client.post(
         "/api/jobs",
@@ -38,9 +39,14 @@ def test_public_relay_registers_node_and_completes_job(tmp_path, monkeypatch) ->
     assert created.status_code == 200
     job_id = created.json()["job_id"]
 
-    next_job = client.get("/api/jobs/next", params={"node_id": node["node_id"], "node_token": node["node_token"]})
+    next_job = client.get(
+        "/api/jobs/next",
+        params={"node_id": node["node_id"]},
+        headers={"Authorization": f"Bearer {node['node_token']}"},
+    )
     assert next_job.status_code == 200
     assert next_job.json()["job"]["job_id"] == job_id
+    assert node["node_token"] not in next_job.text
 
     result = client.post(
         f"/api/jobs/{job_id}/result",
@@ -55,6 +61,20 @@ def test_public_relay_registers_node_and_completes_job(tmp_path, monkeypatch) ->
 
     jobs = client.get("/api/jobs", headers=headers)
     assert jobs.json()["jobs"][0]["status"] == "completed"
+    assert node["node_token"] not in jobs.text
+
+    with public_relay_app.connect() as conn:
+        audit = conn.execute("SELECT * FROM relay_job_audit WHERE job_id = ?", (job_id,)).fetchone()
+    assert audit is not None
+    assert audit["node_id"] == node["node_id"]
+    assert audit["task"] == "echo"
+    assert audit["status"] == "completed"
+    assert audit["created_at"] is not None
+    assert audit["started_at"] is not None
+    assert audit["completed_at"] is not None
+    assert len(audit["payload_sha256"]) == 64
+    assert len(audit["result_sha256"]) == 64
+    assert "triade" not in (audit["payload_sha256"] + audit["result_sha256"])
 
 
 def test_public_relay_requires_configured_tokens(tmp_path, monkeypatch) -> None:
@@ -68,6 +88,27 @@ def test_public_relay_requires_configured_tokens(tmp_path, monkeypatch) -> None:
 
     assert registered.status_code == 503
     assert nodes.status_code == 503
+
+
+def test_public_relay_rejects_invalid_bearer_for_next_job(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(public_relay_app, "DB_PATH", tmp_path / "relay.db")
+    monkeypatch.setattr(public_relay_app, "PAIRING_TOKEN", "pair")
+    monkeypatch.setattr(public_relay_app, "ADMIN_TOKEN", "admin")
+    client = TestClient(app)
+
+    node = client.post(
+        "/api/register",
+        json={"pairing_token": "pair", "display_name": "Nodo", "capabilities": {}},
+    ).json()
+
+    rejected = client.get(
+        "/api/jobs/next",
+        params={"node_id": node["node_id"]},
+        headers={"Authorization": "Bearer incorrecto"},
+    )
+
+    assert rejected.status_code == 401
+    assert node["node_token"] not in rejected.text
 
 
 def test_public_relay_accepts_preprocess_text_job(tmp_path, monkeypatch) -> None:
@@ -91,6 +132,7 @@ def test_public_relay_accepts_preprocess_text_job(tmp_path, monkeypatch) -> None
     assert created.status_code == 200
     next_job = client.get("/api/jobs/next", params={"node_id": node["node_id"], "node_token": node["node_token"]})
     assert next_job.json()["job"]["task"] == "preprocess_text"
+    assert node["node_token"] not in next_job.text
 
 
 def test_public_relay_serves_persistent_browser_node_ui(tmp_path, monkeypatch) -> None:
@@ -105,6 +147,7 @@ def test_public_relay_serves_persistent_browser_node_ui(tmp_path, monkeypatch) -
     assert "triade_public_relay_node" in html
     assert "resumeStoredNode" in html
     assert "wakeLock" in html
+    assert '"Authorization":"Bearer "+nodeToken' in html
 
 
 def test_public_relay_recognizes_native_android_node(tmp_path, monkeypatch) -> None:

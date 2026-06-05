@@ -82,6 +82,19 @@ def connect() -> sqlite3.Connection:
             created_at REAL NOT NULL,
             updated_at REAL NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS relay_job_audit (
+            job_id TEXT PRIMARY KEY,
+            node_id TEXT NOT NULL,
+            task TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            started_at REAL,
+            completed_at REAL,
+            payload_sha256 TEXT,
+            result_sha256 TEXT,
+            error_sha256 TEXT,
+            updated_at REAL NOT NULL
+        );
         """
     )
     return conn
@@ -183,12 +196,26 @@ def create_job(request: JobRequest, authorization: str | None = Header(default=N
             VALUES (?, ?, ?, ?, ?, 'queued', ?, ?)""",
             (job_id, request.node_id, request.task, json.dumps(request.payload, ensure_ascii=False), request.seconds, now, now),
         )
+        _audit_job(
+            conn,
+            job_id=job_id,
+            node_id=request.node_id,
+            task=request.task,
+            status="queued",
+            created_at=now,
+            payload=request.payload,
+        )
     return {"status": "ok", "job_id": job_id}
 
 
 @app.get("/api/jobs/next")
-def next_job(node_id: str, node_token: str) -> dict[str, Any]:
-    _require_node(node_id, node_token)
+def next_job(
+    node_id: str,
+    node_token: str | None = None,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    resolved_token = _node_token_from_auth_or_legacy_query(authorization, node_token)
+    _require_node(node_id, resolved_token)
     with connect() as conn:
         row = conn.execute(
             "SELECT * FROM relay_jobs WHERE node_id = ? AND status = 'queued' ORDER BY created_at LIMIT 1",
@@ -196,7 +223,9 @@ def next_job(node_id: str, node_token: str) -> dict[str, Any]:
         ).fetchone()
         if row is None:
             return {"status": "idle"}
-        conn.execute("UPDATE relay_jobs SET status = 'running', updated_at = ? WHERE job_id = ?", (time.time(), row["job_id"]))
+        now = time.time()
+        conn.execute("UPDATE relay_jobs SET status = 'running', updated_at = ? WHERE job_id = ?", (now, row["job_id"]))
+        _audit_job(conn, job_id=row["job_id"], node_id=node_id, task=row["task"], status="running", started_at=now)
     payload = dict(row)
     payload["payload"] = json.loads(payload["payload"] or "{}")
     return {"status": "ok", "job": payload}
@@ -209,9 +238,20 @@ def submit_result(job_id: str, request: JobResultRequest) -> dict[str, Any]:
         row = conn.execute("SELECT * FROM relay_jobs WHERE job_id = ? AND node_id = ?", (job_id, request.node_id)).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="Job no encontrado.")
+        now = time.time()
         conn.execute(
             "UPDATE relay_jobs SET status = ?, result = ?, error = ?, updated_at = ? WHERE job_id = ?",
-            (request.status, json.dumps(request.result, ensure_ascii=False), request.error, time.time(), job_id),
+            (request.status, json.dumps(request.result, ensure_ascii=False), request.error, now, job_id),
+        )
+        _audit_job(
+            conn,
+            job_id=job_id,
+            node_id=request.node_id,
+            task=row["task"],
+            status=request.status,
+            completed_at=now,
+            result=request.result,
+            error=request.error,
         )
     return {"status": "ok", "job_id": job_id}
 
@@ -245,11 +285,97 @@ def _require_node(node_id: str, node_token: str) -> sqlite3.Row:
     return row
 
 
+def _node_token_from_auth_or_legacy_query(authorization: str | None, node_token: str | None) -> str:
+    if authorization:
+        prefix = "Bearer "
+        if not authorization.startswith(prefix):
+            raise HTTPException(status_code=401, detail="Authorization Bearer requerido.")
+        token = authorization[len(prefix) :].strip()
+        if not token:
+            raise HTTPException(status_code=401, detail="Token de nodo requerido.")
+        return token
+    if node_token:
+        return node_token
+    raise HTTPException(status_code=401, detail="Token de nodo requerido.")
+
+
 def _decode_node(row: sqlite3.Row) -> dict[str, Any]:
     item = dict(row)
+    item.pop("node_token", None)
     item["capabilities"] = json.loads(item["capabilities"] or "{}")
     item["online"] = (time.time() - float(item["last_seen_at"])) < 45
     return item
+
+
+def _audit_job(
+    conn: sqlite3.Connection,
+    *,
+    job_id: str,
+    node_id: str,
+    task: str,
+    status: str,
+    created_at: float | None = None,
+    started_at: float | None = None,
+    completed_at: float | None = None,
+    payload: dict[str, Any] | None = None,
+    result: dict[str, Any] | None = None,
+    error: str | None = None,
+) -> None:
+    now = time.time()
+    existing = conn.execute("SELECT * FROM relay_job_audit WHERE job_id = ?", (job_id,)).fetchone()
+    if existing is None:
+        conn.execute(
+            """INSERT INTO relay_job_audit
+            (job_id, node_id, task, status, created_at, started_at, completed_at, payload_sha256, result_sha256, error_sha256, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                job_id,
+                node_id,
+                task,
+                status,
+                created_at or now,
+                started_at,
+                completed_at,
+                _payload_hash(payload),
+                _payload_hash(result),
+                _text_hash(error),
+                now,
+            ),
+        )
+        return
+    conn.execute(
+        """UPDATE relay_job_audit
+        SET status = ?,
+            started_at = COALESCE(?, started_at),
+            completed_at = COALESCE(?, completed_at),
+            payload_sha256 = COALESCE(payload_sha256, ?),
+            result_sha256 = COALESCE(?, result_sha256),
+            error_sha256 = COALESCE(?, error_sha256),
+            updated_at = ?
+        WHERE job_id = ?""",
+        (
+            status,
+            started_at,
+            completed_at,
+            _payload_hash(payload),
+            _payload_hash(result),
+            _text_hash(error),
+            now,
+            job_id,
+        ),
+    )
+
+
+def _payload_hash(payload: dict[str, Any] | None) -> str | None:
+    if payload is None:
+        return None
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _text_hash(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def _normalize_capabilities(payload: dict[str, Any]) -> dict[str, Any]:
@@ -344,7 +470,7 @@ async function loop(){
   while(running){
     try{
       await fetch("/api/heartbeat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({node_id:nodeId,node_token:nodeToken,capabilities:caps()})});
-      const r=await fetch(`/api/jobs/next?node_id=${encodeURIComponent(nodeId)}&node_token=${encodeURIComponent(nodeToken)}`);
+      const r=await fetch(`/api/jobs/next?node_id=${encodeURIComponent(nodeId)}`,{headers:{"Authorization":"Bearer "+nodeToken}});
       const j=await r.json();
       if(j.status==="ok") await runJob(j.job);
     }catch(e){show("Error: "+e.message)}

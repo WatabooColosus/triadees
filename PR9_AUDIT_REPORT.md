@@ -347,3 +347,102 @@ Resultado remoto:
 - `Build Android Node APK #17` seguia `in_progress` al momento de esta actualizacion documental.
 
 Recomendacion actualizada: **merge condicionado**. `Python Tests` queda corregido y verificado local/remoto; el criterio pendiente para merge sigue siendo la validacion del artifact Android si aplica al cierre de PR #9.
+
+## Phase E prep execution 2026-06-05
+
+Rol de este corte: convertir parte de la auditoria PR9 en ejecucion tecnica verificable hacia `FASE_E_STABLE`, sin merge, sin features grandes y sin reescribir arquitectura.
+
+Head revisado al iniciar el corte:
+
+- `db6d54dd4d771d08f7bc965003c251c6f33e34af`
+
+### Cambios hechos
+
+- `docs/PHASE_E_EXECUTION_BACKLOG.md`
+  - backlog ejecutable de Fase E con epicas, P0/P1/P2, archivos, riesgo, criterio de aceptacion y test esperado.
+
+- `apps/public_relay_app.py`
+  - `/api/jobs/next` acepta ahora `Authorization: Bearer <node_token>` como camino preferente.
+  - `node_token` por query string sigue funcionando como legacy/deprecated para compatibilidad temporal.
+  - el nodo web embebido usa Bearer para reclamar jobs.
+  - `/api/nodes` ya no devuelve `node_token`.
+  - se agrego tabla `relay_job_audit` con auditoria hash-only:
+    - `job_id`
+    - `node_id`
+    - `task`
+    - `status`
+    - `created_at`
+    - `started_at`
+    - `completed_at`
+    - `payload_sha256`
+    - `result_sha256`
+    - `error_sha256`
+    - `updated_at`
+
+- `tests/test_public_relay_app.py`
+  - test Bearer valido para `/api/jobs/next`.
+  - test Bearer invalido.
+  - test legacy query todavia funciona.
+  - test de no filtrado de `node_token` en respuestas de nodos/jobs.
+  - test de auditoria `relay_job_audit` con hashes de payload/result.
+  - test de HTML del nodo web usando Bearer.
+
+- `docs/TRIADE_NODE_RUNTIME.md`
+  - clasifica Android Node como MVP funcional para CPU/preproceso y experimental para host LLM.
+  - documenta requisitos reales para host LLM Android.
+  - documenta token en query como legacy/deprecated.
+
+- `docs/android_apk_model_feeder_roadmap.md`
+  - elimina lectura obsoleta del selector de recursos.
+  - documenta modo dedicado 100% reportado bajo limites reales de Android.
+  - separa lo que hace hoy, lo que no hace y lo experimental.
+
+- `docs/PUBLIC_DEPLOYMENT_RISK.md`
+  - conserva `Dockerfile`, `Procfile`, `railway.json` y `render.yaml` como soporte experimental.
+  - documenta riesgos de despliegue publico y requisitos minimos antes de uso sostenido.
+
+- `docs/TRIADE_SCORECARD.md`
+  - actualiza puntuacion y maturity a `FASE_E_PREP`.
+
+### Tests ejecutados
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_public_relay_app.py -q
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe triade_digimon.py doctor --no-ollama
+.\.venv\Scripts\python.exe triade_digimon.py learn doctor
+.\.venv\Scripts\python.exe triade_digimon.py federate doctor
+```
+
+Resultado:
+
+- `tests/test_public_relay_app.py`: OK, 7 tests passed.
+- `pytest -q`: OK.
+- `doctor --no-ollama`: OK.
+- `learn doctor`: OK, `identity_core_protected=true`.
+- `federate doctor`: OK, permisos prohibidos presentes y `auto_consolidation=false`.
+- Advertencia no bloqueante: `StarletteDeprecationWarning` por `fastapi.testclient`/`httpx`.
+
+### Riesgos cerrados
+
+- `/api/jobs/next` ya no depende exclusivamente de `node_token` en query string.
+- El nodo web del relay ya usa Bearer como camino principal.
+- Listado admin `/api/nodes` ya no expone `node_token`.
+- Respuestas de jobs probadas no filtran `node_token`.
+- Compute jobs del relay tienen auditoria persistente minima hash-only.
+- Android Node queda documentado como MVP/experimental, sin prometer RAM unificada ni host LLM por defecto.
+- Despliegue Docker/Railway/Render queda documentado como experimental.
+
+### Riesgos pendientes
+
+- Retirar o apagar por configuracion el query string legacy cuando Android/clientes antiguos migren.
+- Implementar firma criptografica obligatoria y cache anti-replay en el relay publico.
+- Agregar rotacion/revocacion de node tokens en el relay publico.
+- Llevar auditoria equivalente de compute jobs al 8010 local.
+- Decidir redaccion/cifrado/truncado de `relay_jobs.payload` y `relay_jobs.result`, que hoy siguen siendo campos operacionales completos.
+- Probar host LLM Android en dispositivo fisico real con `llama-cli` y `.gguf`.
+- Mantener PR #9 en Draft hasta que el dueno decida si este corte debe revisarse junto al PR o salir como PR pequeno separado.
+
+### Recomendacion actualizada
+
+PR #9 debe permanecer **Draft** hasta que el equipo revise el alcance del corte Phase E prep y decida si lo mantiene dentro del PR o lo divide. Tecnica y localmente el corte esta verde; no recomiendo merge automatico ni marcar produccion.

@@ -88,3 +88,40 @@ apps/static/triade-android-node.apk
 ```
 
 Si el archivo no existe, `/downloads/triade-android-node.apk` responde 404 con un mensaje claro.
+
+## Clasificacion actual 2026-06-05
+
+Estado por componente:
+
+- Nodo Android para jobs CPU/preproceso: MVP funcional.
+- Servicio en primer plano, heartbeat, capacidades y jobs sandbox: MVP funcional.
+- Transporte local firmado hacia 8010: prototipo funcional.
+- Fallback relay legacy con token en query: compatible/deprecated.
+- Host LLM Android con `llama-cli` y `.gguf`: experimental.
+- GPU/NPU Android: no implementado.
+- RAM unificada con Ollama/PC: no implementado.
+
+La APK puede ejecutar `android_model_doctor` y `android_local_generate`, pero `android_local_generate` solo es real si el dispositivo tiene un binario nativo ejecutable y un modelo local compatible. Si falta cualquiera de los dos, el nodo sigue siendo util como alimentador CPU/preproceso, pero no cuenta como host LLM.
+
+## Requisitos para host LLM Android real
+
+- APK instalada en dispositivo fisico.
+- `llama-cli`, `llama-cli-arm64-v8a` o `main` ejecutable en el directorio `bin/` de la app.
+- Modelo `.gguf` real en el directorio `models/` de la app.
+- `android_model_doctor` con `can_run_local_llm=true`.
+- `android_local_generate` devolviendo `ok=true`, backend, modelo, tiempo y texto generado.
+- Evidencia del run guardada en 8010 con node_id, APK/version, hash de modelo y latencia.
+
+Pruebas fisicas pendientes:
+
+- Instalar artifact `triade-android-node-debug` en al menos un Android real.
+- Descargar/importar runtime desde 8010.
+- Ejecutar doctor local desde 8010 contra el nodo.
+- Ejecutar generacion con un GGUF pequeno.
+- Confirmar limites reales de memoria Android y temperatura durante ejecucion.
+
+## Relay publico y tokens
+
+Desde el corte Phase E prep, `/api/jobs/next` del relay publico acepta `Authorization: Bearer <node_token>` como camino preferente. El query string `node_token=...` queda legacy/deprecated para compatibilidad temporal con clientes antiguos.
+
+Regla de Fase E: ningun cliente nuevo debe depender de tokens en query string.

@@ -1,27 +1,30 @@
-# Scorecard Tríade - PR #9
+# Scorecard Tríade - PR #9 Phase E prep
 
 Escala: 0 a 10. La puntuacion mide el estado real del codigo presente, no la vision conceptual.
 
 | Area | Puntaje | Lectura |
 | --- | ---: | --- |
-| Arquitectura | 7.5 | La separacion por organos, runner auditable, memoria y federacion esta clara. El principal costo es la concentracion de responsabilidades en `apps/single_port_app.py` y apps historicas redundantes. |
-| Seguridad | 7.0 | Buen bloqueo de permisos prohibidos, Safety, no consolidacion automatica y tokens/admin env. Pendiente: retirar tokens en query, cache de nonces, rotacion de secretos y endurecer perfiles publicos. |
-| Aprendizaje | 7.0 | Pipeline candidato/evaluado/verificado/consolidado bien alineado con Tríade. Falta aprendizaje web controlado completo y mas pruebas de ataques de memoria. |
-| Federacion | 6.5 | Registro, pausa/revocacion, logs, learning_queue y transporte firmado local existen. El relay publico y compute jobs aun necesitan trazabilidad y contrato unico. |
-| Testing | 8.0 | Suite Python y CI pasan; hay cobertura para core, learning, federation, relay y Android build. Falta instrumentacion Android y smoke test LLM real. |
-| Documentacion | 7.5 | Hay mucha documentacion y reportes de fase. Riesgo: exceso historico y algunas piezas pueden parecer mas maduras de lo que son. |
-| Escalabilidad | 5.0 | Buen punto de partida, pero colas en memoria, SQLite local y relay simple limitan operacion 24/7 multi-nodo. |
-| Observabilidad | 7.0 | Runs auditables, logs federados, doctors y reportes existen. Falta telemetria consolidada de jobs, nodos y runtime Android. |
-| Mantenibilidad | 6.0 | El sistema es comprensible pero necesita reducir duplicacion, dividir single port app y formalizar migraciones. |
+| Arquitectura | 7.5 | La separacion por organos, runner auditable, memoria y federacion esta clara. Sigue pendiente dividir responsabilidades de `apps/single_port_app.py` y apps historicas redundantes. |
+| Seguridad | 7.4 | Mejora por Bearer preferente en relay, ocultamiento de `node_token` en listados y auditoria hash-only. Pendiente: retirar query legacy, anti-replay, rotacion de tokens y perfiles publicos. |
+| Federacion | 7.0 | Federation local mantiene permisos, revocacion, logs y learning_queue. Relay publico avanza con Bearer y auditoria minima, pero falta contrato firmado unico. |
+| Relay publico | 7.2 | Pairing/admin sin defaults, Bearer en `/api/jobs/next`, tokens no listados y `relay_job_audit` hash-only. Pendiente rate limit, rotacion y DB persistente para despliegue real. |
+| Android Node | 6.2 | MVP funcional para jobs CPU/preproceso y artifact CI real. Host LLM Android sigue experimental hasta probar backend/modelo en dispositivo fisico. |
+| Learning pipeline | 7.2 | Candidate/evaluated/verified/consolidated mantiene identidad protegida y no consolida automatico. Falta aprendizaje web controlado completo. |
+| Testing | 8.2 | Suite Python y relay focal pasan; CI Python/Android estaba verde antes del corte. Falta instrumentacion Android y pruebas anti-replay. |
+| Documentacion | 8.0 | Backlog Phase E, riesgos publicos, scorecard y runtime Android ahora distinguen real/experimental. Persisten docs historicos abundantes. |
+| Observabilidad | 7.3 | Runs auditables, doctors, logs federados y nueva auditoria de jobs del relay. Falta telemetria consolidada 8010 y auditoria local equivalente. |
+| Mantenibilidad | 6.4 | Cambios pequenos y testeados. Aun pesan duplicacion de apps, migraciones SQLite informales y single port monolitico. |
 
-Nota global: 6.9 / 10
+Nota global: 7.2 / 10
 
 ## Madurez
 
-Nivel actual: FASE_D_PLUS_ALPHA.
+Nivel actual: FASE_E_PREP.
 
-Lectura: Tríade ya es un MVP local verificable con una rama evolutiva de federacion y Android. Todavia no es Fase E estable porque el transporte federado no es unico, el relay publico requiere endurecimiento y el runtime LLM Android no esta validado como capacidad general.
+Lectura: Tríade ya empezo ejecucion tecnica hacia Fase E. No es `FASE_E_STABLE` porque faltan retiro del query legacy, firma criptografica obligatoria/anti-replay, auditoria equivalente en 8010, rotacion/revocacion de tokens del relay y prueba fisica Android LLM.
 
 ## Decision de release recomendada
 
-PR #9 debe pasar a revision humana como Ready For Review condicionado, sin merge automatico. Si el equipo quiere reducir riesgo de revision, puede dividir siguientes trabajos en PRs separados, pero no es obligatorio dividir PR #9 antes de revisarlo porque CI esta verde y la documentacion marca limites reales.
+PR #9 puede seguir como Draft mientras se valida el corte Phase E prep. Si la suite completa y CI quedan verdes, puede pasar a Ready For Review condicionado, sin merge automatico.
+
+TRIADE_MATURITY_LEVEL = FASE_E_PREP
