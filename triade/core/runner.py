@@ -219,7 +219,7 @@ class TriadeRunner:
         output.memory_diff["system_events"] = system_events
         output.memory_diff["background_neuron_candidates"] = background_neuron_candidates
         output.memory_diff["output_gate"] = output_gate
-        artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan.to_dict(), "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict(), "system_events.json": system_events}
+        artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan.to_dict(), "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict(), "system_events.json": system_events, "background_neuron_candidates.json": background_neuron_candidates}
         if neuron_proposal is not None:
             artifacts["neuron_candidate.json"] = neuron_proposal
         if post_run_learning.get("enabled"):
