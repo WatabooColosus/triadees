@@ -92,6 +92,20 @@ def test_single_port_model_capacity() -> None:
     assert "constants" in payload
 
 
+def test_single_port_system_pulse_summarizes_alerts() -> None:
+    response = client.get("/api/system/pulse", params={"sync_relay": "false"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "system-pulse"
+    assert payload["level"] in {"ok", "warn", "bad"}
+    assert "alerts" in payload
+    assert "checks" in payload
+    assert "capacity" in payload
+    names = {item["name"] for item in payload["checks"]}
+    assert {"router", "semantic_memory", "signed_transport", "model_queue"}.issubset(names)
+
+
 def test_federated_model_plan_sums_authorized_resources() -> None:
     plan = federated_model_plan(
         [

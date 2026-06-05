@@ -178,7 +178,7 @@ public final class RelayClient {
                 .put("native_large_heap_requested", true)
                 .put("platform", "Android " + Build.VERSION.RELEASE)
                 .put("device", Build.MANUFACTURER + " " + Build.MODEL)
-                .put("app_version", "0.10.0")
+                .put("app_version", "0.10.1")
                 .put("signed_transport", true)
                 .put("transport_signature_alg", "hmac-sha256")
                 .put("public_key", config.publicKey)

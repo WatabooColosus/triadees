@@ -2,20 +2,18 @@ package local.triade.node;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.ContentResolver;
 import android.content.Intent;
-import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.OpenableColumns;
 import android.provider.Settings;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -24,9 +22,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 public final class MainActivity extends Activity {
-    private static final int REQUEST_IMPORT_LLAMA = 801;
-    private static final int REQUEST_IMPORT_MODEL = 802;
-
     private EditText relayUrl;
     private EditText runtimeUrl;
     private EditText pairingToken;
@@ -88,25 +83,17 @@ public final class MainActivity extends Activity {
         files.setOnClickListener(v -> openAllFilesSettings());
         root.addView(files);
 
-        Button downloadRuntime = button("Descargar runtime desde 8010");
+        Button localTest = button("Probar CPU local de la APK");
+        localTest.setOnClickListener(v -> runLocalWorkerTest());
+        root.addView(localTest);
+
+        Button downloadRuntime = button("Descargar runtime opcional desde 8010");
         downloadRuntime.setOnClickListener(v -> downloadRuntimeFrom8010());
         root.addView(downloadRuntime);
 
-        Button termux = button("Abrir instalador Termux 8010");
-        termux.setOnClickListener(v -> openTermuxBootstrap());
-        root.addView(termux);
-
-        Button doctor = button("Doctor LLM local");
+        Button doctor = button("Doctor APK");
         doctor.setOnClickListener(v -> showRuntimeDoctor());
         root.addView(doctor);
-
-        Button importLlama = button("Importar llama-cli");
-        importLlama.setOnClickListener(v -> openFilePicker(REQUEST_IMPORT_LLAMA));
-        root.addView(importLlama);
-
-        Button importModel = button("Importar modelo GGUF");
-        importModel.setOnClickListener(v -> openFilePicker(REQUEST_IMPORT_MODEL));
-        root.addView(importModel);
 
         runtimeStatus = new TextView(this);
         root.addView(runtimeStatus);
@@ -196,13 +183,6 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void openTermuxBootstrap() {
-        saveCurrentConfig();
-        String base = cleanBaseUrl(runtimeUrl.getText().toString());
-        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(base + "/downloads/android/termux-bootstrap.sh"));
-        startActivity(intent);
-    }
-
     private void downloadRuntimeFrom8010() {
         saveCurrentConfig();
         status.setText("Descargando runtime desde 8010...");
@@ -232,6 +212,38 @@ public final class MainActivity extends Activity {
                 }
             }
         }, "triade-runtime-download").start();
+    }
+
+    private void runLocalWorkerTest() {
+        saveCurrentConfig();
+        status.setText("Probando CPU local dentro de la APK...");
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    RelayClient client = new RelayClient(MainActivity.this);
+                    JSONObject benchmarkJob = new JSONObject()
+                            .put("task", "browser_benchmark")
+                            .put("seconds", 1.0)
+                            .put("payload", new JSONObject());
+                    JSONObject preprocessJob = new JSONObject()
+                            .put("task", "preprocess_text")
+                            .put("payload", new JSONObject()
+                                    .put("text", "Triade Android Node alimenta el modelo local con trabajo real.")
+                                    .put("max_chunk_chars", 1200));
+                    JSONObject benchmark = client.runJob(benchmarkJob);
+                    JSONObject preprocess = client.runJob(preprocessJob);
+                    int chunks = preprocess.optJSONArray("chunks") == null ? 0 : preprocess.optJSONArray("chunks").length();
+                    runOnUiThread(() -> status.setText(
+                            "APK ejecuta trabajo real.\nscore=" + benchmark.optLong("score")
+                                    + "\nwords=" + preprocess.optInt("word_count")
+                                    + "\nchunks=" + chunks
+                    ));
+                } catch (Exception exc) {
+                    runOnUiThread(() -> status.setText("Prueba local fallo: " + exc.getMessage()));
+                }
+            }
+        }, "triade-local-worker-test").start();
     }
 
     private void downloadUrlToFile(String url, File target) throws Exception {
@@ -277,84 +289,6 @@ public final class MainActivity extends Activity {
         } catch (Exception exc) {
             runtimeStatus.setText("Doctor LLM fallo: " + exc.getMessage());
         }
-    }
-
-    private void openFilePicker(int requestCode) {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
-        startActivityForResult(intent, requestCode);
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
-            return;
-        }
-        Uri uri = data.getData();
-        try {
-            AndroidModelRuntime runtime = new AndroidModelRuntime(this);
-            if (requestCode == REQUEST_IMPORT_LLAMA) {
-                File target = new File(runtime.binDir(), "llama-cli");
-                copyUriToFile(uri, target);
-                target.setExecutable(true, false);
-                status.setText("llama-cli importado. El siguiente pulso reportara el backend.");
-            } else if (requestCode == REQUEST_IMPORT_MODEL) {
-                String name = displayNameForUri(uri);
-                if (!name.toLowerCase().endsWith(".gguf")) {
-                    throw new IllegalArgumentException("El modelo debe ser .gguf");
-                }
-                File target = new File(runtime.modelsDir(), safeFileName(name));
-                copyUriToFile(uri, target);
-                status.setText("Modelo GGUF importado: " + target.getName());
-            }
-            showRuntimeDoctor();
-        } catch (Exception exc) {
-            status.setText("Importacion fallo: " + exc.getMessage());
-            showRuntimeDoctor();
-        }
-    }
-
-    private void copyUriToFile(Uri uri, File target) throws Exception {
-        ContentResolver resolver = getContentResolver();
-        InputStream input = resolver.openInputStream(uri);
-        if (input == null) {
-            throw new IllegalArgumentException("No se pudo abrir el archivo seleccionado.");
-        }
-        File parent = target.getParentFile();
-        if (parent != null && !parent.exists()) {
-            parent.mkdirs();
-        }
-        try (InputStream in = input; FileOutputStream out = new FileOutputStream(target, false)) {
-            byte[] buffer = new byte[1024 * 1024];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-            out.flush();
-        }
-    }
-
-    private String displayNameForUri(Uri uri) {
-        String name = null;
-        try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                if (index >= 0) {
-                    name = cursor.getString(index);
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        if (name == null || name.trim().isEmpty()) {
-            name = "model.gguf";
-        }
-        return name;
-    }
-
-    private String safeFileName(String raw) {
-        return raw.replace("\\", "_").replace("/", "_").replace(":", "_").trim();
     }
 
     private EditText input(String hint) {

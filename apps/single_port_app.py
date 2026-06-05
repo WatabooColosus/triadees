@@ -643,6 +643,100 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
     }
 
 
+def _pulse_item(name: str, ok: bool, summary: str, detail: dict[str, Any] | None = None, level: str | None = None) -> dict[str, Any]:
+    clean_level = level or ("ok" if ok else "warn")
+    return {"name": name, "ok": ok, "level": clean_level, "summary": summary, "detail": detail or {}}
+
+
+def _safe_pulse(name: str, fn) -> dict[str, Any]:
+    try:
+        return fn()
+    except Exception as exc:
+        return _pulse_item(name, False, str(exc), level="error")
+
+
+def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", urgency: str = "medium") -> dict[str, Any]:
+    capacity = build_model_capacity(sync_relay=sync_relay)
+    local = capacity["local"]
+    federation = capacity["federation"]
+    hardware = local["hardware"]
+    ollama = local["ollama"]
+    docker = local["docker"]
+    nodes = federation.get("online_feeders", [])
+    authorized = federation.get("authorized", {})
+    router = _safe_pulse(
+        "router",
+        lambda: _pulse_item(
+            "router",
+            True,
+            "Router disponible",
+            {"decisions": router_payload(intent=intent, urgency=urgency).get("router", {}).get("decisions", {})},
+        ),
+    )
+    compatibility = _safe_pulse(
+        "compatibility",
+        lambda: _pulse_item(
+            "compatibility",
+            True,
+            f"{local['model_matrix_summary'].get('recommended', 0)} modelos recomendados",
+            {"counts": local.get("counts", {}), "summary": local.get("model_matrix_summary", {})},
+            "ok" if local["model_matrix_summary"].get("recommended", 0) else "warn",
+        ),
+    )
+    queue = _safe_pulse(
+        "model_queue",
+        lambda: _pulse_item(
+            "model_queue",
+            True,
+            f"{model_install_queue(False).get('count', 0)} candidatos en cola segura",
+            {"auto_install": False},
+        ),
+    )
+    semantic = _safe_pulse(
+        "semantic_memory",
+        lambda: _pulse_item(
+            "semantic_memory",
+            True,
+            "Gobierno semantico activo",
+            {"doctor": semantic_governance_doctor()},
+        ),
+    )
+    transport = _safe_pulse(
+        "signed_transport",
+        lambda: _pulse_item(
+            "signed_transport",
+            True,
+            "HTTP firmado activo para nodos Android",
+            federated_transport_doctor(),
+        ),
+    )
+    checks = [
+        _pulse_item("ollama", bool(ollama.get("ok")), "Ollama activo" if ollama.get("ok") else "Ollama apagado o no responde", {"models": ollama.get("models", [])}, "ok" if ollama.get("ok") else "warn"),
+        _pulse_item("docker", bool(docker.get("ok")), "Docker activo" if docker.get("ok") else ("Docker instalado, motor pendiente" if docker.get("installed") else "Docker no disponible"), docker, "ok" if docker.get("ok") else "warn"),
+        _pulse_item("local_ram", float(hardware.get("ram_available_gb") or 0) >= 4, f"{hardware.get('ram_available_gb')} GB RAM libre local", {"missing": local.get("missing_for_comfortable_models", [])}, "ok" if float(hardware.get("ram_available_gb") or 0) >= 4 else "warn"),
+        _pulse_item("federation", len(nodes) > 0, f"{len(nodes)} nodos Android alimentando" if nodes else "Sin nodos Android nativos online", {"nodes": nodes, "authorized": authorized}, "ok" if nodes else "warn"),
+        _pulse_item("llm_android_host", int(authorized.get("llm_hosts") or 0) > 0, f"{authorized.get('llm_hosts', 0)} hosts LLM Android reales", {"llm_hosts": federation.get("llm_hosts", [])}, "ok" if int(authorized.get("llm_hosts") or 0) > 0 else "warn"),
+        router,
+        compatibility,
+        queue,
+        semantic,
+        transport,
+    ]
+    alerts = [item for item in checks if not item["ok"] or item["level"] in {"warn", "error"}]
+    errors = [item for item in checks if item["level"] == "error"]
+    level = "ok" if not alerts else ("bad" if errors else "warn")
+    return {
+        "status": "ok" if not errors else "degraded",
+        "mode": "system-pulse",
+        "level": level,
+        "summary": "Todo activo" if level == "ok" else ("Degradado" if level == "bad" else "Activo con pendientes"),
+        "alerts": alerts,
+        "checks": checks,
+        "capacity": capacity,
+        "truth": "Pulso unico: resume router, modelos, memoria, transporte, PC y nodos; los botones tecnicos quedan para inspeccion ocasional.",
+    }
+
+
 @app.get("/health")
 @app.get("/api/health")
 def health() -> dict[str, Any]:
@@ -677,6 +771,11 @@ def model_install_queue(include_allowed: bool = False) -> dict[str, Any]:
 @app.get("/api/system/model-capacity")
 def system_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
     return build_model_capacity(sync_relay=sync_relay)
+
+
+@app.get("/api/system/pulse")
+def system_pulse(sync_relay: bool = True, intent: str = "conversation", urgency: str = "medium") -> dict[str, Any]:
+    return build_system_pulse(sync_relay=sync_relay, intent=intent, urgency=urgency)
 
 
 @app.get("/api/federation/resource-lease")
@@ -1271,7 +1370,7 @@ TRIADE_REACT_UI_HTML = r"""
   </style>
 </head>
 <body>
-  <div id="root" data-routes="/api/run /api/router/doctor /api/system/model-capacity">
+  <div id="root" data-routes="/api/run /api/system/pulse /api/system/model-capacity">
     <main class="app">
       <aside class="panel left"><h1>Tríade Ω</h1><p class="small">Pulso vivo · Herramientas ocasionales · /downloads/triade-android-node.apk</p></aside>
       <section class="main"><div class="alert"><span class="dot"></span><b>Iniciando tablero React...</b><span class="small">8010</span></div></section>
@@ -1283,6 +1382,7 @@ TRIADE_REACT_UI_HTML = r"""
   <script>
     const e = React.createElement;
     const routes = {
+      pulse: '/api/system/pulse?sync_relay=true',
       capacity: '/api/system/model-capacity?sync_relay=true',
       lease: '/api/federation/resource-lease?sync_relay=true',
       run: '/api/run',
@@ -1307,6 +1407,7 @@ TRIADE_REACT_UI_HTML = r"""
     }
 
     function App() {
+      const [pulse, setPulse] = React.useState(null);
       const [cap, setCap] = React.useState(null);
       const [lease, setLease] = React.useState(null);
       const [log, setLog] = React.useState('Pulso inicial pendiente.');
@@ -1323,9 +1424,12 @@ TRIADE_REACT_UI_HTML = r"""
 
       async function refresh(manual=false) {
         try {
-          const [capacity, resourceLease] = await Promise.all([json(routes.capacity), json(routes.lease)]);
-          setCap(capacity);
+          const pulseUrl = routes.pulse + '&intent=' + encodeURIComponent(form.intent) + '&urgency=' + encodeURIComponent(form.urgency);
+          const [systemPulse, resourceLease] = await Promise.all([json(pulseUrl), json(routes.lease)]);
+          setPulse(systemPulse);
+          setCap(systemPulse.capacity);
           setLease(resourceLease);
+          setLog(JSON.stringify({summary: systemPulse.summary, alerts: systemPulse.alerts, truth: systemPulse.truth}, null, 2));
           if (manual) append('bot', 'Pulso vivo actualizado: revisé PC, Docker, Ollama, nodos Android y runtime.');
         } catch (err) {
           setLog('Pulso falló: ' + err.message);
@@ -1385,14 +1489,10 @@ TRIADE_REACT_UI_HTML = r"""
       const authorized = federation.authorized || {};
       const totals = lease?.totals || {};
       const nodes = federation.online_feeders || lease?.devices || [];
-      const issues = [];
-      if (!local.ollama?.ok) issues.push('Ollama apagado');
-      if (!local.docker?.ok) issues.push('Docker pendiente');
-      if ((hardware.ram_available_gb || 0) < 4) issues.push('RAM local baja');
-      if ((nodes.length || 0) < 1) issues.push('sin nodos federados activos');
-      if ((authorized.llm_hosts || totals.llm_hosts || 0) < 1) issues.push('sin host LLM Android real');
-      const level = issues.length === 0 ? 'ok' : issues.length <= 2 ? 'warn' : 'bad';
-      const alertText = level === 'ok' ? 'Todo activo' : level === 'warn' ? 'Activo con pendientes' : 'Degradado';
+      const alerts = pulse?.alerts || [];
+      const issues = alerts.map(item => item.summary);
+      const level = pulse?.level || (issues.length === 0 ? 'ok' : 'warn');
+      const alertText = pulse?.summary || (level === 'ok' ? 'Todo activo' : level === 'warn' ? 'Activo con pendientes' : 'Degradado');
       const runnable = authorized.runnable_by_aggregate_ram || [];
 
       return e('main', {className:'app'},
@@ -1441,6 +1541,7 @@ TRIADE_REACT_UI_HTML = r"""
         ),
         e('aside', {className:'panel right'},
           e('div', {className:'section', style:{borderTop:0, marginTop:0, paddingTop:0}}, e('h2', null, 'Pulso vivo'),
+            alerts.length ? e('div', {className:'box'}, alerts.map(item => item.name + ': ' + item.summary).join('\n')) : e('div', {className:'box'}, 'Sin alertas activas.'),
             e('div', {className:'grid'},
               e(PanelMetric, {value: hardware.tier || '--', label:'PC local', tone: hardware.tier === 'low' ? 'critical' : 'ready', hint:n(hardware.ram_available_gb) + ' GB RAM libre'}),
               e(PanelMetric, {value:String(nodes.length || 0), label:'nodos que alimentan', tone:nodes.length ? 'ready' : 'critical', hint:String(authorized.runtime_node_count || totals.devices || 0) + ' runtime'}),
