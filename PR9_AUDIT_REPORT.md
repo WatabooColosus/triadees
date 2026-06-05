@@ -269,3 +269,36 @@ Condiciones:
 4. Mantener fuera del repo APKs, DBs locales, tokens, estados locales y basura.
 
 No recomiendo merge directo hasta verificar el artifact remoto del APK en Actions.
+
+## Cierre final 2026-06-05
+
+Validacion local repetida sobre `codex/auditoria-evolutiva-triade`:
+
+```powershell
+git status --short --branch
+git ls-files nonexistent_file.txt not_exist.txt estructura.txt apps/static/*.apk backups/*.db triade/memory/*.db .env .triade-relay.tokens.local mobile_node_state.json
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe triade_digimon.py doctor --no-ollama
+.\.venv\Scripts\python.exe triade_digimon.py run "Prueba final PR9 sin Ollama" --no-ollama
+.\.venv\Scripts\python.exe triade_digimon.py learn doctor
+.\.venv\Scripts\python.exe triade_digimon.py federate doctor
+```
+
+Resultado:
+
+- `git status`: rama limpia y sincronizada con `origin/codex/auditoria-evolutiva-triade`.
+- `git ls-files` para basura/APKs/DBs/tokens: sin resultados.
+- Workspace local contiene `.triade-relay.tokens.local`, `mobile_node_state.json`, `triade/memory/public_relay.db` y `triade/memory/triade.db`, pero no estan versionados.
+- `pytest -q`: OK.
+- `doctor --no-ollama`: OK.
+- `run --no-ollama`: OK, run `run-20260605-020437-27c63266`.
+- `learn doctor`: OK, `identity_core_protected=true`, `auto_consolidation` no aplica al learning pipeline.
+- `federate doctor`: OK, `auto_consolidation=false`, permisos prohibidos presentes.
+
+Estado GitHub al cierre:
+
+- PR #9 sigue abierto.
+- Workflow `Build Android Node APK` para PR #9 aparece **In progress** en GitHub Actions.
+- Workflow `Build Android Node APK` para commit `67c9da2` aparece **In progress**.
+
+Recomendacion final actualizada: **merge condicionado, no fusionar todavia** hasta que GitHub Actions confirme `Python Tests` y publique el artifact Android `triade-android-node-debug`.
