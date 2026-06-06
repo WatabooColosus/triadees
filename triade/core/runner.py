@@ -19,6 +19,7 @@ from triade.models.hardware_profile import HardwareProfiler
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
 
+from .background_neurons import candidates_from_system_debt
 from .bodega import Bodega
 from .central import Central
 from .config import load_config
@@ -31,6 +32,26 @@ from .verification import Verifier
 
 class TriadeRunner:
     """Ejecuta: input → señales → memoria → gobierno → cristal → plan → safety → output → reporte."""
+
+    INTERNAL_LEAK_TERMS = {
+        "based on the provided json",
+        "provided json",
+        "provided data",
+        "context summary",
+        "context overview",
+        "plan details",
+        "system response plan",
+        "pv7 scores",
+        "crystal details",
+        "temporal alerts",
+        "q_crystal",
+        "q-crystal",
+        "hypothalamus",
+        "run id",
+        "regulation notes",
+        "### contexto",
+        "### context",
+    }
 
     def __init__(
         self,
@@ -149,6 +170,8 @@ class TriadeRunner:
             output.status = "blocked"
         else:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
+        output_gate = self._sanitize_user_response(output.response, input_packet.user_input, signals.intent)
+        output.response = output_gate["response"]
         central_quality = self._score_central(output.response, output.model_ok)
         neuron_proposal = None
         if propose_neurons and signals.intent == "build_or_update" and safety.status != "blocked":
@@ -176,10 +199,29 @@ class TriadeRunner:
         verification_id = self.bodega.store_verification_report(report)
         output.memory_diff["verification_report_id"] = verification_id
         post_run_learning = self._post_run_learning_candidate(input_packet, output, report, signals.intent)
+        system_events = self._build_system_events(memory, crystal, neuron_proposal, post_run_learning, output_gate)
+        background_neuron_candidates = candidates_from_system_debt(
+            pulse_summary=(input_packet.context or {}).get("system_pulse_summary"),
+            system_events=system_events,
+            output_gate=output_gate,
+            post_run_learning=post_run_learning,
+        )
+        for candidate in background_neuron_candidates:
+            system_events.append({
+                "type": "background_neuron_candidate",
+                "severity": candidate.get("severity", "medium"),
+                "status": "requires_human_approval",
+                "message": f"Neurona candidata propuesta: {candidate.get('display_name') or candidate.get('name')}",
+                "action_required": "approve_or_reject_background_neuron",
+                "payload": candidate,
+            })
         output.memory_diff["post_run_learning"] = post_run_learning
         semantic_continuity = self._semantic_continuity(input_packet, output, signals.intent, crystal)
         output.memory_diff["semantic_continuity"] = semantic_continuity
-        artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan.to_dict(), "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict()}
+        output.memory_diff["system_events"] = system_events
+        output.memory_diff["background_neuron_candidates"] = background_neuron_candidates
+        output.memory_diff["output_gate"] = output_gate
+        artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan.to_dict(), "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict(), "system_events.json": system_events, "background_neuron_candidates.json": background_neuron_candidates, "semantic_continuity.json": semantic_continuity}
         if neuron_proposal is not None:
             artifacts["neuron_candidate.json"] = neuron_proposal
         if post_run_learning.get("enabled"):
@@ -193,12 +235,82 @@ class TriadeRunner:
             "neuron_proposal": neuron_proposal,
             "post_run_learning": post_run_learning,
             "semantic_continuity": semantic_continuity,
+            "system_events": system_events,
+            "background_neuron_candidates": background_neuron_candidates,
+            "output_gate": output_gate,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_quality_score": central_quality, "central_model_event_id": central_event_id, "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_selection": self.model_selection, "closed": True,
         }
         self._write_json(run_path / "integrity.json", integrity)
         (run_path / "CLOSED").write_text("closed\n", encoding="utf-8")
-        return {"run_id": input_packet.run_id, "response": output.response, "safety": safety.to_dict(), "report": report.to_dict(), "memory_diff": output.memory_diff, "semantic_recall": semantic_state, "crystal_temporal_state": temporal_state, "models": {"hypothalamus": {**hypothalamus_model_result, "quality_score": hypothalamus_quality, "event_id": hypothalamus_event_id}, "central": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error, "quality_score": central_quality, "event_id": central_event_id}}, "model": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error}, "model_selection": self.model_selection, "neuron_proposal": neuron_proposal, "run_path": str(run_path)}
+        return {"run_id": input_packet.run_id, "response": output.response, "system_events": system_events, "safety": safety.to_dict(), "report": report.to_dict(), "memory_diff": output.memory_diff, "semantic_recall": semantic_state, "crystal_temporal_state": temporal_state, "models": {"hypothalamus": {**hypothalamus_model_result, "quality_score": hypothalamus_quality, "event_id": hypothalamus_event_id}, "central": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error, "quality_score": central_quality, "event_id": central_event_id}}, "model": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error}, "model_selection": self.model_selection, "neuron_proposal": neuron_proposal, "post_run_learning": post_run_learning, "background_neuron_candidates": background_neuron_candidates, "output_gate": output_gate, "run_path": str(run_path)}
+
+    def _sanitize_user_response(self, response: str, user_input: str, intent: str) -> dict[str, Any]:
+        text = (response or "").strip()
+        if not text:
+            return {"response": "Recibido. Estoy listo para ayudarte.", "modified": True, "reason": "empty_response"}
+        user_text = user_input.lower().strip()
+        operational_terms = {
+            "pulso",
+            "vida",
+            "viva",
+            "estado",
+            "neuron",
+            "neurona",
+            "memoria",
+            "semant",
+            "semánt",
+            "qualia",
+            "bodega",
+            "ram",
+            "ollama",
+            "doctor",
+        }
+        if any(term in user_text for term in operational_terms) and (
+            "pulso vivo" in text.lower() or "bodega semántica" in text.lower() or "bodega semantica" in text.lower()
+        ):
+            return {"response": text, "modified": False, "reason": "operational_awareness_allowed"}
+        lowered = text.lower()
+        leak = any(term in lowered for term in self.INTERNAL_LEAK_TERMS)
+        looks_like_report = text.count("###") >= 1 or text.count("- **") >= 2
+        if not (leak or looks_like_report):
+            return {"response": text, "modified": False, "reason": "clean"}
+        if "chiste" in user_text or "broma" in user_text or "hazme re" in user_text:
+            clean = "Claro: ¿Por qué el computador fue al médico? Porque tenía un virus y necesitaba reiniciarse la vida."
+        elif "ave" in user_text or "pájaro" in user_text or "pajaro" in user_text:
+            clean = "No soy un ave. Soy Tríade Ω: una arquitectura de IA modular que usa una Central para razonar, un Hipotálamo para leer señales y una Bodega para memoria y evidencias."
+        elif "neuron" in user_text:
+            clean = "Mis neuronas principales son la Central, el Hipotálamo Emocional y la Bodega de Almacenamiento. También puedo proponer neuronas candidatas, pero deben quedar pendientes de aprobación antes de volverse estables."
+        elif user_text in {"hola", "buenas", "buenos dias", "buenos días"}:
+            clean = "Hola, soy Tríade Ω. Estoy contigo y listo para ayudarte."
+        elif intent == "conversation":
+            clean = "Estoy contigo. Puedo responder de forma natural mientras mi proceso interno queda en segundo plano."
+        else:
+            clean = "Recibido. Lo atenderé sin exponer el proceso interno."
+        return {"response": clean, "modified": True, "reason": "internal_leak_detected"}
+
+    def _build_system_events(self, memory: Any, crystal: Any, neuron_proposal: Any | None, post_run_learning: dict[str, Any], output_gate: dict[str, Any]) -> list[dict[str, Any]]:
+        events: list[dict[str, Any]] = []
+        semantic = getattr(memory, "semantic_recall", {}) or {}
+        governance = semantic.get("governance", {}) if isinstance(semantic, dict) else {}
+        pending_candidates = int(governance.get("candidate_matches", 0) or governance.get("candidate_documents", 0) or 0)
+        quarantined = int(governance.get("quarantined_vector_matches", 0) or 0)
+        allowed = int(governance.get("allowed_vector_matches", 0) or 0)
+        if pending_candidates > 0:
+            events.append({"type": "semantic_candidates_pending", "severity": "info", "status": "requires_human_review", "message": f"Hay {pending_candidates} memorias semánticas candidatas. Pueden informar como hipótesis, no como verdad estable.", "action_required": "approve_or_reject_semantic_candidates"})
+        if quarantined > 0:
+            events.append({"type": "semantic_quarantine_notice", "severity": "warning", "status": "blocked_as_fact", "message": f"Hay {quarantined} coincidencias semánticas en cuarentena. No se usarán como hechos.", "action_required": "review_quarantined_memory"})
+        if allowed > 0:
+            events.append({"type": "semantic_authorized_recall", "severity": "info", "status": "used_as_context", "message": f"Se encontraron {allowed} recuerdos semánticos autorizados para contexto.", "action_required": "none"})
+        if neuron_proposal is not None:
+            events.append({"type": "neuron_candidate_proposed", "severity": "important", "status": "requires_human_approval", "message": f"Se propuso la neurona candidata '{neuron_proposal.get('name')}'. Requiere aprobación humana antes de activarse.", "action_required": "approve_or_reject_neuron_candidate", "payload": neuron_proposal})
+        if post_run_learning.get("enabled"):
+            events.append({"type": "post_run_learning_candidate", "severity": "important", "status": post_run_learning.get("status", "candidate_only"), "message": f"Aprendizaje post-run registrado como candidato: {post_run_learning.get('candidate_id')}. Requiere evaluación antes de consolidarse.", "action_required": "evaluate_learning_candidate", "payload": post_run_learning})
+        if getattr(crystal, "temporal_status", "stable") in {"critical", "degrading"}:
+            events.append({"type": "crystal_temporal_alert", "severity": "warning", "status": getattr(crystal, "temporal_status", "unknown"), "message": "El Cristal reporta degradación temporal. Conviene revisar continuidad y estabilidad antes de consolidar aprendizaje.", "action_required": "review_crystal_state"})
+        if output_gate.get("modified"):
+            events.append({"type": "output_gate_intervention", "severity": "warning", "status": output_gate.get("reason"), "message": "La salida intentó exponer proceso interno. OutputGate la corrigió antes de mostrarla al usuario.", "action_required": "review_output_gate"})
+        return events
 
     def _semantic_continuity(self, input_packet: InputPacket, output: Any, intent: str, crystal: Any) -> dict[str, Any]:
         try:
@@ -331,24 +443,40 @@ class TriadeRunner:
         elif project_id: scope = "project"
         elif session_id: scope = "session"
         else: scope = "source_intent"
-        fields: list[tuple[str, str]] = [("intent", intent)]
-        if scope == "project_neuron": fields.extend([("project_id", project_id or ""), ("active_neuron", active_neuron or "")])
-        elif scope == "neuron": fields.append(("active_neuron", active_neuron or ""))
-        elif scope == "project": fields.append(("project_id", project_id or ""))
-        elif scope == "session": fields.append(("session_id", session_id or ""))
-        else: fields.append(("source", input_packet.source))
-        context_key = scope + "|" + "|".join(f"{key}={value}" for key, value in fields)
-        return {"context_scope": scope, "context_key": context_key, "source": input_packet.source, "intent": intent, "session_id": session_id, "project_id": project_id, "active_neuron": active_neuron}
+        context_key = {"source_intent": f"source:{input_packet.source}|intent:{intent}", "session": f"session:{session_id}", "project": f"project:{project_id}", "neuron": f"neuron:{active_neuron}", "project_neuron": f"project:{project_id}|neuron:{active_neuron}"}[scope]
+        return {"scope": scope, "context_key": context_key, "session_id": session_id, "project_id": project_id, "active_neuron": active_neuron, "source": input_packet.source, "intent": intent}
+
+    @staticmethod
+    def _write_json(path: Path, payload: dict[str, Any] | list[Any]) -> None:
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def recall(self, query: str, limit: int = 10) -> dict[str, Any]:
         episodes = self.bodega.list_recent_episodes(limit=limit)
-        if query: episodes = [ep for ep in episodes if query.lower() in (ep.get("title") or "").lower() or query.lower() in (ep.get("summary") or "").lower() or query.lower() in (ep.get("tags") or "").lower()]
+        if query:
+            query_lower = query.lower()
+            episodes = [
+                episode
+                for episode in episodes
+                if query_lower in (episode.get("title") or "").lower()
+                or query_lower in (episode.get("summary") or "").lower()
+                or query_lower in (episode.get("tags") or "").lower()
+            ]
         return {"query": query, "count": len(episodes), "episodes": episodes}
 
     def doctor(self) -> dict[str, Any]:
         status = self.bodega.doctor(runs_dir=self.runs_dir)
-        status["models"] = {"provider": self.model_provider, "hypothalamus": self.hypothalamus_model, "central": self.central_model, "selection": self.model_selection, "ollama": self.model_client.health() if self.model_client else {"ok": False, "disabled": True}}
+        status["models"] = {
+            "provider": self.model_provider,
+            "hypothalamus": self.hypothalamus_model,
+            "central": self.central_model,
+            "selection": self.model_selection,
+            "ollama": self.model_client.health() if self.model_client else {"ok": False, "disabled": True},
+        }
         status["runtime"] = self._runtime_status()
+        status["learning"] = {
+            "post_run_learning_enabled": str(os.environ.get("TRIADE_POST_RUN_LEARNING", "")).strip().lower()
+            in {"1", "true", "yes", "on"}
+        }
         return status
 
     @staticmethod
@@ -366,24 +494,24 @@ class TriadeRunner:
 
     @staticmethod
     def _score_hypothalamus(signals: Any, model_result: dict[str, Any]) -> float:
-        score = 0.35
-        if model_result.get("ok"): score += 0.25
-        if signals.intent in {"conversation", "build_or_update", "analyze", "memory"}: score += 0.10
-        if signals.urgency in {"low", "medium", "high"}: score += 0.10
-        if signals.risk in {"low", "medium", "high", "critical"}: score += 0.10
-        if len(signals.pv7) >= 7: score += 0.10
-        return round(min(score, 1.0), 2)
+        score = 0.55
+        if model_result.get("ok"):
+            score += 0.20
+        if signals.intent in {"conversation", "build_or_update", "analyze", "memory"}:
+            score += 0.10
+        if signals.risk in {"low", "medium", "high", "critical"}:
+            score += 0.05
+        if isinstance(signals.pv7, dict) and len(signals.pv7) >= 7:
+            score += 0.05
+        if signals.notes:
+            score += 0.05
+        return round(min(score, 1.0), 3)
 
     @staticmethod
     def _score_central(response: str, model_ok: bool) -> float:
-        text = response.strip(); score = 0.35
-        if model_ok: score += 0.25
-        if len(text) >= 40: score += 0.15
-        if len(text) <= 1800: score += 0.10
-        if "Tríade" in text or "Triade" in text: score += 0.05
-        if text.endswith((".", "!", "?")): score += 0.10
-        return round(min(score, 1.0), 2)
-
-    @staticmethod
-    def _write_json(path: Path, payload: dict[str, Any]) -> None:
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        score = 0.50 + (0.20 if model_ok else 0.0)
+        if response and len(response.strip()) > 20:
+            score += 0.10
+        if any(marker in response.lower() for marker in ["verific", "traz", "memoria", "cristal", "riesgo"]):
+            score += 0.10
+        return round(min(score, 1.0), 3)

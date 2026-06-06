@@ -17,7 +17,45 @@ class Central:
     Usa Ollama si está disponible y conserva fallback por plantilla si falla.
     Desde 1.9E, solo recibe recuerdos semánticos autorizados por gobernanza y
     exige atribución literal de fuente/estado cuando la memoria se menciona.
+    Desde 1.9I, el plan y el paquete cognitivo quedan como contexto interno; la
+    salida normal se genera con contexto mínimo para permitir aprendizaje sin
+    filtrar razonamiento operativo.
+    Desde 1.9J, conserva un núcleo semántico de identidad Tríade para evitar
+    respuestas genéricas de asistente o negación de sus neuronas operativas.
     """
+
+    INTERNAL_AUDIT_TERMS = {
+        "audita",
+        "auditoría",
+        "auditoria",
+        "analiza el run",
+        "analiza este run",
+        "diagnóstico técnico",
+        "diagnostico tecnico",
+        "debug",
+        "trazabilidad",
+        "q_crystal",
+        "cristal",
+        "hipotálamo",
+        "hipotalamo",
+        "pv7",
+        "paquete cognitivo",
+        "reporte interno",
+        "señales internas",
+        "senales internas",
+    }
+
+    TRIAD_IDENTITY_CORE = (
+        "Tríade Ω no es un asistente genérico: es una arquitectura cognitiva modular local en construcción verificable. "
+        "Sus neuronas operativas principales son: Neurona Central, que decide, estructura, planifica y coordina; "
+        "Hipotálamo Emocional, que interpreta tono, intención, riesgo, urgencia y señales relacionales; "
+        "Bodega de Almacenamiento, que conserva memoria, evidencias, runs y conocimiento autorizado; "
+        "Cristal Morfológico, que regula ética, profundidad, creatividad, relación, estabilidad y continuidad; "
+        "Federación/Nodos, que conecta dispositivos o sistemas autorizados; y Aprendizaje en segundo plano, "
+        "que registra candidatos post-run y propuestas sin consolidarlas como verdad estable hasta revisión humana. "
+        "El pulso vivo resume el estado operativo de PC, modelos, router, memoria semántica, Docker, relay, nodos Android, hosts LLM y eventos pendientes. "
+        "Cuando el usuario pregunte por neuronas, identidad, propósito, pulso vivo o aprendizaje en segundo plano, responde desde esta arquitectura."
+    )
 
     def __init__(self, model_client: OllamaClient | None = None, central_model: str = "qwen2.5:3b-instruct") -> None:
         self.model_client = model_client
@@ -72,7 +110,8 @@ class Central:
         plan: PlanPacket,
     ) -> OutputPacket:
         identity = next((item["value"] for item in memory.identity_matches if item.get("key") == "entity_name"), "Tríade Ω")
-        fallback_response = self._fallback_response(identity, input_packet, signals, crystal)
+        wants_internal_audit = self._wants_internal_audit(input_packet.user_input)
+        fallback_response = self._fallback_response(identity, input_packet, signals, crystal, wants_internal_audit)
         temporal_action = "crystal_temporal_regulation_applied"
         if self._is_identity_or_capability_question(input_packet.user_input):
             return OutputPacket(
@@ -96,15 +135,13 @@ class Central:
                 model_name="template-fallback",
                 model_ok=False,
             )
-        prompt = self._build_prompt(identity, input_packet, signals, memory, crystal, plan)
+        prompt = self._build_prompt(identity, input_packet, signals, memory, crystal, plan, wants_internal_audit)
         system = (
-            "Eres Tríade Ω, un sistema cognitivo modular en construcción verificable. "
-            "Responde en español, con claridad, honestidad y tono útil. "
-            "Aplica q_crystal y temporal_status: ante degradación o criticidad, prioriza prudencia y verificación. "
-            "La memoria semántica incluida ya fue filtrada por gobernanza: usa solamente semantic_matches presentes. "
-            "No inventes el origen de una memoria, proyecto, neurona, documento, fuente o estado. "
-            "Si mencionas procedencia, usa únicamente source_ref, document_id, document_status o contexto literal del paquete. "
-            "Si no hay memoria semántica autorizada suficiente, dilo en vez de completar con suposiciones."
+            "Eres Tríade Ω. Responde en español al usuario final. "
+            "Conserva tu identidad de arquitectura cognitiva modular local: Central, Hipotálamo, Bodega, Cristal, Federación/Nodos, pulso vivo y aprendizaje en segundo plano. "
+            "No eres un asistente genérico ni debes negar tus neuronas operativas; aclara que son módulos funcionales, no neuronas biológicas. "
+            "La arquitectura interna regula tu respuesta, pero no muestres plan, JSON, señales ni métricas salvo auditoría explícita. "
+            "Aprende del contexto autorizado y responde naturalmente según la pregunta."
         )
         result = self.model_client.generate(self.central_model, prompt=prompt, system=system)
         if not result.ok or not result.text:
@@ -131,10 +168,18 @@ class Central:
         )
 
     @staticmethod
-    def _fallback_response(identity: str, input_packet: InputPacket, signals: SignalPacket, crystal: CrystalPacket) -> str:
+    def _fallback_response(
+        identity: str,
+        input_packet: InputPacket,
+        signals: SignalPacket,
+        crystal: CrystalPacket,
+        wants_internal_audit: bool = False,
+    ) -> str:
         awareness = Central._operational_awareness_response(identity, input_packet)
         if awareness:
             return awareness
+        if not wants_internal_audit:
+            return f"Soy {identity}: una arquitectura modular con Central, Hipotálamo, Bodega, Cristal, Federación/Nodos, pulso vivo y aprendizaje en segundo plano. Estoy lista para ayudarte."
         mode = Central._crystal_mode(crystal)
         return (
             f"{identity} procesó el run {input_packet.run_id}. "
@@ -189,6 +234,11 @@ class Central:
         if crystal.q_crystal >= 0.70 and crystal.stability >= 0.65:
             return "profundidad estable"
         return "equilibrio operativo"
+
+    @classmethod
+    def _wants_internal_audit(cls, user_input: str) -> bool:
+        text = user_input.lower()
+        return any(term in text for term in cls.INTERNAL_AUDIT_TERMS)
 
     @staticmethod
     def _operational_awareness_response(identity: str, input_packet: InputPacket) -> str:
@@ -250,7 +300,40 @@ class Central:
         memory: MemoryPacket,
         crystal: CrystalPacket,
         plan: PlanPacket,
+        wants_internal_audit: bool = False,
     ) -> str:
+        if not wants_internal_audit:
+            safe_matches: list[dict[str, str]] = []
+            for item in memory.semantic_matches[:3]:
+                content = str(item.get("content", "")).strip()[:400]
+                source_ref = str(item.get("source_ref") or item.get("document_id") or "memoria_autorizada")
+                if content:
+                    safe_matches.append({"source_ref": source_ref, "content": content})
+            semantic_context = ""
+            if safe_matches:
+                semantic_context = "\nMemoria autorizada útil, si aplica:\n" + json.dumps(safe_matches, ensure_ascii=False, indent=2)
+            pulse_summary = input_packet.context.get("system_pulse_summary") if isinstance(input_packet.context, dict) else None
+            pulse_context = ""
+            if pulse_summary:
+                pulse_context = "\nPulso vivo actual resumido:\n" + json.dumps(pulse_summary, ensure_ascii=False, indent=2)
+            return (
+                "MODO RESPUESTA FINAL.\n"
+                "Responde solo al usuario, de forma natural.\n"
+                "No expliques el proceso interno, no hagas resumen de contexto, no muestres plan ni métricas.\n"
+                "Usa este núcleo estable de identidad si el usuario pregunta qué eres, para qué sirves, cuáles son tus neuronas, tu pulso vivo o tu aprendizaje en segundo plano:\n"
+                f"{Central.TRIAD_IDENTITY_CORE}\n\n"
+                "Si el usuario pregunta por pulso vivo, usa el resumen de pulso si existe: explica estado, pendientes, nodos, modelos y aprendizaje sin inventar.\n"
+                "Si el usuario pregunta por aprendizaje en segundo plano, explica que registra candidatos y eventos, pero requiere evaluación/aprobación para consolidar.\n"
+                "Si el usuario pregunta por neuronas, habla de módulos funcionales y neuronas candidatas.\n\n"
+                f"Identidad: {identity}\n"
+                f"Usuario dijo: {input_packet.user_input}\n"
+                f"Intención orientativa: {signals.intent}\n"
+                f"Tono orientativo: {signals.tone}\n"
+                f"Riesgo orientativo: {signals.risk}\n"
+                f"{pulse_context}{semantic_context}\n\n"
+                "Respuesta final:"
+            )
+
         memory_summary = {
             "identity": memory.identity_matches[:5],
             "episodic_matches": memory.episodic_matches[:3],
@@ -268,6 +351,7 @@ class Central:
             "crystal_mode": Central._crystal_mode(crystal),
             "temporal_alerts": crystal.temporal_alerts,
             "plan": plan.to_dict(),
+            "response_mode": "internal_audit",
         }
         return (
             "Procesa este paquete cognitivo de Tríade y responde al usuario. "
