@@ -232,9 +232,22 @@ class TriadeRunner:
         }
         semantic_state = dict(memory.semantic_recall)
         semantic_state["authorized_matches"] = memory.semantic_matches
+        edge_usage = {
+            "used_edge": bool(edge_context.get("used_edge")),
+            "accepted": bool(edge_context.get("accepted")),
+            "node_id": edge_context.get("node_id"),
+            "intent": (edge_context.get("intent_probe") or {}).get("intent"),
+            "urgency": (edge_context.get("intent_probe") or {}).get("urgency"),
+            "risk": (edge_context.get("intent_probe") or {}).get("risk"),
+            "needs_tool": (edge_context.get("intent_probe") or {}).get("needs_tool"),
+            "keywords": edge_context.get("keywords", []),
+            "policy": "auxiliary_signal_only_central_validates",
+        }
+
         output.memory_diff = {
             **memory_diff, "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id,
             "neuron_proposal": neuron_proposal,
+            "edge_usage": edge_usage,
             "crystal_temporal_state": temporal_state, "semantic_recall": semantic_state,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_model_error": hypothalamus_model_result.get("error"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_model_error": output.model_error, "central_quality_score": central_quality, "central_model_event_id": central_event_id,
