@@ -43,3 +43,6 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Android runtime artifacts local only
+apps/static/android-runtime/
