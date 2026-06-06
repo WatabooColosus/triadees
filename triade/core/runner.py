@@ -143,7 +143,26 @@ class TriadeRunner:
         run_path = self.runs_dir / input_packet.run_id
         run_path.mkdir(parents=True, exist_ok=True)
         signals = self.hypothalamus.analyze(input_packet)
-        edge_context = build_edge_context(input_packet.text, enable_summary=False)
+        try:
+            edge_context = build_edge_context(input_packet.text, enable_summary=False)
+        except Exception as exc:
+            edge_context = {
+                "enabled": True,
+                "used_edge": False,
+                "accepted": False,
+                "node_id": None,
+                "error": str(exc),
+                "intent_probe": {
+                    "intent": "edge_context_failed",
+                    "urgency": "medium",
+                    "risk": "low",
+                    "needs_tool": False
+                },
+                "keywords": [],
+                "summary": "",
+                "evidence": {},
+                "truth": "edge_context falló y fue aislado para no romper el run cognitivo."
+            }
         hypothalamus_model_result = dict(self.hypothalamus.last_model_result)
         hypothalamus_quality = self._score_hypothalamus(signals, hypothalamus_model_result)
         signal_id = self.bodega.store_signal(signals)
