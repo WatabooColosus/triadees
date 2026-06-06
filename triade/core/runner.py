@@ -29,6 +29,7 @@ from .hypothalamus import Hypothalamus
 from .safety import Safety
 from .verification import Verifier
 from .edge_context import build_edge_context
+from .neuron_formation_pipeline import form_candidates
 
 
 class TriadeRunner:
@@ -269,6 +270,7 @@ class TriadeRunner:
             background_neuron_candidates,
             edge_usage,
         )
+        background_neuron_candidates = form_candidates(background_neuron_candidates)
         for candidate in background_neuron_candidates:
             system_events.append({
                 "type": "background_neuron_candidate",
