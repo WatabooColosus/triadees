@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 
 public final class AndroidModelRuntime {
     private static final String BACKEND_LLAMA_CPP = "llama.cpp";
+    private static final String BUNDLED_BACKEND_NAME = "libtriade_llama_cli.so";
     private final Context context;
 
     public AndroidModelRuntime(Context context) {
@@ -23,22 +24,25 @@ public final class AndroidModelRuntime {
                 .put("gguf");
         JSONArray models = modelInventory();
         File executable = llamaExecutable();
+        String backendSource = backendSource(executable);
         boolean nativeBackendPresent = executable != null && executable.exists() && executable.canExecute();
         boolean canRun = nativeBackendPresent && resolveModel("") != null;
         return new JSONObject()
                 .put("task", "android_model_doctor")
                 .put("backend", nativeBackendPresent ? BACKEND_LLAMA_CPP : "none")
+                .put("backend_source", backendSource)
                 .put("native_backend_present", nativeBackendPresent)
                 .put("can_run_local_llm", canRun)
                 .put("supported_model_formats", formats)
                 .put("models_dir", modelsDir().getAbsolutePath())
                 .put("backend_dir", binDir().getAbsolutePath())
+                .put("native_library_dir", context.getApplicationInfo().nativeLibraryDir)
                 .put("backend_executable", executable == null ? "" : executable.getAbsolutePath())
                 .put("available_models", models)
                 .put("install_contract", installContract())
                 .put("note", canRun
                         ? "Backend llama.cpp detectado con modelo GGUF local. Este nodo puede ejecutar android_local_generate."
-                        : "Falta instalar un binario nativo llama-cli ejecutable en almacenamiento interno y al menos un modelo .gguf en el directorio models.");
+                        : "Falta un backend nativo ejecutable empaquetado o un modelo .gguf en el directorio models.");
     }
 
     public JSONObject generate(JSONObject payload) throws Exception {
@@ -59,7 +63,7 @@ public final class AndroidModelRuntime {
                     .put("backend", doctor.getString("backend"))
                     .put("model", model)
                     .put("prompt_sha256", TextPreprocessor.sha256(prompt == null ? "" : prompt))
-                    .put("error", "No hay backend nativo listo. Instala llama-cli ejecutable en bin/ y un modelo .gguf en models/.")
+                    .put("error", "No hay backend nativo listo. Empaqueta libtriade_llama_cli.so o instala llama-cli ejecutable y un modelo .gguf.")
                     .put("doctor", doctor);
         }
         ProcessBuilder builder = new ProcessBuilder(
@@ -99,11 +103,12 @@ public final class AndroidModelRuntime {
                     .put("ok", false)
                     .put("status", "timeout")
                     .put("backend", BACKEND_LLAMA_CPP)
+                    .put("backend_source", backendSource(executable))
                     .put("model", modelFile.getName())
                     .put("threads", threads)
                     .put("elapsed_ms", System.currentTimeMillis() - started)
                     .put("prompt_sha256", TextPreprocessor.sha256(prompt == null ? "" : prompt))
-                    .put("error", "Tiempo agotado ejecutando llama-cli en Android.");
+                    .put("error", "Tiempo agotado ejecutando backend llama.cpp en Android.");
         }
         readerThread.join(1000);
         int exitCode = process.exitValue();
@@ -112,6 +117,7 @@ public final class AndroidModelRuntime {
                 .put("ok", exitCode == 0)
                 .put("status", exitCode == 0 ? "completed" : "failed")
                 .put("backend", BACKEND_LLAMA_CPP)
+                .put("backend_source", backendSource(executable))
                 .put("model", modelFile.getName())
                 .put("threads", threads)
                 .put("max_tokens", maxTokens)
@@ -119,7 +125,7 @@ public final class AndroidModelRuntime {
                 .put("elapsed_ms", System.currentTimeMillis() - started)
                 .put("prompt_sha256", TextPreprocessor.sha256(prompt == null ? "" : prompt))
                 .put("response", output.toString().trim())
-                .put("error", exitCode == 0 ? JSONObject.NULL : "llama-cli termino con codigo " + exitCode)
+                .put("error", exitCode == 0 ? JSONObject.NULL : "backend llama.cpp termino con codigo " + exitCode)
                 .put("doctor", doctor);
     }
 
@@ -128,6 +134,7 @@ public final class AndroidModelRuntime {
         return new JSONObject()
                 .put("edge_model_runtime", true)
                 .put("model_runtime_backend", doctor.getString("backend"))
+                .put("model_runtime_backend_source", doctor.optString("backend_source", "none"))
                 .put("can_run_local_llm", doctor.getBoolean("can_run_local_llm"))
                 .put("local_model_runtime_ready", doctor.getBoolean("can_run_local_llm"))
                 .put("supported_model_formats", doctor.getJSONArray("supported_model_formats"))
@@ -162,14 +169,21 @@ public final class AndroidModelRuntime {
     private JSONObject installContract() throws Exception {
         return new JSONObject()
                 .put("backend", BACKEND_LLAMA_CPP)
-                .put("binary_names", new JSONArray().put("llama-cli").put("llama-cli-arm64-v8a").put("main"))
+                .put("bundled_binary", BUNDLED_BACKEND_NAME)
+                .put("fallback_binary_names", new JSONArray().put("llama-cli").put("llama-cli-arm64-v8a").put("main"))
+                .put("native_library_dir", context.getApplicationInfo().nativeLibraryDir)
                 .put("bin_dir", binDir().getAbsolutePath())
                 .put("models_dir", modelsDir().getAbsolutePath())
                 .put("model_format", "gguf")
-                .put("execution", "La APK ejecuta el binario nativo desde almacenamiento interno con ProcessBuilder; Android decide limites finales de memoria/proceso.");
+                .put("execution", "La APK intenta primero el backend empaquetado en nativeLibraryDir; si no existe, usa fallback interno.");
     }
 
     private File llamaExecutable() {
+        File bundled = new File(context.getApplicationInfo().nativeLibraryDir, BUNDLED_BACKEND_NAME);
+        if (bundled.exists()) {
+            bundled.setExecutable(true, false);
+            return bundled;
+        }
         File dir = binDir();
         String[] names = new String[]{"llama-cli", "llama-cli-arm64-v8a", "main"};
         for (String name : names) {
@@ -180,6 +194,21 @@ public final class AndroidModelRuntime {
             }
         }
         return null;
+    }
+
+    private String backendSource(File executable) {
+        if (executable == null) {
+            return "none";
+        }
+        String nativeDir = context.getApplicationInfo().nativeLibraryDir;
+        String path = executable.getAbsolutePath();
+        if (nativeDir != null && path.startsWith(nativeDir)) {
+            return "nativeLibraryDir";
+        }
+        if (path.startsWith(binDir().getAbsolutePath())) {
+            return "filesDir";
+        }
+        return "unknown";
     }
 
     private File resolveModel(String requested) {
