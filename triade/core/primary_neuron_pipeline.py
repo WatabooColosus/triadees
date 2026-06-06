@@ -22,6 +22,19 @@ FORBIDDEN_ACTIONS = [
 ]
 
 
+def unique_list(values: list[str]) -> list[str]:
+    """Deduplica preservando orden."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for value in values or []:
+        item = str(value).strip()
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        out.append(item)
+    return out
+
+
 def build_primary_neuron_package(
     *,
     name: str,
@@ -50,6 +63,16 @@ def build_primary_neuron_package(
     )
     spec.status = "candidate"
     spec.created_by = "primary_neuron_pipeline"
+
+    # NeuronCreator agrega reglas/prohibiciones base. Deduplicamos para que
+    # contracts y creator_spec no repitan acciones críticas.
+    spec.rules = unique_list(spec.rules)
+    spec.triggers = unique_list(spec.triggers)
+    spec.inputs_allowed = unique_list(spec.inputs_allowed)
+    spec.outputs_allowed = unique_list(spec.outputs_allowed)
+    spec.forbidden_actions = unique_list(spec.forbidden_actions)
+    spec.success_metrics = unique_list(spec.success_metrics)
+    spec.evidence_required = unique_list(spec.evidence_required)
 
     assessment = NeuronTrainer().evaluate(spec)
 
