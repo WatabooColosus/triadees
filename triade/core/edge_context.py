@@ -50,7 +50,7 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
     accepted = accepted or intent_result.accepted_for_context
     node_id = intent_result.node_id or node_id
 
-    intent_data = parse_intent(intent_result.response)
+    intent_data = parse_intent(intent_result.response, fallback_text=user_text)
 
     keywords_result = service.keywords(user_text)
     evidence["keywords"] = keywords_result.to_dict()
@@ -67,7 +67,7 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
         used_edge = used_edge or summary_result.used_edge
         accepted = accepted or summary_result.accepted_for_context
         node_id = summary_result.node_id or node_id
-        summary = summary_result.response
+        summary = sanitize_summary(summary_result.response, fallback_text=user_text)
 
     ctx = EdgeContext(
         enabled=True,
@@ -87,23 +87,25 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
     return ctx.to_dict()
 
 
-def parse_intent(text: str) -> Dict[str, Any]:
+def parse_intent(text: str, fallback_text: str = "") -> Dict[str, Any]:
     try:
         data = json.loads(text)
-        return {
-            "intent": str(data.get("intent", "unknown")),
-            "urgency": str(data.get("urgency", "medium")),
-            "risk": str(data.get("risk", "low")),
-            "needs_tool": bool(data.get("needs_tool", False)),
-        }
+        intent = str(data.get("intent", "unknown")).strip().lower()
+        urgency = normalize_level(data.get("urgency", "medium"), default="medium")
+        risk = normalize_level(data.get("risk", "low"), default="low")
+        needs_tool = normalize_bool_like(data.get("needs_tool", False))
+        if intent and intent != "unknown":
+            return {
+                "intent": intent,
+                "urgency": urgency,
+                "risk": risk,
+                "needs_tool": needs_tool,
+            }
     except Exception:
-        return {
-            "intent": "unknown",
-            "urgency": "medium",
-            "risk": "low",
-            "needs_tool": False,
-            "raw": text,
-        }
+        pass
+
+    # Fallback determinista desde el texto original, no desde la salida débil del LLM.
+    return heuristic_intent(fallback_text or text, raw=text)
 
 
 def parse_keywords(text: str, fallback_text: str = "") -> list[str]:
@@ -114,8 +116,13 @@ def parse_keywords(text: str, fallback_text: str = "") -> list[str]:
         if clean:
             parts.append(clean)
 
-    # Si el modelo devolvió una frase entera en vez de lista, usar extracción simple del input.
-    if len(parts) <= 2 and fallback_text:
+    # Si el modelo devolvió explicación, frase larga o poca separación, usar input original.
+    too_long = any(len(p) > 42 for p in parts)
+    looks_like_explanation = any(
+        p.lower().startswith(("el proceso", "por ejemplo", "para ", "debemos", "a continuación"))
+        for p in parts
+    )
+    if fallback_text and (len(parts) <= 2 or too_long or looks_like_explanation):
         parts = heuristic_keywords(fallback_text)
 
     result = []
@@ -150,3 +157,95 @@ def heuristic_keywords(text: str) -> list[str]:
         if len(words) >= 8:
             break
     return words
+
+
+def sanitize_summary(text: str, fallback_text: str = "") -> str:
+    out = (text or "").strip()
+    lower = out.lower()
+    if (
+        "### input" in lower
+        or "### response" in lower
+        or "google play" in lower
+        or len(out) > 260
+    ):
+        return heuristic_summary(fallback_text)
+    return out
+
+
+def heuristic_summary(text: str) -> str:
+    clean = " ".join((text or "").strip().split())
+    if not clean:
+        return ""
+    if len(clean) <= 180:
+        return clean
+    return clean[:177].rstrip() + "..."
+
+
+def heuristic_intent(text: str, raw: str = "") -> Dict[str, Any]:
+    t = (text or "").lower()
+    intent = "general"
+    needs_tool = False
+
+    if "apk" in t and ("conectar" in t or "nodo" in t or "procesamiento" in t):
+        intent = "conectar_apk_nodo"
+        needs_tool = True
+    elif "git" in t or "github" in t or "push" in t:
+        intent = "git_devops"
+        needs_tool = True
+    elif "error" in t or "fall" in t or "traceback" in t:
+        intent = "debug"
+        needs_tool = True
+
+    urgency = "medium"
+    if any(w in t for w in ("urgente", "ya", "ahora", "crítico", "critico")):
+        urgency = "high"
+
+    risk = "low"
+    if any(w in t for w in ("token", "contraseña", "password", "permiso", "credencial")):
+        risk = "medium"
+
+    data = {
+        "intent": intent,
+        "urgency": urgency,
+        "risk": risk,
+        "needs_tool": needs_tool,
+    }
+    if raw:
+        data["raw_edge"] = raw
+    return data
+
+
+def normalize_level(value, default: str = "medium") -> str:
+    if isinstance(value, (int, float)):
+        if value <= 1:
+            return "low"
+        if value == 2:
+            return "medium"
+        return "high"
+    v = str(value).strip().lower()
+    mapping = {
+        "1": "low",
+        "2": "medium",
+        "3": "high",
+        "normal": "medium",
+        "baja": "low",
+        "media": "medium",
+        "alta": "high",
+        "low": "low",
+        "medium": "medium",
+        "high": "high",
+    }
+    return mapping.get(v, default)
+
+
+def normalize_bool_like(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    v = str(value).strip().lower()
+    if v in {"true", "yes", "si", "sí", "1", "y"}:
+        return True
+    if v in {"false", "no", "0", "none", "null"}:
+        return False
+    return bool(v)
