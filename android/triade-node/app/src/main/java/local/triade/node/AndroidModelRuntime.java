@@ -73,7 +73,9 @@ public final class AndroidModelRuntime {
                 "-n", String.valueOf(maxTokens),
                 "-c", String.valueOf(contextTokens),
                 "-t", String.valueOf(threads)
-        );
+        );        builder.directory(context.getCacheDir());
+        builder.environment().put("HOME", context.getCacheDir().getAbsolutePath());
+        builder.environment().put("TMPDIR", context.getCacheDir().getAbsolutePath());
         builder.environment().put("LD_LIBRARY_PATH", context.getApplicationInfo().nativeLibraryDir);
         builder.redirectErrorStream(true);
         long started = System.currentTimeMillis();
@@ -258,4 +260,108 @@ public final class AndroidModelRuntime {
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }
+
+    private static String extractGeneratedText(String rawOutput, String prompt) {
+        if (rawOutput == null || rawOutput.isEmpty()) {
+            return "";
+        }
+
+        String normalized = rawOutput.replace("\r\n", "\n").replace('\r', '\n');
+
+        // Preferir lo que aparece después del marcador de respuesta.
+        int marker = normalized.lastIndexOf("### Response:");
+        String candidate = marker >= 0
+                ? normalized.substring(marker + "### Response:".length())
+                : normalized;
+
+        // Si aparece el prompt literal, tomar lo posterior al último prompt.
+        if (prompt != null && !prompt.isEmpty()) {
+            int promptPos = candidate.lastIndexOf(prompt);
+            if (promptPos >= 0) {
+                candidate = candidate.substring(promptPos + prompt.length());
+            } else {
+                int rawPromptPos = normalized.lastIndexOf(prompt);
+                if (rawPromptPos >= 0) {
+                    candidate = normalized.substring(rawPromptPos + prompt.length());
+                }
+            }
+        }
+
+        StringBuilder clean = new StringBuilder();
+        String[] lines = candidate.split("\n");
+
+        for (String line : lines) {
+            String s = line.trim();
+            if (s.isEmpty()) {
+                continue;
+            }
+
+            // Quitar logs con timestamps: [1780723902] ...
+            s = s.replaceAll("^\\[\\d{8,}\\]\\s*", "").trim();
+            if (s.isEmpty()) {
+                continue;
+            }
+
+            // Cortes de secciones de log/timing.
+            if (s.equals("Log end") || s.equals("[end of text]")) {
+                break;
+            }
+
+            // Filtros de ruido de llama.cpp.
+            if (s.startsWith("Failed to open logfile")) continue;
+            if (s.startsWith("Log start")) continue;
+            if (s.startsWith("Cmd:")) continue;
+            if (s.startsWith("main:")) continue;
+            if (s.startsWith("llama_")) continue;
+            if (s.startsWith("llm_")) continue;
+            if (s.startsWith("ggml")) continue;
+            if (s.startsWith("system_info:")) continue;
+            if (s.startsWith("sampling:")) continue;
+            if (s.startsWith("sampling order:")) continue;
+            if (s.startsWith("generate:")) continue;
+            if (s.startsWith("eval:")) continue;
+            if (s.startsWith("last:")) continue;
+            if (s.startsWith("tokens:")) continue;
+            if (s.startsWith("prompt:")) continue;
+            if (s.startsWith("n_past")) continue;
+            if (s.startsWith("n_remain")) continue;
+            if (s.startsWith("n_ctx:")) continue;
+            if (s.startsWith("embd_inp")) continue;
+            if (s.startsWith("inp_pfx:")) continue;
+            if (s.startsWith("inp_sfx:")) continue;
+            if (s.startsWith("cml_pfx:")) continue;
+            if (s.startsWith("cml_sfx:")) continue;
+            if (s.startsWith("add_bos:")) continue;
+            if (s.startsWith("tokenize the prompt")) continue;
+            if (s.startsWith("recalculate the cached logits")) continue;
+            if (s.startsWith("warming up the model")) continue;
+            if (s.startsWith("found an EOG token")) continue;
+            if (s.startsWith("llama_print_timings:")) continue;
+
+            // Quitar eco del prompt si se coló.
+            if (s.startsWith("### Instruction:")) continue;
+            if (s.startsWith("### Response:")) {
+                s = s.substring("### Response:".length()).trim();
+                if (s.isEmpty()) continue;
+            }
+
+            // Quitar token BOS visible.
+            s = s.replace("<s>", "").replace("</s>", "").trim();
+            if (s.isEmpty()) continue;
+
+            if (clean.length() > 0) {
+                clean.append("\n");
+            }
+            clean.append(s);
+        }
+
+        String out = clean.toString().trim();
+
+        // Limpieza suave de dobles espacios.
+        out = out.replaceAll("[ \\t]+", " ").trim();
+
+        // Si el extractor no pudo, no inventar.
+        return out;
+    }
+
 }
