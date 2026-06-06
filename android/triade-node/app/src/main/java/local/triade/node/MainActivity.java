@@ -3,6 +3,7 @@ package local.triade.node;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -46,7 +47,7 @@ public final class MainActivity extends Activity {
         root.addView(title);
 
         TextView note = new TextView(this);
-        note.setText("Un solo boton: Conectar. Valida 8010, configura runtime si existe, registra el nodo y activa trabajo en segundo plano.");
+        note.setText("Un solo boton: Conectar. Valida 8010, revisa Termux, configura runtime si existe, registra el nodo y activa trabajo en segundo plano.");
         root.addView(note);
 
         Button connect = new Button(this);
@@ -82,6 +83,7 @@ public final class MainActivity extends Activity {
                 String body = getText(config.relayUrl + "/health");
                 runOnUiThread(() -> {
                     appendLog("Health OK: " + trimForLog(body));
+                    appendLog(isTermuxInstalled() ? "Termux detectado." : "Termux no detectado. Puedes instalarlo desde Play Store y volver a conectar.");
                     status.setText("8010 disponible. Activando worker...");
                 });
                 autoSetupRuntimeIfAvailable();
@@ -95,6 +97,15 @@ public final class MainActivity extends Activity {
                 });
             }
         }, "triade-connect-start").start();
+    }
+
+    private boolean isTermuxInstalled() {
+        try {
+            getPackageManager().getPackageInfo("com.termux", 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException exc) {
+            return false;
+        }
     }
 
     private void startNodeService() {
@@ -132,7 +143,7 @@ public final class MainActivity extends Activity {
             NodeConfig config = NodeConfig.load(this);
             String manifest = getText(config.runtimeUrl + "/downloads/android/runtime-manifest");
             appendLog("Manifest runtime: " + trimForLog(manifest));
-            if (!manifest.contains("\"status\":\"ok\"") && !manifest.contains("\"status\": \"ok\"")) {
+            if (!manifest.contains("\"status\":\"ok\"") && !manifest.contains("\"status": \"ok\"")) {
                 appendLog("Runtime pesado no disponible en 8010. Worker queda activo para jobs CPU/preproceso.");
                 return;
             }
