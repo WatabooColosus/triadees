@@ -165,6 +165,12 @@ def candidates_from_system_debt(
     for event in events:
         event_type = str(event.get("type") or "system_event")
         action = str(event.get("action_required") or "review")
+
+        # Evitar recursión: una propuesta de neurona ya trae su propia revisión humana.
+        # No debe generar otra neurona cuyo único propósito sea revisar que una neurona fue propuesta.
+        if event_type in {"neuron_candidate_proposed", "background_neuron_candidate"}:
+            continue
+
         if action and action != "none":
             add(_candidate(
                 f"Formadora de Evento · {event_type}",
