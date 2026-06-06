@@ -47,7 +47,7 @@ public final class MainActivity extends Activity {
         root.addView(title);
 
         TextView note = new TextView(this);
-        note.setText("Un solo boton: Conectar. Valida 8010, revisa Termux, configura runtime si existe, registra el nodo y activa trabajo en segundo plano.");
+        note.setText("Un solo boton: Conectar. Valida 8010, revisa Termux, prepara runtime paso a paso si falta, registra el nodo y activa trabajo en segundo plano.");
         root.addView(note);
 
         Button connect = new Button(this);
@@ -83,10 +83,10 @@ public final class MainActivity extends Activity {
                 String body = getText(config.relayUrl + "/health");
                 runOnUiThread(() -> {
                     appendLog("Health OK: " + trimForLog(body));
-                    appendLog(isTermuxInstalled() ? "Termux detectado." : "Termux no detectado. Puedes instalarlo desde Play Store y volver a conectar.");
-                    status.setText("8010 disponible. Activando worker...");
+                    appendLog(isTermuxInstalled() ? "Termux detectado." : "Termux no detectado. Instala Termux desde Play Store y vuelve a conectar.");
+                    status.setText("8010 disponible. Revisando runtime...");
                 });
-                autoSetupRuntimeIfAvailable();
+                prepareRuntimeStep();
                 startNodeService();
                 sendHeartbeatOnce();
             } catch (Exception exc) {
@@ -106,6 +106,65 @@ public final class MainActivity extends Activity {
         } catch (PackageManager.NameNotFoundException exc) {
             return false;
         }
+    }
+
+    private void prepareRuntimeStep() {
+        try {
+            NodeConfig config = NodeConfig.load(this);
+            String manifest = getText(config.runtimeUrl + "/downloads/android/runtime-manifest");
+            appendLog("Manifest runtime: " + trimForLog(manifest));
+            if (!manifest.contains("\"status\":\"ok\"") && !manifest.contains("\"status\": \"ok\"")) {
+                appendLog("Paso 5: runtime incompleto en 8010.");
+                appendLog("Abre Termux y prepara llama-cli + modelo GGUF liviano con el proceso probado.");
+                appendLog("Luego copia al PC: apps/static/android-runtime/llama-cli y apps/static/android-runtime/triade-base.gguf");
+                appendLog("Cuando el manifest diga status ok, vuelve a tocar Conectar para instalarlo dentro de la APK.");
+                openTermuxIfAvailable();
+                return;
+            }
+            installRuntimeFrom8010();
+        } catch (Exception exc) {
+            appendLog("Paso 5 pendiente: no se pudo consultar runtime manifest: " + exc.getMessage());
+            appendLog("Prepara en Termux llama-cli + triade-base.gguf y subelos a apps/static/android-runtime/.");
+            openTermuxIfAvailable();
+        }
+    }
+
+    private void installRuntimeFrom8010() {
+        try {
+            NodeConfig config = NodeConfig.load(this);
+            AndroidModelRuntime runtime = new AndroidModelRuntime(this);
+            File llama = new File(runtime.binDir(), "llama-cli");
+            File model = new File(runtime.modelsDir(), "triade-base.gguf");
+            if (!llama.exists()) {
+                downloadUrlToFile(config.runtimeUrl + "/downloads/android/llama-cli", llama);
+                llama.setExecutable(true, false);
+                appendLog("llama-cli instalado en la APK.");
+            }
+            if (!model.exists()) {
+                downloadUrlToFile(config.runtimeUrl + "/downloads/android/base-model.gguf", model);
+                appendLog("triade-base.gguf instalado en la APK.");
+            }
+            appendLog("Runtime local configurado. Doctor debe confirmar can_run_local_llm=true.");
+        } catch (Exception exc) {
+            appendLog("Instalacion runtime desde 8010 fallo: " + exc.getMessage());
+        }
+    }
+
+    private void openTermuxIfAvailable() {
+        runOnUiThread(() -> {
+            if (!isTermuxInstalled()) {
+                return;
+            }
+            try {
+                Intent launch = getPackageManager().getLaunchIntentForPackage("com.termux");
+                if (launch != null) {
+                    startActivity(launch);
+                    appendLog("Termux abierto para preparar runtime.");
+                }
+            } catch (Exception exc) {
+                appendLog("No se pudo abrir Termux: " + exc.getMessage());
+            }
+        });
     }
 
     private void startNodeService() {
@@ -136,33 +195,6 @@ public final class MainActivity extends Activity {
                 });
             }
         }, "triade-heartbeat-once").start();
-    }
-
-    private void autoSetupRuntimeIfAvailable() {
-        try {
-            NodeConfig config = NodeConfig.load(this);
-            String manifest = getText(config.runtimeUrl + "/downloads/android/runtime-manifest");
-            appendLog("Manifest runtime: " + trimForLog(manifest));
-            if (!manifest.contains("\"status\":\"ok\"") && !manifest.contains("\"status": \"ok\"")) {
-                appendLog("Runtime pesado no disponible en 8010. Worker queda activo para jobs CPU/preproceso.");
-                return;
-            }
-            AndroidModelRuntime runtime = new AndroidModelRuntime(this);
-            File llama = new File(runtime.binDir(), "llama-cli");
-            File model = new File(runtime.modelsDir(), "triade-base.gguf");
-            if (!llama.exists()) {
-                downloadUrlToFile(config.runtimeUrl + "/downloads/android/llama-cli", llama);
-                llama.setExecutable(true, false);
-                appendLog("llama-cli instalado.");
-            }
-            if (!model.exists()) {
-                downloadUrlToFile(config.runtimeUrl + "/downloads/android/base-model.gguf", model);
-                appendLog("GGUF base instalado.");
-            }
-            appendLog("Runtime local configurado.");
-        } catch (Exception exc) {
-            appendLog("Auto runtime omitido: " + exc.getMessage());
-        }
     }
 
     private void requestNotificationPermission() {
