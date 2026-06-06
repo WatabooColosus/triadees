@@ -28,6 +28,7 @@ from .crystal import Crystal
 from .hypothalamus import Hypothalamus
 from .safety import Safety
 from .verification import Verifier
+from .edge_context import build_edge_context
 
 
 class TriadeRunner:
@@ -142,6 +143,7 @@ class TriadeRunner:
         run_path = self.runs_dir / input_packet.run_id
         run_path.mkdir(parents=True, exist_ok=True)
         signals = self.hypothalamus.analyze(input_packet)
+        edge_context = build_edge_context(input_packet.text, enable_summary=False)
         hypothalamus_model_result = dict(self.hypothalamus.last_model_result)
         hypothalamus_quality = self._score_hypothalamus(signals, hypothalamus_model_result)
         signal_id = self.bodega.store_signal(signals)
@@ -221,7 +223,7 @@ class TriadeRunner:
         output.memory_diff["system_events"] = system_events
         output.memory_diff["background_neuron_candidates"] = background_neuron_candidates
         output.memory_diff["output_gate"] = output_gate
-        artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan.to_dict(), "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict(), "system_events.json": system_events, "background_neuron_candidates.json": background_neuron_candidates, "semantic_continuity.json": semantic_continuity}
+        artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "edge_context.json": edge_context, "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan.to_dict(), "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict(), "system_events.json": system_events, "background_neuron_candidates.json": background_neuron_candidates, "semantic_continuity.json": semantic_continuity}
         if neuron_proposal is not None:
             artifacts["neuron_candidate.json"] = neuron_proposal
         if post_run_learning.get("enabled"):
