@@ -265,6 +265,10 @@ class TriadeRunner:
             output_gate=output_gate,
             post_run_learning=post_run_learning,
         )
+        background_neuron_candidates = self._filter_obsolete_edge_candidates(
+            background_neuron_candidates,
+            edge_usage,
+        )
         for candidate in background_neuron_candidates:
             system_events.append({
                 "type": "background_neuron_candidate",
@@ -347,6 +351,42 @@ class TriadeRunner:
         else:
             clean = "Recibido. Lo atenderé sin exponer el proceso interno."
         return {"response": clean, "modified": True, "reason": "internal_leak_detected"}
+
+    def _filter_obsolete_edge_candidates(self, candidates: list[dict], edge_usage: dict) -> list[dict]:
+        """Filtra neuronas candidatas obsoletas cuando Android edge ya fue probado.
+
+        Si el run tiene edge_usage aceptado, no tiene sentido proponer neuronas
+        por ausencia de Android/LLM host basada en un pulse_summary viejo.
+        """
+        if not (edge_usage.get("used_edge") and edge_usage.get("accepted") and edge_usage.get("node_id")):
+            return candidates
+
+        blocked_fragments = (
+            "nodos android",
+            "hosts llm android",
+            "llm_android_host",
+            "android nativos online",
+            "ausencia de nodos android",
+            "preparaci",
+            "emparejamiento",
+        )
+
+        filtered = []
+        for candidate in candidates:
+            haystack = " ".join([
+                str(candidate.get("name") or ""),
+                str(candidate.get("display_name") or ""),
+                str(candidate.get("source") or ""),
+                str(candidate.get("mission") or ""),
+                str((candidate.get("evidence") or {}).get("summary") or ""),
+            ]).lower()
+
+            if any(fragment in haystack for fragment in blocked_fragments):
+                continue
+            filtered.append(candidate)
+
+        return filtered
+
 
     def _filter_obsolete_edge_debt(self, system_events: list[dict], edge_usage: dict) -> list[dict]:
         """Filtra deuda obsoleta de federación si el run ya probó edge Android LLM.
