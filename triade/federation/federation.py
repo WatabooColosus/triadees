@@ -20,6 +20,8 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -190,6 +192,21 @@ class Federation:
     def stale_node(self, node_id: str, reason: str = "sin heartbeat reciente") -> dict[str, Any]:
         return self._set_status(node_id, "stale", reason)
 
+    def mark_stale_nodes(self, ttl_seconds: int = 45, keep_node_ids: set[str] | None = None) -> dict[str, Any]:
+        keep = keep_node_ids or {"local-pc"}
+        now = time.time()
+        stale: list[str] = []
+        for node in self.list_nodes(status="active"):
+            node_id = str(node.get("node_id") or "")
+            if node_id in keep:
+                continue
+            seen_at = self._parse_time(node.get("last_seen_at"))
+            if seen_at is None or now - seen_at > ttl_seconds:
+                stale.append(node_id)
+        for node_id in stale:
+            self.stale_node(node_id, f"sin heartbeat en {ttl_seconds}s")
+        return {"ttl_seconds": ttl_seconds, "stale_count": len(stale), "stale_nodes": stale}
+
     def get_node(self, node_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute("SELECT * FROM federated_nodes WHERE node_id = ?", (node_id,)).fetchone()
@@ -340,6 +357,21 @@ class Federation:
         if ram >= 8 or cpu >= 4:
             return "medium"
         return "low"
+
+    @staticmethod
+    def _parse_time(value: Any) -> float | None:
+        if not value:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        try:
+            return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            try:
+                return datetime.fromisoformat(text.replace(" ", "T") + "+00:00").timestamp()
+            except ValueError:
+                return None
 
     @staticmethod
     def _max_vram(capabilities: dict[str, Any]) -> float:
