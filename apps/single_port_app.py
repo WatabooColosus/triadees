@@ -22,6 +22,7 @@ from triade.core.life_pulse import LIFE_PULSE
 from triade.core.qualia import QUALIA
 from triade.core.runner import TriadeRunner
 from triade.core.repo_info import repo_info
+from triade.core.experimental_neuron_evidence import build_experimental_evidence_ledger
 from triade.core.pulse_context import build_run_context_with_pulse
 from triade.core.neuron_candidate_governance import NeuronCandidateGovernance
 from triade.federation.contracts import (
