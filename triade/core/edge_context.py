@@ -141,7 +141,14 @@ def parse_keywords(text: str, fallback_text: str = "") -> list[str]:
         for p in parts
     )
     weak_keywords = any(
-        "palabras clave" in p.lower() or "```" in p
+        "palabras clave" in p.lower()
+        or "palabra clave" in p.lower()
+        or "```" in p
+        or "###" in p
+        or p.lower().startswith("el nombre")
+        or p.lower().startswith("la palabra")
+        or '"' in p
+        or " en español" in p.lower()
         for p in parts
     )
     if fallback_text and (len(parts) <= 2 or too_long or looks_like_explanation or weak_keywords):
