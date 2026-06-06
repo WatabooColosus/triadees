@@ -221,12 +221,28 @@ def normalize_keywords(text: str) -> str:
     out = normalize_edge_text(text)
     out = re.sub(r'(?i)^máximo\s+\d+\s+palabras\s+clave:\s*', '', out).strip()
     out = re.sub(r'(?i)^palabras\s+clave:\s*', '', out).strip()
+
+    # Convertir listas numeradas o por líneas en partes separadas.
+    out = re.sub(r'(?m)^\s*\d+\.\s*', '', out)
     out = out.replace("\n", ", ")
-    parts = [p.strip(" .;:\t\n") for p in out.split(",")]
+
+    raw_parts = []
+    for chunk in out.split(","):
+        chunk = chunk.strip(" .;:\t\n")
+        if not chunk:
+            continue
+        # Si aún quedan piezas tipo "1. Tríade 2. Modular", separarlas.
+        subparts = re.split(r'\s+\d+\.\s+', chunk)
+        raw_parts.extend([s.strip(" .;:\t\n") for s in subparts if s.strip()])
+
     clean = []
     seen = set()
-    for part in parts:
+    stopwords = {"a", "de", "con", "y", "el", "la", "los", "las", "un", "una", "por", "run"}
+    for part in raw_parts:
+        part = re.sub(r'^\d+\.\s*', '', part).strip()
         if not part:
+            continue
+        if part.lower() in stopwords:
             continue
         key = part.lower()
         if key in seen:
@@ -235,30 +251,29 @@ def normalize_keywords(text: str) -> str:
         clean.append(part)
         if len(clean) >= 8:
             break
+
     return ", ".join(clean)
 
 
 def normalize_intent_probe(text: str) -> str:
     out = normalize_edge_text(text)
+    out = out.replace("```json", "").replace("```", "").strip()
 
-    # Cortar cualquier continuación tipo ejemplo o explicación posterior.
-    cut_markers = ["### Example", "### Ejemplo", "\nExample", "\nEjemplo"]
+    # Cortar cualquier continuación tipo ejemplo o input posterior.
+    cut_markers = ["### Example", "### Ejemplo", "### Input:", "\nExample", "\nEjemplo"]
     for marker in cut_markers:
         idx = out.find(marker)
         if idx >= 0:
             out = out[:idx].strip()
 
-    # Extraer primer objeto JSON balanceado simple.
-    start = out.find("{")
-    end = out.rfind("}")
-    if start >= 0 and end > start:
-        candidate = out[start:end + 1].strip()
+    candidate = first_json_object(out)
+    if candidate:
         try:
             data = json.loads(candidate)
             normalized = {
-                "intent": str(data.get("intent", "unknown")).lower(),
-                "urgency": str(data.get("urgency", "medium")).lower(),
-                "risk": str(data.get("risk", "low")).lower(),
+                "intent": normalize_enum_text(data.get("intent", "unknown")),
+                "urgency": normalize_level(data.get("urgency", "medium"), default="medium"),
+                "risk": normalize_level(data.get("risk", "low"), default="low"),
                 "needs_tool": normalize_bool_like(data.get("needs_tool", False)),
             }
             return json.dumps(normalized, ensure_ascii=False)
@@ -266,6 +281,61 @@ def normalize_intent_probe(text: str) -> str:
             return candidate
 
     return out.strip()
+
+
+def first_json_object(text: str) -> str:
+    start = text.find("{")
+    if start < 0:
+        return ""
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1].strip()
+    return ""
+
+
+def normalize_enum_text(value) -> str:
+    return str(value).strip().lower().replace("need_", "").replace("connect_appkg", "connect_apk")
+
+
+def normalize_level(value, default: str = "medium") -> str:
+    if isinstance(value, (int, float)):
+        if value <= 1:
+            return "low"
+        if value == 2:
+            return "medium"
+        return "high"
+    v = str(value).strip().lower()
+    mapping = {
+        "1": "low",
+        "2": "medium",
+        "3": "high",
+        "baja": "low",
+        "media": "medium",
+        "alta": "high",
+        "low": "low",
+        "medium": "medium",
+        "high": "high",
+    }
+    return mapping.get(v, default)
 
 
 def normalize_bool_like(value) -> bool:
