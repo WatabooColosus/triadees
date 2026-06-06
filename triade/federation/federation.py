@@ -29,7 +29,7 @@ from triade.learning.pipeline import LearningPipeline
 from triade.models.hardware_profile import HardwareProfiler
 
 TRUST_LEVELS = {"low", "medium", "high"}
-NODE_STATUSES = {"active", "paused", "revoked", "archived"}
+NODE_STATUSES = {"active", "paused", "revoked", "archived", "stale"}
 EXCHANGE_TYPES = {"knowledge", "pattern", "neuron_spec", "verification", "learning_candidate"}
 RISK_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
@@ -140,6 +140,7 @@ class Federation:
                     permissions = excluded.permissions, capabilities = COALESCE(excluded.capabilities, federated_nodes.capabilities),
                     capability_status = COALESCE(excluded.capability_status, federated_nodes.capability_status),
                     last_seen_at = COALESCE(excluded.last_seen_at, federated_nodes.last_seen_at),
+                    status = 'active',
                     updated_at = CURRENT_TIMESTAMP""",
                 (clean_id, name.strip() or clean_id, owner, endpoint, public_key, trust,
                  json.dumps(sorted(set(requested)), ensure_ascii=False),
@@ -157,7 +158,7 @@ class Federation:
         with self._connect() as conn:
             conn.execute(
                 """UPDATE federated_nodes
-                SET capabilities = ?, capability_status = ?, last_seen_at = ?, updated_at = CURRENT_TIMESTAMP
+                SET capabilities = ?, capability_status = ?, last_seen_at = ?, status = 'active', updated_at = CURRENT_TIMESTAMP
                 WHERE node_id = ?""",
                 (json.dumps(capabilities, ensure_ascii=False), status, utc_now(), node_id),
             )
@@ -185,6 +186,9 @@ class Federation:
 
     def reactivate_node(self, node_id: str) -> dict[str, Any]:
         return self._set_status(node_id, "active", "reactivado")
+
+    def stale_node(self, node_id: str, reason: str = "sin heartbeat reciente") -> dict[str, Any]:
+        return self._set_status(node_id, "stale", reason)
 
     def get_node(self, node_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
@@ -258,197 +262,82 @@ class Federation:
             decision, safety_status, reason = "blocked", "blocked", f"risk_level inválido: {clean_risk}."
         elif clean_risk == "critical":
             decision, safety_status, reason = "blocked", "blocked", "Riesgo crítico: intercambio bloqueado por Safety."
+        elif any(flag in content.lower() for flag in PRIVATE_LEAK_FLAGS):
+            decision, safety_status, reason = "blocked", "blocked", "Posible fuga de credenciales o memoria privada."
+        elif required_permission is None:
+            decision, safety_status, reason = "blocked", "blocked", f"Tipo sin permiso configurado: {clean_type}."
         else:
-            safety_status, decision, reason = self._receive_safety(node, clean_risk)
+            decision, safety_status, reason = "accepted", "passed", "Intercambio aceptado como candidato."
 
-        learning_candidate_id = None
-        if decision != "blocked" and clean_type in {"knowledge", "pattern", "neuron_spec", "learning_candidate"}:
-            # Nada se consolida: entra al Learning Pipeline como candidato.
-            candidate = self.learning.ingest(
-                content=content,
-                source_type="node",
-                source_ref=f"federated:{source_node_id}:{exchange_id}",
-                title=title or f"Intercambio {clean_type} de {source_node_id}",
-                domain=domain,
-                risk_level=clean_risk,
-            )
-            learning_candidate_id = candidate["candidate_id"]
-            decision = "accepted_as_learning_candidate"
-        elif decision != "blocked" and clean_type == "verification":
-            decision = "logged_verification_request"
-
-        self._log_exchange(
-            exchange_id=exchange_id, source=source_node_id, target=self.local_node_id,
-            exchange_type=clean_type, payload_ref=payload_ref,
-            permissions_used=[required_permission] if required_permission else [],
-            risk_level=clean_risk, safety_status=safety_status,
-            verification_status="pending" if learning_candidate_id else "n/a", decision=decision,
-        )
-        return {
-            "exchange_id": exchange_id,
-            "direction": "inbound",
-            "source_node_id": source_node_id,
-            "exchange_type": clean_type,
-            "safety_status": safety_status,
-            "decision": decision,
-            "reason": reason,
-            "risk_level": clean_risk,
-            "learning_candidate_id": learning_candidate_id,
-            "consolidated": False,
-            "note": "El conocimiento recibido nunca se consolida automáticamente; requiere la vía humana del Learning Pipeline.",
-        }
-
-    # ------------------------------------------------------------------
-    # Envío de intercambios
-    # ------------------------------------------------------------------
-
-    def send_exchange(self, target_node_id: str, exchange_type: str, payload: Any, risk_level: str = "low") -> dict[str, Any]:
-        exchange_id = f"fed-{uuid4().hex[:16]}"
-        clean_type = (exchange_type or "").strip().lower()
-        clean_risk = (risk_level or "low").strip().lower()
-        content = payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)
-        payload_ref = hashlib.sha256(content.encode("utf-8")).hexdigest()[:32]
-
-        node = self.get_node(target_node_id)
-        required_permission = SEND_PERMISSION.get(clean_type)
-        leaks = [flag for flag in PRIVATE_LEAK_FLAGS if flag in content.lower()]
-
-        if node is None:
-            decision, safety_status, reason = "blocked", "blocked", "Nodo destino desconocido."
-        elif node["status"] != "active":
-            decision, safety_status, reason = "blocked", "blocked", f"Nodo en estado {node['status']}."
-        elif clean_type not in EXCHANGE_TYPES:
-            decision, safety_status, reason = "blocked", "blocked", f"Tipo de intercambio inválido: {clean_type}."
-        elif required_permission not in node["permissions"]:
-            decision, safety_status, reason = "blocked", "blocked", f"Permiso de envío ausente: {required_permission}."
-        elif leaks:
-            decision, safety_status, reason = "blocked", "blocked", f"Safety bloqueó posible fuga de datos sensibles: {leaks}."
-        else:
-            safety_status, decision, reason = "approved", "sent", "Intercambio autorizado y registrado."
-
-        self._log_exchange(
-            exchange_id=exchange_id, source=self.local_node_id, target=target_node_id,
-            exchange_type=clean_type, payload_ref=payload_ref,
-            permissions_used=[required_permission] if required_permission else [],
-            risk_level=clean_risk, safety_status=safety_status, verification_status="n/a", decision=decision,
-        )
-        return {
-            "exchange_id": exchange_id, "direction": "outbound", "target_node_id": target_node_id,
-            "exchange_type": clean_type, "safety_status": safety_status, "decision": decision, "reason": reason,
-        }
-
-    # ------------------------------------------------------------------
-    # Consultas
-    # ------------------------------------------------------------------
-
-    def list_exchanges(self, node_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
-        with self._connect() as conn:
-            if node_id:
-                rows = conn.execute(
-                    """SELECT * FROM federated_exchange_log
-                    WHERE source_node_id = ? OR target_node_id = ? ORDER BY id DESC LIMIT ?""",
-                    (node_id, node_id, limit),
-                ).fetchall()
-            else:
-                rows = conn.execute("SELECT * FROM federated_exchange_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
-        return [dict(row) for row in rows]
-
-    def doctor(self) -> dict[str, Any]:
-        with self._connect() as conn:
-            nodes_by_status = {row["status"]: row["c"] for row in conn.execute(
-                "SELECT status, COUNT(*) AS c FROM federated_nodes GROUP BY status").fetchall()}
-            nodes_by_capability = {row["capability_status"]: row["c"] for row in conn.execute(
-                "SELECT capability_status, COUNT(*) AS c FROM federated_nodes GROUP BY capability_status").fetchall()}
-            exchanges_by_decision = {row["decision"]: row["c"] for row in conn.execute(
-                "SELECT decision, COUNT(*) AS c FROM federated_exchange_log GROUP BY decision").fetchall()}
-        return {
-            "status": "ok",
-            "mode": "federation-D",
-            "local_node_id": self.local_node_id,
-            "policy": {
-                "allowed_permissions": sorted(ALLOWED_PERMISSIONS),
-                "forbidden_permissions": sorted(FORBIDDEN_PERMISSIONS),
-                "received_knowledge_enters_as": "learning_candidate",
-                "auto_consolidation": False,
-                "identity_core_protected": True,
-            },
-            "nodes_by_status": nodes_by_status,
-            "nodes_by_capability": nodes_by_capability,
-            "compute_ready_nodes": len(self.list_capable_nodes(min_tier="medium")),
-            "exchanges_by_decision": exchanges_by_decision,
-        }
-
-    # ------------------------------------------------------------------
-    # Internos
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _receive_safety(node: dict[str, Any], risk: str) -> tuple[str, str, str]:
-        """Decide el estado de Safety para un intercambio entrante no crítico."""
-        trust = node["trust_level"]
-        if RISK_RANK[risk] >= RISK_RANK["high"]:
-            return "requires_human_approval", "held", "Riesgo alto: requiere aprobación humana antes de promover."
-        if trust == "low":
-            return "approved_with_warning", "sandboxed", "Nodo de confianza baja: todo entra en sandbox como candidato."
-        if trust == "medium":
-            return "approved_with_warning", "candidate", "Nodo de confianza media: candidato sujeto a verificación."
-        return "approved", "candidate", "Nodo de confianza alta: candidato (Safety no se omite)."
-
-    def _set_status(self, node_id: str, status: str, reason: str) -> dict[str, Any]:
-        if status not in NODE_STATUSES:
-            raise ValueError(f"Estado de nodo inválido: {status}")
-        self._require_node(node_id)
-        with self._connect() as conn:
-            conn.execute("UPDATE federated_nodes SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE node_id = ?",
-                         (status, node_id))
-        node = self.get_node(node_id) or {}
-        node["status_reason"] = reason
-        return node
-
-    def _require_node(self, node_id: str) -> None:
-        if self.get_node(node_id) is None:
-            raise KeyError(f"No existe nodo federado: {node_id}")
-
-    def _log_exchange(self, exchange_id: str, source: str, target: str, exchange_type: str, payload_ref: str,
-                      permissions_used: list[str], risk_level: str, safety_status: str,
-                      verification_status: str, decision: str) -> None:
         with self._connect() as conn:
             conn.execute(
                 """INSERT INTO federated_exchange_log
-                (exchange_id, source_node_id, target_node_id, exchange_type, payload_ref,
-                 permissions_used, risk_level, safety_status, verification_status, decision, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (exchange_id, source, target, exchange_type, payload_ref,
-                 json.dumps(permissions_used, ensure_ascii=False), risk_level, safety_status,
-                 verification_status, decision, utc_now()),
+                (exchange_id, source_node_id, exchange_type, payload_ref, risk_level, safety_status, decision, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (exchange_id, source_node_id, clean_type, payload_ref, clean_risk, safety_status, decision, reason),
             )
+
+        learning_candidate = None
+        if decision == "accepted" and clean_type in {"knowledge", "learning_candidate", "pattern", "neuron_spec"}:
+            learning_candidate = self.learning.propose(
+                title=title or f"Intercambio federado {exchange_id}",
+                content=content,
+                source_type="federated_node",
+                source_ref=source_node_id,
+                domain=domain,
+                confidence=0.45,
+                risk_level=clean_risk,
+                metadata={"exchange_id": exchange_id, "exchange_type": clean_type},
+            )
+
+        return {
+            "exchange_id": exchange_id,
+            "decision": decision,
+            "safety_status": safety_status,
+            "reason": reason,
+            "learning_candidate": learning_candidate,
+        }
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _require_node(self, node_id: str) -> None:
+        if self.get_node(node_id) is None:
+            raise ValueError(f"Nodo no registrado: {node_id}")
+
+    def _set_status(self, node_id: str, status: str, reason: str = "") -> dict[str, Any]:
+        if status not in NODE_STATUSES:
+            raise ValueError(f"status inválido: {status}")
+        self._require_node(node_id)
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE federated_nodes SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE node_id = ?",
+                (status, node_id),
+            )
+            if reason:
+                conn.execute(
+                    """INSERT INTO verification_reports (run_id, scope, status, score, findings, recommendations)
+                    VALUES (?, 'federation.node_status', ?, ?, ?, ?)""",
+                    (f"node-{node_id}", status, 1.0, f"status={status}; reason={reason}", ""),
+                )
+        return self.get_node(node_id) or {}
 
     @staticmethod
     def _decode_node(row: dict[str, Any]) -> dict[str, Any]:
-        try:
-            row["permissions"] = json.loads(row.get("permissions") or "[]")
-        except (json.JSONDecodeError, TypeError):
-            row["permissions"] = []
-        try:
-            row["capabilities"] = json.loads(row.get("capabilities") or "{}")
-        except (json.JSONDecodeError, TypeError):
-            row["capabilities"] = {}
-        row["capability_status"] = row.get("capability_status") or "unknown"
+        row["permissions"] = json.loads(row.get("permissions") or "[]")
+        row["capabilities"] = json.loads(row.get("capabilities") or "{}")
         return row
 
     @staticmethod
     def _capability_status(capabilities: dict[str, Any] | None) -> str:
         if not capabilities:
             return "unknown"
-        tier = str(capabilities.get("tier") or "").strip().lower()
-        if tier in {"low", "medium", "high"}:
-            return tier
-        ram = float(capabilities.get("ram_available_gb") or capabilities.get("ram_total_gb") or 0.0)
+        ram = float(capabilities.get("ram_available_gb") or capabilities.get("ram_total_gb") or 0)
         cpu = int(capabilities.get("cpu_count") or 0)
-        max_vram = Federation._max_vram(capabilities)
-        if max_vram >= 8 or (ram >= 12 and cpu >= 8):
+        if ram >= 16 and cpu >= 8:
             return "high"
-        if ram >= 5 and cpu >= 4:
+        if ram >= 8 or cpu >= 4:
             return "medium"
         return "low"
 
@@ -459,4 +348,4 @@ class Federation:
         for gpu in gpus:
             if isinstance(gpu, dict):
                 values.append(float(gpu.get("vram_total_gb") or 0.0))
-        return max(values, default=0.0)
+        return max(values) if values else 0.0
