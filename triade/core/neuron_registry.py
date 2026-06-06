@@ -96,6 +96,34 @@ class NeuronRegistry:
             )
             return int(cursor.lastrowid)
 
+    def update_status(self, name: str, status: str) -> dict[str, Any]:
+        """Actualiza el estado de una neurona por nombre.
+
+        Estados esperados: candidate, experimental, stable, rejected,
+        needs_changes. La política de seguridad se aplica fuera de este método.
+        """
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE neurons
+                SET status = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE name = ?
+                """,
+                (status, name),
+            )
+            row = conn.execute(
+                """
+                SELECT id, name, mission, domain, rules, status, created_by, created_at, updated_at
+                FROM neurons
+                WHERE name = ?
+                """,
+                (name,),
+            ).fetchone()
+
+        if row is None:
+            raise KeyError(f"No existe neurona registrada: {name}")
+        return self._decode_neuron(dict(row))
+
     def list_neurons(self, limit: int = 20) -> list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
