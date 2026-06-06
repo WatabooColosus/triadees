@@ -38,7 +38,7 @@ public final class AndroidModelRuntime {
                 .put("install_contract", installContract())
                 .put("note", canRun
                         ? "Backend llama.cpp detectado con modelo GGUF local. Este nodo puede ejecutar android_local_generate."
-                        : "Falta instalar un binario nativo llama-cli ejecutable y al menos un modelo .gguf en el directorio models.");
+                        : "Falta instalar un binario nativo llama-cli ejecutable en almacenamiento interno y al menos un modelo .gguf en el directorio models.");
     }
 
     public JSONObject generate(JSONObject payload) throws Exception {
@@ -166,7 +166,7 @@ public final class AndroidModelRuntime {
                 .put("bin_dir", binDir().getAbsolutePath())
                 .put("models_dir", modelsDir().getAbsolutePath())
                 .put("model_format", "gguf")
-                .put("execution", "La APK ejecuta el binario nativo con ProcessBuilder; Android decide limites finales de memoria/proceso.");
+                .put("execution", "La APK ejecuta el binario nativo desde almacenamiento interno con ProcessBuilder; Android decide limites finales de memoria/proceso.");
     }
 
     private File llamaExecutable() {
@@ -175,7 +175,7 @@ public final class AndroidModelRuntime {
         for (String name : names) {
             File candidate = new File(dir, name);
             if (candidate.exists()) {
-                candidate.setExecutable(true);
+                candidate.setExecutable(true, false);
                 return candidate;
             }
         }
@@ -212,8 +212,7 @@ public final class AndroidModelRuntime {
     }
 
     public File binDir() {
-        File external = context.getExternalFilesDir("bin");
-        File dir = external != null ? external : new File(context.getFilesDir(), "bin");
+        File dir = new File(context.getFilesDir(), "bin");
         if (!dir.exists()) {
             dir.mkdirs();
         }
