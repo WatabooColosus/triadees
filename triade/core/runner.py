@@ -191,6 +191,22 @@ class TriadeRunner:
         crystal = self.crystal.regulate(signals, memory, history=crystal_history, comparison_basis=comparison_basis)
         crystal_id = self.bodega.store_crystal(crystal)
         plan = self.central.plan(input_packet, signals, memory, crystal)
+        plan_dict = plan.to_dict()
+        plan_dict["edge_context"] = {
+            "used_edge": bool(edge_context.get("used_edge")),
+            "accepted": bool(edge_context.get("accepted")),
+            "node_id": edge_context.get("node_id"),
+            "intent_probe": edge_context.get("intent_probe", {}),
+            "keywords": edge_context.get("keywords", []),
+            "summary": edge_context.get("summary", ""),
+            "policy": "auxiliary_signal_only_central_validates",
+            "truth": "El edge_context informa a la planeación, pero no decide por la Central."
+        }
+        if edge_context.get("accepted"):
+            plan_dict.setdefault("steps", [])
+            plan_dict["steps"].append(
+                "Incorporar edge_context como señal auxiliar validada; no usarlo como autoridad final."
+            )
         safety = self.safety.review(signals, plan, crystal=crystal, memory=memory)
         safety_id = self.bodega.store_safety(safety)
         if safety.status == "blocked":
@@ -250,7 +266,7 @@ class TriadeRunner:
         output.memory_diff["system_events"] = system_events
         output.memory_diff["background_neuron_candidates"] = background_neuron_candidates
         output.memory_diff["output_gate"] = output_gate
-        artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "edge_context.json": edge_context, "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan.to_dict(), "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict(), "system_events.json": system_events, "background_neuron_candidates.json": background_neuron_candidates, "semantic_continuity.json": semantic_continuity}
+        artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "edge_context.json": edge_context, "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan_dict, "plan_enriched.json": plan_dict, "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict(), "system_events.json": system_events, "background_neuron_candidates.json": background_neuron_candidates, "semantic_continuity.json": semantic_continuity}
         if neuron_proposal is not None:
             artifacts["neuron_candidate.json"] = neuron_proposal
         if post_run_learning.get("enabled"):
