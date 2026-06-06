@@ -15,6 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, Optional
 import time
+import re
+import json
 
 from triade.federation.edge_router import EdgeRouter
 
@@ -110,6 +112,7 @@ class EdgeProcessingService:
 
         raw = self.router.run_lightweight_task(task=task, text=text, instruction=instruction)
         response = extract_response(raw)
+        response = normalize_task_response(task, response)
         node_id = raw.get("node_id") or raw.get("job", {}).get("node_id")
         ok = bool(raw.get("status") == "ok" and response)
 
@@ -180,6 +183,106 @@ def normalize_edge_text(text: str) -> str:
         out = out[1:-1].strip()
 
     return out
+
+
+def normalize_task_response(task: str, response: str) -> str:
+    """
+    Normalización específica por tarea edge.
+    El nodo Android/TinyLlama es sugerente, no autoridad final.
+    Esta función limpia encabezados, continuaciones y formatos débiles.
+    """
+    out = normalize_edge_text(response)
+    if not out:
+        return ""
+
+    if task == "intent_probe":
+        return normalize_intent_probe(out)
+
+    if task == "keyword_extract":
+        return normalize_keywords(out)
+
+    if task == "short_summary":
+        return normalize_summary(out)
+
+    return out
+
+
+def normalize_summary(text: str) -> str:
+    out = normalize_edge_text(text)
+    out = re.sub(r'(?i)^el texto anterior fue resumido en español como:\s*', '', out).strip()
+    out = re.sub(r'(?i)^el texto anterior fue resumido como:\s*', '', out).strip()
+    out = re.sub(r'(?i)^resumen:\s*', '', out).strip()
+    if len(out) >= 2 and out[0] == '"' and out[-1] == '"':
+        out = out[1:-1].strip()
+    return out
+
+
+def normalize_keywords(text: str) -> str:
+    out = normalize_edge_text(text)
+    out = re.sub(r'(?i)^máximo\s+\d+\s+palabras\s+clave:\s*', '', out).strip()
+    out = re.sub(r'(?i)^palabras\s+clave:\s*', '', out).strip()
+    out = out.replace("\n", ", ")
+    parts = [p.strip(" .;:\t\n") for p in out.split(",")]
+    clean = []
+    seen = set()
+    for part in parts:
+        if not part:
+            continue
+        key = part.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        clean.append(part)
+        if len(clean) >= 8:
+            break
+    return ", ".join(clean)
+
+
+def normalize_intent_probe(text: str) -> str:
+    out = normalize_edge_text(text)
+
+    # Cortar cualquier continuación tipo ejemplo o explicación posterior.
+    cut_markers = ["### Example", "### Ejemplo", "\nExample", "\nEjemplo"]
+    for marker in cut_markers:
+        idx = out.find(marker)
+        if idx >= 0:
+            out = out[:idx].strip()
+
+    # Extraer primer objeto JSON balanceado simple.
+    start = out.find("{")
+    end = out.rfind("}")
+    if start >= 0 and end > start:
+        candidate = out[start:end + 1].strip()
+        try:
+            data = json.loads(candidate)
+            normalized = {
+                "intent": str(data.get("intent", "unknown")).lower(),
+                "urgency": str(data.get("urgency", "medium")).lower(),
+                "risk": str(data.get("risk", "low")).lower(),
+                "needs_tool": normalize_bool_like(data.get("needs_tool", False)),
+            }
+            return json.dumps(normalized, ensure_ascii=False)
+        except Exception:
+            return candidate
+
+    return out.strip()
+
+
+def normalize_bool_like(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in {"true", "yes", "si", "sí", "1", "y"}:
+            return True
+        if v in {"false", "no", "0", "none", "null"}:
+            return False
+        # Si el modelo respondió con nombres de herramientas en vez de bool,
+        # interpretamos que sí requiere herramienta.
+        return bool(v)
+    return False
 
 
 def summarize_with_edge(text: str) -> Dict[str, Any]:
