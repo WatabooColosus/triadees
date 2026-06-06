@@ -15,20 +15,23 @@ import android.widget.TextView;
 
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
 public final class MainActivity extends Activity {
-    private EditText relayUrl;
+    private EditText directUrl;
     private EditText runtimeUrl;
     private EditText pairingToken;
     private EditText displayName;
     private TextView resourceLimitLabel;
     private TextView status;
     private TextView runtimeStatus;
+    private TextView liveLog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,19 +50,19 @@ public final class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("Triade Android Node");
+        title.setText("Triade Node · Direct 8010");
         title.setTextSize(24);
         root.addView(title);
 
         TextView note = new TextView(this);
-        note.setText("Nodo nativo autorizado. Mantiene servicio visible y ejecuta tareas CPU para alimentar la Tríade local/federada.");
+        note.setText("Worker Android local. Se conecta directo al 8010 por LAN o dominio publico, sin relay por defecto. Ejecuta heartbeat, jobs sandbox y transfiere resultados en segundo plano.");
         root.addView(note);
 
-        relayUrl = input("Relay URL");
-        runtimeUrl = input("8010 Runtime URL");
-        pairingToken = input("Pairing token");
+        directUrl = input("URL directa 8010 o dominio");
+        runtimeUrl = input("Runtime 8010 para assets/modelos");
+        pairingToken = input("Clave / pairing token opcional");
         displayName = input("Nombre del dispositivo");
-        root.addView(relayUrl);
+        root.addView(directUrl);
         root.addView(runtimeUrl);
         root.addView(pairingToken);
         root.addView(displayName);
@@ -67,23 +70,31 @@ public final class MainActivity extends Activity {
         resourceLimitLabel = new TextView(this);
         root.addView(resourceLimitLabel);
 
-        Button start = button("Guardar y conectar");
+        Button health = button("Test Health 8010");
+        health.setOnClickListener(v -> testHealth());
+        root.addView(health);
+
+        Button start = button("Guardar, registrar y activar worker");
         start.setOnClickListener(v -> startNode());
         root.addView(start);
 
-        Button stop = button("Detener nodo");
+        Button heartbeat = button("Enviar heartbeat ahora");
+        heartbeat.setOnClickListener(v -> sendHeartbeatOnce());
+        root.addView(heartbeat);
+
+        Button stop = button("Detener worker");
         stop.setOnClickListener(v -> stopNode());
         root.addView(stop);
 
-        Button battery = button("Abrir ajuste de batería");
+        Button battery = button("Permitir segundo plano / bateria");
         battery.setOnClickListener(v -> openBatterySettings());
         root.addView(battery);
 
-        Button files = button("Abrir permiso de archivos");
+        Button files = button("Permiso archivos para GGUF/runtime");
         files.setOnClickListener(v -> openAllFilesSettings());
         root.addView(files);
 
-        Button localTest = button("Probar CPU local de la APK");
+        Button localTest = button("Probar trabajo CPU local");
         localTest.setOnClickListener(v -> runLocalWorkerTest());
         root.addView(localTest);
 
@@ -91,7 +102,7 @@ public final class MainActivity extends Activity {
         downloadRuntime.setOnClickListener(v -> downloadRuntimeFrom8010());
         root.addView(downloadRuntime);
 
-        Button doctor = button("Doctor APK");
+        Button doctor = button("Doctor APK / LLM local");
         doctor.setOnClickListener(v -> showRuntimeDoctor());
         root.addView(doctor);
 
@@ -100,36 +111,85 @@ public final class MainActivity extends Activity {
 
         status = new TextView(this);
         root.addView(status);
+
+        liveLog = new TextView(this);
+        liveLog.setText("Logs visibles:\n");
+        root.addView(liveLog);
         setContentView(scroll);
     }
 
     private void loadConfig() {
         NodeConfig config = NodeConfig.load(this);
-        relayUrl.setText(config.relayUrl);
+        directUrl.setText(config.relayUrl);
         runtimeUrl.setText(config.runtimeUrl);
         pairingToken.setText(config.pairingToken);
         displayName.setText(config.displayName);
         updateResourceLabel();
+        appendLog(config.hasIdentity() ? "Identidad guardada: " + config.nodeId : "Sin identidad registrada.");
         status.setText(config.hasIdentity() ? "Nodo guardado: " + config.nodeId : "Sin identidad registrada.");
         showRuntimeDoctor();
     }
 
     private void startNode() {
         saveCurrentConfig();
+        appendLog("Iniciando worker directo 8010...");
         Intent intent = new Intent(this, TriadeNodeService.class);
         if (Build.VERSION.SDK_INT >= 26) {
             startForegroundService(intent);
         } else {
             startService(intent);
         }
-        status.setText("Servicio iniciado. Revisa la notificación persistente.");
+        status.setText("Worker iniciado. Revisa la notificacion persistente y logs de Uvicorn.");
     }
 
     private void stopNode() {
         Intent intent = new Intent(this, TriadeNodeService.class);
         intent.setAction(TriadeNodeService.ACTION_STOP);
         startService(intent);
-        status.setText("Solicitud de detención enviada.");
+        appendLog("Solicitud de detencion enviada.");
+        status.setText("Solicitud de detencion enviada.");
+    }
+
+    private void testHealth() {
+        saveCurrentConfig();
+        status.setText("Probando /health...");
+        appendLog("GET /health contra " + directUrl.getText());
+        new Thread(() -> {
+            try {
+                String base = cleanBaseUrl(directUrl.getText().toString());
+                String body = getText(base + "/health");
+                runOnUiThread(() -> {
+                    status.setText("Health OK: " + base);
+                    appendLog("Health OK: " + trimForLog(body));
+                });
+            } catch (Exception exc) {
+                runOnUiThread(() -> {
+                    status.setText("Health fallo: " + exc.getMessage());
+                    appendLog("Health fallo: " + exc.getMessage());
+                });
+            }
+        }, "triade-health-test").start();
+    }
+
+    private void sendHeartbeatOnce() {
+        saveCurrentConfig();
+        status.setText("Enviando heartbeat manual...");
+        new Thread(() -> {
+            try {
+                RelayClient client = new RelayClient(MainActivity.this);
+                NodeConfig config = client.ensureRegistered();
+                client.heartbeat(config);
+                runOnUiThread(() -> {
+                    status.setText("Heartbeat OK: " + config.nodeId);
+                    appendLog("Heartbeat OK: " + config.nodeId);
+                });
+            } catch (Exception exc) {
+                runOnUiThread(() -> {
+                    status.setText("Heartbeat fallo: " + exc.getMessage());
+                    appendLog("Heartbeat fallo: " + exc.getMessage());
+                });
+            }
+        }, "triade-heartbeat-once").start();
     }
 
     private int selectedResourcePercent() {
@@ -138,14 +198,14 @@ public final class MainActivity extends Activity {
 
     private void updateResourceLabel() {
         if (resourceLimitLabel != null) {
-            resourceLimitLabel.setText("Modo dedicado: Triade reporta 100% de CPU/RAM disponible. Android conserva limites termicos y de memoria del sistema.");
+            resourceLimitLabel.setText("Modo dedicado: reporta 100% de CPU/RAM disponible del proceso Android. El sistema conserva limites termicos, bateria y memoria reales.");
         }
     }
 
     private void saveCurrentConfig() {
         NodeConfig.saveUserConfig(
                 this,
-                relayUrl.getText().toString(),
+                directUrl.getText().toString(),
                 runtimeUrl.getText().toString(),
                 pairingToken.getText().toString(),
                 displayName.getText().toString(),
@@ -186,30 +246,30 @@ public final class MainActivity extends Activity {
     private void downloadRuntimeFrom8010() {
         saveCurrentConfig();
         status.setText("Descargando runtime desde 8010...");
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    AndroidModelRuntime runtime = new AndroidModelRuntime(MainActivity.this);
-                    String base = cleanBaseUrl(runtimeUrl.getText().toString());
-                    File llama = new File(runtime.binDir(), "llama-cli");
-                    File model = new File(runtime.modelsDir(), "triade-base.gguf");
-                    StringBuilder report = new StringBuilder();
-                    downloadUrlToFile(base + "/downloads/android/llama-cli", llama);
-                    llama.setExecutable(true, false);
-                    report.append("llama-cli OK\n");
-                    downloadUrlToFile(base + "/downloads/android/base-model.gguf", model);
-                    report.append("modelo base OK\n");
-                    runOnUiThread(() -> {
-                        status.setText("Runtime descargado desde 8010:\n" + report.toString());
-                        showRuntimeDoctor();
-                    });
-                } catch (Exception exc) {
-                    runOnUiThread(() -> {
-                        status.setText("Descarga runtime fallo: " + exc.getMessage());
-                        showRuntimeDoctor();
-                    });
-                }
+        appendLog("Descargando runtime opcional desde " + runtimeUrl.getText());
+        new Thread(() -> {
+            try {
+                AndroidModelRuntime runtime = new AndroidModelRuntime(MainActivity.this);
+                String base = cleanBaseUrl(runtimeUrl.getText().toString());
+                File llama = new File(runtime.binDir(), "llama-cli");
+                File model = new File(runtime.modelsDir(), "triade-base.gguf");
+                StringBuilder report = new StringBuilder();
+                downloadUrlToFile(base + "/downloads/android/llama-cli", llama);
+                llama.setExecutable(true, false);
+                report.append("llama-cli OK\n");
+                downloadUrlToFile(base + "/downloads/android/base-model.gguf", model);
+                report.append("modelo base OK\n");
+                runOnUiThread(() -> {
+                    status.setText("Runtime descargado desde 8010:\n" + report.toString());
+                    appendLog("Runtime descargado OK.");
+                    showRuntimeDoctor();
+                });
+            } catch (Exception exc) {
+                runOnUiThread(() -> {
+                    status.setText("Descarga runtime fallo: " + exc.getMessage());
+                    appendLog("Descarga runtime fallo: " + exc.getMessage());
+                    showRuntimeDoctor();
+                });
             }
         }, "triade-runtime-download").start();
     }
@@ -217,31 +277,33 @@ public final class MainActivity extends Activity {
     private void runLocalWorkerTest() {
         saveCurrentConfig();
         status.setText("Probando CPU local dentro de la APK...");
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    RelayClient client = new RelayClient(MainActivity.this);
-                    JSONObject benchmarkJob = new JSONObject()
-                            .put("task", "browser_benchmark")
-                            .put("seconds", 1.0)
-                            .put("payload", new JSONObject());
-                    JSONObject preprocessJob = new JSONObject()
-                            .put("task", "preprocess_text")
-                            .put("payload", new JSONObject()
-                                    .put("text", "Triade Android Node alimenta el modelo local con trabajo real.")
-                                    .put("max_chunk_chars", 1200));
-                    JSONObject benchmark = client.runJob(benchmarkJob);
-                    JSONObject preprocess = client.runJob(preprocessJob);
-                    int chunks = preprocess.optJSONArray("chunks") == null ? 0 : preprocess.optJSONArray("chunks").length();
-                    runOnUiThread(() -> status.setText(
-                            "APK ejecuta trabajo real.\nscore=" + benchmark.optLong("score")
-                                    + "\nwords=" + preprocess.optInt("word_count")
-                                    + "\nchunks=" + chunks
-                    ));
-                } catch (Exception exc) {
-                    runOnUiThread(() -> status.setText("Prueba local fallo: " + exc.getMessage()));
-                }
+        appendLog("Ejecutando benchmark/preprocess local dentro de la APK.");
+        new Thread(() -> {
+            try {
+                RelayClient client = new RelayClient(MainActivity.this);
+                JSONObject benchmarkJob = new JSONObject()
+                        .put("task", "browser_benchmark")
+                        .put("seconds", 1.0)
+                        .put("payload", new JSONObject());
+                JSONObject preprocessJob = new JSONObject()
+                        .put("task", "preprocess_text")
+                        .put("payload", new JSONObject()
+                                .put("text", "Triade Android Node alimenta el modelo local con trabajo real.")
+                                .put("max_chunk_chars", 1200));
+                JSONObject benchmark = client.runJob(benchmarkJob);
+                JSONObject preprocess = client.runJob(preprocessJob);
+                int chunks = preprocess.optJSONArray("chunks") == null ? 0 : preprocess.optJSONArray("chunks").length();
+                runOnUiThread(() -> {
+                    status.setText("APK ejecuta trabajo real.\nscore=" + benchmark.optLong("score")
+                            + "\nwords=" + preprocess.optInt("word_count")
+                            + "\nchunks=" + chunks);
+                    appendLog("Trabajo local OK: score=" + benchmark.optLong("score") + ", words=" + preprocess.optInt("word_count"));
+                });
+            } catch (Exception exc) {
+                runOnUiThread(() -> {
+                    status.setText("Prueba local fallo: " + exc.getMessage());
+                    appendLog("Prueba local fallo: " + exc.getMessage());
+                });
             }
         }, "triade-local-worker-test").start();
     }
@@ -271,10 +333,35 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private String getText(String url) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setConnectTimeout(10000);
+        conn.setReadTimeout(15000);
+        conn.setRequestMethod("GET");
+        int code = conn.getResponseCode();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(code >= 400 ? conn.getErrorStream() : conn.getInputStream(), "UTF-8"));
+        StringBuilder builder = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            builder.append(line);
+        }
+        conn.disconnect();
+        if (code >= 400) {
+            throw new IllegalStateException("HTTP " + code + ": " + builder);
+        }
+        return builder.toString();
+    }
+
     private String cleanBaseUrl(String value) {
         String clean = value == null ? "" : value.trim();
+        if (clean.equals("0.0.0.0") || clean.equals("0.0.0.0:8010") || clean.equals("http://0.0.0.0:8010")) {
+            clean = NodeConfig.DEFAULT_DIRECT_8010;
+        }
         if (clean.isEmpty()) {
-            clean = "http://127.0.0.1:8010";
+            clean = NodeConfig.DEFAULT_DIRECT_8010;
+        }
+        if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+            clean = "http://" + clean;
         }
         while (clean.endsWith("/")) {
             clean = clean.substring(0, clean.length() - 1);
@@ -289,6 +376,20 @@ public final class MainActivity extends Activity {
         } catch (Exception exc) {
             runtimeStatus.setText("Doctor LLM fallo: " + exc.getMessage());
         }
+    }
+
+    private void appendLog(String text) {
+        if (liveLog == null) {
+            return;
+        }
+        liveLog.append("\n• " + text);
+    }
+
+    private String trimForLog(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.length() > 180 ? text.substring(0, 180) + "..." : text;
     }
 
     private EditText input(String hint) {
