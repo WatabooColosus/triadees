@@ -443,8 +443,22 @@ class TriadeRunner:
         elif project_id: scope = "project"
         elif session_id: scope = "session"
         else: scope = "source_intent"
-        context_key = {"source_intent": f"source:{input_packet.source}|intent:{intent}", "session": f"session:{session_id}", "project": f"project:{project_id}", "neuron": f"neuron:{active_neuron}", "project_neuron": f"project:{project_id}|neuron:{active_neuron}"}[scope]
-        return {"scope": scope, "context_key": context_key, "session_id": session_id, "project_id": project_id, "active_neuron": active_neuron, "source": input_packet.source, "intent": intent}
+        fields: list[tuple[str, str]] = [("intent", intent)]
+        if scope == "project_neuron": fields.extend([("project_id", project_id or ""), ("active_neuron", active_neuron or "")])
+        elif scope == "neuron": fields.append(("active_neuron", active_neuron or ""))
+        elif scope == "project": fields.append(("project_id", project_id or ""))
+        elif scope == "session": fields.append(("session_id", session_id or ""))
+        else: fields.append(("source", input_packet.source))
+        context_key = scope + "|" + "|".join(f"{key}={value}" for key, value in fields)
+        return {
+            "context_scope": scope,
+            "context_key": context_key,
+            "source": input_packet.source,
+            "intent": intent,
+            "session_id": session_id,
+            "project_id": project_id,
+            "active_neuron": active_neuron,
+        }
 
     @staticmethod
     def _write_json(path: Path, payload: dict[str, Any] | list[Any]) -> None:
