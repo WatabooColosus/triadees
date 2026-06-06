@@ -10,13 +10,16 @@ import secrets
 import shutil
 import subprocess
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, Header, HTTPException, status
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
+from triade.core.life_pulse import LIFE_PULSE
+from triade.core.qualia import QUALIA
 from triade.core.runner import TriadeRunner
 from triade.core.repo_info import repo_info
 from triade.federation.contracts import (
@@ -37,13 +40,22 @@ from triade.models.model_install_queue import ModelInstallQueue
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
 
-app = FastAPI(title="Tríade Ω Single Port", version="0.9.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    LIFE_PULSE.start()
+    try:
+        yield
+    finally:
+        LIFE_PULSE.stop()
+
+
+app = FastAPI(title="Tríade Ω Single Port", version="0.9.0", lifespan=lifespan)
 ANDROID_APK_PATH = Path(os.environ.get("TRIADE_ANDROID_APK", "apps/static/triade-android-node.apk"))
 ANDROID_RUNTIME_DIR = Path(os.environ.get("TRIADE_ANDROID_RUNTIME_DIR", "apps/static/android-runtime"))
 ANDROID_LLAMA_CLI_PATH = Path(os.environ.get("TRIADE_ANDROID_LLAMA_CLI", str(ANDROID_RUNTIME_DIR / "llama-cli")))
 ANDROID_BASE_MODEL_PATH = Path(os.environ.get("TRIADE_ANDROID_BASE_MODEL", str(ANDROID_RUNTIME_DIR / "triade-base.gguf")))
 LOCAL_JOBS: dict[str, dict[str, Any]] = {}
-
 
 class RunRequest(BaseModel):
     text: str = Field(..., min_length=1)
@@ -678,9 +690,9 @@ def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", ur
         lambda: _pulse_item(
             "compatibility",
             True,
-            f"{local['model_matrix_summary'].get('recommended', 0)} modelos recomendados",
-            {"counts": local.get("counts", {}), "summary": local.get("model_matrix_summary", {})},
-            "ok" if local["model_matrix_summary"].get("recommended", 0) else "warn",
+            f"{local.get('counts', {}).get('recommended', 0)} modelos recomendados",
+            {"counts": local.get("counts", {}), "summary": local.get("model_matrix_summary", "")},
+            "ok" if local.get("counts", {}).get("recommended", 0) else "warn",
         ),
     )
     queue = _safe_pulse(
@@ -732,14 +744,17 @@ def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", ur
         "summary": "Todo activo" if level == "ok" else ("Degradado" if level == "bad" else "Activo con pendientes"),
         "alerts": alerts,
         "checks": checks,
+        "life": LIFE_PULSE.snapshot(),
+        "qualia": QUALIA.snapshot(refresh_life=False),
         "capacity": capacity,
-        "truth": "Pulso unico: resume router, modelos, memoria, transporte, PC y nodos; los botones tecnicos quedan para inspeccion ocasional.",
+        "truth": "Pulso unico: resume router, modelos, memoria, transporte, PC, nodos y vida operativa; los botones tecnicos quedan como contadores inspeccionables.",
     }
 
 
 @app.get("/health")
 @app.get("/api/health")
 def health() -> dict[str, Any]:
+    LIFE_PULSE.record_action("health")
     runner = TriadeRunner(use_ollama=False)
     hardware, ollama = system_payload()
     return {
@@ -751,11 +766,13 @@ def health() -> dict[str, Any]:
 
 @app.post("/api/router/doctor")
 def route_doctor(request: RouterRequest) -> dict[str, Any]:
+    LIFE_PULSE.record_action("router_doctor")
     return router_payload(intent=request.intent, urgency=request.urgency)
 
 
 @app.get("/api/models/compatibility")
 def model_compatibility() -> dict[str, Any]:
+    LIFE_PULSE.record_action("model_compatibility")
     hardware, ollama = system_payload()
     matrix = ModelCompatibilityMatrix(hardware=hardware, available_models=ollama.get("models", []))
     return {"status": "ok", "mode": "single-port", "ollama": ollama, "matrix": matrix.build()}
@@ -763,6 +780,7 @@ def model_compatibility() -> dict[str, Any]:
 
 @app.get("/api/models/install-queue")
 def model_install_queue(include_allowed: bool = False) -> dict[str, Any]:
+    LIFE_PULSE.record_action("model_install_queue")
     hardware, ollama = system_payload()
     queue = ModelInstallQueue(hardware=hardware, available_models=ollama.get("models", []))
     return queue.build(include_allowed=include_allowed)
@@ -770,12 +788,28 @@ def model_install_queue(include_allowed: bool = False) -> dict[str, Any]:
 
 @app.get("/api/system/model-capacity")
 def system_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
+    LIFE_PULSE.record_action("model_capacity")
     return build_model_capacity(sync_relay=sync_relay)
 
 
 @app.get("/api/system/pulse")
 def system_pulse(sync_relay: bool = True, intent: str = "conversation", urgency: str = "medium") -> dict[str, Any]:
+    LIFE_PULSE.record_action("system_pulse")
     return build_system_pulse(sync_relay=sync_relay, intent=intent, urgency=urgency)
+
+
+@app.get("/api/system/life")
+def system_life(tick: bool = False) -> dict[str, Any]:
+    LIFE_PULSE.record_action("life_snapshot")
+    if tick:
+        return LIFE_PULSE.tick()
+    return LIFE_PULSE.snapshot()
+
+
+@app.get("/api/system/qualia")
+def system_qualia(refresh_life: bool = False) -> dict[str, Any]:
+    LIFE_PULSE.record_action("qualia_snapshot")
+    return QUALIA.snapshot(refresh_life=refresh_life)
 
 
 @app.get("/api/federation/resource-lease")
@@ -1239,11 +1273,13 @@ def distributed_runtime_android_local_generate(request: AndroidLocalGenerateRequ
 
 @app.get("/api/semantic/doctor")
 def semantic_doctor() -> dict[str, Any]:
+    LIFE_PULSE.record_action("semantic_doctor")
     return SemanticEmbeddingEngine().doctor()
 
 
 @app.get("/api/semantic/governance/doctor")
 def semantic_governance_doctor() -> dict[str, Any]:
+    LIFE_PULSE.record_action("semantic_governance_doctor")
     return SemanticMemoryGovernance().doctor()
 
 
@@ -1280,9 +1316,55 @@ def semantic_search(request: SemanticSearchRequest, x_triade_api_key: str | None
     return SemanticSearchEngine().search(query=request.query, model=clean_model(request.model), limit=request.limit, min_similarity=request.min_similarity, domain=request.domain)
 
 
+def operational_awareness_context() -> dict[str, Any]:
+    qualia = QUALIA.snapshot(refresh_life=False)
+    life = LIFE_PULSE.snapshot()
+    if int(life.get("counters", {}).get("cycles") or 0) == 0:
+        life = LIFE_PULSE.tick()
+        qualia = QUALIA.snapshot(refresh_life=False)
+    capacity = build_model_capacity(sync_relay=False)
+    local = capacity.get("local", {})
+    federation = capacity.get("federation", {})
+    authorized = federation.get("authorized", {})
+    hardware = local.get("hardware", {})
+    return {
+        "source": "api/system/life + api/system/model-capacity",
+        "kind": "living_senses_operational_awareness",
+        "qualia": qualia,
+        "life": {
+            "status": life.get("status"),
+            "running": life.get("running"),
+            "uptime_seconds": life.get("uptime_seconds"),
+            "interval_seconds": life.get("interval_seconds"),
+            "counters": life.get("counters", {}),
+            "actions": life.get("actions", {}),
+            "integrity_ok": (life.get("integrity") or {}).get("ok"),
+            "policy": life.get("policy", {}),
+        },
+        "reflection": life.get("reflection", {}),
+        "local": {
+            "hardware_tier": hardware.get("tier"),
+            "ram_available_gb": hardware.get("ram_available_gb"),
+            "gpu_names": [gpu.get("name") for gpu in hardware.get("gpus", []) if isinstance(gpu, dict)],
+            "ollama_ok": (local.get("ollama") or {}).get("ok"),
+            "ollama_models": (local.get("ollama") or {}).get("models", [])[:10],
+            "docker_ok": (local.get("docker") or {}).get("ok"),
+        },
+        "federation": {
+            "runtime": authorized.get("runtime"),
+            "runtime_node_count": authorized.get("runtime_node_count", 0),
+            "llm_hosts": authorized.get("llm_hosts", 0),
+            "ram_authorized_gb": authorized.get("ram_authorized_gb", 0),
+            "cpu_authorized_count": authorized.get("cpu_authorized_count", 0),
+        },
+        "answering_rule": "Si el usuario pregunta por mi estado, pulso, neuronas propuestas o acciones, usar estos datos como estado operativo vivo; aclarar que no son recuerdos semanticos consolidados.",
+    }
+
+
 @app.post("/api/run")
 @app.post("/triade/run")
 def run_triade(request: RunRequest, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
+    LIFE_PULSE.record_action("run")
     require_key(x_triade_api_key)
     runner = TriadeRunner(
         use_ollama=request.use_ollama,
@@ -1293,7 +1375,7 @@ def run_triade(request: RunRequest, x_triade_api_key: str | None = Header(defaul
     return runner.run(
         request.text,
         source=request.source,
-        context=request.context,
+        context={**request.context, "triade_operational_awareness": operational_awareness_context()},
         semantic_recall_enabled=request.semantic_recall_enabled,
         semantic_model=clean_model(request.semantic_model),
         semantic_limit=request.semantic_limit,
@@ -1370,7 +1452,7 @@ TRIADE_REACT_UI_HTML = r"""
   </style>
 </head>
 <body>
-  <div id="root" data-routes="/api/run /api/system/pulse /api/system/model-capacity">
+  <div id="root" data-routes="/api/run /api/system/pulse /api/system/life /api/system/qualia /api/system/model-capacity">
     <main class="app">
       <aside class="panel left"><h1>Tríade Ω</h1><p class="small">Pulso vivo · Herramientas ocasionales · /downloads/triade-android-node.apk</p></aside>
       <section class="main"><div class="alert"><span class="dot"></span><b>Iniciando tablero React...</b><span class="small">8010</span></div></section>
@@ -1391,6 +1473,7 @@ TRIADE_REACT_UI_HTML = r"""
       compat: '/api/models/compatibility',
       queue: '/api/models/install-queue?include_allowed=false',
       semantic: '/api/semantic/governance/doctor',
+      qualia: '/api/system/qualia',
       androidDoctor: '/api/distributed-runtime/android-model-doctor',
       androidGenerate: '/api/distributed-runtime/android-local-generate',
       preprocess: '/api/distributed-runtime/preprocess',
@@ -1490,6 +1573,13 @@ TRIADE_REACT_UI_HTML = r"""
       const totals = lease?.totals || {};
       const nodes = federation.online_feeders || lease?.devices || [];
       const alerts = pulse?.alerts || [];
+      const life = pulse?.life || {};
+      const qualia = pulse?.qualia || {};
+      const semanticAlignment = qualia.semantic_alignment || {};
+      const lifeCounters = life.counters || {};
+      const lifeActions = life.actions || {};
+      const lifeIntegrity = life.integrity || {};
+      const lifeReflection = life.reflection || {};
       const issues = alerts.map(item => item.summary);
       const level = pulse?.level || (issues.length === 0 ? 'ok' : 'warn');
       const alertText = pulse?.summary || (level === 'ok' ? 'Todo activo' : level === 'warn' ? 'Activo con pendientes' : 'Degradado');
@@ -1543,6 +1633,12 @@ TRIADE_REACT_UI_HTML = r"""
           e('div', {className:'section', style:{borderTop:0, marginTop:0, paddingTop:0}}, e('h2', null, 'Pulso vivo'),
             alerts.length ? e('div', {className:'box'}, alerts.map(item => item.name + ': ' + item.summary).join('\n')) : e('div', {className:'box'}, 'Sin alertas activas.'),
             e('div', {className:'grid'},
+              e(PanelMetric, {value:String(lifeCounters.cycles || 0), label:'ciclos internos', tone:life.status === 'degraded' ? 'critical' : 'ready', hint:'cada ' + (life.interval_seconds || '--') + ' s'}),
+              e(PanelMetric, {value:String(lifeCounters.actions_observed || 0), label:'acciones observadas', tone:'ready', hint:Object.keys(lifeActions).slice(0,3).join(', ')}),
+              e(PanelMetric, {value:lifeIntegrity.ok ? 'ok' : 'pendiente', label:'integridad', tone:lifeIntegrity.ok ? 'ready' : 'critical', hint:'runs ' + (lifeIntegrity.counts?.runs || 0)}),
+              e(PanelMetric, {value:String(lifeCounters.learning_candidates_seen || 0), label:'candidatos detectados', tone:'ready', hint:String(lifeCounters.neuron_proposals_seen || 0) + ' neuronas propuestas'}),
+              e(PanelMetric, {value:semanticAlignment.has_stable_semantic_memory ? 'estable' : 'sin stable', label:'memoria semántica', tone:semanticAlignment.has_stable_semantic_memory ? 'ready' : 'critical', hint:(semanticAlignment.total_documents || 0) + ' documentos · ' + (semanticAlignment.embeddings || 0) + ' embeddings'}),
+              e(PanelMetric, {value:qualia.status || '--', label:'Qualia', tone:qualia.status === 'ok' ? 'ready' : 'critical', hint:'pulso + memoria + órganos'}),
               e(PanelMetric, {value: hardware.tier || '--', label:'PC local', tone: hardware.tier === 'low' ? 'critical' : 'ready', hint:n(hardware.ram_available_gb) + ' GB RAM libre'}),
               e(PanelMetric, {value:String(nodes.length || 0), label:'nodos que alimentan', tone:nodes.length ? 'ready' : 'critical', hint:String(authorized.runtime_node_count || totals.devices || 0) + ' runtime'}),
               e(PanelMetric, {value:String(authorized.cpu_authorized_count || totals.cpu_authorized || 0), label:'CPU autorizada', tone:'ready'}),
@@ -1552,6 +1648,17 @@ TRIADE_REACT_UI_HTML = r"""
               e(PanelMetric, {value:local.ollama?.ok ? 'activo' : 'apagado', label:'Ollama local', tone:local.ollama?.ok ? 'ready' : 'critical'}),
               e(PanelMetric, {value:local.docker?.ok ? 'activo' : (local.docker?.installed ? 'instalado' : 'pendiente'), label:'Docker', tone:local.docker?.ok ? 'ready' : 'critical', hint:local.docker?.engine || local.docker?.version || ''})
             )
+          ),
+          e('div', {className:'section'}, e('h2', null, 'Aprendizaje en segundo plano'),
+            e('div', {className:'box'}, [
+              'estado: ' + (life.running ? 'activo' : 'snapshot'),
+              'qualia: ' + (qualia.status || '--'),
+              'semántica: ' + (semanticAlignment.message_to_central || '--'),
+              'fallback: ' + (lifeReflection.fallback_percent ?? '--') + '%',
+              'Q promedio: ' + (lifeReflection.avg_q_crystal ?? '--'),
+              'propuestas: ' + ((lifeReflection.neuron_proposals || []).join(', ') || 'sin propuestas'),
+              'politica: ' + (life.policy?.background_learning || 'candidate_detection_only')
+            ].join('\\n'))
           ),
           e('div', {className:'section'}, e('h2', null, 'Modelos por suma'), runnable.length ? runnable.map(item => e('span', {className:'pill ok', key:item.model}, item.model)) : e('div', {className:'empty'}, 'La suma de RAM ayuda a preparar trabajos, pero aún no hospeda inferencia LLM única.')),
           e('div', {className:'section'}, e('h2', null, 'Nodos federados reales'),

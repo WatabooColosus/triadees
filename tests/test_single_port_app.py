@@ -26,6 +26,8 @@ def test_single_port_ui_serves_html() -> None:
     assert "Herramientas ocasionales" in response.text
     assert "/downloads/triade-android-node.apk" in response.text
     assert "/api/system/model-capacity" in response.text
+    assert "/api/system/life" in response.text
+    assert "/api/system/qualia" in response.text
 
 
 def test_single_port_health() -> None:
@@ -101,9 +103,83 @@ def test_single_port_system_pulse_summarizes_alerts() -> None:
     assert payload["level"] in {"ok", "warn", "bad"}
     assert "alerts" in payload
     assert "checks" in payload
+    assert "life" in payload
+    assert "qualia" in payload
     assert "capacity" in payload
+    assert payload["life"]["mode"] == "life-pulse"
+    assert payload["qualia"]["mode"] == "qualia"
     names = {item["name"] for item in payload["checks"]}
     assert {"router", "semantic_memory", "signed_transport", "model_queue"}.issubset(names)
+
+
+def test_single_port_life_endpoint_reports_background_counters() -> None:
+    response = client.get("/api/system/life", params={"tick": "true"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "life-pulse"
+    assert payload["policy"]["background_learning"] == "candidate_detection_only"
+    assert payload["policy"]["auto_consolidation"] is False
+    assert "counters" in payload
+    assert "integrity" in payload
+    assert "reflection" in payload
+
+
+def test_single_port_qualia_endpoint_aligns_semantic_memory_and_pulse() -> None:
+    response = client.get("/api/system/qualia", params={"refresh_life": "true"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "qualia"
+    assert payload["semantic_alignment"]["alignment"] == "aligned_with_life_pulse"
+    assert payload["senses"]["mode"] == "internal_senses"
+    assert "Pulso vivo" in {item["name"] for item in payload["organs"]}
+    assert "sentidos internos" in payload["semantic_alignment"]["live_state_relation"]
+
+
+def test_single_port_chat_sees_operational_awareness_from_life_pulse() -> None:
+    response = client.post(
+        "/api/run",
+        json={
+            "text": "Que neuronas propuestas ves en tu pulso vivo y cuanta RAM tienes?",
+            "source": "test",
+            "use_ollama": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    text = payload["response"].lower()
+    assert "pulso vivo" in text
+    assert "qualia" in text
+    assert "soy tríade" in text or "soy triade" in text
+    assert "arquitectura viva" in text
+    assert "central ordena" in text
+    assert "sentidos internos" in text
+    assert "señales de necesidad interna" in text or "senales de necesidad interna" in text
+    assert "bodega semántica" in text or "bodega semantica" in text
+    assert "memoria semántica" in text or "memoria semantica" in text
+    assert "ram libre local" in text
+
+
+def test_single_port_chat_answers_semantic_memory_state_with_qualia() -> None:
+    response = client.post(
+        "/api/run",
+        json={
+            "text": "Tu memoria semántica es real y continua?",
+            "source": "test",
+            "use_ollama": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    text = payload["response"].lower()
+    assert "bodega semántica" in text or "bodega semantica" in text
+    assert "qualia" in text
+    assert "memoria semántica" in text or "memoria semantica" in text
+    assert payload["memory_diff"]["semantic_continuity"]["status"] == "ok"
+    assert payload["memory_diff"]["semantic_continuity"]["embedding_event"]["ok"] is True
 
 
 def test_federated_model_plan_sums_authorized_resources() -> None:
