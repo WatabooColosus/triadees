@@ -36,6 +36,19 @@ class NeuronRegistry:
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
 
+    @staticmethod
+    def _unique_list(values: list[Any]) -> list[str]:
+        """Deduplica listas preservando orden y eliminando vacíos."""
+        seen: set[str] = set()
+        out: list[str] = []
+        for value in values or []:
+            item = str(value).strip()
+            if not item or item in seen:
+                continue
+            seen.add(item)
+            out.append(item)
+        return out
+
     def register(self, spec: NeuronSpec) -> int:
         """Crea o actualiza una neurona por nombre."""
         with self._connect() as conn:
@@ -55,7 +68,7 @@ class NeuronRegistry:
                     spec.name,
                     spec.mission,
                     spec.domain,
-                    json.dumps(spec.rules, ensure_ascii=False),
+                    json.dumps(self._unique_list(spec.rules), ensure_ascii=False),
                     spec.status,
                     spec.created_by,
                 ),
