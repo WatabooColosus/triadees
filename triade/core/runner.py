@@ -258,6 +258,7 @@ class TriadeRunner:
         output.memory_diff["verification_report_id"] = verification_id
         post_run_learning = self._post_run_learning_candidate(input_packet, output, report, signals.intent)
         system_events = self._build_system_events(memory, crystal, neuron_proposal, post_run_learning, output_gate)
+        system_events = self._filter_obsolete_edge_debt(system_events, edge_usage)
         background_neuron_candidates = candidates_from_system_debt(
             pulse_summary=(input_packet.context or {}).get("system_pulse_summary"),
             system_events=system_events,
@@ -346,6 +347,36 @@ class TriadeRunner:
         else:
             clean = "Recibido. Lo atenderé sin exponer el proceso interno."
         return {"response": clean, "modified": True, "reason": "internal_leak_detected"}
+
+    def _filter_obsolete_edge_debt(self, system_events: list[dict], edge_usage: dict) -> list[dict]:
+        """Filtra deuda obsoleta de federación si el run ya probó edge Android LLM.
+
+        El pulso puede llegar desde contexto viejo. Si edge_usage confirma que
+        Android fue usado y aceptado, no debemos proponer neuronas por
+        '0 hosts LLM Android reales' ni 'Sin nodos Android nativos online'.
+        """
+        if not (edge_usage.get("used_edge") and edge_usage.get("accepted") and edge_usage.get("node_id")):
+            return system_events
+
+        filtered = []
+        obsolete_names = {"llm_android_host", "federation"}
+        obsolete_texts = (
+            "0 hosts LLM Android reales",
+            "Sin nodos Android nativos online",
+        )
+
+        for event in system_events:
+            payload = event.get("payload") or {}
+            evidence = payload.get("evidence") or {}
+            name = str(evidence.get("name") or payload.get("name") or "")
+            summary = str(evidence.get("summary") or payload.get("mission") or event.get("message") or "")
+
+            if name in obsolete_names and any(t in summary for t in obsolete_texts):
+                continue
+            filtered.append(event)
+
+        return filtered
+
 
     def _build_system_events(self, memory: Any, crystal: Any, neuron_proposal: Any | None, post_run_learning: dict[str, Any], output_gate: dict[str, Any]) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
