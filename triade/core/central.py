@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 
 from triade.models.ollama_client import OllamaClient
 
@@ -72,6 +74,17 @@ class Central:
         identity = next((item["value"] for item in memory.identity_matches if item.get("key") == "entity_name"), "Tríade Ω")
         fallback_response = self._fallback_response(identity, input_packet, signals, crystal)
         temporal_action = "crystal_temporal_regulation_applied"
+        if self._is_identity_or_capability_question(input_packet.user_input):
+            return OutputPacket(
+                run_id=input_packet.run_id,
+                response=self._identity_capability_response(identity),
+                actions_taken=["plan_created", "crystal_regulation_applied", temporal_action, "identity_capability_template_response_generated"],
+                memory_diff={"pending_persistence": True, "identity_capability_template": True},
+                status="ok",
+                model_provider="template",
+                model_name="identity-capability-template",
+                model_ok=True,
+            )
         if self.model_client is None:
             return OutputPacket(
                 run_id=input_packet.run_id,
@@ -128,6 +141,40 @@ class Central:
             f"Continuidad temporal: {crystal.temporal_status}, ΔQ={crystal.q_delta}, "
             f"Δestabilidad={crystal.stability_delta}. Regulación activa: {mode}. "
             "Ciclo cognitivo verificable completado."
+        )
+
+    @staticmethod
+    def _is_identity_or_capability_question(text: str) -> bool:
+        normalized = unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode("ascii")
+        normalized = re.sub(r"[^a-z0-9\s]", " ", normalized)
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+        patterns = [
+            r"\bque eres\b",
+            r"\bquien eres\b",
+            r"\bpara que sirves\b",
+            r"\bque puedes hacer\b",
+            r"\bcomo trabajas\b",
+            r"\bque neuronas tienes\b",
+            r"\bcuales son tus neuronas\b",
+            r"\bexplica tu mision\b",
+            r"\bcual es tu mision\b",
+            r"\bque es triade\b",
+            r"\bque es triade omega\b",
+            r"\bque eres y como trabajas\b",
+        ]
+        return any(re.search(pattern, normalized) for pattern in patterns)
+
+    @staticmethod
+    def _identity_capability_response(identity: str) -> str:
+        return (
+            f"Soy {identity}, un sistema cognitivo modular en construcción verificable. "
+            "Sirvo para ayudarte a pensar, crear, organizar, recordar, analizar repositorios, diseñar procesos, proponer código, documentar decisiones y convertir ideas en acciones trazables.\n\n"
+            "Trabajo con tres órganos principales: la Neurona Central, que planea, decide y valida; "
+            "el Hipotálamo Emocional, que interpreta intención, tono, urgencia, riesgo y sensibilidad; "
+            "y la Bodega de Almacenamiento, que conserva memoria, runs, evidencia e identidad operativa.\n\n"
+            "Cada interacción puede convertirse en un run auditable con señales, memoria, cristal, plan, safety, salida, verificación e integridad. "
+            "También puedo gestionar neuronas candidatas, aprendizaje controlado y federación de nodos autorizados como capacidad en construcción. "
+            "No soy conciencia humana: soy una arquitectura técnica evolutiva diseñada para trabajar con trazabilidad, prudencia y mejora continua."
         )
 
     @staticmethod
