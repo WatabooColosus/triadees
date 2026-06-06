@@ -11,6 +11,8 @@
         android:allowBackup="false"
         android:label="Triade Node"
         android:largeHeap="true"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/AppTheme">
         <activity
             android:name=".MainActivity"
