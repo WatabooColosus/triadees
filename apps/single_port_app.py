@@ -721,6 +721,44 @@ def _safe_pulse(name: str, fn) -> dict[str, Any]:
         return _pulse_item(name, False, str(exc), level="error")
 
 
+def _experimental_neuron_pulse() -> dict[str, Any]:
+    """Resumen seguro de neuronas experimentales para Pulso Vivo."""
+    try:
+        ledger = build_experimental_evidence_ledger(runs_dir="runs", limit=200)
+        neurons = ledger.get("neurons") or []
+        stable_ready = [n for n in neurons if n.get("stable_promotion_ready")]
+        return {
+            "ok": True,
+            "summary": ledger.get("summary", {}),
+            "last_active_neuron": neurons[0].get("name") if neurons else None,
+            "stable_ready_count": len(stable_ready),
+            "neurons": [
+                {
+                    "name": n.get("name"),
+                    "status": n.get("status"),
+                    "domain": n.get("domain"),
+                    "activation_count": n.get("activation_count"),
+                    "diagnosis_count": n.get("diagnosis_count"),
+                    "test_plan_count": n.get("test_plan_count"),
+                    "last_run_id": n.get("last_run_id"),
+                    "stable_promotion_ready": n.get("stable_promotion_ready"),
+                }
+                for n in neurons[:5]
+            ],
+            "policy": "evidence_only_no_auto_promotion",
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "summary": {"experimental_neurons_with_evidence": 0, "total_activations": 0},
+            "last_active_neuron": None,
+            "stable_ready_count": 0,
+            "neurons": [],
+            "error": str(exc),
+            "policy": "evidence_only_no_auto_promotion",
+        }
+
+
 def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", urgency: str = "medium") -> dict[str, Any]:
     capacity = build_model_capacity(sync_relay=sync_relay)
     local = capacity["local"]
@@ -730,6 +768,7 @@ def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", ur
     docker = local["docker"]
     nodes = federation.get("online_feeders", [])
     authorized = federation.get("authorized", {})
+    experimental_neurons = _experimental_neuron_pulse()
     router = _safe_pulse(
         "router",
         lambda: _pulse_item(
@@ -797,6 +836,13 @@ def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", ur
         queue,
         semantic,
         transport,
+        _pulse_item(
+            "experimental_neurons",
+            bool(experimental_neurons.get("ok")),
+            f"{(experimental_neurons.get('summary') or {}).get('experimental_neurons_with_evidence', 0)} neuronas experimentales con evidencia",
+            experimental_neurons,
+            "ok" if experimental_neurons.get("ok") else "warn",
+        ),
     ]
     alerts = [item for item in checks if not item["ok"] or item["level"] in {"warn", "error"}]
     errors = [item for item in checks if item["level"] == "error"]
@@ -811,7 +857,8 @@ def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", ur
         "life": LIFE_PULSE.snapshot(),
         "qualia": QUALIA.snapshot(refresh_life=False),
         "capacity": capacity,
-        "truth": "Pulso unico: resume router, modelos, memoria, transporte, PC, nodos y vida operativa; los botones tecnicos quedan como contadores inspeccionables.",
+        "experimental_neurons": experimental_neurons,
+        "truth": "Pulso unico: resume router, modelos, memoria, transporte, PC, nodos, vida operativa y neuronas experimentales; los botones tecnicos quedan como contadores inspeccionables.",
     }
 
 
