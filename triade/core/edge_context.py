@@ -119,10 +119,24 @@ def parse_keywords(text: str, fallback_text: str = "") -> list[str]:
     # Si el modelo devolvió explicación, frase larga o poca separación, usar input original.
     too_long = any(len(p) > 42 for p in parts)
     looks_like_explanation = any(
-        p.lower().startswith(("el proceso", "por ejemplo", "para ", "debemos", "a continuación"))
+        p.lower().startswith((
+            "el proceso",
+            "por ejemplo",
+            "para ",
+            "debemos",
+            "a continuación",
+            "más de",
+            "mas de",
+            "las cuales son",
+            "se han encontrado",
+        ))
         for p in parts
     )
-    if fallback_text and (len(parts) <= 2 or too_long or looks_like_explanation):
+    weak_keywords = any(
+        "palabras clave" in p.lower() or "```" in p
+        for p in parts
+    )
+    if fallback_text and (len(parts) <= 2 or too_long or looks_like_explanation or weak_keywords):
         parts = heuristic_keywords(fallback_text)
 
     result = []
