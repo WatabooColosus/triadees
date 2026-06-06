@@ -115,6 +115,8 @@ public final class AndroidModelRuntime {
         }
         readerThread.join(1000);
         int exitCode = process.exitValue();
+        String rawOutput = output.toString().trim();
+        String generatedText = extractGeneratedText(rawOutput, prompt);
         return new JSONObject()
                 .put("task", "android_local_generate")
                 .put("ok", exitCode == 0)
@@ -127,7 +129,9 @@ public final class AndroidModelRuntime {
                 .put("context_tokens", contextTokens)
                 .put("elapsed_ms", System.currentTimeMillis() - started)
                 .put("prompt_sha256", TextPreprocessor.sha256(prompt == null ? "" : prompt))
-                .put("response", output.toString().trim())
+                .put("response", generatedText.isEmpty() ? rawOutput : generatedText)
+                .put("generated_text", generatedText)
+                .put("raw_output", rawOutput)
                 .put("error", exitCode == 0 ? JSONObject.NULL : "backend llama.cpp termino con codigo " + exitCode)
                 .put("doctor", doctor);
     }
