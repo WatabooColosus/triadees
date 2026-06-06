@@ -144,7 +144,15 @@ class TriadeRunner:
         run_path.mkdir(parents=True, exist_ok=True)
         signals = self.hypothalamus.analyze(input_packet)
         try:
-            edge_context = build_edge_context(input_packet.text, enable_summary=False)
+            edge_text = (
+                getattr(input_packet, "text", None)
+                or getattr(input_packet, "content", None)
+                or getattr(input_packet, "message", None)
+                or getattr(input_packet, "user_input", None)
+                or getattr(input_packet, "raw_text", None)
+                or ""
+            )
+            edge_context = build_edge_context(edge_text, enable_summary=False)
         except Exception as exc:
             edge_context = {
                 "enabled": True,
