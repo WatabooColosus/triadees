@@ -506,9 +506,8 @@ class TriadeRunner:
         y lo registra SIEMPRE como `candidate`. La promoción a experimental/stable
         es una decisión humana posterior. Nunca degrada una neurona ya promovida.
         """
-        from .neuron_creator import NeuronCreator
         from .neuron_registry import NeuronRegistry
-        from .neuron_trainer import NeuronTrainer
+        from .primary_neuron_pipeline import build_primary_neuron_package
 
         context = input_packet.context or {}
         name = (
@@ -530,26 +529,39 @@ class TriadeRunner:
                 "note": "No se degrada una neurona ya promovida; propuesta omitida.",
             }
 
-        spec = NeuronCreator().create(name=name, mission=input_packet.user_input, domain=domain)
-        spec.status = "candidate"
-        spec.created_by = "run_auto_proposal"
-        assessment = NeuronTrainer().evaluate(spec)
-        neuron_id = registry.register(spec)  # permanece como candidate; no se llama store_training (no promueve)
-        return {
-            "neuron_id": neuron_id,
-            "name": spec.name,
-            "domain": spec.domain,
-            "registered_as": "candidate",
-            "activation": "requires_human_promotion",
-            "source_run": input_packet.run_id,
-            "assessment": {
-                "score": assessment.score,
-                "assessed_status": assessment.status,
-                "strengths": assessment.strengths,
-                "warnings": assessment.warnings,
-                "recommendations": assessment.recommendations,
-            },
-        }
+        proposal = build_primary_neuron_package(
+            name=name,
+            mission=input_packet.user_input,
+            domain=domain,
+            source_run=input_packet.run_id,
+            user_text=input_packet.user_input,
+            intent=str(signals.intent),
+            context=context,
+        )
+
+        # Persistencia mínima compatible con el registry actual.
+        # El contrato extendido queda en artifacts/system_events para revisión.
+        from .neuron_creator import NeuronSpec
+
+        spec_payload = proposal["creator_spec"]
+        spec = NeuronSpec(
+            name=spec_payload["name"],
+            mission=spec_payload["mission"],
+            domain=spec_payload["domain"],
+            rules=spec_payload.get("rules", []),
+            triggers=spec_payload.get("triggers", []),
+            inputs_allowed=spec_payload.get("inputs_allowed", []),
+            outputs_allowed=spec_payload.get("outputs_allowed", []),
+            forbidden_actions=spec_payload.get("forbidden_actions", []),
+            success_metrics=spec_payload.get("success_metrics", []),
+            evidence_required=spec_payload.get("evidence_required", []),
+            status="candidate",
+            created_by="primary_neuron_pipeline",
+        )
+
+        neuron_id = registry.register(spec)
+        proposal["neuron_id"] = neuron_id
+        return proposal
 
     @staticmethod
     def _slug(text: str) -> str:
