@@ -58,7 +58,7 @@ def main() -> int:
                 continue
 
             name = str(item.get("name") or item.get("display_name") or "unknown")
-            training = item.get("training_review") or {}
+            training = item.get("training_review") or item.get("training_result") or {}
             creator = item.get("creator_spec") or {}
             decision = decisions.get(name)
 
