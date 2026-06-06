@@ -42,6 +42,7 @@ from triade.models.hardware_profile import HardwareProfiler
 from triade.models.model_install_queue import ModelInstallQueue
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
+from triade.federation.edge_router import EdgeRouter
 
 
 @asynccontextmanager
@@ -667,6 +668,47 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
     }
 
 
+
+
+def _edge_llm_host_snapshot() -> list[dict]:
+    """Hosts LLM edge detectados por el router federado.
+
+    Fuente secundaria para evitar falsos '0 hosts' cuando el resource lease
+    autorizado todavía no consolidó el estado, pero el EdgeRouter sí ve el nodo.
+    """
+    try:
+        nodes = EdgeRouter().list_edge_llm_nodes()
+    except Exception:
+        return []
+
+    out = []
+    for node in nodes:
+        if not node.is_ready:
+            continue
+        out.append({
+            "node_id": node.node_id,
+            "name": node.name,
+            "online": node.online,
+            "can_host_llm": node.can_host_llm,
+            "lease_status": node.lease_status,
+            "transport": node.transport,
+            "edge_cpu_threads_available": node.edge_cpu_threads_available,
+            "edge_ram_available_gb": node.edge_ram_available_gb,
+            "model_runtime_backend": node.model_runtime_backend,
+        })
+    return out
+
+
+def _edge_llm_host_count(authorized: dict, federation: dict) -> int:
+    authorized_count = int((authorized or {}).get("llm_hosts") or 0)
+    if authorized_count > 0:
+        return authorized_count
+    llm_hosts = (federation or {}).get("llm_hosts") or []
+    if isinstance(llm_hosts, list) and len(llm_hosts) > 0:
+        return len(llm_hosts)
+    return len(_edge_llm_host_snapshot())
+
+
 def _pulse_item(name: str, ok: bool, summary: str, detail: dict[str, Any] | None = None, level: str | None = None) -> dict[str, Any]:
     clean_level = level or ("ok" if ok else "warn")
     return {"name": name, "ok": ok, "level": clean_level, "summary": summary, "detail": detail or {}}
@@ -739,7 +781,17 @@ def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", ur
         _pulse_item("docker", bool(docker.get("ok")), "Docker activo" if docker.get("ok") else ("Docker instalado, motor pendiente" if docker.get("installed") else "Docker no disponible"), docker, "ok" if docker.get("ok") else "warn"),
         _pulse_item("local_ram", float(hardware.get("ram_available_gb") or 0) >= 4, f"{hardware.get('ram_available_gb')} GB RAM libre local", {"missing": local.get("missing_for_comfortable_models", [])}, "ok" if float(hardware.get("ram_available_gb") or 0) >= 4 else "warn"),
         _pulse_item("federation", len(nodes) > 0, f"{len(nodes)} nodos Android alimentando" if nodes else "Sin nodos Android nativos online", {"nodes": nodes, "authorized": authorized}, "ok" if nodes else "warn"),
-        _pulse_item("llm_android_host", int(authorized.get("llm_hosts") or 0) > 0, f"{authorized.get('llm_hosts', 0)} hosts LLM Android reales", {"llm_hosts": federation.get("llm_hosts", [])}, "ok" if int(authorized.get("llm_hosts") or 0) > 0 else "warn"),
+        _pulse_item(
+            "llm_android_host",
+            _edge_llm_host_count(authorized, federation) > 0,
+            f"{_edge_llm_host_count(authorized, federation)} hosts LLM Android reales",
+            {
+                "llm_hosts": federation.get("llm_hosts", []),
+                "edge_router_hosts": _edge_llm_host_snapshot(),
+                "source": "authorized_or_edge_router",
+            },
+            "ok" if _edge_llm_host_count(authorized, federation) > 0 else "warn",
+        ),
         router,
         compatibility,
         queue,
