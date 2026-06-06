@@ -361,8 +361,14 @@ public final class AndroidModelRuntime {
 
         String out = clean.toString().trim();
 
-        // Limpieza suave de dobles espacios.
+        // Limpieza suave de tokens terminales y dobles espacios.
+        out = out.replace("[end of text]", "").trim();
         out = out.replaceAll("[ \\t]+", " ").trim();
+
+        // Quitar comillas envolventes simples si el modelo las agregó.
+        if (out.length() >= 2 && out.startsWith("\\\"") && out.endsWith("\\\"")) {
+            out = out.substring(1, out.length() - 1).trim();
+        }
 
         // Si el extractor no pudo, no inventar.
         return out;
