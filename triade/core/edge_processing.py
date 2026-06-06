@@ -53,6 +53,18 @@ class EdgeProcessingService:
     def __init__(self, router: Optional[EdgeRouter] = None):
         self.router = router or EdgeRouter()
 
+    def context_probe(self, text: str) -> EdgeProcessingResult:
+        return self._run(
+            task="intent_probe",
+            text=text,
+            instruction=(
+                "Analiza el texto y responde SOLO un JSON compacto con estas claves: "
+                "intent, urgency, risk, needs_tool, keywords. "
+                "keywords debe ser una lista de máximo 8 palabras en español. "
+                "No agregues explicación, ejemplos, markdown ni texto fuera del JSON."
+            ),
+        )
+
     def summarize(self, text: str) -> EdgeProcessingResult:
         return self._run(
             task="short_summary",

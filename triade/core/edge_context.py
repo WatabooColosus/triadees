@@ -44,21 +44,31 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
     used_edge = False
     accepted = False
 
-    intent_result = service.intent_probe(user_text)
-    evidence["intent_probe"] = intent_result.to_dict()
-    used_edge = used_edge or intent_result.used_edge
-    accepted = accepted or intent_result.accepted_for_context
-    node_id = intent_result.node_id or node_id
+    probe_result = service.context_probe(user_text)
+    evidence["context_probe"] = probe_result.to_dict()
+    used_edge = used_edge or probe_result.used_edge
+    accepted = accepted or probe_result.accepted_for_context
+    node_id = probe_result.node_id or node_id
 
-    intent_data = parse_intent(intent_result.response, fallback_text=user_text)
+    probe = parse_context_probe(probe_result.response, fallback_text=user_text)
+    intent_data = probe["intent_probe"]
+    keywords = probe["keywords"]
 
-    keywords_result = service.keywords(user_text)
-    evidence["keywords"] = keywords_result.to_dict()
-    used_edge = used_edge or keywords_result.used_edge
-    accepted = accepted or keywords_result.accepted_for_context
-    node_id = keywords_result.node_id or node_id
+    # Fallback al flujo anterior solo si el probe único no fue aceptado.
+    if not probe_result.accepted_for_context:
+        intent_result = service.intent_probe(user_text)
+        evidence["intent_probe"] = intent_result.to_dict()
+        used_edge = used_edge or intent_result.used_edge
+        accepted = accepted or intent_result.accepted_for_context
+        node_id = intent_result.node_id or node_id
+        intent_data = parse_intent(intent_result.response, fallback_text=user_text)
 
-    keywords = parse_keywords(keywords_result.response, fallback_text=user_text)
+        keywords_result = service.keywords(user_text)
+        evidence["keywords"] = keywords_result.to_dict()
+        used_edge = used_edge or keywords_result.used_edge
+        accepted = accepted or keywords_result.accepted_for_context
+        node_id = keywords_result.node_id or node_id
+        keywords = parse_keywords(keywords_result.response, fallback_text=user_text)
 
     summary = ""
     if enable_summary or len(user_text) > 280:
@@ -68,6 +78,8 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
         accepted = accepted or summary_result.accepted_for_context
         node_id = summary_result.node_id or node_id
         summary = sanitize_summary(summary_result.response, fallback_text=user_text)
+
+    intent_data = compact_intent_probe(intent_data)
 
     ctx = EdgeContext(
         enabled=True,
@@ -85,6 +97,83 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
         ),
     )
     return ctx.to_dict()
+
+
+
+
+
+
+def compact_intent_probe(data: dict[str, Any]) -> dict[str, Any]:
+    """Deja solo campos seguros para plan/memory_diff.
+
+    El raw del modelo permanece en evidence; el contexto compacto no debe
+    cargar respuestas truncadas o texto alucinado.
+    """
+    return {
+        "intent": str(data.get("intent", "unknown")),
+        "urgency": str(data.get("urgency", "medium")),
+        "risk": str(data.get("risk", "low")),
+        "needs_tool": bool(data.get("needs_tool", False)),
+    }
+
+
+def parse_context_probe(text: str, fallback_text: str = "") -> dict[str, Any]:
+    """Parsea el probe único del edge.
+
+    Devuelve un dict con intent_probe y keywords. Si el JSON viene incompleto
+    o sucio, usa fallback determinista.
+    """
+    try:
+        cleaned = (text or "").replace("```json", "").replace("```", "").strip()
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start >= 0 and end > start:
+            data = json.loads(cleaned[start:end + 1])
+        else:
+            data = json.loads(cleaned)
+
+        intent_data = {
+            "intent": str(data.get("intent", "unknown")).strip().lower(),
+            "urgency": normalize_level(data.get("urgency", "medium"), default="medium"),
+            "risk": normalize_level(data.get("risk", "low"), default="low"),
+            "needs_tool": normalize_bool_like(data.get("needs_tool", False)),
+        }
+
+        ft = (fallback_text or "").lower()
+        if "apk" in ft and ("nodo" in ft or "procesamiento" in ft or "conectar" in ft):
+            intent_data = {
+                "intent": "connect_apk_node",
+                "urgency": "medium",
+                "risk": "low",
+                "needs_tool": True,
+            }
+
+        raw_keywords = data.get("keywords", [])
+        if isinstance(raw_keywords, str):
+            keywords = parse_keywords(raw_keywords, fallback_text=fallback_text)
+        elif isinstance(raw_keywords, list):
+            keywords = [str(k).strip(" .;:-\t\n\"'") for k in raw_keywords if str(k).strip()]
+            if not keywords or any(len(k) > 40 or "palabra clave" in k.lower() or "###" in k for k in keywords):
+                keywords = heuristic_keywords(fallback_text)
+            keywords = keywords[:8]
+        else:
+            keywords = heuristic_keywords(fallback_text)
+
+        if not intent_data["intent"] or intent_data["intent"] == "unknown":
+            intent_data = heuristic_intent(fallback_text or text, raw=text)
+
+        return {
+            "ok": True,
+            "intent_probe": intent_data,
+            "keywords": keywords,
+        }
+    except Exception:
+        return {
+            "ok": False,
+            "intent_probe": heuristic_intent(fallback_text or text, raw=text),
+            "keywords": heuristic_keywords(fallback_text or text),
+        }
+
 
 
 def parse_intent(text: str, fallback_text: str = "") -> Dict[str, Any]:
