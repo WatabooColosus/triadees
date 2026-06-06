@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public final class NodeConfig {
     private static final String PREFS = "triade_node";
-    public static final String DEFAULT_LOCAL_8010 = "http://192.168.31.135:8010";
+    public static final String DEFAULT_DIRECT_8010 = "http://192.168.31.135:8010";
 
     public final String relayUrl;
     public final String runtimeUrl;
@@ -37,8 +37,8 @@ public final class NodeConfig {
             prefs.edit().putString("publicKey", publicKey).apply();
         }
         return new NodeConfig(
-                prefs.getString("relayUrl", DEFAULT_LOCAL_8010),
-                prefs.getString("runtimeUrl", DEFAULT_LOCAL_8010),
+                prefs.getString("relayUrl", DEFAULT_DIRECT_8010),
+                prefs.getString("runtimeUrl", DEFAULT_DIRECT_8010),
                 prefs.getString("pairingToken", ""),
                 prefs.getString("displayName", "Android Node"),
                 prefs.getString("nodeId", ""),
@@ -49,11 +49,11 @@ public final class NodeConfig {
     }
 
     public static void saveUserConfig(Context context, String relayUrl, String runtimeUrl, String pairingToken, String displayName, int resourceLimitPercent) {
-        String cleanRelay = normalizeBaseUrl(relayUrl, DEFAULT_LOCAL_8010);
-        String cleanRuntime = normalizeBaseUrl(runtimeUrl, cleanRelay);
+        String cleanDirectUrl = normalizeBaseUrl(relayUrl, DEFAULT_DIRECT_8010);
+        String cleanRuntime = normalizeBaseUrl(runtimeUrl, cleanDirectUrl);
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
-                .putString("relayUrl", cleanRelay)
+                .putString("relayUrl", cleanDirectUrl)
                 .putString("runtimeUrl", cleanRuntime)
                 .putString("pairingToken", pairingToken.trim())
                 .putString("displayName", displayName.trim().isEmpty() ? "Android Node" : displayName.trim())
@@ -75,6 +75,9 @@ public final class NodeConfig {
 
     private static String normalizeBaseUrl(String value, String fallback) {
         String clean = value == null ? "" : value.trim();
+        if (clean.equals("0.0.0.0") || clean.equals("0.0.0.0:8010") || clean.equals("http://0.0.0.0:8010")) {
+            clean = fallback;
+        }
         if (clean.isEmpty()) {
             clean = fallback;
         }
