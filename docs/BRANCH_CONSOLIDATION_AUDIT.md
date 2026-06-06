@@ -126,3 +126,41 @@ El repositorio queda sano cuando:
 - No quedan ramas remotas activas que compitan como fuente de verdad.
 - Las ramas de trabajo nuevas nacen de `main` y vuelven a `main` por PR o merge controlado.
 
+## Resultado de consolidacion local
+
+Ejecutado en `main`:
+
+- `d882cda Consolidar auditoria y continuidad del nucleo Triade`
+- `28e354a Unificar pulso vivo y gobierno de neuronas en main`
+- `2eda8d4 Reparar trazabilidad del runner consolidado`
+
+Contenido integrado:
+
+- Auditoria de nucleo, scorecard, backlog y reporte conversacional.
+- Analizador seguro de conversaciones locales.
+- Continuidad semantica con documentos y embeddings candidatos.
+- Qualia y Pulso Vivo como estado operativo verificable.
+- Contexto de pulso para chat y respuesta viva de Central.
+- Gobierno de neuronas candidatas.
+- OutputGate, system events, trazabilidad de run y continuidad del Cristal.
+
+Validaciones ejecutadas:
+
+```bash
+.venv/bin/python -m pytest -q
+.venv/bin/python triade_digimon.py doctor
+.venv/bin/python triade_digimon.py analyze-conversations --limit 50 --json
+```
+
+Estado local posterior:
+
+- Una sola rama local: `main`.
+- `main` esta 3 commits por delante de `origin/main`.
+- Se eliminaron ramas locales redundantes.
+- Se eliminaron referencias remotas locales redundantes para limpiar la vista local.
+
+Bloqueo pendiente:
+
+- `git push origin main` fallo por autenticacion HTTPS: `could not read Username for 'https://github.com'`.
+- La limpieza real de ramas remotas en GitHub requiere autenticar `origin` o configurar credenciales/SSH.
+
