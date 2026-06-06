@@ -29,6 +29,7 @@ from .hypothalamus import Hypothalamus
 from .safety import Safety
 from .verification import Verifier
 from .edge_context import build_edge_context
+from .experimental_neuron_runtime import run_experimental_neurons
 from .neuron_formation_pipeline import form_candidates
 
 
@@ -260,6 +261,24 @@ class TriadeRunner:
         post_run_learning = self._post_run_learning_candidate(input_packet, output, report, signals.intent)
         system_events = self._build_system_events(memory, crystal, neuron_proposal, post_run_learning, output_gate)
         system_events = self._filter_obsolete_edge_debt(system_events, edge_usage)
+
+        experimental_neuron_activity = run_experimental_neurons(
+            db_path=str(self.db_path),
+            user_input=input_packet.user_input,
+            context=input_packet.context or {},
+            signals=signals,
+            edge_usage=edge_usage,
+            system_events=system_events,
+        )
+        if experimental_neuron_activity.get("active"):
+            system_events.append({
+                "type": "experimental_neuron_activity",
+                "severity": "info",
+                "status": "diagnostic_only",
+                "message": f"{experimental_neuron_activity.get('count')} neurona(s) experimental(es) activadas en modo diagnóstico.",
+                "action_required": "none",
+                "payload": experimental_neuron_activity,
+            })
         background_neuron_candidates = candidates_from_system_debt(
             pulse_summary=(input_packet.context or {}).get("system_pulse_summary"),
             system_events=system_events,
@@ -281,12 +300,13 @@ class TriadeRunner:
                 "payload": candidate,
             })
         output.memory_diff["post_run_learning"] = post_run_learning
+        output.memory_diff["experimental_neuron_activity"] = experimental_neuron_activity
         semantic_continuity = self._semantic_continuity(input_packet, output, signals.intent, crystal)
         output.memory_diff["semantic_continuity"] = semantic_continuity
         output.memory_diff["system_events"] = system_events
         output.memory_diff["background_neuron_candidates"] = background_neuron_candidates
         output.memory_diff["output_gate"] = output_gate
-        artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "edge_context.json": edge_context, "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan_dict, "plan_enriched.json": plan_dict, "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict(), "system_events.json": system_events, "background_neuron_candidates.json": background_neuron_candidates, "semantic_continuity.json": semantic_continuity}
+        artifacts = {"input.json": input_packet.to_dict(), "signals.json": signals.to_dict(), "edge_context.json": edge_context, "memory.json": memory.to_dict(), "crystal.json": crystal.to_dict(), "plan.json": plan_dict, "plan_enriched.json": plan_dict, "safety.json": safety.to_dict(), "output.json": output.to_dict(), "memory_diff.json": output.memory_diff, "report.json": report.to_dict(), "system_events.json": system_events, "background_neuron_candidates.json": background_neuron_candidates, "experimental_neuron_activity.json": experimental_neuron_activity, "semantic_continuity.json": semantic_continuity}
         if neuron_proposal is not None:
             artifacts["neuron_candidate.json"] = neuron_proposal
         if post_run_learning.get("enabled"):
@@ -302,13 +322,14 @@ class TriadeRunner:
             "semantic_continuity": semantic_continuity,
             "system_events": system_events,
             "background_neuron_candidates": background_neuron_candidates,
+            "experimental_neuron_activity": experimental_neuron_activity,
             "output_gate": output_gate,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_quality_score": central_quality, "central_model_event_id": central_event_id, "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_selection": self.model_selection, "closed": True,
         }
         self._write_json(run_path / "integrity.json", integrity)
         (run_path / "CLOSED").write_text("closed\n", encoding="utf-8")
-        return {"run_id": input_packet.run_id, "response": output.response, "system_events": system_events, "safety": safety.to_dict(), "report": report.to_dict(), "memory_diff": output.memory_diff, "semantic_recall": semantic_state, "crystal_temporal_state": temporal_state, "models": {"hypothalamus": {**hypothalamus_model_result, "quality_score": hypothalamus_quality, "event_id": hypothalamus_event_id}, "central": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error, "quality_score": central_quality, "event_id": central_event_id}}, "model": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error}, "model_selection": self.model_selection, "neuron_proposal": neuron_proposal, "post_run_learning": post_run_learning, "background_neuron_candidates": background_neuron_candidates, "output_gate": output_gate, "run_path": str(run_path)}
+        return {"run_id": input_packet.run_id, "response": output.response, "system_events": system_events, "safety": safety.to_dict(), "report": report.to_dict(), "memory_diff": output.memory_diff, "semantic_recall": semantic_state, "crystal_temporal_state": temporal_state, "models": {"hypothalamus": {**hypothalamus_model_result, "quality_score": hypothalamus_quality, "event_id": hypothalamus_event_id}, "central": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error, "quality_score": central_quality, "event_id": central_event_id}}, "model": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error}, "model_selection": self.model_selection, "neuron_proposal": neuron_proposal, "post_run_learning": post_run_learning, "background_neuron_candidates": background_neuron_candidates, "experimental_neuron_activity": experimental_neuron_activity, "output_gate": output_gate, "run_path": str(run_path)}
 
     def _sanitize_user_response(self, response: str, user_input: str, intent: str) -> dict[str, Any]:
         text = (response or "").strip()
