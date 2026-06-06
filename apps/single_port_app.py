@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from triade.core.runner import TriadeRunner
 from triade.core.repo_info import repo_info
 from triade.core.pulse_context import build_run_context_with_pulse
+from triade.core.neuron_candidate_governance import NeuronCandidateGovernance
 from triade.federation.contracts import (
     FederatedJobResultPayload,
     FederatedTransportDoctor,
@@ -139,6 +140,13 @@ class SemanticTransitionRequest(BaseModel):
     reason: str = Field(..., min_length=1)
     approved_by: str = "human"
     evidence: dict[str, Any] = Field(default_factory=dict)
+
+
+class NeuronCandidateDecisionRequest(BaseModel):
+    run_id: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1)
+    decided_by: str = "human"
+    notes: str = ""
 
 
 def clean_model(value: str | None) -> str | None:
@@ -1279,6 +1287,34 @@ def semantic_transition_document(document_id: str, request: SemanticTransitionRe
 def semantic_search(request: SemanticSearchRequest, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
     require_key(x_triade_api_key)
     return SemanticSearchEngine().search(query=request.query, model=clean_model(request.model), limit=request.limit, min_similarity=request.min_similarity, domain=request.domain)
+
+
+@app.get("/api/neurons/candidates")
+def list_neuron_candidates(limit_runs: int = 50, include_decided: bool = True, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
+    require_key(x_triade_api_key)
+    return NeuronCandidateGovernance().list_candidates(limit_runs=limit_runs, include_decided=include_decided)
+
+
+@app.post("/api/neurons/candidates/approve")
+def approve_neuron_candidate(request: NeuronCandidateDecisionRequest, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
+    require_key(x_triade_api_key)
+    return NeuronCandidateGovernance().approve(
+        run_id=request.run_id,
+        name=request.name,
+        approved_by=request.decided_by,
+        notes=request.notes,
+    )
+
+
+@app.post("/api/neurons/candidates/reject")
+def reject_neuron_candidate(request: NeuronCandidateDecisionRequest, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
+    require_key(x_triade_api_key)
+    return NeuronCandidateGovernance().reject(
+        run_id=request.run_id,
+        name=request.name,
+        rejected_by=request.decided_by,
+        notes=request.notes,
+    )
 
 
 @app.post("/api/run")
