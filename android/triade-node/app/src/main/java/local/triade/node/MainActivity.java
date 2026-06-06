@@ -7,8 +7,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.widget.Button;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -24,11 +22,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 public final class MainActivity extends Activity {
-    private EditText directUrl;
-    private EditText runtimeUrl;
-    private EditText pairingToken;
-    private EditText displayName;
-    private TextView resourceLimitLabel;
     private TextView status;
     private TextView runtimeStatus;
     private TextView liveLog;
@@ -37,8 +30,8 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         buildUi();
-        loadConfig();
         requestNotificationPermission();
+        autoStart();
     }
 
     private void buildUi() {
@@ -50,138 +43,76 @@ public final class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("Triade Node · Direct 8010");
+        title.setText("Triade Node · Auto 8010");
         title.setTextSize(24);
         root.addView(title);
 
         TextView note = new TextView(this);
-        note.setText("Worker Android local. Se conecta directo al 8010 por LAN o dominio publico, sin relay por defecto. Ejecuta heartbeat, jobs sandbox y transfiere resultados en segundo plano.");
+        note.setText("Modo automatico: conecta directo al 8010 local/dominio, registra el nodo, mantiene heartbeat y toma jobs en segundo plano. Sin relay por defecto.");
         root.addView(note);
-
-        directUrl = input("URL directa 8010 o dominio");
-        runtimeUrl = input("Runtime 8010 para assets/modelos");
-        pairingToken = input("Clave / pairing token opcional");
-        displayName = input("Nombre del dispositivo");
-        root.addView(directUrl);
-        root.addView(runtimeUrl);
-        root.addView(pairingToken);
-        root.addView(displayName);
-
-        resourceLimitLabel = new TextView(this);
-        root.addView(resourceLimitLabel);
-
-        Button health = button("Test Health 8010");
-        health.setOnClickListener(v -> testHealth());
-        root.addView(health);
-
-        Button start = button("Guardar, registrar y activar worker");
-        start.setOnClickListener(v -> startNode());
-        root.addView(start);
-
-        Button heartbeat = button("Enviar heartbeat ahora");
-        heartbeat.setOnClickListener(v -> sendHeartbeatOnce());
-        root.addView(heartbeat);
-
-        Button stop = button("Detener worker");
-        stop.setOnClickListener(v -> stopNode());
-        root.addView(stop);
-
-        Button battery = button("Permitir segundo plano / bateria");
-        battery.setOnClickListener(v -> openBatterySettings());
-        root.addView(battery);
-
-        Button files = button("Permiso archivos para GGUF/runtime");
-        files.setOnClickListener(v -> openAllFilesSettings());
-        root.addView(files);
-
-        Button localTest = button("Probar trabajo CPU local");
-        localTest.setOnClickListener(v -> runLocalWorkerTest());
-        root.addView(localTest);
-
-        Button downloadRuntime = button("Descargar runtime opcional desde 8010");
-        downloadRuntime.setOnClickListener(v -> downloadRuntimeFrom8010());
-        root.addView(downloadRuntime);
-
-        Button doctor = button("Doctor APK / LLM local");
-        doctor.setOnClickListener(v -> showRuntimeDoctor());
-        root.addView(doctor);
-
-        runtimeStatus = new TextView(this);
-        root.addView(runtimeStatus);
 
         status = new TextView(this);
         root.addView(status);
 
+        runtimeStatus = new TextView(this);
+        root.addView(runtimeStatus);
+
         liveLog = new TextView(this);
-        liveLog.setText("Logs visibles:\n");
+        liveLog.setText("Pulso:\n");
         root.addView(liveLog);
         setContentView(scroll);
     }
 
-    private void loadConfig() {
+    private void autoStart() {
         NodeConfig config = NodeConfig.load(this);
-        directUrl.setText(config.relayUrl);
-        runtimeUrl.setText(config.runtimeUrl);
-        pairingToken.setText(config.pairingToken);
-        displayName.setText(config.displayName);
-        updateResourceLabel();
-        appendLog(config.hasIdentity() ? "Identidad guardada: " + config.nodeId : "Sin identidad registrada.");
-        status.setText(config.hasIdentity() ? "Nodo guardado: " + config.nodeId : "Sin identidad registrada.");
-        showRuntimeDoctor();
+        appendLog("Endpoint directo: " + config.relayUrl);
+        appendLog("Runtime assets: " + config.runtimeUrl);
+        status.setText("Conectando automaticamente con Tríade 8010...");
+        testHealthAndStart();
     }
 
-    private void startNode() {
-        saveCurrentConfig();
-        appendLog("Iniciando worker directo 8010...");
+    private void testHealthAndStart() {
+        new Thread(() -> {
+            try {
+                NodeConfig config = NodeConfig.load(MainActivity.this);
+                String body = getText(config.relayUrl + "/health");
+                runOnUiThread(() -> {
+                    appendLog("Health OK: " + trimForLog(body));
+                    status.setText("8010 disponible. Activando worker...");
+                });
+                autoSetupRuntimeIfAvailable();
+                startNodeService();
+                sendHeartbeatOnce();
+            } catch (Exception exc) {
+                runOnUiThread(() -> {
+                    status.setText("No se pudo conectar al 8010: " + exc.getMessage());
+                    appendLog("Error conexion: " + exc.getMessage());
+                    appendLog("Verifica que el PC corra uvicorn --host 0.0.0.0 --port 8010 y que la IP sea alcanzable.");
+                });
+            }
+        }, "triade-auto-start").start();
+    }
+
+    private void startNodeService() {
         Intent intent = new Intent(this, TriadeNodeService.class);
         if (Build.VERSION.SDK_INT >= 26) {
             startForegroundService(intent);
         } else {
             startService(intent);
         }
-        status.setText("Worker iniciado. Revisa la notificacion persistente y logs de Uvicorn.");
-    }
-
-    private void stopNode() {
-        Intent intent = new Intent(this, TriadeNodeService.class);
-        intent.setAction(TriadeNodeService.ACTION_STOP);
-        startService(intent);
-        appendLog("Solicitud de detencion enviada.");
-        status.setText("Solicitud de detencion enviada.");
-    }
-
-    private void testHealth() {
-        saveCurrentConfig();
-        status.setText("Probando /health...");
-        appendLog("GET /health contra " + directUrl.getText());
-        new Thread(() -> {
-            try {
-                String base = cleanBaseUrl(directUrl.getText().toString());
-                String body = getText(base + "/health");
-                runOnUiThread(() -> {
-                    status.setText("Health OK: " + base);
-                    appendLog("Health OK: " + trimForLog(body));
-                });
-            } catch (Exception exc) {
-                runOnUiThread(() -> {
-                    status.setText("Health fallo: " + exc.getMessage());
-                    appendLog("Health fallo: " + exc.getMessage());
-                });
-            }
-        }, "triade-health-test").start();
+        runOnUiThread(() -> appendLog("Worker en segundo plano iniciado."));
     }
 
     private void sendHeartbeatOnce() {
-        saveCurrentConfig();
-        status.setText("Enviando heartbeat manual...");
         new Thread(() -> {
             try {
                 RelayClient client = new RelayClient(MainActivity.this);
                 NodeConfig config = client.ensureRegistered();
                 client.heartbeat(config);
                 runOnUiThread(() -> {
-                    status.setText("Heartbeat OK: " + config.nodeId);
+                    status.setText("Nodo activo: " + config.nodeId);
                     appendLog("Heartbeat OK: " + config.nodeId);
+                    showRuntimeDoctor();
                 });
             } catch (Exception exc) {
                 runOnUiThread(() -> {
@@ -192,120 +123,45 @@ public final class MainActivity extends Activity {
         }, "triade-heartbeat-once").start();
     }
 
-    private int selectedResourcePercent() {
-        return 100;
-    }
-
-    private void updateResourceLabel() {
-        if (resourceLimitLabel != null) {
-            resourceLimitLabel.setText("Modo dedicado: reporta 100% de CPU/RAM disponible del proceso Android. El sistema conserva limites termicos, bateria y memoria reales.");
+    private void autoSetupRuntimeIfAvailable() {
+        try {
+            NodeConfig config = NodeConfig.load(this);
+            String manifest = getText(config.runtimeUrl + "/downloads/android/runtime-manifest");
+            appendLog("Manifest runtime: " + trimForLog(manifest));
+            if (!manifest.contains("\"status\":\"ok\"") && !manifest.contains("\"status\": \"ok\"")) {
+                appendLog("Runtime pesado no disponible en 8010. Worker queda activo para jobs CPU/preproceso.");
+                return;
+            }
+            AndroidModelRuntime runtime = new AndroidModelRuntime(this);
+            File llama = new File(runtime.binDir(), "llama-cli");
+            File model = new File(runtime.modelsDir(), "triade-base.gguf");
+            if (!llama.exists()) {
+                downloadUrlToFile(config.runtimeUrl + "/downloads/android/llama-cli", llama);
+                llama.setExecutable(true, false);
+                appendLog("llama-cli instalado.");
+            }
+            if (!model.exists()) {
+                downloadUrlToFile(config.runtimeUrl + "/downloads/android/base-model.gguf", model);
+                appendLog("GGUF base instalado.");
+            }
+            appendLog("Runtime local configurado.");
+        } catch (Exception exc) {
+            appendLog("Auto runtime omitido: " + exc.getMessage());
         }
-    }
-
-    private void saveCurrentConfig() {
-        NodeConfig.saveUserConfig(
-                this,
-                directUrl.getText().toString(),
-                runtimeUrl.getText().toString(),
-                pairingToken.getText().toString(),
-                displayName.getText().toString(),
-                selectedResourcePercent()
-        );
     }
 
     private void requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 40);
         }
-    }
-
-    private void openBatterySettings() {
         try {
-            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-            intent.setData(Uri.parse("package:" + getPackageName()));
-            startActivity(intent);
-        } catch (Exception ignored) {
-            startActivity(new Intent(Settings.ACTION_SETTINGS));
-        }
-    }
-
-    private void openAllFilesSettings() {
-        try {
-            if (Build.VERSION.SDK_INT >= 30) {
-                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+            if (Build.VERSION.SDK_INT >= 23) {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                 intent.setData(Uri.parse("package:" + getPackageName()));
                 startActivity(intent);
-            } else {
-                startActivity(new Intent(Settings.ACTION_SETTINGS));
             }
         } catch (Exception ignored) {
-            startActivity(new Intent(Settings.ACTION_SETTINGS));
         }
-    }
-
-    private void downloadRuntimeFrom8010() {
-        saveCurrentConfig();
-        status.setText("Descargando runtime desde 8010...");
-        appendLog("Descargando runtime opcional desde " + runtimeUrl.getText());
-        new Thread(() -> {
-            try {
-                AndroidModelRuntime runtime = new AndroidModelRuntime(MainActivity.this);
-                String base = cleanBaseUrl(runtimeUrl.getText().toString());
-                File llama = new File(runtime.binDir(), "llama-cli");
-                File model = new File(runtime.modelsDir(), "triade-base.gguf");
-                StringBuilder report = new StringBuilder();
-                downloadUrlToFile(base + "/downloads/android/llama-cli", llama);
-                llama.setExecutable(true, false);
-                report.append("llama-cli OK\n");
-                downloadUrlToFile(base + "/downloads/android/base-model.gguf", model);
-                report.append("modelo base OK\n");
-                runOnUiThread(() -> {
-                    status.setText("Runtime descargado desde 8010:\n" + report.toString());
-                    appendLog("Runtime descargado OK.");
-                    showRuntimeDoctor();
-                });
-            } catch (Exception exc) {
-                runOnUiThread(() -> {
-                    status.setText("Descarga runtime fallo: " + exc.getMessage());
-                    appendLog("Descarga runtime fallo: " + exc.getMessage());
-                    showRuntimeDoctor();
-                });
-            }
-        }, "triade-runtime-download").start();
-    }
-
-    private void runLocalWorkerTest() {
-        saveCurrentConfig();
-        status.setText("Probando CPU local dentro de la APK...");
-        appendLog("Ejecutando benchmark/preprocess local dentro de la APK.");
-        new Thread(() -> {
-            try {
-                RelayClient client = new RelayClient(MainActivity.this);
-                JSONObject benchmarkJob = new JSONObject()
-                        .put("task", "browser_benchmark")
-                        .put("seconds", 1.0)
-                        .put("payload", new JSONObject());
-                JSONObject preprocessJob = new JSONObject()
-                        .put("task", "preprocess_text")
-                        .put("payload", new JSONObject()
-                                .put("text", "Triade Android Node alimenta el modelo local con trabajo real.")
-                                .put("max_chunk_chars", 1200));
-                JSONObject benchmark = client.runJob(benchmarkJob);
-                JSONObject preprocess = client.runJob(preprocessJob);
-                int chunks = preprocess.optJSONArray("chunks") == null ? 0 : preprocess.optJSONArray("chunks").length();
-                runOnUiThread(() -> {
-                    status.setText("APK ejecuta trabajo real.\nscore=" + benchmark.optLong("score")
-                            + "\nwords=" + preprocess.optInt("word_count")
-                            + "\nchunks=" + chunks);
-                    appendLog("Trabajo local OK: score=" + benchmark.optLong("score") + ", words=" + preprocess.optInt("word_count"));
-                });
-            } catch (Exception exc) {
-                runOnUiThread(() -> {
-                    status.setText("Prueba local fallo: " + exc.getMessage());
-                    appendLog("Prueba local fallo: " + exc.getMessage());
-                });
-            }
-        }, "triade-local-worker-test").start();
     }
 
     private void downloadUrlToFile(String url, File target) throws Exception {
@@ -352,23 +208,6 @@ public final class MainActivity extends Activity {
         return builder.toString();
     }
 
-    private String cleanBaseUrl(String value) {
-        String clean = value == null ? "" : value.trim();
-        if (clean.equals("0.0.0.0") || clean.equals("0.0.0.0:8010") || clean.equals("http://0.0.0.0:8010")) {
-            clean = NodeConfig.DEFAULT_DIRECT_8010;
-        }
-        if (clean.isEmpty()) {
-            clean = NodeConfig.DEFAULT_DIRECT_8010;
-        }
-        if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
-            clean = "http://" + clean;
-        }
-        while (clean.endsWith("/")) {
-            clean = clean.substring(0, clean.length() - 1);
-        }
-        return clean;
-    }
-
     private void showRuntimeDoctor() {
         try {
             AndroidModelRuntime runtime = new AndroidModelRuntime(this);
@@ -379,10 +218,11 @@ public final class MainActivity extends Activity {
     }
 
     private void appendLog(String text) {
-        if (liveLog == null) {
-            return;
-        }
-        liveLog.append("\n• " + text);
+        runOnUiThread(() -> {
+            if (liveLog != null) {
+                liveLog.append("\n• " + text);
+            }
+        });
     }
 
     private String trimForLog(String text) {
@@ -390,20 +230,6 @@ public final class MainActivity extends Activity {
             return "";
         }
         return text.length() > 180 ? text.substring(0, 180) + "..." : text;
-    }
-
-    private EditText input(String hint) {
-        EditText edit = new EditText(this);
-        edit.setHint(hint);
-        edit.setSingleLine(true);
-        return edit;
-    }
-
-    private Button button(String text) {
-        Button button = new Button(this);
-        button.setText(text);
-        button.setAllCaps(false);
-        return button;
     }
 
     private int dp(int value) {
