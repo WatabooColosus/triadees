@@ -95,6 +95,14 @@ def parse_intent(text: str, fallback_text: str = "") -> Dict[str, Any]:
         risk = normalize_level(data.get("risk", "low"), default="low")
         needs_tool = normalize_bool_like(data.get("needs_tool", False))
         if intent and intent != "unknown":
+            # Corrección determinista para tareas técnicas APK/nodo.
+            ft = (fallback_text or "").lower()
+            if "apk" in ft and ("nodo" in ft or "procesamiento" in ft or "conectar" in ft):
+                intent = "connect_apk_node"
+                urgency = "medium"
+                risk = "low"
+                needs_tool = True
+
             return {
                 "intent": intent,
                 "urgency": urgency,
