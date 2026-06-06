@@ -20,6 +20,58 @@ def as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def find_check(pulse: dict[str, Any], name: str) -> dict[str, Any]:
+    """Busca un check del pulso por nombre."""
+    for item in as_list(pulse.get("checks")):
+        if isinstance(item, dict) and item.get("name") == name:
+            return item
+    return {}
+
+
+def normalize_federation_from_checks(pulse: dict[str, Any], federation: dict[str, Any]) -> dict[str, Any]:
+    """Completa datos de federación desde checks reales del pulso.
+
+    El pulso actual de /api/system/pulse expone la verdad operativa en checks
+    como 'federation' y 'llm_android_host'. Este helper evita que el contexto
+    conversacional reciba nulls cuando el resumen top-level no trae esos campos.
+    """
+    federation = dict(federation or {})
+    federation_check = find_check(pulse, "federation")
+    llm_check = find_check(pulse, "llm_android_host")
+
+    fed_detail = as_dict(federation_check.get("detail"))
+    llm_detail = as_dict(llm_check.get("detail"))
+
+    nodes = federation.get("nodes") or fed_detail.get("nodes") or []
+    llm_hosts = llm_detail.get("llm_hosts") or fed_detail.get("llm_hosts") or []
+
+    if not nodes and isinstance(llm_hosts, list):
+        nodes = llm_hosts
+
+    federation.setdefault("nodes", nodes)
+    federation.setdefault("node_count", len(nodes) if isinstance(nodes, list) else 0)
+    federation.setdefault(
+        "online_count",
+        sum(1 for n in nodes if isinstance(n, dict) and n.get("online")) if isinstance(nodes, list) else 0,
+    )
+    federation.setdefault(
+        "android_native_online",
+        sum(
+            1
+            for n in nodes
+            if isinstance(n, dict) and n.get("online") and (n.get("native_android") or "android" in str(n.get("device", "")).lower())
+        ) if isinstance(nodes, list) else 0,
+    )
+    federation.setdefault(
+        "android_llm_hosts",
+        len(llm_hosts) if isinstance(llm_hosts, list) else 0,
+    )
+    federation.setdefault("summary", federation_check.get("summary"))
+    federation.setdefault("llm_summary", llm_check.get("summary"))
+    federation.setdefault("llm_ok", llm_check.get("ok"))
+    return federation
+
+
 def summarize_pulse(pulse: dict[str, Any]) -> dict[str, Any]:
     """Reduce el pulso vivo a un contexto pequeño apto para el prompt.
 
@@ -29,7 +81,7 @@ def summarize_pulse(pulse: dict[str, Any]) -> dict[str, Any]:
     """
     pulse = as_dict(pulse)
     local = as_dict(pulse.get("local"))
-    federation = as_dict(pulse.get("federation"))
+    federation = normalize_federation_from_checks(pulse, as_dict(pulse.get("federation")))
     learning = as_dict(pulse.get("learning"))
     semantic = as_dict(pulse.get("semantic"))
 
@@ -78,6 +130,9 @@ def summarize_pulse(pulse: dict[str, Any]) -> dict[str, Any]:
             "online_count": federation.get("online_count"),
             "android_native_online": federation.get("android_native_online"),
             "android_llm_hosts": federation.get("android_llm_hosts"),
+            "summary": federation.get("summary"),
+            "llm_summary": federation.get("llm_summary"),
+            "llm_ok": federation.get("llm_ok"),
             "nodes": nodes,
         },
         "semantic": {
