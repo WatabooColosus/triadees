@@ -7,11 +7,10 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-
-import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -31,7 +30,6 @@ public final class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         buildUi();
         requestNotificationPermission();
-        autoStart();
     }
 
     private void buildUi() {
@@ -43,13 +41,19 @@ public final class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("Triade Node · Auto 8010");
-        title.setTextSize(24);
+        title.setText("Triade Node");
+        title.setTextSize(26);
         root.addView(title);
 
         TextView note = new TextView(this);
-        note.setText("Modo automatico: conecta directo al 8010 local/dominio, registra el nodo, mantiene heartbeat y toma jobs en segundo plano. Sin relay por defecto.");
+        note.setText("Un solo boton: Conectar. Valida 8010, configura runtime si existe, registra el nodo y activa trabajo en segundo plano.");
         root.addView(note);
+
+        Button connect = new Button(this);
+        connect.setText("Conectar");
+        connect.setAllCaps(false);
+        connect.setOnClickListener(v -> connectFlow());
+        root.addView(connect);
 
         status = new TextView(this);
         root.addView(status);
@@ -63,11 +67,11 @@ public final class MainActivity extends Activity {
         setContentView(scroll);
     }
 
-    private void autoStart() {
+    private void connectFlow() {
         NodeConfig config = NodeConfig.load(this);
         appendLog("Endpoint directo: " + config.relayUrl);
         appendLog("Runtime assets: " + config.runtimeUrl);
-        status.setText("Conectando automaticamente con Tríade 8010...");
+        status.setText("Conectando con Tríade 8010...");
         testHealthAndStart();
     }
 
@@ -90,7 +94,7 @@ public final class MainActivity extends Activity {
                     appendLog("Verifica que el PC corra uvicorn --host 0.0.0.0 --port 8010 y que la IP sea alcanzable.");
                 });
             }
-        }, "triade-auto-start").start();
+        }, "triade-connect-start").start();
     }
 
     private void startNodeService() {
