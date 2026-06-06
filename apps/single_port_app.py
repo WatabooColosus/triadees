@@ -23,6 +23,7 @@ from triade.core.qualia import QUALIA
 from triade.core.runner import TriadeRunner
 from triade.core.repo_info import repo_info
 from triade.core.experimental_neuron_evidence import build_experimental_evidence_ledger
+from triade.core.stable_promotion_readiness import evaluate_stable_readiness
 from triade.core.pulse_context import build_run_context_with_pulse
 from triade.core.neuron_candidate_governance import NeuronCandidateGovernance
 from triade.federation.contracts import (
@@ -760,6 +761,61 @@ def _experimental_neuron_pulse() -> dict[str, Any]:
         }
 
 
+def _stable_readiness_pulse() -> dict[str, Any]:
+    """Resumen seguro de readiness stable para Pulso Vivo.
+
+    No promueve neuronas. Solo informa si alguna experimental tiene evidencia
+    suficiente para revisión humana futura.
+    """
+    try:
+        report = evaluate_stable_readiness(runs_dir="runs", limit=300)
+        neurons = report.get("neurons") or []
+        return {
+            "ok": True,
+            "summary": report.get("summary", {}),
+            "ready_neurons": [
+                {
+                    "name": n.get("name"),
+                    "status": n.get("status"),
+                    "domain": n.get("domain"),
+                    "activation_count": n.get("activation_count"),
+                    "diagnosis_count": n.get("diagnosis_count"),
+                    "test_plan_count": n.get("test_plan_count"),
+                    "last_run_id": n.get("last_run_id"),
+                    "required_human_decision": n.get("required_human_decision"),
+                }
+                for n in neurons
+                if n.get("ready_for_stable_review")
+            ][:5],
+            "blocked_neurons": [
+                {
+                    "name": n.get("name"),
+                    "status": n.get("status"),
+                    "domain": n.get("domain"),
+                    "blockers": n.get("blockers", []),
+                    "last_run_id": n.get("last_run_id"),
+                }
+                for n in neurons
+                if not n.get("ready_for_stable_review")
+            ][:5],
+            "policy": "readiness_only_no_auto_stable",
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "summary": {
+                "neurons_evaluated": 0,
+                "ready_for_stable_review": 0,
+                "not_ready": 0,
+                "policy": "readiness_only_no_auto_stable",
+            },
+            "ready_neurons": [],
+            "blocked_neurons": [],
+            "error": str(exc),
+            "policy": "readiness_only_no_auto_stable",
+        }
+
+
 def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", urgency: str = "medium") -> dict[str, Any]:
     capacity = build_model_capacity(sync_relay=sync_relay)
     local = capacity["local"]
@@ -770,6 +826,7 @@ def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", ur
     nodes = federation.get("online_feeders", [])
     authorized = federation.get("authorized", {})
     experimental_neurons = _experimental_neuron_pulse()
+    stable_readiness = _stable_readiness_pulse()
     router = _safe_pulse(
         "router",
         lambda: _pulse_item(
@@ -844,6 +901,13 @@ def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", ur
             experimental_neurons,
             "ok" if experimental_neurons.get("ok") else "warn",
         ),
+        _pulse_item(
+            "stable_readiness",
+            bool(stable_readiness.get("ok")),
+            f"{(stable_readiness.get('summary') or {}).get('ready_for_stable_review', 0)} neuronas listas para revisión stable",
+            stable_readiness,
+            "ok" if stable_readiness.get("ok") else "warn",
+        ),
     ]
     alerts = [item for item in checks if not item["ok"] or item["level"] in {"warn", "error"}]
     errors = [item for item in checks if item["level"] == "error"]
@@ -859,7 +923,8 @@ def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", ur
         "qualia": QUALIA.snapshot(refresh_life=False),
         "capacity": capacity,
         "experimental_neurons": experimental_neurons,
-        "truth": "Pulso unico: resume router, modelos, memoria, transporte, PC, nodos, vida operativa y neuronas experimentales; los botones tecnicos quedan como contadores inspeccionables.",
+        "stable_readiness": stable_readiness,
+        "truth": "Pulso unico: resume router, modelos, memoria, transporte, PC, nodos, vida operativa, neuronas experimentales y readiness stable sin auto-promoción; los botones tecnicos quedan como contadores inspeccionables.",
     }
 
 
