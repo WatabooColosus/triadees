@@ -1728,4 +1728,4 @@ TRIADE_REACT_UI_HTML = r"""
 @app.get("/", response_class=HTMLResponse)
 @app.get("/ui", response_class=HTMLResponse)
 def ui() -> str:
-    return TRIADE_REACT_UI_HTML
+    return TRIADE_UI_HTML
