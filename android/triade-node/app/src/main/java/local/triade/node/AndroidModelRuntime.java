@@ -363,6 +363,10 @@ public final class AndroidModelRuntime {
 
         // Limpieza suave de tokens terminales y dobles espacios.
         out = out.replace("[end of text]", "").trim();
+        // Normalizar prefijos frecuentes que algunos modelos pequeños agregan.
+        out = out.replaceFirst("(?i)^fra[sz]e? corta:\\s*", "").trim();
+        out = out.replaceFirst("(?i)^frase corta:\\s*", "").trim();
+        out = out.replaceFirst("(?i)^respuesta:\\s*", "").trim();
         out = out.replaceAll("[ \\t]+", " ").trim();
 
         // Quitar comillas envolventes simples si el modelo las agregó.
