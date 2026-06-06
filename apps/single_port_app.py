@@ -1360,6 +1360,64 @@ async function router(){try{let r=await fetch('/api/router/doctor',{method:'POST
 async function compat(){try{let r=await fetch('/api/models/compatibility');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.matrix.summary,counts:j.matrix.counts,models:j.matrix.models},null,2);status('Compatibilidad OK',true)}catch(e){status('Compatibilidad falló: '+e.message)}}
 async function installQueue(){try{let r=await fetch('/api/models/install-queue?include_allowed=false');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify({summary:j.summary,count:j.count,policy:j.policy,candidates:j.candidates},null,2);status('Cola OK',true)}catch(e){status('Cola falló: '+e.message)}}
 async function capacity(){try{let r=await fetch('/api/system/model-capacity?sync_relay=true');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);box.textContent=JSON.stringify({pc:{tier:j.local.hardware.tier,ram_free:j.local.hardware.ram_available_gb,ollama:j.local.ollama.ok,docker:j.local.docker.ok,missing:j.local.missing_for_comfortable_models,counts:j.local.counts},nodos:j.federation.nodes.map(n=>({name:n.name,node_id:n.node_id,online:n.online,native_android:n.native_android,cpu:n.cpu_count,ram_free:n.ram_available_gb,score:n.benchmark_score,use:n.recommended_use,feed:n.can_feed_local_models,host:n.can_host_llm,missing:n.missing_for_comfortable_models})),constantes:j.constants},null,2);status('Capacidad actualizada',true)}catch(e){status('Capacidad falló: '+e.message)}}
+
+async function loadNeuronCandidates(){
+  try{
+    const r=await fetch(routes.neurons+'?limit_runs=30&include_decided=true',{headers:{'X-TRIADE-API-Key':key()}});
+    const j=await r.json();
+    if(!r.ok)throw Error(j.detail||j.status);
+    renderNeuronCandidates(j.candidates||[]);
+    setStatus('Neuronas candidatas cargadas: '+(j.count||0),true);
+  }catch(err){
+    setStatus('Neuronas candidatas falló: '+err.message,false);
+  }
+}
+function escapeHtml(s){
+  return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function renderNeuronCandidates(items){
+  const box=document.getElementById('box');
+  if(!box)return;
+  if(!items.length){
+    box.innerHTML='No hay neuronas candidatas.';
+    return;
+  }
+  let html='<b>Neuronas candidatas</b><br><span class="hint">Candidate → aprobación humana → experimental. No se consolida como stable automáticamente.</span>';
+  html+=items.slice(0,30).map(c=>{
+    const decision=c.decision;
+    const decisionHtml=decision?`<div class="hint">Decisión: <b>${escapeHtml(decision.decision)}</b> · siguiente: ${escapeHtml(decision.next_status)} · por: ${escapeHtml(decision.decided_by)}</div>`:'';
+    const buttons=decision?'':`
+      <div class="row">
+        <button onclick="approveCandidate('${escapeHtml(c.run_id)}','${escapeHtml(c.name)}')">Aprobar</button>
+        <button class="secondary" onclick="rejectCandidate('${escapeHtml(c.run_id)}','${escapeHtml(c.name)}')">Rechazar</button>
+      </div>`;
+    return `<div class="box" style="max-height:none">
+      <b>${escapeHtml(c.display_name||c.name)}</b>
+      <div class="hint">${escapeHtml(c.name)} · ${escapeHtml(c.severity)} · ${escapeHtml(c.source)} · ${escapeHtml(c.run_id)}</div>
+      <p>${escapeHtml(c.mission)}</p>
+      ${decisionHtml}
+      ${buttons}
+    </div>`;
+  }).join('');
+  box.innerHTML=html;
+}
+async function approveCandidate(runId,name){
+  await decideCandidate(routes.neuronsApprove,runId,name,'Aprobada desde UI para pasar a experimental.');
+}
+async function rejectCandidate(runId,name){
+  await decideCandidate(routes.neuronsReject,runId,name,'Rechazada desde UI.');
+}
+async function decideCandidate(url,runId,name,notes){
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-TRIADE-API-Key':key()},body:JSON.stringify({run_id:runId,name:name,decided_by:'Santiago',notes})});
+    const j=await r.json();
+    if(!r.ok||j.status==='error')throw Error(j.detail||j.error||r.status);
+    setStatus('Decisión registrada: '+name,true);
+    await loadNeuronCandidates();
+  }catch(err){
+    setStatus('Decisión falló: '+err.message,false);
+  }
+}
 async function semanticDoctor(){try{let r=await fetch('/api/semantic/governance/doctor');let j=await r.json();if(!r.ok)throw Error(j.detail||r.status);$('box').textContent=JSON.stringify(j,null,2);status('Gobierno semántico consultado',true)}catch(e){status('Memoria semántica falló: '+e.message)}}
 
 async function loadNeuronCandidates(){
@@ -1429,7 +1487,7 @@ TRIADE_UI_HTML = """
 <aside class='rail'><div class='brand'><h1>Tríade Ω</h1><span id='liveDot' class='state-dot'></span></div><div class='hint'>8010 local: conversación, memoria, modelos y federación.</div>
 <div class='section'><h2>Modo</h2><label>API key</label><input id='key' type='password'/><div class='row'><div><label>Intención</label><select id='intent'><option>conversation</option><option>analyze</option><option>memory</option><option>build_or_update</option></select></div><div><label>Urgencia</label><select id='urgency'><option>medium</option><option>low</option><option>high</option></select></div></div><label class='toggle'><input id='ollama' type='checkbox'/> Usar Ollama</label><label class='toggle'><input id='auto' type='checkbox' checked/> Auto elegir modelos</label><button onclick='save()'>Guardar estado</button></div>
 <div class='section'><h2>Cristal</h2><label>Proyecto</label><input id='project' placeholder='triade-local'/><label>Neurona activa</label><input id='neuron' placeholder='cristal, bodega...'/><details><summary>Contexto especial</summary><label>Sesión</label><input id='session' placeholder='sesion-prueba-01'/><label>Scope</label><select id='scope'><option value=''>Automático</option><option value='source_intent'>Source + intent</option><option value='session'>Sesión</option><option value='project'>Proyecto</option><option value='neuron'>Neurona</option><option value='project_neuron'>Proyecto + neurona</option></select><label>Hipotálamo</label><input id='hyp' value=''/><label>Central</label><input id='cen' value=''/></details></div>
-<div class='section'><h2>Acciones</h2><button onclick='capacity(true)'>Actualizar pulso</button><button class='secondary' onclick='androidModelDoctor()'>Doctor modelos Android</button><button class='secondary' onclick='runtimeProbe()'>Probar runtime distribuido</button><button class='secondary' onclick='runtimePreprocess()'>Preprocesar en nodos</button><button class='secondary' onclick='router()'>Recomendar modelos</button><a href='/downloads/triade-android-node.apk'><button class='secondary' type='button'>Descargar Android Node</button></a><details><summary>Herramientas ocasionales</summary><button class='secondary' onclick='health()'>Health completo</button><button class='secondary' onclick='compat()'>Compatibilidad</button><button class='secondary' onclick='installQueue()'>Cola modelos</button><button class='secondary' onclick='semanticDoctor()'>Memoria semántica</button><button class='ghost' onclick='apply()'>Aplicar recomendados</button><button class='ghost' onclick='clearChat()'>Limpiar chat</button></details><div id='box' class='box'>Pulso inicial pendiente.</div></div></aside>
+<div class='section'><h2>Acciones</h2><button onclick='capacity(true)'>Actualizar pulso</button><button class='secondary' onclick='androidModelDoctor()'>Doctor modelos Android</button><button class='secondary' onclick='runtimeProbe()'>Probar runtime distribuido</button><button class='secondary' onclick='runtimePreprocess()'>Preprocesar en nodos</button><button class='secondary' onclick='router()'>Recomendar modelos</button><a href='/downloads/triade-android-node.apk'><button class='secondary' type='button'>Descargar Android Node</button></a><details><summary>Herramientas ocasionales</summary><button class='secondary' onclick='health()'>Health completo</button><button class='secondary' onclick='compat()'>Compatibilidad</button><button class='secondary' onclick='installQueue()'>Cola modelos</button><button class='secondary' onclick='semanticDoctor()'>Memoria semántica</button><button class='secondary' onclick='loadNeuronCandidates()'>Neuronas candidatas</button><button class='ghost' onclick='apply()'>Aplicar recomendados</button><button class='ghost' onclick='clearChat()'>Limpiar chat</button></details><div id='box' class='box'>Pulso inicial pendiente.</div></div></aside>
 <main class='main'><div class='top'><div><b>Chat local auditable</b><br><span id='status' class='muted'>Iniciando pulso...</span></div><div class='organs'><span id='orgCentral' class='organ'>Central</span><span id='orgHyp' class='organ'>Hipotálamo</span><span id='orgMem' class='organ'>Bodega</span><span id='orgFed' class='organ'>Federación</span></div></div><section id='chat' class='chat'></section><div class='composer'><textarea id='msg' placeholder='Escribe... Ctrl+Enter' onkeydown='keysend(event)'></textarea><button onclick='send()'>Enviar</button></div></main>
 <aside class='pulse'><h2>Pulso vivo</h2><div id='summary' class='grid2'><div class='metric'><b>...</b><span>PC</span></div><div class='metric'><b>...</b><span>Nodos</span></div></div><div id='missing' class='section'></div><div class='section'><h2>Modelos</h2><div id='models' class='model-list'><span class='empty'>Sin lectura todavía.</span></div></div><div class='section'><h2>Nodos que alimentan</h2><div id='nodes'><span class='empty'>Sin nodos sincronizados.</span></div></div><div class='live-line' id='liveLine'>Sincronización cada 15 s.</div></aside>
 </div><script>
@@ -1481,6 +1539,9 @@ TRIADE_REACT_UI_HTML = r"""
       compat: '/api/models/compatibility',
       queue: '/api/models/install-queue?include_allowed=false',
       semantic: '/api/semantic/governance/doctor',
+      neurons: '/api/neurons/candidates',
+      neuronsApprove: '/api/neurons/candidates/approve',
+      neuronsReject: '/api/neurons/candidates/reject',
       androidDoctor: '/api/distributed-runtime/android-model-doctor',
       androidGenerate: '/api/distributed-runtime/android-local-generate',
       preprocess: '/api/distributed-runtime/preprocess',
