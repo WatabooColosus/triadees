@@ -74,6 +74,7 @@ public final class AndroidModelRuntime {
                 "-c", String.valueOf(contextTokens),
                 "-t", String.valueOf(threads)
         );
+        builder.environment().put("LD_LIBRARY_PATH", context.getApplicationInfo().nativeLibraryDir);
         builder.redirectErrorStream(true);
         long started = System.currentTimeMillis();
         final Process process = builder.start();
