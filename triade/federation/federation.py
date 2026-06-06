@@ -190,7 +190,13 @@ class Federation:
         return self._set_status(node_id, "active", "reactivado")
 
     def stale_node(self, node_id: str, reason: str = "sin heartbeat reciente") -> dict[str, Any]:
-        return self._set_status(node_id, "stale", reason)
+        self._require_node(node_id)
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE federated_nodes SET status = 'stale', updated_at = CURRENT_TIMESTAMP WHERE node_id = ?",
+                (node_id,),
+            )
+        return self.get_node(node_id) or {}
 
     def mark_stale_nodes(self, ttl_seconds: int = 45, keep_node_ids: set[str] | None = None) -> dict[str, Any]:
         keep = keep_node_ids or {"local-pc"}
