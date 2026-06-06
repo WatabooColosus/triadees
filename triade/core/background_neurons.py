@@ -5,6 +5,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .neuron_creator import NeuronCreator
+from .neuron_trainer import NeuronTrainer
+
 
 def _slug(value: str) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]+", "-", value.strip().lower()).strip("-")
@@ -21,16 +24,64 @@ def _as_list(value: Any) -> list[Any]:
 
 def _candidate(name: str, mission: str, source: str, severity: str = "medium", evidence: dict[str, Any] | None = None) -> dict[str, Any]:
     slug = _slug(name)
+    evidence = evidence or {}
+
+    creator = NeuronCreator()
+    trainer = NeuronTrainer()
+
+    spec = creator.create(
+        name=f"neurona-{slug}",
+        mission=mission,
+        domain=source,
+        rules=[
+            "Operar solo como candidata hasta aprobación humana.",
+            "Usar evidencia real del run y no datos nulos.",
+            "Proponer diagnóstico o tareas verificables, no ejecutar cambios.",
+        ],
+        triggers=[
+            source,
+            severity,
+        ],
+        inputs_allowed=[
+            "pulse_summary",
+            "system_events",
+            "edge_usage",
+            "output_gate",
+            "post_run_learning",
+        ],
+        outputs_allowed=[
+            "diagnosis",
+            "proposal",
+            "test_plan",
+            "human_review_request",
+        ],
+        success_metrics=[
+            "evidence_quality",
+            "repeatability_across_runs",
+            "false_positive_rate",
+            "resolution_rate",
+        ],
+        evidence_required=[
+            "current_pulse_check",
+            "run_artifact",
+            "non_null_evidence",
+            "human_review",
+        ],
+    )
+    training = trainer.evaluate(spec)
+
     return {
         "name": f"neurona-{slug}",
         "display_name": name,
-        "status": "candidate",
+        "status": training.status,
         "activation": "requires_human_approval",
         "source": source,
         "severity": severity,
         "mission": mission,
-        "evidence": evidence or {},
+        "evidence": evidence,
         "suggested_roles": ["monitor", "diagnose", "teach", "propose_fix", "verify"],
+        "creator_spec": spec.to_dict(),
+        "training_review": training.to_dict(),
         "policy": "candidate_only_no_stable_memory_without_review",
     }
 
