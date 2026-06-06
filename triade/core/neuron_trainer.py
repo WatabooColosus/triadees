@@ -93,8 +93,8 @@ class NeuronTrainer:
 
         # Regla de seguridad: nunca estable automáticamente.
         if score >= 0.80:
-            status = "reviewable"
-            recommendations.append("Puede pasar a revisión humana para estado experimental.")
+            status = "experimental_candidate"
+            recommendations.append("Puede pasar a revisión humana antes de operar como experimental.")
         elif score >= 0.55:
             status = "candidate"
             recommendations.append("Mantener como candidata y completar evidencia/pruebas.")

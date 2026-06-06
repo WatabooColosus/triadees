@@ -82,6 +82,9 @@ def _candidate(name: str, mission: str, source: str, severity: str = "medium", e
         "suggested_roles": ["monitor", "diagnose", "teach", "propose_fix", "verify"],
         "creator_spec": spec.to_dict(),
         "training_review": training.to_dict(),
+        "creator_trainer_pipeline": True,
+        "created_by": "neuron_creator",
+        "formed_by": "neuron_trainer",
         "policy": "candidate_only_no_stable_memory_without_review",
     }
 
