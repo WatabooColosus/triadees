@@ -32,6 +32,7 @@ from triade.federation.contracts import (
     verify_envelope,
 )
 from triade.federation.federation import Federation
+from triade.federation.node_live_registry import NODE_LIVE_REGISTRY
 from triade.federation.relay_client import PublicRelayClient, relay_capabilities_for_federation
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_governance import SemanticMemoryGovernance
@@ -46,9 +47,11 @@ from triade.models.ollama_client import OllamaClient
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     LIFE_PULSE.start()
+    NODE_LIVE_REGISTRY.start()
     try:
         yield
     finally:
+        NODE_LIVE_REGISTRY.stop()
         LIFE_PULSE.stop()
 
 
