@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, Header, HTTPException, status
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from triade.core.life_pulse import LIFE_PULSE
@@ -2185,7 +2185,14 @@ TRIADE_REACT_UI_HTML = r"""
 """
 
 
-@app.get("/", response_class=HTMLResponse)
-@app.get("/ui", response_class=HTMLResponse)
-def ui() -> str:
+@app.get("/", response_class=RedirectResponse)
+@app.get("/ui", response_class=RedirectResponse)
+def ui() -> RedirectResponse:
+    """Entrada principal: redirige a la consola limpia."""
+    return RedirectResponse(url="/api/ui/clean", status_code=307)
+
+
+@app.get("/api/ui/legacy", response_class=HTMLResponse)
+def legacy_ui() -> str:
+    """Interfaz React anterior conservada como respaldo."""
     return TRIADE_REACT_UI_HTML
