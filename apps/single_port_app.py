@@ -27,6 +27,7 @@ from triade.core.stable_promotion_readiness import evaluate_stable_readiness
 from triade.core.system_pulse_builder import build_system_pulse as build_system_pulse_core
 from triade.core.pulse_context import build_run_context_with_pulse
 from triade.core.neuron_candidate_governance import NeuronCandidateGovernance
+from triade.core.neuron_dashboard import build_neuron_dashboard
 from triade.federation.contracts import (
     FederatedJobResultPayload,
     FederatedTransportDoctor,
@@ -880,6 +881,16 @@ def system_pulse(sync_relay: bool = True, intent: str = "conversation", urgency:
     LIFE_PULSE.record_action("system_pulse")
     return build_system_pulse(sync_relay=sync_relay, intent=intent, urgency=urgency)
 
+
+
+@app.get("/api/system/neurons")
+def system_neurons(limit: int = 100) -> dict[str, Any]:
+    """Estado vivo de neuronas para UI.
+
+    Solo lectura: no aprueba, no promueve, no ejecuta acciones.
+    """
+    LIFE_PULSE.record_action("system_neurons")
+    return build_neuron_dashboard(limit=limit)
 
 @app.get("/api/system/life")
 def system_life(tick: bool = False) -> dict[str, Any]:
