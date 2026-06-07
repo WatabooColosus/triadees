@@ -35,6 +35,24 @@ class NeuronRegistry:
             raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
+            self._migrate_neurons_table(conn)
+
+    def _migrate_neurons_table(self, conn: sqlite3.Connection) -> None:
+        """Agrega columnas modernas de contrato a bases existentes."""
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(neurons)").fetchall()}
+        additions = {
+            "triggers": "TEXT",
+            "inputs_allowed": "TEXT",
+            "outputs_allowed": "TEXT",
+            "forbidden_actions": "TEXT",
+            "success_metrics": "TEXT",
+            "evidence_required": "TEXT",
+            "activation_policy": "TEXT",
+            "contract_json": "TEXT",
+        }
+        for name, ddl in additions.items():
+            if name not in columns:
+                conn.execute(f"ALTER TABLE neurons ADD COLUMN {name} {ddl}")
 
     @staticmethod
     def _unique_list(values: list[Any]) -> list[str]:
@@ -49,17 +67,39 @@ class NeuronRegistry:
             out.append(item)
         return out
 
-    def register(self, spec: NeuronSpec) -> int:
-        """Crea o actualiza una neurona por nombre."""
+    def register(self, spec: NeuronSpec, contract_payload: dict[str, Any] | None = None) -> int:
+        """Crea o actualiza una neurona por nombre.
+
+        contract_payload permite persistir contrato extendido de pipelines
+        modernos sin exigir que NeuronSpec tenga todos esos campos como
+        atributos nativos.
+        """
+        contract_payload = contract_payload or {}
+        activation_policy = contract_payload.get("activation_policy") or {}
+        contract_json = contract_payload or (spec.to_dict() if hasattr(spec, "to_dict") else {})
+
         with self._connect() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO neurons (name, mission, domain, rules, status, created_by)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO neurons (
+                    name, mission, domain, rules,
+                    triggers, inputs_allowed, outputs_allowed, forbidden_actions,
+                    success_metrics, evidence_required, activation_policy, contract_json,
+                    status, created_by
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(name) DO UPDATE SET
                     mission = excluded.mission,
                     domain = excluded.domain,
                     rules = excluded.rules,
+                    triggers = excluded.triggers,
+                    inputs_allowed = excluded.inputs_allowed,
+                    outputs_allowed = excluded.outputs_allowed,
+                    forbidden_actions = excluded.forbidden_actions,
+                    success_metrics = excluded.success_metrics,
+                    evidence_required = excluded.evidence_required,
+                    activation_policy = excluded.activation_policy,
+                    contract_json = excluded.contract_json,
                     status = excluded.status,
                     created_by = excluded.created_by,
                     updated_at = CURRENT_TIMESTAMP
@@ -69,6 +109,14 @@ class NeuronRegistry:
                     spec.mission,
                     spec.domain,
                     json.dumps(self._unique_list(spec.rules), ensure_ascii=False),
+                    json.dumps(self._unique_list(getattr(spec, "triggers", [])), ensure_ascii=False),
+                    json.dumps(self._unique_list(getattr(spec, "inputs_allowed", [])), ensure_ascii=False),
+                    json.dumps(self._unique_list(getattr(spec, "outputs_allowed", [])), ensure_ascii=False),
+                    json.dumps(self._unique_list(getattr(spec, "forbidden_actions", [])), ensure_ascii=False),
+                    json.dumps(self._unique_list(getattr(spec, "success_metrics", [])), ensure_ascii=False),
+                    json.dumps(self._unique_list(getattr(spec, "evidence_required", [])), ensure_ascii=False),
+                    json.dumps(activation_policy, ensure_ascii=False),
+                    json.dumps(contract_json, ensure_ascii=False),
                     spec.status,
                     spec.created_by,
                 ),
@@ -126,7 +174,7 @@ class NeuronRegistry:
             )
             row = conn.execute(
                 """
-                SELECT id, name, mission, domain, rules, status, created_by, created_at, updated_at
+                SELECT id, name, mission, domain, rules, triggers, inputs_allowed, outputs_allowed, forbidden_actions, success_metrics, evidence_required, activation_policy, contract_json, status, created_by, created_at, updated_at
                 FROM neurons
                 WHERE name = ?
                 """,
@@ -141,7 +189,7 @@ class NeuronRegistry:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT id, name, mission, domain, rules, status, created_by, created_at, updated_at
+                SELECT id, name, mission, domain, rules, triggers, inputs_allowed, outputs_allowed, forbidden_actions, success_metrics, evidence_required, activation_policy, contract_json, status, created_by, created_at, updated_at
                 FROM neurons
                 ORDER BY id DESC
                 LIMIT ?
@@ -154,7 +202,7 @@ class NeuronRegistry:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, name, mission, domain, rules, status, created_by, created_at, updated_at
+                SELECT id, name, mission, domain, rules, triggers, inputs_allowed, outputs_allowed, forbidden_actions, success_metrics, evidence_required, activation_policy, contract_json, status, created_by, created_at, updated_at
                 FROM neurons
                 WHERE name = ?
                 """,
@@ -178,10 +226,32 @@ class NeuronRegistry:
 
     @staticmethod
     def _decode_neuron(row: dict[str, Any]) -> dict[str, Any]:
-        try:
-            row["rules"] = json.loads(row.get("rules") or "[]")
-        except json.JSONDecodeError:
-            row["rules"] = []
+        list_fields = [
+            "rules",
+            "triggers",
+            "inputs_allowed",
+            "outputs_allowed",
+            "forbidden_actions",
+            "success_metrics",
+            "evidence_required",
+        ]
+        dict_fields = [
+            "activation_policy",
+            "contract_json",
+        ]
+
+        for key in list_fields:
+            try:
+                row[key] = json.loads(row.get(key) or "[]")
+            except json.JSONDecodeError:
+                row[key] = []
+
+        for key in dict_fields:
+            try:
+                row[key] = json.loads(row.get(key) or "{}")
+            except json.JSONDecodeError:
+                row[key] = {}
+
         return row
 
     @staticmethod

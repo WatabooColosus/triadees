@@ -580,7 +580,7 @@ class TriadeRunner:
             created_by="primary_neuron_pipeline",
         )
 
-        neuron_id = registry.register(spec)
+        neuron_id = registry.register(spec, contract_payload=proposal)
         proposal["neuron_id"] = neuron_id
         return proposal
 
