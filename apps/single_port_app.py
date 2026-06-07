@@ -2234,11 +2234,11 @@ TRIADE_REACT_UI_HTML = r"""
 """
 
 
-@app.get("/", response_class=RedirectResponse)
-@app.get("/ui", response_class=RedirectResponse)
-def ui() -> RedirectResponse:
-    """Entrada principal: redirige a la consola limpia."""
-    return RedirectResponse(url="/api/ui/clean", status_code=307)
+@app.get("/", response_class=HTMLResponse)
+@app.get("/ui", response_class=HTMLResponse)
+def ui() -> str:
+    """Entrada principal pública: sirve la consola limpia sin cambiar la URL."""
+    return clean_ui()
 
 
 @app.get("/api/ui/legacy", response_class=HTMLResponse)
