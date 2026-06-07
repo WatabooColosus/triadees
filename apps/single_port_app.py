@@ -885,6 +885,189 @@ def system_pulse(sync_relay: bool = True, intent: str = "conversation", urgency:
 
 
 
+
+@app.get("/api/ui/clean", response_class=HTMLResponse)
+def clean_ui() -> str:
+    """Vista limpia experimental de la consola 8010.
+
+    Se alimenta desde /api/ui/manifest y endpoints vivos.
+    """
+    return """
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Tríade Ω · Consola limpia</title>
+<style>
+:root{color-scheme:dark;--bg:#090b10;--panel:#121722;--panel2:#171d28;--line:#293244;--text:#eef4ff;--muted:#9aa7bd;--ok:#82e69a;--warn:#ffd166;--bad:#ff7b7b;--accent:#7cc7ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif}
+.app{min-height:100vh;display:grid;grid-template-columns:310px minmax(420px,1fr) 380px}
+aside,main{min-width:0}.left,.right{background:var(--panel);border-color:var(--line);overflow:auto}.left{border-right:1px solid var(--line);padding:16px}.right{border-left:1px solid var(--line);padding:16px}
+.center{display:flex;flex-direction:column;background:#0b0f16}.top{border-bottom:1px solid var(--line);padding:14px 16px;display:flex;justify-content:space-between;gap:12px;align-items:center}
+h1{font-size:22px;margin:0}h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#cbd7ea;margin:0 0 10px}.muted,.small{color:var(--muted)}.small{font-size:12px;line-height:1.4}
+.section{border-top:1px solid var(--line);margin-top:15px;padding-top:13px}.card,.box{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.metric b{display:block;font-size:20px}.metric span{font-size:12px;color:var(--muted)}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.pill{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:4px 8px;margin:3px;font-size:12px}
+button,.btn{width:100%;border:0;border-radius:9px;padding:10px;margin-top:8px;background:var(--accent);color:#061018;font-weight:850;cursor:pointer;text-decoration:none;display:inline-flex;justify-content:center}
+button.secondary,.btn.secondary{background:#222b3a;color:var(--text);border:1px solid var(--line)}button:disabled{opacity:.45;cursor:not-allowed}
+label{display:block;font-size:12px;color:var(--muted);margin:10px 0 5px}input,select,textarea{width:100%;background:#171f2e;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:9px}textarea{resize:vertical;min-height:58px}
+.chat{flex:1;overflow:auto;padding:16px}.msg{padding:12px;border-radius:10px;margin:10px 0;white-space:pre-wrap;line-height:1.45}.user{background:#1d5fc0;margin-left:14%}.bot{background:#151d29;border:1px solid var(--line);margin-right:14%}.meta{font-size:12px;color:var(--muted);margin-top:7px}
+.composer{display:grid;grid-template-columns:1fr 110px;gap:10px;padding:14px;border-top:1px solid var(--line)}.composer button{margin:0}.log{white-space:pre-wrap;max-height:260px;overflow:auto;font-size:12px}
+@media(max-width:1100px){.app{grid-template-columns:1fr}.left,.right{border:0;border-bottom:1px solid var(--line)}.center{min-height:70vh}.composer{grid-template-columns:1fr}.user,.bot{margin-left:0;margin-right:0}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="left">
+    <h1>Tríade Ω</h1>
+    <p class="small">Consola limpia · datos vivos primero · sin botones falsos.</p>
+    <div id="session"></div>
+    <div id="actions"></div>
+    <div id="downloads"></div>
+  </aside>
+
+  <main class="center">
+    <div class="top">
+      <div><b>Chat local auditable</b><br><span id="status" class="muted">Cargando manifest...</span></div>
+      <div id="globalPills"></div>
+    </div>
+    <section id="chat" class="chat"></section>
+    <div class="composer">
+      <textarea id="msg" placeholder="Escribe... Ctrl+Enter"></textarea>
+      <button id="sendBtn">Enviar</button>
+    </div>
+  </main>
+
+  <aside class="right">
+    <section class="section"><h2>Estado vivo</h2><div id="live"></div></section>
+    <section class="section"><h2>Neuronas</h2><div id="neurons"></div></section>
+    <section class="section"><h2>Diagnóstico</h2><div id="diagnostics"></div></section>
+    <section class="section"><h2>Salida</h2><div id="box" class="box log">Sin consultar.</div></section>
+  </aside>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const state = {manifest:null, pulse:null, capacity:null, neurons:null, busy:false};
+function setStatus(t, ok=false){$('status').textContent=t; $('status').className=ok?'ok':'muted'}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+async function api(url, opts={}){const r=await fetch(url,opts);const j=await r.json();if(!r.ok)throw Error(j.detail||r.status);return j}
+function section(id){return state.manifest.sections.find(s=>s.id===id)}
+function field(id){return document.querySelector(`[data-field="${id}"]`)}
+
+function renderSession(){
+  const s=section('session');
+  $('session').innerHTML='<div class="section"><h2>'+esc(s.title)+'</h2>'+s.fields.map(f=>{
+    if(f.type==='select') return `<label>${esc(f.label)}</label><select data-field="${f.id}">${f.options.map(o=>`<option>${esc(o)}</option>`).join('')}</select>`;
+    if(f.type==='checkbox') return `<label><input data-field="${f.id}" type="checkbox"> ${esc(f.label)}</label>`;
+    return `<label>${esc(f.label)}</label><input data-field="${f.id}" type="${esc(f.type||'text')}">`;
+  }).join('')+'</div>';
+  const intent=field('intent'); if(intent) intent.value='conversation';
+  const urgency=field('urgency'); if(urgency) urgency.value='medium';
+  const auto=field('auto_select_models'); if(auto) auto.checked=true;
+}
+
+function renderActions(){
+  const s=section('actions');
+  $('actions').innerHTML='<div class="section"><h2>'+esc(s.title)+'</h2>'+s.items.map(a=>{
+    if(a.id==='send') return '';
+    return `<button class="secondary" disabled title="${esc(a.disabled_reason||'Acción no disponible')}">${esc(a.label)}</button><div class="small">${esc(a.disabled_reason||'')}</div>`;
+  }).join('')+'</div>';
+}
+
+function renderDownloads(){
+  const s=section('downloads');
+  $('downloads').innerHTML='<div class="section"><h2>'+esc(s.title)+'</h2>'+s.items.map(i=>`<a class="btn secondary" href="${esc(i.href)}">${esc(i.label)}</a>`).join('')+'</div>';
+}
+
+function renderLive(){
+  const p=state.pulse||{}, c=state.capacity||{};
+  const summary=p.summary||'Sin pulso';
+  const checks=(p.checks||[]).slice(0,6).map(x=>`<span class="pill ${x.level==='ok'?'ok':x.level==='error'?'bad':'warn'}">${esc(x.name)}: ${esc(x.level)}</span>`).join('');
+  const h=c.local?.hardware||{};
+  $('live').innerHTML=`<div class="grid">
+    <div class="card metric"><b>${esc(p.level||'?')}</b><span>${esc(summary)}</span></div>
+    <div class="card metric"><b>${esc(h.ram_available_gb??'?')}</b><span>GB RAM libre</span></div>
+  </div><div class="card">${checks||'<span class="muted">Sin checks.</span>'}</div>`;
+  $('globalPills').innerHTML=`<span class="pill ${p.level==='ok'?'ok':'warn'}">${esc(p.mode||'sin pulso')}</span>`;
+}
+
+function renderNeurons(){
+  const n=state.neurons||{};
+  const list=n.neurons||[];
+  $('neurons').innerHTML=`<div class="grid">
+    <div class="card metric"><b>${n.summary?.total_neurons??0}</b><span>Total</span></div>
+    <div class="card metric"><b>${n.summary?.ready_for_stable_review??0}</b><span>Ready stable</span></div>
+  </div>` + list.slice(0,6).map(x=>`<div class="card">
+    <b>${esc(x.name)}</b><br><span class="small">${esc(x.status)} · ${esc(x.domain)}</span>
+    <div class="small">act:${x.evidence?.activation_count||0} diag:${x.evidence?.diagnosis_count||0} tests:${x.evidence?.test_plan_count||0}</div>
+    ${(x.ui_actions||[]).map(a=>`<button class="secondary" disabled="${!a.enabled}" title="${esc(a.disabled_reason||'')}">${esc(a.label)}</button>`).join('')}
+  </div>`).join('');
+}
+
+function renderDiagnostics(){
+  const d=section('diagnostics');
+  $('diagnostics').innerHTML=d.items.map(i=>`<button class="secondary" onclick="runDiagnostic('${esc(i.id)}')">${esc(i.label)}</button>`).join('');
+}
+
+async function runDiagnostic(id){
+  const item=section('diagnostics').items.find(x=>x.id===id);
+  if(!item) return;
+  try{
+    setStatus('Consultando '+item.label+'...');
+    let opts={method:item.method||'GET',headers:{'Content-Type':'application/json'}};
+    if(item.method==='POST'){
+      opts.body=JSON.stringify({intent:field('intent')?.value||'conversation',urgency:field('urgency')?.value||'medium',wait_timeout:35});
+    }
+    const j=await api(item.endpoint,opts);
+    $('box').textContent=JSON.stringify(j,null,2);
+    setStatus(item.label+' OK',true);
+  }catch(e){$('box').textContent='Error: '+e.message;setStatus(item.label+' falló')}
+}
+
+function add(role,text,meta=''){
+  const div=document.createElement('div');
+  div.className='msg '+role;
+  div.textContent=text;
+  if(meta){const m=document.createElement('div');m.className='meta';m.textContent=meta;div.appendChild(m)}
+  $('chat').appendChild(div); $('chat').scrollTop=$('chat').scrollHeight;
+}
+
+async function send(){
+  const text=$('msg').value.trim(); if(!text||state.busy)return;
+  state.busy=true; $('sendBtn').disabled=true; $('msg').value=''; add('user',text); setStatus('Procesando...');
+  try{
+    const payload={text,source:'clean-ui',use_ollama:field('use_ollama')?.checked||false,auto_select_models:field('auto_select_models')?.checked||true,hypothalamus_model:field('hypothalamus_model')?.value||null,central_model:field('central_model')?.value||null,context:{intent:field('intent')?.value,urgency:field('urgency')?.value}};
+    const j=await api('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-TRIADE-API-Key':field('api_key')?.value||''},body:JSON.stringify(payload)});
+    add('bot',j.response||'(sin respuesta)',[j.run_id,j.models?.hypothalamus?.name,j.models?.central?.name].filter(Boolean).join(' · '));
+    setStatus('Respuesta recibida',true); await refresh();
+  }catch(e){add('bot','Error: '+e.message);setStatus('Error')}
+  state.busy=false; $('sendBtn').disabled=false;
+}
+
+async function refresh(){
+  try{
+    state.pulse=await api('/api/system/pulse?sync_relay=true');
+    state.capacity=await api('/api/system/model-capacity?sync_relay=true');
+    state.neurons=await api('/api/system/neurons?limit=50');
+    renderLive(); renderNeurons();
+  }catch(e){$('box').textContent='Refresh falló: '+e.message}
+}
+
+async function init(){
+  state.manifest=await api('/api/ui/manifest');
+  renderSession(); renderActions(); renderDownloads(); renderDiagnostics();
+  $('sendBtn').onclick=send; $('msg').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send()});
+  add('bot','Tríade Ω lista en vista limpia. Datos vivos primero, acciones humanas bloqueadas hasta endpoint real.');
+  await refresh(); setInterval(refresh,15000);
+}
+init().catch(e=>{setStatus('Error inicial: '+e.message);});
+</script>
+</body>
+</html>
+"""
+
 @app.get("/api/ui/manifest")
 def ui_manifest() -> dict[str, Any]:
     """Contrato dinámico de la interfaz 8010.
