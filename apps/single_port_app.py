@@ -28,6 +28,7 @@ from triade.core.system_pulse_builder import build_system_pulse as build_system_
 from triade.core.pulse_context import build_run_context_with_pulse
 from triade.core.neuron_candidate_governance import NeuronCandidateGovernance
 from triade.core.neuron_dashboard import build_neuron_dashboard
+from triade.core.ui_manifest import build_ui_manifest
 from triade.federation.contracts import (
     FederatedJobResultPayload,
     FederatedTransportDoctor,
@@ -882,6 +883,16 @@ def system_pulse(sync_relay: bool = True, intent: str = "conversation", urgency:
     return build_system_pulse(sync_relay=sync_relay, intent=intent, urgency=urgency)
 
 
+
+
+@app.get("/api/ui/manifest")
+def ui_manifest() -> dict[str, Any]:
+    """Contrato dinámico de la interfaz 8010.
+
+    No ejecuta acciones. Define secciones, endpoints y política visual.
+    """
+    LIFE_PULSE.record_action("ui_manifest")
+    return build_ui_manifest()
 
 @app.get("/api/system/neurons")
 def system_neurons(limit: int = 100) -> dict[str, Any]:
