@@ -997,6 +997,60 @@ function renderLive(){
   $('globalPills').innerHTML=`<span class="pill ${p.level==='ok'?'ok':'warn'}">${esc(p.mode||'sin pulso')}</span>`;
 }
 
+
+function fmt(v){
+  if(v===undefined||v===null||v==='') return '?';
+  if(typeof v==='number') return Math.round(v*100)/100;
+  return v;
+}
+
+function renderResources(){
+  const c=state.capacity||{}, local=c.local||{}, h=local.hardware||{}, ollama=local.ollama||{}, docker=local.docker||{};
+  const counts=local.counts||{};
+  $('resources').innerHTML=`<div class="grid">
+    <div class="card metric"><b>${esc(h.tier||'?')}</b><span>Tier local</span></div>
+    <div class="card metric"><b>${esc(fmt(h.ram_available_gb))}</b><span>GB RAM libre</span></div>
+    <div class="card metric"><b class="${ollama.ok?'ok':'warn'}">${ollama.ok?'activo':'pendiente'}</b><span>Ollama</span></div>
+    <div class="card metric"><b class="${docker.ok?'ok':'warn'}">${docker.ok?'activo':'pendiente'}</b><span>Docker</span></div>
+  </div>
+  <div class="card small">Modelos · recomendados: ${counts.recommended||0} · permitidos: ${counts.allowed||0} · bloqueados: ${counts.blocked||0}</div>`;
+}
+
+function renderFederation(){
+  const f=(state.capacity||{}).federation||{}, a=f.authorized||{}, nodes=f.online_feeders||[], hosts=f.llm_hosts||[];
+  $('federation').innerHTML=`<div class="grid">
+    <div class="card metric"><b>${nodes.length}</b><span>Nodos online</span></div>
+    <div class="card metric"><b>${hosts.length}</b><span>Hosts LLM Android</span></div>
+    <div class="card metric"><b>${fmt(a.cpu_authorized_count||0)}</b><span>CPU autorizada</span></div>
+    <div class="card metric"><b>${fmt(a.ram_authorized_gb||0)}</b><span>GB RAM autorizada</span></div>
+  </div>` + nodes.slice(0,4).map(n=>`<div class="card small"><b>${esc(n.name||n.node_id)}</b><br>RAM ${fmt(n.ram_authorized_gb)}/${fmt(n.ram_available_gb)} GB · score ${fmt(n.benchmark_score||0)} · ${n.can_host_llm?'host LLM':'feed/runtime'}</div>`).join('');
+}
+
+function renderModels(){
+  const local=(state.capacity||{}).local||{}, auth=((state.capacity||{}).federation||{}).authorized||{};
+  const recommended=local.recommended_models||[], allowed=local.allowed_models||[], aggregate=auth.runnable_by_aggregate_ram||[];
+  const pills=[...aggregate.map(m=>`<span class="pill ok">${esc(m.model)} por suma</span>`),...recommended.map(m=>`<span class="pill ok">${esc(m.model)}</span>`),...allowed.slice(0,8).map(m=>`<span class="pill">${esc(m.model)}</span>`)].join('');
+  const missing=(local.missing_for_comfortable_models||[]).slice(0,5).map(x=>`<div class="small">• ${esc(x)}</div>`).join('');
+  $('models').innerHTML=`<div class="card">${pills||'<span class="muted">Sin modelos listados.</span>'}</div><div class="card">${missing||'<span class="muted">Sin faltantes críticos listados.</span>'}</div>`;
+}
+
+async function renderMemory(){
+  try{
+    const j=await api('/api/semantic/governance/doctor');
+    const status=j.status||j.mode||'consultado';
+    const policy=j.policy||'stable_or_explicit_experimental_required';
+    $('memory').innerHTML=`<div class="card">
+      <b>Memoria semántica</b><br>
+      <span class="small">Estado: ${esc(status)}</span><br>
+      <span class="small">Política: ${esc(policy)}</span><br>
+      <span class="pill warn">sin stable = protección activa</span>
+    </div>`;
+  }catch(e){
+    $('memory').innerHTML=`<div class="card"><b>Memoria semántica</b><br><span class="small">Protegida o no disponible: ${esc(e.message)}</span></div>`;
+  }
+}
+
+
 function renderNeurons(){
   const n=state.neurons||{};
   const list=n.neurons||[];
@@ -1055,7 +1109,7 @@ async function refresh(){
     state.pulse=await api('/api/system/pulse?sync_relay=true');
     state.capacity=await api('/api/system/model-capacity?sync_relay=true');
     state.neurons=await api('/api/system/neurons?limit=50');
-    renderLive(); renderNeurons();
+    renderLive(); renderResources(); renderFederation(); renderModels(); await renderMemory(); renderNeurons();
   }catch(e){$('box').textContent='Refresh falló: '+e.message}
 }
 
