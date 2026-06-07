@@ -974,11 +974,21 @@ function renderSession(){
 
 function renderActions(){
   const s=section('actions');
-  $('actions').innerHTML='<div class="section"><h2>'+esc(s.title)+'</h2>'+s.items.map(a=>{
-    if(a.id==='send') return '';
-    return `<button class="secondary" disabled title="${esc(a.disabled_reason||'Acción no disponible')}">${esc(a.label)}</button><div class="small">${esc(a.disabled_reason||'')}</div>`;
-  }).join('')+'</div>';
+  const blocked=(s.items||[]).filter(a=>a.enabled===false);
+
+  $('actions').innerHTML=`<div class="section">
+    <h2>Acciones reales</h2>
+    <button onclick="refresh()">Actualizar estado</button>
+    <div class="small">Consulta pulso, recursos, modelos, federación, memoria y neuronas. No modifica estado.</div>
+
+    <h2 style="margin-top:14px">Acciones humanas bloqueadas</h2>
+    ${blocked.map(a=>`<div class="card small">
+      <b>${esc(a.label)}</b><br>
+      <span>${esc(a.disabled_reason||'Requiere endpoint real y confirmación humana.')}</span>
+    </div>`).join('') || '<div class="small">Sin acciones bloqueadas.</div>'}
+  </div>`;
 }
+
 
 function renderDownloads(){
   const s=section('downloads');
