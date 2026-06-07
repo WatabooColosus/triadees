@@ -66,9 +66,7 @@ def orchestrate_run_neurons(
 
     background_neuron_candidates = candidates_from_system_debt(
         pulse_summary=(input_packet.context or {}).get("system_pulse_summary"),
-        events=system_events,
         output_gate=output_gate,
-        edge_usage=edge_usage,
     )
     background_neuron_candidates = form_candidates(background_neuron_candidates)
 

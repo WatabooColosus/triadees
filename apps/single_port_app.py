@@ -973,19 +973,10 @@ function renderSession(){
 }
 
 function renderActions(){
-  const s=section('actions');
-  const blocked=(s.items||[]).filter(a=>a.enabled===false);
-
   $('actions').innerHTML=`<div class="section">
     <h2>Acciones reales</h2>
     <button onclick="refresh()">Actualizar estado</button>
-    <div class="small">Consulta pulso, recursos, modelos, federación, memoria y neuronas. No modifica estado.</div>
-
-    <h2 style="margin-top:14px">Acciones humanas bloqueadas</h2>
-    ${blocked.map(a=>`<div class="card small">
-      <b>${esc(a.label)}</b><br>
-      <span>${esc(a.disabled_reason||'Requiere endpoint real y confirmación humana.')}</span>
-    </div>`).join('') || '<div class="small">Sin acciones bloqueadas.</div>'}
+    <div class="small">Solo consulta datos vivos. No modifica memoria, neuronas ni repositorio.</div>
   </div>`;
 }
 
@@ -1067,12 +1058,27 @@ function renderNeurons(){
   $('neurons').innerHTML=`<div class="grid">
     <div class="card metric"><b>${n.summary?.total_neurons??0}</b><span>Total</span></div>
     <div class="card metric"><b>${n.summary?.ready_for_stable_review??0}</b><span>Ready stable</span></div>
-  </div>` + list.slice(0,6).map(x=>`<div class="card">
-    <b>${esc(x.name)}</b><br><span class="small">${esc(x.status)} · ${esc(x.domain)}</span>
-    <div class="small">act:${x.evidence?.activation_count||0} diag:${x.evidence?.diagnosis_count||0} tests:${x.evidence?.test_plan_count||0}</div>
-    ${(x.ui_actions||[]).map(a=>`<button class="secondary" disabled="${!a.enabled}" title="${esc(a.disabled_reason||'')}">${esc(a.label)}</button>`).join('')}
-  </div>`).join('');
+  </div>` + list.slice(0,8).map(x=>{
+    const actions=(x.ui_actions||[]).map(a=>{
+      const enabled=!!a.enabled;
+      const reason=a.disabled_reason||'Acción requiere endpoint real o revisión humana.';
+      return `<div class="card small">
+        <b>${esc(a.label)}</b><br>
+        <span class="${enabled?'ok':'warn'}">${enabled?'Disponible':'Bloqueada'}</span>
+        ${enabled?'':`<br><span>${esc(reason)}</span>`}
+      </div>`;
+    }).join('');
+
+    return `<div class="card">
+      <b>${esc(x.name)}</b><br>
+      <span class="small">${esc(x.status)} · ${esc(x.domain)}</span>
+      <div class="small">act:${x.evidence?.activation_count||0} · diag:${x.evidence?.diagnosis_count||0} · tests:${x.evidence?.test_plan_count||0}</div>
+      <div class="small">último run: ${esc(x.evidence?.last_run_id||'sin evidencia')}</div>
+      ${actions}
+    </div>`;
+  }).join('') || '<div class="card small">No hay neuronas registradas.</div>';
 }
+
 
 function renderDiagnostics(){
   const d=section('diagnostics');
@@ -1756,23 +1762,43 @@ def run_context_with_living_awareness(base_context: dict[str, Any]) -> dict[str,
 def run_triade(request: RunRequest, x_triade_api_key: str | None = Header(default=None)) -> dict[str, Any]:
     LIFE_PULSE.record_action("run")
     require_key(x_triade_api_key)
-    runner = TriadeRunner(
-        use_ollama=request.use_ollama,
-        hypothalamus_model=clean_model(request.hypothalamus_model),
-        central_model=clean_model(request.central_model),
-        auto_select_models=request.auto_select_models,
-    )
-    return runner.run(
-        request.text,
-        source=request.source,
-        context=run_context_with_living_awareness(request.context),
-        semantic_recall_enabled=request.semantic_recall_enabled,
-        semantic_model=clean_model(request.semantic_model),
-        semantic_limit=request.semantic_limit,
-        semantic_min_similarity=request.semantic_min_similarity,
-        semantic_domain=request.semantic_domain,
-        semantic_allow_experimental=request.semantic_allow_experimental,
-    )
+    try:
+        runner = TriadeRunner(
+            use_ollama=request.use_ollama,
+            hypothalamus_model=clean_model(request.hypothalamus_model),
+            central_model=clean_model(request.central_model),
+            auto_select_models=request.auto_select_models,
+        )
+        return runner.run(
+            request.text,
+            source=request.source,
+            context=run_context_with_living_awareness(request.context),
+            semantic_recall_enabled=request.semantic_recall_enabled,
+            semantic_model=clean_model(request.semantic_model),
+            semantic_limit=request.semantic_limit,
+            semantic_min_similarity=request.semantic_min_similarity,
+            semantic_domain=request.semantic_domain,
+            semantic_allow_experimental=request.semantic_allow_experimental,
+        )
+    except Exception as exc:
+        LIFE_PULSE.record_action("run_error")
+        return {
+            "status": "error",
+            "mode": "run_error",
+            "response": f"Error interno ejecutando Tríade: {exc}",
+            "error": str(exc),
+            "error_type": exc.__class__.__name__,
+            "system_events": [
+                {
+                    "type": "run_error",
+                    "severity": "error",
+                    "status": "failed",
+                    "message": str(exc),
+                    "action_required": "inspect_uvicorn_logs_and_runner",
+                }
+            ],
+            "truth": "El endpoint /api/run devolvió JSON de error para proteger la UI; revisar logs de uvicorn para traceback completo.",
+        }
 
 
 HTML = """
