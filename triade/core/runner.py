@@ -34,6 +34,7 @@ from .neuron_formation_pipeline import form_candidates
 from .neuron_activity_store import NeuronActivityStore
 from .run_artifacts import build_base_artifacts, write_run_artifacts, write_run_integrity
 from .run_neuron_orchestrator import orchestrate_run_neurons
+from .run_result import build_run_result
 
 
 class TriadeRunner:
@@ -318,7 +319,27 @@ class TriadeRunner:
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_quality_score": central_quality, "central_model_event_id": central_event_id, "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_selection": self.model_selection, "closed": True,
         }
         write_run_integrity(run_path=run_path, integrity=integrity)
-        return {"run_id": input_packet.run_id, "response": output.response, "system_events": system_events, "safety": safety.to_dict(), "report": report.to_dict(), "memory_diff": output.memory_diff, "semantic_recall": semantic_state, "crystal_temporal_state": temporal_state, "models": {"hypothalamus": {**hypothalamus_model_result, "quality_score": hypothalamus_quality, "event_id": hypothalamus_event_id}, "central": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error, "quality_score": central_quality, "event_id": central_event_id}}, "model": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok, "error": output.model_error}, "model_selection": self.model_selection, "neuron_proposal": neuron_proposal, "post_run_learning": post_run_learning, "background_neuron_candidates": background_neuron_candidates, "experimental_neuron_activity": experimental_neuron_activity, "output_gate": output_gate, "run_path": str(run_path)}
+        return build_run_result(
+            input_packet=input_packet,
+            output=output,
+            system_events=system_events,
+            safety=safety,
+            report=report,
+            semantic_state=semantic_state,
+            temporal_state=temporal_state,
+            hypothalamus_model_result=hypothalamus_model_result,
+            hypothalamus_quality=hypothalamus_quality,
+            hypothalamus_event_id=hypothalamus_event_id,
+            central_quality=central_quality,
+            central_event_id=central_event_id,
+            model_selection=self.model_selection,
+            neuron_proposal=neuron_proposal,
+            post_run_learning=post_run_learning,
+            background_neuron_candidates=background_neuron_candidates,
+            experimental_neuron_activity=experimental_neuron_activity,
+            output_gate=output_gate,
+            run_path=run_path,
+        )
 
     def _sanitize_user_response(self, response: str, user_input: str, intent: str) -> dict[str, Any]:
         text = (response or "").strip()
