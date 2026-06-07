@@ -1100,6 +1100,29 @@ async function runDiagnostic(id){
   }catch(e){$('box').textContent='Error: '+e.message;setStatus(item.label+' falló')}
 }
 
+
+function summarizeRunMeta(j){
+  const events=j.system_events||[];
+  const candidates=events.filter(e=>e.type==='background_neuron_candidate');
+  const grouped={};
+  for(const e of candidates){
+    const p=e.payload||{};
+    const domain=p.creator_spec?.domain||p.domain||'general';
+    grouped[domain]=(grouped[domain]||0)+1;
+  }
+  const candidateText=candidates.length
+    ? `candidatas ${candidates.length} (${Object.entries(grouped).map(([k,v])=>k+':'+v).join(', ')})`
+    : 'sin candidatas';
+
+  const safety=j.safety?.status ? `safety ${j.safety.status}` : '';
+  const report=j.report?.status ? `report ${j.report.status}` : '';
+  const h=j.models?.hypothalamus?.name ? `H ${j.models.hypothalamus.name}` : '';
+  const c=j.models?.central?.name ? `C ${j.models.central.name}` : '';
+
+  return [j.run_id,candidateText,safety,report,h,c].filter(Boolean).join(' · ');
+}
+
+
 function add(role,text,meta=''){
   const div=document.createElement('div');
   div.className='msg '+role;
@@ -1114,7 +1137,7 @@ async function send(){
   try{
     const payload={text,source:'clean-ui',use_ollama:field('use_ollama')?.checked||false,auto_select_models:field('auto_select_models')?.checked||true,hypothalamus_model:field('hypothalamus_model')?.value||null,central_model:field('central_model')?.value||null,context:{intent:field('intent')?.value,urgency:field('urgency')?.value}};
     const j=await api('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-TRIADE-API-Key':field('api_key')?.value||''},body:JSON.stringify(payload)});
-    add('bot',j.response||'(sin respuesta)',[j.run_id,j.models?.hypothalamus?.name,j.models?.central?.name].filter(Boolean).join(' · '));
+    add('bot',j.response||'(sin respuesta)',summarizeRunMeta(j));
     setStatus('Respuesta recibida',true); await refresh();
   }catch(e){add('bot','Error: '+e.message);setStatus('Error')}
   state.busy=false; $('sendBtn').disabled=false;
