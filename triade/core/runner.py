@@ -31,6 +31,7 @@ from .verification import Verifier
 from .edge_context import build_edge_context
 from .experimental_neuron_runtime import run_experimental_neurons
 from .neuron_formation_pipeline import form_candidates
+from .neuron_activity_store import NeuronActivityStore
 
 
 class TriadeRunner:
@@ -270,7 +271,13 @@ class TriadeRunner:
             edge_usage=edge_usage,
             system_events=system_events,
         )
+        neuron_activity_ids: list[int] = []
         if experimental_neuron_activity.get("active"):
+            neuron_activity_ids = NeuronActivityStore(db_path=self.db_path).record_run_activity(
+                input_packet.run_id,
+                experimental_neuron_activity,
+            )
+            experimental_neuron_activity["db_activity_ids"] = neuron_activity_ids
             system_events.append({
                 "type": "experimental_neuron_activity",
                 "severity": "info",
@@ -301,6 +308,7 @@ class TriadeRunner:
             })
         output.memory_diff["post_run_learning"] = post_run_learning
         output.memory_diff["experimental_neuron_activity"] = experimental_neuron_activity
+        output.memory_diff["neuron_activity_ids"] = neuron_activity_ids
         semantic_continuity = self._semantic_continuity(input_packet, output, signals.intent, crystal)
         output.memory_diff["semantic_continuity"] = semantic_continuity
         output.memory_diff["system_events"] = system_events
@@ -323,6 +331,7 @@ class TriadeRunner:
             "system_events": system_events,
             "background_neuron_candidates": background_neuron_candidates,
             "experimental_neuron_activity": experimental_neuron_activity,
+            "neuron_activity_ids": neuron_activity_ids,
             "output_gate": output_gate,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_quality_score": central_quality, "central_model_event_id": central_event_id, "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_selection": self.model_selection, "closed": True,

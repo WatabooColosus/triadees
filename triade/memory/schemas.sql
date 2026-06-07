@@ -72,6 +72,28 @@ CREATE TABLE IF NOT EXISTS neurons (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+
+CREATE TABLE IF NOT EXISTS neuron_activity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    neuron_id INTEGER,
+    name TEXT NOT NULL,
+    domain TEXT,
+    status TEXT,
+    activated INTEGER DEFAULT 1,
+    diagnosis_count INTEGER DEFAULT 0,
+    test_plan_count INTEGER DEFAULT 0,
+    policy TEXT,
+    activity_json TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (neuron_id) REFERENCES neurons(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_neuron_activity_run_id ON neuron_activity(run_id);
+CREATE INDEX IF NOT EXISTS idx_neuron_activity_name ON neuron_activity(name);
+CREATE INDEX IF NOT EXISTS idx_neuron_activity_neuron_id ON neuron_activity(neuron_id);
+CREATE INDEX IF NOT EXISTS idx_neuron_activity_created_at ON neuron_activity(created_at);
+
 CREATE TABLE IF NOT EXISTS neuron_training (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     neuron_id INTEGER NOT NULL,
