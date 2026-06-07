@@ -24,6 +24,7 @@ from triade.core.runner import TriadeRunner
 from triade.core.repo_info import repo_info
 from triade.core.experimental_neuron_evidence import build_experimental_evidence_ledger
 from triade.core.stable_promotion_readiness import evaluate_stable_readiness
+from triade.core.system_pulse_builder import build_system_pulse as build_system_pulse_core
 from triade.core.pulse_context import build_run_context_with_pulse
 from triade.core.neuron_candidate_governance import NeuronCandidateGovernance
 from triade.federation.contracts import (
@@ -817,115 +818,20 @@ def _stable_readiness_pulse() -> dict[str, Any]:
 
 
 def build_system_pulse(sync_relay: bool = True, intent: str = "conversation", urgency: str = "medium") -> dict[str, Any]:
-    capacity = build_model_capacity(sync_relay=sync_relay)
-    local = capacity["local"]
-    federation = capacity["federation"]
-    hardware = local["hardware"]
-    ollama = local["ollama"]
-    docker = local["docker"]
-    nodes = federation.get("online_feeders", [])
-    authorized = federation.get("authorized", {})
-    experimental_neurons = _experimental_neuron_pulse()
-    stable_readiness = _stable_readiness_pulse()
-    router = _safe_pulse(
-        "router",
-        lambda: _pulse_item(
-            "router",
-            True,
-            "Router disponible",
-            {"decisions": router_payload(intent=intent, urgency=urgency).get("router", {}).get("decisions", {})},
-        ),
+    return build_system_pulse_core(
+        sync_relay=sync_relay,
+        intent=intent,
+        urgency=urgency,
+        build_model_capacity_fn=build_model_capacity,
+        router_payload_fn=router_payload,
+        model_install_queue_fn=model_install_queue,
+        semantic_governance_doctor_fn=semantic_governance_doctor,
+        federated_transport_doctor_fn=federated_transport_doctor,
+        life_snapshot_fn=LIFE_PULSE.snapshot,
+        qualia_snapshot_fn=QUALIA.snapshot,
+        edge_llm_host_count_fn=_edge_llm_host_count,
+        edge_llm_host_snapshot_fn=_edge_llm_host_snapshot,
     )
-    compatibility = _safe_pulse(
-        "compatibility",
-        lambda: _pulse_item(
-            "compatibility",
-            True,
-            f"{local.get('counts', {}).get('recommended', 0)} modelos recomendados",
-            {"counts": local.get("counts", {}), "summary": local.get("model_matrix_summary", "")},
-            "ok" if local.get("counts", {}).get("recommended", 0) else "warn",
-        ),
-    )
-    queue = _safe_pulse(
-        "model_queue",
-        lambda: _pulse_item(
-            "model_queue",
-            True,
-            f"{model_install_queue(False).get('count', 0)} candidatos en cola segura",
-            {"auto_install": False},
-        ),
-    )
-    semantic = _safe_pulse(
-        "semantic_memory",
-        lambda: _pulse_item(
-            "semantic_memory",
-            True,
-            "Gobierno semantico activo",
-            {"doctor": semantic_governance_doctor()},
-        ),
-    )
-    transport = _safe_pulse(
-        "signed_transport",
-        lambda: _pulse_item(
-            "signed_transport",
-            True,
-            "HTTP firmado activo para nodos Android",
-            federated_transport_doctor(),
-        ),
-    )
-    checks = [
-        _pulse_item("ollama", bool(ollama.get("ok")), "Ollama activo" if ollama.get("ok") else "Ollama apagado o no responde", {"models": ollama.get("models", [])}, "ok" if ollama.get("ok") else "warn"),
-        _pulse_item("docker", bool(docker.get("ok")), "Docker activo" if docker.get("ok") else ("Docker instalado, motor pendiente" if docker.get("installed") else "Docker no disponible"), docker, "ok" if docker.get("ok") else "warn"),
-        _pulse_item("local_ram", float(hardware.get("ram_available_gb") or 0) >= 4, f"{hardware.get('ram_available_gb')} GB RAM libre local", {"missing": local.get("missing_for_comfortable_models", [])}, "ok" if float(hardware.get("ram_available_gb") or 0) >= 4 else "warn"),
-        _pulse_item("federation", len(nodes) > 0, f"{len(nodes)} nodos Android alimentando" if nodes else "Sin nodos Android nativos online", {"nodes": nodes, "authorized": authorized}, "ok" if nodes else "warn"),
-        _pulse_item(
-            "llm_android_host",
-            _edge_llm_host_count(authorized, federation) > 0,
-            f"{_edge_llm_host_count(authorized, federation)} hosts LLM Android reales",
-            {
-                "llm_hosts": federation.get("llm_hosts", []),
-                "edge_router_hosts": _edge_llm_host_snapshot(),
-                "source": "authorized_or_edge_router",
-            },
-            "ok" if _edge_llm_host_count(authorized, federation) > 0 else "warn",
-        ),
-        router,
-        compatibility,
-        queue,
-        semantic,
-        transport,
-        _pulse_item(
-            "experimental_neurons",
-            bool(experimental_neurons.get("ok")),
-            f"{(experimental_neurons.get('summary') or {}).get('experimental_neurons_with_evidence', 0)} neuronas experimentales con evidencia",
-            experimental_neurons,
-            "ok" if experimental_neurons.get("ok") else "warn",
-        ),
-        _pulse_item(
-            "stable_readiness",
-            bool(stable_readiness.get("ok")),
-            f"{(stable_readiness.get('summary') or {}).get('ready_for_stable_review', 0)} neuronas listas para revisión stable",
-            stable_readiness,
-            "ok" if stable_readiness.get("ok") else "warn",
-        ),
-    ]
-    alerts = [item for item in checks if not item["ok"] or item["level"] in {"warn", "error"}]
-    errors = [item for item in checks if item["level"] == "error"]
-    level = "ok" if not alerts else ("bad" if errors else "warn")
-    return {
-        "status": "ok" if not errors else "degraded",
-        "mode": "system-pulse",
-        "level": level,
-        "summary": "Todo activo" if level == "ok" else ("Degradado" if level == "bad" else "Activo con pendientes"),
-        "alerts": alerts,
-        "checks": checks,
-        "life": LIFE_PULSE.snapshot(),
-        "qualia": QUALIA.snapshot(refresh_life=False),
-        "capacity": capacity,
-        "experimental_neurons": experimental_neurons,
-        "stable_readiness": stable_readiness,
-        "truth": "Pulso unico: resume router, modelos, memoria, transporte, PC, nodos, vida operativa, neuronas experimentales y readiness stable sin auto-promoción; los botones tecnicos quedan como contadores inspeccionables.",
-    }
 
 
 @app.get("/health")
