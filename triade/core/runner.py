@@ -33,6 +33,7 @@ from .experimental_neuron_runtime import run_experimental_neurons
 from .neuron_formation_pipeline import form_candidates
 from .neuron_activity_store import NeuronActivityStore
 from .run_artifacts import build_base_artifacts, write_run_artifacts, write_run_integrity
+from .run_neuron_orchestrator import orchestrate_run_neurons
 
 
 class TriadeRunner:
@@ -261,55 +262,23 @@ class TriadeRunner:
         verification_id = self.bodega.store_verification_report(report)
         output.memory_diff["verification_report_id"] = verification_id
         post_run_learning = self._post_run_learning_candidate(input_packet, output, report, signals.intent)
-        system_events = self._build_system_events(memory, crystal, neuron_proposal, post_run_learning, output_gate)
-        system_events = self._filter_obsolete_edge_debt(system_events, edge_usage)
-
-        experimental_neuron_activity = run_experimental_neurons(
-            db_path=str(self.db_path),
-            user_input=input_packet.user_input,
-            context=input_packet.context or {},
+        neuron_orchestration = orchestrate_run_neurons(
+            runner=self,
+            db_path=self.db_path,
+            input_packet=input_packet,
             signals=signals,
-            edge_usage=edge_usage,
-            system_events=system_events,
-        )
-        neuron_activity_ids: list[int] = []
-        if experimental_neuron_activity.get("active"):
-            neuron_activity_ids = NeuronActivityStore(db_path=self.db_path).record_run_activity(
-                input_packet.run_id,
-                experimental_neuron_activity,
-            )
-            experimental_neuron_activity["db_activity_ids"] = neuron_activity_ids
-            system_events.append({
-                "type": "experimental_neuron_activity",
-                "severity": "info",
-                "status": "diagnostic_only",
-                "message": f"{experimental_neuron_activity.get('count')} neurona(s) experimental(es) activadas en modo diagnóstico.",
-                "action_required": "none",
-                "payload": experimental_neuron_activity,
-            })
-        background_neuron_candidates = candidates_from_system_debt(
-            pulse_summary=(input_packet.context or {}).get("system_pulse_summary"),
-            system_events=system_events,
-            output_gate=output_gate,
+            memory=memory,
+            crystal=crystal,
+            neuron_proposal=neuron_proposal,
             post_run_learning=post_run_learning,
+            output_gate=output_gate,
+            output=output,
+            edge_usage=edge_usage,
         )
-        background_neuron_candidates = self._filter_obsolete_edge_candidates(
-            background_neuron_candidates,
-            edge_usage,
-        )
-        background_neuron_candidates = form_candidates(background_neuron_candidates)
-        for candidate in background_neuron_candidates:
-            system_events.append({
-                "type": "background_neuron_candidate",
-                "severity": candidate.get("severity", "medium"),
-                "status": "requires_human_approval",
-                "message": f"Neurona candidata propuesta: {candidate.get('display_name') or candidate.get('name')}",
-                "action_required": "approve_or_reject_background_neuron",
-                "payload": candidate,
-            })
-        output.memory_diff["post_run_learning"] = post_run_learning
-        output.memory_diff["experimental_neuron_activity"] = experimental_neuron_activity
-        output.memory_diff["neuron_activity_ids"] = neuron_activity_ids
+        system_events = neuron_orchestration["system_events"]
+        experimental_neuron_activity = neuron_orchestration["experimental_neuron_activity"]
+        neuron_activity_ids = neuron_orchestration["neuron_activity_ids"]
+        background_neuron_candidates = neuron_orchestration["background_neuron_candidates"]
         semantic_continuity = self._semantic_continuity(input_packet, output, signals.intent, crystal)
         output.memory_diff["semantic_continuity"] = semantic_continuity
         output.memory_diff["system_events"] = system_events
