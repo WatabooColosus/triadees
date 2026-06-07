@@ -7,6 +7,19 @@ from triade.core.neuron_creator import NeuronSpec
 from triade.core.neuron_registry import NeuronRegistry
 
 
+def seed_run(db_path: Path, run_id: str) -> None:
+    import sqlite3
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO runs (run_id, user_input, status)
+            VALUES (?, ?, ?)
+            """,
+            (run_id, "test input", "ok"),
+        )
+
+
 def test_neuron_activity_store_persists_experimental_activations(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
 
@@ -42,6 +55,8 @@ def test_neuron_activity_store_persists_experimental_activations(tmp_path: Path)
             }
         ],
     }
+
+    seed_run(db_path, "run-test-activity")
 
     store = NeuronActivityStore(db_path=db_path)
     ids = store.store_activity(run_id="run-test-activity", activity=activity)
@@ -81,6 +96,8 @@ def test_neuron_activity_store_record_run_activity_alias(tmp_path: Path) -> None
             }
         ],
     }
+
+    seed_run(db_path, "run-alias-test")
 
     ids = store.record_run_activity("run-alias-test", activity)
 

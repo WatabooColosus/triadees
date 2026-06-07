@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS neuron_activity (
     policy TEXT,
     activity_json TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (run_id) REFERENCES runs(run_id),
     FOREIGN KEY (neuron_id) REFERENCES neurons(id)
 );
 
