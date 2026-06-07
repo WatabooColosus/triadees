@@ -941,6 +941,10 @@ label{display:block;font-size:12px;color:var(--muted);margin:10px 0 5px}input,se
 
   <aside class="right">
     <section class="section"><h2>Estado vivo</h2><div id="live"></div></section>
+    <section class="section"><h2>Recursos locales</h2><div id="resources"></div></section>
+    <section class="section"><h2>Federación Android</h2><div id="federation"></div></section>
+    <section class="section"><h2>Modelos</h2><div id="models"></div></section>
+    <section class="section"><h2>Gobierno de memoria</h2><div id="memory"></div></section>
     <section class="section"><h2>Neuronas</h2><div id="neurons"></div></section>
     <section class="section"><h2>Diagnóstico</h2><div id="diagnostics"></div></section>
     <section class="section"><h2>Salida</h2><div id="box" class="box log">Sin consultar.</div></section>
