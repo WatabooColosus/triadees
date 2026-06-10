@@ -1,7 +1,8 @@
-"""Memoria semántica persistente · Tríade Ω 1.9A/1.9E.
+"""Memoria semántica persistente · Tríade Ω 1.9A/1.9E/1.9F.
 
 Almacena documentos y vectores; desde 1.9E protege el estado gobernado de un
- documento para que una reingestión no degrade silenciosamente memoria aprobada.
+documento para que una reingestión no degrade silenciosamente memoria aprobada.
+1.9F: capa de compatibilidad, delete CRUD, list_documents consistente.
 """
 
 from __future__ import annotations
@@ -117,6 +118,7 @@ class SemanticMemoryStore:
                     source_type = excluded.source_type,
                     source_ref = excluded.source_ref,
                     metadata = excluded.metadata,
+                    status = excluded.status,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
@@ -175,6 +177,27 @@ class SemanticMemoryStore:
 
         return SemanticEmbedding(document_id, embedding_model.strip(), values, len(values), round(norm, 8), status)
 
+    def delete_document(self, document_id: str) -> bool:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM semantic_governance_events WHERE document_id = ?", (document_id,))
+            conn.execute("DELETE FROM semantic_embeddings WHERE document_id = ?", (document_id,))
+            cursor = conn.execute("DELETE FROM semantic_documents WHERE document_id = ?", (document_id,))
+            return cursor.rowcount > 0
+
+    def delete_embedding(self, document_id: str, embedding_model: str | None = None) -> int:
+        with self._connect() as conn:
+            if embedding_model:
+                cursor = conn.execute(
+                    "DELETE FROM semantic_embeddings WHERE document_id = ? AND embedding_model = ?",
+                    (document_id, embedding_model),
+                )
+            else:
+                cursor = conn.execute(
+                    "DELETE FROM semantic_embeddings WHERE document_id = ?",
+                    (document_id,),
+                )
+            return cursor.rowcount
+
     # =========================
     # 1.9F COMPATIBILITY LAYER
     # =========================
@@ -191,7 +214,7 @@ class SemanticMemoryStore:
         with self._connect() as conn:
             if limit is None:
                 rows = conn.execute(
-                    "SELECT * FROM semantic_documents ORDER BY id ASC"
+                    "SELECT * FROM semantic_documents ORDER BY id DESC"
                 ).fetchall()
             else:
                 rows = conn.execute(

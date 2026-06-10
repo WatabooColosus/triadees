@@ -6,7 +6,8 @@ import time
 
 from fastapi.testclient import TestClient
 
-from apps import single_port_app
+from apps import services, single_port_app
+from apps.routes import api as routes_api
 from apps.single_port_app import app, federated_model_plan
 from triade.federation.contracts import sign_payload
 
@@ -264,7 +265,7 @@ def test_federation_resource_lease_tracks_transports_and_resources() -> None:
 
 
 def test_single_port_android_apk_missing_until_artifact_is_copied(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(single_port_app, "ANDROID_APK_PATH", tmp_path / "missing.apk")
+    monkeypatch.setattr(services, "ANDROID_APK_PATH", tmp_path / "missing.apk")
 
     response = client.get("/downloads/triade-android-node.apk")
 
@@ -274,7 +275,7 @@ def test_single_port_android_apk_missing_until_artifact_is_copied(tmp_path, monk
 def test_single_port_serves_android_apk_when_artifact_exists(tmp_path, monkeypatch) -> None:
     apk = tmp_path / "triade-android-node.apk"
     apk.write_bytes(b"PK\x03\x04" + b"apk" * 1024)
-    monkeypatch.setattr(single_port_app, "ANDROID_APK_PATH", apk)
+    monkeypatch.setattr(services, "ANDROID_APK_PATH", apk)
 
     response = client.get("/downloads/triade-android-node.apk")
 
@@ -284,8 +285,8 @@ def test_single_port_serves_android_apk_when_artifact_exists(tmp_path, monkeypat
 
 
 def test_single_port_android_runtime_manifest_reports_missing_assets(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(single_port_app, "ANDROID_LLAMA_CLI_PATH", tmp_path / "missing-llama-cli")
-    monkeypatch.setattr(single_port_app, "ANDROID_BASE_MODEL_PATH", tmp_path / "missing-model.gguf")
+    monkeypatch.setattr(services, "ANDROID_LLAMA_CLI_PATH", tmp_path / "missing-llama-cli")
+    monkeypatch.setattr(services, "ANDROID_BASE_MODEL_PATH", tmp_path / "missing-model.gguf")
 
     response = client.get("/downloads/android/runtime-manifest")
 
@@ -301,8 +302,8 @@ def test_single_port_serves_android_runtime_assets(tmp_path, monkeypatch) -> Non
     model = tmp_path / "triade-base.gguf"
     llama.write_bytes(b"llama-bin")
     model.write_bytes(b"gguf-model")
-    monkeypatch.setattr(single_port_app, "ANDROID_LLAMA_CLI_PATH", llama)
-    monkeypatch.setattr(single_port_app, "ANDROID_BASE_MODEL_PATH", model)
+    monkeypatch.setattr(services, "ANDROID_LLAMA_CLI_PATH", llama)
+    monkeypatch.setattr(services, "ANDROID_BASE_MODEL_PATH", model)
 
     manifest = client.get("/downloads/android/runtime-manifest")
     llama_response = client.get("/downloads/android/llama-cli")
@@ -319,12 +320,12 @@ def test_single_port_serves_android_runtime_assets(tmp_path, monkeypatch) -> Non
 
 
 def test_single_port_accepts_local_android_node_heartbeat(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(single_port_app, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+    monkeypatch.setattr(services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
 
     def fake_upsert(node_id: str, name: str, capabilities: dict):
-        return {"node_id": node_id, "name": name, "capabilities": single_port_app.local_node_capabilities(node_id, capabilities)}
+        return {"node_id": node_id, "name": name, "capabilities": services.local_node_capabilities(node_id, capabilities)}
 
-    monkeypatch.setattr(single_port_app, "upsert_local_android_node", fake_upsert)
+    monkeypatch.setattr(services, "upsert_local_android_node", fake_upsert)
 
     register = client.post(
         "/api/register",
@@ -369,7 +370,7 @@ def test_single_port_accepts_local_android_node_heartbeat(tmp_path, monkeypatch)
 
 
 def test_single_port_local_job_cycle(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(single_port_app, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+    monkeypatch.setattr(services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
     single_port_app.LOCAL_JOBS.clear()
     node_id = "local-test-node"
     job = single_port_app.create_local_job(node_id, "browser_benchmark", seconds=1)
@@ -396,7 +397,7 @@ def test_single_port_local_job_cycle(tmp_path, monkeypatch) -> None:
 
 
 def test_signed_federated_transport_local_job_cycle(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(single_port_app, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+    monkeypatch.setattr(services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
     single_port_app.LOCAL_JOBS.clear()
     register = client.post("/api/register", json={"display_name": "Android firmado", "capabilities": {"native_android": True, "app_node": True}})
     identity = register.json()
@@ -436,7 +437,7 @@ def test_signed_federated_transport_local_job_cycle(tmp_path, monkeypatch) -> No
 
 
 def test_signed_federated_transport_rejects_bad_signature(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(single_port_app, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+    monkeypatch.setattr(services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
     single_port_app.LOCAL_JOBS.clear()
     register = client.post("/api/register", json={"display_name": "Android firmado", "capabilities": {"native_android": True, "app_node": True}})
     identity = register.json()
@@ -491,7 +492,7 @@ def test_distributed_runtime_preprocess_merges_android_results(monkeypatch) -> N
             },
         }
 
-    monkeypatch.setattr(single_port_app, "wait_local_job", fake_wait)
+    monkeypatch.setattr(routes_api, "wait_local_job", fake_wait)
     response = client.post(
         "/api/distributed-runtime/preprocess",
         json={"text": "triade federada alimenta modelo local con contexto distribuido", "wait_timeout": 1},
@@ -507,8 +508,8 @@ def test_distributed_runtime_preprocess_merges_android_results(monkeypatch) -> N
 
 
 def test_distributed_runtime_preprocess_falls_back_to_public_relay(monkeypatch) -> None:
-    monkeypatch.setattr(single_port_app, "local_federated_nodes", lambda task=None: [])
-    monkeypatch.setattr(single_port_app, "relay_settings", lambda: {"url": "https://relay.test", "admin_token": "token"})
+    monkeypatch.setattr(routes_api, "local_federated_nodes", lambda task=None: [])
+    monkeypatch.setattr(routes_api, "relay_settings", lambda: {"url": "https://relay.test", "admin_token": "token"})
 
     class FakeRelayClient:
         def __init__(self, url: str, admin_token: str, timeout: float = 12.0) -> None:
@@ -524,7 +525,7 @@ def test_distributed_runtime_preprocess_falls_back_to_public_relay(monkeypatch) 
                 "model_feed": {"ready_for_local_model": True, "keywords": [{"term": "relay", "count": 1}]},
             }
 
-    monkeypatch.setattr(single_port_app, "PublicRelayClient", FakeRelayClient)
+    monkeypatch.setattr(routes_api, "PublicRelayClient", FakeRelayClient)
     response = client.post(
         "/api/distributed-runtime/preprocess",
         json={"text": "relay alimenta triade", "wait_timeout": 1},
@@ -558,7 +559,7 @@ def test_distributed_runtime_probe_reports_remote_ops(monkeypatch) -> None:
             },
         }
 
-    monkeypatch.setattr(single_port_app, "wait_local_job", fake_wait)
+    monkeypatch.setattr(routes_api, "wait_local_job", fake_wait)
     response = client.post(
         "/api/distributed-runtime/probe",
         json={"prompt": "prueba runtime", "iterations": 5000, "wait_timeout": 1},
@@ -592,7 +593,7 @@ def test_distributed_runtime_android_model_doctor_reports_unavailable_backend(mo
             },
         }
 
-    monkeypatch.setattr(single_port_app, "wait_local_job", fake_wait)
+    monkeypatch.setattr(routes_api, "wait_local_job", fake_wait)
     response = client.post("/api/distributed-runtime/android-model-doctor", json={"wait_timeout": 1})
 
     assert response.status_code == 200
@@ -604,8 +605,8 @@ def test_distributed_runtime_android_model_doctor_reports_unavailable_backend(mo
 
 
 def test_android_local_generate_requires_real_llm_host(monkeypatch) -> None:
-    monkeypatch.setattr(single_port_app, "local_federated_nodes", lambda task=None: [])
-    monkeypatch.setattr(single_port_app, "relay_settings", lambda: {"url": "https://relay.test", "admin_token": None})
+    monkeypatch.setattr(routes_api, "local_federated_nodes", lambda task=None: [])
+    monkeypatch.setattr(routes_api, "relay_settings", lambda: {"url": "https://relay.test", "admin_token": None})
 
     response = client.post(
         "/api/distributed-runtime/android-local-generate",
@@ -650,7 +651,7 @@ def test_android_local_generate_uses_ready_local_host(monkeypatch) -> None:
             },
         }
 
-    monkeypatch.setattr(single_port_app, "wait_local_job", fake_wait)
+    monkeypatch.setattr(routes_api, "wait_local_job", fake_wait)
     response = client.post(
         "/api/distributed-runtime/android-local-generate",
         json={"prompt": "hola desde android", "model": "tiny.gguf", "max_tokens": 16, "wait_timeout": 5},

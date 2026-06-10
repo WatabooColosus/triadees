@@ -85,7 +85,11 @@ class SemanticMemoryGovernance:
                 "allowed_statuses": ["stable"], "allow_experimental": allow_experimental, "decisions": []}
             return memory
         vector = [m for m in memory.semantic_matches if m.get("retrieval_type") == "vector_similarity"]
-        legacy = [m for m in memory.semantic_matches if m.get("retrieval_type") != "vector_similarity"]
+        legacy = [dict(m) for m in memory.semantic_matches if m.get("retrieval_type") != "vector_similarity"]
+        # Anotar matches legacy: no pasaron por gobierno vectorial
+        for item in legacy:
+            item["governance_note"] = "legacy_keyword_no_governance"
+            item["allowed_to_influence"] = True
         accepted, held, decisions = [], [], []
         allowed_statuses = {"stable", *( ["experimental"] if allow_experimental else [] )}
         for match in vector:

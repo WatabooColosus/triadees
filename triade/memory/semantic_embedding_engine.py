@@ -162,9 +162,9 @@ class SemanticEmbeddingEngine:
         return {"document": document.to_dict(), "embedding_event": event.to_dict()}
 
     def embed_pending(self, limit: int = 20, model: str | None = None) -> dict[str, Any]:
-        documents = self.store.list_documents(limit=limit)
-        embedded = {item["document_id"] for item in self.store.list_embeddings()}
-        pending = [document for document in documents if document["document_id"] not in embedded]
+        pending = self.store.list_documents(limit=limit)
+        embedded_ids = {item["document_id"] for item in self.store.list_embeddings()}
+        pending = [d for d in pending if d["document_id"] not in embedded_ids]
         events = [self.embed_document(document["document_id"], model=model).to_dict() for document in pending]
         return {
             "status": "ok",
@@ -181,6 +181,6 @@ class SemanticEmbeddingEngine:
             "mode": "semantic-embedding-engine-1.9B",
             "selection": selection,
             "store": self.store.doctor(),
-            "runner_integration": "pending_1.9D",
-            "semantic_search": "pending_1.9C",
+            "runner_integration": "active_1.9F",
+            "semantic_search": "active_1.9F",
         }

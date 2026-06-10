@@ -55,7 +55,7 @@ class FakeGovernance:
 
 
 def test_api_run_passes_semantic_governance_configuration_to_runner() -> None:
-    with patch("apps.single_port_app.TriadeRunner", FakeRunner):
+    with patch("apps.routes.api.TriadeRunner", FakeRunner):
         response = client.post(
             "/api/run",
             json={
@@ -84,7 +84,7 @@ def test_api_run_passes_semantic_governance_configuration_to_runner() -> None:
 
 
 def test_governance_doctor_endpoint_exposes_policy() -> None:
-    with patch("apps.single_port_app.SemanticMemoryGovernance", return_value=FakeGovernance()):
+    with patch("apps.routes.api.SemanticMemoryGovernance", return_value=FakeGovernance()):
         response = client.get("/api/semantic/governance/doctor")
 
     assert response.status_code == 200
@@ -94,7 +94,7 @@ def test_governance_doctor_endpoint_exposes_policy() -> None:
 
 
 def test_transition_endpoint_promotes_document_with_evidence() -> None:
-    with patch("apps.single_port_app.SemanticMemoryGovernance", return_value=FakeGovernance()):
+    with patch("apps.routes.api.SemanticMemoryGovernance", return_value=FakeGovernance()):
         response = client.post(
             "/api/semantic/documents/sem-crystal/transition",
             json={

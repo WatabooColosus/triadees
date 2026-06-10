@@ -105,4 +105,4 @@ def test_doctor_reports_missing_ollama_or_embedding_model(tmp_path) -> None:
     assert unavailable["status"] == "warning"
     assert unavailable["selection"]["reason"] == "ollama_unavailable"
     assert no_model["selection"]["reason"] == "no_embedding_model_installed"
-    assert no_model["semantic_search"] == "pending_1.9C"
+    assert no_model["semantic_search"] == "active_1.9F"

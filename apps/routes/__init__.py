@@ -1,0 +1,1 @@
+"""Tríade Ω — Route handlers."""

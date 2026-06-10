@@ -65,7 +65,7 @@ class FakeSearchEngine:
 
 
 def test_semantic_doctor_endpoint_exposes_engine_status() -> None:
-    with patch("apps.single_port_app.SemanticEmbeddingEngine", return_value=FakeSemanticEngine()):
+    with patch("apps.routes.api.SemanticEmbeddingEngine", return_value=FakeSemanticEngine()):
         response = client.get("/api/semantic/doctor")
 
     assert response.status_code == 200
@@ -75,7 +75,7 @@ def test_semantic_doctor_endpoint_exposes_engine_status() -> None:
 
 
 def test_ingest_and_embed_endpoint_accepts_document_payload() -> None:
-    with patch("apps.single_port_app.SemanticEmbeddingEngine", return_value=FakeSemanticEngine()):
+    with patch("apps.routes.api.SemanticEmbeddingEngine", return_value=FakeSemanticEngine()):
         response = client.post(
             "/api/semantic/ingest-and-embed",
             json={
@@ -94,7 +94,7 @@ def test_ingest_and_embed_endpoint_accepts_document_payload() -> None:
 
 
 def test_embed_existing_document_endpoint_accepts_model() -> None:
-    with patch("apps.single_port_app.SemanticEmbeddingEngine", return_value=FakeSemanticEngine()):
+    with patch("apps.routes.api.SemanticEmbeddingEngine", return_value=FakeSemanticEngine()):
         response = client.post(
             "/api/semantic/documents/sem-existing/embed",
             json={"model": "qwen3-embedding:0.6b"},
@@ -108,7 +108,7 @@ def test_embed_existing_document_endpoint_accepts_model() -> None:
 
 
 def test_semantic_search_endpoint_exposes_ranked_matches() -> None:
-    with patch("apps.single_port_app.SemanticSearchEngine", return_value=FakeSearchEngine()):
+    with patch("apps.routes.api.SemanticSearchEngine", return_value=FakeSearchEngine()):
         response = client.post(
             "/api/semantic/search",
             json={

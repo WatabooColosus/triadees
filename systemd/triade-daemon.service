@@ -1,0 +1,40 @@
+# Tríade Ω Daemon · systemd service
+#
+# Vida en segundo plano: LifePulse + NodeLiveRegistry
+# Sin servidor web, solo el pulso vital y barrido de nodos.
+#
+# Instalación:
+#   sudo cp systemd/triade-daemon.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable triade-daemon
+#   sudo systemctl start triade-daemon
+#   sudo systemctl status triade-daemon
+#
+# Logs:
+#   journalctl -u triade-daemon -f
+#   cat ~/triadees/triade/logs/daemon.log
+
+[Unit]
+Description=Tríade Ω Daemon — background life pulse
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=santiago
+Group=santiago
+WorkingDirectory=/home/santiago/triadees
+Environment="PATH=/home/santiago/triadees/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/santiago/triadees/.venv/bin/python /home/santiago/triadees/scripts/triade_daemon.py --pulse-interval 60 --log-file /home/santiago/triadees/triade/logs/daemon.log --pid-file /home/santiago/triadees/triade/logs/daemon.pid
+Restart=always
+RestartSec=10
+TimeoutStopSec=10
+KillSignal=SIGTERM
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/home/santiago/triadees
+
+[Install]
+WantedBy=multi-user.target
