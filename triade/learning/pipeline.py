@@ -26,9 +26,10 @@ from uuid import uuid4
 from triade.core.contracts import utc_now
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore
+from triade.memory.trust_store import TrustLevelStore
 
 RISK_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
-VALID_SOURCE_TYPES = {"conversation", "document", "web", "repo", "model", "node", "tool"}
+VALID_SOURCE_TYPES = {"conversation", "document", "web", "repo", "model", "node", "tool", "federated_node"}
 # Frases que delatan un intento de alterar la identidad o memoria núcleo.
 IDENTITY_RED_FLAGS = (
     "modificar identidad",
@@ -217,17 +218,39 @@ class LearningPipeline:
     # 4. Consolidación (memoria estable vía gobernanza semántica)
     # ------------------------------------------------------------------
 
-    def consolidate(self, candidate_id: str, approved_by: str) -> dict[str, Any]:
-        approver = (approved_by or "").strip()
-        if not approver:
-            raise ValueError("La consolidación requiere aprobación humana explícita (approved_by).")
+    def consolidate(self, candidate_id: str, approved_by: str = "", auto_consolidate: bool = False) -> dict[str, Any]:
+        if not auto_consolidate:
+            approver = (approved_by or "").strip()
+            if not approver:
+                raise ValueError("La consolidación requiere aprobación humana explícita (approved_by).")
+
         row = self._require(candidate_id)
         if row["status"] != "verified":
             raise ValueError(f"Solo se consolida un candidato 'verified' (actual: {row['status']}).")
         if not row["source_ref"]:
             raise ValueError("No se consolida memoria estable sin source_ref.")
-        if str(row["risk_level"]) == "critical":
+        risk = str(row["risk_level"])
+        if risk == "critical":
             raise ValueError("No se consolida un candidato de riesgo crítico.")
+
+        if auto_consolidate:
+            trust = TrustLevelStore(db_path=self.db_path)
+            permissions = trust.get_permissions("consolidation")
+            risk_thresholds = {"low": 0.25, "medium": 0.50, "high": 0.80}
+            needed = risk_thresholds.get(risk, 1.0)
+            current_trust = trust.get_trust("consolidation")
+            perm_key = f"auto_consolidate_{risk}_risk"
+            allowed = permissions.get(perm_key, False) if risk in ("low", "medium", "high") else False
+            if not allowed:
+                raise ValueError(
+                    f"Trust insuficiente para auto-consolidar riesgo {risk}: "
+                    f"trust={current_trust:.2f}, necesario={needed:.2f}"
+                )
+            approver = f"trust-system@{risk}"
+        else:
+            approver = (approved_by or "").strip()
+            if not approver:
+                raise ValueError("La consolidación requiere aprobación humana explícita (approved_by).")
 
         document = self.semantic_store.upsert_document(
             content=str(row["content"]),
@@ -252,6 +275,8 @@ class LearningPipeline:
         consolidation = {
             "decision": "consolidated",
             "approved_by": approver,
+            "auto_consolidated": auto_consolidate,
+            "risk": risk,
             "semantic_document_id": document.document_id,
             "at": utc_now(),
         }
@@ -303,6 +328,16 @@ class LearningPipeline:
         with self._connect() as conn:
             for row in conn.execute("SELECT status, COUNT(*) AS c FROM learning_queue GROUP BY status").fetchall():
                 counts[str(row["status"])] = int(row["c"])
+        trust_info: dict[str, Any] = {"available": False}
+        try:
+            trust_store = TrustLevelStore(db_path=self.db_path)
+            trust_info = {
+                "available": True,
+                "consolidation_trust": trust_store.get_trust("consolidation"),
+                "permissions": trust_store.get_permissions("consolidation"),
+            }
+        except Exception:
+            pass
         return {
             "status": "ok",
             "mode": "learning-pipeline-C",
@@ -310,6 +345,8 @@ class LearningPipeline:
                 "consolidation_requires": ["status=verified", "human_approval", "source_ref", "risk!=critical"],
                 "identity_core_protected": True,
                 "stable_memory_via": "semantic_governance_1.9E",
+                "auto_consolidation": trust_info.get("permissions", {}).get("auto_consolidate_low_risk", False),
+                "trust_system": trust_info,
             },
             "candidates_by_status": counts,
         }

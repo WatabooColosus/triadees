@@ -1,7 +1,9 @@
 """Pulso vital operativo de Triade.
 
-Mantiene contadores y verificaciones periodicas en segundo plano. No consolida
-aprendizaje, no modifica identidad y no cambia codigo.
+Mantiene contadores y verificaciones periodicas en segundo plano.
+Desde Fase F integra estado emocional persistente: la fatiga decrece
+con el tiempo de descanso y el mood se refleja en el snapshot.
+No consolida aprendizaje, no modifica identidad y no cambia codigo.
 """
 
 from __future__ import annotations
@@ -13,6 +15,10 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from triade.memory.auto_identity_store import AutoIdentityStore
+from triade.memory.hypothalamus_store import HypothalamusStateStore, fatigue_decay
+from triade.memory.trust_store import TrustLevelStore
 
 from .runner import TriadeRunner
 from .self_reflection import SelfReflectionEngine
@@ -36,6 +42,7 @@ class LifePulseEngine:
     _last_reflection: dict[str, Any] = field(default_factory=dict, init=False)
     _counters: Counter[str] = field(default_factory=Counter, init=False)
     _actions: Counter[str] = field(default_factory=Counter, init=False)
+    _stream_of_consciousness: list[dict[str, Any]] = field(default_factory=list, init=False)
 
     @classmethod
     def from_env(cls) -> "LifePulseEngine":
@@ -66,6 +73,10 @@ class LifePulseEngine:
     def tick(self) -> dict[str, Any]:
         started = time.time()
         try:
+            self._update_emotional_rest()
+            auto_id = self._check_auto_identity()
+            self._recompute_trust()
+            self._generate_thought()
             integrity = self._check_integrity()
             reflection = SelfReflectionEngine(db_path=self.db_path).reflect(limit=self.reflection_limit)
             elapsed_ms = int((time.time() - started) * 1000)
@@ -76,6 +87,7 @@ class LifePulseEngine:
                 self._counters["reflection_checks"] += 1
                 self._counters["learning_candidates_seen"] = len(reflection.get("learning_candidates", {}).get("candidate_themes", []))
                 self._counters["neuron_proposals_seen"] = len(reflection.get("neuron_proposals", []))
+                self._counters["auto_identity_traits"] = auto_id.get("active_count", 0) if auto_id else 0
                 self._last_tick_at = time.time()
                 self._last_error = None
                 self._last_integrity = integrity
@@ -116,6 +128,10 @@ class LifePulseEngine:
             "actions": actions,
             "integrity": integrity,
             "reflection": reflection,
+            "emotional_state": self._get_emotional_state(),
+            "stream_of_consciousness": list(self._stream_of_consciousness),
+            "auto_identity": self._get_auto_identity(),
+            "trust_levels": self._get_trust_levels(),
             "policy": {
                 "background_learning": "candidate_detection_only",
                 "identity_core_modified": False,
@@ -145,6 +161,93 @@ class LifePulseEngine:
             "counts": {key: counts.get(key, 0) for key in required_counts},
             "crystal_quality": doctor.get("crystal_quality", {}),
         }
+
+    def _generate_thought(self) -> None:
+        try:
+            emotion = self._get_emotional_state().get("latest")
+            mood_label = emotion.get("primary_emotion", "neutral") if emotion else "neutral"
+            fatigue = emotion.get("fatigue", 0.0) if emotion else 0.0
+
+            thought_parts = [f"Mood: {mood_label}"]
+            if fatigue > 0.5:
+                thought_parts.append("fatiga notable")
+
+            auto_id = self._get_auto_identity()
+            if auto_id.get("active_count", 0) > 0:
+                thought_parts.append(f"identidad evolutiva: {auto_id['active_count']} rasgos")
+
+            reflection = self._last_reflection or {}
+            obs = reflection.get("observations", [])
+            if obs:
+                thought_parts.append(str(obs[0])[:80])
+
+            proposals = reflection.get("neuron_proposals", [])
+            if proposals:
+                thought_parts.append(f"propone {len(proposals)} neuronas")
+
+            counters = self._counters
+            cycles = counters.get("cycles", 0)
+            thought_parts.append(f"ciclo {cycles}")
+
+            thought = " · ".join(thought_parts)
+            now = time.time()
+
+            entry = {"thought": thought, "timestamp": now, "elapsed_since_last": None}
+            if self._stream_of_consciousness:
+                last = self._stream_of_consciousness[-1]["timestamp"]
+                entry["elapsed_since_last"] = round(now - last, 1)
+
+            with self._lock:
+                self._stream_of_consciousness.append(entry)
+                if len(self._stream_of_consciousness) > 10:
+                    self._stream_of_consciousness = self._stream_of_consciousness[-10:]
+                self._counters["thoughts_generated"] += 1
+        except Exception:
+            pass
+
+    def _recompute_trust(self) -> None:
+        try:
+            TrustLevelStore(db_path=self.db_path).recompute_all()
+        except Exception:
+            pass
+
+    def _get_trust_levels(self) -> dict[str, Any]:
+        try:
+            return TrustLevelStore(db_path=self.db_path).doctor()
+        except Exception as exc:
+            return {"status": "error", "error": str(exc)}
+
+    def _check_auto_identity(self) -> dict[str, Any] | None:
+        try:
+            store = AutoIdentityStore(db_path=self.db_path)
+            return store.doctor()
+        except Exception:
+            return None
+
+    def _get_auto_identity(self) -> dict[str, Any]:
+        try:
+            store = AutoIdentityStore(db_path=self.db_path)
+            return store.doctor()
+        except Exception as exc:
+            return {"status": "error", "error": str(exc)}
+
+    def _update_emotional_rest(self) -> None:
+        try:
+            store = HypothalamusStateStore(db_path=self.db_path)
+            latest = store.load_latest()
+            if latest is not None and latest.fatigue > 0.0:
+                decayed = fatigue_decay(latest.fatigue, float(self.interval_seconds))
+                if decayed != latest.fatigue:
+                    store.update_fatigue(decayed)
+        except Exception:
+            pass
+
+    def _get_emotional_state(self) -> dict[str, Any]:
+        try:
+            store = HypothalamusStateStore(db_path=self.db_path)
+            return store.doctor()
+        except Exception as exc:
+            return {"status": "error", "error": str(exc)}
 
     @staticmethod
     def _summarize_reflection(reflection: dict[str, Any]) -> dict[str, Any]:

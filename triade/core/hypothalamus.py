@@ -1,24 +1,48 @@
-"""Hipotálamo Emocional · MVP with optional model signals."""
+"""Hipotálamo Emocional · MVP with optional model signals.
+
+Desde Fase F incluye estado emocional persistente: mood (VAD),
+fatiga y línea base de PV-7 cargada desde hypothalamus_state.
+"""
 
 from __future__ import annotations
 
 import json
 from typing import Any
 
+from triade.memory.hypothalamus_store import HypothalamusStateStore, EmotionalState, mood_from_signals
 from triade.models.ollama_client import OllamaClient
 
 from .contracts import InputPacket, RiskLevel, SignalPacket, Urgency
+
+
+MOOD_PV7_MODULATION: dict[str, dict[str, float]] = {
+    "fatigued": {"diligencia": 0.85, "paciencia": 1.15},
+    "engaged": {"diligencia": 1.1, "generosidad": 1.1},
+    "anxious": {"diligencia": 1.15, "paciencia": 0.85, "templanza": 0.8},
+    "calm": {"paciencia": 1.1, "templanza": 1.1},
+    "withdrawn": {"generosidad": 0.85, "caridad": 0.85, "diligencia": 0.85},
+    "positive": {"generosidad": 1.1, "caridad": 1.1, "respeto": 1.05},
+    "cautious": {"paciencia": 1.05, "templanza": 1.05, "diligencia": 1.1},
+}
 
 
 class Hypothalamus:
     """Analizador de intención, tono, urgencia, riesgo y PV-7.
 
     Usa modelo local si está disponible y conserva fallback por reglas.
+    Desde Fase F mantiene estado emocional persistente.
     """
 
-    def __init__(self, model_client: OllamaClient | None = None, model_name: str = "qwen2.5:3b-instruct") -> None:
+    def __init__(
+        self,
+        model_client: OllamaClient | None = None,
+        model_name: str = "qwen2.5:3b-instruct",
+        state_store: HypothalamusStateStore | None = None,
+    ) -> None:
         self.model_client = model_client
         self.model_name = model_name
+        self.state_store = state_store
+        self._cached_mood: EmotionalState | None = None
         self.last_model_result: dict[str, Any] = {
             "provider": "rules",
             "name": "rules-fallback",
@@ -26,8 +50,22 @@ class Hypothalamus:
             "error": None,
         }
 
+    @property
+    def mood(self) -> EmotionalState | None:
+        if self._cached_mood is None and self.state_store is not None:
+            self._cached_mood = self.state_store.load_latest()
+        return self._cached_mood
+
+    def load_mood(self) -> EmotionalState | None:
+        loaded = None
+        if self.state_store is not None:
+            loaded = self.state_store.load_latest()
+        self._cached_mood = loaded
+        return loaded
+
     def analyze(self, packet: InputPacket) -> SignalPacket:
-        fallback = self._analyze_rules(packet)
+        current_mood = self.load_mood()
+        fallback = self._analyze_rules(packet, mood=current_mood)
 
         if self.model_client is None:
             self.last_model_result = {
@@ -36,7 +74,7 @@ class Hypothalamus:
                 "ok": False,
                 "error": None,
             }
-            return fallback
+            return self._save_and_return(packet.run_id, fallback, current_mood)
 
         system = (
             "Eres el Hipotálamo Emocional de Tríade. "
@@ -59,7 +97,7 @@ class Hypothalamus:
                 "error": result.error,
             }
             fallback.notes.append("Hipotálamo usó fallback por reglas porque Ollama no generó señales.")
-            return fallback
+            return self._save_and_return(packet.run_id, fallback, current_mood)
 
         parsed = self._parse_model_json(result.text)
         if parsed is None:
@@ -70,7 +108,7 @@ class Hypothalamus:
                 "error": "Respuesta del modelo no fue JSON válido para señales.",
             }
             fallback.notes.append("Hipotálamo usó fallback por reglas porque el JSON del modelo no fue válido.")
-            return fallback
+            return self._save_and_return(packet.run_id, fallback, current_mood)
 
         self.last_model_result = {
             "provider": "ollama",
@@ -79,7 +117,7 @@ class Hypothalamus:
             "error": None,
         }
 
-        return SignalPacket(
+        signals = SignalPacket(
             run_id=packet.run_id,
             intent=self._safe_intent(parsed.get("intent"), fallback.intent),
             tone=str(parsed.get("tone") or fallback.tone),
@@ -88,8 +126,15 @@ class Hypothalamus:
             pv7=self._safe_pv7(parsed.get("pv7"), fallback.pv7),
             notes=self._safe_notes(parsed.get("notes")) + ["Señales generadas por Hipotálamo con modelo local Ollama."],
         )
+        return self._save_and_return(packet.run_id, signals, current_mood)
 
-    def _analyze_rules(self, packet: InputPacket) -> SignalPacket:
+    def _save_and_return(self, run_id: str, signals: SignalPacket, previous_mood: EmotionalState | None) -> SignalPacket:
+        if self.state_store is not None:
+            self.state_store.save(run_id, signals, previous=previous_mood)
+            self._cached_mood = self.state_store.load_latest()
+        return signals
+
+    def _analyze_rules(self, packet: InputPacket, mood: EmotionalState | None = None) -> SignalPacket:
         text = packet.user_input.lower().strip()
 
         urgency = "high" if any(word in text for word in ["urgente", "ya", "rápido", "error", "falló"]) else "medium"
@@ -104,7 +149,8 @@ class Hypothalamus:
         else:
             intent = "conversation"
 
-        tone = "constructive"
+        tone = self._mood_modulate_tone(mood)
+
         pv7 = {
             "humildad": 0.7,
             "generosidad": 0.7,
@@ -114,11 +160,14 @@ class Hypothalamus:
             "caridad": 0.7,
             "diligencia": 0.8,
         }
+        pv7 = self._mood_modulate_pv7(pv7, mood)
 
         notes = [
             "Señales generadas por reglas MVP.",
             "PV-7 inclinado hacia virtudes operativas.",
         ]
+        if mood:
+            notes.append(f"Mood activo: {mood.primary_emotion} (fatiga={mood.fatigue:.2f})")
 
         return SignalPacket(
             run_id=packet.run_id,
@@ -129,6 +178,30 @@ class Hypothalamus:
             pv7=pv7,
             notes=notes,
         )
+
+    def _mood_modulate_tone(self, mood: EmotionalState | None) -> str:
+        if mood is None:
+            return "constructive"
+        if mood.fatigue > 0.6:
+            return "cautious"
+        if mood.primary_emotion in ("anxious", "withdrawn"):
+            return "cautious"
+        if mood.primary_emotion == "positive" and mood.valence > 0.4:
+            return "encouraging"
+        if mood.primary_emotion in ("engaged", "excited"):
+            return "constructive"
+        return "constructive"
+
+    def _mood_modulate_pv7(self, base: dict[str, float], mood: EmotionalState | None) -> dict[str, float]:
+        if mood is None:
+            return base
+        mod = MOOD_PV7_MODULATION.get(mood.primary_emotion, {})
+        result = dict(base)
+        for key, factor in mod.items():
+            if key in result:
+                clamped = max(0.0, min(1.0, result[key] * factor))
+                result[key] = clamped
+        return result
 
     @staticmethod
     def _parse_model_json(text: str) -> dict[str, Any] | None:

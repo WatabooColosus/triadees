@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from triade.memory.auto_identity_store import AutoIdentityStore
+
 from .life_pulse import LIFE_PULSE, LifePulseEngine
 
 
@@ -77,6 +79,12 @@ class QualiaEngine:
                 return {}
             rows = conn.execute("SELECT key, value, category FROM identity_core ORDER BY id").fetchall()
         values = {str(row["key"]): str(row["value"]) for row in rows}
+        auto_store = AutoIdentityStore(db_path=self.db_path)
+        auto_traits = auto_store.load_active()
+        evolved = {
+            t["trait_key"]: {"value": t["trait_value"], "confidence": t["confidence"], "evidence": t["evidence_count"]}
+            for t in auto_traits
+        }
         return {
             "entity_name": values.get("entity_name", "Tríade Ω"),
             "core_mission": values.get("core_mission"),
@@ -86,6 +94,8 @@ class QualiaEngine:
             ],
             "creator_origin": values.get("creator_origin"),
             "claim": values.get("claim"),
+            "evolved_traits": evolved,
+            "evolved_trait_count": len(evolved),
         }
 
     def _semantic_alignment(self) -> dict[str, Any]:

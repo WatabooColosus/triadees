@@ -246,6 +246,36 @@ CREATE TABLE IF NOT EXISTS verification_reports (
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 
+CREATE TABLE IF NOT EXISTS trust_levels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain TEXT NOT NULL UNIQUE,
+    trust_level REAL DEFAULT 0.0,
+    criteria_avg_reward REAL DEFAULT 0.0,
+    criteria_verification_pass_rate REAL DEFAULT 0.0,
+    criteria_error_rate REAL DEFAULT 0.0,
+    criteria_run_count INTEGER DEFAULT 0,
+    last_updated TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR IGNORE INTO trust_levels (domain, trust_level) VALUES ('consolidation', 0.0);
+INSERT OR IGNORE INTO trust_levels (domain, trust_level) VALUES ('code_modification', 0.0);
+INSERT OR IGNORE INTO trust_levels (domain, trust_level) VALUES ('identity_evolution', 0.0);
+
+CREATE TABLE IF NOT EXISTS reinforcement_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    reward REAL DEFAULT 0.0,
+    hypothalamus_quality REAL DEFAULT 0.0,
+    central_quality REAL DEFAULT 0.0,
+    coherence_score REAL DEFAULT 0.0,
+    mood_valence_before REAL,
+    mood_valence_after REAL,
+    fatigue_before REAL,
+    fatigue_after REAL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (run_id) REFERENCES runs(run_id)
+);
+
 CREATE TABLE IF NOT EXISTS goals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
@@ -266,8 +296,36 @@ CREATE INDEX IF NOT EXISTS idx_neurons_status ON neurons(status);
 CREATE INDEX IF NOT EXISTS idx_verification_reports_run_id ON verification_reports(run_id);
 CREATE INDEX IF NOT EXISTS idx_model_events_run_id ON model_events(run_id);
 CREATE INDEX IF NOT EXISTS idx_model_events_role ON model_events(role);
+CREATE TABLE IF NOT EXISTS hypothalamus_state (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    mood_valence REAL DEFAULT 0.0,
+    mood_arousal REAL DEFAULT 0.0,
+    mood_dominance REAL DEFAULT 0.0,
+    primary_emotion TEXT DEFAULT 'neutral',
+    fatigue REAL DEFAULT 0.0,
+    pv7_baseline TEXT,
+    run_count INTEGER DEFAULT 0,
+    last_active_at TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (run_id) REFERENCES runs(run_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_crystal_states_run_id ON crystal_states(run_id);
 -- Índices sobre columnas migrables del Cristal se crean en Bodega tras asegurar columnas.
+
+CREATE TABLE IF NOT EXISTS auto_identity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trait_key TEXT NOT NULL UNIQUE,
+    trait_value TEXT NOT NULL,
+    category TEXT DEFAULT 'discovered',
+    source_ref TEXT,
+    confidence REAL DEFAULT 0.3,
+    status TEXT DEFAULT 'candidate',
+    evidence_count INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 
 INSERT OR IGNORE INTO identity_core (key, value, category, confidence)
 VALUES
