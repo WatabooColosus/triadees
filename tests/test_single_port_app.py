@@ -541,13 +541,13 @@ def test_distributed_runtime_preprocess_falls_back_to_public_relay(monkeypatch) 
 def test_distributed_runtime_probe_reports_remote_ops(monkeypatch) -> None:
     single_port_app.LOCAL_JOBS.clear()
     monkeypatch.setattr(
-        single_port_app,
+        routes_api,
         "local_federated_nodes",
         lambda task=None: [{"node_id": "android-a", "capabilities": {"allowed_tasks": ["federated_inference_probe"]}}],
     )
 
     def fake_wait(job_id: str, timeout: float = 25.0, interval: float = 0.5):
-        job = single_port_app.LOCAL_JOBS[job_id]
+        job = services.LOCAL_JOBS[job_id]
         return {
             **job,
             "status": "completed",
@@ -575,13 +575,13 @@ def test_distributed_runtime_probe_reports_remote_ops(monkeypatch) -> None:
 
 def test_distributed_runtime_android_model_doctor_reports_unavailable_backend(monkeypatch) -> None:
     monkeypatch.setattr(
-        single_port_app,
+        routes_api,
         "local_federated_nodes",
         lambda task=None: [{"node_id": "android-a", "capabilities": {"allowed_tasks": ["android_model_doctor"]}}],
     )
 
     def fake_wait(job_id: str, timeout: float = 25.0, interval: float = 0.5):
-        job = single_port_app.LOCAL_JOBS[job_id]
+        job = services.LOCAL_JOBS[job_id]
         return {
             **job,
             "status": "completed",
@@ -620,7 +620,7 @@ def test_android_local_generate_requires_real_llm_host(monkeypatch) -> None:
 def test_android_local_generate_uses_ready_local_host(monkeypatch) -> None:
     single_port_app.LOCAL_JOBS.clear()
     monkeypatch.setattr(
-        single_port_app,
+        routes_api,
         "local_federated_nodes",
         lambda task=None: [
             {
@@ -636,7 +636,7 @@ def test_android_local_generate_uses_ready_local_host(monkeypatch) -> None:
     )
 
     def fake_wait(job_id: str, timeout: float = 25.0, interval: float = 0.5):
-        job = single_port_app.LOCAL_JOBS[job_id]
+        job = services.LOCAL_JOBS[job_id]
         return {
             **job,
             "status": "completed",
