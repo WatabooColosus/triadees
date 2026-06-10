@@ -20,15 +20,13 @@ def test_single_port_ui_serves_html() -> None:
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "Tríade Ω Single Port" in response.text
+    assert "Tríade Ω · Consola limpia" in response.text
     assert "/api/run" in response.text
-    assert "/api/router/doctor" in response.text
-    assert "Pulso vivo" in response.text
-    assert "Herramientas ocasionales" in response.text
-    assert "/downloads/triade-android-node.apk" in response.text
-    assert "/api/system/model-capacity" in response.text
-    assert "/api/system/life" in response.text
-    assert "/api/system/qualia" in response.text
+    assert "Estado vivo" in response.text
+    assert "Recursos locales" in response.text
+    assert "Federación Android" in response.text
+    assert "/api/system/pulse?sync_relay=true" in response.text
+    assert "/api/system/model-capacity?sync_relay=true" in response.text
 
 
 def test_single_port_health() -> None:
