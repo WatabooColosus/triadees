@@ -272,7 +272,7 @@ def create_local_job(
 
 
 def wait_local_job(
-    job_id: str, timeout: float = 25.0, interval: float = 0.5
+    job_id: str, timeout: float = 25.0, interval: float = 0.5, sandbox_fallback: bool = True
 ) -> dict[str, Any]:
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -281,10 +281,39 @@ def wait_local_job(
             return job
         time.sleep(interval)
     job = LOCAL_JOBS.get(job_id) or {"job_id": job_id}
+    # Si nadie recogio el job y es sandbox, ejecutarlo localmente en aislamiento
+    if sandbox_fallback and job.get("task") in SAFE_SANDBOX_TASKS:
+        from triade.sandbox import run_in_sandbox
+
+        sb = run_in_sandbox(job["task"], job.get("payload"), timeout=max(timeout, 15.0))
+        if sb.get("sha256"):
+            job["result"] = {"sha256": sb["sha256"]}
+            job["status"] = "completed"
+        elif sb.get("score"):
+            job["result"] = {"score": sb["score"], "ops": sb.get("ops", 0)}
+            job["status"] = "completed"
+        elif sb.get("word_count") is not None:
+            job["result"] = {"word_count": sb["word_count"], "char_count": sb["char_count"], "approx_tokens": sb["approx_tokens"]}
+            job["status"] = "completed"
+        elif sb.get("ops"):
+            job["result"] = {"ops": sb["ops"]}
+            job["status"] = "completed"
+        elif sb.get("status") == "completed":
+            job["result"] = sb
+            job["status"] = "completed"
+        else:
+            job["status"] = "sandbox_error"
+            job["error"] = sb.get("error", "sandbox_fallback_failed")
+        job["sandbox"] = sb.get("sandbox")
+        job["updated_at"] = time.time()
+        LOCAL_JOBS[job_id] = job
+        return job
     job["status"] = "timeout"
     job["error"] = "Tiempo de espera agotado esperando al nodo local."
     return job
 
+
+SAFE_SANDBOX_TASKS = frozenset({"sha256", "echo", "preprocess_text", "federated_inference_probe", "browser_benchmark"})
 
 TASK_PERMISSIONS: dict[str, str] = {
     "browser_benchmark": "request_compute",

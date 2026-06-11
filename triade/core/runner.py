@@ -225,7 +225,7 @@ class TriadeRunner:
         output.response = output_gate["response"]
         central_quality = self._score_central(output.response, output.model_ok)
         neuron_proposal = None
-        if propose_neurons and signals.intent == "build_or_update" and safety.status != "blocked":
+        if propose_neurons and safety.status != "blocked":
             neuron_proposal = self._propose_neuron_candidate(input_packet, signals)
         self.bodega.update_run_models(input_packet.run_id, hypothalamus_model_result.get("name", self.hypothalamus_model), output.model_name)
         hypothalamus_event_id = self.bodega.store_model_event(input_packet.run_id, "hypothalamus", str(hypothalamus_model_result.get("provider")), str(hypothalamus_model_result.get("name")), bool(hypothalamus_model_result.get("ok")), hypothalamus_model_result.get("error"), hypothalamus_quality)
@@ -498,9 +498,6 @@ class TriadeRunner:
             }
 
     def _post_run_learning_candidate(self, input_packet: InputPacket, output: Any, report: Any, intent: str) -> dict[str, Any]:
-        enabled = str(os.environ.get("TRIADE_POST_RUN_LEARNING", "")).strip().lower() in {"1", "true", "yes", "on"}
-        if not enabled:
-            return {"enabled": False, "reason": "disabled_by_default", "policy": "set_TRIADE_POST_RUN_LEARNING=1_to_ingest_candidate"}
         context = input_packet.context or {}
         domain = str(context.get("domain", "")).strip() or str(intent or "general")
         content = "\n".join(
