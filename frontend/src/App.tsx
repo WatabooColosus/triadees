@@ -800,11 +800,34 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
       } catch (e: any) { setError(e.message) }
     }
 
+    const p = selectedNeuron.progress || {}
+
     return (
       <Page title={`Neurona: ${n.name}`} subtitle={`Dominio: ${n.domain}`}>
         <button onClick={() => setSelectedNeuron(null)} style={{ ...btnStyle, marginBottom: 12 }}>← Volver</button>
         <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
           <Badge status={status} />
+          {p.progress !== undefined && p.progress < 1 && (
+            <div style={{ flex: 1, maxWidth: 300 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
+                <span style={{ color: 'var(--text-muted)' }}>{p.target || p.phase}</span>
+                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{(p.progress * 100).toFixed(0)}%</span>
+              </div>
+              <div style={{ background: 'var(--bg-base)', borderRadius: 8, height: 8, overflow: 'hidden' }}>
+                <div style={{ width: `${(p.progress * 100).toFixed(0)}%`, height: '100%', background: 'var(--accent)', borderRadius: 8, transition: 'width 0.5s ease' }} />
+              </div>
+              {p.activation_progress !== undefined && (
+                <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 10, color: 'var(--text-muted)' }}>
+                  <span>Activaciones: {(p.activation_progress * 100).toFixed(0)}%</span>
+                  <span>Diagnósticos: {(p.diagnosis_progress * 100).toFixed(0)}%</span>
+                  <span>Test plans: {(p.test_plan_progress * 100).toFixed(0)}%</span>
+                </div>
+              )}
+            </div>
+          )}
+          {p.progress !== undefined && p.progress >= 1 && (
+            <span style={{ color: 'var(--green)', fontSize: 12, fontWeight: 600 }}>✓ {p.label}</span>
+          )}
           {status === 'candidate_reviewable' && (
             <button onClick={() => promoteTo('experimental')} style={{
               background: 'var(--green)', color: '#fff', border: 'none',

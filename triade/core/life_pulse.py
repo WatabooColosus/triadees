@@ -1,9 +1,12 @@
-"""Pulso vital operativo de Triade.
+"""Pulso vital operativo de Triade — 24/7.
 
-Mantiene contadores y verificaciones periodicas en segundo plano.
-Desde Fase F integra estado emocional persistente: la fatiga decrece
-con el tiempo de descanso y el mood se refleja en el snapshot.
-No consolida aprendizaje, no modifica identidad y no cambia codigo.
+El pulso de vida corre en dos hilos:
+  1. Observación periódica (tick): fatiga, identidad, confianza, integridad, reflección.
+  2. Ciclo cognitivo continuo (runner): procesa el estado del sistema como si fuera
+     un input vivo, generando neuronas, promoviéndolas y consolidando aprendizaje
+     sin depender de peticiones HTTP.
+
+Triade nunca está quieta: cada ciclo termina y el siguiente empieza al instante.
 """
 
 from __future__ import annotations
@@ -26,15 +29,17 @@ from .self_reflection import SelfReflectionEngine
 
 @dataclass
 class LifePulseEngine:
-    """Daemon ligero para observar el nucleo como un sistema con pulso."""
+    """Pulso vital 24/7: observación periódica + ciclo cognitivo continuo."""
 
     db_path: str | Path = "triade/memory/triade.db"
     runs_dir: str | Path = "runs"
     interval_seconds: int = 60
     reflection_limit: int = 30
+    continuous_run_enabled: bool = True
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _stop: threading.Event = field(default_factory=threading.Event, init=False, repr=False)
     _thread: threading.Thread | None = field(default=None, init=False, repr=False)
+    _continuous_thread: threading.Thread | None = field(default=None, init=False, repr=False)
     _started_at: float = field(default_factory=time.time, init=False)
     _last_tick_at: float | None = field(default=None, init=False)
     _last_error: str | None = field(default=None, init=False)
@@ -43,12 +48,16 @@ class LifePulseEngine:
     _counters: Counter[str] = field(default_factory=Counter, init=False)
     _actions: Counter[str] = field(default_factory=Counter, init=False)
     _stream_of_consciousness: list[dict[str, Any]] = field(default_factory=list, init=False)
+    _continuous_cycle_count: int = 0
+    _last_continuous_error: str | None = None
+    _last_continuous_at: float | None = None
 
     @classmethod
     def from_env(cls) -> "LifePulseEngine":
         interval = int(os.environ.get("TRIADE_LIFE_PULSE_INTERVAL", "60") or "60")
         limit = int(os.environ.get("TRIADE_LIFE_REFLECTION_LIMIT", "30") or "30")
-        return cls(interval_seconds=max(5, interval), reflection_limit=max(5, limit))
+        continuous = str(os.environ.get("TRIADE_CONTINUOUS_RUNNER", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+        return cls(interval_seconds=max(5, interval), reflection_limit=max(5, limit), continuous_run_enabled=continuous)
 
     def start(self) -> None:
         with self._lock:
@@ -57,12 +66,18 @@ class LifePulseEngine:
             self._stop.clear()
             self._thread = threading.Thread(target=self._loop, name="triade-life-pulse", daemon=True)
             self._thread.start()
+            if self.continuous_run_enabled:
+                self._continuous_thread = threading.Thread(target=self._continuous_loop, name="triade-continuous-runner", daemon=True)
+                self._continuous_thread.start()
 
     def stop(self) -> None:
         self._stop.set()
         thread = self._thread
         if thread and thread.is_alive():
             thread.join(timeout=2)
+        cthread = self._continuous_thread
+        if cthread and cthread.is_alive():
+            cthread.join(timeout=2)
 
     def record_action(self, name: str) -> None:
         clean = str(name or "unknown").strip() or "unknown"
@@ -106,6 +121,7 @@ class LifePulseEngine:
         with self._lock:
             now = time.time()
             running = bool(self._thread and self._thread.is_alive())
+            continuous_running = bool(self._continuous_thread and self._continuous_thread.is_alive())
             next_tick = None
             if self._last_tick_at is not None:
                 next_tick = max(0, int(self.interval_seconds - (now - self._last_tick_at)))
@@ -124,6 +140,13 @@ class LifePulseEngine:
             "last_tick_at": last_tick_at,
             "next_tick_in_seconds": next_tick,
             "last_error": last_error,
+            "continuous_runner": {
+                "enabled": self.continuous_run_enabled,
+                "running": continuous_running,
+                "cycles": self._continuous_cycle_count,
+                "last_cycle_at": self._last_continuous_at,
+                "last_error": self._last_continuous_error,
+            },
             "counters": counters,
             "actions": actions,
             "integrity": integrity,
@@ -145,6 +168,47 @@ class LifePulseEngine:
         self.tick()
         while not self._stop.wait(self.interval_seconds):
             self.tick()
+
+    def _continuous_loop(self) -> None:
+        while not self._stop.is_set():
+            try:
+                system_pulse = self._build_system_pulse_text()
+                runner = TriadeRunner(runs_dir=self.runs_dir, db_path=self.db_path)
+                runner.run(
+                    user_input=system_pulse,
+                    source="system_pulse_continuous",
+                    propose_neurons=True,
+                )
+                with self._lock:
+                    self._continuous_cycle_count += 1
+                    self._last_continuous_at = time.time()
+                    self._last_continuous_error = None
+            except Exception as exc:
+                with self._lock:
+                    self._continuous_cycle_count += 1
+                    self._last_continuous_at = time.time()
+                    self._last_continuous_error = str(exc)
+
+    def _build_system_pulse_text(self) -> str:
+        try:
+            emotion = self._get_emotional_state().get("latest") or {}
+            mood = emotion.get("primary_emotion", "neutral")
+            fatigue = emotion.get("fatigue", 0.0)
+            integrity = self._last_integrity or {}
+            counts = integrity.get("counts", {})
+            reflection = self._last_reflection or {}
+            return (
+                f"Soy Triade, pulso vital continuo. "
+                f"Estado emocional: {mood}, fatiga: {fatigue:.2f}. "
+                f"Runs completados: {counts.get('runs', 0)}. "
+                f"Episodios en bodega: {counts.get('episodes', 0)}. "
+                f"Observaciones recientes: {'; '.join(reflection.get('observations', [])[:3])}. "
+                f"Propongo, formo y promuevo neuronas autonomamente. "
+                f"Siempre encendida, nunca quieta."
+            )
+        except Exception:
+            return "Soy Triade, pulso vital continuo. Auto-reflexion y formacion autonoma."
+
 
     def _check_integrity(self) -> dict[str, Any]:
         doctor = TriadeRunner(runs_dir=self.runs_dir, db_path=self.db_path, use_ollama=False).doctor()

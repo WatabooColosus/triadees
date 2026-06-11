@@ -317,7 +317,7 @@ function renderNeuronCandidates(items){
     box.innerHTML='No hay neuronas candidatas.';
     return;
   }
-  let html='<b>Neuronas candidatas</b><br><span class="hint">Candidate → aprobación humana → experimental. No se consolida como stable automáticamente.</span>';
+  let html='<b>Neuronas candidatas</b><br><span class="hint">Candidate → auto-promoción → experimental. Ciclo autónomo 24/7.</span>';
   html+=items.slice(0,30).map(c=>{
     const decision=c.decision;
     const decisionHtml=decision?`<div class="hint">Decisión: <b>${escapeHtml(decision.decision)}</b> · siguiente: ${escapeHtml(decision.next_status)} · por: ${escapeHtml(decision.decided_by)}</div>`:'';
@@ -371,7 +371,7 @@ function esc(s){
 }
 function renderNeuronCandidates(items){
   if(!items.length){$('box').innerHTML='No hay neuronas candidatas.';return}
-  let html='<b>Neuronas candidatas</b><br><span class="hint">Candidate → aprobación humana → experimental. No se consolida como stable automáticamente.</span>';
+  let html='<b>Neuronas candidatas</b><br><span class="hint">Candidate → auto-promoción → experimental. Ciclo autónomo 24/7.</span>';
   html+=items.slice(0,30).map(c=>{
     let decided=c.decision;
     let decision=decided?`<div class="hint">Decisión: <b>${esc(decided.decision)}</b> · siguiente: ${esc(decided.next_status)} · por: ${esc(decided.decided_by)}</div>`:'';

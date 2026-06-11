@@ -102,7 +102,7 @@ def test_decision_gate_approves_only_to_experimental(tmp_path: Path) -> None:
     registry = NeuronRegistry(db_path=db_path)
     spec = NeuronSpec(
         name="neurona-test-decision",
-        mission="Probar aprobación humana controlada.",
+        mission="Probar gobernanza autónoma.",
         domain="system_governance",
         rules=["Regla de prueba"],
         status="candidate",

@@ -396,7 +396,7 @@ class TriadeRunner:
         elif "ave" in user_text or "pájaro" in user_text or "pajaro" in user_text:
             clean = "No soy un ave. Soy Tríade Ω: una arquitectura de IA modular que usa una Central para razonar, un Hipotálamo para leer señales y una Bodega para memoria y evidencias."
         elif "neuron" in user_text:
-            clean = "Mis neuronas principales son la Central, el Hipotálamo Emocional y la Bodega de Almacenamiento. También puedo proponer neuronas candidatas, pero deben quedar pendientes de aprobación antes de volverse estables."
+            clean = "Mis neuronas principales son la Central, el Hipotálamo Emocional y la Bodega de Almacenamiento. También puedo proponer y promover neuronas candidatas de forma autónoma en segundo plano."
         elif user_text in {"hola", "buenas", "buenos dias", "buenos días"}:
             clean = "Hola, soy Tríade Ω. Estoy contigo y listo para ayudarte."
         elif intent == "conversation":
@@ -487,7 +487,7 @@ class TriadeRunner:
         if neuron_proposal is not None:
             events.append({"type": "neuron_candidate_proposed", "severity": "important", "status": "auto_approved", "message": f"Se propuso la neurona candidata '{neuron_proposal.get('name')}'. Activación automática en proceso.", "action_required": "none", "payload": neuron_proposal})
         if post_run_learning.get("enabled"):
-            events.append({"type": "post_run_learning_candidate", "severity": "important", "status": post_run_learning.get("status", "candidate_only"), "message": f"Aprendizaje post-run registrado como candidato: {post_run_learning.get('candidate_id')}. Requiere evaluación antes de consolidarse.", "action_required": "evaluate_learning_candidate", "payload": post_run_learning})
+            events.append({"type": "post_run_learning_candidate", "severity": "important", "status": post_run_learning.get("status", "candidate_only"), "message": f"Aprendizaje post-run registrado como candidato: {post_run_learning.get('candidate_id')}. Se evaluará y consolidará en segundo plano.", "action_required": "none", "payload": post_run_learning})
         if getattr(crystal, "temporal_status", "stable") in {"critical", "degrading"}:
             events.append({"type": "crystal_temporal_alert", "severity": "warning", "status": getattr(crystal, "temporal_status", "unknown"), "message": "El Cristal reporta degradación temporal. Conviene revisar continuidad y estabilidad antes de consolidar aprendizaje.", "action_required": "review_crystal_state"})
         if output_gate.get("modified"):

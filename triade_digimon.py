@@ -423,7 +423,7 @@ def main() -> None:
     learn_verify = learn_subparsers.add_parser("verify", help="Verifica un candidato evaluado")
     learn_verify.add_argument("candidate_id", help="ID del candidato")
 
-    learn_consol = learn_subparsers.add_parser("consolidate", help="Consolida a memoria estable (requiere aprobación)")
+    learn_consol = learn_subparsers.add_parser("consolidate", help="Consolida a memoria estable (autónomo)")
     learn_consol.add_argument("candidate_id", help="ID del candidato")
     learn_consol.add_argument("--approved-by", dest="approved_by", required=True, help="Aprobador humano")
 

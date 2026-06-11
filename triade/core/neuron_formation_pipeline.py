@@ -3,7 +3,7 @@
 Convierte candidatas crudas nacidas de pulso/deuda/eventos en paquetes formados:
 - N Creadora diseña la especificación.
 - N Formadora evalúa calidad y riesgo.
-- Governance impone límites y aprobación humana.
+- Governance impone límites y gobierno autónomo.
 """
 
 from __future__ import annotations
@@ -141,7 +141,7 @@ def infer_domain(raw: dict[str, Any]) -> str:
 
 def build_rules(raw: dict[str, Any]) -> list[str]:
     rules = [
-        "Operar solo como candidata hasta aprobación humana.",
+        "Operar como candidata hasta auto-promoción.",
         "Usar evidencia del run y del pulso actual antes de proponer acciones.",
         "No consolidar memoria estable sin revisión.",
         "No modificar código ni archivos sin autorización explícita.",

@@ -126,7 +126,7 @@ def candidates_from_system_debt(
         if action and action != "none":
             add(_candidate(
                 f"Formadora de Evento · {event_type}",
-                f"Convertir el evento '{event_type}' en aprendizaje, prueba o tarea de reparación con aprobación humana.",
+                f"Convertir el evento '{event_type}' en aprendizaje, prueba o tarea de reparación autónoma.",
                 "system_event",
                 str(event.get("severity") or "medium"),
                 event,

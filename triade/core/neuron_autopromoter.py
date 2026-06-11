@@ -17,6 +17,7 @@ class NeuronAutopromoter:
     """
 
     CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE = 0.5
+    STABLE_THRESHOLDS = {"min_activations": 5, "min_diagnosis": 5, "min_test_plan": 3}
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
@@ -80,3 +81,28 @@ class NeuronAutopromoter:
             "action_required": "monitor_stable_behavior",
             "payload": {"name": name, "from": "experimental", "to": "stable", "readiness": neuron_report},
         }
+
+    def compute_progress(self, neuron: dict[str, Any], training: list[dict[str, Any]]) -> dict[str, Any]:
+        status = (neuron.get("status") or "").strip().lower()
+        name = neuron.get("name", "?")
+        if status in ("stable", "rejected"):
+            return {"phase": status, "progress": 1.0, "label": "Completado" if status == "stable" else "Rechazado"}
+        if status == "candidate_reviewable":
+            score = training[0].get("score", 0.0) if training else 0.0
+            progress = min(score / self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE, 1.0)
+            return {"phase": "candidate", "progress": progress, "score": score, "threshold": self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE, "target": "experimental", "label": f"{score:.0%} hacia experimental"}
+        if status == "experimental":
+            readiness = evaluate_stable_readiness(db_path=str(self.db_path))
+            report = readiness.get("report") or {}
+            nr = report.get(name) or {}
+            a = min(int(nr.get("activation_count", 0)) / self.STABLE_THRESHOLDS["min_activations"], 1.0)
+            d = min(int(nr.get("diagnosis_count", 0)) / self.STABLE_THRESHOLDS["min_diagnosis"], 1.0)
+            t = min(int(nr.get("test_plan_count", 0)) / self.STABLE_THRESHOLDS["min_test_plan"], 1.0)
+            progress = round((a + d + t) / 3, 4)
+            return {
+                "phase": "experimental", "progress": progress,
+                "activation_progress": a, "diagnosis_progress": d, "test_plan_progress": t,
+                "thresholds": self.STABLE_THRESHOLDS,
+                "target": "stable", "label": f"{progress:.0%} hacia stable",
+            }
+        return {"phase": status, "progress": 0.0, "label": "En espera"}

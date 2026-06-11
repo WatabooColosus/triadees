@@ -104,7 +104,7 @@ class NeuronTrainer:
         else:
             status = "rejected"
 
-        recommendations.append("No consolidar como estable sin aprobación humana, pruebas y evidencia repetida.")
+        recommendations.append("No consolidar como estable sin pruebas y evidencia repetida.")
 
         return NeuronTrainingResult(
             name=spec.name,

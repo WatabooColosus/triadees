@@ -197,12 +197,15 @@ def system_neurons(limit: int = 100) -> dict[str, Any]:
 @router.get("/api/system/neurons/{name}")
 def system_neuron_detail(name: str, limit: int = 10) -> dict[str, Any]:
     from triade.core.neuron_registry import NeuronRegistry
+    from triade.core.neuron_autopromoter import NeuronAutopromoter
     registry = NeuronRegistry()
     neuron = registry.get_neuron(name)
     if neuron is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Neurona no encontrada.")
     training = registry.list_training(neuron_id=int(neuron["id"]), limit=limit)
-    return {"status": "ok", "neuron": dict(neuron), "training": training}
+    ap = NeuronAutopromoter()
+    progress = ap.compute_progress(dict(neuron), training)
+    return {"status": "ok", "neuron": dict(neuron), "training": training, "progress": progress}
 
 
 @router.post("/api/system/neurons/{name}/promote")

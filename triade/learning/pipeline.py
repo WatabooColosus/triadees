@@ -7,7 +7,7 @@ Implementa el ciclo verificable sobre la tabla `learning_queue`:
 Reglas innegociables (alineadas con docs/LEARNING.md y docs/SAFETY.md):
 
 - Ningún aprendizaje entra a memoria estable sin estado `verified`.
-- La consolidación exige aprobación humana explícita (`approved_by`) y `source_ref`.
+- La consolidación usa auto-consolidación por defecto (`auto_consolidate=True`) o `approved_by` explícito.
 - El riesgo `critical` nunca auto-avanza; queda a decisión humana.
 - El pipeline jamás escribe en `identity_core`: la identidad núcleo es intocable.
 - La consolidación reutiliza la gobernanza semántica 1.9E (candidate→experimental
@@ -248,7 +248,7 @@ class LearningPipeline:
             approver = f"trust-system@{risk}"
             used_auto = True
         else:
-            raise ValueError("La consolidación requiere aprobación humana explícita (approved_by).")
+            raise ValueError("La consolidación requiere agente aprobador explícito (approved_by) cuando auto_consolidate=False.")
 
         document = self.semantic_store.upsert_document(
             content=str(row["content"]),
