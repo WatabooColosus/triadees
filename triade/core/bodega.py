@@ -408,8 +408,14 @@ class Bodega:
 
     def _fetch_identity(self) -> list[dict[str, Any]]:
         with self._connect() as conn:
-            rows = conn.execute("SELECT key, value, category, confidence FROM identity_core ORDER BY id ASC").fetchall()
-        return [dict(row) for row in rows]
+            core = conn.execute("SELECT key, value, category, confidence FROM identity_core ORDER BY id ASC").fetchall()
+            auto = conn.execute("SELECT trait_key AS key, trait_value AS value, category, confidence FROM auto_identity WHERE status IN ('candidate', 'stable') ORDER BY confidence DESC").fetchall()
+        results = [dict(row) for row in core]
+        for row in auto:
+            item = dict(row)
+            item["source"] = "auto_identity"
+            results.append(item)
+        return results
 
     def _search_semantic(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
         terms = self._terms(query)

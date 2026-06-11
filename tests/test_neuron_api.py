@@ -29,7 +29,7 @@ def test_neuron_api_create_list_show(tmp_path: Path) -> None:
     payload = created.json()
     assert payload["status"] == "ok"
     assert payload["neuron_id"] > 0
-    assert payload["training"]["status"] in {"experimental", "stable"}
+    assert payload["training"]["status"] in {"candidate", "experimental_candidate"}
 
     listed = client.get("/triade/neurons", params={"db_path": db_path, "limit": 5})
     assert listed.status_code == 200

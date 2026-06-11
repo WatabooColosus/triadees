@@ -227,23 +227,26 @@ CREATE TABLE IF NOT EXISTS federated_exchange_log (
     safety_status TEXT,
     verification_status TEXT,
     decision TEXT,
+    reason TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS verification_reports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT,
+    scope TEXT,
     status TEXT DEFAULT 'ok',
+    score REAL,
     coherence_score REAL DEFAULT 0.0,
     memory_score REAL DEFAULT 0.0,
     safety_score REAL DEFAULT 0.0,
     usefulness_score REAL DEFAULT 0.0,
     traceability_score REAL DEFAULT 0.0,
+    findings TEXT,
     errors TEXT,
     warnings TEXT,
     recommendations TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (run_id) REFERENCES runs(run_id)
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS trust_levels (

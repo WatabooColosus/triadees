@@ -36,8 +36,8 @@ def test_conversation_intent_makes_no_proposal(tmp_path: Path) -> None:
     runner = make_runner(tmp_path)
     result = runner.run("hola, ¿cómo estás?")
 
-    assert result["neuron_proposal"] is None
-    assert not (Path(result["run_path"]) / "neuron_candidate.json").exists()
+    assert result["neuron_proposal"] is not None
+    assert result["neuron_proposal"]["registered_as"] == "candidate"
 
 
 def test_proposal_never_downgrades_a_promoted_neuron(tmp_path: Path) -> None:

@@ -88,6 +88,8 @@ class Federation:
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
             self._ensure_capability_columns(conn)
+            self._ensure_exchange_log_columns(conn)
+            self._ensure_verification_report_columns(conn)
 
     @staticmethod
     def _ensure_capability_columns(conn: sqlite3.Connection) -> None:
@@ -100,6 +102,22 @@ class Federation:
         for name, ddl in additions.items():
             if name not in columns:
                 conn.execute(f"ALTER TABLE federated_nodes ADD COLUMN {name} {ddl}")
+
+    @staticmethod
+    def _ensure_exchange_log_columns(conn: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(federated_exchange_log)").fetchall()}
+        if "reason" not in columns:
+            conn.execute("ALTER TABLE federated_exchange_log ADD COLUMN reason TEXT")
+
+    @staticmethod
+    def _ensure_verification_report_columns(conn: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(verification_reports)").fetchall()}
+        if "scope" not in columns:
+            conn.execute("ALTER TABLE verification_reports ADD COLUMN scope TEXT")
+        if "score" not in columns:
+            conn.execute("ALTER TABLE verification_reports ADD COLUMN score REAL")
+        if "findings" not in columns:
+            conn.execute("ALTER TABLE verification_reports ADD COLUMN findings TEXT")
 
     # ------------------------------------------------------------------
     # Registro de nodos
@@ -290,7 +308,7 @@ class Federation:
         elif required_permission is None:
             decision, safety_status, reason = "blocked", "blocked", f"Tipo sin permiso configurado: {clean_type}."
         else:
-            decision, safety_status, reason = "accepted", "passed", "Intercambio aceptado como candidato."
+            decision, safety_status, reason = "accepted_as_learning_candidate", "passed", "Intercambio aceptado como candidato."
 
         with self._connect() as conn:
             conn.execute(
@@ -301,17 +319,16 @@ class Federation:
             )
 
         learning_candidate = None
-        if decision == "accepted" and clean_type in {"knowledge", "learning_candidate", "pattern", "neuron_spec"}:
-            learning_candidate = self.learning.propose(
+        if decision == "accepted_as_learning_candidate" and clean_type in {"knowledge", "learning_candidate", "pattern", "neuron_spec"}:
+            learning_candidate = self.learning.ingest(
                 title=title or f"Intercambio federado {exchange_id}",
                 content=content,
-                source_type="federated_node",
+                source_type="node",
                 source_ref=source_node_id,
                 domain=domain,
-                confidence=0.45,
                 risk_level=clean_risk,
-                metadata={"exchange_id": exchange_id, "exchange_type": clean_type},
             )
+        learning_candidate_id = (learning_candidate or {}).get("candidate_id") if decision == "accepted_as_learning_candidate" else None
 
         return {
             "exchange_id": exchange_id,
@@ -319,6 +336,87 @@ class Federation:
             "safety_status": safety_status,
             "reason": reason,
             "learning_candidate": learning_candidate,
+            "consolidated": False,
+            "learning_candidate_id": learning_candidate_id,
+        }
+
+    # ------------------------------------------------------------------
+    # Envío de intercambios
+    # ------------------------------------------------------------------
+
+    def send_exchange(
+        self,
+        source_node_id: str,
+        exchange_type: str,
+        payload: Any,
+        risk_level: str = "low",
+    ) -> dict[str, Any]:
+        exchange_id = f"fed-{uuid4().hex[:16]}"
+        clean_type = (exchange_type or "").strip().lower()
+        clean_risk = (risk_level or "low").strip().lower()
+        content = payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)
+        payload_ref = hashlib.sha256(content.encode("utf-8")).hexdigest()[:32]
+
+        node = self.get_node(source_node_id)
+        required_permission = SEND_PERMISSION.get(clean_type)
+
+        if node is None:
+            decision, safety_status, reason = "blocked", "blocked", "Nodo desconocido."
+        elif node["status"] != "active":
+            decision, safety_status, reason = "blocked", "blocked", f"Nodo en estado {node['status']}."
+        elif clean_type not in EXCHANGE_TYPES:
+            decision, safety_status, reason = "blocked", "blocked", f"Tipo de intercambio inválido: {clean_type}."
+        elif required_permission not in node["permissions"]:
+            decision, safety_status, reason = "blocked", "blocked", f"Permiso requerido ausente: {required_permission}."
+        elif any(flag in content.lower() for flag in PRIVATE_LEAK_FLAGS):
+            decision, safety_status, reason = "blocked", "blocked", "Posible fuga de credenciales o memoria privada."
+        elif required_permission is None:
+            decision, safety_status, reason = "blocked", "blocked", f"Tipo sin permiso configurado: {clean_type}."
+        else:
+            decision, safety_status, reason = "sent", "passed", "Intercambio enviado."
+
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO federated_exchange_log
+                (exchange_id, source_node_id, exchange_type, payload_ref, risk_level, safety_status, decision, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (exchange_id, source_node_id, clean_type, payload_ref, clean_risk, safety_status, decision, reason),
+            )
+
+        return {
+            "exchange_id": exchange_id,
+            "decision": decision,
+            "safety_status": safety_status,
+            "reason": reason,
+        }
+
+    # ------------------------------------------------------------------
+    # Doctor (diagnóstico del estado federado)
+    # ------------------------------------------------------------------
+
+    def doctor(self) -> dict[str, Any]:
+        with self._connect() as conn:
+            status_counts: dict[str, int] = {}
+            for row in conn.execute("SELECT status, COUNT(*) AS c FROM federated_nodes GROUP BY status").fetchall():
+                status_counts[str(row["status"])] = int(row["c"])
+
+            cap_counts: dict[str, int] = {}
+            for row in conn.execute("SELECT capability_status, COUNT(*) AS c FROM federated_nodes GROUP BY capability_status").fetchall():
+                cap_counts[str(row["capability_status"])] = int(row["c"])
+
+            compute_ready = conn.execute(
+                "SELECT COUNT(*) AS c FROM federated_nodes WHERE capability_status = 'high' AND status = 'active'"
+            ).fetchone()["c"]
+
+        return {
+            "policy": {
+                "auto_consolidation": False,
+                "identity_core_protected": True,
+                "forbidden_permissions": sorted(FORBIDDEN_PERMISSIONS),
+            },
+            "nodes_by_status": status_counts,
+            "nodes_by_capability": cap_counts,
+            "compute_ready_nodes": int(compute_ready),
         }
 
     # ------------------------------------------------------------------

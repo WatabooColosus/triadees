@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 from triade.core.neuron_creator import NeuronSpec
 from triade.core.neuron_registry import NeuronRegistry
+
+
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+
+
+def _env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.setdefault("PYTHONPATH", _PROJECT_ROOT)
+    return env
 
 
 def write_activity(run_path: Path, *, name: str = "neurona-test-stable", marker: int = 1) -> None:
@@ -53,6 +63,7 @@ def run_promote(args: list[str]) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         check=False,
+        env=_env(),
     )
 
 

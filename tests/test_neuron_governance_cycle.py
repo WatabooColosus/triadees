@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -8,6 +9,15 @@ from pathlib import Path
 from triade.core.neuron_creator import NeuronSpec
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.primary_neuron_pipeline import build_primary_neuron_package
+
+
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+
+
+def _env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.setdefault("PYTHONPATH", _PROJECT_ROOT)
+    return env
 
 
 def test_primary_neuron_package_has_complete_contract() -> None:
@@ -116,6 +126,7 @@ def test_decision_gate_approves_only_to_experimental(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
         check=False,
+        env=_env(),
     )
 
     assert result.returncode == 0, result.stderr or result.stdout
@@ -136,6 +147,7 @@ def test_decision_gate_never_exposes_stable_action() -> None:
         capture_output=True,
         text=True,
         check=False,
+        env=_env(),
     )
     assert result.returncode == 0
     assert "approve" in result.stdout

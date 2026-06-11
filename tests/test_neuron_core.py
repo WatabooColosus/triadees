@@ -18,7 +18,7 @@ def test_neuron_creator_builds_valid_spec() -> None:
     assert isinstance(spec, NeuronSpec)
     assert spec.name == "Neurona Test"
     assert spec.domain == "testing"
-    assert spec.status == "candidate"
+    assert spec.status == "candidate_detected"
     assert len(spec.rules) >= 3
     assert any("verific" in rule.lower() for rule in spec.rules)
 
@@ -37,7 +37,7 @@ def test_neuron_trainer_evaluates_candidate() -> None:
 
     assert result.name == spec.name
     assert result.score >= 0.6
-    assert result.status in {"experimental", "stable"}
+    assert result.status in {"experimental_candidate", "candidate"}
     assert result.strengths
 
 

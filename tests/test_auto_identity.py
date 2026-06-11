@@ -172,7 +172,8 @@ def test_evolve_from_reflection_integrates_with_bodega(tmp_path: Path) -> None:
     packet = InputPacket(user_input="test identity evolution", run_id="run-identity-1")
     bodega.create_run(packet)
 
-    store = bodega.auto_identity_store
+    from triade.memory.auto_identity_store import AutoIdentityStore
+    store = AutoIdentityStore(db_path=db_path)
     store.add_or_update("learned_trait", "I learn from experience", category="capability")
 
     identity = bodega._fetch_identity()

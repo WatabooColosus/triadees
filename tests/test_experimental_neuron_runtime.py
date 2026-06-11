@@ -105,7 +105,7 @@ def test_experimental_evidence_ledger_counts_activations(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    ledger = build_experimental_evidence_ledger(runs_dir=runs_dir, limit=10)
+    ledger = build_experimental_evidence_ledger(runs_dir=runs_dir, limit=10, prefer_db=False)
 
     assert ledger["summary"]["experimental_neurons_with_evidence"] == 1
     assert ledger["summary"]["total_activations"] == 1

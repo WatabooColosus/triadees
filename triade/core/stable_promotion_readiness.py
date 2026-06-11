@@ -24,9 +24,11 @@ def evaluate_stable_readiness(
     runs_dir: str | Path = "runs",
     limit: int = 300,
     thresholds: dict[str, int] | None = None,
+    db_path: str | Path | None = None,
+    prefer_db: bool = False,
 ) -> dict[str, Any]:
     thresholds = {**DEFAULT_THRESHOLDS, **(thresholds or {})}
-    ledger = build_experimental_evidence_ledger(runs_dir=runs_dir, limit=limit)
+    ledger = build_experimental_evidence_ledger(runs_dir=runs_dir, limit=limit, db_path=db_path or "triade/memory/triade.db", prefer_db=prefer_db)
 
     rows = []
     for neuron in ledger.get("neurons") or []:
