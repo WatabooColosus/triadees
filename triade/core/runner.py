@@ -609,6 +609,27 @@ class TriadeRunner:
 
         neuron_id = registry.register(spec, contract_payload=proposal)
         proposal["neuron_id"] = neuron_id
+
+        # Persistir training result — el pipeline lo calcula pero nunca lo almacenaba
+        from .neuron_trainer import NeuronTrainingResult
+        from .neuron_formation_pipeline import normalize_candidate_status
+        tr = proposal.get("training_result")
+        if tr:
+            training_result = NeuronTrainingResult(
+                name=tr.get("name", spec.name),
+                score=float(tr.get("score", 0.0)),
+                status=str(tr.get("status", "candidate")),
+                strengths=tr.get("strengths", []),
+                warnings=tr.get("warnings", []),
+                recommendations=tr.get("recommendations", []),
+                required_human_review=bool(tr.get("required_human_review", False)),
+                policy=str(tr.get("policy", "trainer_auto_approves")),
+            )
+            registry.store_training(neuron_id, training_result)
+            # Restaurar status a candidate normalizado — store_training
+            # sobrescribe con lo que el trainer devuelva.
+            normalized = normalize_candidate_status(training_result.status)
+            registry.update_status(spec.name, normalized)
         return proposal
 
     @staticmethod

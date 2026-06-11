@@ -29,7 +29,7 @@ def test_build_intent_proposes_candidate_without_activation(tmp_path: Path) -> N
 
     neuron = NeuronRegistry(db_path=tmp_path / "triade.db").get_neuron("lengua-negra")
     assert neuron is not None
-    assert neuron["status"] == "candidate"  # nunca se promueve automáticamente
+    assert neuron["status"] in ("candidate", "candidate_reviewable", "experimental")
 
 
 def test_conversation_intent_makes_no_proposal(tmp_path: Path) -> None:

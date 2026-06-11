@@ -113,7 +113,7 @@ def normalize_candidate_status(trainer_status: str) -> str:
         return "candidate_needs_refinement"
     if trainer_status == "stable":
         return "candidate_reviewable"
-    if trainer_status == "experimental":
+    if trainer_status in ("experimental", "experimental_candidate"):
         return "candidate_reviewable"
     return "candidate"
 

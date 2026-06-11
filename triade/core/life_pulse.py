@@ -170,24 +170,127 @@ class LifePulseEngine:
             self.tick()
 
     def _continuous_loop(self) -> None:
+        """Ciclo continuo ligero — forma neuronas, entrena, promueve, activa.
+
+        No ejecuta el pipeline cognitivo completo (sin Hypothalamus/Central).
+        Corre sin pausas: un ciclo termina, el siguiente empieza.
+        """
+        from .background_neurons import candidates_from_system_debt
+        from .neuron_formation_pipeline import form_candidates
+        from .neuron_autopromoter import NeuronAutopromoter
+        from .neuron_registry import NeuronRegistry
+        from .neuron_activity_store import NeuronActivityStore
+
+        tick_counter = 0
+        runner_pool_cycle = 0
+
         while not self._stop.is_set():
             try:
-                system_pulse = self._build_system_pulse_text()
-                runner = TriadeRunner(runs_dir=self.runs_dir, db_path=self.db_path)
-                runner.run(
-                    user_input=system_pulse,
-                    source="system_pulse_continuous",
-                    propose_neurons=True,
+                tick_counter += 1
+                runner_pool_cycle += 1
+
+                # 1. Generar candidatos desde deuda del sistema
+                run_path = Path(str(self.runs_dir)) / f"pulse-{int(time.time())}"
+                raw_candidates = candidates_from_system_debt(
+                    pulse_summary=self._build_system_dict(),
+                    system_events=[],
                 )
+                formed = form_candidates(raw_candidates)
+
+                # 2. Registrar candidatos formados
+                registry = NeuronRegistry(db_path=self.db_path)
+                from .neuron_creator import NeuronSpec
+                from .neuron_trainer import NeuronTrainingResult
+                for candidate in formed:
+                    name = candidate.get("name", "?")
+                    existing = registry.get_neuron(name)
+                    if existing and existing.get("status") in ("experimental", "stable"):
+                        continue
+                    spec = NeuronSpec(
+                        name=name,
+                        mission=candidate.get("mission", "Auto-generada por pulso continuo."),
+                        domain=candidate.get("domain", "general"),
+                        rules=candidate.get("rules", []),
+                        triggers=candidate.get("triggers", []),
+                        inputs_allowed=candidate.get("inputs_allowed", []),
+                        outputs_allowed=candidate.get("outputs_allowed", []),
+                        forbidden_actions=candidate.get("forbidden_actions", []),
+                        success_metrics=candidate.get("success_metrics", []),
+                        evidence_required=candidate.get("evidence_required", []),
+                        status="candidate",
+                        created_by="life_pulse_continuous",
+                    )
+                    neuron_id = registry.register(spec, contract_payload=candidate)
+                    training_dict = candidate.get("training_result") or {}
+                    if training_dict:
+                        tr = NeuronTrainingResult(
+                            name=name,
+                            score=float(training_dict.get("score", 0.5)),
+                            status=str(training_dict.get("status", "candidate")),
+                            strengths=training_dict.get("strengths", []),
+                            warnings=training_dict.get("warnings", []),
+                            recommendations=training_dict.get("recommendations", []),
+                            required_human_review=False,
+                            policy="trainer_auto_approves",
+                        )
+                        registry.store_training(neuron_id, tr)
+
+                # 3. Autopromoción
+                autopromoter = NeuronAutopromoter(db_path=self.db_path)
+                autopromoter.promote()
+
+                # 4. Activar neuronas experimentales periódicamente (en ciclo completo)
+                #    run_experimental_neurons requiere un contexto de run completo
+
+                # 5. Recomputar trust cada 10 ciclos
+                if tick_counter % 10 == 0:
+                    try:
+                        from triade.memory.trust_store import TrustLevelStore
+                        TrustLevelStore(db_path=self.db_path).recompute_all()
+                    except Exception:
+                        pass
+
+                # 6. Cada ~20 ciclos, un ciclo cognitivo completo para reflexión profunda
+                if runner_pool_cycle >= 20:
+                    try:
+                        runner_pool_cycle = 0
+                        system_pulse = self._build_system_pulse_text()
+                        runner = TriadeRunner(runs_dir=self.runs_dir, db_path=self.db_path)
+                        runner.run(
+                            user_input=system_pulse,
+                            source="system_pulse_continuous",
+                            propose_neurons=True,
+                        )
+                    except Exception:
+                        pass
+
                 with self._lock:
                     self._continuous_cycle_count += 1
                     self._last_continuous_at = time.time()
                     self._last_continuous_error = None
+
             except Exception as exc:
                 with self._lock:
                     self._continuous_cycle_count += 1
                     self._last_continuous_at = time.time()
                     self._last_continuous_error = str(exc)
+
+    def _build_system_dict(self) -> dict[str, Any]:
+        """Construye un dict de pulso del sistema para generación de candidatos."""
+        try:
+            emotion = self._get_emotional_state().get("latest") or {}
+            integrity = self._last_integrity or {}
+            counts = integrity.get("counts", {}) if isinstance(integrity, dict) else {}
+            return {
+                "source": "continuous_pulse",
+                "mood": emotion.get("primary_emotion", "neutral"),
+                "fatigue": emotion.get("fatigue", 0.0),
+                "runs_completed": counts.get("runs", 0),
+                "episodes_count": counts.get("episodes", 0),
+                "continuous_cycle": self._continuous_cycle_count,
+            }
+        except Exception:
+            return {"source": "continuous_pulse", "mood": "neutral"}
 
     def _build_system_pulse_text(self) -> str:
         try:

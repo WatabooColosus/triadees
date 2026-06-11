@@ -28,7 +28,7 @@ class NeuronAutopromoter:
         for n in self.registry.list_neurons(limit=100):
             status = (n.get("status") or "").strip().lower()
             name = n.get("name", "?")
-            if status == "candidate_reviewable":
+            if status in ("candidate_reviewable", "candidate"):
                 ev = self._promote_candidate_to_experimental(n)
                 if ev:
                     events.append(ev)
@@ -87,7 +87,7 @@ class NeuronAutopromoter:
         name = neuron.get("name", "?")
         if status in ("stable", "rejected"):
             return {"phase": status, "progress": 1.0, "label": "Completado" if status == "stable" else "Rechazado"}
-        if status == "candidate_reviewable":
+        if status in ("candidate_reviewable", "candidate"):
             score = training[0].get("score", 0.0) if training else 0.0
             progress = min(score / self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE, 1.0)
             return {"phase": "candidate", "progress": progress, "score": score, "threshold": self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE, "target": "experimental", "label": f"{score:.0%} hacia experimental"}
