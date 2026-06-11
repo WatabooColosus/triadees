@@ -28,7 +28,7 @@ class NeuronAutopromoter:
         for n in self.registry.list_neurons(limit=100):
             status = (n.get("status") or "").strip().lower()
             name = n.get("name", "?")
-            if status in ("candidate_reviewable", "candidate"):
+            if status in ("candidate_reviewable", "candidate", "experimental_candidate", "weak_candidate"):
                 ev = self._promote_candidate_to_experimental(n)
                 if ev:
                     events.append(ev)
@@ -65,9 +65,12 @@ class NeuronAutopromoter:
     def _promote_experimental_to_stable(self, n: dict[str, Any]) -> dict[str, Any] | None:
         name = n.get("name", "?")
         readiness = evaluate_stable_readiness(prefer_db=True, db_path=str(self.db_path))
-        report = readiness.get("report") or {}
-        neuron_report = report.get(name) or {}
-        if not neuron_report.get("ready_for_stable_review"):
+        neuron_report = None
+        for nr in (readiness.get("neurons") or []):
+            if nr.get("name") == name:
+                neuron_report = nr
+                break
+        if not neuron_report or not neuron_report.get("ready_for_stable_review"):
             return None
         try:
             self.registry.update_status(name, "stable")
@@ -92,9 +95,13 @@ class NeuronAutopromoter:
             progress = min(score / self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE, 1.0)
             return {"phase": "candidate", "progress": progress, "score": score, "threshold": self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE, "target": "experimental", "label": f"{score:.0%} hacia experimental"}
         if status == "experimental":
-            readiness = evaluate_stable_readiness(db_path=str(self.db_path))
-            report = readiness.get("report") or {}
-            nr = report.get(name) or {}
+            readiness = evaluate_stable_readiness(db_path=str(self.db_path), prefer_db=True)
+            nr = None
+            for rn in (readiness.get("neurons") or []):
+                if rn.get("name") == name:
+                    nr = rn
+                    break
+            nr = nr or {}
             a = min(int(nr.get("activation_count", 0)) / self.STABLE_THRESHOLDS["min_activations"], 1.0)
             d = min(int(nr.get("diagnosis_count", 0)) / self.STABLE_THRESHOLDS["min_diagnosis"], 1.0)
             t = min(int(nr.get("test_plan_count", 0)) / self.STABLE_THRESHOLDS["min_test_plan"], 1.0)

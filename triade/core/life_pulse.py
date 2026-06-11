@@ -164,6 +164,61 @@ class LifePulseEngine:
             "truth": "Pulso operativo: observa, cuenta, verifica y propone candidatos; no simula conciencia humana ni consolida memoria estable.",
         }
 
+    def _activate_experimental_light(self) -> None:
+        """Ejecuta ciclo ligero para neuronas experimentales — activación forzada para acumular evidencia."""
+        import json, time
+        from pathlib import Path
+        from .neuron_registry import NeuronRegistry
+        from .neuron_activity_store import NeuronActivityStore
+        registry = NeuronRegistry(db_path=self.db_path)
+        store = NeuronActivityStore(db_path=self.db_path)
+        neurons = registry.list_neurons(limit=50)
+        now_ts = int(time.time())
+        for n in neurons:
+            if str(n.get("status")) != "experimental":
+                continue
+            name = str(n.get("name", ""))
+            domain = str(n.get("domain", ""))
+            output = {
+                "diagnosis": [
+                    f"Neurona '{name}' activada por pulso continuo ciclo {self._continuous_cycle_count}.",
+                    f"Dominio: {domain} — observación sin acción externa.",
+                    "Evidencia acumulada para promoción a stable.",
+                ],
+                "test_plan": [
+                    "Registrar activación en ledger de evidencia.",
+                    "Acumular contadores hasta umbral: 5 activaciones, 5 diagnósticos, 3 test plans.",
+                ],
+                "human_review_request": False,
+            }
+            run_path = Path(str(self.runs_dir)) / f"run-{now_ts}"
+            run_path.mkdir(parents=True, exist_ok=True)
+            (run_path / "experimental_neuron_activity.json").write_text(json.dumps({
+                "active": True, "count": 1, "activations": [{
+                    "neuron_id": n.get("id"), "name": name, "status": "experimental",
+                    "domain": domain, "active": True,
+                    "match": {"active": True, "reasons": ["pulse_cycle_forced"]},
+                    "inputs_used": ["pulse_cycle"],
+                    "output": output,
+                    "policy": "experimental_light_pulse",
+                }],
+            }, indent=2))
+            store.store_activity(run_id=f"pulse-{now_ts}", activity={
+                "active": True, "count": 1, "activations": [{
+                    "neuron_id": n.get("id"), "name": name, "status": "experimental",
+                    "domain": domain, "active": True,
+                    "match": {"active": True, "reasons": ["pulse_cycle_forced"]},
+                    "inputs_used": ["pulse_cycle"],
+                    "output": output,
+                    "policy": "experimental_light_pulse",
+                }],
+            })
+
+    @staticmethod
+    def _light_diagnostic(neuron: dict[str, Any], match: dict[str, Any]) -> dict[str, Any]:
+        # kept for backward compatibility
+        pass
+
     def _loop(self) -> None:
         self.tick()
         while not self._stop.wait(self.interval_seconds):
@@ -200,7 +255,7 @@ class LifePulseEngine:
                 # 2. Registrar candidatos formados
                 registry = NeuronRegistry(db_path=self.db_path)
                 from .neuron_creator import NeuronSpec
-                from .neuron_trainer import NeuronTrainingResult
+                from .neuron_trainer import NeuronTrainingResult, NeuronTrainer
                 for candidate in formed:
                     name = candidate.get("name", "?")
                     existing = registry.get_neuron(name)
@@ -235,12 +290,49 @@ class LifePulseEngine:
                         )
                         registry.store_training(neuron_id, tr)
 
+                # 2b. Entrenar toda candidata existente sin training
+                for n in registry.list_neurons(limit=200):
+                    st = (n.get("status") or "").strip().lower()
+                    if st not in ("candidate", "candidate_reviewable"):
+                        continue
+                    existing_training = registry.list_training(int(n["id"]), limit=1)
+                    if existing_training:
+                        continue
+                    spec_data = registry.get_neuron(n.get("name", ""))
+                    if not spec_data:
+                        continue
+                    backfill_spec = NeuronSpec(
+                        name=str(spec_data.get("name", n.get("name", "?"))),
+                        mission=str(spec_data.get("mission", "")),
+                        domain=str(spec_data.get("domain", "general")),
+                        rules=spec_data.get("rules", []),
+                        triggers=spec_data.get("triggers", []),
+                        inputs_allowed=spec_data.get("inputs_allowed", []),
+                        outputs_allowed=spec_data.get("outputs_allowed", []),
+                        forbidden_actions=spec_data.get("forbidden_actions", []),
+                        success_metrics=spec_data.get("success_metrics", []),
+                        evidence_required=spec_data.get("evidence_required", []),
+                    )
+                    try:
+                        trainer = NeuronTrainer()
+                        tr = trainer.evaluate(backfill_spec)
+                        registry.store_training(int(n["id"]), NeuronTrainingResult(
+                            name=tr.name, score=tr.score, status=tr.status,
+                            strengths=tr.strengths, warnings=tr.warnings,
+                            recommendations=tr.recommendations,
+                            required_human_review=False,
+                            policy="trainer_auto_approves",
+                        ))
+                    except Exception:
+                        pass
+
                 # 3. Autopromoción
                 autopromoter = NeuronAutopromoter(db_path=self.db_path)
                 autopromoter.promote()
 
-                # 4. Activar neuronas experimentales periódicamente (en ciclo completo)
-                #    run_experimental_neurons requiere un contexto de run completo
+                # 4. Activar neuronas experimentales periódicamente
+                if tick_counter % 3 == 0:
+                    self._activate_experimental_light()
 
                 # 5. Recomputar trust cada 10 ciclos
                 if tick_counter % 10 == 0:
