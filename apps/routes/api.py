@@ -854,6 +854,9 @@ def run_triade(
     LIFE_PULSE.record_action("run")
     require_key(x_triade_api_key)
     try:
+        ctx = run_context_with_living_awareness(request.context)
+        if request.conversation_history:
+            ctx["conversation_history"] = request.conversation_history[-20:]
         runner = TriadeRunner(
             use_ollama=request.use_ollama,
             hypothalamus_model=clean_model(request.hypothalamus_model),
@@ -863,7 +866,7 @@ def run_triade(
         result = runner.run(
             request.text,
             source=request.source,
-            context=run_context_with_living_awareness(request.context),
+            context=ctx,
             semantic_recall_enabled=request.semantic_recall_enabled,
             semantic_model=clean_model(request.semantic_model),
             semantic_limit=request.semantic_limit,

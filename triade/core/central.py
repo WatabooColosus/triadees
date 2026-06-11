@@ -113,17 +113,6 @@ class Central:
         wants_internal_audit = self._wants_internal_audit(input_packet.user_input)
         fallback_response = self._fallback_response(identity, input_packet, signals, crystal, wants_internal_audit)
         temporal_action = "crystal_temporal_regulation_applied"
-        if self._is_identity_or_capability_question(input_packet.user_input):
-            return OutputPacket(
-                run_id=input_packet.run_id,
-                response=self._identity_capability_response(identity),
-                actions_taken=["plan_created", "crystal_regulation_applied", temporal_action, "identity_capability_template_response_generated"],
-                memory_diff={"pending_persistence": True, "identity_capability_template": True},
-                status="ok",
-                model_provider="template",
-                model_name="identity-capability-template",
-                model_ok=True,
-            )
         if self.model_client is None:
             return OutputPacket(
                 run_id=input_packet.run_id,
@@ -316,6 +305,17 @@ class Central:
             pulse_context = ""
             if pulse_summary:
                 pulse_context = "\nPulso vivo actual resumido:\n" + json.dumps(pulse_summary, ensure_ascii=False, indent=2)
+            conversation_history = input_packet.context.get("conversation_history") if isinstance(input_packet.context, dict) else None
+            history_context = ""
+            if conversation_history:
+                lines = []
+                for msg in conversation_history:
+                    role = msg.get("role", "unknown")
+                    content = str(msg.get("content", "")).strip()[:500]
+                    if content:
+                        lines.append(f"{role}: {content}")
+                if lines:
+                    history_context = "\nHistorial del chat (mensajes recientes):\n" + "\n".join(lines[-20:])
             return (
                 "MODO RESPUESTA FINAL.\n"
                 "Responde solo al usuario, de forma natural.\n"
@@ -330,7 +330,7 @@ class Central:
                 f"Intención orientativa: {signals.intent}\n"
                 f"Tono orientativo: {signals.tone}\n"
                 f"Riesgo orientativo: {signals.risk}\n"
-                f"{pulse_context}{semantic_context}\n\n"
+                f"{pulse_context}{semantic_context}{history_context}\n\n"
                 "Respuesta final:"
             )
 

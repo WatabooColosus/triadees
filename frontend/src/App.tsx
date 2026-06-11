@@ -102,15 +102,22 @@ function ChatTab({ apiKey }: { apiKey: string }) {
 
   async function send() {
     if (!text.trim() || loading) return
-    setMessages((m) => [...m, { role: 'user', content: text }])
+    const userMsg = text
+    setMessages((m) => [...m, { role: 'user', content: userMsg }])
     setLoading(true)
+    // Build conversation history from non-greeting messages
+    const history = messages
+      .filter((m) => m.role !== 'bot' || m.content !== 'Tríade Ω lista. Escribe un mensaje para comenzar.')
+      .slice(-10)
+      .map((m) => ({ role: m.role, content: m.content }))
     const payload = {
-      text,
+      text: userMsg,
       source: 'react-ui',
       use_ollama: useOllama,
       hypothalamus_model: hypModel || null,
       central_model: cenModel || null,
       auto_select_models: !hypModel && !cenModel,
+      conversation_history: history,
     }
     try {
       const res = await api('/api/run', {

@@ -30,6 +30,7 @@ def build_run_result(
 ) -> dict[str, Any]:
     """Construye el payload público/operativo que devuelve TriadeRunner.run()."""
     return {
+        "status": output.status or "ok",
         "run_id": input_packet.run_id,
         "response": output.response,
         "system_events": system_events,

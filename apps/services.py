@@ -73,6 +73,7 @@ class RunRequest(BaseModel):
     central_model: str | None = None
     auto_select_models: bool = True
     context: dict[str, Any] = Field(default_factory=dict)
+    conversation_history: list[dict[str, str]] = Field(default_factory=list)
     semantic_recall_enabled: bool = False
     semantic_model: str | None = None
     semantic_limit: int = Field(default=3, ge=1, le=20)
