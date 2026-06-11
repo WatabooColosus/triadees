@@ -140,6 +140,12 @@ def health() -> dict[str, Any]:
 
 # ── Router ──────────────────────────────────────────────────────────────
 
+@router.get("/api/models/doctor")
+def models_doctor_get(intent: str = "conversation", urgency: str = "medium") -> dict[str, Any]:
+    LIFE_PULSE.record_action("router_doctor")
+    return router_payload(intent=intent, urgency=urgency)
+
+
 @router.post("/api/router/doctor")
 def route_doctor(request: RouterRequest) -> dict[str, Any]:
     LIFE_PULSE.record_action("router_doctor")

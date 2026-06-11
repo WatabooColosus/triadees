@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 app = FastAPI(title="Tríade Ω Chat UI", version="0.3.0")
 
 TRIADE_API_BASE = "http://127.0.0.1:8000"
-MODEL_ROUTER_BASE = "http://127.0.0.1:8020"
+MODEL_ROUTER_BASE = "http://127.0.0.1:8010"
 
 
 class ChatProxyRequest(BaseModel):
@@ -84,7 +84,7 @@ def proxy_run(request: ChatProxyRequest, x_triade_api_key: str | None = Header(d
 @app.post("/api/router/doctor")
 def proxy_router_doctor(request: RouterProxyRequest) -> dict[str, Any]:
     query = urllib.parse.urlencode({"intent": request.intent, "urgency": request.urgency})
-    return _request_json(f"{MODEL_ROUTER_BASE}/models/doctor?{query}", timeout=20)
+    return _request_json(f"{MODEL_ROUTER_BASE}/api/models/doctor?{query}", timeout=20)
 
 
 HTML = r"""

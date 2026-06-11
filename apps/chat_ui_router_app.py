@@ -37,7 +37,7 @@ HTML = r"""
 
     <label>API Tríade</label><input id="apiBase" value="http://127.0.0.1:8000" />
     <label>API key</label><input id="apiKey" type="password" placeholder="X-TRIADE-API-Key" />
-    <label>Model Router</label><input id="routerBase" value="http://127.0.0.1:8020" />
+    <label>Model Router (unificado en 8010)</label><input id="routerBase" value="http://127.0.0.1:8010" />
 
     <div class="row">
       <div><label>Intención router</label><select id="intent"><option>conversation</option><option>analyze</option><option>memory</option><option>build_or_update</option></select></div>
