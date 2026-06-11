@@ -748,12 +748,14 @@ function MemoryTab({ apiKey }: { apiKey: string }) {
 
 function NeuronsTab({ apiKey }: { apiKey: string }) {
   const [candidates, setCandidates] = useState<any>(null)
+  const [activity, setActivity] = useState<any>(null)
   const [pendingSafety, setPendingSafety] = useState<any[]>([])
   const [error, setError] = useState('')
   const [selectedNeuron, setSelectedNeuron] = useState<any>(null)
 
   const fetch = useCallback(() => {
     api('/api/system/neurons?limit=50').then(setCandidates).catch(e => setError(e.message))
+    api('/api/system/activity').then(setActivity).catch(() => {})
     api('/api/safety/pending').then(r => setPendingSafety(r.pending || [])).catch(() => {})
   }, [])
 
@@ -896,10 +898,40 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
           </div>
         </Card>
       )}
+      {activity && (
+        <Card title="Actividad de Fondo" color="#22c55e">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>
+              <span>🔄 <strong>{activity.continuous_runner?.cycles || 0}</strong> ciclos</span>
+              <span>⏱ <strong>{activity.uptime_seconds ? `${(activity.uptime_seconds / 60).toFixed(0)}m` : '—'}</strong></span>
+              <span>🧬 <strong>{activity.neurons_total || 0}</strong> neuronas</span>
+            </div>
+            {activity.neurons_by_status && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {Object.entries(activity.neurons_by_status).map(([s, c]) => (
+                  <span key={s} style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    <Badge status={s} /> {c as number}
+                  </span>
+                ))}
+              </div>
+            )}
+            {activity.promoted?.length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--green)' }}>
+                <strong>▲ Promovidas recientemente:</strong>
+                {activity.promoted.map((p: any) => (
+                  <span key={p.name} style={{ marginLeft: 8 }}>{p.name} → {p.status}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
       <Card title={`Candidatos (${candidates?.neurons?.length || 0})`} color="#ec4899">
         {candidates?.neurons?.length ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {(candidates.neurons as any[]).map((n, i) => (
+            {(candidates.neurons as any[]).map((n, i) => {
+              const p = n.progress || {}
+              return (
               <div key={i} onClick={() => loadNeuronDetail(n.name)} style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '8px 10px', background: 'var(--bg-base)', borderRadius: 6,
@@ -908,9 +940,19 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
               }}>
                 <span style={{ fontWeight: 600, flex: 1 }}>{n.name}</span>
                 <Badge status={n.status || n.activation} />
+                {p.progress !== undefined && p.progress > 0 && p.progress < 1 && (
+                  <div style={{ width: 60 }}>
+                    <div style={{ background: 'var(--bg-surface)', borderRadius: 6, height: 6, overflow: 'hidden' }}>
+                      <div style={{ width: `${(p.progress * 100).toFixed(0)}%`, height: '100%', background: 'var(--accent)', borderRadius: 6, transition: 'width 0.5s ease' }} />
+                    </div>
+                  </div>
+                )}
+                {p.progress !== undefined && p.progress >= 1 && (
+                  <span style={{ color: 'var(--green)', fontSize: 11 }}>✓</span>
+                )}
                 <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{n.domain}</span>
               </div>
-            ))}
+            )})}
           </div>
         ) : (
           <KVTable data={candidates || {}} />

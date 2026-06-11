@@ -55,11 +55,17 @@ def build_neuron_dashboard(
         activity_by_name.setdefault(name, []).append(row)
 
     enriched = []
+    # Batch-load latest training score per neuron
+    training_scores = _load_latest_training_scores(registry, neurons)
+
     for neuron in neurons:
         name = str(neuron.get("name") or "")
         ev = evidence_by_name.get(name, {})
         rd = readiness_by_name.get(name, {})
         acts = activity_by_name.get(name, [])
+        score = training_scores.get(name, 0.0)
+
+        progress = _compute_progress(neuron, ev, rd, score)
 
         enriched.append({
             "id": neuron.get("id"),
@@ -70,6 +76,7 @@ def build_neuron_dashboard(
             "created_by": neuron.get("created_by"),
             "created_at": neuron.get("created_at"),
             "updated_at": neuron.get("updated_at"),
+            "progress": progress,
             "contract": {
                 "rules": neuron.get("rules") or [],
                 "triggers": neuron.get("triggers") or [],
@@ -193,3 +200,46 @@ def allowed_ui_actions(neuron: dict[str, Any], readiness: dict[str, Any]) -> lis
         })
 
     return actions
+
+
+def _load_latest_training_scores(registry: NeuronRegistry, neurons: list[dict[str, Any]]) -> dict[str, float]:
+    """Carga el último training score por neurona en batch."""
+    import sqlite3
+    ids = [str(n.get("id")) for n in neurons if n.get("id")]
+    if not ids:
+        return {}
+    try:
+        with sqlite3.connect(registry.db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT n.name, nt.score
+                FROM neuron_training nt
+                JOIN neurons n ON n.id = nt.neuron_id
+                WHERE nt.neuron_id IN ({','.join('?' for _ in ids)})
+                AND nt.id = (
+                    SELECT MAX(t2.id) FROM neuron_training t2
+                    WHERE t2.neuron_id = nt.neuron_id
+                )
+                """,
+                ids,
+            ).fetchall()
+        return {str(r["name"]): float(r["score"]) for r in rows}
+    except Exception:
+        return {}
+
+
+def _compute_progress(neuron: dict[str, Any], evidence: dict[str, Any], readiness: dict[str, Any], score: float) -> dict[str, Any]:
+    status = (neuron.get("status") or "").strip().lower()
+    if status in ("stable", "rejected"):
+        return {"phase": status, "progress": 1.0, "label": "Completado" if status == "stable" else "Rechazado"}
+    if status in ("candidate", "candidate_reviewable"):
+        threshold = 0.5
+        p = min(score / threshold, 1.0) if score > 0 else 0.0
+        return {"phase": "candidate", "progress": p, "score": score, "threshold": threshold, "target": "experimental", "label": f"{score:.0%} hacia experimental"}
+    if status == "experimental":
+        a = min(int(evidence.get("activation_count", 0)) / 5, 1.0)
+        d = min(int(evidence.get("diagnosis_count", 0)) / 5, 1.0)
+        t = min(int(evidence.get("test_plan_count", 0)) / 3, 1.0)
+        p = round((a + d + t) / 3, 4)
+        return {"phase": "experimental", "progress": p, "activation_progress": a, "diagnosis_progress": d, "test_plan_progress": t, "thresholds": {"min_activations": 5, "min_diagnosis": 5, "min_test_plan": 3}, "target": "stable", "label": f"{p:.0%} hacia stable"}
+    return {"phase": status, "progress": 0.0, "label": "En espera"}

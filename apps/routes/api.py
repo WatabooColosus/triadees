@@ -228,6 +228,34 @@ def system_life(tick: bool = False) -> dict[str, Any]:
     return LIFE_PULSE.snapshot()
 
 
+@router.get("/api/system/activity")
+def system_activity() -> dict[str, Any]:
+    LIFE_PULSE.record_action("system_activity")
+    from triade.core.neuron_dashboard import build_neuron_dashboard
+    dashboard = build_neuron_dashboard(limit=50)
+    life = LIFE_PULSE.snapshot()
+    neurons = dashboard.get("neurons", [])
+    status_counts: dict[str, int] = {}
+    for n in neurons:
+        s = str(n.get("status") or "unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
+    promoted_recently = [
+        {"name": n.get("name"), "status": n.get("status"), "progress": n.get("progress")}
+        for n in neurons if n.get("progress", {}).get("progress", 0) >= 1.0
+    ][-5:]
+    return {
+        "continuous_runner": life.get("continuous_runner", {}),
+        "uptime_seconds": life.get("uptime_seconds"),
+        "neurons_total": len(neurons),
+        "neurons_by_status": status_counts,
+        "promoted": promoted_recently,
+        "latest_neurons": [
+            {"name": n.get("name"), "status": n.get("status"), "progress": n.get("progress"), "domain": n.get("domain")}
+            for n in neurons[:10]
+        ],
+    }
+
+
 @router.get("/api/system/qualia")
 def system_qualia(refresh_life: bool = False) -> dict[str, Any]:
     LIFE_PULSE.record_action("qualia_snapshot")
