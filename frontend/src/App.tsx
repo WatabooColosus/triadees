@@ -167,7 +167,7 @@ export default function App() {
 /* ─── Chat ─────────────────────────────────────────── */
 
 function ChatTab({ apiKey }: { apiKey: string }) {
-  const [text, setText] = useState('')
+  const [inputKey, setInputKey] = useState(0)
   const [messages, setMessages] = useState<{ role: string; content: string; meta?: any }[]>([
     { role: 'bot', content: 'Tríade Ω lista. Escribe un mensaje para comenzar.' },
   ])
@@ -178,7 +178,7 @@ function ChatTab({ apiKey }: { apiKey: string }) {
   const [useOllama, setUseOllama] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const textRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
 
@@ -215,11 +215,17 @@ function ChatTab({ apiKey }: { apiKey: string }) {
     }
   }
 
+  function getText(): string {
+    return inputRef.current?.value || ''
+  }
+
   async function send() {
+    const text = getText()
     if (!text.trim() || loading) return
     const userMsg = text
     setMessages(m => [...m, { role: 'user', content: userMsg }])
     setLoading(true)
+    setInputKey(k => k + 1)
     const history = messages
       .filter(m => m.role !== 'bot' || m.content !== 'Tríade Ω lista. Escribe un mensaje para comenzar.')
       .filter(m => !m.meta?.pending && !m.meta?.rejected)
@@ -240,7 +246,16 @@ function ChatTab({ apiKey }: { apiKey: string }) {
       setMessages(m => [...m, {
         role: 'bot',
         content: res.response || '(sin respuesta)',
-        meta: { safety, models: res.models, run_id: res.run_id },
+        meta: {
+          safety,
+          models: res.models,
+          run_id: res.run_id,
+          neuron_proposal: res.neuron_proposal,
+          post_run_learning: res.post_run_learning,
+          background_candidates: res.background_neuron_candidates,
+          experimental_activity: res.experimental_neuron_activity,
+          system_events: res.system_events?.filter((e: any) => e.severity !== 'info').slice(0, 5),
+        },
       }])
     } catch (e: any) {
       if (e.status === 428) {
@@ -262,8 +277,6 @@ function ChatTab({ apiKey }: { apiKey: string }) {
       }
     } finally {
       setLoading(false)
-      setText('')
-      if (textRef.current) textRef.current.value = ''
     }
   }
 
@@ -348,6 +361,40 @@ function ChatTab({ apiKey }: { apiKey: string }) {
                   <span>{m.meta.models.hypothalamus?.name || '?'} → {m.meta.models.central?.name || '?'}</span>
                 </div>
               )}
+              {m.meta?.post_run_learning?.enabled && (
+                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <span>🧠 aprendizaje post-run</span>
+                  <Badge status={m.meta.post_run_learning.status || 'candidate'} />
+                </div>
+              )}
+              {m.meta?.neuron_proposal && (
+                <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span>🧬 neurona candidata: {m.meta.neuron_proposal.name}</span>
+                </div>
+              )}
+              {m.meta?.background_candidates?.length > 0 && (
+                <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span>🔄 {m.meta.background_candidates.length} candidato(s) en segundo plano</span>
+                </div>
+              )}
+              {m.meta?.experimental_activity?.run_count > 0 && (
+                <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span>⚡ {m.meta.experimental_activity.run_count} neurona(s) experimental(es) ejecutadas</span>
+                </div>
+              )}
+              {m.meta?.system_events?.length > 0 && (
+                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {m.meta.system_events.map((ev: any, ei: number) => (
+                    <div key={ei} style={{
+                      fontSize: 11, padding: '4px 8px', borderRadius: 4,
+                      background: 'var(--bg-base)', border: '1px solid var(--border)',
+                      color: ev.severity === 'error' ? 'var(--red)' : ev.severity === 'warning' ? 'var(--yellow)' : 'var(--text-muted)',
+                    }}>
+                      {ev.message || ev.type}
+                    </div>
+                  ))}
+                </div>
+              )}
               {m.meta?.approved && (
                 <div style={{ marginTop: 6 }}><Badge status="approved" /></div>
               )}
@@ -387,9 +434,8 @@ function ChatTab({ apiKey }: { apiKey: string }) {
 
       <div style={{ display: 'flex', gap: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
         <textarea
-          ref={textRef}
-          defaultValue={text}
-          onChange={e => setText(e.target.value)}
+          key={inputKey}
+          ref={inputRef}
           onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send() }}
           placeholder="Escribe a Tríade…  Ctrl+Enter"
           style={{
