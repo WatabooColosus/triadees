@@ -286,9 +286,48 @@ def wait_local_job(
     return job
 
 
+TASK_PERMISSIONS: dict[str, str] = {
+    "browser_benchmark": "request_compute",
+    "preprocess_text": "request_compute",
+    "federated_inference_probe": "request_compute",
+    "android_model_doctor": "request_compute",
+    "android_local_generate": "request_compute",
+}
+
+TRUST_THRESHOLDS: dict[str, str] = {
+    "federated_inference_probe": "low",
+    "android_model_doctor": "medium",
+    "android_local_generate": "medium",
+}
+
+TRUST_RANK = {"low": 0, "medium": 1, "high": 2}
+
+
+def _node_meets_federation_gate(node: dict[str, Any], task: str | None, fed: Federation) -> bool:
+    """Verifica que el nodo tenga el permiso y trust level requeridos por el gate."""
+    if task is None:
+        return True
+    required_perm = TASK_PERMISSIONS.get(task)
+    min_trust = TRUST_THRESHOLDS.get(task)
+    if required_perm is None and min_trust is None:
+        return True
+    registered = fed.get_node(node["node_id"])
+    if registered is None:
+        return False
+    perms = registered.get("permissions") or []
+    if required_perm and required_perm not in perms:
+        return False
+    if min_trust:
+        trust = registered.get("trust_level") or "low"
+        if TRUST_RANK.get(trust, 0) < TRUST_RANK.get(min_trust, 0):
+            return False
+    return True
+
+
 def local_federated_nodes(task: str | None = None) -> list[dict[str, Any]]:
+    fed = Federation()
     nodes = []
-    for node in Federation().list_nodes(status="active"):
+    for node in fed.list_nodes(status="active"):
         caps = node.get("capabilities") or {}
         allowed = (
             caps.get("allowed_tasks") if isinstance(caps.get("allowed_tasks"), list) else []
@@ -304,6 +343,8 @@ def local_federated_nodes(task: str | None = None) -> list[dict[str, Any]]:
         if not is_direct_local:
             continue
         if task and task not in allowed:
+            continue
+        if not _node_meets_federation_gate(node, task, fed):
             continue
         nodes.append(node)
     return nodes

@@ -37,6 +37,7 @@ from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
 
 from apps import services
+from apps.gates.safety import safety_gate
 from apps.services import (
     RunRequest,
     RouterRequest,
@@ -853,7 +854,7 @@ def run_triade(
             central_model=clean_model(request.central_model),
             auto_select_models=request.auto_select_models,
         )
-        return runner.run(
+        result = runner.run(
             request.text,
             source=request.source,
             context=run_context_with_living_awareness(request.context),
@@ -864,6 +865,9 @@ def run_triade(
             semantic_domain=request.semantic_domain,
             semantic_allow_experimental=request.semantic_allow_experimental,
         )
+        return safety_gate(result)
+    except HTTPException:
+        raise
     except Exception as exc:
         LIFE_PULSE.record_action("run_error")
         return {
