@@ -167,8 +167,18 @@ class Central:
         awareness = Central._operational_awareness_response(identity, input_packet)
         if awareness:
             return awareness
+        user_text = input_packet.user_input.strip()
         if not wants_internal_audit:
-            return f"Soy {identity}: una arquitectura modular con Central, Hipotálamo, Bodega, Cristal, Federación/Nodos, pulso vivo y aprendizaje en segundo plano. Estoy lista para ayudarte."
+            response_parts = [f"Soy {identity}. Recibí tu mensaje: «{user_text[:200]}»."]
+            if signals.intent == "conversation":
+                response_parts.append("Estoy en modo conversación. Cuéntame más o pídeme algo específico.")
+            elif signals.intent == "analyze":
+                response_parts.append("Entendido, analizaré el contexto y te daré mi lectura.")
+            elif signals.intent == "build_or_update":
+                response_parts.append("Recibido. Puedo ayudarte a construir o modificar.")
+            else:
+                response_parts.append("Estoy procesando tu solicitud.")
+            return " ".join(response_parts)
         mode = Central._crystal_mode(crystal)
         return (
             f"{identity} procesó el run {input_packet.run_id}. "

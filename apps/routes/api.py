@@ -194,6 +194,17 @@ def system_neurons(limit: int = 100) -> dict[str, Any]:
     return build_neuron_dashboard(limit=limit)
 
 
+@router.get("/api/system/neurons/{name}")
+def system_neuron_detail(name: str, limit: int = 10) -> dict[str, Any]:
+    from triade.core.neuron_registry import NeuronRegistry
+    registry = NeuronRegistry()
+    neuron = registry.get_neuron(name)
+    if neuron is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Neurona no encontrada.")
+    training = registry.list_training(neuron_id=int(neuron["id"]), limit=limit)
+    return {"status": "ok", "neuron": dict(neuron), "training": training}
+
+
 @router.get("/api/system/life")
 def system_life(tick: bool = False) -> dict[str, Any]:
     LIFE_PULSE.record_action("life_snapshot")
@@ -721,6 +732,55 @@ def distributed_runtime_android_local_generate(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="No hay host LLM Android real. Ejecuta Doctor Android y prepara la APK con llama-cli ejecutable en bin/ y un modelo .gguf en models/.",
     )
+
+
+# ── Safety ───────────────────────────────────────────────────────────────
+
+@router.get("/api/safety/pending")
+def safety_pending() -> dict[str, Any]:
+    """Lista runs pendientes de aprobación humana."""
+    from apps.gates.safety import get_pending_approvals
+    pending = get_pending_approvals()
+    items = []
+    for run_id, result in pending.items():
+        safety = result.get("safety", {})
+        items.append({
+            "run_id": run_id,
+            "status": safety.get("status"),
+            "risk_level": safety.get("risk_level"),
+            "reason": safety.get("reason"),
+            "controls": safety.get("required_controls"),
+            "response": result.get("response", "")[:200],
+            "timestamp": safety.get("timestamp"),
+        })
+    return {"status": "ok", "count": len(items), "pending": items}
+
+
+@router.post("/api/safety/approve/{run_id}")
+def safety_approve(run_id: str) -> dict[str, Any]:
+    """Aprueba un run pendiente y retorna el resultado completo."""
+    from apps.gates.safety import remove_pending_approval
+    result = remove_pending_approval(run_id)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No hay run pendiente con run_id '{run_id}'.",
+        )
+    result["safety"]["status"] = "approved"
+    return result
+
+
+@router.post("/api/safety/reject/{run_id}")
+def safety_reject(run_id: str) -> dict[str, Any]:
+    """Rechaza un run pendiente y lo descarta."""
+    from apps.gates.safety import remove_pending_approval
+    result = remove_pending_approval(run_id)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No hay run pendiente con run_id '{run_id}'.",
+        )
+    return {"status": "ok", "run_id": run_id, "disposition": "rejected"}
 
 
 # ── Memoria semántica ──────────────────────────────────────────────────

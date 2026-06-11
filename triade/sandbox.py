@@ -119,6 +119,13 @@ def _build_sandbox_script(task: str) -> str:
         sha = hashlib.sha256(text.encode()).hexdigest()
         result["sha256"] = sha
         """))
+    elif task == "sandbox_exec":
+        parts.append(textwrap.dedent("""\
+        result["executed"] = True
+        result["sandbox_mode"] = "isolated"
+        result["payload_keys"] = sorted(payload.keys())
+        result["note"] = "Ejecución aislada en sandbox. Ninguna acción real fue ejecutada."
+        """))
     elif task == "echo":
         parts.append("result['payload'] = payload\n")
     elif task == "browser_benchmark":

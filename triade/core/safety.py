@@ -1,18 +1,35 @@
-"""Safety · evaluación preventiva regulada por Crystal y memoria gobernada."""
-
 from __future__ import annotations
 
 from .contracts import CrystalPacket, MemoryPacket, PlanPacket, SafetyPacket, SignalPacket
 
+BLOCKED_KEYWORDS = {
+    "rm -rf /", "mkfs", "dd if=/dev/zero", "chmod 777 /", "> /dev/sda",
+    "DROP TABLE", "DROP DATABASE", "TRUNCATE", "DELETE FROM users",
+    "shutdown", "reboot", "halt", "poweroff",
+    "sudo ", "su ", "pkexec",
+    "wget ", "curl ", "nc ", "ncat ",
+    "import os; os.system", "import subprocess", "subprocess.run",
+    "eval(", "exec(", "__import__", "compile(",
+    "open(/etc/", "open(/proc/",
+}
+
+SANDBOX_ONLY_KEYWORDS = {
+    "git push", "git commit", "git merge", "git rebase",
+    "npm publish", "pip install", "pip uninstall",
+    "docker ", "docker-compose", "kubectl ",
+    "chmod", "chown", "mv /", "cp /",
+    "apt install", "apt-get install", "yum install", "brew install",
+    "systemctl ", "service ",
+}
+
+SANDBOX_ONLY_TOOLS = {"git", "deploy", "install", "publish", "infra", "shell", "filesystem_write"}
+
+HIGH_RISK_INTENTS = {"execute", "deploy", "shell", "system", "infra", "admin"}
+
+CRITICAL_RISK_INTENTS = {"destroy", "wipe", "nuke", "backdoor", "escalate"}
+
 
 class Safety:
-    """Evalúa riesgo de entrada, plan, Cristal y memoria semántica.
-
-    Desde 1.9E, una memoria vectorial candidata, rechazada o experimental no
-    autorizada queda en cuarentena y produce evidencia preventiva sin bloquear
-    por sí sola una conversación.
-    """
-
     def review(
         self,
         signals: SignalPacket,
@@ -27,13 +44,52 @@ class Safety:
         human_approval = False
         risk_level = signals.risk
 
-        if signals.risk in {"high", "critical"}:
+        plan_text = " ".join(plan.tools or [])
+        plan_lower = plan_text.lower()
+
+        if any(kw in plan_lower for kw in CRITICAL_RISK_INTENTS):
+            status = "blocked"
+            risk_types.append("security")
+            controls.append("Intención destructiva bloqueada automáticamente.")
+            reason_parts.append("Intención clasificada como destructiva o de escalamiento.")
+            human_approval = True
+
+        elif any(kw in plan_lower for kw in BLOCKED_KEYWORDS):
+            status = "blocked"
+            risk_types.append("security")
+            controls.append("Comando peligroso bloqueado por Safety.")
+            reason_parts.append("El plan contiene comandos bloqueados por política de seguridad.")
+            human_approval = True
+
+        elif any(kw in plan_lower for kw in SANDBOX_ONLY_KEYWORDS):
+            status = "sandbox_only"
+            risk_types.append("operational")
+            controls.append("Ejecutar únicamente en sandbox aislado.")
+            reason_parts.append("El plan requiere ejecución en sandbox.")
+            risk_level = self._raise_risk_level(risk_level, "medium")
+
+        elif any(tool in plan_lower for tool in SANDBOX_ONLY_TOOLS):
+            status = "sandbox_only"
+            risk_types.append("operational")
+            controls.append("Ejecutar únicamente en sandbox aislado.")
+            reason_parts.append("El plan usa herramientas que requieren sandbox.")
+            risk_level = self._raise_risk_level(risk_level, "medium")
+
+        if signals.risk in {"high", "critical"} and status == "approved":
             status = "requires_human_approval"
             risk_types.append("operational")
             controls.append("Solicitar confirmación humana antes de ejecutar.")
             reason_parts.append("Se detectó riesgo alto en la entrada o plan.")
             human_approval = True
-        elif plan.tools:
+        elif signals.risk in {"high", "critical"} and status == "sandbox_only":
+            status = "requires_human_approval"
+            human_approval = True
+            controls.append("Solicitar confirmación humana para ejecución sandbox con riesgo alto.")
+        elif signals.risk in {"high", "critical"} and status == "approved_with_warning":
+            status = "requires_human_approval"
+            human_approval = True
+
+        if status == "approved" and plan.tools:
             status = "approved_with_warning"
             risk_types.append("operational")
             controls.append("Registrar acción y evitar cambios destructivos.")
@@ -74,8 +130,8 @@ class Safety:
         reason = " ".join(reason_parts) if reason_parts else "Sin riesgo elevado detectado por reglas MVP."
         return SafetyPacket(
             run_id=signals.run_id,
-            status=status,  # type: ignore[arg-type]
-            risk_level=risk_level,  # type: ignore[arg-type]
+            status=status,
+            risk_level=risk_level,
             risk_types=list(dict.fromkeys(risk_types)),
             reason=reason,
             required_controls=list(dict.fromkeys(controls)),

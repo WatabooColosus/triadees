@@ -68,7 +68,7 @@ LOCAL_JOBS: dict[str, dict[str, Any]] = {}
 class RunRequest(BaseModel):
     text: str = Field(..., min_length=1)
     source: str = "single-port-ui"
-    use_ollama: bool = False
+    use_ollama: bool = True
     hypothalamus_model: str | None = None
     central_model: str | None = None
     auto_select_models: bool = True

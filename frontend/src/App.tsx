@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import './index.css'
 
 const BASE = ''
-const COLORS = ['#3b82f6', '#22c55e', '#eab308', '#ef4444', '#a855f7', '#ec4899', '#14b8a6']
 
 async function api(path: string, opts?: RequestInit) {
   const res = await fetch(BASE + path, {
@@ -10,8 +9,17 @@ async function api(path: string, opts?: RequestInit) {
     ...opts,
   })
   if (!res.ok) {
-    const detail = await res.text().catch(() => res.statusText)
-    throw new Error(`${res.status}: ${detail}`)
+    if (res.status === 428) {
+      const body = await res.json().catch(() => ({}))
+      const err: any = new Error(body.detail?.error || res.statusText)
+      err.status = res.status
+      err.detail = body.detail || body
+      throw err
+    }
+    const text = await res.text().catch(() => res.statusText)
+    const err: any = new Error(`${res.status}: ${text}`)
+    err.status = res.status
+    throw err
   }
   return res.json()
 }
@@ -28,11 +36,33 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'neurons', label: 'Neuronas', icon: '🧬' },
 ]
 
+/* ─── Safety pending badge hook ───────────────────── */
+
+function usePendingCount() {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    let mounted = true
+    async function poll() {
+      try {
+        const res = await api('/api/safety/pending')
+        if (mounted) setCount(res.count || 0)
+      } catch { /* ignore */ }
+    }
+    poll()
+    const id = setInterval(poll, 5000)
+    return () => { mounted = false; clearInterval(id) }
+  }, [])
+  return count
+}
+
+/* ─── App ─────────────────────────────────────────── */
+
 export default function App() {
   const [tab, setTab] = useState<Tab>('chat')
   const [health, setHealth] = useState<any>(null)
   const [apiKey, setApiKey] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const pendingCount = usePendingCount()
 
   useEffect(() => {
     api('/api/health').then(setHealth).catch(() => {})
@@ -74,11 +104,18 @@ export default function App() {
               background: tab === t.key ? 'var(--accent-glow)' : 'transparent',
               color: tab === t.key ? 'var(--accent)' : 'var(--text-secondary)',
               cursor: 'pointer', fontWeight: tab === t.key ? 600 : 400,
-              fontSize: 13, textAlign: 'left',
+              fontSize: 13, textAlign: 'left', position: 'relative',
               transition: 'all var(--transition)',
             }}>
               <span style={{ fontSize: 16, width: 24, textAlign: 'center', flexShrink: 0 }}>{t.icon}</span>
               {sidebarOpen && <span>{t.label}</span>}
+              {t.key === 'neurons' && pendingCount > 0 && (
+                <span style={{
+                  position: 'absolute', right: 8, top: 6,
+                  background: 'var(--red)', color: '#fff', borderRadius: 10,
+                  padding: '0 6px', fontSize: 10, fontWeight: 700, lineHeight: '16px',
+                }}>{pendingCount}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -131,18 +168,52 @@ export default function App() {
 
 function ChatTab({ apiKey }: { apiKey: string }) {
   const [text, setText] = useState('')
-  const [messages, setMessages] = useState<{ role: string; content: string }[]>([
+  const [messages, setMessages] = useState<{ role: string; content: string; meta?: any }[]>([
     { role: 'bot', content: 'Tríade Ω lista. Escribe un mensaje para comenzar.' },
   ])
   const [loading, setLoading] = useState(false)
   const [intent, setIntent] = useState('conversation')
-  const [hypModel, setHypModel] = useState('qwen2.5:3b-instruct')
-  const [cenModel, setCenModel] = useState('qwen2.5:3b-instruct')
+  const [hypModel, setHypModel] = useState('')
+  const [cenModel, setCenModel] = useState('')
   const [useOllama, setUseOllama] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const textRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
+
+  async function approveRun(runId: string, idx: number) {
+    try {
+      const res = await api(`/api/safety/approve/${runId}`, {
+        method: 'POST',
+        headers: { ...(apiKey ? { 'X-TRIADE-API-Key': apiKey } : {}) },
+      })
+      setMessages(m => {
+        const copy = [...m]
+        copy[idx] = {
+          role: 'bot',
+          content: res.response || '(aprobado)',
+          meta: { approved: true, safety: res.safety, models: res.models, run_id: runId },
+        }
+        return copy
+      })
+    } catch (e: any) {
+      setMessages(m => [...m, { role: 'bot', content: `Error al aprobar: ${e.message}` }])
+    }
+  }
+
+  async function rejectRun(runId: string, idx: number) {
+    try {
+      await api(`/api/safety/reject/${runId}`, { method: 'POST' })
+      setMessages(m => {
+        const copy = [...m]
+        copy[idx] = { role: 'bot', content: '⛔ Run rechazado y descartado.', meta: { rejected: true } }
+        return copy
+      })
+    } catch (e: any) {
+      setMessages(m => [...m, { role: 'bot', content: `Error al rechazar: ${e.message}` }])
+    }
+  }
 
   async function send() {
     if (!text.trim() || loading) return
@@ -151,6 +222,7 @@ function ChatTab({ apiKey }: { apiKey: string }) {
     setLoading(true)
     const history = messages
       .filter(m => m.role !== 'bot' || m.content !== 'Tríade Ω lista. Escribe un mensaje para comenzar.')
+      .filter(m => !m.meta?.pending && !m.meta?.rejected)
       .slice(-10)
       .map(m => ({ role: m.role, content: m.content }))
     const payload = {
@@ -164,12 +236,34 @@ function ChatTab({ apiKey }: { apiKey: string }) {
         method: 'POST', body: JSON.stringify(payload),
         headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'X-TRIADE-API-Key': apiKey } : {}) },
       })
-      setMessages(m => [...m, { role: 'bot', content: res.response || '(sin respuesta)' }])
+      const safety = res.safety || {}
+      setMessages(m => [...m, {
+        role: 'bot',
+        content: res.response || '(sin respuesta)',
+        meta: { safety, models: res.models, run_id: res.run_id },
+      }])
     } catch (e: any) {
-      setMessages(m => [...m, { role: 'bot', content: `Error: ${e.message}` }])
+      if (e.status === 428) {
+        const d = e.detail || {}
+        setMessages(m => [...m, {
+          role: 'bot',
+          content: `⚠️ Safety requiere aprobación humana.\n\nRiesgo: ${d.risk_level}\nRazón: ${d.reason}\nID: ${d.run_id}`,
+          meta: { pending: true, run_id: d.run_id, risk_level: d.risk_level, reason: d.reason, controls: d.required_controls },
+        }])
+      } else if (e.status === 403) {
+        const d = e.detail || {}
+        setMessages(m => [...m, {
+          role: 'bot',
+          content: `🚫 Acción bloqueada por Safety.\n\nRazón: ${d.reason || e.message}`,
+          meta: { blocked: true },
+        }])
+      } else {
+        setMessages(m => [...m, { role: 'bot', content: `Error: ${e.message}` }])
+      }
     } finally {
       setLoading(false)
       setText('')
+      if (textRef.current) textRef.current.value = ''
     }
   }
 
@@ -238,12 +332,38 @@ function ChatTab({ apiKey }: { apiKey: string }) {
             <div style={{
               maxWidth: '70%', padding: '10px 14px', borderRadius: 12,
               lineHeight: 1.5, fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-              background: m.role === 'user' ? 'var(--accent-glow)' : 'var(--bg-surface)',
-              border: m.role === 'user' ? '1px solid rgba(59,130,246,0.2)' : '1px solid var(--border)',
+              background: m.meta?.pending ? 'var(--yellow-bg)' : m.meta?.blocked ? 'var(--red-bg)' : m.role === 'user' ? 'var(--accent-glow)' : 'var(--bg-surface)',
+              border: m.meta?.pending ? '1px solid var(--yellow)' : m.meta?.blocked ? '1px solid var(--red)' : m.role === 'user' ? '1px solid rgba(59,130,246,0.2)' : '1px solid var(--border)',
               color: m.role === 'user' ? '#fff' : 'var(--text-primary)',
             }}>
-              {m.content}
+              <div>{m.content}</div>
+              {m.meta?.safety && m.meta?.safety.status && !m.meta?.pending && (
+                <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <Badge status={m.meta.safety.status} />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>riesgo: {m.meta.safety.risk_level}</span>
+                </div>
+              )}
+              {m.meta?.models && (
+                <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span>{m.meta.models.hypothalamus?.name || '?'} → {m.meta.models.central?.name || '?'}</span>
+                </div>
+              )}
+              {m.meta?.approved && (
+                <div style={{ marginTop: 6 }}><Badge status="approved" /></div>
+              )}
             </div>
+            {m.meta?.pending && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+                <button onClick={() => approveRun(m.meta!.run_id, i)} style={{
+                  background: 'var(--green)', color: '#fff', border: 'none',
+                  borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontWeight: 600, fontSize: 11,
+                }}>✓ Aprobar</button>
+                <button onClick={() => rejectRun(m.meta!.run_id, i)} style={{
+                  background: 'transparent', color: 'var(--red)', border: '1px solid var(--red)',
+                  borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontWeight: 600, fontSize: 11,
+                }}>✕ Rechazar</button>
+              </div>
+            )}
           </div>
         ))}
         {loading && (
@@ -267,7 +387,9 @@ function ChatTab({ apiKey }: { apiKey: string }) {
 
       <div style={{ display: 'flex', gap: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
         <textarea
-          value={text} onChange={e => setText(e.target.value)}
+          ref={textRef}
+          defaultValue={text}
+          onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send() }}
           placeholder="Escribe a Tríade…  Ctrl+Enter"
           style={{
@@ -294,18 +416,21 @@ function ChatTab({ apiKey }: { apiKey: string }) {
 function SystemTab() {
   const [data, setData] = useState<any>(null)
   const [error, setError] = useState('')
-  useEffect(() => {
+
+  const fetch = useCallback(() => {
     Promise.all([
       api('/api/health'), api('/api/system/pulse'), api('/api/system/life'), api('/api/system/qualia'),
     ]).then(([h, p, l, q]) => setData({ health: h, pulse: p, life: l, qualia: q }))
       .catch(e => setError(e.message))
   }, [])
 
+  useEffect(() => { fetch(); const id = setInterval(fetch, 10000); return () => clearInterval(id) }, [fetch])
+
   if (error) return <PageError error={error} />
   if (!data) return <PageLoading />
 
   return (
-    <Page title="Sistema">
+    <Page title="Sistema" subtitle="Auto-refresh cada 10s">
       <Grid cols={2}>
         <Card title="Health" color="#3b82f6">
           <KVTable data={data.health} exclude={['doctor']} />
@@ -394,17 +519,20 @@ function ModelsTab() {
   const [compat, setCompat] = useState<any>(null)
   const [queue, setQueue] = useState<any>(null)
   const [error, setError] = useState('')
-  useEffect(() => {
+
+  const fetch = useCallback(() => {
     Promise.all([
       api('/api/models/compatibility'), api('/api/models/install-queue?include_allowed=true'),
     ]).then(([c, q]) => { setCompat(c); setQueue(q) }).catch(e => setError(e.message))
   }, [])
 
+  useEffect(() => { fetch(); const id = setInterval(fetch, 15000); return () => clearInterval(id) }, [fetch])
+
   if (error) return <PageError error={error} />
   if (!compat) return <PageLoading />
 
   return (
-    <Page title="Modelos" subtitle="Compatibilidad y cola de instalación">
+    <Page title="Modelos" subtitle="Compatibilidad y cola de instalación (auto-refresh 15s)">
       <Grid cols={2}>
         <Card title="Matriz de Compatibilidad" color="#a855f7">
           <KVTable data={compat.matrix || compat} />
@@ -438,18 +566,21 @@ function ModelsTab() {
 function FederationTab({ apiKey }: { apiKey: string }) {
   const [data, setData] = useState<any>(null)
   const [error, setError] = useState('')
-  useEffect(() => {
+
+  const fetch = useCallback(() => {
     Promise.all([
       api('/api/federation/resource-lease'), api('/api/distributed-runtime/status'), api('/api/system/pulse'),
     ]).then(([lease, runtime, pulse]) => setData({ lease, runtime, pulse }))
       .catch(e => setError(e.message))
   }, [])
 
+  useEffect(() => { fetch(); const id = setInterval(fetch, 15000); return () => clearInterval(id) }, [fetch])
+
   if (error) return <PageError error={error} />
   if (!data) return <PageLoading />
 
   return (
-    <Page title="Federación" subtitle="Nodos, recursos y runtime distribuido">
+    <Page title="Federación" subtitle="Nodos, recursos y runtime distribuido (auto-refresh 15s)">
       <Grid cols={2}>
         <Card title="Resource Lease" color="#14b8a6">
           <KVTable data={data.lease} />
@@ -557,25 +688,110 @@ function MemoryTab({ apiKey }: { apiKey: string }) {
 
 function NeuronsTab({ apiKey }: { apiKey: string }) {
   const [candidates, setCandidates] = useState<any>(null)
+  const [pendingSafety, setPendingSafety] = useState<any[]>([])
   const [error, setError] = useState('')
-  useEffect(() => {
+  const [selectedNeuron, setSelectedNeuron] = useState<any>(null)
+
+  const fetch = useCallback(() => {
     api('/api/system/neurons?limit=50').then(setCandidates).catch(e => setError(e.message))
+    api('/api/safety/pending').then(r => setPendingSafety(r.pending || [])).catch(() => {})
   }, [])
 
-  if (error) return <PageError error={error} />
+  useEffect(() => { fetch(); const id = setInterval(fetch, 8000); return () => clearInterval(id) }, [fetch])
+
+  async function approveSafety(runId: string) {
+    try {
+      await api(`/api/safety/approve/${runId}`, { method: 'POST' })
+      fetch()
+    } catch (e: any) { setError(e.message) }
+  }
+
+  async function rejectSafety(runId: string) {
+    try {
+      await api(`/api/safety/reject/${runId}`, { method: 'POST' })
+      fetch()
+    } catch (e: any) { setError(e.message) }
+  }
+
+  async function loadNeuronDetail(name: string) {
+    try {
+      const res = await api(`/api/system/neurons/${encodeURIComponent(name)}?limit=20`)
+      setSelectedNeuron(res)
+    } catch (e: any) { setError(e.message) }
+  }
+
+  if (error) return <div style={{ padding: 20 }}>
+    <PageError error={error} />
+    <button onClick={() => setError('')} style={btnStyle}>Atrás</button>
+  </div>
+
+  if (selectedNeuron) {
+    const n = selectedNeuron.neuron || {}
+    const training = selectedNeuron.training || []
+    return (
+      <Page title={`Neurona: ${n.name}`} subtitle={`Dominio: ${n.domain}`}>
+        <button onClick={() => setSelectedNeuron(null)} style={{ ...btnStyle, marginBottom: 12 }}>← Volver</button>
+        <Grid cols={2}>
+          <Card title="Detalles" color="#a855f7">
+            <KVTable data={n} />
+          </Card>
+          <Card title={`Entrenamiento (${training.length})`} color="#3b82f6">
+            {training.length ? training.map((t: any, i: number) => (
+              <div key={i} style={{
+                padding: '6px 8px', background: 'var(--bg-base)', borderRadius: 6,
+                border: '1px solid var(--border)', fontSize: 12, marginBottom: 4,
+              }}>
+                <KVTable data={t} />
+              </div>
+            )) : <span style={{ color: 'var(--text-muted)' }}>Sin registros de entrenamiento</span>}
+          </Card>
+        </Grid>
+      </Page>
+    )
+  }
+
   return (
-    <Page title="Neuronas" subtitle="Candidatos registrados">
+    <Page title="Neuronas" subtitle="Candidatos y aprobaciones pendientes">
+      {pendingSafety.length > 0 && (
+        <Card title={`Safety Pendiente (${pendingSafety.length})`} color="#eab308">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {pendingSafety.map((p, i) => (
+              <div key={i} style={{
+                padding: '10px', background: 'var(--yellow-bg)', borderRadius: 8,
+                border: '1px solid var(--yellow)', fontSize: 12,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600 }}>{p.run_id?.slice(0, 20)}</span>
+                  <Badge status={p.risk_level} />
+                </div>
+                <div style={{ color: 'var(--text-secondary)', marginBottom: 6 }}>{p.reason}</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => approveSafety(p.run_id)} style={{
+                    background: 'var(--green)', color: '#fff', border: 'none',
+                    borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontWeight: 600, fontSize: 11,
+                  }}>✓ Aprobar</button>
+                  <button onClick={() => rejectSafety(p.run_id)} style={{
+                    background: 'transparent', color: 'var(--red)', border: '1px solid var(--red)',
+                    borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontWeight: 600, fontSize: 11,
+                  }}>✕ Rechazar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
       <Card title={`Candidatos (${candidates?.neurons?.length || 0})`} color="#ec4899">
         {candidates?.neurons?.length ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {(candidates.neurons as any[]).map((n, i) => (
-              <div key={i} style={{
+              <div key={i} onClick={() => loadNeuronDetail(n.name)} style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '8px 10px', background: 'var(--bg-base)', borderRadius: 6,
-                border: '1px solid var(--border)', fontSize: 12,
+                border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer',
+                transition: 'border-color var(--transition)',
               }}>
                 <span style={{ fontWeight: 600, flex: 1 }}>{n.name}</span>
-                <Badge status={n.status} />
+                <Badge status={n.status || n.activation} />
                 <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{n.domain}</span>
               </div>
             ))}
@@ -652,14 +868,16 @@ function Grid({ cols, children }: { cols: number; children: React.ReactNode }) {
 
 function Badge({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
-    ok: 'var(--green)', active: 'var(--green)', online: 'var(--green)',
+    ok: 'var(--green)', active: 'var(--green)', online: 'var(--green)', approved: 'var(--green)',
     experimental: 'var(--yellow)', candidate: 'var(--accent)', error: 'var(--red)',
-    blocked: 'var(--red)', stale: 'var(--yellow)',
+    blocked: 'var(--red)', stale: 'var(--yellow)', low: 'var(--green)',
+    medium: 'var(--yellow)', high: 'var(--red)', critical: 'var(--red)',
   }
   const bgMap: Record<string, string> = {
-    ok: 'var(--green-bg)', active: 'var(--green-bg)', online: 'var(--green-bg)',
+    ok: 'var(--green-bg)', active: 'var(--green-bg)', online: 'var(--green-bg)', approved: 'var(--green-bg)',
     experimental: 'var(--yellow-bg)', candidate: 'var(--accent-glow)', error: 'var(--red-bg)',
-    blocked: 'var(--red-bg)', stale: 'var(--yellow-bg)',
+    blocked: 'var(--red-bg)', stale: 'var(--yellow-bg)', low: 'var(--green-bg)',
+    medium: 'var(--yellow-bg)', high: 'var(--red-bg)', critical: 'var(--red-bg)',
   }
   return (
     <span style={{
@@ -700,7 +918,7 @@ function KVTable({ data, exclude }: { data: any; exclude?: string[] }) {
   )
 }
 
-/* ─── Inline styles for select/input reuse ────────── */
+/* ─── Inline styles ───────────────────────────────── */
 
 const labelStyle: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11, color: 'var(--text-muted)',

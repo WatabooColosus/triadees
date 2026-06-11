@@ -1,5 +1,3 @@
-"""Tests de API neuronal 1.2E."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,29 +5,33 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from apps.api_app import app
+from triade.core.neuron_creator import NeuronCreator, NeuronSpec
+from triade.core.neuron_registry import NeuronRegistry
+from triade.core.neuron_trainer import NeuronTrainer
 
 
 client = TestClient(app)
 
 
-def test_neuron_api_create_list_show(tmp_path: Path) -> None:
-    db_path = str(tmp_path / "triade.db")
-
-    created = client.post(
-        "/triade/neurons",
-        json={
-            "name": "Neurona API",
-            "mission": "Crear una neurona desde FastAPI para validar gestion interna.",
-            "domain": "api-test",
-            "rules": ["Debe ser verificable.", "Debe responder por HTTP."],
-            "db_path": db_path,
-        },
+def seed_neuron(db_path: str, name: str = "Neurona API") -> int:
+    creator = NeuronCreator()
+    trainer = NeuronTrainer()
+    registry = NeuronRegistry(db_path=db_path)
+    spec = creator.create(
+        name=name,
+        mission="Crear una neurona para validar gestion interna.",
+        domain="api-test",
+        rules=["Debe ser verificable.", "Debe responder por HTTP."],
     )
-    assert created.status_code == 200
-    payload = created.json()
-    assert payload["status"] == "ok"
-    assert payload["neuron_id"] > 0
-    assert payload["training"]["status"] in {"candidate", "experimental_candidate"}
+    neuron_id = registry.register(spec)
+    result = trainer.evaluate(spec)
+    registry.store_training(neuron_id, result)
+    return neuron_id
+
+
+def test_neuron_api_list_show(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "triade.db")
+    seed_neuron(db_path)
 
     listed = client.get("/triade/neurons", params={"db_path": db_path, "limit": 5})
     assert listed.status_code == 200

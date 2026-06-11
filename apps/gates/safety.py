@@ -1,7 +1,6 @@
-"""Safety Gate — intercepta el flujo post-run según el nivel de riesgo."""
-
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -9,21 +8,27 @@ from fastapi import HTTPException, status
 BLOCKED_STATUSES = frozenset({"blocked"})
 HUMAN_APPROVAL_STATUSES = frozenset({"requires_human_approval"})
 
+_pending_lock = threading.Lock()
+_pending_approvals: dict[str, dict[str, Any]] = {}
+
+
+def get_pending_approvals() -> dict[str, dict[str, Any]]:
+    with _pending_lock:
+        return dict(_pending_approvals)
+
+
+def store_pending_approval(result: dict[str, Any]) -> None:
+    run_id = result.get("run_id", "unknown")
+    with _pending_lock:
+        _pending_approvals[run_id] = result
+
+
+def remove_pending_approval(run_id: str) -> dict[str, Any] | None:
+    with _pending_lock:
+        return _pending_approvals.pop(run_id, None)
+
 
 def safety_gate(result: dict[str, Any]) -> dict[str, Any]:
-    """Post-run gate: evalúa SafetyPacket y bloquea si corresponde.
-
-    Args:
-        result: Diccionario devuelto por TriadeRunner.run().
-                Debe contener la clave "safety" con los campos del SafetyPacket.
-
-    Returns:
-        El mismo result si el safety lo permite.
-
-    Raises:
-        HTTPException 403 si safety.status == "blocked".
-        HTTPException 428 si human_approval_required.
-    """
     safety = result.get("safety", {})
     status_val = safety.get("status")
     risk_level = safety.get("risk_level", "low")
@@ -44,6 +49,7 @@ def safety_gate(result: dict[str, Any]) -> dict[str, Any]:
         )
 
     if human_approval or status_val in HUMAN_APPROVAL_STATUSES:
+        store_pending_approval(result)
         raise HTTPException(
             status_code=status.HTTP_428_PRECONDITION_REQUIRED,
             detail={

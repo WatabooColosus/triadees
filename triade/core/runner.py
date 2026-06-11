@@ -215,17 +215,28 @@ class TriadeRunner:
             )
         safety = self.safety.review(signals, plan, crystal=crystal, memory=memory)
         safety_id = self.bodega.store_safety(safety)
+
         if safety.status == "blocked":
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
             output.response = "La acción fue bloqueada por Safety."
             output.status = "blocked"
+        elif safety.status == "sandbox_only":
+            from triade.sandbox import run_in_sandbox
+            sb = run_in_sandbox(task="sandbox_exec", payload={
+                "intent": str(signals.intent),
+                "risk": str(signals.risk),
+                "plan_tools": plan.tools,
+            })
+            output = self.central.respond(input_packet, signals, memory, crystal, plan)
+            output.response = f"[sandbox] {sb.get('status', 'completed')}: {sb.get('stdout', 'ok')}"
+            output.status = "sandbox"
         else:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
         output_gate = self._sanitize_user_response(output.response, input_packet.user_input, signals.intent)
         output.response = output_gate["response"]
         central_quality = self._score_central(output.response, output.model_ok)
         neuron_proposal = None
-        if propose_neurons and safety.status != "blocked":
+        if propose_neurons and safety.status not in ("blocked", "sandbox_only"):
             neuron_proposal = self._propose_neuron_candidate(input_packet, signals)
         self.bodega.update_run_models(input_packet.run_id, hypothalamus_model_result.get("name", self.hypothalamus_model), output.model_name)
         hypothalamus_event_id = self.bodega.store_model_event(input_packet.run_id, "hypothalamus", str(hypothalamus_model_result.get("provider")), str(hypothalamus_model_result.get("name")), bool(hypothalamus_model_result.get("ok")), hypothalamus_model_result.get("error"), hypothalamus_quality)

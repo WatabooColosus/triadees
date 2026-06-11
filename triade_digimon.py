@@ -12,9 +12,6 @@ import httpx
 
 from triade.core.alignment import CoreAlignment
 from triade.core.conversation_analyzer import ConversationAnalyzer, add_analyze_conversations_args
-from triade.core.neuron_creator import NeuronCreator
-from triade.core.neuron_registry import NeuronRegistry
-from triade.core.neuron_trainer import NeuronTrainer
 from triade.core.runner import TriadeRunner
 from triade.core.self_reflection import SelfReflectionEngine, add_reflect_core_args
 from triade.federation.federation import Federation
@@ -105,54 +102,6 @@ def _read_run_json(run_path: Path, name: str, required: bool = True) -> dict[str
             raise FileNotFoundError(f"Falta artefacto requerido: {path}")
         return {}
     return json.loads(path.read_text(encoding="utf-8"))
-
-
-def handle_neuron(args: argparse.Namespace) -> None:
-    registry = NeuronRegistry(db_path=args.db)
-
-    if args.neuron_command == "create":
-        creator = NeuronCreator()
-        trainer = NeuronTrainer()
-        spec = creator.create(
-            name=args.name,
-            mission=args.mission,
-            domain=args.domain,
-            rules=args.rule or [],
-        )
-        result = trainer.evaluate(spec)
-        neuron_id = registry.register(spec)
-        training_id = registry.store_training(neuron_id, result)
-        print_json(
-            {
-                "status": "ok",
-                "neuron_id": neuron_id,
-                "training_id": training_id,
-                "spec": spec.to_dict(),
-                "training": result.to_dict(),
-            }
-        )
-        return
-
-    if args.neuron_command == "list":
-        print_json(
-            {
-                "status": "ok",
-                "count": args.limit,
-                "neurons": registry.list_neurons(limit=args.limit),
-            }
-        )
-        return
-
-    if args.neuron_command == "show":
-        neuron = registry.get_neuron(args.name)
-        if neuron is None:
-            print_json({"status": "not_found", "name": args.name})
-            return
-        training = registry.list_training(neuron_id=int(neuron["id"]), limit=args.limit)
-        print_json({"status": "ok", "neuron": neuron, "training": training})
-        return
-
-    raise SystemExit("Comando neuron inválido")
 
 
 def handle_models(args: argparse.Namespace) -> None:
@@ -433,23 +382,6 @@ def main() -> None:
     api_parser.add_argument("--port", type=int, default=8000, help="Puerto de escucha")
     api_parser.add_argument("--reload", action="store_true", help="Recarga automática para desarrollo")
 
-    neuron_parser = subparsers.add_parser("neuron", help="Gestiona neuronas internas")
-    neuron_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
-    neuron_subparsers = neuron_parser.add_subparsers(dest="neuron_command")
-
-    neuron_create = neuron_subparsers.add_parser("create", help="Crea, evalúa y registra una neurona")
-    neuron_create.add_argument("--name", required=True, help="Nombre de la neurona")
-    neuron_create.add_argument("--mission", required=True, help="Misión de la neurona")
-    neuron_create.add_argument("--domain", default="general", help="Dominio de la neurona")
-    neuron_create.add_argument("--rule", action="append", help="Regla operativa; se puede repetir")
-
-    neuron_list = neuron_subparsers.add_parser("list", help="Lista neuronas recientes")
-    neuron_list.add_argument("--limit", type=int, default=20, help="Cantidad máxima de neuronas")
-
-    neuron_show = neuron_subparsers.add_parser("show", help="Muestra una neurona y su entrenamiento")
-    neuron_show.add_argument("name", help="Nombre exacto de la neurona")
-    neuron_show.add_argument("--limit", type=int, default=10, help="Cantidad máxima de entrenamientos")
-
     models_parser = subparsers.add_parser("models", help="Recomienda modelos por rol/tarea")
     models_parser.add_argument("--ollama-url", default="http://127.0.0.1:11434", help="URL local de Ollama")
     models_subparsers = models_parser.add_subparsers(dest="models_command")
@@ -662,10 +594,6 @@ def main() -> None:
         import uvicorn
 
         uvicorn.run("apps.api_app:app", host=args.host, port=args.port, reload=args.reload)
-        return
-
-    if args.command == "neuron":
-        handle_neuron(args)
         return
 
     if args.command == "models":
