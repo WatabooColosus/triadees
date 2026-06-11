@@ -205,6 +205,18 @@ def system_neuron_detail(name: str, limit: int = 10) -> dict[str, Any]:
     return {"status": "ok", "neuron": dict(neuron), "training": training}
 
 
+@router.post("/api/system/neurons/{name}/promote")
+def system_neuron_promote(name: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+    from triade.core.neuron_registry import NeuronRegistry
+    target = (body or {}).get("status", "experimental")
+    valid = {"candidate_reviewable", "experimental", "stable", "rejected", "needs_changes"}
+    if target not in valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Status inválido: {target}")
+    registry = NeuronRegistry()
+    neuron = registry.update_status(name, target)
+    return {"status": "ok", "neuron": neuron, "promoted_to": target}
+
+
 @router.get("/api/system/life")
 def system_life(tick: bool = False) -> dict[str, Any]:
     LIFE_PULSE.record_action("life_snapshot")

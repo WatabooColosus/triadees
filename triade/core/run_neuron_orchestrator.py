@@ -24,6 +24,7 @@ def orchestrate_run_neurons(
     output_gate: dict[str, Any],
     output: Any,
     edge_usage: dict[str, Any],
+    autopromotion_events: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Construye eventos de sistema y ejecuta neuronas experimentales.
 
@@ -80,11 +81,15 @@ def orchestrate_run_neurons(
             "payload": candidate,
         })
 
+    if autopromotion_events:
+        system_events.extend(autopromotion_events)
+
     output.memory_diff["post_run_learning"] = post_run_learning
     output.memory_diff["experimental_neuron_activity"] = experimental_neuron_activity
     output.memory_diff["neuron_activity_ids"] = neuron_activity_ids
     output.memory_diff["system_events"] = system_events
     output.memory_diff["background_neuron_candidates"] = background_neuron_candidates
+    output.memory_diff["autopromotion_events"] = autopromotion_events
     output.memory_diff["output_gate"] = output_gate
 
     return {

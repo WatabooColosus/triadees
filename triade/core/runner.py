@@ -274,6 +274,14 @@ class TriadeRunner:
         verification_id = self.bodega.store_verification_report(report)
         output.memory_diff["verification_report_id"] = verification_id
         post_run_learning = self._post_run_learning_candidate(input_packet, output, report, signals.intent)
+
+        autopromotion_events: list[dict[str, Any]] = []
+        try:
+            from .neuron_autopromoter import NeuronAutopromoter
+            autopromotion_events = NeuronAutopromoter(db_path=self.db_path).promote()
+        except Exception:
+            pass
+
         neuron_orchestration = orchestrate_run_neurons(
             runner=self,
             db_path=self.db_path,
@@ -286,6 +294,7 @@ class TriadeRunner:
             output_gate=output_gate,
             output=output,
             edge_usage=edge_usage,
+            autopromotion_events=autopromotion_events,
         )
         system_events = neuron_orchestration["system_events"]
         experimental_neuron_activity = neuron_orchestration["experimental_neuron_activity"]

@@ -254,6 +254,7 @@ function ChatTab({ apiKey }: { apiKey: string }) {
           post_run_learning: res.post_run_learning,
           background_candidates: res.background_neuron_candidates,
           experimental_activity: res.experimental_neuron_activity,
+          autopromotions: res.memory_diff?.autopromotion_events,
           system_events: res.system_events?.filter((e: any) => e.severity !== 'info').slice(0, 5),
         },
       }])
@@ -380,6 +381,19 @@ function ChatTab({ apiKey }: { apiKey: string }) {
               {m.meta?.experimental_activity?.run_count > 0 && (
                 <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
                   <span>⚡ {m.meta.experimental_activity.run_count} neurona(s) experimental(es) ejecutadas</span>
+                </div>
+              )}
+              {(m.meta?.autopromotions?.length || 0) > 0 && (
+                <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {m.meta.autopromotions.map((ap: any, ai: number) => (
+                    <div key={ai} style={{
+                      fontSize: 11, padding: '4px 8px', borderRadius: 4,
+                      background: 'var(--green-bg)', border: '1px solid var(--green)',
+                      color: 'var(--green)',
+                    }}>
+                      ▲ {ap.message || `${ap.payload?.name}: ${ap.payload?.from} → ${ap.payload?.to}`}
+                    </div>
+                  ))}
                 </div>
               )}
               {m.meta?.system_events?.length > 0 && (
@@ -774,9 +788,42 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
   if (selectedNeuron) {
     const n = selectedNeuron.neuron || {}
     const training = selectedNeuron.training || []
+    const status = (n.status || '').toLowerCase()
+
+    async function promoteTo(to: string) {
+      try {
+        await api(`/api/system/neurons/${encodeURIComponent(n.name)}/promote`, {
+          method: 'POST', body: JSON.stringify({ status: to }),
+          headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'X-TRIADE-API-Key': apiKey } : {}) },
+        })
+        loadNeuronDetail(n.name)
+      } catch (e: any) { setError(e.message) }
+    }
+
     return (
       <Page title={`Neurona: ${n.name}`} subtitle={`Dominio: ${n.domain}`}>
         <button onClick={() => setSelectedNeuron(null)} style={{ ...btnStyle, marginBottom: 12 }}>← Volver</button>
+        <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Badge status={status} />
+          {status === 'candidate_reviewable' && (
+            <button onClick={() => promoteTo('experimental')} style={{
+              background: 'var(--green)', color: '#fff', border: 'none',
+              borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontSize: 11,
+            }}>▲ Promover a experimental</button>
+          )}
+          {status === 'experimental' && (
+            <button onClick={() => promoteTo('stable')} style={{
+              background: 'var(--accent)', color: '#fff', border: 'none',
+              borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontSize: 11,
+            }}>★ Promover a stable</button>
+          )}
+          {(status === 'candidate_reviewable' || status === 'experimental') && (
+            <button onClick={() => promoteTo('rejected')} style={{
+              background: 'transparent', color: 'var(--red)', border: '1px solid var(--red)',
+              borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontSize: 11,
+            }}>✕ Rechazar</button>
+          )}
+        </div>
         <Grid cols={2}>
           <Card title="Detalles" color="#a855f7">
             <KVTable data={n} />
