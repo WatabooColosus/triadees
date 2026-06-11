@@ -47,11 +47,28 @@ class ModelRouter:
         "qwen2.5:3b-instruct": 4.0,
         "qwen2.5-coder:3b": 4.0,
         "qwen3:4b": 5.5,
+        "deepseek-coder-v2:16b": 12.0,
         "llama3:latest": 7.0,
         "llama3.1:8b": 8.5,
+        "llama3.2:3b": 4.0,
+        "llama3.2:1b": 2.0,
         "nomic-embed-text:latest": 1.0,
         "qwen3-embedding:0.6b": 1.0,
     }
+
+    @staticmethod
+    def _estimate_ram(model: str) -> float:
+        """Estima RAM requerida para modelos no listados por convención de nombre."""
+        known = ModelRouter.MODEL_RAM_GB.get(model)
+        if known is not None:
+            return known
+        # Estimar desde el nombre: qwen3:4b → 4B params → ~2x en GB
+        import re
+        match = re.search(r'(?:[:\-])(\d+)b', model)
+        if match:
+            params_b = int(match.group(1))
+            return max(1.0, params_b * 1.8)  # ~1.8GB por cada 1B params
+        return 4.0  # fallback conservador
 
     def __init__(self, available_models: list[str] | None = None, hardware: HardwareProfile | None = None) -> None:
         self.available_models = available_models or []
@@ -82,12 +99,19 @@ class ModelRouter:
                 rejected_by_hardware=rejected,
             )
 
-        fallback_pool = hardware_candidates or candidates
-        fallback = fallback_pool[-1] if fallback_pool else "qwen2.5:3b-instruct"
+        if self.available_models:
+            fallback = self.available_models[0]
+            fallback_reason = (
+                f"Ningún candidato recomendado está disponible; se usó {fallback} "
+                f"como primer modelo instalado."
+            )
+        else:
+            fallback = "qwen2.5:3b-instruct"
+            fallback_reason = "No hay modelos instalados en Ollama; se usó fallback por defecto."
         return ModelRouteDecision(
             role=normalized_role,
             selected_model=fallback,
-            reason="No se encontró candidato instalado compatible; se recomienda fallback configurado.",
+            reason=fallback_reason,
             fallback_used=True,
             candidates=hardware_candidates,
             hardware_tier=hardware_tier,
@@ -124,7 +148,7 @@ class ModelRouter:
     def _model_fits(self, model: str) -> bool:
         if self.hardware is None:
             return True
-        required = self.MODEL_RAM_GB.get(model, 4.0)
+        required = self._estimate_ram(model)
         available = self.hardware.ram_available_gb
         tier = self.hardware.tier
         if model in {"nomic-embed-text:latest", "qwen3-embedding:0.6b"}:
