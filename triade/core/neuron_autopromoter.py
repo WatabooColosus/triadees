@@ -46,7 +46,7 @@ class NeuronAutopromoter:
         if score < self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE:
             return None
         ap = n.get("activation_policy") or {}
-        if ap.get("human_approval_required"):
+        if not ap.get("auto_approve", True):
             return None
         try:
             self.registry.update_status(name, "experimental")

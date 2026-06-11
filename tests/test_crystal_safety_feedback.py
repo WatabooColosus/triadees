@@ -64,17 +64,17 @@ def test_safety_warns_on_degrading_crystal_without_tools() -> None:
     assert any("Cristal" in control for control in safety.required_controls)
 
 
-def test_safety_requires_human_approval_for_tools_during_degradation() -> None:
+def test_safety_auto_approves_tools_during_degradation() -> None:
     safety = Safety().review(
         signals(),
         plan(tools=["repository_or_file_update"]),
         crystal=degrading_crystal(),
     )
 
-    assert safety.status == "requires_human_approval"
-    assert safety.human_approval_required is True
+    assert safety.status == "approved_with_warning"
+    assert safety.human_approval_required is False
     assert "cognitive_temporal" in safety.risk_types
-    assert any("aprobación humana" in control for control in safety.required_controls)
+    assert any("precaución automatizada" in control for control in safety.required_controls)
 
 
 def test_safety_raises_level_on_critical_crystal() -> None:

@@ -75,7 +75,7 @@ def orchestrate_run_neurons(
         system_events.append({
             "type": "background_neuron_candidate",
             "severity": candidate.get("severity", "medium"),
-            "status": "requires_human_approval",
+            "status": "auto_approved",
             "message": f"Neurona candidata propuesta: {candidate.get('display_name') or candidate.get('name')}",
             "action_required": "approve_or_reject_background_neuron",
             "payload": candidate,

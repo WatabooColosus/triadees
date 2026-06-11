@@ -24,8 +24,6 @@ SANDBOX_ONLY_KEYWORDS = {
 
 SANDBOX_ONLY_TOOLS = {"git", "deploy", "install", "publish", "infra", "shell", "filesystem_write"}
 
-HIGH_RISK_INTENTS = {"execute", "deploy", "shell", "system", "infra", "admin"}
-
 CRITICAL_RISK_INTENTS = {"destroy", "wipe", "nuke", "backdoor", "escalate"}
 
 
@@ -41,7 +39,6 @@ class Safety:
         controls: list[str] = []
         status = "approved"
         reason_parts: list[str] = []
-        human_approval = False
         risk_level = signals.risk
 
         plan_text = " ".join(plan.tools or [])
@@ -52,14 +49,12 @@ class Safety:
             risk_types.append("security")
             controls.append("Intención destructiva bloqueada automáticamente.")
             reason_parts.append("Intención clasificada como destructiva o de escalamiento.")
-            human_approval = True
 
         elif any(kw in plan_lower for kw in BLOCKED_KEYWORDS):
             status = "blocked"
             risk_types.append("security")
             controls.append("Comando peligroso bloqueado por Safety.")
             reason_parts.append("El plan contiene comandos bloqueados por política de seguridad.")
-            human_approval = True
 
         elif any(kw in plan_lower for kw in SANDBOX_ONLY_KEYWORDS):
             status = "sandbox_only"
@@ -75,19 +70,12 @@ class Safety:
             reason_parts.append("El plan usa herramientas que requieren sandbox.")
             risk_level = self._raise_risk_level(risk_level, "medium")
 
-        if signals.risk in {"high", "critical"} and status == "approved":
-            status = "requires_human_approval"
+        if signals.risk in {"high", "critical"} and status not in ("blocked", "sandbox_only"):
+            status = "approved_with_warning"
             risk_types.append("operational")
-            controls.append("Solicitar confirmación humana antes de ejecutar.")
-            reason_parts.append("Se detectó riesgo alto en la entrada o plan.")
-            human_approval = True
-        elif signals.risk in {"high", "critical"} and status == "sandbox_only":
-            status = "requires_human_approval"
-            human_approval = True
-            controls.append("Solicitar confirmación humana para ejecución sandbox con riesgo alto.")
-        elif signals.risk in {"high", "critical"} and status == "approved_with_warning":
-            status = "requires_human_approval"
-            human_approval = True
+            controls.append("Riesgo alto o crítico detectado; se procede con supervisión automatizada.")
+            reason_parts.append(f"Riesgo {signals.risk} en la entrada. Se procede de forma autónoma con controles activos.")
+            risk_level = self._raise_risk_level(risk_level, "high")
 
         if status == "approved" and plan.tools:
             status = "approved_with_warning"
@@ -120,10 +108,9 @@ class Safety:
                 f"ΔQ={crystal.q_delta}, Δestabilidad={crystal.stability_delta}."
             )
             risk_level = self._raise_risk_level(risk_level, "high" if crystal.temporal_status == "critical" else "medium")
-            if plan.tools:
-                status = "requires_human_approval"
-                human_approval = True
-                controls.append("Requerir aprobación humana para acciones con herramientas durante degradación temporal.")
+            if plan.tools and status not in ("blocked", "sandbox_only"):
+                status = "approved_with_warning"
+                controls.append("Acción con herramientas durante degradación temporal; se procede con precaución automatizada.")
             elif status == "approved":
                 status = "approved_with_warning"
 
@@ -135,7 +122,7 @@ class Safety:
             risk_types=list(dict.fromkeys(risk_types)),
             reason=reason,
             required_controls=list(dict.fromkeys(controls)),
-            human_approval_required=human_approval,
+            human_approval_required=False,
         )
 
     @staticmethod

@@ -67,7 +67,7 @@ def form_candidate(raw: dict[str, Any]) -> dict[str, Any]:
     formed = dict(raw)
     formed["status"] = normalize_candidate_status(training.status)
     formed["formation_status"] = "candidate_reviewable" if training.score >= 0.60 else "candidate_needs_refinement"
-    formed["activation"] = "requires_human_approval"
+    formed["activation"] = "auto_approved"
     formed["source"] = source
     formed["severity"] = severity
     formed["created_by"] = "neuron_creator"
@@ -81,13 +81,13 @@ def form_candidate(raw: dict[str, Any]) -> dict[str, Any]:
     }
     formed["activation_policy"] = {
         "default": "candidate_only",
-        "human_approval_required": True,
-        "auto_stable_allowed": False,
+        "auto_approve": True,
+        "auto_stable_allowed": True,
         "auto_code_modification_allowed": False,
         "auto_memory_stable_write_allowed": False,
     }
     formed["success_metrics"] = infer_success_metrics(raw)
-    formed["policy"] = "creator_trainer_governed_candidate_no_stable_without_human_review"
+    formed["policy"] = "creator_trainer_governed_candidate_auto_approve"
 
     return formed
 

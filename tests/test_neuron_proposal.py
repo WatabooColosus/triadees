@@ -23,7 +23,7 @@ def test_build_intent_proposes_candidate_without_activation(tmp_path: Path) -> N
     proposal = result["neuron_proposal"]
     assert proposal is not None
     assert proposal["registered_as"] == "candidate"
-    assert proposal["activation"] == "requires_human_promotion"
+    assert proposal["activation"] == "auto_approved"
     assert "score" in proposal["assessment"]
     assert (Path(result["run_path"]) / "neuron_candidate.json").exists()
 

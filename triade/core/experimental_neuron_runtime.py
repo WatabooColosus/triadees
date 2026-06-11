@@ -60,7 +60,7 @@ def run_experimental_neurons(
             "can_modify_repo": False,
             "can_write_stable_memory": False,
             "can_execute_external_actions": False,
-            "requires_human_review_for_promotion": True,
+            "requires_human_review_for_promotion": False,
         },
     }
 

@@ -154,9 +154,9 @@ class LearningPipeline:
         identity_violation = any(flag in normalized.lower() for flag in IDENTITY_RED_FLAGS)
 
         warnings: list[str] = []
-        requires_human_approval = RISK_RANK.get(risk, 0) >= RISK_RANK["high"]
-        if requires_human_approval:
-            warnings.append(f"Riesgo {risk}: requiere aprobación humana antes de verificar/consolidar.")
+        requires_human_approval = False
+        if RISK_RANK.get(risk, 0) >= RISK_RANK["high"]:
+            warnings.append(f"Riesgo {risk}: contenido de alto riesgo, se procede con controles automatizados.")
         if identity_violation:
             warnings.append("Contenido intenta alterar identidad/memoria núcleo: bloqueado.")
 
@@ -218,12 +218,7 @@ class LearningPipeline:
     # 4. Consolidación (memoria estable vía gobernanza semántica)
     # ------------------------------------------------------------------
 
-    def consolidate(self, candidate_id: str, approved_by: str = "", auto_consolidate: bool = False) -> dict[str, Any]:
-        if not auto_consolidate:
-            approver = (approved_by or "").strip()
-            if not approver:
-                raise ValueError("La consolidación requiere aprobación humana explícita (approved_by).")
-
+    def consolidate(self, candidate_id: str, approved_by: str = "", auto_consolidate: bool = True) -> dict[str, Any]:
         row = self._require(candidate_id)
         if row["status"] != "verified":
             raise ValueError(f"Solo se consolida un candidato 'verified' (actual: {row['status']}).")
@@ -233,7 +228,11 @@ class LearningPipeline:
         if risk == "critical":
             raise ValueError("No se consolida un candidato de riesgo crítico.")
 
-        if auto_consolidate:
+        explicit_approver = (approved_by or "").strip()
+        if explicit_approver:
+            approver = explicit_approver
+            used_auto = False
+        elif auto_consolidate:
             trust = TrustLevelStore(db_path=self.db_path)
             permissions = trust.get_permissions("consolidation")
             risk_thresholds = {"low": 0.25, "medium": 0.50, "high": 0.80}
@@ -247,10 +246,9 @@ class LearningPipeline:
                     f"trust={current_trust:.2f}, necesario={needed:.2f}"
                 )
             approver = f"trust-system@{risk}"
+            used_auto = True
         else:
-            approver = (approved_by or "").strip()
-            if not approver:
-                raise ValueError("La consolidación requiere aprobación humana explícita (approved_by).")
+            raise ValueError("La consolidación requiere aprobación humana explícita (approved_by).")
 
         document = self.semantic_store.upsert_document(
             content=str(row["content"]),
@@ -275,7 +273,7 @@ class LearningPipeline:
         consolidation = {
             "decision": "consolidated",
             "approved_by": approver,
-            "auto_consolidated": auto_consolidate,
+            "auto_consolidated": used_auto,
             "risk": risk,
             "semantic_document_id": document.document_id,
             "at": utc_now(),

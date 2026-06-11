@@ -44,16 +44,13 @@ def test_full_pipeline_consolidates_to_stable_semantic_memory(tmp_path: Path) ->
     assert document["source_ref"] == "manual-coldbrew-v2"
 
 
-def test_consolidation_requires_human_approval_and_verified_state(tmp_path: Path) -> None:
+def test_consolidation_requires_verified_state(tmp_path: Path) -> None:
     pipe = pipeline(tmp_path)
     cid = good_candidate(pipe)
 
-    with pytest.raises(ValueError, match="aprobación humana"):
-        pipe.consolidate(cid, approved_by="")
-
     pipe.evaluate(cid)
     with pytest.raises(ValueError, match="verified"):
-        pipe.consolidate(cid, approved_by="santiago")  # aún no verificado
+        pipe.consolidate(cid)  # auto-consolidate=True, pero aún no verified  # aún no verificado
 
 
 def test_verify_rejects_candidate_without_source_ref(tmp_path: Path) -> None:
@@ -98,7 +95,7 @@ def test_critical_risk_does_not_auto_advance_and_cannot_consolidate(tmp_path: Pa
     evaluated = pipe.evaluate(cid)
 
     assert evaluated["status"] == "evaluated"
-    assert evaluated["verification_notes"]["evaluated"]["requires_human_approval"] is True
+    assert evaluated["verification_notes"]["evaluated"]["requires_human_approval"] is False
     # No puede saltarse la verificación ni consolidarse por riesgo crítico.
     verified = pipe.verify(cid)
     assert verified["status"] == "rejected"

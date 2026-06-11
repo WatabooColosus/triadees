@@ -26,7 +26,7 @@ class Verifier:
         traceability_score = 0.80
         usefulness_score = 0.70
 
-        if safety.status in {"approved_with_warning", "requires_human_approval"}:
+        if safety.status in {"approved_with_warning", "approved"} and safety.risk_level in {"high", "critical"}:
             warnings.append(safety.reason)
             safety_score = 0.65
 

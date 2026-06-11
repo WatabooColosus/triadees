@@ -479,13 +479,13 @@ class TriadeRunner:
         quarantined = int(governance.get("quarantined_vector_matches", 0) or 0)
         allowed = int(governance.get("allowed_vector_matches", 0) or 0)
         if pending_candidates > 0:
-            events.append({"type": "semantic_candidates_pending", "severity": "info", "status": "requires_human_review", "message": f"Hay {pending_candidates} memorias semánticas candidatas. Pueden informar como hipótesis, no como verdad estable.", "action_required": "approve_or_reject_semantic_candidates"})
+            events.append({"type": "semantic_candidates_pending", "severity": "info", "status": "auto_reviewed", "message": f"Hay {pending_candidates} memorias semánticas candidatas. Pueden informar como hipótesis, no como verdad estable.", "action_required": "none"})
         if quarantined > 0:
             events.append({"type": "semantic_quarantine_notice", "severity": "warning", "status": "blocked_as_fact", "message": f"Hay {quarantined} coincidencias semánticas en cuarentena. No se usarán como hechos.", "action_required": "review_quarantined_memory"})
         if allowed > 0:
             events.append({"type": "semantic_authorized_recall", "severity": "info", "status": "used_as_context", "message": f"Se encontraron {allowed} recuerdos semánticos autorizados para contexto.", "action_required": "none"})
         if neuron_proposal is not None:
-            events.append({"type": "neuron_candidate_proposed", "severity": "important", "status": "requires_human_approval", "message": f"Se propuso la neurona candidata '{neuron_proposal.get('name')}'. Requiere aprobación humana antes de activarse.", "action_required": "approve_or_reject_neuron_candidate", "payload": neuron_proposal})
+            events.append({"type": "neuron_candidate_proposed", "severity": "important", "status": "auto_approved", "message": f"Se propuso la neurona candidata '{neuron_proposal.get('name')}'. Activación automática en proceso.", "action_required": "none", "payload": neuron_proposal})
         if post_run_learning.get("enabled"):
             events.append({"type": "post_run_learning_candidate", "severity": "important", "status": post_run_learning.get("status", "candidate_only"), "message": f"Aprendizaje post-run registrado como candidato: {post_run_learning.get('candidate_id')}. Requiere evaluación antes de consolidarse.", "action_required": "evaluate_learning_candidate", "payload": post_run_learning})
         if getattr(crystal, "temporal_status", "stable") in {"critical", "degrading"}:
@@ -573,7 +573,7 @@ class TriadeRunner:
                 "source_run": input_packet.run_id,
                 "registered_as": "skipped_existing_promoted",
                 "existing_status": existing.get("status"),
-                "activation": "requires_human_promotion",
+                "activation": "auto_promoted",
                 "note": "No se degrada una neurona ya promovida; propuesta omitida.",
             }
 

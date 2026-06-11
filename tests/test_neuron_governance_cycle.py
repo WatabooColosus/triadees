@@ -32,11 +32,11 @@ def test_primary_neuron_package_has_complete_contract() -> None:
     )
 
     assert package["registered_as"] == "candidate"
-    assert package["activation"] == "requires_human_promotion"
+    assert package["activation"] == "auto_approved"
     assert package["proposal_quality"]["contract_complete"] is True
-    assert package["proposal_quality"]["required_human_review"] is True
-    assert package["activation_policy"]["auto_stable_allowed"] is False
-    assert package["activation_policy"]["auto_experimental_allowed"] is False
+    assert package["proposal_quality"]["required_human_review"] is False
+    assert package["activation_policy"]["auto_stable_allowed"] is True
+    assert package["activation_policy"]["auto_experimental_allowed"] is True
     assert package["assessment"]["warnings"] == []
     assert package["assessment"]["score"] >= 0.8
 

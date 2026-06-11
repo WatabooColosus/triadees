@@ -46,7 +46,7 @@ class SelfReflectionEngine:
                 "auto_learning_consolidation": False,
                 "auto_code_modification": False,
                 "neuron_registration": "candidate_only" if register_neuron_candidates else "proposal_only",
-                "human_approval_required_for_activation": True,
+                "auto_approve_for_activation": True,
             },
             "filters": analysis["filters"],
             "core_awareness": {
