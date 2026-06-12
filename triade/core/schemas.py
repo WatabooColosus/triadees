@@ -99,15 +99,17 @@ class BodegaGlobalContextResponse(BaseModel):
 
 class MemoryTraceResponse(BaseModel):
     run_id: str
-    memory_confidence: str
-    identity_matches_count: int
-    semantic_matches_count: int
-    episodic_matches_count: int
-    authorized_matches_count: int
-    quarantined_matches_count: int
-    contradictions_count: int
-    stable_needs_review: int
+    memory_confidence: str = "low"
+    memory_confidence_score: float = 0.0
+    identity_matches_count: int = 0
+    semantic_matches_count: int = 0
+    episodic_matches_count: int = 0
+    authorized_matches_count: int = 0
+    quarantined_matches_count: int = 0
+    contradictions_count: int = 0
+    stable_needs_review: int = 0
     runtime_continuity_score: float = 0.0
+    created_at: str | None = None
 
 
 class LivingReportResponse(BaseModel):

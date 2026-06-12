@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -63,6 +64,7 @@ class TriadeObservabilityView:
         models = collect("models", self._models, {"status": "unknown", "ollama": {"ok": False}})
         recent_errors = collect("internal_errors", lambda: query_internal_errors(limit=limit, db_path=self.db_path), [])
         last_run = collect("last_run", self._last_run, None)
+        memory_trace = collect("memory_trace", lambda: self._last_run_memory_trace(), {})
 
         status = "ok"
         if recent_errors:
@@ -76,6 +78,7 @@ class TriadeObservabilityView:
             "timestamp": self._now(),
             "repo": repo_info(),
             "last_run": last_run or {"message": "No hay runs registrados todavía."},
+            "memory_trace": memory_trace,
             "bodega": bodega,
             "workers": workers,
             "learning": learning,
@@ -188,6 +191,42 @@ class TriadeObservabilityView:
                 "SELECT run_id, source, user_input, status, created_at, model_hypothalamus, model_central FROM runs ORDER BY id DESC LIMIT 1"
             ).fetchone()
         return dict(row) if row else None
+
+    def _last_run_memory_trace(self) -> dict[str, Any]:
+        """Lee memory_trace del último run desde sus artifacts."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT run_id FROM runs ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        if not row:
+            return {}
+        run_id = row["run_id"]
+        run_dir = Path(self.runs_dir) / run_id
+        memory_diff_path = run_dir / "memory_diff.json"
+        if not memory_diff_path.exists():
+            return {}
+        try:
+            data = json.loads(memory_diff_path.read_text(encoding="utf-8"))
+            trace = data.get("memory_trace")
+            if not trace:
+                return {}
+            from .schemas import MemoryTraceResponse
+            response = MemoryTraceResponse(
+                run_id=trace.get("run_id", run_id),
+                memory_confidence=trace.get("memory_confidence", "low"),
+                memory_confidence_score=float(trace.get("memory_confidence_score", 0.0)),
+                identity_matches_count=int(trace.get("identity_matches_count", 0)),
+                semantic_matches_count=int(trace.get("semantic_matches_count", 0)),
+                episodic_matches_count=int(trace.get("episodic_matches_count", 0)),
+                authorized_matches_count=len(trace.get("authorized_matches", [])),
+                quarantined_matches_count=len(trace.get("quarantined_matches", [])),
+                contradictions_count=len(trace.get("contradictions", [])),
+                stable_needs_review=int((trace.get("stable_audit_summary") or {}).get("stable_needs_review", 0)),
+                created_at=trace.get("created_at"),
+            )
+            return response.model_dump()
+        except Exception:
+            return {}
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)

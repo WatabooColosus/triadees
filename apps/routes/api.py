@@ -645,6 +645,12 @@ def stable_neuron_audit(limit: int = 300) -> dict[str, Any]:
     return audit_stable_neurons(db_path="triade/memory/triade.db", runs_dir="runs", limit=limit)
 
 
+@router.get("/api/system/neurons/stable-audit")
+def system_stable_neuron_audit(limit: int = 300) -> dict[str, Any]:
+    LIFE_PULSE.record_action("system_stable_neuron_audit")
+    return audit_stable_neurons(db_path="triade/memory/triade.db", runs_dir="runs", limit=limit)
+
+
 @router.post("/api/neurons/stable-audit/apply")
 def stable_neuron_audit_apply(
     limit: int = 300,
@@ -653,11 +659,22 @@ def stable_neuron_audit_apply(
 ) -> dict[str, Any]:
     require_key(x_triade_api_key)
     LIFE_PULSE.record_action("stable_neuron_audit_apply")
+    if not apply:
+        read_only = audit_stable_neurons(
+            db_path="triade/memory/triade.db",
+            runs_dir="runs",
+            limit=limit,
+        )
+        return {
+            "status": "requires_explicit_apply",
+            "message": "Debe enviar apply=true para aplicar cambios.",
+            "read_only_result": read_only,
+        }
     return apply_stable_neuron_audit(
         db_path="triade/memory/triade.db",
         runs_dir="runs",
         limit=limit,
-        apply=apply,
+        apply=True,
     )
 
 

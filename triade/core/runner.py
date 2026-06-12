@@ -349,20 +349,31 @@ class TriadeRunner:
             )
         safety = self.safety.review(signals, plan, crystal=crystal, memory=memory)
         safety_id = self.bodega.store_safety(safety)
+        sandbox_result = None
 
         if safety.status == "blocked":
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
             output.response = "La acción fue bloqueada por Safety."
             output.status = "blocked"
         elif safety.status == "sandbox_only":
-            from triade.sandbox import run_in_sandbox
-            sb = run_in_sandbox(task="sandbox_exec", payload={
-                "intent": str(signals.intent),
-                "risk": str(signals.risk),
-                "plan_tools": plan.tools,
-            })
+            try:
+                from triade.sandbox import run_in_sandbox
+                sandbox_result = run_in_sandbox(
+                    task="sandbox_exec",
+                    payload={
+                        "intent": str(signals.intent),
+                        "risk": str(signals.risk),
+                        "plan_tools": plan.tools,
+                    },
+                    timeout=10.0,
+                    dry_run=False,
+                )
+            except Exception as exc:
+                from .error_bus import record_internal_error
+                record_internal_error("runner.sandbox", exc, run_id=input_packet.run_id, db_path=self.db_path)
+                sandbox_result = {"status": "error", "task": "sandbox_exec", "error": str(exc)}
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
-            output.response = f"[sandbox] {sb.get('status', 'completed')}: {sb.get('stdout', 'ok')}"
+            output.response = f"[sandbox] {sandbox_result.get('status', 'completed')}: {sandbox_result.get('stdout', 'ok')}"
             output.status = "sandbox"
         else:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
@@ -499,6 +510,7 @@ class TriadeRunner:
             "feedback_reinforcement": feedback_reinforcement_result,
             "edge_usage": edge_usage,
             "crystal_temporal_state": temporal_state, "semantic_recall": semantic_state,
+            "sandbox_result": sandbox_result,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_model_error": hypothalamus_model_result.get("error"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_model_error": output.model_error, "central_quality_score": central_quality, "central_model_event_id": central_event_id,
             "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_error": output.model_error, "model_selection": self.model_selection,
@@ -787,6 +799,25 @@ class TriadeRunner:
 
         neuron_id = registry.register(spec, contract_payload=proposal)
         proposal["neuron_id"] = neuron_id
+
+        # Crear misión ejecutable asociada a la neurona candidata
+        try:
+            from .neuron_missions import NeuronMissionStore, NeuronMission
+            mission_store = NeuronMissionStore(db_path=self.db_path)
+            mission = NeuronMission(
+                neuron_id=neuron_id,
+                title=f"Misión de {name}",
+                mission=input_packet.user_input,
+                domain=domain,
+                allowed_sources=["run", "worker", "qualia"],
+                allowed_actions=["observe", "diagnose", "propose_learning"],
+                schedule_hint="on_relevant_context",
+                status="candidate",
+            )
+            mission_id = mission_store.create_mission(mission)
+            proposal["mission_id"] = mission_id
+        except Exception as exc:
+            proposal["mission_creation_failed"] = str(exc)
 
         # Persistir training result — el pipeline lo calcula pero nunca lo almacenaba
         from .neuron_trainer import NeuronTrainingResult

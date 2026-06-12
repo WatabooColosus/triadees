@@ -23,6 +23,9 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - Memory Trace: `build_run_memory_trace()` genera trazabilidad por run con matches autorizados/cuarentena, contradicciones y resumen estable.
 - Continuidad Runtime: `runtime_continuity_score` (0.0–1.0) se calcula en `build_living_report()` y se muestra en la UI del sistema.
 - Schemas Pydantic: `triade/core/schemas.py` centraliza modelos de validación para API boundaries.
+- Sandbox real: `triade/sandbox/` ejecuta tareas permitidas en aislamiento controlado. Whitelist de tareas, sin shell arbitrario, sin red, sin escritura fuera de runs/sandbox. `run_in_sandbox()` soporta dry_run y crea artifacts input.json/result.json. Safety `sandbox_only` no rompe el runner.
+- Memory Trace visible: `GET /api/observability` incluye `memory_trace` del último run con confidence, matches, quarantined, contradictions y stable_needs_review. UI muestra Memory Trace card en Observabilidad.
+- Creación neuronal con misión ejecutable: `_propose_neuron_candidate` crea `NeuronMission` con `mission_id` asociado a la neurona candidate. Misión incluye allowed_sources, allowed_actions y schedule_hint. Si la creación falla, el run no falla.
 
 ## Parcial
 
@@ -58,6 +61,7 @@ Tríade Ω opera como un sistema con consciencia operativa limitada (proto-consc
 3. Ampliar observabilidad con metricas historicas y filtros por run/task.
 4. Separar UI legacy de SPA moderna sin romper compatibilidad.
 5. Endurecer CLI `doctor` para cubrir observabilidad, workers y neuronas en una sola salida.
+6. FastAPI: `single_port_app` es oficial, apps legacy como wrappers deprecated.
 
 ## Como ejecutar tests
 

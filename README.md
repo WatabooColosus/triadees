@@ -536,6 +536,31 @@ Formalizar Tríade como marco técnico y filosófico para inteligencia relaciona
 
 ---
 
+## 🚀 Quick Start
+
+```bash
+# Tests
+python -m pytest
+
+# Frontend build
+npm --prefix frontend run build
+
+# API server
+python triade_digimon.py api --host 127.0.0.1 --port 8010
+```
+
+Endpoints principales:
+
+- `GET /api/health`
+- `GET /api/bodega/global-context`
+- `GET /api/system/living-report`
+- `GET /api/observability`
+- `GET /api/neurons/stable-audit`
+- `POST /api/neurons/stable-audit/apply?apply=false`
+- `POST /api/workers/run-once?dry_run=true`
+
+---
+
 ## 🛡️ Compromiso Ético
 
 Tríade se rige por dos principios fundamentales:

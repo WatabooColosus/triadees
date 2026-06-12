@@ -554,6 +554,24 @@ function ObservabilityTab() {
         <Card title="Bodega y memoria semántica" color="#3b82f6">
           <KVTable data={{ bodega: data.bodega?.counts, semantic_memory: data.semantic_memory }} />
         </Card>
+        <Card title="Memory Trace (último run)" color="#8b5cf6">
+          {data.memory_trace && data.memory_trace.run_id ? (
+            <KVTable data={{
+              run_id: data.memory_trace.run_id,
+              memory_confidence: data.memory_trace.memory_confidence,
+              memory_confidence_score: data.memory_trace.memory_confidence_score,
+              identity_matches: data.memory_trace.identity_matches_count,
+              semantic_matches: data.memory_trace.semantic_matches_count,
+              episodic_matches: data.memory_trace.episodic_matches_count,
+              authorized: data.memory_trace.authorized_matches_count,
+              quarantined: data.memory_trace.quarantined_matches_count,
+              contradictions: data.memory_trace.contradictions_count,
+              stable_needs_review: data.memory_trace.stable_needs_review,
+            }} />
+          ) : (
+            <span style={{ color: 'var(--text-muted)' }}>No hay memory_trace en el último run.</span>
+          )}
+        </Card>
         <Card title="Continuidad Runtime" color="#f59e0b">
           <KVTable data={{
             runtime_continuity_score: data.runtime_continuity_score,
