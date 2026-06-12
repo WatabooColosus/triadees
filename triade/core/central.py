@@ -354,7 +354,7 @@ class Central:
                 policy = bgc.get("recommended_context_policy", "ask_or_operate_with_limited_memory")
                 continuity = bgc.get("continuity_summary", "")
                 episodes_count = len(bgc.get("recent_episodes") or [])
-                semantic_count = len(bgc.get("semantic_recall", {}).get("matches_count", [])) if isinstance(bgc.get("semantic_recall"), dict) else 0
+                semantic_count = int((bgc.get("semantic_recall") or {}).get("matches_count") or 0) if isinstance(bgc.get("semantic_recall"), dict) else 0
                 contradictions = bgc.get("contradictions") or []
                 safe_bgc = {
                     "memory_confidence": mem_conf,
