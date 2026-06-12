@@ -10,7 +10,7 @@ from triade.workers.contracts import WorkerRunConfig
 from triade.workers.worker_loop import WorkerLoop
 
 
-def test_worker_reviews_learning_and_promotes_verified_to_experimental_memory(tmp_path: Path) -> None:
+def test_worker_reviews_learning_and_marks_verified_as_used_in_run(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     pipe = LearningPipeline(db_path=db_path)
     candidate = pipe.ingest(
@@ -28,6 +28,4 @@ def test_worker_reviews_learning_and_promotes_verified_to_experimental_memory(tm
     updated = pipe.get_candidate(candidate["candidate_id"])
     assert result["status"] == "completed"
     assert updated["status"] == "verified"
-    with sqlite3.connect(db_path) as conn:
-        status = conn.execute("SELECT status FROM semantic_documents WHERE source_ref = ?", ("run:test-worker-learning",)).fetchone()[0]
-    assert status == "experimental"
+    assert int(updated["run_use_count"] or 0) >= 1

@@ -42,8 +42,13 @@ def test_experimental_runtime_activates_only_experimental_neurons(tmp_path: Path
     )
 
     assert result["active"] is True
-    assert result["count"] == 1
-    assert result["activations"][0]["name"] == "neurona-android-experimental"
+    assert result["count"] == 2
+    names = {a["name"] for a in result["activations"]}
+    assert "neurona-android-experimental" in names
+    assert "neurona-android-candidate" in names
+    for a in result["activations"]:
+        assert "contribution" in a
+    assert result["contributions_count"] == 2
     assert result["policy"]["can_modify_response"] is False
     assert result["policy"]["can_modify_repo"] is False
     assert result["policy"]["can_write_stable_memory"] is False

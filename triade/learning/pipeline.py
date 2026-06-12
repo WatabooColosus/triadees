@@ -2,16 +2,23 @@
 
 Implementa el ciclo verificable sobre la tabla `learning_queue`:
 
-    candidate → evaluated → verified → consolidated | rejected  (+ archived)
+    candidate → evaluated → verified → validated_in_runs → consolidated | rejected  (+ archived)
 
 Reglas innegociables (alineadas con docs/LEARNING.md y docs/SAFETY.md):
 
-- Ningún aprendizaje entra a memoria estable sin estado `verified`.
+- Ningún aprendizaje entra a memoria estable sin estado `verified` o `validated_in_runs`.
 - La consolidación usa auto-consolidación por defecto (`auto_consolidate=True`) o `approved_by` explícito.
 - El riesgo `critical` nunca auto-avanza; queda a decisión humana.
 - El pipeline jamás escribe en `identity_core`: la identidad núcleo es intocable.
 - La consolidación reutiliza la gobernanza semántica 1.9E (candidate→experimental
   →stable con razón y evidencia) como motor de memoria estable.
+- Una memoria solo puede pasar a consolidated/stable si:
+  - está verified o validated_in_runs
+  - tiene source_ref
+  - tiene mínimo 3 usos en runs (run_use_count >= 3)
+  - promedio outcome_score >= 0.70
+  - risk != critical
+  - no toca identity_core
 """
 
 from __future__ import annotations
@@ -65,6 +72,8 @@ class LearningPipeline:
 
     UTILITY_GATE = 0.50
     CONFIDENCE_GATE = 0.45
+    MIN_RUN_USES = 3
+    MIN_OUTCOME_SCORE = 0.70
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
@@ -86,6 +95,19 @@ class LearningPipeline:
             raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
+            self._migrate_learning_queue(conn)
+
+    def _migrate_learning_queue(self, conn: sqlite3.Connection) -> None:
+        """Agrega columnas de tracking de uso en runs a learning_queue."""
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(learning_queue)").fetchall()}
+        additions = {
+            "run_use_count": "INTEGER DEFAULT 0",
+            "run_outcome_scores": "TEXT DEFAULT '[]'",
+            "avg_outcome_score": "REAL DEFAULT 0.0",
+        }
+        for name, ddl in additions.items():
+            if name not in columns:
+                conn.execute(f"ALTER TABLE learning_queue ADD COLUMN {name} {ddl}")
 
     # ------------------------------------------------------------------
     # 1. Ingesta (descubrimiento + extracción + normalización)
@@ -215,18 +237,83 @@ class LearningPipeline:
         return self.get_candidate(candidate_id) or {}
 
     # ------------------------------------------------------------------
+    # 3b. Uso en runs y validación
+    # ------------------------------------------------------------------
+
+    def mark_used_in_run(self, candidate_id: str, run_id: str, outcome_score: float = 0.0) -> dict[str, Any]:
+        """Registra que un candidato verified fue usado en un run.
+
+        Si acumula MIN_RUN_USES usos con promedio >= MIN_OUTCOME_SCORE,
+        se promueve a validated_in_runs.
+        """
+        row = self._require(candidate_id)
+        if row["status"] not in ("verified", "validated_in_runs"):
+            raise ValueError(f"Solo se marca uso en runs de candidatos verified/validated_in_runs (actual: {row['status']}).")
+
+        scores_raw = row["run_outcome_scores"] or "[]"
+        try:
+            scores = json.loads(scores_raw)
+        except (json.JSONDecodeError, TypeError):
+            scores = []
+
+        scores.append(round(max(0.0, min(1.0, outcome_score)), 3))
+        use_count = len(scores)
+        avg_score = round(sum(scores) / use_count, 3) if use_count else 0.0
+
+        self._update_run_tracking(candidate_id, use_count, scores, avg_score)
+
+        if (use_count >= self.MIN_RUN_USES and avg_score >= self.MIN_OUTCOME_SCORE
+                and row["status"] == "verified"):
+            self._update(
+                candidate_id, status="validated_in_runs",
+                note_step="validated_in_runs",
+                note_payload={
+                    "decision": "validated_in_runs",
+                    "run_use_count": use_count,
+                    "avg_outcome_score": avg_score,
+                    "at": utc_now(),
+                },
+            )
+
+        return self.get_candidate(candidate_id) or {}
+
+    def validate_in_run(self, candidate_id: str, run_id: str, outcome_score: float = 0.80) -> dict[str, Any]:
+        """Alias semántico de mark_used_in_run con score predeterminado."""
+        return self.mark_used_in_run(candidate_id, run_id, outcome_score=outcome_score)
+
+    def _update_run_tracking(self, candidate_id: str, use_count: int, scores: list[float], avg_score: float) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE learning_queue SET run_use_count = ?, run_outcome_scores = ?, avg_outcome_score = ?, updated_at = ? WHERE candidate_id = ?",
+                (use_count, json.dumps(scores, ensure_ascii=False), avg_score, utc_now(), candidate_id),
+            )
+
+    # ------------------------------------------------------------------
     # 4. Consolidación (memoria estable vía gobernanza semántica)
     # ------------------------------------------------------------------
 
     def consolidate(self, candidate_id: str, approved_by: str = "", auto_consolidate: bool = True) -> dict[str, Any]:
         row = self._require(candidate_id)
-        if row["status"] != "verified":
-            raise ValueError(f"Solo se consolida un candidato 'verified' (actual: {row['status']}).")
+        if row["status"] not in ("verified", "validated_in_runs"):
+            raise ValueError(f"Solo se consolida un candidato 'verified' o 'validated_in_runs' (actual: {row['status']}).")
         if not row["source_ref"]:
             raise ValueError("No se consolida memoria estable sin source_ref.")
         risk = str(row["risk_level"])
         if risk == "critical":
             raise ValueError("No se consolida un candidato de riesgo crítico.")
+
+        run_uses = int(row["run_use_count"] or 0)
+        avg_score = float(row["avg_outcome_score"] or 0.0)
+        if run_uses < self.MIN_RUN_USES:
+            raise ValueError(
+                f"No se consolida sin evidencia suficiente: "
+                f"run_uses={run_uses}, mínimo={self.MIN_RUN_USES}."
+            )
+        if avg_score < self.MIN_OUTCOME_SCORE:
+            raise ValueError(
+                f"No se consolida sin score suficiente: "
+                f"avg_outcome_score={avg_score:.3f}, mínimo={self.MIN_OUTCOME_SCORE}."
+            )
 
         explicit_approver = (approved_by or "").strip()
         if explicit_approver:
@@ -321,7 +408,7 @@ class LearningPipeline:
         return [self._decode(dict(row)) for row in rows]
 
     def doctor(self) -> dict[str, Any]:
-        states = ["candidate", "evaluated", "verified", "consolidated", "rejected", "archived"]
+        states = ["candidate", "evaluated", "verified", "validated_in_runs", "consolidated", "rejected", "archived"]
         counts = {state: 0 for state in states}
         with self._connect() as conn:
             for row in conn.execute("SELECT status, COUNT(*) AS c FROM learning_queue GROUP BY status").fetchall():
@@ -340,7 +427,7 @@ class LearningPipeline:
             "status": "ok",
             "mode": "learning-pipeline-C",
             "policy": {
-                "consolidation_requires": ["status=verified", "human_approval", "source_ref", "risk!=critical"],
+                "consolidation_requires": ["status=verified_or_validated_in_runs", "source_ref", "risk!=critical", "run_use_count>=3", "avg_outcome_score>=0.70"],
                 "identity_core_protected": True,
                 "stable_memory_via": "semantic_governance_1.9E",
                 "auto_consolidation": trust_info.get("permissions", {}).get("auto_consolidate_low_risk", False),

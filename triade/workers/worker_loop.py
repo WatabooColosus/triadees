@@ -179,6 +179,7 @@ class WorkerLoop:
                     "neuron_autopromotion": self._neuron_autopromotion,
                     "federation_inbox_review": self._federation_inbox_review,
                     "memory_consolidation_review": self._memory_consolidation_review,
+                    "stable_consolidation_review": self._stable_consolidation_review,
                     "system_debt_scan": self._system_debt_scan,
                 }
                 result = handlers[task.task_type](task, run_ref, task_dir, config)
@@ -326,26 +327,47 @@ class WorkerLoop:
             sb = sandbox.run("analyze_memory_candidate", candidate, timeout=config.task_timeout)
             if sb.get("status") != "ok" or not candidate.get("source_ref"):
                 continue
-            document = store.upsert_document(
-                content=str(candidate.get("content") or ""),
-                domain=str(candidate.get("domain") or "worker-learning"),
-                source_type="worker_learning_review",
-                source_ref=str(candidate.get("source_ref")),
-                metadata={"learning_candidate_id": candidate.get("candidate_id"), "worker_run": run_ref},
-                status="candidate",
-            )
             try:
-                transition = governance.transition_document(
-                    document.document_id,
-                    "experimental",
-                    reason="Worker revisó candidato verified y lo deja como memoria experimental, no estable.",
-                    approved_by="triade-worker-experimental-policy",
-                    evidence={"worker_run": run_ref, "candidate_id": candidate.get("candidate_id")},
+                pipe.mark_used_in_run(
+                    candidate["candidate_id"], run_ref, outcome_score=0.80,
                 )
+                promoted.append({"candidate_id": candidate.get("candidate_id"), "action": "marked_used_in_run"})
             except ValueError as exc:
-                transition = {"status": "skipped", "reason": str(exc), "document_id": document.document_id}
-            promoted.append({"candidate_id": candidate.get("candidate_id"), "document_id": document.document_id, "transition": transition})
-        return {"status": "completed", "experimental_memory_promotions": promoted, "stable_memory_written": False}
+                promoted.append({"candidate_id": candidate.get("candidate_id"), "action": "skipped", "reason": str(exc)})
+        return {"status": "completed", "run_tracking_updates": promoted, "stable_memory_written": False}
+
+    def _stable_consolidation_review(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        """Revisa candidatos con evidencia suficiente y solo entonces permite consolidar."""
+        pipe = LearningPipeline(db_path=self.db_path)
+        sandbox = WorkerSandbox(task_dir)
+        consolidated = []
+        rejected = []
+        for candidate in pipe.list_candidates(status="validated_in_runs", limit=5):
+            sb = sandbox.run("analyze_memory_candidate", candidate, timeout=config.task_timeout)
+            if sb.get("status") != "ok" or not candidate.get("source_ref"):
+                rejected.append({"candidate_id": candidate.get("candidate_id"), "reason": "sandbox_check_failed"})
+                continue
+            try:
+                result = pipe.consolidate(candidate["candidate_id"], approved_by=f"worker-stable-review:{run_ref}")
+                consolidated.append({
+                    "candidate_id": candidate.get("candidate_id"),
+                    "document_id": result.get("semantic_document_id"),
+                    "status": "consolidated",
+                })
+            except ValueError as exc:
+                rejected.append({"candidate_id": candidate.get("candidate_id"), "reason": str(exc)})
+        qualia = self._publish_qualia_experience(
+            run_ref, "stable_consolidation_review", "worker_stable_review",
+            f"Revisión estable: {len(consolidated)} consolidados, {len(rejected)} rechazados.",
+            proposed_learning="Solo consolidar cuando evidencia de uso acumulada demuestra valor real.",
+        )
+        return {
+            "status": "completed",
+            "consolidated": consolidated,
+            "rejected": rejected,
+            "stable_memory_written": bool(consolidated),
+            "qualia": qualia,
+        }
 
     def _system_debt_scan(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         pipe = LearningPipeline(db_path=self.db_path)

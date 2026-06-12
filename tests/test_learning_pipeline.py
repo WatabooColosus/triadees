@@ -34,11 +34,13 @@ def test_full_pipeline_consolidates_to_stable_semantic_memory(tmp_path: Path) ->
     assert pipe.evaluate(cid)["status"] == "evaluated"
     assert pipe.verify(cid)["status"] == "verified"
 
+    for i in range(5):
+        pipe.mark_used_in_run(cid, f"run-{i}", outcome_score=0.85)
+
     result = pipe.consolidate(cid, approved_by="santiago")
     assert result["status"] == "consolidated"
     doc_id = result["semantic_document_id"]
 
-    # La memoria estable se crea vía gobernanza semántica 1.9E.
     document = pipe.semantic_store.get_document(doc_id)
     assert document["status"] == "stable"
     assert document["source_ref"] == "manual-coldbrew-v2"
@@ -111,6 +113,8 @@ def test_pipeline_never_touches_identity_core(tmp_path: Path) -> None:
     cid = good_candidate(pipe)
     pipe.evaluate(cid)
     pipe.verify(cid)
+    for i in range(3):
+        pipe.mark_used_in_run(cid, f"run-ic-{i}", outcome_score=0.80)
     pipe.consolidate(cid, approved_by="santiago")
 
     with sqlite3.connect(db_path) as conn:
@@ -123,6 +127,8 @@ def test_doctor_reports_counts_by_status(tmp_path: Path) -> None:
     c1 = good_candidate(pipe)
     pipe.evaluate(c1)
     pipe.verify(c1)
+    for i in range(3):
+        pipe.mark_used_in_run(c1, f"run-doc-{i}", outcome_score=0.80)
     pipe.consolidate(c1, approved_by="santiago")
     pipe.reject(pipe.ingest(content="Ruido sin valor", source_type="web", source_ref=None)["candidate_id"], "bajo valor")
 

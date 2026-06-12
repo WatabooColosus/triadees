@@ -24,7 +24,7 @@ from .bodega import Bodega
 from .central import Central
 from .config import load_config
 from .context_scope import build_comparison_basis
-from .contracts import InputPacket
+from .contracts import InputPacket, NeuronContributionPacket, NEURON_STATUS_EFFECTS, IDENTITY_CORE_FORBIDDEN_EFFECTS
 from .crystal import Crystal
 from .hypothalamus import Hypothalamus
 from .safety import Safety
@@ -37,6 +37,77 @@ from .run_learning import RunLearningService
 from .run_neuron_orchestrator import orchestrate_run_neurons
 from .run_result import build_run_result
 from .run_system_events import build_system_events, filter_obsolete_edge_candidates, filter_obsolete_edge_debt
+
+
+def _process_neuron_contributions(
+    contributions: list[dict[str, Any]],
+    safety: Any,
+) -> dict[str, Any]:
+    """Procesa contribuciones neuronales filtrando por riesgo, confianza y Safety.
+
+    Reglas:
+    - risk=critical → ignorada
+    - confidence < 0.60 → ignorada
+    - influence_plan sin allowed_effect → ignorada
+    - influence_response sin allowed_effect → ignorada
+    - Safety bloquea → ignorada
+    - identity_core unsafe → bloqueada
+    """
+    used: list[dict[str, Any]] = []
+    ignored: list[dict[str, Any]] = []
+    blocked: list[dict[str, Any]] = []
+
+    safety_blocks_neuron_influence = safety.status in ("blocked", "sandbox_only")
+
+    for contrib in contributions:
+        risk = str(contrib.get("risk") or "low")
+        confidence = float(contrib.get("confidence") or 0.0)
+        allowed = contrib.get("allowed_effects") or []
+        neuron_name = str(contrib.get("neuron_name") or "unknown")
+
+        if risk == "critical":
+            ignored.append({**contrib, "ignore_reason": "risk_critical"})
+            continue
+
+        if confidence < 0.60:
+            ignored.append({**contrib, "ignore_reason": "confidence_below_threshold"})
+            continue
+
+        if safety_blocks_neuron_influence:
+            blocked.append({**contrib, "block_reason": f"safety_status_{safety.status}"})
+            continue
+
+        proposed_learning = str(contrib.get("proposed_learning") or "")
+        if proposed_learning and "propose_learning" not in allowed:
+            ignored.append({**contrib, "ignore_reason": "propose_learning_not_allowed"})
+            continue
+
+        response_influence = str(contrib.get("response_influence") or "")
+        if response_influence and "influence_response" not in allowed:
+            ignored.append({**contrib, "ignore_reason": "influence_response_not_allowed"})
+            continue
+
+        diagnosis = str(contrib.get("diagnosis") or "")
+        proposed_learning = str(contrib.get("proposed_learning") or "")
+        response_influence = str(contrib.get("response_influence") or "")
+        dangerous_keywords = ["identity_core", "modificar identidad", "cambiar identidad"]
+        combined_text = f"{diagnosis} {proposed_learning} {response_influence}".lower()
+        if any(kw in combined_text for kw in dangerous_keywords):
+            blocked.append({**contrib, "block_reason": "identity_core_violation"})
+            continue
+
+        used.append(contrib)
+
+    return {
+        "total": len(contributions),
+        "used": len(used),
+        "ignored": len(ignored),
+        "blocked": len(blocked),
+        "used_contributions": used,
+        "ignored_contributions": ignored,
+        "blocked_contributions": blocked,
+        "policy": "neuron_contributions_filtered_by_risk_confidence_safety",
+    }
 
 
 class TriadeRunner:
@@ -317,6 +388,13 @@ class TriadeRunner:
         experimental_neuron_activity = neuron_orchestration["experimental_neuron_activity"]
         neuron_activity_ids = neuron_orchestration["neuron_activity_ids"]
         background_neuron_candidates = neuron_orchestration["background_neuron_candidates"]
+        neuron_contributions = neuron_orchestration.get("neuron_contributions", [])
+        neuron_learning_candidates = neuron_orchestration.get("neuron_learning_candidates", [])
+
+        neuron_contribution_summary = _process_neuron_contributions(
+            contributions=neuron_contributions,
+            safety=safety,
+        )
         semantic_continuity = learning.semantic_continuity(
             input_packet=input_packet,
             output=output,
@@ -328,6 +406,9 @@ class TriadeRunner:
         output.memory_diff["system_events"] = system_events
         output.memory_diff["background_neuron_candidates"] = background_neuron_candidates
         output.memory_diff["output_gate"] = output_gate
+        output.memory_diff["neuron_contributions"] = neuron_contributions
+        output.memory_diff["neuron_learning_candidates"] = neuron_learning_candidates
+        output.memory_diff["neuron_contribution_summary"] = neuron_contribution_summary
         qualia_experiences = build_run_experiences(
             run_id=input_packet.run_id,
             post_run_learning=post_run_learning,
@@ -389,6 +470,7 @@ class TriadeRunner:
             "background_neuron_candidates": background_neuron_candidates,
             "experimental_neuron_activity": experimental_neuron_activity,
             "neuron_activity_ids": neuron_activity_ids,
+            "neuron_contribution_summary": neuron_contribution_summary,
             "output_gate": output_gate,
             "qualia_experiences_count": len(qualia_experiences),
             "qualia_signals_count": len(qualia_signal_artifacts),

@@ -300,6 +300,9 @@ def handle_workers(args: argparse.Namespace) -> None:
     if args.workers_command == "start":
         print_json(service.start(max_iterations=args.max_iterations, sleep_seconds=args.sleep, dry_run=args.dry_run, task_timeout=args.task_timeout))
         return
+    if args.workers_command == "daemon":
+        print_json(service.start(max_iterations=args.max_iterations, sleep_seconds=args.sleep, dry_run=False, task_timeout=args.task_timeout))
+        return
     if args.workers_command == "status":
         print_json(service.status())
         return
@@ -606,6 +609,11 @@ def main() -> None:
     workers_events.add_argument("--limit", type=int, default=50, help="Cantidad máxima")
 
     workers_sub.add_parser("doctor", help="Diagnóstico de Living Workers")
+
+    workers_daemon = workers_sub.add_parser("daemon", help="Ejecuta workers en modo daemon controlado (sin shell, sin red externa)")
+    workers_daemon.add_argument("--max-iterations", type=int, default=10, help="Máximo de iteraciones (default: 10)")
+    workers_daemon.add_argument("--sleep", type=float, default=5.0, help="Segundos entre iteraciones (default: 5.0)")
+    workers_daemon.add_argument("--task-timeout", type=float, default=30.0, help="Timeout por tarea")
 
     relay_parser = subparsers.add_parser("relay", help="Controla un relay publico Triade")
     relay_parser.add_argument("--url", required=True, help="URL publica del relay")

@@ -1,6 +1,6 @@
 # ARCHITECTURE_MAP.md · Tríade Ω
 
-Mapa de la arquitectura **tal como existe en el código** (no la visión). Estado al 2026-06-12, commit base `7bd620a`, frontera ≈ v2.0.
+Mapa de la arquitectura **tal como existe en el código** (no la visión). Estado al 2026-06-12, commit base `f6e999c`, frontera ≈ v2.1.
 
 Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin código).
 
@@ -108,18 +108,35 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 - Integración: Runner genera artefactos `qualia_*.json`; Central consume resumen autorizado; Hipotálamo modula señales internas; Bodega reporta en doctor; CLI/API `qualia`.
 - Política: hipótesis y candidatos, no memoria estable; nada toca `identity_core`.
 
+### Neuron Contributions 🟢 (Fase 2.1)
+- `triade/core/contracts.py` — `NeuronContributionPacket`, `NEURON_STATUS_EFFECTS`, `IDENTITY_CORE_FORBIDDEN_EFFECTS`.
+- Estados de neurona y efectos permitidos:
+  - `candidate` → observe, diagnose
+  - `experimental` → + propose_learning
+  - `active_assistant` → + influence_plan
+  - `trusted_worker` → + influence_response, write_experimental_memory
+  - `stable` → + request_stable_promotion
+- `triade/core/experimental_neuron_runtime.py` — produce `NeuronContributionPacket` por cada activación, filtrado por estado.
+- `triade/core/run_neuron_orchestrator.py` — extrae contributions, genera candidatos de aprendizaje, agrega a memory_diff/system_events.
+- `triade/core/runner.py` — `_process_neuron_contributions()` filtra por risk != critical, confidence >= 0.60, Safety, y identity_core safety.
+- Resultado del run incluye: neuronas activadas, contributions usadas, ignoradas, bloqueadas, razón.
+- Regla innegociable: ninguna neurona puede modificar `identity_core`.
+
 ### Living Workers 🟢
 - `triade/workers/` — scheduler, task_queue, worker_loop, background_service, state_store. Ejecuta ciclos acotados y auditables en `runs/background/`.
-- Usa módulos reales: LearningPipeline, SemanticMemoryGovernance, background_neurons, experimental_neuron_runtime, NeuronActivityStore, NeuronAutopromoter y Federation.
+- 10 task types: pulse_check, pending_learning_review, semantic_memory_governance, neuron_candidate_formation, experimental_neuron_activity, neuron_autopromotion, federation_inbox_review, memory_consolidation_review, stable_consolidation_review, system_debt_scan.
+- memory_consolidation_review marca candidatos verified como `used_in_run` (no consolida directamente).
+- stable_consolidation_review consolida solo candidatos `validated_in_runs` con evidencia suficiente.
 - Persistencia: `worker_tasks`, `worker_runs`, `worker_events`, `worker_state`.
-- Superficies: CLI `workers` y endpoints `/workers/*`, `/neurons/activity`, `/learning/pending`.
-- Política: no modifica identity_core, no escribe memoria stable, no red externa por defecto, no shell arbitrario.
+- Superficies: CLI `workers once/start/daemon/status/stop/queue/events/doctor` y endpoints `/workers/*`.
+- Política: no modifica identity_core, no escribe memoria stable sin evidencia, no red externa por defecto, no shell arbitrario.
 
 ### Learning Pipeline 🟢 (Fase C)
 - `triade/learning/pipeline.py` (`LearningPipeline`) sobre `learning_queue`:
-  `candidate → evaluated → verified → consolidated | rejected | archived`.
+  `candidate → evaluated → verified → validated_in_runs → consolidated | rejected | archived`.
+- `mark_used_in_run(candidate_id, run_id, outcome_score)` registra uso en runs; auto-promueve a `validated_in_runs` tras 3 usos con promedio >= 0.70.
+- Consolidación exige: verified o validated_in_runs, source_ref, risk != critical, run_use_count >= 3, avg_outcome_score >= 0.70.
 - Consolidación vía gobernanza semántica 1.9E (candidate→experimental→stable). Nunca toca `identity_core`. CLI `learn`. Tests en `tests/test_learning_pipeline.py`.
-- Pendiente: enganche automático con `run()` (aprendizaje post-run) y sandbox real.
 
 ### Federation 🟢 (Fase D)
 - `triade/federation/federation.py` (`Federation`): registro de nodos (permisos/confianza/estado), recepción gated (autenticación → permiso → Safety → log → Learning Pipeline como candidato), envío con bloqueo de fuga de datos, revocación.

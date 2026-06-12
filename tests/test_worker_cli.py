@@ -23,7 +23,7 @@ def test_workers_cli_once_and_status(tmp_path: Path) -> None:
     status = run_cli("workers", "--db", str(db_path), "--runs-dir", str(runs_dir), "status")
 
     assert once["status"] == "completed"
-    assert once["tasks_completed"] == 9
+    assert once["tasks_completed"] == 10
     assert status["last_run"]["run_ref"] == once["run_ref"]
 
 
@@ -32,7 +32,7 @@ def test_workers_cli_start_is_bounded(tmp_path: Path) -> None:
 
     assert result["status"] == "completed"
     assert result["iterations"] == 2
-    assert result["tasks_completed"] == 18
+    assert result["tasks_completed"] == 20
 
 
 def test_workers_cli_queue_events_doctor_and_stop(tmp_path: Path) -> None:

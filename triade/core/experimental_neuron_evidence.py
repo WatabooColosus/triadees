@@ -107,7 +107,7 @@ def _build_from_artifacts(runs_dir: str | Path = "runs", limit: int = 200) -> di
                 continue
 
             name = str(activation.get("name") or "unknown")
-            output = activation.get("output") or {}
+            output = activation.get("output") or activation.get("contribution") or {}
             diagnosis = output.get("diagnosis") or []
             test_plan = output.get("test_plan") or []
             policy = activation.get("policy")

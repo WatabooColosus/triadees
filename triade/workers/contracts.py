@@ -17,6 +17,7 @@ WorkerTaskType = Literal[
     "neuron_autopromotion",
     "federation_inbox_review",
     "memory_consolidation_review",
+    "stable_consolidation_review",
     "system_debt_scan",
 ]
 
@@ -29,6 +30,7 @@ WORKER_TASK_TYPES: tuple[str, ...] = (
     "neuron_autopromotion",
     "federation_inbox_review",
     "memory_consolidation_review",
+    "stable_consolidation_review",
     "system_debt_scan",
 )
 

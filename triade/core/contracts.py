@@ -22,6 +22,47 @@ SafetyStatus = Literal[
     "blocked",
 ]
 
+NeuronStatus = Literal[
+    "candidate",
+    "experimental",
+    "active_assistant",
+    "trusted_worker",
+    "stable",
+    "rejected",
+    "needs_changes",
+]
+
+AllowedEffect = Literal[
+    "observe",
+    "diagnose",
+    "propose_learning",
+    "influence_plan",
+    "influence_response",
+    "write_experimental_memory",
+    "request_stable_promotion",
+]
+
+NEURON_STATUS_EFFECTS: dict[str, tuple[AllowedEffect, ...]] = {
+    "candidate": ("observe", "diagnose"),
+    "experimental": ("observe", "diagnose", "propose_learning"),
+    "active_assistant": ("observe", "diagnose", "propose_learning", "influence_plan"),
+    "trusted_worker": (
+        "observe", "diagnose", "propose_learning",
+        "influence_plan", "influence_response",
+        "write_experimental_memory",
+    ),
+    "stable": (
+        "observe", "diagnose", "propose_learning",
+        "influence_plan", "influence_response",
+        "write_experimental_memory", "request_stable_promotion",
+    ),
+}
+
+IDENTITY_CORE_FORBIDDEN_EFFECTS: frozenset[str] = frozenset({
+    "write_experimental_memory",
+    "request_stable_promotion",
+})
+
 
 def utc_now() -> str:
     """Retorna timestamp ISO-8601 en UTC."""
@@ -166,3 +207,45 @@ class VerificationReport:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(slots=True)
+class NeuronContributionPacket:
+    """Paquete formal de contribución de una neurona al ciclo cognitivo.
+
+    Cada activación neuronal produce un NeuronContributionPacket que puede
+    influir en plan, respuesta, aprendizaje o memoria experimental según
+    los permitted effects del estado de la neurona.
+    """
+
+    contribution_id: str = field(default_factory=lambda: f"contrib-{uuid4().hex[:16]}")
+    run_id: str = ""
+    neuron_id: str = ""
+    neuron_name: str = ""
+    neuron_status: str = ""
+    neuron_domain: str = ""
+    activation_reason: str = ""
+    diagnosis: str = ""
+    proposed_context: dict[str, Any] = field(default_factory=dict)
+    proposed_learning: str = ""
+    response_influence: str = ""
+    confidence: float = 0.0
+    risk: RiskLevel = "low"
+    evidence_refs: list[str] = field(default_factory=list)
+    allowed_effects: list[AllowedEffect] = field(default_factory=list)
+    created_at: str = field(default_factory=utc_now)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def has_effect(self, effect: AllowedEffect) -> bool:
+        return effect in self.allowed_effects
+
+    def is_identity_core_safe(self) -> bool:
+        """Verifica que la contribución no intente modificar identity_core."""
+        dangerous = (
+            "identity_core" in self.proposed_learning.lower()
+            or "identity_core" in self.response_influence.lower()
+            or "identity_core" in self.diagnosis.lower()
+        )
+        return not dangerous

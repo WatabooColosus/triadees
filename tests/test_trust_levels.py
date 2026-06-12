@@ -177,7 +177,7 @@ class TestAutoConsolidation:
         pipe.evaluate(cid)
         pipe.verify(cid)
 
-        with pytest.raises(ValueError, match="Trust insuficiente|auto-consolidar"):
+        with pytest.raises(ValueError, match="Trust insuficiente|auto-consolidar|run_uses"):
             pipe.consolidate(cid, auto_consolidate=True)
 
     def test_auto_consolidate_low_risk_succeeds_when_trust_above_threshold(
@@ -197,6 +197,8 @@ class TestAutoConsolidation:
         cid = good_candidate(pipe)
         pipe.evaluate(cid)
         pipe.verify(cid)
+        for i in range(5):
+            pipe.mark_used_in_run(cid, f"run-trust-{i}", outcome_score=0.85)
 
         result = pipe.consolidate(cid, auto_consolidate=True)
         assert result["status"] == "consolidated"
@@ -228,6 +230,8 @@ class TestAutoConsolidation:
         )["candidate_id"]
         pipe.evaluate(cid)
         pipe.verify(cid)
+        for i in range(5):
+            pipe.mark_used_in_run(cid, f"run-medium-{i}", outcome_score=0.80)
 
         result = pipe.consolidate(cid, auto_consolidate=True)
         assert result["status"] == "consolidated"
@@ -258,6 +262,8 @@ class TestAutoConsolidation:
         )["candidate_id"]
         pipe.evaluate(cid)
         pipe.verify(cid)
+        for i in range(5):
+            pipe.mark_used_in_run(cid, f"run-high-{i}", outcome_score=0.90)
 
         result = pipe.consolidate(cid, auto_consolidate=True)
         assert result["status"] == "consolidated"
@@ -297,6 +303,8 @@ class TestAutoConsolidation:
         cid = good_candidate(pipe)
         pipe.evaluate(cid)
         pipe.verify(cid)
+        for i in range(5):
+            pipe.mark_used_in_run(cid, f"run-human-{i}", outcome_score=0.85)
 
         result = pipe.consolidate(cid, approved_by="santiago")
         assert result["status"] == "consolidated"
