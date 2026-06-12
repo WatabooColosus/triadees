@@ -1,7 +1,13 @@
 """Auditor de preparación para promoción estable de neuronas.
 
 No promueve neuronas. Solo evalúa si una neurona experimental tiene evidencia
-suficiente para pasar a revisión humana futura.
+suficiente y diversa para pasar a revisión humana futura.
+
+Requisitos de evidencia diversa:
+  - No basta con activaciones sintéticas (experimental_light_pulse).
+  - Se requiere al menos 1 activación con policy diferente a experimental_light_pulse
+    (ej: user_run, test_run, worker_task, system_pulse_continuous real).
+  - Se requiere al menos 1 verificación o reporte externo del runner.
 """
 
 from __future__ import annotations
@@ -17,7 +23,11 @@ DEFAULT_THRESHOLDS = {
     "min_activations": 5,
     "min_diagnosis": 5,
     "min_test_plan": 3,
+    "min_non_synthetic_activations": 1,
+    "min_external_verifications": 1,
 }
+
+SYNTHETIC_POLICIES = {"experimental_light_pulse"}
 
 
 def evaluate_stable_readiness(
@@ -37,6 +47,18 @@ def evaluate_stable_readiness(
         test_plan_count = int(neuron.get("test_plan_count") or 0)
         external_actions_allowed = bool(neuron.get("external_actions_allowed"))
 
+        # Contar activaciones no sintéticas (policy distinto de experimental_light_pulse)
+        runs = neuron.get("runs") or []
+        non_synthetic_count = sum(
+            1 for r in runs
+            if str(r.get("policy") or "") not in SYNTHETIC_POLICIES
+        )
+        # Contar verificaciones externas (runs con run_id que no sea pulse-*)
+        external_verification_count = sum(
+            1 for r in runs
+            if str(r.get("run_id") or "").startswith("run-")
+        )
+
         blockers: list[str] = []
 
         if activation_count < thresholds["min_activations"]:
@@ -49,6 +71,16 @@ def evaluate_stable_readiness(
             blockers.append("external_actions_allowed must be false")
         if str(neuron.get("status")) != "experimental":
             blockers.append("neuron status must be experimental")
+        if non_synthetic_count < thresholds["min_non_synthetic_activations"]:
+            blockers.append(
+                f"non_synthetic_activations {non_synthetic_count} < {thresholds['min_non_synthetic_activations']} "
+                f"(requires evidence from user runs, tests, or workers — not only experimental_light_pulse)"
+            )
+        if external_verification_count < thresholds["min_external_verifications"]:
+            blockers.append(
+                f"external_verifications {external_verification_count} < {thresholds['min_external_verifications']} "
+                f"(requires at least 1 run-* artifact as evidence)"
+            )
 
         ready = not blockers
 
@@ -61,6 +93,8 @@ def evaluate_stable_readiness(
             "activation_count": activation_count,
             "diagnosis_count": diagnosis_count,
             "test_plan_count": test_plan_count,
+            "non_synthetic_activations": non_synthetic_count,
+            "external_verifications": external_verification_count,
             "last_run_id": neuron.get("last_run_id"),
             "blockers": blockers,
             "required_human_decision": True,

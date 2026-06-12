@@ -6,7 +6,13 @@ El pulso de vida corre en dos hilos:
      un input vivo, generando neuronas, promoviéndolas y consolidando aprendizaje
      sin depender de peticiones HTTP.
 
-Triade nunca está quieta: cada ciclo termina y el siguiente empieza al instante.
+El modo continuo está DESACTIVADO por defecto (TRIADE_CONTINUOUS_RUNNER=0).
+Debe activarse explícitamente con TRIADE_CONTINUOUS_RUNNER=1 o desde CLI/UI.
+
+Env vars del continuous runner:
+  TRIADE_CONTINUOUS_RUNNER       — "1" para activar (default: "0")
+  TRIADE_CONTINUOUS_INTERVAL_SECONDS — sleep entre ciclos (default: 10, min: 10)
+  TRIADE_CONTINUOUS_MAX_CYCLES   — 0 = ilimitado; N = máximo N ciclos
 """
 
 from __future__ import annotations
@@ -27,6 +33,26 @@ from .runner import TriadeRunner
 from .self_reflection import SelfReflectionEngine
 
 
+# ── Niveles de autonomía ─────────────────────────────────────────────────────
+# Cada nivel implica los anteriores. El continuous runner opera al nivel
+# configurado, y NO puede excederlo sin intervención humana explícita.
+
+AUTONOMY_LEVELS: list[str] = [
+    "observe_only",        # Solo tick de observación; no genera neuronas.
+    "form_candidates",     # Forma candidatos desde deuda del sistema.
+    "train_candidates",    # Entrena candidatos existentes.
+    "promote_experimental", # Promueve candidate → experimental si score ≥ threshold.
+    "promote_stable",      # Promueve experimental → stable con evidencia diversa.
+]
+
+DEFAULT_AUTONOMY_LEVEL = "observe_only"
+
+_MIN_CONTINUOUS_INTERVAL = 10
+_DEFAULT_CONTINUOUS_INTERVAL = 10
+_BACKOFF_BASE_SECONDS = 5
+_BACKOFF_MAX_SECONDS = 300
+
+
 @dataclass
 class LifePulseEngine:
     """Pulso vital 24/7: observación periódica + ciclo cognitivo continuo."""
@@ -35,7 +61,10 @@ class LifePulseEngine:
     runs_dir: str | Path = "runs"
     interval_seconds: int = 60
     reflection_limit: int = 30
-    continuous_run_enabled: bool = True
+    continuous_run_enabled: bool = False
+    continuous_interval_seconds: int = _DEFAULT_CONTINUOUS_INTERVAL
+    continuous_max_cycles: int = 0
+    autonomy_level: str = DEFAULT_AUTONOMY_LEVEL
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _stop: threading.Event = field(default_factory=threading.Event, init=False, repr=False)
     _thread: threading.Thread | None = field(default=None, init=False, repr=False)
@@ -51,13 +80,29 @@ class LifePulseEngine:
     _continuous_cycle_count: int = 0
     _last_continuous_error: str | None = None
     _last_continuous_at: float | None = None
+    _continuous_elapsed_ms: list[int] = field(default_factory=list, init=False)
+    _last_promotion_at: float | None = None
+    _last_promotion_name: str | None = None
+    _continuous_backoff_seconds: float = 0.0
 
     @classmethod
     def from_env(cls) -> "LifePulseEngine":
         interval = int(os.environ.get("TRIADE_LIFE_PULSE_INTERVAL", "60") or "60")
         limit = int(os.environ.get("TRIADE_LIFE_REFLECTION_LIMIT", "30") or "30")
-        continuous = str(os.environ.get("TRIADE_CONTINUOUS_RUNNER", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
-        return cls(interval_seconds=max(5, interval), reflection_limit=max(5, limit), continuous_run_enabled=continuous)
+        continuous = str(os.environ.get("TRIADE_CONTINUOUS_RUNNER", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+        ci = int(os.environ.get("TRIADE_CONTINUOUS_INTERVAL_SECONDS", str(_DEFAULT_CONTINUOUS_INTERVAL)) or _DEFAULT_CONTINUOUS_INTERVAL)
+        max_c = int(os.environ.get("TRIADE_CONTINUOUS_MAX_CYCLES", "0") or "0")
+        autonomy = str(os.environ.get("TRIADE_AUTONOMY_LEVEL", DEFAULT_AUTONOMY_LEVEL) or DEFAULT_AUTONOMY_LEVEL).strip()
+        if autonomy not in AUTONOMY_LEVELS:
+            autonomy = DEFAULT_AUTONOMY_LEVEL
+        return cls(
+            interval_seconds=max(5, interval),
+            reflection_limit=max(5, limit),
+            continuous_run_enabled=continuous,
+            continuous_interval_seconds=max(_MIN_CONTINUOUS_INTERVAL, ci),
+            continuous_max_cycles=max(0, max_c),
+            autonomy_level=autonomy,
+        )
 
     def start(self) -> None:
         with self._lock:
@@ -131,6 +176,15 @@ class LifePulseEngine:
             actions = dict(self._actions)
             last_error = self._last_error
             last_tick_at = self._last_tick_at
+            elapsed_ms = list(self._continuous_elapsed_ms)
+            cycle_count = self._continuous_cycle_count
+
+        cycles_per_minute = 0.0
+        if elapsed_ms and len(elapsed_ms) >= 2:
+            total_ms = sum(elapsed_ms[-60:])
+            if total_ms > 0:
+                cycles_per_minute = round((len(elapsed_ms[-60:]) / total_ms) * 60_000, 2)
+
         return {
             "status": "ok" if not last_error else "degraded",
             "mode": "life-pulse",
@@ -140,12 +194,21 @@ class LifePulseEngine:
             "last_tick_at": last_tick_at,
             "next_tick_in_seconds": next_tick,
             "last_error": last_error,
+            "autonomy_level": self.autonomy_level,
+            "autonomy_levels_available": list(AUTONOMY_LEVELS),
             "continuous_runner": {
                 "enabled": self.continuous_run_enabled,
                 "running": continuous_running,
-                "cycles": self._continuous_cycle_count,
+                "cycles": cycle_count,
                 "last_cycle_at": self._last_continuous_at,
                 "last_error": self._last_continuous_error,
+                "interval_seconds": self.continuous_interval_seconds,
+                "max_cycles": self.continuous_max_cycles,
+                "cycles_per_minute": cycles_per_minute,
+            },
+            "last_promotion": {
+                "at": self._last_promotion_at,
+                "name": self._last_promotion_name,
             },
             "counters": counters,
             "actions": actions,
@@ -160,6 +223,8 @@ class LifePulseEngine:
                 "identity_core_modified": False,
                 "auto_consolidation": False,
                 "auto_code_modification": False,
+                "continuous_runner_default": "off",
+                "stable_promotion_requires_diverse_evidence": True,
             },
             "truth": "Pulso operativo: observa, cuenta, verifica y propone candidatos; no simula conciencia humana ni consolida memoria estable.",
         }
@@ -225,10 +290,11 @@ class LifePulseEngine:
             self.tick()
 
     def _continuous_loop(self) -> None:
-        """Ciclo continuo ligero — forma neuronas, entrena, promueve, activa.
+        """Ciclo continuo con ritmo controlado, backoff y niveles de autonomía.
 
         No ejecuta el pipeline cognitivo completo (sin Hypothalamus/Central).
-        Corre sin pausas: un ciclo termina, el siguiente empieza.
+        Respeta: intervalo configurable, backoff exponencial, max ciclos,
+        y niveles de autonomía que limitan qué acciones están permitidas.
         """
         from .background_neurons import candidates_from_system_debt
         from .neuron_formation_pipeline import form_candidates
@@ -240,99 +306,125 @@ class LifePulseEngine:
         runner_pool_cycle = 0
 
         while not self._stop.is_set():
+            cycle_start = time.time()
+
+            # Respetar max ciclos
+            if self.continuous_max_cycles > 0 and tick_counter >= self.continuous_max_cycles:
+                with self._lock:
+                    self._last_continuous_error = (
+                        f"max_cycles={self.continuous_max_cycles} alcanzado; "
+                        "continuous runner detenido."
+                    )
+                break
+
             try:
                 tick_counter += 1
                 runner_pool_cycle += 1
+                level = self.autonomy_level
 
-                # 1. Generar candidatos desde deuda del sistema
-                run_path = Path(str(self.runs_dir)) / f"pulse-{int(time.time())}"
-                raw_candidates = candidates_from_system_debt(
-                    pulse_summary=self._build_system_dict(),
-                    system_events=[],
-                )
-                formed = form_candidates(raw_candidates)
+                # 1. Generar candidatos desde deuda del sistema (requiere form_candidates+)
+                if AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("form_candidates"):
+                    run_path = Path(str(self.runs_dir)) / f"pulse-{int(time.time())}"
+                    raw_candidates = candidates_from_system_debt(
+                        pulse_summary=self._build_system_dict(),
+                        system_events=[],
+                    )
+                    formed = form_candidates(raw_candidates)
+                else:
+                    formed = []
 
                 # 2. Registrar candidatos formados
                 registry = NeuronRegistry(db_path=self.db_path)
-                from .neuron_creator import NeuronSpec
-                from .neuron_trainer import NeuronTrainingResult, NeuronTrainer
-                for candidate in formed:
-                    name = candidate.get("name", "?")
-                    existing = registry.get_neuron(name)
-                    if existing and existing.get("status") in ("experimental", "stable"):
-                        continue
-                    spec = NeuronSpec(
-                        name=name,
-                        mission=candidate.get("mission", "Auto-generada por pulso continuo."),
-                        domain=candidate.get("domain", "general"),
-                        rules=candidate.get("rules", []),
-                        triggers=candidate.get("triggers", []),
-                        inputs_allowed=candidate.get("inputs_allowed", []),
-                        outputs_allowed=candidate.get("outputs_allowed", []),
-                        forbidden_actions=candidate.get("forbidden_actions", []),
-                        success_metrics=candidate.get("success_metrics", []),
-                        evidence_required=candidate.get("evidence_required", []),
-                        status="candidate",
-                        created_by="life_pulse_continuous",
-                    )
-                    neuron_id = registry.register(spec, contract_payload=candidate)
-                    training_dict = candidate.get("training_result") or {}
-                    if training_dict:
-                        tr = NeuronTrainingResult(
+                if formed and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("form_candidates"):
+                    from .neuron_creator import NeuronSpec
+                    from .neuron_trainer import NeuronTrainingResult, NeuronTrainer
+                    for candidate in formed:
+                        name = candidate.get("name", "?")
+                        existing = registry.get_neuron(name)
+                        if existing and existing.get("status") in ("experimental", "stable"):
+                            continue
+                        spec = NeuronSpec(
                             name=name,
-                            score=float(training_dict.get("score", 0.5)),
-                            status=str(training_dict.get("status", "candidate")),
-                            strengths=training_dict.get("strengths", []),
-                            warnings=training_dict.get("warnings", []),
-                            recommendations=training_dict.get("recommendations", []),
-                            required_human_review=False,
-                            policy="trainer_auto_approves",
+                            mission=candidate.get("mission", "Auto-generada por pulso continuo."),
+                            domain=candidate.get("domain", "general"),
+                            rules=candidate.get("rules", []),
+                            triggers=candidate.get("triggers", []),
+                            inputs_allowed=candidate.get("inputs_allowed", []),
+                            outputs_allowed=candidate.get("outputs_allowed", []),
+                            forbidden_actions=candidate.get("forbidden_actions", []),
+                            success_metrics=candidate.get("success_metrics", []),
+                            evidence_required=candidate.get("evidence_required", []),
+                            status="candidate",
+                            created_by="life_pulse_continuous",
                         )
-                        registry.store_training(neuron_id, tr)
+                        neuron_id = registry.register(spec, contract_payload=candidate)
+                        training_dict = candidate.get("training_result") or {}
+                        if training_dict:
+                            tr = NeuronTrainingResult(
+                                name=name,
+                                score=float(training_dict.get("score", 0.5)),
+                                status=str(training_dict.get("status", "candidate")),
+                                strengths=training_dict.get("strengths", []),
+                                warnings=training_dict.get("warnings", []),
+                                recommendations=training_dict.get("recommendations", []),
+                                required_human_review=False,
+                                policy="trainer_auto_approves",
+                            )
+                            registry.store_training(neuron_id, tr)
 
-                # 2b. Entrenar toda candidata existente sin training
-                for n in registry.list_neurons(limit=200):
-                    st = (n.get("status") or "").strip().lower()
-                    if st not in ("candidate", "candidate_reviewable"):
-                        continue
-                    existing_training = registry.list_training(int(n["id"]), limit=1)
-                    if existing_training:
-                        continue
-                    spec_data = registry.get_neuron(n.get("name", ""))
-                    if not spec_data:
-                        continue
-                    backfill_spec = NeuronSpec(
-                        name=str(spec_data.get("name", n.get("name", "?"))),
-                        mission=str(spec_data.get("mission", "")),
-                        domain=str(spec_data.get("domain", "general")),
-                        rules=spec_data.get("rules", []),
-                        triggers=spec_data.get("triggers", []),
-                        inputs_allowed=spec_data.get("inputs_allowed", []),
-                        outputs_allowed=spec_data.get("outputs_allowed", []),
-                        forbidden_actions=spec_data.get("forbidden_actions", []),
-                        success_metrics=spec_data.get("success_metrics", []),
-                        evidence_required=spec_data.get("evidence_required", []),
-                    )
-                    try:
-                        trainer = NeuronTrainer()
-                        tr = trainer.evaluate(backfill_spec)
-                        registry.store_training(int(n["id"]), NeuronTrainingResult(
-                            name=tr.name, score=tr.score, status=tr.status,
-                            strengths=tr.strengths, warnings=tr.warnings,
-                            recommendations=tr.recommendations,
-                            required_human_review=False,
-                            policy="trainer_auto_approves",
-                        ))
-                    except Exception:
-                        pass
+                # 2b. Entrenar toda candidata existente sin training (requiere train_candidates+)
+                if AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("train_candidates"):
+                    from .neuron_creator import NeuronSpec
+                    from .neuron_trainer import NeuronTrainer, NeuronTrainingResult
+                    for n in registry.list_neurons(limit=200):
+                        st = (n.get("status") or "").strip().lower()
+                        if st not in ("candidate", "candidate_reviewable"):
+                            continue
+                        existing_training = registry.list_training(int(n["id"]), limit=1)
+                        if existing_training:
+                            continue
+                        spec_data = registry.get_neuron(n.get("name", ""))
+                        if not spec_data:
+                            continue
+                        backfill_spec = NeuronSpec(
+                            name=str(spec_data.get("name", n.get("name", "?"))),
+                            mission=str(spec_data.get("mission", "")),
+                            domain=str(spec_data.get("domain", "general")),
+                            rules=spec_data.get("rules", []),
+                            triggers=spec_data.get("triggers", []),
+                            inputs_allowed=spec_data.get("inputs_allowed", []),
+                            outputs_allowed=spec_data.get("outputs_allowed", []),
+                            forbidden_actions=spec_data.get("forbidden_actions", []),
+                            success_metrics=spec_data.get("success_metrics", []),
+                            evidence_required=spec_data.get("evidence_required", []),
+                        )
+                        try:
+                            trainer = NeuronTrainer()
+                            tr = trainer.evaluate(backfill_spec)
+                            registry.store_training(int(n["id"]), NeuronTrainingResult(
+                                name=tr.name, score=tr.score, status=tr.status,
+                                strengths=tr.strengths, warnings=tr.warnings,
+                                recommendations=tr.recommendations,
+                                required_human_review=False,
+                                policy="trainer_auto_approves",
+                            ))
+                        except Exception:
+                            pass
 
-                # 3. Autopromoción
-                autopromoter = NeuronAutopromoter(db_path=self.db_path)
-                autopromoter.promote()
+                # 3. Autopromoción (requiere promote_experimental+)
+                if AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("promote_experimental"):
+                    autopromoter = NeuronAutopromoter(db_path=self.db_path)
+                    promotion_events = autopromoter.promote()
+                    for ev in promotion_events:
+                        if ev.get("status") == "promoted":
+                            with self._lock:
+                                self._last_promotion_at = time.time()
+                                self._last_promotion_name = (ev.get("payload") or {}).get("name")
 
-                # 4. Activar neuronas experimentales periódicamente
-                if tick_counter % 3 == 0:
-                    self._activate_experimental_light()
+                # 4. Activar neuronas experimental periódicamente (requiere promote_experimental+)
+                if AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("promote_experimental"):
+                    if tick_counter % 3 == 0:
+                        self._activate_experimental_light()
 
                 # 5. Recomputar trust cada 10 ciclos
                 if tick_counter % 10 == 0:
@@ -356,16 +448,35 @@ class LifePulseEngine:
                     except Exception:
                         pass
 
+                elapsed_ms = int((time.time() - cycle_start) * 1000)
                 with self._lock:
                     self._continuous_cycle_count += 1
                     self._last_continuous_at = time.time()
                     self._last_continuous_error = None
+                    self._continuous_elapsed_ms.append(elapsed_ms)
+                    if len(self._continuous_elapsed_ms) > 200:
+                        self._continuous_elapsed_ms = self._continuous_elapsed_ms[-200:]
+                    self._continuous_backoff_seconds = 0.0
 
             except Exception as exc:
+                elapsed_ms = int((time.time() - cycle_start) * 1000)
                 with self._lock:
                     self._continuous_cycle_count += 1
                     self._last_continuous_at = time.time()
                     self._last_continuous_error = str(exc)
+                    self._continuous_elapsed_ms.append(elapsed_ms)
+                    if len(self._continuous_elapsed_ms) > 200:
+                        self._continuous_elapsed_ms = self._continuous_elapsed_ms[-200:]
+                    # Backoff exponencial
+                    self._continuous_backoff_seconds = min(
+                        self._continuous_backoff_seconds * 2 + _BACKOFF_BASE_SECONDS,
+                        _BACKOFF_MAX_SECONDS,
+                    )
+
+            # Sleep con backoff
+            sleep_time = max(self.continuous_interval_seconds, self._continuous_backoff_seconds)
+            if self._stop.wait(sleep_time):
+                break
 
     def _build_system_dict(self) -> dict[str, Any]:
         """Construye un dict de pulso del sistema para generación de candidatos."""

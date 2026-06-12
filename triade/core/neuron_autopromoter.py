@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from .neuron_registry import NeuronRegistry
-from .stable_promotion_readiness import evaluate_stable_readiness
+from .stable_promotion_readiness import evaluate_stable_readiness, SYNTHETIC_POLICIES
 
 
 class NeuronAutopromoter:
@@ -12,12 +12,19 @@ class NeuronAutopromoter:
 
     Reglas:
       - candidate → experimental: score > 0.5, sin riesgo crítico
-      - experimental → stable: readiness thresholds cumplidos
+      - experimental → stable: readiness thresholds + evidencia diversa
       - stable nunca se degrada
+      - Cada decisión incluye razón auditable (incluyendo cuando NO promueve)
     """
 
     CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE = 0.5
-    STABLE_THRESHOLDS = {"min_activations": 5, "min_diagnosis": 5, "min_test_plan": 3}
+    STABLE_THRESHOLDS = {
+        "min_activations": 5,
+        "min_diagnosis": 5,
+        "min_test_plan": 3,
+        "min_non_synthetic_activations": 1,
+        "min_external_verifications": 1,
+    }
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
@@ -42,17 +49,45 @@ class NeuronAutopromoter:
         name = n.get("name", "?")
         training = self.registry.list_training(int(n["id"]), limit=1)
         if not training:
-            return None
+            return {
+                "type": "autopromotion_skipped",
+                "severity": "info",
+                "status": "not_promoted",
+                "message": f"Neurona '{name}' sin training; no se promueve.",
+                "reason": "no_training_data",
+                "payload": {"name": name, "current_status": "candidate"},
+            }
         score = training[0].get("score", 0.0)
         if score < self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE:
-            return None
+            return {
+                "type": "autopromotion_skipped",
+                "severity": "info",
+                "status": "not_promoted",
+                "message": f"Neurona '{name}' score={score:.2f} < {self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE}; no se promueve.",
+                "reason": "score_below_threshold",
+                "payload": {"name": name, "score": score, "threshold": self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE},
+            }
         ap = n.get("activation_policy") or {}
         if not ap.get("auto_approve", True):
-            return None
+            return {
+                "type": "autopromotion_skipped",
+                "severity": "info",
+                "status": "not_promoted",
+                "message": f"Neurona '{name}' auto_approve=False; no se promueve sin aprobación humana.",
+                "reason": "auto_approve_disabled",
+                "payload": {"name": name, "activation_policy": ap},
+            }
         try:
             self.registry.update_status(name, "experimental")
         except KeyError:
-            return None
+            return {
+                "type": "autopromotion_skipped",
+                "severity": "warning",
+                "status": "not_promoted",
+                "message": f"Neurona '{name}' no encontrada en registry; no se promueve.",
+                "reason": "neuron_not_found",
+                "payload": {"name": name},
+            }
         return {
             "type": "autopromotion",
             "severity": "important",
@@ -70,19 +105,92 @@ class NeuronAutopromoter:
             if nr.get("name") == name:
                 neuron_report = nr
                 break
-        if not neuron_report or not neuron_report.get("ready_for_stable_review"):
-            return None
+
+        if not neuron_report:
+            return {
+                "type": "autopromotion_skipped",
+                "severity": "info",
+                "status": "not_promoted",
+                "message": f"Neurona '{name}' no encontrada en reporte de readiness.",
+                "reason": "not_in_readiness_report",
+                "payload": {"name": name},
+            }
+
+        if not neuron_report.get("ready_for_stable_review"):
+            blockers = neuron_report.get("blockers", [])
+            return {
+                "type": "autopromotion_skipped",
+                "severity": "info",
+                "status": "not_promoted",
+                "message": f"Neurona '{name}' no lista para stable: {'; '.join(blockers[:3])}",
+                "reason": "readiness_blockers",
+                "payload": {"name": name, "blockers": blockers},
+            }
+
+        # Verificar evidencia diversa: al menos 1 activación no sintética
+        non_synth = neuron_report.get("non_synthetic_activations", 0)
+        if non_synth < self.STABLE_THRESHOLDS["min_non_synthetic_activations"]:
+            return {
+                "type": "autopromotion_skipped",
+                "severity": "info",
+                "status": "not_promoted",
+                "message": (
+                    f"Neurona '{name}' tiene solo evidencia sintética "
+                    f"({non_synth} no sintéticas). "
+                    "Se requiere evidencia de runs de usuario, tests o workers."
+                ),
+                "reason": "insufficient_diverse_evidence",
+                "payload": {
+                    "name": name,
+                    "non_synthetic_activations": non_synth,
+                    "required": self.STABLE_THRESHOLDS["min_non_synthetic_activations"],
+                },
+            }
+
+        # Verificar al menos 1 verificación externa (run-* artifact)
+        ext_verif = neuron_report.get("external_verifications", 0)
+        if ext_verif < self.STABLE_THRESHOLDS["min_external_verifications"]:
+            return {
+                "type": "autopromotion_skipped",
+                "severity": "info",
+                "status": "not_promoted",
+                "message": (
+                    f"Neurona '{name}' sin verificaciones externas suficientes "
+                    f"({ext_verif}). Se requiere al menos 1 run real del runner."
+                ),
+                "reason": "insufficient_external_verification",
+                "payload": {
+                    "name": name,
+                    "external_verifications": ext_verif,
+                    "required": self.STABLE_THRESHOLDS["min_external_verifications"],
+                },
+            }
+
         try:
             self.registry.update_status(name, "stable")
         except KeyError:
-            return None
+            return {
+                "type": "autopromotion_skipped",
+                "severity": "warning",
+                "status": "not_promoted",
+                "message": f"Neurona '{name}' no encontrada en registry al intentar promover a stable.",
+                "reason": "neuron_not_found",
+                "payload": {"name": name},
+            }
         return {
             "type": "autopromotion",
-            "severity": "important",
+            "severity": "critical",
             "status": "promoted",
-            "message": f"Neurona '{name}' promovida automáticamente de experimental → stable por cumplir thresholds de evidencia.",
+            "message": f"Neurona '{name}' promovida de experimental → stable con evidencia diversa verificada.",
             "action_required": "monitor_stable_behavior",
-            "payload": {"name": name, "from": "experimental", "to": "stable", "readiness": neuron_report},
+            "payload": {
+                "name": name,
+                "from": "experimental",
+                "to": "stable",
+                "readiness": neuron_report,
+                "non_synthetic_activations": non_synth,
+                "external_verifications": ext_verif,
+            },
         }
 
     def compute_progress(self, neuron: dict[str, Any], training: list[dict[str, Any]]) -> dict[str, Any]:
