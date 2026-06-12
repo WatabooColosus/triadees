@@ -7,12 +7,21 @@ Cada error se guarda con scope, run_ref, task_id, payload y traceback truncado.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import traceback
 from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
+
+
+ERROR_SEVERITY_POLICY: dict[str, str] = {
+    "critical": "Riesgo de corrupción de identidad, memoria estable o seguridad.",
+    "error": "Fallo interno recuperable que afecta una tarea o ciclo.",
+    "warning": "Degradación controlada sin pérdida de trazabilidad.",
+    "info": "Evento diagnóstico no bloqueante.",
+}
 
 
 def record_internal_error(
@@ -22,6 +31,7 @@ def record_internal_error(
     task_id: int | None = None,
     payload: dict[str, Any] | None = None,
     db_path: str | Path = "triade/memory/triade.db",
+    severity: str | None = None,
 ) -> int | None:
     """Registra un error interno en worker_events para trazabilidad.
 
@@ -47,6 +57,8 @@ def record_internal_error(
         "error_message": error_str[:1000],
         "traceback": tb_str,
         "scope": scope,
+        "severity": _normalize_severity(severity, scope, error_str),
+        "severity_policy": ERROR_SEVERITY_POLICY,
     }
     if payload:
         event_payload["context"] = payload
@@ -66,6 +78,7 @@ def record_internal_error(
                     utc_now(),
                 ),
             )
+            prune_worker_events(conn)
             return int(cursor.lastrowid)
     except Exception:
         return None
@@ -108,6 +121,44 @@ def query_internal_errors(
             return [_row_to_dict(r) for r in rows]
     except Exception:
         return []
+
+
+def prune_worker_events(conn: sqlite3.Connection, keep_limit: int | None = None) -> int:
+    """Retiene solo los eventos worker más recientes para crecimiento acotado.
+
+    Default: `TRIADE_WORKER_EVENTS_RETENTION` o 5000. Valores <= 0 desactivan
+    pruning. Se conservan siempre los últimos N por id.
+    """
+    if keep_limit is None:
+        try:
+            keep_limit = int(os.environ.get("TRIADE_WORKER_EVENTS_RETENTION", "5000") or "5000")
+        except ValueError:
+            keep_limit = 5000
+    if keep_limit <= 0:
+        return 0
+    cursor = conn.execute(
+        """
+        DELETE FROM worker_events
+        WHERE id NOT IN (
+            SELECT id FROM worker_events ORDER BY id DESC LIMIT ?
+        )
+        """,
+        (keep_limit,),
+    )
+    return int(cursor.rowcount or 0)
+
+
+def _normalize_severity(severity: str | None, scope: str, message: str) -> str:
+    if severity:
+        clean = severity.strip().lower()
+        if clean in ERROR_SEVERITY_POLICY:
+            return clean
+    lowered = f"{scope} {message}".lower()
+    if any(flag in lowered for flag in ("identity_core", "stable memory", "memoria estable", "safety")):
+        return "critical"
+    if any(flag in lowered for flag in ("degraded", "fallback", "timeout")):
+        return "warning"
+    return "error"
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:

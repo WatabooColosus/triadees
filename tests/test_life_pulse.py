@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from triade.core.life_pulse import LifePulseEngine
-from triade.core.error_bus import query_internal_errors
+from triade.core.error_bus import ERROR_SEVERITY_POLICY, query_internal_errors
 
 
 def make_life_db(tmp_path: Path) -> Path:
@@ -95,4 +95,5 @@ def test_continuous_runner_records_controlled_error(tmp_path: Path) -> None:
     errors = query_internal_errors(scope="life_pulse.continuous.candidate_formation", db_path=db_path)
     assert errors
     assert errors[0]["payload"]["context"]["operation"] == "candidates_from_system_debt_and_form_candidates"
+    assert errors[0]["payload"]["severity"] in ERROR_SEVERITY_POLICY
     assert engine.snapshot()["continuous_runner"]["last_error"] == "boom candidate formation"

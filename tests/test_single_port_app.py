@@ -120,6 +120,42 @@ def test_single_port_life_endpoint_reports_background_counters() -> None:
     assert "reflection" in payload
 
 
+def test_continuous_runner_control_endpoint_default_safe() -> None:
+    response = client.post(
+        "/api/system/life/continuous-runner",
+        json={"enabled": False, "autonomy_level": "observe_only", "interval_seconds": 1, "max_cycles": 1},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["continuous_runner"]["enabled"] is False
+    assert payload["continuous_runner"]["interval_seconds"] >= 10
+    assert payload["policy"]["default_remains_off"] is True
+
+
+def test_continuous_runner_control_rejects_invalid_autonomy_level() -> None:
+    response = client.post(
+        "/api/system/life/continuous-runner",
+        json={"enabled": False, "autonomy_level": "invalid"},
+    )
+
+    assert response.status_code == 400
+
+
+def test_full_neuron_operational_state_endpoint() -> None:
+    response = client.get("/api/system/neurons/full", params={"limit": 5, "mission_limit": 5})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "full_neuron_operational_state"
+    assert "neurons" in payload
+    assert "missions" in payload
+    assert "learning_usage" in payload
+    assert payload["policy"]["read_only"] is True
+    assert payload["policy"]["identity_core_protected"] is True
+
+
 def test_single_port_qualia_endpoint_aligns_semantic_memory_and_pulse() -> None:
     response = client.get("/api/system/qualia", params={"refresh_life": "true"})
 

@@ -378,6 +378,76 @@ def system_neurons(limit: int = 100) -> dict[str, Any]:
     }
 
 
+@router.get("/api/system/neurons/full")
+def system_neurons_full(limit: int = 100, mission_limit: int = 50) -> dict[str, Any]:
+    LIFE_PULSE.record_action("system_neurons_full")
+    import sqlite3
+    from triade.core.neuron_missions import NeuronMissionStore
+
+    dashboard = build_neuron_dashboard(limit=limit)
+    identity = NeuronIdentityView().list(limit=limit)
+    mission_store = NeuronMissionStore()
+    missions = mission_store.list_missions(limit=mission_limit)
+    missions_payload = []
+    for mission in missions:
+        mission_id = int(mission.id or 0)
+        cycles = mission_store.list_cycles(mission_id, limit=5)
+        evidence = mission_store.list_evidence(mission_id, limit=5)
+        latest_score = mission_store.latest_score(mission_id)
+        missions_payload.append({
+            "mission": mission.to_dict(),
+            "latest_cycles": [cycle.to_dict() for cycle in cycles],
+            "latest_evidence": [item.to_dict() for item in evidence],
+            "latest_score": latest_score.to_dict() if latest_score else None,
+            "last_real_use": {
+                "cycle_id": cycles[0].id if cycles else None,
+                "evidence_id": evidence[0].id if evidence else None,
+                "run_refs": [
+                    ref for ref in ((cycles[0].evidence_refs if cycles else []) or [])
+                    if str(ref).startswith("run:")
+                ][:3],
+            },
+        })
+
+    learning_usage = []
+    try:
+        with sqlite3.connect("triade/memory/triade.db") as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """SELECT candidate_id, source_ref, title, domain, status,
+                run_use_count, avg_outcome_score, updated_at
+                FROM learning_queue
+                WHERE source_ref LIKE 'mission:%'
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ?""",
+                (mission_limit,),
+            ).fetchall()
+        learning_usage = [dict(row) for row in rows]
+    except Exception:
+        learning_usage = []
+
+    return {
+        "status": "ok",
+        "mode": "full_neuron_operational_state",
+        "summary": {
+            "dashboard": dashboard.get("summary", {}),
+            "identity": identity.get("summary", {}),
+            "mission_count": len(missions_payload),
+            "mission_learning_candidates": len(learning_usage),
+        },
+        "neurons": identity.get("neurons", []),
+        "dashboard_neurons": dashboard.get("neurons", []),
+        "missions": missions_payload,
+        "learning_usage": learning_usage,
+        "policy": {
+            "read_only": True,
+            "identity_core_protected": True,
+            "candidate_is_not_stable_memory": True,
+            "stable_requires_learning_pipeline": True,
+        },
+    }
+
+
 @router.get("/api/system/neurons/{name}")
 def system_neuron_detail(name: str, limit: int = 10) -> dict[str, Any]:
     from triade.core.neuron_registry import NeuronRegistry
@@ -619,12 +689,13 @@ def list_internal_errors(
     run_id: str | None = None,
     limit: int = 50,
 ) -> dict[str, Any]:
-    from triade.core.error_bus import query_internal_errors
+    from triade.core.error_bus import ERROR_SEVERITY_POLICY, query_internal_errors
     errors = query_internal_errors(scope=scope, run_id=run_id, limit=limit)
     return {
         "status": "ok",
         "count": len(errors),
         "errors": errors,
+        "severity_policy": ERROR_SEVERITY_POLICY,
     }
 
 
@@ -634,6 +705,22 @@ def system_life(tick: bool = False) -> dict[str, Any]:
     if tick:
         return LIFE_PULSE.tick()
     return LIFE_PULSE.snapshot()
+
+
+@router.post("/api/system/life/continuous-runner")
+def system_life_continuous_runner(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    LIFE_PULSE.record_action("life_continuous_runner_control")
+    payload = body or {}
+    enabled = bool(payload.get("enabled", False))
+    result = LIFE_PULSE.configure_continuous_runner(
+        enabled=enabled,
+        autonomy_level=payload.get("autonomy_level"),
+        interval_seconds=payload.get("interval_seconds"),
+        max_cycles=payload.get("max_cycles"),
+    )
+    if result.get("status") != "ok":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result)
+    return result
 
 
 @router.get("/api/system/activity")

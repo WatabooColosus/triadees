@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
+from triade.core.error_bus import prune_worker_events
 from .contracts import WorkerRunConfig, WorkerTask
 
 
@@ -124,6 +125,7 @@ class WorkerStateStore:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (run_ref, task_id, task_type, event_type, status, message, json.dumps(payload or {}, ensure_ascii=False), utc_now()),
             )
+            prune_worker_events(conn)
             return int(cursor.lastrowid)
 
     def list_events(self, limit: int = 50, run_ref: str | None = None) -> list[dict[str, Any]]:
