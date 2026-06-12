@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import platform
 import sys
 from pathlib import Path
@@ -32,6 +33,8 @@ from .verification import Verifier
 from .edge_context import build_edge_context
 from .model_quality import score_central, score_hypothalamus
 from .output_gate import sanitize_user_response
+from .neuron_candidate_gate import evaluate_neuron_candidate_worthiness
+from .response_coherence_gate import evaluate_response_coherence
 from .response_governance import ConversationContinuityService, ResponseCoherenceGate, ResponseDeduplicationGate
 from .run_artifacts import build_base_artifacts, write_run_artifacts, write_run_integrity
 from .run_learning import RunLearningService
@@ -109,6 +112,28 @@ def _process_neuron_contributions(
         "blocked_contributions": blocked,
         "policy": "neuron_contributions_filtered_by_risk_confidence_safety",
     }
+
+
+def _recent_conversation_context(conversation_history: Any) -> tuple[str | None, str | None]:
+    previous_user_input: str | None = None
+    previous_response: str | None = None
+    if not isinstance(conversation_history, list):
+        return previous_user_input, previous_response
+    for item in reversed(conversation_history):
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role") or "")
+        content = str(item.get("content") or "").strip()
+        if not content:
+            continue
+        if previous_response is None and role in {"bot", "assistant", "assistant_final"}:
+            previous_response = content
+            continue
+        if previous_user_input is None and role in {"user", "human", "client"}:
+            previous_user_input = content
+        if previous_user_input and previous_response:
+            break
+    return previous_user_input, previous_response
 
 
 class TriadeRunner:
@@ -373,10 +398,57 @@ class TriadeRunner:
             "neuron_proposal": False,
             "output_claim": True,
         }
+        previous_user_input, previous_response = _recent_conversation_context(conversation_history)
+        response_coherence_gate = evaluate_response_coherence(
+            user_input=input_packet.user_input,
+            proposed_response=output.response,
+            previous_user_input=previous_user_input,
+            previous_response=previous_response,
+            intent=str(signals.intent),
+            memory_context=semantic_for_gate,
+            neuron_context={
+                "mission_id": None,
+                "run_id": input_packet.run_id,
+                "qualia_hypothesis": plan_dict.get("qualia_hypothesis", {}),
+            },
+        )
+        if response_coherence_gate.get("final_response"):
+            output.response = str(response_coherence_gate["final_response"])
+        output_gate["response_coherence_gate"] = response_coherence_gate
+        output_gate["coherence"] = {
+            "coherence_status": response_coherence_gate.get("status", "ok"),
+            "detected_input_type": response_coherence_gate.get("detected_input_type"),
+            "reason": response_coherence_gate.get("reason"),
+            "coherence_score": response_coherence_gate.get("coherence_score"),
+            "warnings": response_coherence_gate.get("warnings", []),
+            "trace": response_coherence_gate.get("trace", {}),
+        }
+        output_gate["source_labels"]["response_coherence_gate"] = response_coherence_gate.get("status")
+
+        neuron_candidate_gate = evaluate_neuron_candidate_worthiness(
+            user_input=input_packet.user_input,
+            intent=str(signals.intent),
+            domain=semantic_domain or str(plan_dict.get("qualia_hypothesis", {}).get("domain") or ""),
+            response=output.response,
+            context=input_packet.context or {},
+        )
+        output_gate["neuron_candidate_gate"] = neuron_candidate_gate
         central_quality = score_central(output.response, output.model_ok)
         neuron_proposal = None
-        if propose_neurons and safety.status not in ("blocked", "sandbox_only"):
-            neuron_proposal = self._propose_neuron_candidate(input_packet, signals)
+        feedback_reinforcement_result = None
+        if (
+            propose_neurons
+            and safety.status not in ("blocked", "sandbox_only")
+            and neuron_candidate_gate.get("should_create_neuron")
+        ):
+            neuron_proposal = self._propose_neuron_candidate(input_packet, signals, candidate_gate=neuron_candidate_gate)
+        elif neuron_candidate_gate.get("route") == "qualia_feedback":
+            feedback_reinforcement_result = self._record_feedback_reinforcement(
+                run_id=input_packet.run_id,
+                feedback_text=input_packet.user_input,
+                coherence_score=float(response_coherence_gate.get("coherence_score") or 0.0),
+                central_quality=central_quality,
+            )
         self.bodega.update_run_models(input_packet.run_id, hypothalamus_model_result.get("name", self.hypothalamus_model), output.model_name)
         hypothalamus_event_id = self.bodega.store_model_event(input_packet.run_id, "hypothalamus", str(hypothalamus_model_result.get("provider")), str(hypothalamus_model_result.get("name")), bool(hypothalamus_model_result.get("ok")), hypothalamus_model_result.get("error"), hypothalamus_quality)
         central_event_id = self.bodega.store_model_event(input_packet.run_id, "central", output.model_provider, output.model_name, output.model_ok, output.model_error, central_quality)
@@ -403,6 +475,7 @@ class TriadeRunner:
         output.memory_diff = {
             **memory_diff, "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id,
             "neuron_proposal": neuron_proposal,
+            "feedback_reinforcement": feedback_reinforcement_result,
             "edge_usage": edge_usage,
             "crystal_temporal_state": temporal_state, "semantic_recall": semantic_state,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_model_error": hypothalamus_model_result.get("error"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
@@ -482,8 +555,10 @@ class TriadeRunner:
         output.memory_diff["learning_usage"] = learning_usage_result
         output.memory_diff["response_deduplication"] = output_gate.get("deduplication", {})
         output.memory_diff["response_coherence"] = output_gate.get("coherence", {})
+        output.memory_diff["response_coherence_gate"] = response_coherence_gate
+        output.memory_diff["neuron_candidate_gate"] = neuron_candidate_gate
         output.memory_diff["source_labels"] = output_gate.get("source_labels", {})
-        output.memory_diff["source_labels"]["neuron_proposal"] = bool(neuron_contribution_summary.get("used"))
+        output.memory_diff["source_labels"]["neuron_proposal"] = bool(neuron_proposal)
         output.memory_diff["traceability"] = _build_traceability(
             run_id=input_packet.run_id,
             output=output,
@@ -491,6 +566,8 @@ class TriadeRunner:
             learning_usage_result=learning_usage_result,
             neuron_orchestration=neuron_orchestration,
             experimental_neuron_activity=experimental_neuron_activity,
+            response_coherence_gate=response_coherence_gate,
+            neuron_candidate_gate=neuron_candidate_gate,
         )
         qualia_experiences = build_run_experiences(
             run_id=input_packet.run_id,
@@ -549,6 +626,7 @@ class TriadeRunner:
             "crystal_temporal_state": temporal_state, "semantic_recall": semantic_state,
             "safety_crystal_feedback": {"status": safety.status, "risk_types": safety.risk_types, "controls": safety.required_controls},
             "neuron_proposal": neuron_proposal,
+            "feedback_reinforcement": feedback_reinforcement_result,
             "post_run_learning": post_run_learning,
             "semantic_continuity": semantic_continuity,
             "system_events": system_events,
@@ -581,6 +659,8 @@ class TriadeRunner:
             central_event_id=central_event_id,
             model_selection=self.model_selection,
             neuron_proposal=neuron_proposal,
+            response_coherence_gate=response_coherence_gate,
+            neuron_candidate_gate=neuron_candidate_gate,
             post_run_learning=post_run_learning,
             background_neuron_candidates=background_neuron_candidates,
             experimental_neuron_activity=experimental_neuron_activity,
@@ -588,7 +668,12 @@ class TriadeRunner:
             run_path=run_path,
         )
 
-    def _propose_neuron_candidate(self, input_packet: InputPacket, signals: Any) -> dict[str, Any]:
+    def _propose_neuron_candidate(
+        self,
+        input_packet: InputPacket,
+        signals: Any,
+        candidate_gate: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Propone (sin activar) una neurona candidata cuando la intención es de creación.
 
         Fase B · propuesta auditable: crea un NeuronSpec, lo evalúa como evidencia
@@ -599,12 +684,19 @@ class TriadeRunner:
         from .primary_neuron_pipeline import build_primary_neuron_package
 
         context = input_packet.context or {}
+        candidate_gate = candidate_gate or {}
         name = (
             str(context.get("active_neuron", "")).strip()
             or str(context.get("project_id", "")).strip()
+            or str(candidate_gate.get("suggested_name") or "").strip()
             or self._slug(input_packet.user_input)
         )
-        domain = str(context.get("domain", "")).strip() or str(signals.intent) or "general"
+        domain = (
+            str(context.get("domain", "")).strip()
+            or str(candidate_gate.get("suggested_domain") or "").strip()
+            or str(signals.intent)
+            or "general"
+        )
         registry = NeuronRegistry(db_path=self.db_path)
 
         existing = registry.get_neuron(name)
@@ -627,6 +719,7 @@ class TriadeRunner:
             intent=str(signals.intent),
             context=context,
         )
+        proposal["candidate_gate"] = candidate_gate
 
         # Persistencia mínima compatible con el registry actual.
         # El contrato extendido queda en artifacts/system_events para revisión.
@@ -672,6 +765,48 @@ class TriadeRunner:
             normalized = normalize_candidate_status(training_result.status)
             registry.update_status(spec.name, normalized)
         return proposal
+
+    def _record_feedback_reinforcement(
+        self,
+        *,
+        run_id: str,
+        feedback_text: str,
+        coherence_score: float,
+        central_quality: float,
+    ) -> dict[str, Any]:
+        reward = 0.10 if feedback_text.strip() else 0.02
+        reward = min(0.20, reward + max(0.0, coherence_score) * 0.05)
+        reward = round(reward, 3)
+        inserted_id = None
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO reinforcement_log
+                    (run_id, reward, hypothalamus_quality, central_quality, coherence_score,
+                     mood_valence_before, mood_valence_after, fatigue_before, fatigue_after)
+                    VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, NULL)
+                    """,
+                    (run_id, reward, 0.0, float(central_quality or 0.0), float(coherence_score or 0.0)),
+                )
+                inserted_id = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
+        except Exception as exc:
+            from .error_bus import record_internal_error
+
+            record_internal_error(
+                "runner.feedback_reinforcement",
+                exc,
+                run_id=run_id,
+                payload={"module": __name__, "function": "_record_feedback_reinforcement", "feedback_text": feedback_text[:120]},
+                db_path=self.db_path,
+            )
+        return {
+            "status": "ok" if inserted_id is not None else "skipped",
+            "reinforcement_log_id": inserted_id,
+            "reward": reward,
+            "central_quality": float(central_quality or 0.0),
+            "coherence_score": float(coherence_score or 0.0),
+        }
 
     @staticmethod
     def _slug(text: str) -> str:
@@ -733,6 +868,8 @@ def _build_traceability(
     learning_usage_result: dict[str, Any],
     neuron_orchestration: dict[str, Any],
     experimental_neuron_activity: list[dict[str, Any]],
+    response_coherence_gate: dict[str, Any] | None = None,
+    neuron_candidate_gate: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Construye trazabilidad explícita de qué fuentes contribuyeron al output.
 
@@ -743,6 +880,15 @@ def _build_traceability(
         "policy": "traceability_ids_only_no_internal_reasoning",
         "run_id": run_id,
     }
+    if response_coherence_gate:
+        trace["response_coherence_gate_status"] = response_coherence_gate.get("status")
+        trace["detected_input_type"] = response_coherence_gate.get("detected_input_type")
+        trace["response_coherence_gate_reason"] = response_coherence_gate.get("reason")
+        trace["coherence_score"] = response_coherence_gate.get("coherence_score")
+    if neuron_candidate_gate:
+        trace["neuron_candidate_gate_route"] = neuron_candidate_gate.get("route")
+        trace["neuron_candidate_gate_reason"] = neuron_candidate_gate.get("reason")
+        trace["neuron_candidate_gate_score"] = neuron_candidate_gate.get("score")
 
     # ── Learning candidate IDs usados ──
     trace["used_learning_candidate_ids"] = [

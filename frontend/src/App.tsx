@@ -257,6 +257,8 @@ function ChatTab({ apiKey }: { apiKey: string }) {
           models: res.models,
           run_id: res.run_id,
           neuron_proposal: res.neuron_proposal,
+          neuron_candidate_gate: res.neuron_candidate_gate || res.memory_diff?.neuron_candidate_gate,
+          response_coherence_gate: res.response_coherence_gate || res.memory_diff?.response_coherence_gate,
           post_run_learning: res.post_run_learning,
           background_candidates: res.background_neuron_candidates,
           experimental_activity: res.experimental_neuron_activity,
@@ -377,6 +379,21 @@ function ChatTab({ apiKey }: { apiKey: string }) {
               {m.meta?.neuron_proposal && (
                 <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
                   <span>🧬 neurona candidata: {m.meta.neuron_proposal.name}</span>
+                </div>
+              )}
+              {!m.meta?.neuron_proposal && m.meta?.neuron_candidate_gate?.route === 'qualia_feedback' && (
+                <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span>💠 feedback positivo registrado; no se creó neurona.</span>
+                </div>
+              )}
+              {!m.meta?.neuron_proposal && m.meta?.neuron_candidate_gate?.route === 'learning_candidate' && (
+                <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span>🧬 neurona no creada: pregunta factual simple; registrado como aprendizaje candidato.</span>
+                </div>
+              )}
+              {!m.meta?.neuron_proposal && m.meta?.neuron_candidate_gate?.route === 'ignore' && (
+                <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span>🧬 neurona no creada; entrada sin misión operativa clara.</span>
                 </div>
               )}
               {m.meta?.background_candidates?.length > 0 && (

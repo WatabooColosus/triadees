@@ -128,6 +128,43 @@ Después del backfill, `MissionPlanner` ya puede encolar `experimental_neuron_ac
 
 `learning_candidate` no es memoria estable. Sigue siendo un candidato hasta que `LearningPipeline` lo evalúa, verifica, valida en runs y consolida.
 
+## Coherencia De Respuesta
+
+La salida final pasa por `ResponseCoherenceGate` antes de persistirse.
+
+- Feedback positivo, agradecimientos y cierres emocionales no repiten la respuesta anterior.
+- Un follow-up real sí puede reutilizar el contexto previo.
+- Un cambio de tema corta el arrastre contextual si la respuesta propuesta se pegó al turno anterior.
+- La salida final guarda trazabilidad en `response_coherence_gate` y en `memory_diff.traceability`.
+
+Ejemplos:
+
+- `"muy bine, felicitaciones"` → agradece el feedback y no repite el dato factual anterior.
+- `"y cuál es su capital?"` → se trata como seguimiento y puede usar el contexto anterior.
+- `"gracias"` o `"ok perfecto"` → se responde breve, sin arrastrar la respuesta previa.
+
+## Qué No Debe Convertirse En Neurona
+
+`NeuronCandidateGate` evita crear neuronas literales cuando el input no tiene valor operativo repetible.
+
+No se crea neurona para:
+
+- preguntas factuales simples;
+- felicitaciones;
+- agradecimientos;
+- frases casuales sin misión clara;
+- correcciones menores;
+- conocimiento puntual que cabe en una sola respuesta.
+
+En esos casos el sistema puede:
+
+- registrar feedback en Qualia;
+- dejar el hecho como aprendizaje candidato;
+- guardar el episodio para contexto futuro;
+- no confundir una observación con una neurona operativa.
+
+Solo se crea neurona cuando hay petición explícita o necesidad operativa repetible con evidencia trazable. La memoria estable sigue protegida por `LearningPipeline`.
+
 ## Comandos Locales
 
 Tests:

@@ -233,7 +233,7 @@ def _compute_progress(neuron: dict[str, Any], evidence: dict[str, Any], readines
     if status in ("stable", "rejected"):
         return {"phase": status, "progress": 1.0, "label": "Completado" if status == "stable" else "Rechazado"}
     if status in ("candidate", "candidate_reviewable"):
-        threshold = 0.5
+        threshold = 0.65
         p = min(score / threshold, 1.0) if score > 0 else 0.0
         return {"phase": "candidate", "progress": p, "score": score, "threshold": threshold, "target": "experimental", "label": f"{score:.0%} hacia experimental"}
     if status == "experimental":

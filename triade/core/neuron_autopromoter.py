@@ -11,13 +11,13 @@ class NeuronAutopromoter:
     """Promoción autónoma de neuronas durante cada ciclo del runner.
 
     Reglas:
-      - candidate → experimental: score > 0.5, sin riesgo crítico
+      - candidate → experimental: score >= 0.65 y sin gate bloqueante
       - experimental → stable: readiness thresholds + evidencia diversa
       - stable nunca se degrada
       - Cada decisión incluye razón auditable (incluyendo cuando NO promueve)
     """
 
-    CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE = 0.5
+    CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE = 0.65
     STABLE_THRESHOLDS = {
         "min_activations": 5,
         "min_diagnosis": 5,
@@ -48,6 +48,28 @@ class NeuronAutopromoter:
     def _promote_candidate_to_experimental(self, n: dict[str, Any]) -> dict[str, Any] | None:
         name = n.get("name", "?")
         training = self.registry.list_training(int(n["id"]), limit=1)
+        contract = n.get("contract_json") or {}
+        candidate_gate = contract.get("candidate_gate") if isinstance(contract, dict) else {}
+        blocked_gate_types = {"factual_simple", "positive_feedback", "thanks", "acknowledgement"}
+        if isinstance(candidate_gate, dict) and candidate_gate:
+            gate_score = float(candidate_gate.get("score") or 0.0)
+            detected_type = str(candidate_gate.get("detected_type") or "").strip().lower()
+            if gate_score < self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE or detected_type in blocked_gate_types:
+                return {
+                    "type": "autopromotion_skipped",
+                    "severity": "info",
+                    "status": "not_promoted",
+                    "message": (
+                        f"Neurona '{name}' bloqueada por gate de candidato "
+                        f"(score={gate_score:.2f}, detected_type={detected_type or 'unknown'})."
+                    ),
+                    "reason": "blocked_by_neuron_candidate_gate",
+                    "payload": {
+                        "name": name,
+                        "candidate_gate": candidate_gate,
+                        "threshold": self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE,
+                    },
+                }
         if not training:
             return {
                 "type": "autopromotion_skipped",

@@ -89,7 +89,29 @@ class NeuronTrainer:
         else:
             warnings.append("Sin evidencia requerida.")
 
-        score = round(min(score, 1.0), 2)
+        mission_text = " ".join([
+            spec.name or "",
+            spec.mission or "",
+            spec.domain or "",
+        ]).lower()
+        if self._looks_like_literal_question(mission_text):
+            score -= 0.20
+            warnings.append("La misión parece una pregunta factual simple; no debe convertirse en neurona literal.")
+            recommendations.append("Reformular como necesidad operativa repetible o misión de aprendizaje.")
+        if self._looks_like_feedback(mission_text):
+            score -= 0.25
+            warnings.append("La misión parece feedback, agradecimiento o cierre; no es material para neurona.")
+            recommendations.append("Mover este contenido a Qualia o learning_candidate, no a una neurona.")
+        if len(spec.mission.strip()) < 30:
+            score -= 0.10
+            warnings.append("Misión demasiado corta para uso operativo repetible.")
+            recommendations.append("Agregar utilidad futura, dominio y evidencia mínima.")
+        if not self._looks_like_operational_need(mission_text):
+            score -= 0.08
+            warnings.append("No se detecta necesidad operacional repetible.")
+            recommendations.append("Explicar la repetición, el dominio y el impacto esperado.")
+
+        score = round(max(0.0, min(score, 1.0)), 2)
 
         # Regla de seguridad: nunca estable automáticamente.
         if score >= 0.80:
@@ -115,3 +137,61 @@ class NeuronTrainer:
             recommendations=recommendations,
             required_human_review=False,
         )
+
+    @staticmethod
+    def _looks_like_literal_question(text: str) -> bool:
+        question_hints = (
+            "en que",
+            "en qué",
+            "que significa",
+            "qué significa",
+            "cuanto es",
+            "cuánto es",
+            "donde queda",
+            "dónde queda",
+            "quien es",
+            "quién es",
+        )
+        return "?" in text or any(hint in text for hint in question_hints)
+
+    @staticmethod
+    def _looks_like_feedback(text: str) -> bool:
+        hints = (
+            "muy bien",
+            "muy bine",
+            "felicitaciones",
+            "gracias",
+            "perfecto",
+            "bien hecho",
+            "excelente",
+            "ok perfecto",
+        )
+        return any(hint in text for hint in hints)
+
+    @staticmethod
+    def _looks_like_operational_need(text: str) -> bool:
+        hints = (
+            "auditar",
+            "auditoria",
+            "auditoría",
+            "operacional",
+            "operativo",
+            "repetible",
+            "evitar contradicciones",
+            "mantenimiento",
+            "soporte",
+            "monitoreo",
+            "diagnosticar",
+            "automatizar",
+            "memoria",
+            "federacion",
+            "federación",
+            "android",
+            "llama.cpp",
+            "formar",
+            "evaluar",
+            "validar",
+            "verificable",
+            "aprendizaje",
+        )
+        return any(hint in text for hint in hints)

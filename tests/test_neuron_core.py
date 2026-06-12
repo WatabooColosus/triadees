@@ -50,3 +50,18 @@ def test_neuron_trainer_rejects_weak_spec() -> None:
     assert result.score < 0.6
     assert result.status in {"candidate", "rejected"}
     assert result.warnings
+
+
+def test_neuron_trainer_penalizes_literal_question_like_mission() -> None:
+    trainer = NeuronTrainer()
+    spec = NeuronSpec(
+        name="neurona-continente-queda-colombia",
+        mission="¿En qué continente queda Colombia?",
+        domain="general",
+        rules=["Debe responder rápido."],
+    )
+
+    result = trainer.evaluate(spec)
+
+    assert result.score < 0.5
+    assert any("pregunta factual simple" in warning.lower() for warning in result.warnings)

@@ -15,6 +15,7 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - Misiones neuronales: existe `NeuronMissionExecutor`; si `mission_count = 0`, el flujo operativo correcto es `neuron-missions backfill` antes de `workers once`. Las misiones, ciclos, evidencia y scores quedan trazados por `mission_id` y `run_ref`.
 - Memoria semantica: store, governance, search y continuidad existen. La memoria estable requiere gates; las hipotesis y propuestas quedan diferenciadas.
 - Safety y Verification: Safety bloquea o exige aprobacion antes de salida final; Verifier genera reportes. `ResponseCoherenceGate` evita que la salida contradiga Safety, memoria, Qualia o riesgo.
+- Gates de coherencia: `ResponseCoherenceGate` evita repetir respuestas previas cuando el input es feedback o cierre, y `NeuronCandidateGate` bloquea neuronas literales para preguntas factuales simples o felicitaciones.
 - Modelos/Ollama: Ollama es opcional. Sin Ollama el sistema usa fallback local; con Ollama consulta health y router.
 
 ## Parcial
