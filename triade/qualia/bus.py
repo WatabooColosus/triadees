@@ -41,7 +41,15 @@ class QualiaBus:
         candidate = self.router.to_learning_candidate(experience)
         if not candidate:
             return None
+        source_ref = candidate.get("source_ref", "")
         pipe = self.learning_pipeline or LearningPipeline(db_path=self.db_path)
+        if source_ref:
+            existing = pipe.list_candidates(status="candidate", limit=200)
+            for row in existing:
+                if row.get("source_ref") == source_ref:
+                    row.setdefault("qualia_evidence_refs", candidate.get("evidence_refs", []))
+                    row["deduplicated"] = True
+                    return row
         payload = dict(candidate)
         payload.pop("evidence_refs", None)
         result = pipe.ingest(**payload)

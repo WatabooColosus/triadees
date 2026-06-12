@@ -102,6 +102,7 @@ class QualiaStore:
         self.db_path = Path(db_path)
         repo_root = Path(__file__).resolve().parents[2]
         self.schema_path = Path(schema_path) if schema_path is not None else repo_root / "triade/memory/schemas.sql"
+        self.migration_path = repo_root / "triade/memory/migrations/004_qualia_bus.sql"
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
@@ -115,7 +116,10 @@ class QualiaStore:
         with self._connect() as conn:
             if self.schema_path.exists():
                 conn.executescript(self.schema_path.read_text(encoding="utf-8"))
-            conn.executescript(QUALIA_SCHEMA)
+            if self.migration_path.exists():
+                conn.executescript(self.migration_path.read_text(encoding="utf-8"))
+            else:
+                conn.executescript(QUALIA_SCHEMA)
 
     def ensure_schema(self) -> None:
         self._init_db()

@@ -202,6 +202,24 @@ class TriadeRunner:
             "policy": "auxiliary_signal_only_central_validates",
             "truth": "El edge_context informa a la planeación, pero no decide por la Central."
         }
+        qualia_hyp = memory.semantic_recall.get("qualia_bus") if hasattr(memory, "semantic_recall") else None
+        if isinstance(qualia_hyp, dict) and qualia_hyp.get("status") == "ok":
+            packets = qualia_hyp.get("central_knowledge_packets") or []
+            state = qualia_hyp.get("latest_qualia_state") or {}
+            plan_dict["qualia_hypothesis"] = {
+                "status": "available",
+                "dominant_action": state.get("recommended_action", "observe"),
+                "risk_avg": state.get("risk", 0.0),
+                "curiosity_avg": state.get("curiosity", 0.0),
+                "hypotheses_count": len(packets),
+                "top_hypotheses": [
+                    {"claim": p.get("claim", "")[:200], "hypothesis": p.get("hypothesis", "")[:200], "status": p.get("status")}
+                    for p in packets[:3]
+                ],
+                "policy": "Qualia informa hipótesis contextual; no es memoria estable ni autoridad final.",
+            }
+        else:
+            plan_dict["qualia_hypothesis"] = {"status": "unavailable", "policy": "QualiaBus no disponible; Central procede sin hipótesis qualia."}
         if edge_context.get("accepted"):
             plan_dict.setdefault("steps", [])
             plan_dict["steps"].append(
