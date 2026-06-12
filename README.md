@@ -81,6 +81,8 @@ Encargada de:
 
 La Bodega es la **memoria viva y verificable** del sistema.
 
+La auditoría estable no asume que `stable` sea sinónimo de listo: `neuron audit-stable` y `/api/neurons/stable-audit` sirven para revisar neuronas estables con evidencia insuficiente sin borrar datos ni tocar `identity_core`.
+
 ---
 
 ## 💎 Cristal Morfológico

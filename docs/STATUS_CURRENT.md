@@ -13,6 +13,7 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - Observabilidad: `TriadeObservabilityView` compone health, pulse, Bodega, workers, LearningPipeline, neuronas, QualiaBus, Federation, errores internos, modelos/Ollama, repo y ultimo run.
 - Neuronas: `NeuronIdentityView` muestra nombre, mision, dominio, estado, confianza, evidencia, actividad, limites, efectos permitidos y relacion con Central, Hipotalamo, Bodega y QualiaBus.
 - Misiones neuronales: existe `NeuronMissionExecutor`; si `mission_count = 0`, el flujo operativo correcto es `neuron-missions backfill` antes de `workers once`. Las misiones, ciclos, evidencia y scores quedan trazados por `mission_id` y `run_ref`.
+- Auditoria estable: existe `triade/core/stable_neuron_audit.py` con CLI `python triade_digimon.py neuron audit-stable` y endpoint `GET /api/neurons/stable-audit` para detectar neuronas stable con evidencia insuficiente sin borrar datos.
 - Runtime interno 24/7: existe `InternalRuntimeSupervisor` con modos `observe_only`, `learn_candidates`, `execute_missions` y `full_local`. Default seguro: apagado. El chat consulta el estado vivo mediante `build_living_context_for_chat()` y `build_living_report()`.
 - Memoria semantica: store, governance, search y continuidad existen. La memoria estable requiere gates; las hipotesis y propuestas quedan diferenciadas.
 - Safety y Verification: Safety bloquea o exige aprobacion antes de salida final; Verifier genera reportes. `ResponseCoherenceGate` evita que la salida contradiga Safety, memoria, Qualia o riesgo.

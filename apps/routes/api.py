@@ -29,6 +29,7 @@ from triade.core.repo_info import repo_info
 from triade.core.neuron_candidate_governance import NeuronCandidateGovernance
 from triade.core.neuron_dashboard import build_neuron_dashboard
 from triade.core.neuron_identity_view import NeuronIdentityView
+from triade.core.stable_neuron_audit import audit_stable_neurons, apply_stable_neuron_audit
 from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.core.observability_view import TriadeObservabilityView
 from triade.federation.contracts import (
@@ -636,6 +637,18 @@ def get_neuron_mission_scores_compat(mission_or_neuron_id: int, limit: int = 20)
         "count": len(scores[:limit]),
         "scores": scores[:limit],
     }
+
+
+@router.get("/api/neurons/stable-audit")
+def stable_neuron_audit(limit: int = 300) -> dict[str, Any]:
+    LIFE_PULSE.record_action("stable_neuron_audit")
+    return audit_stable_neurons(db_path="triade/memory/triade.db", runs_dir="runs", limit=limit)
+
+
+@router.post("/api/neurons/stable-audit/apply")
+def stable_neuron_audit_apply(limit: int = 300) -> dict[str, Any]:
+    LIFE_PULSE.record_action("stable_neuron_audit_apply")
+    return apply_stable_neuron_audit(db_path="triade/memory/triade.db", runs_dir="runs", limit=limit, apply=True)
 
 
 @router.get("/api/neuron_missions/{mission_id}")

@@ -168,6 +168,30 @@ Después del backfill, `MissionPlanner` ya puede encolar `experimental_neuron_ac
 
 `learning_candidate` no es memoria estable. Sigue siendo un candidato hasta que `LearningPipeline` lo evalúa, verifica, valida en runs y consolida.
 
+## Auditoría De Neuronas Stable
+
+La etiqueta `stable` no se toma como verdad automática. El auditor read-only revisa evidencia actual y separa:
+
+- `keep_stable`: la neurona sigue en stable.
+- `mark_needs_review`: la neurona requiere revisión humana.
+- `demote_to_experimental`: la neurona estable no tiene evidencia mínima.
+
+Comandos:
+
+```bash
+python triade_digimon.py neuron audit-stable
+python triade_digimon.py neuron audit-stable --apply
+```
+
+API:
+
+```bash
+curl http://127.0.0.1:8010/api/neurons/stable-audit
+curl -X POST http://127.0.0.1:8010/api/neurons/stable-audit/apply
+```
+
+La auditoría no borra datos, no modifica `identity_core` y no consolida memoria estable. Solo deja evidencia operativa y, si se aplica explícitamente, cambia el estado de la neurona auditada para reflejar la revisión.
+
 ## Coherencia De Respuesta
 
 La salida final pasa por `ResponseCoherenceGate` antes de persistirse.

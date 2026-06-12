@@ -302,6 +302,7 @@ def handle_qualia(args: argparse.Namespace) -> None:
 
 def handle_neuron(args: argparse.Namespace) -> None:
     from triade.core.neuron_identity_view import NeuronIdentityView
+    from triade.core.stable_neuron_audit import audit_stable_neurons, apply_stable_neuron_audit
 
     view = NeuronIdentityView(db_path=args.db, runs_dir=args.runs_dir)
     if args.neuron_command == "list":
@@ -312,6 +313,12 @@ def handle_neuron(args: argparse.Namespace) -> None:
         if payload is None:
             raise SystemExit(f"No existe neurona: {args.name}")
         print_json(payload)
+        return
+    if args.neuron_command == "audit-stable":
+        if args.apply:
+            print_json(apply_stable_neuron_audit(db_path=args.db, runs_dir=args.runs_dir, limit=args.limit, apply=True))
+        else:
+            print_json(audit_stable_neurons(db_path=args.db, runs_dir=args.runs_dir, limit=args.limit))
         return
     raise SystemExit("Comando neuron inválido")
 
@@ -652,24 +659,29 @@ def main() -> None:
     qualia_pub.add_argument("--confidence", type=float, default=0.7, help="Confianza")
     qualia_pub.add_argument("--usefulness", type=float, default=0.7, help="Utilidad")
 
-    neuron_parser = subparsers.add_parser("neuron", help="Neuronas internas con identidad y evidencia")
-    neuron_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
-    neuron_parser.add_argument("--runs-dir", default="runs", help="Directorio de runs auditables")
+    neuron_common = argparse.ArgumentParser(add_help=False)
+    neuron_common.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    neuron_common.add_argument("--runs-dir", default="runs", help="Directorio de runs auditables")
+    neuron_parser = subparsers.add_parser("neuron", help="Neuronas internas con identidad y evidencia", parents=[neuron_common])
     neuron_sub = neuron_parser.add_subparsers(dest="neuron_command")
-    neuron_list = neuron_sub.add_parser("list", help="Lista neuronas con identidad diferenciada")
+    neuron_list = neuron_sub.add_parser("list", help="Lista neuronas con identidad diferenciada", parents=[neuron_common])
     neuron_list.add_argument("--limit", type=int, default=50, help="Cantidad máxima")
-    neuron_show = neuron_sub.add_parser("show", help="Muestra detalle de una neurona")
+    neuron_show = neuron_sub.add_parser("show", help="Muestra detalle de una neurona", parents=[neuron_common])
     neuron_show.add_argument("name", help="Nombre de la neurona")
     neuron_show.add_argument("--limit", type=int, default=20, help="Cantidad máxima de evidencias")
+    neuron_audit = neuron_sub.add_parser("audit-stable", help="Audita neuronas stable débiles", parents=[neuron_common])
+    neuron_audit.add_argument("--limit", type=int, default=300, help="Cantidad máxima a inspeccionar")
+    neuron_audit.add_argument("--apply", action="store_true", help="Aplica la auditoría de forma explícita")
 
-    neuron_missions_parser = subparsers.add_parser("neuron-missions", help="Backfill y doctor de misiones neuronales")
-    neuron_missions_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
-    neuron_missions_parser.add_argument("--runs-dir", default="runs", help="Directorio de runs auditables")
-    neuron_missions_parser.add_argument("--limit", type=int, default=500, help="Cantidad máxima a inspeccionar")
+    neuron_missions_common = argparse.ArgumentParser(add_help=False)
+    neuron_missions_common.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    neuron_missions_common.add_argument("--runs-dir", default="runs", help="Directorio de runs auditables")
+    neuron_missions_common.add_argument("--limit", type=int, default=500, help="Cantidad máxima a inspeccionar")
+    neuron_missions_parser = subparsers.add_parser("neuron-missions", help="Backfill y doctor de misiones neuronales", parents=[neuron_missions_common])
     neuron_missions_sub = neuron_missions_parser.add_subparsers(dest="neuron_missions_command")
-    neuron_missions_sub.add_parser("backfill", help="Crea misiones faltantes desde neuronas activas")
-    neuron_missions_sub.add_parser("list", help="Lista misiones neuronales")
-    neuron_missions_sub.add_parser("doctor", help="Diagnóstico operativo de misiones neuronales")
+    neuron_missions_sub.add_parser("backfill", help="Crea misiones faltantes desde neuronas activas", parents=[neuron_missions_common])
+    neuron_missions_sub.add_parser("list", help="Lista misiones neuronales", parents=[neuron_missions_common])
+    neuron_missions_sub.add_parser("doctor", help="Diagnóstico operativo de misiones neuronales", parents=[neuron_missions_common])
 
     workers_parser = subparsers.add_parser("workers", help="Triade Living Workers en segundo plano controlado")
     workers_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
