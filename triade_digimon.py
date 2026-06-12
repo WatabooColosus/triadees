@@ -20,6 +20,10 @@ from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_continuity import SemanticContinuity
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
+from triade.qualia.bus import QualiaBus
+from triade.qualia.contracts import NeuronExperience
+from triade.qualia.store import QualiaStore
+from triade.workers.background_service import WorkerBackgroundService
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -249,6 +253,70 @@ def handle_federate(args: argparse.Namespace) -> None:
 
     raise SystemExit("Comando federate inválido")
 
+
+
+
+def handle_qualia(args: argparse.Namespace) -> None:
+    store = QualiaStore(db_path=args.db)
+    bus = QualiaBus(db_path=args.db, store=store)
+
+    if args.qualia_command == "state":
+        print_json({"status": "ok", "state": store.latest_state(run_id=args.run_id), "states": store.list_states(run_id=args.run_id, limit=args.limit)})
+        return
+    if args.qualia_command == "experiences":
+        print_json({"status": "ok", "experiences": store.list_experiences(run_id=args.run_id, limit=args.limit)})
+        return
+    if args.qualia_command == "report":
+        print_json(bus.report(run_id=args.run_id))
+        return
+    if args.qualia_command == "publish-test":
+        exp = NeuronExperience(
+            run_id=args.run_id or "qualia-cli-test",
+            neuron_id="qualia_cli",
+            neuron_type="cli_test",
+            mission="Validar publicación manual segura de QualiaBus.",
+            source="triade_digimon.qualia.publish_test",
+            source_type="cli_test",
+            observation=args.observation,
+            extracted_pattern="El bus convierte una experiencia de prueba en señal, paquete central, almacenamiento y estado.",
+            proposed_learning=args.proposed_learning or "",
+            confidence=args.confidence,
+            risk=args.risk,
+            usefulness=args.usefulness,
+            emotional_signal={"valence": 0.2, "urgency": 0.2},
+            evidence_refs=["cli:qualia:publish-test"],
+        )
+        print_json(bus.publish_experience(exp, ingest_learning=bool(args.proposed_learning)))
+        return
+
+    raise SystemExit("Comando qualia inválido")
+
+def handle_workers(args: argparse.Namespace) -> None:
+    service = WorkerBackgroundService(db_path=args.db, runs_dir=args.runs_dir)
+
+    if args.workers_command == "once":
+        print_json(service.run_once(dry_run=args.dry_run, task_timeout=args.task_timeout))
+        return
+    if args.workers_command == "start":
+        print_json(service.start(max_iterations=args.max_iterations, sleep_seconds=args.sleep, dry_run=args.dry_run, task_timeout=args.task_timeout))
+        return
+    if args.workers_command == "status":
+        print_json(service.status())
+        return
+    if args.workers_command == "stop":
+        print_json(service.stop())
+        return
+    if args.workers_command == "queue":
+        print_json(service.queue_status(status=args.status, limit=args.limit))
+        return
+    if args.workers_command == "events":
+        print_json(service.events(limit=args.limit, run_ref=args.run_ref))
+        return
+    if args.workers_command == "doctor":
+        print_json(service.doctor())
+        return
+
+    raise SystemExit("Comando workers inválido")
 
 def handle_relay(args: argparse.Namespace) -> None:
     base_url = args.url.rstrip("/")
@@ -487,6 +555,58 @@ def main() -> None:
 
     fed_subparsers.add_parser("doctor", help="Diagnóstico de la federación")
 
+
+    qualia_parser = subparsers.add_parser("qualia", help="QualiaBus: experiencias neuronales y estado circulatorio")
+    qualia_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    qualia_sub = qualia_parser.add_subparsers(dest="qualia_command")
+
+    qualia_state = qualia_sub.add_parser("state", help="Muestra estado QualiaBus reciente")
+    qualia_state.add_argument("--run-id", default=None, help="Filtrar por run_id")
+    qualia_state.add_argument("--limit", type=int, default=20, help="Cantidad máxima")
+
+    qualia_exp = qualia_sub.add_parser("experiences", help="Lista experiencias neuronales Qualia")
+    qualia_exp.add_argument("--run-id", default=None, help="Filtrar por run_id")
+    qualia_exp.add_argument("--limit", type=int, default=50, help="Cantidad máxima")
+
+    qualia_report = qualia_sub.add_parser("report", help="Reporte completo QualiaBus")
+    qualia_report.add_argument("--run-id", default=None, help="Filtrar por run_id")
+
+    qualia_pub = qualia_sub.add_parser("publish-test", help="Publica una experiencia Qualia de prueba")
+    qualia_pub.add_argument("--run-id", default="qualia-cli-test", help="run_id de prueba")
+    qualia_pub.add_argument("--observation", default="Experiencia de prueba QualiaBus desde CLI.", help="Observación")
+    qualia_pub.add_argument("--proposed-learning", default="", help="Contenido opcional para candidato de aprendizaje")
+    qualia_pub.add_argument("--risk", default="low", help="low|medium|high|critical")
+    qualia_pub.add_argument("--confidence", type=float, default=0.7, help="Confianza")
+    qualia_pub.add_argument("--usefulness", type=float, default=0.7, help="Utilidad")
+
+    workers_parser = subparsers.add_parser("workers", help="Triade Living Workers en segundo plano controlado")
+    workers_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    workers_parser.add_argument("--runs-dir", default="runs/background", help="Directorio de artefactos background")
+    workers_sub = workers_parser.add_subparsers(dest="workers_command")
+
+    workers_once = workers_sub.add_parser("once", help="Ejecuta un ciclo worker único")
+    workers_once.add_argument("--dry-run", action="store_true", help="Planifica sin ejecutar mutaciones")
+    workers_once.add_argument("--task-timeout", type=float, default=30.0, help="Timeout por tarea")
+
+    workers_start = workers_sub.add_parser("start", help="Ejecuta worker daemon acotado")
+    workers_start.add_argument("--max-iterations", type=int, default=5, help="Máximo de iteraciones")
+    workers_start.add_argument("--sleep", type=float, default=2.0, help="Segundos entre iteraciones")
+    workers_start.add_argument("--dry-run", action="store_true", help="Planifica sin ejecutar mutaciones")
+    workers_start.add_argument("--task-timeout", type=float, default=30.0, help="Timeout por tarea")
+
+    workers_sub.add_parser("status", help="Estado de workers")
+    workers_sub.add_parser("stop", help="Solicita stop mediante .triade_stop")
+
+    workers_queue = workers_sub.add_parser("queue", help="Lista cola worker")
+    workers_queue.add_argument("--status", default=None, help="Filtrar por status")
+    workers_queue.add_argument("--limit", type=int, default=50, help="Cantidad máxima")
+
+    workers_events = workers_sub.add_parser("events", help="Lista eventos worker")
+    workers_events.add_argument("--run-ref", default=None, help="Filtrar por run_ref")
+    workers_events.add_argument("--limit", type=int, default=50, help="Cantidad máxima")
+
+    workers_sub.add_parser("doctor", help="Diagnóstico de Living Workers")
+
     relay_parser = subparsers.add_parser("relay", help="Controla un relay publico Triade")
     relay_parser.add_argument("--url", required=True, help="URL publica del relay")
     relay_parser.add_argument("--admin-token", default=None, help="Token admin del relay")
@@ -606,6 +726,14 @@ def main() -> None:
 
     if args.command == "federate":
         handle_federate(args)
+        return
+
+    if args.command == "workers":
+        handle_workers(args)
+        return
+
+    if args.command == "qualia":
+        handle_qualia(args)
         return
 
     if args.command == "relay":

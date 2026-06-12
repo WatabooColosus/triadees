@@ -128,6 +128,44 @@ class Hypothalamus:
         )
         return self._save_and_return(packet.run_id, signals, current_mood)
 
+
+    def apply_qualia_signals(self, signals: SignalPacket, qualia_signals: list[dict[str, Any]], threshold: float = 0.65) -> SignalPacket:
+        """Modula señales de usuario con señales internas Qualia sin reemplazar análisis primario."""
+        relevant = [item for item in qualia_signals if isinstance(item, dict) and float(item.get("intensity") or 0.0) >= threshold]
+        if not relevant:
+            return signals
+        max_risk = max(float(item.get("risk") or 0.0) for item in relevant)
+        max_urgency = max(float(item.get("urgency") or 0.0) for item in relevant)
+        tone_hint = next((str(item.get("tone_hint")) for item in relevant if item.get("tone_hint")), signals.tone)
+
+        risk = signals.risk
+        urgency = signals.urgency
+        if max_risk >= 0.85:
+            risk = "critical"
+        elif max_risk >= 0.70 and risk in {"low", "medium"}:
+            risk = "high"
+        elif max_risk >= 0.45 and risk == "low":
+            risk = "medium"
+        if max_urgency >= 0.70:
+            urgency = "high"
+        elif max_urgency >= 0.45 and urgency == "low":
+            urgency = "medium"
+
+        notes = list(signals.notes)
+        notes.append(
+            f"QualiaBus moduló señales internas: {len(relevant)} señal(es), riesgo={max_risk:.2f}, urgencia={max_urgency:.2f}."
+        )
+        return SignalPacket(
+            run_id=signals.run_id,
+            intent=signals.intent,
+            tone=tone_hint or signals.tone,
+            urgency=urgency,  # type: ignore[arg-type]
+            risk=risk,  # type: ignore[arg-type]
+            pv7=dict(signals.pv7),
+            notes=notes,
+            timestamp=signals.timestamp,
+        )
+
     def _save_and_return(self, run_id: str, signals: SignalPacket, previous_mood: EmotionalState | None) -> SignalPacket:
         if self.state_store is not None:
             self.state_store.save(run_id, signals, previous=previous_mood)

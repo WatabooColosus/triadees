@@ -32,7 +32,8 @@ Estado base: 2026-06-02 · commit `90c548f` · frontera técnica ≈ **v1.9F**.
 - **Fase B.1 · ✅ COMPLETA** — N Creadora/Formadora integradas al ciclo `run()` como propuesta auditable (candidate, sin activación).
 - **Fase C · ✅ COMPLETA** — Learning Pipeline sobre `learning_queue` (candidate→evaluated→verified→consolidated), consolidación vía gobernanza semántica 1.9E, CLI `learn`. `align` mide **0.93 (strong)**; `learning_queue` deja de ser tabla muerta.
 - **Fase D · ✅ COMPLETA** — Federación de nodos sobre `federated_nodes`/`federated_exchange_log`: registro con permisos/confianza, recepción gated (autenticación→permiso→Safety→log→Learning Pipeline como candidato), envío con bloqueo de fuga, revocación. CLI `federate`. Solo queda `goals` como tabla muerta.
-- **Pendiente real (medido por `align`):** estado emocional longitudinal (Hipotálamo) y aprendizaje post-run en el ciclo (runner) → Fase B.2/B.3 y enganche C↔run.
+- **Fase W · ✅ IMPLEMENTADA EN PR** — Triade Living Workers: loop acotado, cola persistente, artefactos `runs/background`, revisión de aprendizaje, gobierno semántico, actividad experimental, autopromoción y endpoints/CLI. Pendiente: persistencia avanzada de scheduler, workers externos y política formal de promoción stable.
+- **Fase Q · ✅ IMPLEMENTADA EN PR** — QualiaBus: experiencias neuronales circulan hacia Hipotálamo, Central, Bodega y LearningPipeline como señales/paquetes/candidatos auditables, sin escritura estable automática.
 
 ---
 
@@ -96,6 +97,25 @@ Estado base: 2026-06-02 · commit `90c548f` · frontera técnica ≈ **v1.9F**.
 - **Pendiente (futuro):** transporte real entre nodos (red/HTTP + firma con public_key); hoy el registro y la gobernanza son locales y verificables.
 
 ---
+
+
+## Fase Q · QualiaBus ✅ IMPLEMENTADA EN PR
+
+- Nuevo paquete `triade/qualia/` con contratos, router, store, state, bus, adapters y reportes.
+- Runner publica experiencias reales desde post-run learning, orquestación neuronal, neuronas experimentales, candidatas de fondo, continuidad semántica y OutputGate.
+- Central consume solo resumen autorizado en `MemoryPacket.semantic_recall["qualia_bus"]`.
+- Hipotálamo puede modular tono/riesgo/urgencia desde señales internas por umbral y deja notas.
+- Bodega/QualiaStore persisten trazabilidad completa y `QualiaEngine.snapshot()` reporta `qualia_bus`.
+- LearningPipeline acepta `source_type=qualia_bus`; todo queda candidate hasta verificación/aprobación.
+- CLI `qualia` y endpoints `/qualia/*`.
+
+## Fase W · Triade Living Workers ✅ IMPLEMENTADA EN PR
+
+- Nuevo paquete `triade/workers/` con scheduler, task queue, state store, worker loop, background service y contratos.
+- Tareas periódicas: `pulse_check`, `pending_learning_review`, `semantic_memory_governance`, `neuron_candidate_formation`, `experimental_neuron_activity`, `neuron_autopromotion`, `federation_inbox_review`, `memory_consolidation_review`, `system_debt_scan`.
+- CLI `triade workers ...` y endpoints `/workers/*`, `/neurons/activity`, `/learning/pending`.
+- Reglas: no toca `identity_core`, no escribe memoria stable, no ejecuta shell/red, usa Safety y deja artefactos auditables.
+- Evidencia: tests `test_worker_*`, smoke `workers once` y `workers start --max-iterations 5 --sleep 2`.
 
 ## Fase E · Consolidación y Framework Publicable
 **Prioridad P3 · calidad y difusión.**

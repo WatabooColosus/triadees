@@ -31,6 +31,7 @@ class QualiaEngine:
         semantic = self._semantic_alignment()
         identity = self._identity_core()
         organs = self._organs(life, semantic)
+        qualia_bus = self._qualia_bus_snapshot()
         return {
             "status": "ok" if life.get("status") == "ok" and semantic.get("status") == "ok" else "degraded",
             "mode": "qualia",
@@ -39,6 +40,7 @@ class QualiaEngine:
             "organs": organs,
             "identity": identity,
             "semantic_alignment": semantic,
+            "qualia_bus": qualia_bus,
             "life_pulse": {
                 "status": life.get("status"),
                 "running": life.get("running"),
@@ -63,6 +65,53 @@ class QualiaEngine:
                 "Debe aclarar cuando algo es estado vivo y no memoria semantica estable."
             ),
         }
+
+
+    def _qualia_bus_snapshot(self) -> dict[str, Any]:
+        path = Path(self.db_path)
+        if not path.exists():
+            return {
+                "status": "missing_db",
+                "experiences_count": 0,
+                "signals_count": 0,
+                "central_packets_count": 0,
+                "storage_packets_count": 0,
+                "latest_state": None,
+            }
+        try:
+            from triade.qualia.store import QualiaStore
+            store = QualiaStore(db_path=self.db_path)
+            doctor = store.doctor()
+            if doctor.get("status") == "missing_tables":
+                return {
+                    "status": "missing_tables",
+                    "experiences_count": 0,
+                    "signals_count": 0,
+                    "central_packets_count": 0,
+                    "storage_packets_count": 0,
+                    "latest_state": None,
+                    "missing_tables": doctor.get("missing_tables", []),
+                }
+            counts = store.counts()
+            total = sum(int(value or 0) for value in counts.values())
+            return {
+                "status": "empty" if total == 0 else "ok",
+                "experiences_count": counts.get("qualia_experiences", 0),
+                "signals_count": counts.get("qualia_signals", 0),
+                "central_packets_count": counts.get("qualia_central_packets", 0),
+                "storage_packets_count": counts.get("qualia_storage_packets", 0),
+                "latest_state": store.latest_state(),
+            }
+        except Exception as exc:
+            return {
+                "status": "missing_tables",
+                "experiences_count": 0,
+                "signals_count": 0,
+                "central_packets_count": 0,
+                "storage_packets_count": 0,
+                "latest_state": None,
+                "error": str(exc),
+            }
 
     def _identity_core(self) -> dict[str, Any]:
         path = Path(self.db_path)

@@ -52,7 +52,7 @@ class Bodega:
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db", semantic_search_engine: Any | None = None) -> None:
         self.db_path = Path(db_path)
-        self.schema_path = Path("triade/memory/schemas.sql")
+        self.schema_path = Path(__file__).resolve().parents[2] / "triade/memory/schemas.sql"
         self.semantic_search_engine = semantic_search_engine
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
@@ -381,6 +381,7 @@ class Bodega:
                 WHERE context_key IS NOT NULL AND context_key != ''
                 GROUP BY context_scope, context_key ORDER BY c DESC LIMIT 20"""
             ).fetchall()
+        qualia_bus = self._qualia_doctor()
         return {
             "status": "ok",
             "db_path": str(self.db_path),
@@ -398,13 +399,47 @@ class Bodega:
                 "safety_events": safety_count,
                 "verification_reports": verification_count,
                 "model_events": model_event_count,
+                "qualia_experiences": int((qualia_bus.get("counts") or {}).get("qualia_experiences", 0) or 0),
             },
+            "qualia_bus": qualia_bus,
             "crystal_quality": dict(crystal_quality) if crystal_quality else {},
             "crystal_temporal_status": [dict(row) for row in temporal_rows],
             "crystal_contexts": [dict(row) for row in context_rows],
             "model_usage": [dict(row) for row in model_rows],
             "model_events": [dict(row) for row in model_event_rows],
         }
+
+
+    def _qualia_store(self) -> Any:
+        from triade.qualia.store import QualiaStore
+        return QualiaStore(db_path=self.db_path)
+
+    def _qualia_doctor(self) -> dict[str, Any]:
+        try:
+            return self._qualia_store().doctor()
+        except Exception as exc:
+            return {"status": "missing_tables", "error": str(exc)}
+
+    def store_qualia_experience(self, experience: Any) -> str:
+        return self._qualia_store().store_experience(experience)
+
+    def store_qualia_signal(self, signal: Any) -> str:
+        return self._qualia_store().store_signal(signal)
+
+    def store_qualia_central_packet(self, packet: Any) -> str:
+        return self._qualia_store().store_central_packet(packet)
+
+    def store_qualia_storage_packet(self, packet: Any) -> str:
+        return self._qualia_store().store_storage_packet(packet)
+
+    def store_qualia_state(self, state: Any) -> int:
+        return self._qualia_store().store_state(state)
+
+    def list_qualia_state(self, run_id: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
+        return self._qualia_store().list_states(run_id=run_id, limit=limit)
+
+    def list_qualia_experiences(self, run_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+        return self._qualia_store().list_experiences(run_id=run_id, limit=limit)
 
     def _fetch_identity(self) -> list[dict[str, Any]]:
         with self._connect() as conn:

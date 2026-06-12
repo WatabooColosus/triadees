@@ -299,6 +299,156 @@ CREATE INDEX IF NOT EXISTS idx_neurons_status ON neurons(status);
 CREATE INDEX IF NOT EXISTS idx_verification_reports_run_id ON verification_reports(run_id);
 CREATE INDEX IF NOT EXISTS idx_model_events_run_id ON model_events(run_id);
 CREATE INDEX IF NOT EXISTS idx_model_events_role ON model_events(role);
+
+-- Triade Living Workers storage
+CREATE TABLE IF NOT EXISTS worker_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_type TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    priority INTEGER DEFAULT 50,
+    payload_json TEXT,
+    result_json TEXT,
+    safety_status TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    started_at TEXT,
+    finished_at TEXT,
+    error TEXT,
+    run_ref TEXT
+);
+
+CREATE TABLE IF NOT EXISTS worker_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_ref TEXT NOT NULL UNIQUE,
+    status TEXT DEFAULT 'created',
+    mode TEXT DEFAULT 'once',
+    dry_run INTEGER DEFAULT 0,
+    max_iterations INTEGER DEFAULT 1,
+    sleep_seconds REAL DEFAULT 0.0,
+    started_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    finished_at TEXT,
+    summary_json TEXT,
+    artifact_dir TEXT,
+    error TEXT
+);
+
+CREATE TABLE IF NOT EXISTS worker_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_ref TEXT,
+    task_id INTEGER,
+    task_type TEXT,
+    event_type TEXT NOT NULL,
+    status TEXT DEFAULT 'ok',
+    message TEXT,
+    payload_json TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES worker_tasks(id)
+);
+
+CREATE TABLE IF NOT EXISTS worker_state (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT NOT NULL UNIQUE,
+    value_json TEXT,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_tasks_status ON worker_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_worker_tasks_type ON worker_tasks(task_type);
+CREATE INDEX IF NOT EXISTS idx_worker_tasks_priority ON worker_tasks(priority);
+CREATE INDEX IF NOT EXISTS idx_worker_events_run_ref ON worker_events(run_ref);
+CREATE INDEX IF NOT EXISTS idx_worker_events_task_type ON worker_events(task_type);
+CREATE INDEX IF NOT EXISTS idx_worker_runs_run_ref ON worker_runs(run_ref);
+
+-- Triade QualiaBus storage
+CREATE TABLE IF NOT EXISTS qualia_experiences (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    neuron_id TEXT,
+    neuron_type TEXT,
+    mission TEXT,
+    source TEXT,
+    source_type TEXT,
+    observation TEXT,
+    extracted_pattern TEXT,
+    proposed_learning TEXT,
+    confidence REAL DEFAULT 0.0,
+    risk TEXT DEFAULT 'low',
+    usefulness REAL DEFAULT 0.0,
+    emotional_signal_json TEXT,
+    evidence_refs_json TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS qualia_signals (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    experience_id TEXT,
+    signal_type TEXT,
+    intensity REAL DEFAULT 0.0,
+    valence REAL DEFAULT 0.0,
+    urgency REAL DEFAULT 0.0,
+    curiosity REAL DEFAULT 0.0,
+    risk REAL DEFAULT 0.0,
+    confidence REAL DEFAULT 0.0,
+    tone_hint TEXT,
+    reason TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS qualia_central_packets (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    experience_id TEXT,
+    claim TEXT,
+    hypothesis TEXT,
+    decision_hint TEXT,
+    validation_need TEXT,
+    related_goals_json TEXT,
+    confidence REAL DEFAULT 0.0,
+    evidence_refs_json TEXT,
+    status TEXT DEFAULT 'hypothesis',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS qualia_storage_packets (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    experience_id TEXT,
+    memory_type TEXT,
+    category TEXT,
+    subcategory TEXT,
+    content TEXT,
+    source TEXT,
+    content_hash TEXT,
+    confidence REAL DEFAULT 0.0,
+    verification_status TEXT DEFAULT 'unverified',
+    promotion_status TEXT DEFAULT 'candidate',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS qualia_states (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    curiosity REAL DEFAULT 0.0,
+    confidence REAL DEFAULT 0.0,
+    risk REAL DEFAULT 0.0,
+    urgency REAL DEFAULT 0.0,
+    coherence REAL DEFAULT 0.0,
+    novelty REAL DEFAULT 0.0,
+    usefulness REAL DEFAULT 0.0,
+    saturation REAL DEFAULT 0.0,
+    dominant_signal TEXT DEFAULT 'none',
+    recommended_action TEXT DEFAULT 'observe',
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_qualia_experiences_run_id ON qualia_experiences(run_id);
+CREATE INDEX IF NOT EXISTS idx_qualia_experiences_source_type ON qualia_experiences(source_type);
+CREATE INDEX IF NOT EXISTS idx_qualia_signals_run_id ON qualia_signals(run_id);
+CREATE INDEX IF NOT EXISTS idx_qualia_signals_experience_id ON qualia_signals(experience_id);
+CREATE INDEX IF NOT EXISTS idx_qualia_central_packets_run_id ON qualia_central_packets(run_id);
+CREATE INDEX IF NOT EXISTS idx_qualia_storage_packets_run_id ON qualia_storage_packets(run_id);
+CREATE INDEX IF NOT EXISTS idx_qualia_states_run_id ON qualia_states(run_id);
+
 CREATE TABLE IF NOT EXISTS hypothalamus_state (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL,

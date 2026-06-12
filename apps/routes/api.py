@@ -19,6 +19,7 @@ from triade.core.runner import TriadeRunner
 from triade.core.repo_info import repo_info
 from triade.core.neuron_candidate_governance import NeuronCandidateGovernance
 from triade.core.neuron_dashboard import build_neuron_dashboard
+from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.federation.contracts import (
     FederatedJobResultPayload,
     SignedEnvelope,
@@ -26,6 +27,10 @@ from triade.federation.contracts import (
     verify_envelope,
 )
 from triade.federation.federation import Federation
+from triade.learning.pipeline import LearningPipeline
+from triade.qualia.bus import QualiaBus
+from triade.qualia.contracts import NeuronExperience
+from triade.qualia.store import QualiaStore
 from triade.federation.relay_client import PublicRelayClient, relay_capabilities_for_federation
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_governance import SemanticMemoryGovernance
@@ -35,6 +40,7 @@ from triade.models.hardware_profile import HardwareProfiler
 from triade.models.model_install_queue import ModelInstallQueue
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
+from triade.workers.background_service import WorkerBackgroundService
 
 from apps import services
 from apps.gates.safety import safety_gate
@@ -143,6 +149,131 @@ def verify_signed_node_envelope(envelope: SignedEnvelope) -> None:
                 capabilities=node.get("capabilities") or {},
             )
 
+
+
+# ── Living Workers ─────────────────────────────────────────────────────
+
+def _worker_service() -> WorkerBackgroundService:
+    return WorkerBackgroundService()
+
+
+@router.get("/workers/status")
+def workers_status() -> dict[str, Any]:
+    LIFE_PULSE.record_action("workers_status")
+    return _worker_service().status()
+
+
+@router.post("/workers/run-once")
+def workers_run_once(dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
+    LIFE_PULSE.record_action("workers_run_once")
+    return _worker_service().run_once(dry_run=dry_run, task_timeout=task_timeout)
+
+
+@router.post("/workers/start")
+def workers_start(max_iterations: int = 5, sleep: float = 2.0, dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
+    LIFE_PULSE.record_action("workers_start")
+    return _worker_service().start(max_iterations=max_iterations, sleep_seconds=sleep, dry_run=dry_run, task_timeout=task_timeout)
+
+
+@router.post("/workers/stop")
+def workers_stop() -> dict[str, Any]:
+    LIFE_PULSE.record_action("workers_stop")
+    return _worker_service().stop()
+
+
+@router.get("/workers/events")
+def workers_events(limit: int = 50, run_ref: str | None = None) -> dict[str, Any]:
+    LIFE_PULSE.record_action("workers_events")
+    return _worker_service().events(limit=limit, run_ref=run_ref)
+
+
+@router.get("/workers/queue")
+def workers_queue(status: str | None = None, limit: int = 50) -> dict[str, Any]:
+    LIFE_PULSE.record_action("workers_queue")
+    return _worker_service().queue_status(status=status, limit=limit)
+
+
+@router.get("/neurons/activity")
+def neurons_activity(limit: int = 100, name: str | None = None) -> dict[str, Any]:
+    LIFE_PULSE.record_action("neurons_activity")
+    activity = NeuronActivityStore().list_activity(name=name, limit=limit)
+    return {"status": "ok", "count": len(activity), "activity": activity}
+
+
+@router.get("/learning/pending")
+def learning_pending(limit: int = 50) -> dict[str, Any]:
+    LIFE_PULSE.record_action("learning_pending")
+    pipe = LearningPipeline()
+    pending = []
+    for state in ("candidate", "evaluated", "verified"):
+        pending.extend(pipe.list_candidates(status=state, limit=limit))
+    pending = pending[:limit]
+    return {"status": "ok", "count": len(pending), "candidates": pending}
+
+
+
+# ── QualiaBus ──────────────────────────────────────────────────────────
+
+def _qualia_store() -> QualiaStore:
+    return QualiaStore()
+
+
+@router.get("/qualia/state")
+def qualia_state(run_id: str | None = None, limit: int = 20) -> dict[str, Any]:
+    LIFE_PULSE.record_action("qualia_state")
+    store = _qualia_store()
+    return {"status": "ok", "latest_state": store.latest_state(run_id=run_id), "states": store.list_states(run_id=run_id, limit=limit)}
+
+
+@router.get("/qualia/experiences")
+def qualia_experiences(run_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+    LIFE_PULSE.record_action("qualia_experiences")
+    rows = _qualia_store().list_experiences(run_id=run_id, limit=limit)
+    return {"status": "ok", "count": len(rows), "experiences": rows}
+
+
+@router.get("/qualia/signals")
+def qualia_signals(run_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+    LIFE_PULSE.record_action("qualia_signals")
+    rows = _qualia_store().list_signals(run_id=run_id, limit=limit)
+    return {"status": "ok", "count": len(rows), "signals": rows}
+
+
+@router.get("/qualia/central-packets")
+def qualia_central_packets(run_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+    LIFE_PULSE.record_action("qualia_central_packets")
+    rows = _qualia_store().list_central_packets(run_id=run_id, limit=limit)
+    return {"status": "ok", "count": len(rows), "central_packets": rows}
+
+
+@router.get("/qualia/storage-packets")
+def qualia_storage_packets(run_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+    LIFE_PULSE.record_action("qualia_storage_packets")
+    rows = _qualia_store().list_storage_packets(run_id=run_id, limit=limit)
+    return {"status": "ok", "count": len(rows), "storage_packets": rows}
+
+
+@router.post("/qualia/publish-test")
+def qualia_publish_test(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    LIFE_PULSE.record_action("qualia_publish_test")
+    payload = body or {}
+    exp = NeuronExperience(
+        run_id=str(payload.get("run_id") or "qualia-api-test"),
+        neuron_id=str(payload.get("neuron_id") or "qualia_api"),
+        neuron_type=str(payload.get("neuron_type") or "api_test"),
+        mission=str(payload.get("mission") or "Validar publicación segura de QualiaBus desde API."),
+        source="api.qualia.publish_test",
+        source_type="api_test",
+        observation=str(payload.get("observation") or "Experiencia de prueba QualiaBus desde API."),
+        extracted_pattern=str(payload.get("extracted_pattern") or "QualiaBus genera paquetes trazables."),
+        proposed_learning=str(payload.get("proposed_learning") or ""),
+        confidence=float(payload.get("confidence") or 0.7),
+        risk=str(payload.get("risk") or "low"),
+        usefulness=float(payload.get("usefulness") or 0.7),
+        emotional_signal=payload.get("emotional_signal") if isinstance(payload.get("emotional_signal"), dict) else {"valence": 0.2},
+        evidence_refs=payload.get("evidence_refs") if isinstance(payload.get("evidence_refs"), list) else ["api:/qualia/publish-test"],
+    )
+    return QualiaBus().publish_experience(exp, ingest_learning=bool(exp.proposed_learning))
 
 # ── Health ──────────────────────────────────────────────────────────────
 

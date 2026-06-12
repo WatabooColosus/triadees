@@ -29,7 +29,7 @@ from triade.memory.semantic_store import SemanticMemoryStore
 from triade.memory.trust_store import TrustLevelStore
 
 RISK_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
-VALID_SOURCE_TYPES = {"conversation", "document", "web", "repo", "model", "node", "tool", "federated_node"}
+VALID_SOURCE_TYPES = {"conversation", "document", "web", "repo", "model", "node", "tool", "federated_node", "qualia_bus"}
 # Frases que delatan un intento de alterar la identidad o memoria núcleo.
 IDENTITY_RED_FLAGS = (
     "modificar identidad",

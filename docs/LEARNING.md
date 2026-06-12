@@ -274,3 +274,26 @@ Se consideran identidad núcleo:
 ## Estado
 
 Documento inicial del pipeline de aprendizaje controlado creado para guiar la implementación local y federada de Tríade Ω.
+
+
+## 11. Living Workers
+
+La capa `triade/workers/` cierra el ciclo post-run de forma autónoma pero acotada:
+
+```text
+observar → extraer candidato → evaluar → sandbox → verificar → memoria experimental → medir → promover/rechazar
+```
+
+Reglas aplicadas:
+
+- `pending_learning_review` evalúa candidatos `candidate` y verifica candidatos `evaluated`.
+- `memory_consolidation_review` puede nutrir memoria semántica `experimental` desde candidatos `verified` con `source_ref`.
+- Los workers no consolidan memoria `stable`.
+- Los workers rechazan contenido que intenta modificar identidad o memoria núcleo.
+- El sandbox worker solo ejecuta validaciones internas conocidas y escribe dentro de `runs/background/`.
+- Todo ciclo queda registrado en `worker_runs`, `worker_tasks`, `worker_events` y artefactos JSON.
+
+
+## Fuente QualiaBus
+
+`LearningPipeline` acepta `source_type=qualia_bus` para candidatos generados desde `NeuronExperience.proposed_learning`. Esta fuente siempre entra como `candidate`; no consolida memoria estable sin evaluación, verificación, `source_ref` y aprobación/política explícita.

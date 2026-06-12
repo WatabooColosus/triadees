@@ -75,3 +75,5 @@ def test_qualia_aligns_semantic_memory_with_life_pulse(tmp_path: Path) -> None:
     assert "sentidos internos" in payload["triade_map"]["pulso_vivo"]
     assert payload["identity"]["entity_name"] == "Tríade Ω"
     assert "Toda alma cuenta" in payload["identity"]["ethics"]
+    assert "qualia_bus" in payload
+    assert payload["qualia_bus"]["status"] in {"ok", "empty", "missing_tables"}

@@ -16,6 +16,9 @@ from triade.memory.semantic_store import SemanticMemoryStore
 from triade.models.hardware_profile import HardwareProfiler
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
+from triade.qualia.adapters import build_run_experiences, qualia_context_for_memory
+from triade.qualia.bus import QualiaBus
+from triade.qualia.store import QualiaStore
 
 from .bodega import Bodega
 from .central import Central
@@ -135,6 +138,11 @@ class TriadeRunner:
         run_path.mkdir(parents=True, exist_ok=True)
         signals = self.hypothalamus.analyze(input_packet)
         try:
+            recent_qualia_signals = QualiaStore(db_path=self.db_path).list_signals(limit=10)
+            signals = self.hypothalamus.apply_qualia_signals(signals, recent_qualia_signals)
+        except Exception:
+            signals.notes.append("QualiaBus no disponible para modulación interna; se continúa con señales primarias.")
+        try:
             edge_text = (
                 getattr(input_packet, "text", None)
                 or getattr(input_packet, "content", None)
@@ -177,6 +185,7 @@ class TriadeRunner:
         )
         if semantic_recall_enabled:
             memory = self._get_semantic_governance().govern_memory(memory, allow_experimental=semantic_allow_experimental)
+        memory.semantic_recall["qualia_bus"] = qualia_context_for_memory(self.db_path, limit=5)
         comparison_basis = build_comparison_basis(input_packet, signals.intent)
         crystal_history = self.bodega.list_recent_crystals(limit=5, context_key=comparison_basis["context_key"])
         crystal = self.crystal.regulate(signals, memory, history=crystal_history, comparison_basis=comparison_basis)
@@ -301,6 +310,33 @@ class TriadeRunner:
         output.memory_diff["system_events"] = system_events
         output.memory_diff["background_neuron_candidates"] = background_neuron_candidates
         output.memory_diff["output_gate"] = output_gate
+        qualia_experiences = build_run_experiences(
+            run_id=input_packet.run_id,
+            post_run_learning=post_run_learning,
+            neuron_orchestration=neuron_orchestration,
+            experimental_neuron_activity=experimental_neuron_activity,
+            background_neuron_candidates=background_neuron_candidates,
+            semantic_continuity=semantic_continuity,
+            output_gate=output_gate,
+        )
+        qualia_publish_results: list[dict[str, Any]] = []
+        qualia_state: dict[str, Any] = {}
+        try:
+            qualia_bus = QualiaBus(db_path=self.db_path)
+            for experience in qualia_experiences:
+                qualia_publish_results.append(qualia_bus.publish_experience(experience))
+            qualia_state_obj = qualia_bus.compute_state(input_packet.run_id)
+            qualia_state = qualia_state_obj.to_dict()
+        except Exception as exc:
+            qualia_state = {"status": "error", "error": str(exc)}
+        qualia_signal_artifacts = [((item.get("bundle") or {}).get("signal") or {}) for item in qualia_publish_results]
+        qualia_central_artifacts = [((item.get("bundle") or {}).get("central_packet") or {}) for item in qualia_publish_results]
+        qualia_storage_artifacts = [((item.get("bundle") or {}).get("storage_packet") or {}) for item in qualia_publish_results]
+        output.memory_diff["qualia_experiences_count"] = len(qualia_experiences)
+        output.memory_diff["qualia_signals_count"] = len(qualia_signal_artifacts)
+        output.memory_diff["qualia_central_packets_count"] = len(qualia_central_artifacts)
+        output.memory_diff["qualia_storage_packets_count"] = len(qualia_storage_artifacts)
+        output.memory_diff["qualia_state"] = qualia_state
         artifacts = build_base_artifacts(
             input_packet=input_packet,
             signals=signals,
@@ -318,6 +354,11 @@ class TriadeRunner:
             neuron_proposal=neuron_proposal,
             post_run_learning=post_run_learning,
         )
+        artifacts["qualia_experiences.json"] = [experience.to_dict() for experience in qualia_experiences]
+        artifacts["qualia_signals.json"] = qualia_signal_artifacts
+        artifacts["qualia_central_packets.json"] = qualia_central_artifacts
+        artifacts["qualia_storage_packets.json"] = qualia_storage_artifacts
+        artifacts["qualia_state.json"] = qualia_state
         written_artifacts = write_run_artifacts(run_path, artifacts)
         integrity = {
             "run_id": input_packet.run_id, "status": report.status, "artifacts": written_artifacts, "database": memory_diff.get("db_path"), "episode_id": memory_diff.get("episode_id"), "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id, "verification_report_id": verification_id,
@@ -331,6 +372,11 @@ class TriadeRunner:
             "experimental_neuron_activity": experimental_neuron_activity,
             "neuron_activity_ids": neuron_activity_ids,
             "output_gate": output_gate,
+            "qualia_experiences_count": len(qualia_experiences),
+            "qualia_signals_count": len(qualia_signal_artifacts),
+            "qualia_central_packets_count": len(qualia_central_artifacts),
+            "qualia_storage_packets_count": len(qualia_storage_artifacts),
+            "qualia_state": qualia_state,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_quality_score": central_quality, "central_model_event_id": central_event_id, "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_selection": self.model_selection, "closed": True,
         }

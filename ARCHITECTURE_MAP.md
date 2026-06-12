@@ -101,6 +101,20 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 ### Verification 🟢
 - `core/verification.py` — `Verifier.verify() → VerificationReport` (coherencia, memoria, safety, utilidad, trazabilidad).
 
+### QualiaBus 🟢
+- `triade/qualia/` — contratos, router, store, state, bus, adapters y reportes.
+- Convierte `NeuronExperience` en `QualiaSignal`, `CentralKnowledgePacket`, `StorageMemoryPacket` y candidato LearningPipeline opcional.
+- Persistencia: `qualia_experiences`, `qualia_signals`, `qualia_central_packets`, `qualia_storage_packets`, `qualia_states`.
+- Integración: Runner genera artefactos `qualia_*.json`; Central consume resumen autorizado; Hipotálamo modula señales internas; Bodega reporta en doctor; CLI/API `qualia`.
+- Política: hipótesis y candidatos, no memoria estable; nada toca `identity_core`.
+
+### Living Workers 🟢
+- `triade/workers/` — scheduler, task_queue, worker_loop, background_service, state_store. Ejecuta ciclos acotados y auditables en `runs/background/`.
+- Usa módulos reales: LearningPipeline, SemanticMemoryGovernance, background_neurons, experimental_neuron_runtime, NeuronActivityStore, NeuronAutopromoter y Federation.
+- Persistencia: `worker_tasks`, `worker_runs`, `worker_events`, `worker_state`.
+- Superficies: CLI `workers` y endpoints `/workers/*`, `/neurons/activity`, `/learning/pending`.
+- Política: no modifica identity_core, no escribe memoria stable, no red externa por defecto, no shell arbitrario.
+
 ### Learning Pipeline 🟢 (Fase C)
 - `triade/learning/pipeline.py` (`LearningPipeline`) sobre `learning_queue`:
   `candidate → evaluated → verified → consolidated | rejected | archived`.
@@ -140,6 +154,7 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 | `learning_queue` | LearningPipeline (Fase C) | 🟢 activa |
 | `federated_nodes` | Federation (Fase D) | 🟢 activa |
 | `federated_exchange_log` | Federation (Fase D) | 🟢 activa |
+| `qualia_*` | QualiaBus | 🟢 activa (experiencias, señales, paquetes y estado) |
 | `goals` | — | 🔴 muerta (única restante) |
 
 *Nota:* `triade.db` está en `.gitignore` (correcto); la única DB versionada es `backups/triade-before-systemd.db` (24 runs, 14 ciclos cristal/señal/safety/verificación, 10 eventos de modelo; tablas muertas en 0).
@@ -172,4 +187,6 @@ Central      ██████░░░░  parcial     — N Creadora/Formador
 Semántica    ████████░░  operativa   — regresión 1.9F reparada (Fase A.1)
 Learning     ███████░░░  operativo   — pipeline Fase C sobre learning_queue
 Federation   ███████░░░  operativo   — nodos + intercambio gated (Fase D)
+Workers      ██████░░░░  operativo   — ciclos locales acotados, auditables y seguros
+QualiaBus    ███████░░░  operativo   — experiencias neuronales circulan como señales/paquetes/candidatos
 ```

@@ -80,6 +80,8 @@ class Central:
             steps.append("Excluir memorias semánticas en cuarentena de cualquier afirmación factual.")
         if int(governance.get("allowed_vector_matches", 0) or 0) > 0:
             steps.append("Usar únicamente memoria semántica autorizada y conservar atribución literal.")
+        if memory.semantic_recall.get("qualia_bus"):
+            steps.append("Usar QualiaBus solo como hipótesis/contexto interno; no como memoria estable.")
         if crystal.temporal_status in {"critical", "degrading"}:
             steps.append("Reforzar prudencia por degradación temporal y registrar alerta.")
         elif crystal.temporal_status == "improving":
@@ -315,6 +317,16 @@ class Central:
             pulse_context = ""
             if pulse_summary:
                 pulse_context = "\nPulso vivo actual resumido:\n" + json.dumps(pulse_summary, ensure_ascii=False, indent=2)
+            qualia_bus = memory.semantic_recall.get("qualia_bus") if isinstance(memory.semantic_recall, dict) else None
+            qualia_context = ""
+            if isinstance(qualia_bus, dict) and qualia_bus.get("status") in {"ok", "empty"}:
+                safe_qualia = {
+                    "latest_qualia_state": qualia_bus.get("latest_qualia_state"),
+                    "central_knowledge_packets": (qualia_bus.get("central_knowledge_packets") or [])[:3],
+                    "relevant_signals": (qualia_bus.get("relevant_signals") or [])[:3],
+                    "policy": qualia_bus.get("policy"),
+                }
+                qualia_context = "\nQualiaBus autorizado como hipótesis/contexto, no memoria estable:\n" + json.dumps(safe_qualia, ensure_ascii=False, indent=2)
             conversation_history = input_packet.context.get("conversation_history") if isinstance(input_packet.context, dict) else None
             history_context = ""
             if conversation_history:
@@ -340,7 +352,7 @@ class Central:
                 f"Intención orientativa: {signals.intent}\n"
                 f"Tono orientativo: {signals.tone}\n"
                 f"Riesgo orientativo: {signals.risk}\n"
-                f"{pulse_context}{semantic_context}{history_context}\n\n"
+                f"{pulse_context}{semantic_context}{qualia_context}{history_context}\n\n"
                 "Respuesta final:"
             )
 
@@ -349,6 +361,7 @@ class Central:
             "episodic_matches": memory.episodic_matches[:3],
             "semantic_matches_authorized_only": memory.semantic_matches[:3],
             "semantic_recall_governance": memory.semantic_recall.get("governance", {}),
+            "qualia_bus": memory.semantic_recall.get("qualia_bus", {}),
             "confidence": memory.confidence,
         }
         payload = {

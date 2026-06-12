@@ -102,3 +102,21 @@ Cada run puede dejar una huella en `semantic_documents` y `semantic_embeddings` 
 - Qualia informa a la Central si esa memoria está ausente, candidata o estable.
 
 La memoria estable sigue gobernada: ningún candidato se vuelve `stable` sin verificación.
+
+
+## QualiaBus
+
+`QualiaBus` convierte actividad neuronal en circulación auditable. Las neuronas no escriben en memoria estable; publican experiencias. El bus transforma esas experiencias en señales internas, paquetes de conocimiento, paquetes de almacenamiento candidato y candidatos de aprendizaje.
+
+Circuito:
+
+```text
+Neurona/worker/run
+  -> NeuronExperience
+  -> QualiaSignal -> Hipotálamo modula riesgo/urgencia/tono con nota
+  -> CentralKnowledgePacket -> Central lo usa como hipótesis/contexto
+  -> StorageMemoryPacket -> Bodega lo guarda como candidato no verificado
+  -> LearningPipeline -> candidate source_type=qualia_bus si hay proposed_learning
+```
+
+`QualiaEngine.snapshot()` incluye `qualia_bus` con conteos y último estado, degradando a `missing_tables` o `empty` sin romper el snapshot vivo.

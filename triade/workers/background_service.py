@@ -1,0 +1,54 @@
+"""Servicio controlado para Triade Living Workers."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from .contracts import WorkerRunConfig
+from .state_store import WorkerStateStore
+from .task_queue import WorkerTaskQueue
+from .worker_loop import WorkerLoop
+
+
+class WorkerBackgroundService:
+    def __init__(self, db_path: str | Path = "triade/memory/triade.db", runs_dir: str | Path = "runs/background") -> None:
+        self.db_path = Path(db_path)
+        self.runs_dir = Path(runs_dir)
+        self.store = WorkerStateStore(db_path=self.db_path)
+        self.queue = WorkerTaskQueue(db_path=self.db_path)
+
+    def run_once(self, *, dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
+        loop = WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir)
+        config = WorkerRunConfig(max_iterations=1, sleep_seconds=0.0, task_timeout=task_timeout, dry_run=dry_run, once=True, daemon=False, runs_dir=str(self.runs_dir))
+        return loop.run(config)
+
+    def start(self, *, max_iterations: int = 5, sleep_seconds: float = 2.0, dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
+        loop = WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir)
+        loop.clear_stop()
+        config = WorkerRunConfig(max_iterations=max_iterations, sleep_seconds=sleep_seconds, task_timeout=task_timeout, dry_run=dry_run, once=False, daemon=True, runs_dir=str(self.runs_dir))
+        return loop.run(config)
+
+    def stop(self) -> dict[str, Any]:
+        return WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir).request_stop()
+
+    def status(self) -> dict[str, Any]:
+        payload = self.store.status()
+        payload["lock_file"] = str(Path(".triade_workers.lock"))
+        payload["stop_file"] = str(Path(".triade_stop"))
+        payload["running"] = Path(".triade_workers.lock").exists()
+        payload["stop_requested"] = Path(".triade_stop").exists()
+        return payload
+
+    def queue_status(self, status: str | None = None, limit: int = 50) -> dict[str, Any]:
+        tasks = self.queue.list(status=status, limit=limit)
+        return {"status": "ok", "count": len(tasks), "tasks": tasks}
+
+    def events(self, limit: int = 50, run_ref: str | None = None) -> dict[str, Any]:
+        events = self.store.list_events(limit=limit, run_ref=run_ref)
+        return {"status": "ok", "count": len(events), "events": events}
+
+    def doctor(self) -> dict[str, Any]:
+        payload = self.store.doctor()
+        payload["service"] = {"runs_dir": str(self.runs_dir), "safe_loop": True, "daemon_is_bounded": True}
+        return payload
