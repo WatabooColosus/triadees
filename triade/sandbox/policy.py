@@ -41,6 +41,7 @@ def get_blocked_reason(task: str) -> str:
 
 
 SANDBOX_POLICY = {
+    "policy_version": "1.0.0",
     "no_shell": True,
     "no_network": True,
     "no_writes_outside_sandbox": True,

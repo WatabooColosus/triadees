@@ -1,4 +1,4 @@
-# Estado vigente de Triade Omega v2.1
+# Estado vigente de Triade Omega v2.2
 
 Este documento es la fuente vigente del estado real del repositorio. Los reportes de auditoria antiguos son historicos si contradicen este archivo.
 
@@ -10,22 +10,23 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - Federation: nodos, permisos, logs de intercambio y transporte local existen. La federacion Android/local puede estar activa o simulada segun nodos disponibles; no se asume red externa obligatoria.
 - QualiaBus: experiencias, señales, paquetes para Central/Bodega y estados se persisten en SQLite y se integran como hipotesis, no como memoria estable.
 - UI/API: FastAPI single-port sirve SPA, health, pulse, modelos, memoria, federacion, workers, Qualia, neuronas y observabilidad.
-- Observabilidad: `TriadeObservabilityView` compone health, pulse, Bodega, workers, LearningPipeline, neuronas, QualiaBus, Federation, errores internos, modelos/Ollama, repo y ultimo run.
+- Observabilidad: `TriadeObservabilityView` compone health, pulse, Bodega, workers, LearningPipeline, neuronas, QualiaBus, Federation, errores internos, modelos/Ollama, repo, ultimo run y memory_trace_summary.
 - Neuronas: `NeuronIdentityView` muestra nombre, mision, dominio, estado, confianza, evidencia, actividad, limites, efectos permitidos y relacion con Central, Hipotalamo, Bodega y QualiaBus.
 - Misiones neuronales: existe `NeuronMissionExecutor`; si `mission_count = 0`, el flujo operativo correcto es `neuron-missions backfill` antes de `workers once`. Las misiones, ciclos, evidencia y scores quedan trazados por `mission_id` y `run_ref`.
-- Auditoria estable: existe `triade/core/stable_neuron_audit.py` con CLI `python triade_digimon.py neuron audit-stable` y endpoint `GET /api/neurons/stable-audit` para detectar neuronas stable con evidencia insuficiente sin borrar datos. `POST /api/neurons/stable-audit/apply` requiere API key y param `apply=true` para ejecutar correcciones.
+- Auditoria estable: `POST /api/neurons/stable-audit/apply` requiere API key (`X-TRIADE-API-Key`) y param `apply=true` explícito. Sin `apply=true` devuelve `requires_explicit_apply` con resultado read-only. `GET /api/neurons/stable-audit` y `GET /api/system/neurons/stable-audit` son siempre read-only.
 - Runtime interno 24/7: existe `InternalRuntimeSupervisor` con modos `observe_only`, `learn_candidates`, `execute_missions` y `full_local`. Default seguro: apagado. El chat consulta el estado vivo mediante `build_living_context_for_chat()` y `build_living_report()`.
 - Memoria semantica: store, governance, search y continuidad existen. La memoria estable requiere gates; las hipotesis y propuestas quedan diferenciadas.
-- Safety y Verification: Safety bloquea o exige aprobacion antes de salida final; Verifier genera reportes. `ResponseCoherenceGate` evita que la salida contradiga Safety, memoria, Qualia o riesgo.
+- Safety con aprobación humana: `Safety.review()` retorna `status="requires_human_approval"` cuando risk es critical, o cuando hay memoria semántica en cuarentena con herramientas planificadas, o cuando Cristal está en estado critical con herramientas de repositorio. `SafetyPacket.human_approval_required=True` en estos casos. Runner detiene ejecución y retorna `output.status="pending_approval"`.
 - Gates de coherencia: `ResponseCoherenceGate` evita repetir respuestas previas cuando el input es feedback o cierre, y `NeuronCandidateGate` bloquea neuronas literales para preguntas factuales simples o felicitaciones.
 - Modelos/Ollama: Ollama es opcional. Sin Ollama el sistema usa fallback local; con Ollama consulta health y router.
 - Bodega Global Context: `build_bodega_global_context()` construye un contexto integral con identidad, episodios, memoria semántica, neuronas, aprendizajes, seguridad y continuidad. Incluye detección de contradicciones y motor semántico auto-construido.
-- Memory Trace: `build_run_memory_trace()` genera trazabilidad por run con matches autorizados/cuarentena, contradicciones y resumen estable.
+- Memory Trace: `build_run_memory_trace()` genera trazabilidad por run con matches autorizados/cuarentena, contradicciones y resumen estable. Integrado en runner y visible en observabilidad.
 - Continuidad Runtime: `runtime_continuity_score` (0.0–1.0) se calcula en `build_living_report()` y se muestra en la UI del sistema.
-- Schemas Pydantic: `triade/core/schemas.py` centraliza modelos de validación para API boundaries.
-- Sandbox real: `triade/sandbox/` ejecuta tareas permitidas en aislamiento controlado. Whitelist de tareas, sin shell arbitrario, sin red, sin escritura fuera de runs/sandbox. `run_in_sandbox()` soporta dry_run y crea artifacts input.json/result.json. Safety `sandbox_only` no rompe el runner.
-- Memory Trace visible: `GET /api/observability` incluye `memory_trace` del último run con confidence, matches, quarantined, contradictions y stable_needs_review. UI muestra Memory Trace card en Observabilidad.
+- Schemas Pydantic: `triade/core/schemas.py` centraliza modelos de validación para API boundaries. `GET /api/system/living-report?summary=true` valida respuesta con `LivingReportResponse`.
+- Sandbox real: `triade/sandbox/` ejecuta tareas permitidas en aislamiento controlado. Whitelist de tareas, sin shell arbitrario, sin red, sin escritura fuera de runs/sandbox. `run_in_sandbox()` soporta dry_run, crea artifacts input.json/result.json, y reporta `policy_version`, `allowed_task`, `writes_outside_sandbox`, `network_used`, `shell_used`. Safety `sandbox_only` no rompe el runner.
+- Memory Trace visible: `GET /api/observability` incluye `memory_trace` del último run y `last_run.memory_trace_summary` con confidence, matches, quarantined, contradictions, stable_needs_review y bodega_global_status. UI muestra Memory Trace card en Observabilidad.
 - Creación neuronal con misión ejecutable: `_propose_neuron_candidate` crea `NeuronMission` con `mission_id` asociado a la neurona candidate. Misión incluye allowed_sources, allowed_actions y schedule_hint. Si la creación falla, el run no falla.
+- Selección de misiones por relevancia: `select_relevant_missions()` filtra misiones por dominio, triggers, estado activo y score. Solo selecciona misiones con status candidate/experimental/stable.
 
 ## Parcial
 

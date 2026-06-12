@@ -336,3 +336,49 @@ class NeuronMissionStore:
             components=json.loads(d.get("components_json") or "{}"),
             created_at=str(d.get("created_at") or ""),
         )
+
+
+def select_relevant_missions(
+    missions: list[NeuronMission],
+    user_input: str = "",
+    domain: str = "",
+    memory_context: dict[str, Any] | None = None,
+    limit: int = 5,
+) -> list[NeuronMission]:
+    """Selecciona misiones relevantes por dominio, triggers y estado.
+
+    Criterios:
+    - mission.status in {"candidate", "experimental", "stable"}
+    - domain coincide si se proporciona
+    - triggers/rules si existen y coinciden con user_input
+    - prioridad por score reciente o updated_at
+    """
+    user_lower = user_input.lower()
+    active_statuses = {"candidate", "experimental", "stable"}
+    scored: list[tuple[float, NeuronMission]] = []
+
+    for m in missions:
+        if m.status not in active_statuses:
+            continue
+
+        score = 0.0
+
+        if domain and m.domain == domain:
+            score += 2.0
+
+        if user_lower:
+            mission_lower = m.mission.lower()
+            title_lower = m.title.lower()
+            if any(word in mission_lower or word in title_lower for word in user_lower.split() if len(word) > 3):
+                score += 1.0
+
+        if m.metrics:
+            recent_score = m.metrics.get("composite_score") or m.metrics.get("score")
+            if recent_score is not None:
+                score += float(recent_score)
+
+        if score > 0:
+            scored.append((score, m))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [m for _, m in scored[:limit]]

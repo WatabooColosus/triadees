@@ -143,3 +143,34 @@ def test_sandbox_identity_core_not_modified():
     if identity_path.exists():
         after = identity_path.read_text()
         assert before == after, "identity_core was modified by sandbox!"
+
+
+def test_sandbox_trace_fields_completed():
+    """Completed sandbox includes trace fields."""
+    from triade.sandbox import run_in_sandbox
+    result = run_in_sandbox("sandbox_exec", {"test": True})
+    assert result["allowed_task"] is True
+    assert result["writes_outside_sandbox"] is False
+    assert result["network_used"] is False
+    assert result["shell_used"] is False
+    assert result["policy"]["policy_version"] == "1.0.0"
+
+
+def test_sandbox_trace_fields_blocked():
+    """Blocked sandbox includes trace fields."""
+    from triade.sandbox import run_in_sandbox
+    result = run_in_sandbox("shell", {"cmd": "rm -rf /"})
+    assert result["allowed_task"] is False
+    assert result["writes_outside_sandbox"] is False
+    assert result["network_used"] is False
+    assert result["shell_used"] is False
+
+
+def test_sandbox_trace_fields_dry_run():
+    """Dry run sandbox includes trace fields."""
+    from triade.sandbox import run_in_sandbox
+    result = run_in_sandbox("sandbox_exec", {"test": True}, dry_run=True)
+    assert result["allowed_task"] is True
+    assert result["writes_outside_sandbox"] is False
+    assert result["network_used"] is False
+    assert result["shell_used"] is False

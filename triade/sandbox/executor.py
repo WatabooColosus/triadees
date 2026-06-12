@@ -51,6 +51,10 @@ def run_in_sandbox(
             "stderr": "",
             "artifacts": {},
             "policy": SANDBOX_POLICY,
+            "allowed_task": False,
+            "writes_outside_sandbox": False,
+            "network_used": False,
+            "shell_used": False,
         }
 
     if dry_run:
@@ -63,6 +67,10 @@ def run_in_sandbox(
             "stderr": "",
             "artifacts": {},
             "policy": SANDBOX_POLICY,
+            "allowed_task": True,
+            "writes_outside_sandbox": False,
+            "network_used": False,
+            "shell_used": False,
         }
 
     sandbox_id = f"{task}_{int(time.time() * 1000)}_{os.getpid()}"
@@ -85,6 +93,10 @@ def run_in_sandbox(
             "result": str(result_path),
         }
         result["policy"] = SANDBOX_POLICY
+        result["allowed_task"] = True
+        result["writes_outside_sandbox"] = False
+        result["network_used"] = False
+        result["shell_used"] = False
         return result
 
     except Exception as exc:
@@ -97,6 +109,10 @@ def run_in_sandbox(
             "stderr": str(exc)[:2000],
             "artifacts": {},
             "policy": SANDBOX_POLICY,
+            "allowed_task": True,
+            "writes_outside_sandbox": False,
+            "network_used": False,
+            "shell_used": False,
         }
 
 

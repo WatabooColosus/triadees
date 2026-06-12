@@ -72,12 +72,24 @@ class TriadeObservabilityView:
         if degraded_sources:
             status = "degraded"
 
+        last_run_data = last_run or {"message": "No hay runs registrados todavía."}
+        if memory_trace and memory_trace.get("run_id"):
+            last_run_data["memory_trace_summary"] = {
+                "memory_confidence": memory_trace.get("memory_confidence", "low"),
+                "semantic_matches_count": memory_trace.get("semantic_matches_count", 0),
+                "authorized_matches_count": memory_trace.get("authorized_matches_count", 0),
+                "quarantined_matches_count": memory_trace.get("quarantined_matches_count", 0),
+                "contradictions_count": memory_trace.get("contradictions_count", 0),
+                "stable_needs_review": memory_trace.get("stable_needs_review", 0),
+                "bodega_global_status": memory_trace.get("bodega_global_status", "unknown"),
+            }
+
         return {
             "status": status,
             "mode": "triade_observability_view",
             "timestamp": self._now(),
             "repo": repo_info(),
-            "last_run": last_run or {"message": "No hay runs registrados todavía."},
+            "last_run": last_run_data,
             "memory_trace": memory_trace,
             "bodega": bodega,
             "workers": workers,

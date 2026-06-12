@@ -30,6 +30,8 @@ SANDBOX_ONLY_TOOLS = {"git", "deploy", "install", "publish", "infra", "shell", "
 
 CRITICAL_RISK_INTENTS = {"destroy", "wipe", "nuke", "backdoor", "escalate"}
 
+REPO_OR_FILE_UPDATE_TOOLS = {"git", "deploy", "filesystem_write", "install", "publish"}
+
 
 class Safety:
     def review(
@@ -44,6 +46,7 @@ class Safety:
         status = "approved"
         reason_parts: list[str] = []
         risk_level = signals.risk
+        human_approval_required = False
 
         plan_text = " ".join(plan.tools or [])
         plan_lower = plan_text.lower()
@@ -74,7 +77,15 @@ class Safety:
             reason_parts.append("El plan usa herramientas que requieren sandbox.")
             risk_level = self._raise_risk_level(risk_level, "medium")
 
-        if signals.risk in {"high", "critical"} and status not in ("blocked", "sandbox_only"):
+        if signals.risk == "critical" and status not in ("blocked", "sandbox_only"):
+            status = "requires_human_approval"
+            human_approval_required = True
+            risk_types.append("critical_risk")
+            controls.append("Requiere aprobación humana explícita por riesgo crítico.")
+            reason_parts.append("Riesgo crítico detectado; acción requiere aprobación humana.")
+            risk_level = self._raise_risk_level(risk_level, "critical")
+
+        elif signals.risk in {"high", "critical"} and status not in ("blocked", "sandbox_only", "requires_human_approval"):
             status = "approved_with_warning"
             risk_types.append("operational")
             controls.append("Riesgo alto o crítico detectado; se procede con supervisión automatizada.")
@@ -98,7 +109,12 @@ class Safety:
                     f"Gobierno semántico aisló {quarantined} recuerdo(s) no autorizado(s) para influencia."
                 )
                 risk_level = self._raise_risk_level(risk_level, "medium")
-                if status == "approved":
+                if status not in ("blocked", "sandbox_only", "requires_human_approval") and plan.tools:
+                    status = "requires_human_approval"
+                    human_approval_required = True
+                    controls.append("Memoria semántica en cuarentena con acción planificada; requiere aprobación humana.")
+                    reason_parts.append("Acción con herramientas y memoria semántica no verificada; requiere aprobación humana.")
+                elif status == "approved":
                     status = "approved_with_warning"
             if allowed > 0:
                 controls.append("Atribuir memoria semántica autorizada usando su fuente y estado persistido.")
@@ -112,9 +128,16 @@ class Safety:
                 f"ΔQ={crystal.q_delta}, Δestabilidad={crystal.stability_delta}."
             )
             risk_level = self._raise_risk_level(risk_level, "high" if crystal.temporal_status == "critical" else "medium")
-            if plan.tools and status not in ("blocked", "sandbox_only"):
-                status = "approved_with_warning"
-                controls.append("Acción con herramientas durante degradación temporal; se procede con precaución automatizada.")
+            if plan.tools and status not in ("blocked", "sandbox_only", "requires_human_approval"):
+                has_repo_tools = any(t in REPO_OR_FILE_UPDATE_TOOLS for t in (plan.tools or []))
+                if has_repo_tools and crystal.temporal_status == "critical":
+                    status = "requires_human_approval"
+                    human_approval_required = True
+                    controls.append("Acción con herramientas de repositorio durante degradación temporal crítica; requiere aprobación humana.")
+                    reason_parts.append("Cristal en estado crítico con acción de repositorio; requiere aprobación humana.")
+                else:
+                    status = "approved_with_warning"
+                    controls.append("Acción con herramientas durante degradación temporal; se procede con precaución automatizada.")
             elif status == "approved":
                 status = "approved_with_warning"
 
@@ -126,7 +149,7 @@ class Safety:
             risk_types=list(dict.fromkeys(risk_types)),
             reason=reason,
             required_controls=list(dict.fromkeys(controls)),
-            human_approval_required=False,
+            human_approval_required=human_approval_required,
         )
 
     @staticmethod

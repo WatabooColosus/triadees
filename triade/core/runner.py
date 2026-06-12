@@ -375,6 +375,13 @@ class TriadeRunner:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
             output.response = f"[sandbox] {sandbox_result.get('status', 'completed')}: {sandbox_result.get('stdout', 'ok')}"
             output.status = "sandbox"
+        elif safety.status == "requires_human_approval":
+            output = self.central.respond(input_packet, signals, memory, crystal, plan)
+            output.response = (
+                f"Acción pendiente de aprobación humana. "
+                f"Razón: {safety.reason}"
+            )
+            output.status = "pending_approval"
         else:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
         output_gate = sanitize_user_response(output.response, input_packet.user_input, signals.intent)

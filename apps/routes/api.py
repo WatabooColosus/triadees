@@ -655,7 +655,7 @@ def system_stable_neuron_audit(limit: int = 300) -> dict[str, Any]:
 def stable_neuron_audit_apply(
     limit: int = 300,
     apply: bool = False,
-    x_triade_api_key: str | None = Header(default=None),
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
 ) -> dict[str, Any]:
     require_key(x_triade_api_key)
     LIFE_PULSE.record_action("stable_neuron_audit_apply")
@@ -877,9 +877,28 @@ def system_living_context(user_input: str = "", limit: int = 10) -> dict[str, An
 
 
 @router.get("/api/system/living-report")
-def system_living_report(limit: int = 20) -> dict[str, Any]:
+def system_living_report(limit: int = 20, summary: bool = False) -> dict[str, Any]:
     LIFE_PULSE.record_action("system_living_report")
-    return build_living_report(limit=limit)
+    report = build_living_report(limit=limit)
+    if summary:
+        from triade.core.schemas import LivingReportResponse
+        try:
+            validated = LivingReportResponse(
+                status=report.get("status", "ok"),
+                runtime_enabled=report.get("runtime_enabled", False),
+                runtime_mode=report.get("runtime_mode"),
+                cycles_last_hour=report.get("cycles_last_hour", 0),
+                missions_executed_last_hour=report.get("missions_executed_last_hour", 0),
+                learning_candidates_created_last_hour=report.get("learning_candidates_created_last_hour", 0),
+                workers_active=report.get("workers_active", False),
+                runtime_continuity_score=report.get("runtime_continuity_score", 0.0),
+                bodega_global_context_summary=report.get("bodega_global_context_summary", {}),
+                stable_neuron_audit=report.get("stable_neuron_audit", {}),
+            )
+            return validated.model_dump()
+        except Exception:
+            return report
+    return report
 
 
 # ── Bodega Global Context ──────────────────────────────────────────────

@@ -567,6 +567,7 @@ function ObservabilityTab() {
               quarantined: data.memory_trace.quarantined_matches_count,
               contradictions: data.memory_trace.contradictions_count,
               stable_needs_review: data.memory_trace.stable_needs_review,
+              bodega_global_status: data.memory_trace.bodega_global_status,
             }} />
           ) : (
             <span style={{ color: 'var(--text-muted)' }}>No hay memory_trace en el último run.</span>
