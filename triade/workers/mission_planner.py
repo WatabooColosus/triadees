@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
+from triade.core.error_bus import record_internal_error
 from triade.core.neuron_missions import NeuronMissionStore, NeuronMission
 
 
@@ -70,33 +71,71 @@ class MissionPlanner:
         return tasks
 
     def _plan_baseline(self) -> list[PlannedTask]:
-        """Tareas base que siempre se ejecutan para mantener salud del sistema."""
-        return [
-            PlannedTask(
-                task_type="pulse_check",
-                priority=10,
-                reason="Verificación base de pulso del sistema",
-                source="mission_planner_baseline",
-            ),
-            PlannedTask(
-                task_type="pending_learning_review",
-                priority=12,
-                reason="Revisión de pipeline de aprendizaje",
-                source="mission_planner_baseline",
-            ),
-            PlannedTask(
-                task_type="semantic_memory_governance",
-                priority=13,
-                reason="Gobierno de memoria semántica",
-                source="mission_planner_baseline",
-            ),
-            PlannedTask(
-                task_type="neuron_autopromotion",
-                priority=15,
-                reason="Revisión de autopromoción neuronal",
-                source="mission_planner_baseline",
-            ),
-        ]
+        """Tareas base condicionales al estado real del sistema.
+
+        - pulse_check: siempre
+        - pending_learning_review: solo si hay candidates/evaluated/verified
+        - semantic_memory_governance: solo si hay documentos o actividad reciente
+        - neuron_autopromotion: solo si hay scores/evidencia suficiente
+        """
+        tasks: list[PlannedTask] = []
+
+        # pulse_check siempre se ejecuta
+        tasks.append(PlannedTask(
+            task_type="pulse_check",
+            priority=10,
+            reason="Verificación base de pulso del sistema",
+            source="mission_planner_baseline",
+        ))
+
+        try:
+            with self._connect() as conn:
+                # pending_learning_review: solo si hay work que hacer
+                lr = conn.execute(
+                    """SELECT COUNT(*) as cnt FROM learning_queue
+                    WHERE status IN ('candidate', 'evaluated', 'verified')"""
+                ).fetchone()
+                lr_cnt = int(lr["cnt"] or 0) if lr else 0
+                if lr_cnt > 0:
+                    tasks.append(PlannedTask(
+                        task_type="pending_learning_review",
+                        priority=12,
+                        reason=f"{lr_cnt} candidatos en pipeline de aprendizaje (candidate/evaluated/verified)",
+                        source="mission_planner_baseline",
+                    ))
+
+                # semantic_memory_governance: solo si hay documentos o actividad
+                sm = conn.execute(
+                    """SELECT COUNT(*) as cnt FROM semantic_memory
+                    WHERE status IN ('candidate', 'experimental')
+                    OR updated_at > datetime('now', '-6 hours')"""
+                ).fetchone()
+                sm_cnt = int(sm["cnt"] or 0) if sm else 0
+                if sm_cnt > 0:
+                    tasks.append(PlannedTask(
+                        task_type="semantic_memory_governance",
+                        priority=13,
+                        reason=f"{sm_cnt} documentos semánticos activos o actualizados recientemente",
+                        source="mission_planner_baseline",
+                    ))
+
+                # neuron_autopromotion: solo si hay evidencia suficiente
+                ns = conn.execute(
+                    """SELECT COUNT(*) as cnt FROM neurons
+                    WHERE status IN ('experimental', 'candidate', 'candidate_reviewable')"""
+                ).fetchone()
+                ns_cnt = int(ns["cnt"] or 0) if ns else 0
+                if ns_cnt > 0:
+                    tasks.append(PlannedTask(
+                        task_type="neuron_autopromotion",
+                        priority=15,
+                        reason=f"{ns_cnt} neuronas en estados promovibles/revisables",
+                        source="mission_planner_baseline",
+                    ))
+        except Exception as exc:
+            record_internal_error("mission_planner.baseline", exc, db_path=self.db_path)
+
+        return tasks
 
     def _plan_pending_learning(self) -> list[PlannedTask]:
         """Encola revisión de candidatos de aprendizaje pendientes."""
@@ -122,8 +161,8 @@ class MissionPlanner:
                     related_candidate_id=int(row["id"]),
                     payload={"candidate_id": int(row["id"]), "source_type": row["source_type"]},
                 ))
-        except Exception:
-            pass
+        except Exception as exc:
+            record_internal_error("mission_planner.pending_learning", exc, db_path=self.db_path)
         return tasks
 
     def _plan_failed_recent(self) -> list[PlannedTask]:
@@ -149,8 +188,8 @@ class MissionPlanner:
                     source="mission_planner_retry",
                     payload={**payload, "retried": True, "original_task_id": int(row["id"])},
                 ))
-        except Exception:
-            pass
+        except Exception as exc:
+            record_internal_error("mission_planner.failed_recent", exc, db_path=self.db_path)
         return tasks
 
     def _plan_memory_consolidation(self) -> list[PlannedTask]:
@@ -179,8 +218,8 @@ class MissionPlanner:
                     source="mission_planner_preventive",
                     payload={"pending_count": 0},
                 ))
-        except Exception:
-            pass
+        except Exception as exc:
+            record_internal_error("mission_planner.memory_consolidation", exc, db_path=self.db_path)
         return tasks
 
     def _plan_active_missions(self) -> list[PlannedTask]:
@@ -204,8 +243,8 @@ class MissionPlanner:
                         "allowed_actions": m.allowed_actions,
                     },
                 ))
-        except Exception:
-            pass
+        except Exception as exc:
+            record_internal_error("mission_planner.active_missions", exc, db_path=self.db_path)
         return tasks
 
     def _plan_federation_inbox(self) -> list[PlannedTask]:
@@ -227,8 +266,8 @@ class MissionPlanner:
                     source="mission_planner",
                     payload={"pending_count": cnt},
                 ))
-        except Exception:
-            pass
+        except Exception as exc:
+            record_internal_error("mission_planner.federation_inbox", exc, db_path=self.db_path)
         return tasks
 
     def _plan_system_debt(self) -> list[PlannedTask]:
@@ -248,8 +287,8 @@ class MissionPlanner:
                     source="mission_planner",
                     payload={"runs_ok": runs_ok, "episodes": episodes},
                 ))
-        except Exception:
-            pass
+        except Exception as exc:
+            record_internal_error("mission_planner.system_debt", exc, db_path=self.db_path)
         return tasks
 
     def _plan_neuron_formation(self) -> list[PlannedTask]:
@@ -270,6 +309,6 @@ class MissionPlanner:
                     source="mission_planner",
                     payload={"pending_candidates": cnt},
                 ))
-        except Exception:
-            pass
+        except Exception as exc:
+            record_internal_error("mission_planner.neuron_formation", exc, db_path=self.db_path)
         return tasks

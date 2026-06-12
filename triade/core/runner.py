@@ -211,7 +211,9 @@ class TriadeRunner:
         try:
             recent_qualia_signals = QualiaStore(db_path=self.db_path).list_signals(limit=10)
             signals = self.hypothalamus.apply_qualia_signals(signals, recent_qualia_signals)
-        except Exception:
+        except Exception as exc:
+            from .error_bus import record_internal_error
+            record_internal_error("runner.qualia_modulation", exc, run_id=input_packet.run_id, db_path=self.db_path)
             signals.notes.append("QualiaBus no disponible para modulación interna; se continúa con señales primarias.")
         try:
             edge_text = (
@@ -224,6 +226,8 @@ class TriadeRunner:
             )
             edge_context = build_edge_context(edge_text, enable_summary=False)
         except Exception as exc:
+            from .error_bus import record_internal_error
+            record_internal_error("runner.edge_context", exc, run_id=input_packet.run_id, db_path=self.db_path)
             edge_context = {
                 "enabled": True,
                 "used_edge": False,
@@ -368,8 +372,9 @@ class TriadeRunner:
         try:
             from .neuron_autopromoter import NeuronAutopromoter
             autopromotion_events = NeuronAutopromoter(db_path=self.db_path).promote()
-        except Exception:
-            pass
+        except Exception as exc:
+            from .error_bus import record_internal_error
+            record_internal_error("runner.autopromoter", exc, run_id=input_packet.run_id, db_path=self.db_path)
 
         learning_usage_result: dict[str, Any] = {}
         try:
@@ -380,8 +385,9 @@ class TriadeRunner:
                 memory_packet=memory,
                 db_path=self.db_path,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            from .error_bus import record_internal_error
+            record_internal_error("runner.learning_usage", exc, run_id=input_packet.run_id, db_path=self.db_path)
 
         neuron_orchestration = orchestrate_run_neurons(
             db_path=self.db_path,
@@ -422,6 +428,14 @@ class TriadeRunner:
         output.memory_diff["neuron_learning_candidates"] = neuron_learning_candidates
         output.memory_diff["neuron_contribution_summary"] = neuron_contribution_summary
         output.memory_diff["learning_usage"] = learning_usage_result
+        output.memory_diff["traceability"] = _build_traceability(
+            run_id=input_packet.run_id,
+            output=output,
+            memory=memory,
+            learning_usage_result=learning_usage_result,
+            neuron_orchestration=neuron_orchestration,
+            experimental_neuron_activity=experimental_neuron_activity,
+        )
         qualia_experiences = build_run_experiences(
             run_id=input_packet.run_id,
             post_run_learning=post_run_learning,
@@ -440,6 +454,8 @@ class TriadeRunner:
             qualia_state_obj = qualia_bus.compute_state(input_packet.run_id)
             qualia_state = qualia_state_obj.to_dict()
         except Exception as exc:
+            from .error_bus import record_internal_error
+            record_internal_error("runner.qualia_bus", exc, run_id=input_packet.run_id, db_path=self.db_path)
             qualia_state = {"status": "error", "error": str(exc)}
         qualia_signal_artifacts = [((item.get("bundle") or {}).get("signal") or {}) for item in qualia_publish_results]
         qualia_central_artifacts = [((item.get("bundle") or {}).get("central_packet") or {}) for item in qualia_publish_results]
@@ -652,3 +668,70 @@ class TriadeRunner:
             "virtual_env": virtual_env,
             "in_virtual_env": bool(virtual_env) or sys.prefix != sys.base_prefix,
         }
+
+
+def _build_traceability(
+    run_id: str,
+    output: Any,
+    memory: Any,
+    learning_usage_result: dict[str, Any],
+    neuron_orchestration: dict[str, Any],
+    experimental_neuron_activity: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Construye trazabilidad explícita de qué fuentes contribuyeron al output.
+
+    No expone chain-of-thought ni plan interno al usuario.
+    Solo expone IDs y referencias para auditoría.
+    """
+    trace: dict[str, Any] = {
+        "policy": "traceability_ids_only_no_internal_reasoning",
+        "run_id": run_id,
+    }
+
+    # ── Learning candidate IDs usados ──
+    trace["used_learning_candidate_ids"] = [
+        t["candidate_id"]
+        for t in (learning_usage_result.get("trace") or [])
+        if t.get("candidate_id") and not t.get("error")
+    ]
+    trace["learning_match_sources"] = learning_usage_result.get("matched_by_source", {})
+
+    # ── Semantic document IDs usados ──
+    trace["used_semantic_document_ids"] = []
+    try:
+        if memory and hasattr(memory, "semantic_recall"):
+            sr = memory.semantic_recall
+            if isinstance(sr, dict):
+                matches = sr.get("authorized_matches") or sr.get("semantic_matches") or []
+                if isinstance(matches, list):
+                    trace["used_semantic_document_ids"] = [
+                        str(m.get("document_id", ""))
+                        for m in matches
+                        if isinstance(m, dict) and m.get("document_id")
+                    ]
+    except Exception:
+        pass
+
+    # ── Neuron mission IDs activos ──
+    trace["used_neuron_mission_ids"] = []
+    try:
+        active = neuron_orchestration.get("experimental_neuron_activity") or experimental_neuron_activity
+        if isinstance(active, list):
+            for item in active:
+                if isinstance(item, dict):
+                    mid = item.get("mission_id") or item.get("neuron_mission_id")
+                    if mid:
+                        trace["used_neuron_mission_ids"].append(str(mid))
+    except Exception:
+        pass
+
+    # ── Evidence refs ──
+    trace["evidence_refs"] = []
+    try:
+        mem_diff = getattr(output, "memory_diff", None)
+        if isinstance(mem_diff, dict):
+            trace["evidence_refs"] = mem_diff.get("evidence_refs") or []
+    except Exception:
+        pass
+
+    return trace

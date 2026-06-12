@@ -26,8 +26,9 @@ class WorkerScheduler:
             planned = planner.plan_cycle(run_ref=run_ref)
             if planned:
                 return self._enqueue_planned(planned, run_ref=run_ref)
-        except Exception:
-            pass
+        except Exception as exc:
+            from triade.core.error_bus import record_internal_error
+            record_internal_error("scheduler.mission_planner", exc, run_id=run_ref, db_path=self.db_path)
         return self._enqueue_defaults(run_ref=run_ref)
 
     def _enqueue_planned(self, planned: list, run_ref: str | None = None) -> list[dict]:

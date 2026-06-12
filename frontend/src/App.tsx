@@ -750,6 +750,7 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
   const [candidates, setCandidates] = useState<any>(null)
   const [activity, setActivity] = useState<any>(null)
   const [missions, setMissions] = useState<any>(null)
+  const [selectedMission, setSelectedMission] = useState<any>(null)
   const [pendingSafety, setPendingSafety] = useState<any[]>([])
   const [error, setError] = useState('')
   const [selectedNeuron, setSelectedNeuron] = useState<any>(null)
@@ -762,6 +763,13 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
   }, [])
 
   useEffect(() => { fetch(); const id = setInterval(fetch, 8000); return () => clearInterval(id) }, [fetch])
+
+  async function loadMissionDetail(missionId: number) {
+    try {
+      const res = await api(`/api/neuron_missions/${missionId}`)
+      setSelectedMission(res)
+    } catch (e: any) { setError(e.message) }
+  }
 
   async function approveSafety(runId: string) {
     try {
@@ -928,13 +936,35 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
           </div>
         </Card>
       )}
-      {missions && missions.missions?.length > 0 && (
+      {selectedMission && selectedMission.mission && (
+        <Card title={`Misión: ${selectedMission.mission.title}`} color="#8b5cf6">
+          <button onClick={() => setSelectedMission(null)} style={{ ...btnStyle, marginBottom: 8 }}>← Volver</button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+            <div><b>Estado:</b> <Badge status={selectedMission.mission.status} /></div>
+            <div><b>Dominio:</b> {selectedMission.mission.domain}</div>
+            <div><b>Misión:</b> {selectedMission.mission.mission}</div>
+            <div><b>Permitido:</b> {selectedMission.mission.allowed_sources?.join(', ')}</div>
+            <div><b>Acciones:</b> {selectedMission.mission.allowed_actions?.join(', ')}</div>
+            <div><b>Schedule:</b> {selectedMission.mission.schedule_hint}</div>
+            {selectedMission.latest_score && (
+              <div style={{ marginTop: 4, padding: '6px 8px', background: 'var(--bg-surface)', borderRadius: 6 }}>
+                <b>Score actual:</b> {(selectedMission.latest_score.value * 100).toFixed(1)}%
+                <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>
+                  tipo: {selectedMission.latest_score.score_type}
+                </span>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+      {!selectedMission && missions && missions.missions?.length > 0 && (
         <Card title={`Misiones Neuronales (${missions.count})`} color="#8b5cf6">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {missions.missions.map((m: any) => (
-              <div key={m.id} style={{
+              <div key={m.id} onClick={() => loadMissionDetail(m.id)} style={{
                 padding: '8px 10px', background: 'var(--bg-base)', borderRadius: 6,
-                border: '1px solid var(--border)', fontSize: 12,
+                border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer',
+                transition: 'border-color var(--transition)',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontWeight: 600 }}>{m.title}</span>

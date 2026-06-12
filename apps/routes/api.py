@@ -458,6 +458,89 @@ def get_neuron_mission_evidence(neuron_id: int, limit: int = 20) -> dict[str, An
     }
 
 
+@router.get("/api/neuron_missions/{mission_id}")
+def get_neuron_mission_by_id(mission_id: int) -> dict[str, Any]:
+    from triade.core.neuron_missions import NeuronMissionStore
+    store = NeuronMissionStore()
+    mission = store.get_mission(mission_id)
+    if not mission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Misión {mission_id} no encontrada")
+    score = store.latest_score(mission_id)
+    return {
+        "status": "ok",
+        "mission": mission.to_dict(),
+        "latest_score": score.to_dict() if score else None,
+    }
+
+
+@router.get("/api/neuron_missions/{mission_id}/cycles")
+def get_neuron_mission_cycles_by_id(mission_id: int, limit: int = 30) -> dict[str, Any]:
+    from triade.core.neuron_missions import NeuronMissionStore
+    store = NeuronMissionStore()
+    mission = store.get_mission(mission_id)
+    if not mission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Misión {mission_id} no encontrada")
+    cycles = store.list_cycles(mission_id, limit=limit)
+    return {
+        "status": "ok",
+        "mission_id": mission_id,
+        "count": len(cycles),
+        "cycles": [c.to_dict() for c in cycles],
+    }
+
+
+@router.get("/api/neuron_missions/{mission_id}/evidence")
+def get_neuron_mission_evidence_by_id(mission_id: int, limit: int = 30) -> dict[str, Any]:
+    from triade.core.neuron_missions import NeuronMissionStore
+    store = NeuronMissionStore()
+    mission = store.get_mission(mission_id)
+    if not mission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Misión {mission_id} no encontrada")
+    evidence = store.list_evidence(mission_id, limit=limit)
+    return {
+        "status": "ok",
+        "mission_id": mission_id,
+        "count": len(evidence),
+        "evidence": [e.to_dict() for e in evidence],
+    }
+
+
+@router.get("/api/neuron_missions/{mission_id}/scores")
+def get_neuron_mission_scores(mission_id: int, limit: int = 20) -> dict[str, Any]:
+    from triade.core.neuron_missions import NeuronMissionStore
+    store = NeuronMissionStore()
+    mission = store.get_mission(mission_id)
+    if not mission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Misión {mission_id} no encontrada")
+    with store._connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM neuron_scores WHERE mission_id = ? ORDER BY id DESC LIMIT ?",
+            (mission_id, limit),
+        ).fetchall()
+    scores = [store._score_from_row(r).to_dict() for r in rows]
+    return {
+        "status": "ok",
+        "mission_id": mission_id,
+        "count": len(scores),
+        "scores": scores,
+    }
+
+
+@router.get("/api/internal/errors")
+def list_internal_errors(
+    scope: str | None = None,
+    run_id: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    from triade.core.error_bus import query_internal_errors
+    errors = query_internal_errors(scope=scope, run_id=run_id, limit=limit)
+    return {
+        "status": "ok",
+        "count": len(errors),
+        "errors": errors,
+    }
+
+
 @router.get("/api/system/life")
 def system_life(tick: bool = False) -> dict[str, Any]:
     LIFE_PULSE.record_action("life_snapshot")
