@@ -253,6 +253,7 @@ class MissionPlanner:
         try:
             store = NeuronMissionStore(db_path=self.db_path)
             missions = store.list_missions(status="experimental", limit=5)
+            missions.extend(store.list_missions(status="stable", limit=5))
             for m in missions:
                 tasks.append(PlannedTask(
                     task_type="experimental_neuron_activity",

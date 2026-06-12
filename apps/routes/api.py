@@ -43,6 +43,7 @@ from triade.models.model_install_queue import ModelInstallQueue
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
 from triade.workers.background_service import WorkerBackgroundService
+from triade.workers.neuron_mission_backfill import backfill_neuron_missions, neuron_missions_doctor
 
 from apps import services
 from apps.gates.safety import safety_gate
@@ -508,6 +509,18 @@ def list_neuron_missions(status: str | None = None, limit: int = 50) -> dict[str
         "count": len(missions),
         "missions": [m.to_dict() for m in missions],
     }
+
+
+@router.post("/api/neuron_missions/backfill")
+def backfill_neuron_missions_route(limit: int = 500) -> dict[str, Any]:
+    LIFE_PULSE.record_action("neuron_missions_backfill")
+    return backfill_neuron_missions(db_path="triade/memory/triade.db", runs_dir="runs", limit=limit)
+
+
+@router.get("/api/neuron_missions/doctor")
+def neuron_missions_doctor_route(limit: int = 500) -> dict[str, Any]:
+    LIFE_PULSE.record_action("neuron_missions_doctor")
+    return neuron_missions_doctor(db_path="triade/memory/triade.db", runs_dir="runs", limit=limit)
 
 
 @router.post("/api/neurons/missions")

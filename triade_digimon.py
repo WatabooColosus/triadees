@@ -307,6 +307,24 @@ def handle_neuron(args: argparse.Namespace) -> None:
     raise SystemExit("Comando neuron inválido")
 
 
+def handle_neuron_missions(args: argparse.Namespace) -> None:
+    from triade.core.neuron_missions import NeuronMissionStore
+    from triade.workers.neuron_mission_backfill import backfill_neuron_missions, neuron_missions_doctor
+
+    store = NeuronMissionStore(db_path=args.db)
+    if args.neuron_missions_command == "backfill":
+        print_json(backfill_neuron_missions(db_path=args.db, runs_dir=args.runs_dir, limit=args.limit))
+        return
+    if args.neuron_missions_command == "list":
+        missions = store.list_missions(limit=args.limit)
+        print_json({"status": "ok", "count": len(missions), "missions": [m.to_dict() for m in missions]})
+        return
+    if args.neuron_missions_command == "doctor":
+        print_json(neuron_missions_doctor(db_path=args.db, runs_dir=args.runs_dir, limit=args.limit))
+        return
+    raise SystemExit("Comando neuron-missions inválido")
+
+
 def handle_workers(args: argparse.Namespace) -> None:
     service = WorkerBackgroundService(db_path=args.db, runs_dir=args.runs_dir)
 
@@ -608,6 +626,15 @@ def main() -> None:
     neuron_show.add_argument("name", help="Nombre de la neurona")
     neuron_show.add_argument("--limit", type=int, default=20, help="Cantidad máxima de evidencias")
 
+    neuron_missions_parser = subparsers.add_parser("neuron-missions", help="Backfill y doctor de misiones neuronales")
+    neuron_missions_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    neuron_missions_parser.add_argument("--runs-dir", default="runs", help="Directorio de runs auditables")
+    neuron_missions_parser.add_argument("--limit", type=int, default=500, help="Cantidad máxima a inspeccionar")
+    neuron_missions_sub = neuron_missions_parser.add_subparsers(dest="neuron_missions_command")
+    neuron_missions_sub.add_parser("backfill", help="Crea misiones faltantes desde neuronas activas")
+    neuron_missions_sub.add_parser("list", help="Lista misiones neuronales")
+    neuron_missions_sub.add_parser("doctor", help="Diagnóstico operativo de misiones neuronales")
+
     workers_parser = subparsers.add_parser("workers", help="Triade Living Workers en segundo plano controlado")
     workers_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
     workers_parser.add_argument("--runs-dir", default="runs/background", help="Directorio de artefactos background")
@@ -764,6 +791,10 @@ def main() -> None:
 
     if args.command == "neuron":
         handle_neuron(args)
+        return
+
+    if args.command == "neuron-missions":
+        handle_neuron_missions(args)
         return
 
     if args.command == "workers":

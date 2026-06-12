@@ -91,6 +91,43 @@ curl -X POST http://127.0.0.1:8010/api/system/life/continuous-runner \
   -d '{"enabled": false}'
 ```
 
+## Activar Misiones Desde Neuronas Existentes
+
+Cuando `mission_count = 0`, el sistema todavía tiene neuronas registradas pero no tiene contratos operativos creados para ellas. En ese caso, primero hay que poblar `neuron_missions` desde el registro existente.
+
+Comandos:
+
+```bash
+python triade_digimon.py neuron-missions doctor
+python triade_digimon.py neuron-missions backfill
+python triade_digimon.py workers once
+python triade_digimon.py neuron-missions doctor
+```
+
+API equivalente:
+
+```bash
+curl http://127.0.0.1:8010/api/neuron_missions/doctor
+curl -X POST http://127.0.0.1:8010/api/neuron_missions/backfill
+curl -X POST http://127.0.0.1:8010/workers/run-once
+```
+
+`backfill` crea una misión por neurona activa si aún no existe. Usa el nombre, misión y dominio reales de la neurona, y mantiene bloqueadas las acciones peligrosas. No crea memoria estable ni modifica `identity_core`.
+
+Después del backfill, `MissionPlanner` ya puede encolar `experimental_neuron_activity` con `mission_id`. `WorkerLoop` entonces ejecuta `NeuronMissionExecutor`, que registra ciclos, evidencia, scores y, si está permitido, candidatos en `learning_queue`.
+
+`doctor` sirve para verificar:
+
+- `total_neurons`
+- `total_missions`
+- `missions_by_status`
+- `missions_without_cycles`
+- `missions_with_evidence`
+- `mission_learning_candidates`
+- `ready_to_execute_count`
+
+`learning_candidate` no es memoria estable. Sigue siendo un candidato hasta que `LearningPipeline` lo evalúa, verifica, valida en runs y consolida.
+
 ## Comandos Locales
 
 Tests:

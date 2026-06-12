@@ -15,29 +15,31 @@ class WorkerBackgroundService:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db", runs_dir: str | Path = "runs/background") -> None:
         self.db_path = Path(db_path)
         self.runs_dir = Path(runs_dir)
+        self.lock_file = self.runs_dir / ".triade_workers.lock"
+        self.stop_file = self.runs_dir / ".triade_stop"
         self.store = WorkerStateStore(db_path=self.db_path)
         self.queue = WorkerTaskQueue(db_path=self.db_path)
 
     def run_once(self, *, dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
-        loop = WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir)
-        config = WorkerRunConfig(max_iterations=1, sleep_seconds=0.0, task_timeout=task_timeout, dry_run=dry_run, once=True, daemon=False, runs_dir=str(self.runs_dir))
+        loop = WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir, lock_file=self.lock_file, stop_file=self.stop_file)
+        config = WorkerRunConfig(max_iterations=1, sleep_seconds=0.0, task_timeout=task_timeout, dry_run=dry_run, once=True, daemon=False, runs_dir=str(self.runs_dir), lock_file=str(self.lock_file), stop_file=str(self.stop_file))
         return loop.run(config)
 
     def start(self, *, max_iterations: int = 5, sleep_seconds: float = 2.0, dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
-        loop = WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir)
+        loop = WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir, lock_file=self.lock_file, stop_file=self.stop_file)
         loop.clear_stop()
-        config = WorkerRunConfig(max_iterations=max_iterations, sleep_seconds=sleep_seconds, task_timeout=task_timeout, dry_run=dry_run, once=False, daemon=True, runs_dir=str(self.runs_dir))
+        config = WorkerRunConfig(max_iterations=max_iterations, sleep_seconds=sleep_seconds, task_timeout=task_timeout, dry_run=dry_run, once=False, daemon=True, runs_dir=str(self.runs_dir), lock_file=str(self.lock_file), stop_file=str(self.stop_file))
         return loop.run(config)
 
     def stop(self) -> dict[str, Any]:
-        return WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir).request_stop()
+        return WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir, lock_file=self.lock_file, stop_file=self.stop_file).request_stop()
 
     def status(self) -> dict[str, Any]:
         payload = self.store.status()
-        payload["lock_file"] = str(Path(".triade_workers.lock"))
-        payload["stop_file"] = str(Path(".triade_stop"))
-        payload["running"] = Path(".triade_workers.lock").exists()
-        payload["stop_requested"] = Path(".triade_stop").exists()
+        payload["lock_file"] = str(self.lock_file)
+        payload["stop_file"] = str(self.stop_file)
+        payload["running"] = self.lock_file.exists()
+        payload["stop_requested"] = self.stop_file.exists()
         return payload
 
     def queue_status(self, status: str | None = None, limit: int = 50) -> dict[str, Any]:

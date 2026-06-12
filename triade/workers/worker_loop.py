@@ -90,6 +90,9 @@ class WorkerLoop:
         self.runs_dir = Path(config.runs_dir)
         self.lock_file = Path(config.lock_file)
         self.stop_file = Path(config.stop_file)
+        self.runs_dir.mkdir(parents=True, exist_ok=True)
+        self.lock_file.parent.mkdir(parents=True, exist_ok=True)
+        self.stop_file.parent.mkdir(parents=True, exist_ok=True)
         if self.lock_file.exists():
             return {"status": "locked", "lock_file": str(self.lock_file), "message": "Worker ya está en ejecución."}
         if self.stop_file.exists():
