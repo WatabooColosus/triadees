@@ -20,6 +20,8 @@ from triade.federation.federation import Federation
 from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore
+from triade.qualia.bus import QualiaBus
+from triade.qualia.contracts import NeuronExperience
 
 from .contracts import WORKER_TASK_TYPES, WorkerRunConfig, WorkerTask, new_worker_run_id
 from .scheduler import WorkerScheduler
@@ -199,6 +201,40 @@ class WorkerLoop:
         crystal = CrystalPacket(run_id=run_ref, temporal_status="stable")
         return Safety().review(signals, plan, crystal=crystal, memory=memory)
 
+    def _publish_qualia_experience(
+        self,
+        run_ref: str,
+        task_type: str,
+        neuron_type: str,
+        observation: str,
+        extracted_pattern: str = "",
+        proposed_learning: str = "",
+        confidence: float = 0.6,
+        risk: str = "low",
+        usefulness: float = 0.5,
+    ) -> dict[str, Any] | None:
+        try:
+            bus = QualiaBus(db_path=self.db_path)
+            exp = NeuronExperience(
+                run_id=run_ref,
+                neuron_id=f"worker:{task_type}",
+                neuron_type=neuron_type,
+                mission=f"Living Worker ejecutó {task_type}",
+                source="living_worker",
+                source_type="worker_task",
+                observation=observation[:1000],
+                extracted_pattern=extracted_pattern[:1000],
+                proposed_learning=proposed_learning[:1000],
+                confidence=confidence,
+                risk=risk,
+                usefulness=usefulness,
+                evidence_refs=[f"worker:{run_ref}", f"task:{task_type}"],
+            )
+            result = bus.publish_experience(exp, ingest_learning=bool(proposed_learning))
+            return {"published": True, "experience_id": exp.id, "state": result.get("state", {}).to_dict() if hasattr(result.get("state"), "to_dict") else result.get("state")}
+        except Exception as exc:
+            return {"published": False, "error": str(exc)}
+
     def _pulse_check(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         from apps.services import build_system_pulse
         pulse = build_system_pulse(sync_relay=False)
@@ -216,16 +252,32 @@ class WorkerLoop:
                 processed.append(pipe.evaluate(candidate["candidate_id"]))
         for candidate in pipe.list_candidates(status="evaluated", limit=5):
             processed.append(pipe.verify(candidate["candidate_id"]))
-        return {"status": "completed", "processed_count": len(processed), "processed": processed, "stable_memory_written": False}
+        qualia = self._publish_qualia_experience(
+            run_ref, "pending_learning_review", "worker_learning",
+            f"Worker revisó {len(processed)} candidatos de aprendizaje.",
+            proposed_learning="Mantener ciclo de aprendizaje controlado: candidate→evaluated→verified.",
+        )
+        return {"status": "completed", "processed_count": len(processed), "processed": processed, "stable_memory_written": False, "qualia": qualia}
 
     def _semantic_memory_governance(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
-        return {"status": "completed", "governance": SemanticMemoryGovernance(db_path=self.db_path).doctor()}
+        governance = SemanticMemoryGovernance(db_path=self.db_path).doctor()
+        qualia = self._publish_qualia_experience(
+            run_ref, "semantic_memory_governance", "worker_governance",
+            f"Gobernanza semántica ejecutada: {governance.get('status', 'unknown')}.",
+            extracted_pattern=str(governance),
+        )
+        return {"status": "completed", "governance": governance, "qualia": qualia}
 
     def _neuron_candidate_formation(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         pulse = {"status": "unknown", "summary": "worker background scan", "federation": {"android_native_online": 0, "android_llm_hosts": 0}}
         raw = candidates_from_system_debt(pulse_summary=pulse)
         formed = form_candidates(raw)
-        return {"status": "completed", "raw_count": len(raw), "formed_count": len(formed), "candidates": formed}
+        qualia = self._publish_qualia_experience(
+            run_ref, "neuron_candidate_formation", "worker_formation",
+            f"Formación de candidatos: {len(raw)} raw → {len(formed)} formados.",
+            extracted_pattern=str([c.get("name", "") for c in formed[:5]]),
+        )
+        return {"status": "completed", "raw_count": len(raw), "formed_count": len(formed), "candidates": formed, "qualia": qualia}
 
     def _experimental_neuron_activity(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         signals = SignalPacket(run_id=run_ref, intent="worker", tone="operational", urgency="low", risk="low", notes=["background"])
@@ -239,11 +291,21 @@ class WorkerLoop:
         )
         ids = NeuronActivityStore(db_path=self.db_path).record_run_activity(run_ref, activity)
         activity["db_activity_ids"] = ids
-        return {"status": "completed", "activity": activity}
+        qualia = self._publish_qualia_experience(
+            run_ref, "experimental_neuron_activity", "worker_neuron_activity",
+            f"Actividad experimental: {len(ids)} registros de actividad.",
+            extracted_pattern=str(activity.get("summary", "")),
+        )
+        return {"status": "completed", "activity": activity, "qualia": qualia}
 
     def _neuron_autopromotion(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         events = NeuronAutopromoter(db_path=self.db_path).promote()
-        return {"status": "completed", "events": events, "stable_promotion_requires_readiness": True}
+        qualia = self._publish_qualia_experience(
+            run_ref, "neuron_autopromotion", "worker_autopromotion",
+            f"Auto-promoción ejecutada: {len(events)} eventos.",
+            extracted_pattern=str(events[:3]),
+        )
+        return {"status": "completed", "events": events, "stable_promotion_requires_readiness": True, "qualia": qualia}
 
     def _federation_inbox_review(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         federation = Federation(db_path=self.db_path)
@@ -296,7 +358,12 @@ class WorkerLoop:
             domain="living-workers",
             risk_level="low",
         )
-        return {"status": "completed", "learning_candidate": candidate}
+        qualia = self._publish_qualia_experience(
+            run_ref, "system_debt_scan", "worker_debt",
+            "Deuda operacional detectada: ciclo observar→evaluar→sandbox→memoria experimental→medición.",
+            proposed_learning="Mantener vivo el ciclo de observación y evaluación continua.",
+        )
+        return {"status": "completed", "learning_candidate": candidate, "qualia": qualia}
 
     def _artifact_dir(self, run_ref: str) -> Path:
         stamp = time.strftime("%Y%m%d-%H%M%S")

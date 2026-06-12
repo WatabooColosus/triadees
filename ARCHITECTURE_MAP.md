@@ -1,6 +1,6 @@
 # ARCHITECTURE_MAP.md · Tríade Ω
 
-Mapa de la arquitectura **tal como existe en el código** (no la visión). Estado al 2026-06-02, commit base `90c548f`, frontera ≈ v1.9F.
+Mapa de la arquitectura **tal como existe en el código** (no la visión). Estado al 2026-06-12, commit base `7bd620a`, frontera ≈ v2.0.
 
 Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin código).
 

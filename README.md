@@ -311,7 +311,7 @@ Motor de memoria recomendado para MVP:
 - SQLite con WAL.
 - Migración futura a PostgreSQL cuando el sistema crezca.
 
-Tablas conceptuales previstas:
+Tablas existentes en SQLite:
 
 - `identity_core`
 - `runs`
@@ -327,6 +327,15 @@ Tablas conceptuales previstas:
 - `federated_exchange_log`
 - `verification_reports`
 - `goals`
+- `qualia_experiences` (QualiaBus)
+- `qualia_signals` (QualiaBus)
+- `qualia_central_packets` (QualiaBus)
+- `qualia_storage_packets` (QualiaBus)
+- `qualia_states` (QualiaBus)
+- `worker_runs` (Living Workers)
+- `worker_tasks` (Living Workers)
+- `worker_events` (Living Workers)
+- `worker_state` (Living Workers)
 
 ---
 
@@ -383,28 +392,41 @@ Cada neurona debe tener:
 triadees/
 ├── triade/
 │   ├── core/        # central, hypothalamus, bodega, crystal, safety,
-│   │                # verification, contracts, runner, neuron_*, alignment
-│   ├── memory/      # schemas.sql, migrations/, capa semántica 1.9A–F
-│   └── models/      # ollama_client, model_router, hardware_profile, ...
+│   │                # verification, contracts, runner, neuron_*, alignment,
+│   │                # qualia.py (engine + reports), experimental_neuron_runtime
+│   ├── memory/      # schemas.sql, migrations/ (001–004), semantic_layer, governance
+│   ├── models/      # ollama_client, model_router, hardware_profile, ...
+│   ├── learning/    # pipeline (candidate→evaluated→verified→rejected)
+│   ├── federation/  # federation, transport, trust
+│   ├── qualia/      # bus, store, router, adapters, contracts, state, reports
+│   └── workers/     # contracts, task_queue, state_store, scheduler, worker_loop,
+│                    # background_service, sandbox
 ├── apps/            # 5 superficies FastAPI (api, chat_ui, single_port, ...)
-├── tests/           # 31 archivos de test (pytest)
-├── docs/            # arquitectura, safety, learning, federation, STATUS_*
+├── tests/           # 40+ archivos de test (pytest)
+├── docs/            # arquitectura, safety, learning, federation,
+│                    # QUALIA_BUS, BACKGROUND_WORKERS, WORKERS_PLAN, STATUS_*
 ├── n8n/             # 4 workflows de orquestación
 ├── systemd/         # units de despliegue local
-├── triade_digimon.py  # CLI (run, chat, recall, doctor, align, neuron, models)
+├── triade_digimon.py  # CLI (run, chat, recall, doctor, align, neuron, models,
+│                      #       qualia, workers)
 ├── triade.yml · requirements.txt · pyproject.toml
 ├── AUDIT_REPORT.md · ARCHITECTURE_MAP.md · ROADMAP.md  # auditoría Fase 0
 ├── README.md · Base.docx · triade_formulas_v0_1.pdf
 └── Manifiesto/ · Inicio/ · IngeniaInversa1/
 ```
 
-Estado real del proyecto (frontera técnica ≈ v1.9F):
+Estado real del proyecto (frontera técnica ≈ v2.0):
 
 - Repositorio: `WatabooColosus/triadees` · rama principal `main`.
 - MVP local **operativo y auditable**: el ciclo cognitivo corre de extremo a
   extremo y persiste evidencia por run en SQLite.
 - Núcleo triádico funcional (Central + Hipotálamo + Bodega + Cristal + Safety +
-  Verification); Learning Pipeline y Federation son aún visión documentada.
+  Verification).
+- **QualiaBus** implementado: experiences, signals, central_packets,
+  storage_packets. Integrado con runner, hypothalamus, learning pipeline.
+- **Living Workers** implementados: background service con scheduler,
+  task queue, state store, sandbox, 9 task types. Publican NeuronExperience a QualiaBus.
+- Learning Pipeline y Federation operativos (no solo visión documentada).
 - Diagnóstico vigente: ver `AUDIT_REPORT.md`, mapa en `ARCHITECTURE_MAP.md` y
   ruta priorizada en `ROADMAP.md`.
 
