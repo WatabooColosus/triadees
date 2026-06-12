@@ -92,6 +92,19 @@ class Central:
             steps.append("Profundizar la respuesta manteniendo trazabilidad y control ético.")
         else:
             steps.append("Producir respuesta verificable con regulación equilibrada.")
+        bgc = input_packet.context.get("bodega_global_context") if isinstance(input_packet.context, dict) else None
+        if isinstance(bgc, dict):
+            mem_conf = bgc.get("memory_confidence", "low")
+            if mem_conf == "low":
+                steps.append("Memoria global con confianza baja: operar con memoria limitada, no inventar recuerdos.")
+            elif mem_conf == "medium":
+                steps.append("Memoria global con confianza media: usar contexto disponible con cautela.")
+            contradictions = bgc.get("contradictions") or []
+            if contradictions:
+                steps.append(f"Se detectaron {len(contradictions)} contradicción(es) en memoria: mantener prudencia.")
+            stable_audit = bgc.get("stable_audit_summary") or {}
+            if stable_audit.get("stable_needs_review", 0) > 0:
+                steps.append("Neuronas stable requieren revisión de evidencia; no asumir estabilidad completa.")
         tools: list[str] = []
         if signals.intent == "build_or_update":
             tools.append("repository_or_file_update")
@@ -334,6 +347,28 @@ class Central:
                     "policy": qualia_bus.get("policy"),
                 }
                 qualia_context = "\nQualiaBus autorizado como hipótesis/contexto, no memoria estable:\n" + json.dumps(safe_qualia, ensure_ascii=False, indent=2)
+            bgc = input_packet.context.get("bodega_global_context") if isinstance(input_packet.context, dict) else None
+            bodega_global_context_str = ""
+            if isinstance(bgc, dict) and bgc.get("status") == "ok":
+                mem_conf = bgc.get("memory_confidence", "low")
+                policy = bgc.get("recommended_context_policy", "ask_or_operate_with_limited_memory")
+                continuity = bgc.get("continuity_summary", "")
+                episodes_count = len(bgc.get("recent_episodes") or [])
+                semantic_count = len(bgc.get("semantic_recall", {}).get("matches_count", [])) if isinstance(bgc.get("semantic_recall"), dict) else 0
+                contradictions = bgc.get("contradictions") or []
+                safe_bgc = {
+                    "memory_confidence": mem_conf,
+                    "recommended_policy": policy,
+                    "continuity_summary": continuity,
+                    "recent_episodes_count": episodes_count,
+                    "semantic_matches_count": semantic_count,
+                    "contradictions_count": len(contradictions),
+                }
+                bodega_global_context_str = "\nBodega Global Context (base de contexto global):\n" + json.dumps(safe_bgc, ensure_ascii=False, indent=2)
+                if mem_conf == "low":
+                    bodega_global_context_str += "\nPOLÍTICA: Confianza baja. No inventar recuerdos. Operar con memoria limitada."
+                elif contradictions:
+                    bodega_global_context_str += f"\nPOLÍTICA: {len(contradictions)} contradicción(es) detectada(s). Mantener prudencia."
             conversation_history = input_packet.context.get("conversation_history") if isinstance(input_packet.context, dict) else None
             history_context = ""
             if conversation_history:
@@ -359,7 +394,7 @@ class Central:
                 f"Intención orientativa: {signals.intent}\n"
                 f"Tono orientativo: {signals.tone}\n"
                 f"Riesgo orientativo: {signals.risk}\n"
-                f"{pulse_context}{semantic_context}{qualia_context}{history_context}\n\n"
+                f"{pulse_context}{semantic_context}{qualia_context}{bodega_global_context_str}{history_context}\n\n"
                 "Respuesta final:"
             )
 

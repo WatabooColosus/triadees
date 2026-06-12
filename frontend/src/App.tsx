@@ -771,9 +771,11 @@ function MemoryTab({ apiKey }: { apiKey: string }) {
   const [doctor, setDoctor] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any>(null)
+  const [globalCtx, setGlobalCtx] = useState<any>(null)
   const [error, setError] = useState('')
   useEffect(() => {
     api('/api/semantic/doctor').then(setDoctor).catch(e => setError(e.message))
+    api('/api/bodega/global-context?limit=5').then(setGlobalCtx).catch(() => {})
   }, [])
 
   async function search() {
@@ -791,6 +793,34 @@ function MemoryTab({ apiKey }: { apiKey: string }) {
 
   return (
     <Page title="Memoria Semántica" subtitle="Diagnóstico y búsqueda">
+      {globalCtx && globalCtx.status === 'ok' && (
+        <Card title="Bodega Global" color="#f59e0b">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <span>Confianza: <strong style={{ color: globalCtx.memory_confidence === 'high' ? 'var(--green)' : globalCtx.memory_confidence === 'medium' ? 'var(--accent)' : 'var(--red)' }}>{globalCtx.memory_confidence}</strong></span>
+              <span>Episodios: <strong>{globalCtx.recent_episodes?.length || 0}</strong></span>
+              <span>Semántica: <strong>{globalCtx.semantic_recall?.matches_count || 0}</strong></span>
+              <span>Neuronas: <strong>{globalCtx.neuron_context?.length || 0}</strong></span>
+            </div>
+            <div style={{ color: 'var(--text-muted)' }}>{globalCtx.continuity_summary}</div>
+            {globalCtx.learning_context && (globalCtx.learning_context.candidates > 0 || globalCtx.learning_context.verified > 0) && (
+              <div style={{ fontSize: 11 }}>
+                Aprendizajes: {globalCtx.learning_context.candidates} candidato(s), {globalCtx.learning_context.verified} verificado(s)
+              </div>
+            )}
+            {globalCtx.recommended_context_policy && globalCtx.recommended_context_policy !== 'use_full_context' && (
+              <div style={{ fontSize: 11, color: 'var(--yellow)', padding: '4px 8px', background: 'var(--yellow-bg)', borderRadius: 4 }}>
+                Política: {globalCtx.recommended_context_policy}
+              </div>
+            )}
+            {globalCtx.contradictions?.length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--red)' }}>
+                ⚠ {globalCtx.contradictions.length} contradicción(es) detectada(s)
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
       <Grid cols={2}>
         <Card title="Doctor" color="#3b82f6">
           {doctor ? <KVTable data={doctor} /> : <p style={{ color: 'var(--text-muted)' }}>{error || 'Cargando…'}</p>}
@@ -840,6 +870,7 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
   const [missions, setMissions] = useState<any>(null)
   const [selectedMission, setSelectedMission] = useState<any>(null)
   const [pendingSafety, setPendingSafety] = useState<any[]>([])
+  const [stableAudit, setStableAudit] = useState<any>(null)
   const [error, setError] = useState('')
   const [selectedNeuron, setSelectedNeuron] = useState<any>(null)
 
@@ -848,6 +879,7 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
     api('/api/system/activity').then(setActivity).catch(() => {})
     api('/api/neurons/missions?limit=20').then(setMissions).catch(() => {})
     api('/api/safety/pending').then(r => setPendingSafety(r.pending || [])).catch(() => {})
+    api('/api/neurons/stable-audit?limit=50').then(setStableAudit).catch(() => {})
   }, [])
 
   useEffect(() => { fetch(); const id = setInterval(fetch, 8000); return () => clearInterval(id) }, [fetch])
@@ -999,6 +1031,41 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
                 </div>
               </div>
             ))}
+          </div>
+        </Card>
+      )}
+      {stableAudit && stableAudit.status === 'ok' && stableAudit.total_stable_neurons > 0 && (
+        <Card title={`Auditoría Stable (${stableAudit.total_stable_neurons})`} color="#8b5cf6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <span>Total stable: <strong>{stableAudit.total_stable_neurons}</strong></span>
+              <span>Con evidencia suficiente: <strong style={{ color: 'var(--green)' }}>{stableAudit.stable_with_enough_evidence}</strong></span>
+              <span>Necesita revisión: <strong style={{ color: stableAudit.stable_needs_review > 0 ? 'var(--yellow)' : 'var(--text-muted)' }}>{stableAudit.stable_needs_review}</strong></span>
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+              Política: {stableAudit.policy?.read_only_by_default ? 'solo lectura por defecto' : 'sin política'}
+            </div>
+            {stableAudit.stable_needs_review > 0 && stableAudit.neurons?.filter((n: any) => n.recommended_action !== 'keep_stable').length > 0 && (
+              <div style={{ marginTop: 4 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--yellow)', marginBottom: 4 }}>⚠ Neuronas que requieren revisión:</div>
+                {stableAudit.neurons.filter((n: any) => n.recommended_action !== 'keep_stable').slice(0, 10).map((n: any, i: number) => (
+                  <div key={i} style={{
+                    padding: '6px 8px', background: 'var(--bg-base)', borderRadius: 4,
+                    border: '1px solid var(--border)', fontSize: 11, marginBottom: 3,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: 600 }}>{n.name}</span>
+                      <span style={{ color: n.recommended_action === 'demote_to_experimental' ? 'var(--red)' : 'var(--yellow)' }}>{n.recommended_action}</span>
+                    </div>
+                    {n.blockers?.length > 0 && (
+                      <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 2 }}>
+                        {n.blockers.join('; ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Card>
       )}

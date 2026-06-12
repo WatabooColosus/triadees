@@ -36,9 +36,22 @@ def test_neuron_dashboard_is_read_only_and_groups_status(tmp_path: Path) -> None
     assert dashboard["summary"]["by_status"]["stable"] == 1
     assert dashboard["policy"] == "dashboard_read_only_actions_require_explicit_endpoint"
 
+    assert "stable_audit" in dashboard["summary"]
+    sa = dashboard["summary"]["stable_audit"]
+    assert "total_stable_neurons" in sa
+    assert "stable_with_enough_evidence" in sa
+    assert "stable_needs_review" in sa
+
     candidate = next(n for n in dashboard["neurons"] if n["name"] == "neurona-dashboard-candidate")
     stable = next(n for n in dashboard["neurons"] if n["name"] == "neurona-dashboard-stable")
 
     assert any(a["id"] == "approve_experimental" and a["enabled"] for a in candidate["ui_actions"])
     assert stable["ui_actions"][0]["id"] == "view_only"
     assert stable["ui_actions"][0]["enabled"] is False
+
+    assert "stable_audit" in stable
+    if stable["stable_audit"] is not None:
+        assert "recommended_action" in stable["stable_audit"]
+        assert "blockers" in stable["stable_audit"]
+        assert "evidence_source" in stable["stable_audit"]
+        assert "last_run_id" in stable["stable_audit"]

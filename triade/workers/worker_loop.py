@@ -193,6 +193,7 @@ class WorkerLoop:
                     "memory_consolidation_review": self._memory_consolidation_review,
                     "stable_consolidation_review": self._stable_consolidation_review,
                     "system_debt_scan": self._system_debt_scan,
+                    "bodega_global_review": self._bodega_global_review,
                 }
                 result = handlers[task.task_type](task, run_ref, task_dir, config)
                 if time.monotonic() - started > config.task_timeout:
@@ -469,6 +470,68 @@ class WorkerLoop:
             proposed_learning="Mantener vivo el ciclo de observación y evaluación continua.",
         )
         return {"status": "completed", "learning_candidate": candidate, "qualia": qualia}
+
+    def _bodega_global_review(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        """Revisa memoria reciente, learning_queue y stable_audit sin modificar identity_core.
+
+        Produce un evento worker y experiencia Qualia. No consolida memoria
+        automáticamente y no modifica identity_core.
+        """
+        from triade.core.bodega_global_context import build_bodega_global_context
+
+        query = str(task.payload.get("query") or "revisión global de memoria")
+        bodega_ctx = build_bodega_global_context(
+            user_input=query,
+            db_path=self.db_path,
+            runs_dir=self.runs_dir,
+            limit=10,
+            semantic_recall_enabled=True,
+        )
+
+        episodes_count = len(bodega_ctx.get("recent_episodes") or [])
+        learning = bodega_ctx.get("learning_context") or {}
+        candidates_count = learning.get("candidates", 0)
+        verified_count = learning.get("verified", 0)
+        stable_audit = bodega_ctx.get("stable_audit_summary") or {}
+        needs_review = stable_audit.get("stable_needs_review", 0)
+        mem_conf = bodega_ctx.get("memory_confidence", "low")
+        contradictions = bodega_ctx.get("contradictions") or []
+
+        summary = (
+            f"Revisión bodega global: confianza={mem_conf}, "
+            f"episodios={episodes_count}, candidatos={candidates_count}, "
+            f"verificados={verified_count}, stable_needs_review={needs_review}, "
+            f"contradicciones={len(contradictions)}."
+        )
+
+        qualia = self._publish_qualia_experience(
+            run_ref,
+            "bodega_global_review",
+            "worker_bodega_global",
+            summary,
+            extracted_pattern=str({
+                "memory_confidence": mem_conf,
+                "episodes_count": episodes_count,
+                "candidates_count": candidates_count,
+                "verified_count": verified_count,
+                "stable_needs_review": needs_review,
+                "contradictions_count": len(contradictions),
+            })[:1000],
+            proposed_learning="Mantener bodega global como base viva de contexto sin consolidar memoria automáticamente.",
+        )
+
+        return {
+            "status": "completed",
+            "memory_confidence": mem_conf,
+            "episodes_count": episodes_count,
+            "candidates_count": candidates_count,
+            "verified_count": verified_count,
+            "stable_needs_review": needs_review,
+            "contradictions_count": len(contradictions),
+            "stable_memory_written": False,
+            "identity_core_modified": False,
+            "qualia": qualia,
+        }
 
     def _artifact_dir(self, run_ref: str) -> Path:
         stamp = time.strftime("%Y%m%d-%H%M%S")

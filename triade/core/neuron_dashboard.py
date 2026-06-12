@@ -8,6 +8,7 @@ from typing import Any
 from .experimental_neuron_evidence import build_experimental_evidence_ledger
 from .neuron_activity_store import NeuronActivityStore
 from .neuron_registry import NeuronRegistry
+from .stable_neuron_audit import audit_stable_neurons
 from .stable_promotion_readiness import evaluate_stable_readiness
 
 
@@ -34,6 +35,26 @@ def build_neuron_dashboard(
         runs_dir=runs_dir,
         limit=limit,
     )
+
+    try:
+        stable_audit_raw = audit_stable_neurons(
+            db_path=db_path,
+            runs_dir=runs_dir,
+            limit=limit,
+        )
+    except Exception:
+        stable_audit_raw = {
+            "status": "error",
+            "total_stable_neurons": 0,
+            "stable_with_enough_evidence": 0,
+            "stable_needs_review": 0,
+            "neurons": [],
+        }
+    stable_audit_by_name = {
+        str(n.get("name")): n
+        for n in (stable_audit_raw.get("neurons") or [])
+        if n.get("name")
+    }
 
     activity_store = NeuronActivityStore(db_path=db_path)
     recent_activity = activity_store.list_activity(limit=limit)
@@ -66,6 +87,8 @@ def build_neuron_dashboard(
         score = training_scores.get(name, 0.0)
 
         progress = _compute_progress(neuron, ev, rd, score)
+
+        audit_for_neuron = stable_audit_by_name.get(name, {})
 
         enriched.append({
             "id": neuron.get("id"),
@@ -101,6 +124,12 @@ def build_neuron_dashboard(
                 "blockers": rd.get("blockers", []),
                 "required_human_decision": rd.get("required_human_decision", True),
             },
+            "stable_audit": {
+                "recommended_action": audit_for_neuron.get("recommended_action"),
+                "blockers": audit_for_neuron.get("blockers", []),
+                "evidence_source": audit_for_neuron.get("evidence_source"),
+                "last_run_id": audit_for_neuron.get("last_run_id"),
+            } if audit_for_neuron else None,
             "recent_activity": [
                 {
                     "id": a.get("id"),
@@ -128,6 +157,11 @@ def build_neuron_dashboard(
             "by_status": counts,
             "experimental_with_evidence": (evidence.get("summary") or {}).get("experimental_neurons_with_evidence", 0),
             "ready_for_stable_review": (readiness.get("summary") or {}).get("ready_for_stable_review", 0),
+            "stable_audit": {
+                "total_stable_neurons": stable_audit_raw.get("total_stable_neurons", 0),
+                "stable_with_enough_evidence": stable_audit_raw.get("stable_with_enough_evidence", 0),
+                "stable_needs_review": stable_audit_raw.get("stable_needs_review", 0),
+            },
         },
         "neurons": enriched,
         "policy": "dashboard_read_only_actions_require_explicit_endpoint",

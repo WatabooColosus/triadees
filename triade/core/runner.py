@@ -221,7 +221,7 @@ class TriadeRunner:
         user_input: str,
         source: str = "console",
         context: dict[str, Any] | None = None,
-        semantic_recall_enabled: bool = False,
+        semantic_recall_enabled: bool = True,
         semantic_model: str | None = None,
         semantic_limit: int = 3,
         semantic_min_similarity: float = 0.55,
@@ -244,6 +244,7 @@ class TriadeRunner:
                 "living_context": living_context,
                 "triade_operational_awareness": living_context.get("internal_context", {}),
                 "system_pulse_summary": (living_context.get("internal_context", {}) or {}).get("life_pulse", {}),
+                "bodega_global_context": living_context.get("bodega_global_context", {}),
             }
         except Exception as exc:
             from .error_bus import record_internal_error

@@ -7,6 +7,7 @@ from typing import Any
 
 from triade.core.internal_runtime import get_internal_runtime_state
 from triade.core.neuron_missions import NeuronMissionStore
+from triade.core.stable_neuron_audit import audit_stable_neurons
 from triade.learning.pipeline import LearningPipeline
 from triade.models.hardware_profile import HardwareProfiler
 from triade.models.ollama_client import OllamaClient
@@ -34,6 +35,42 @@ def build_living_report(
         ollama = OllamaClient().health()
     except Exception as exc:
         ollama = {"ok": False, "error": str(exc)}
+    try:
+        stable_audit_raw = audit_stable_neurons(
+            db_path=db_path,
+            runs_dir=runs_dir,
+            limit=200,
+        )
+        stable_audit = {
+            "status": stable_audit_raw.get("status", "ok"),
+            "total_stable_neurons": stable_audit_raw.get("total_stable_neurons", 0),
+            "stable_with_enough_evidence": stable_audit_raw.get("stable_with_enough_evidence", 0),
+            "stable_needs_review": stable_audit_raw.get("stable_needs_review", 0),
+            "thresholds": stable_audit_raw.get("thresholds", {}),
+            "policy": stable_audit_raw.get("policy", {}),
+            "top_needs_review": [
+                {
+                    "name": n.get("name"),
+                    "recommended_action": n.get("recommended_action"),
+                    "blockers": n.get("blockers", []),
+                    "evidence_source": n.get("evidence_source"),
+                    "last_run_id": n.get("last_run_id"),
+                }
+                for n in (stable_audit_raw.get("neurons") or [])
+                if n.get("recommended_action") != "keep_stable"
+            ][:10],
+        }
+    except Exception as exc:
+        stable_audit = {
+            "status": "error",
+            "error": str(exc),
+            "total_stable_neurons": 0,
+            "stable_with_enough_evidence": 0,
+            "stable_needs_review": 0,
+            "thresholds": {},
+            "policy": {},
+            "top_needs_review": [],
+        }
     hardware = HardwareProfiler().detect()
     recent_events = list_recent_events(limit=200, db_path=db_path)
     cycles_last_hour = _count_recent(recent_events, {"runtime_cycle_start", "runtime_cycle_complete"}, hours=1)
@@ -76,6 +113,7 @@ def build_living_report(
             "learning_doctor": learning.doctor(),
             "hardware": hardware.to_dict(),
         },
+        "stable_neuron_audit": stable_audit,
     }
 
 

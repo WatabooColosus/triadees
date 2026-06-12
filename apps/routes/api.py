@@ -855,6 +855,30 @@ def system_living_report(limit: int = 20) -> dict[str, Any]:
     return build_living_report(limit=limit)
 
 
+# ── Bodega Global Context ──────────────────────────────────────────────
+
+@router.get("/api/bodega/global-context")
+def bodega_global_context_get(query: str = "", limit: int = 10) -> dict[str, Any]:
+    LIFE_PULSE.record_action("bodega_global_context")
+    from triade.core.bodega_global_context import build_bodega_global_context
+    return build_bodega_global_context(
+        user_input=query or "contexto global",
+        limit=limit,
+        semantic_recall_enabled=True,
+    )
+
+
+@router.get("/api/system/bodega/global-context")
+def system_bodega_global_context(query: str = "", limit: int = 10) -> dict[str, Any]:
+    LIFE_PULSE.record_action("system_bodega_global_context")
+    from triade.core.bodega_global_context import build_bodega_global_context
+    return build_bodega_global_context(
+        user_input=query or "contexto global",
+        limit=limit,
+        semantic_recall_enabled=True,
+    )
+
+
 # ── Federación ──────────────────────────────────────────────────────────
 
 @router.get("/api/federation/resource-lease")

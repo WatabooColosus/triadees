@@ -35,3 +35,5 @@ def test_runtime_api_endpoints(monkeypatch, tmp_path):
     assert client.get("/api/system/living-report").status_code == 200
     assert client.get("/api/neurons/stable-audit").status_code == 200
     assert client.post("/api/neurons/stable-audit/apply").status_code == 200
+    assert client.get("/api/bodega/global-context", params={"query": "test"}).status_code == 200
+    assert client.get("/api/system/bodega/global-context", params={"query": "test"}).status_code == 200

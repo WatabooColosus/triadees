@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.bodega import Bodega
+from triade.core.bodega_global_context import build_bodega_global_context
 from triade.core.contracts import InputPacket
 from triade.core.error_bus import query_internal_errors
 from triade.core.internal_runtime import build_internal_context_snapshot, get_internal_runtime_state
@@ -138,15 +139,35 @@ def build_living_context_for_chat(
         "no_shell_by_default": True,
         "no_network_by_default": True,
     }
+    try:
+        bodega_global = build_bodega_global_context(
+            user_input=user_input,
+            db_path=db_path,
+            runs_dir=runs_dir,
+            limit=limit,
+            semantic_recall_enabled=True,
+        )
+    except Exception as exc:
+        bodega_global = {
+            "status": "error",
+            "error": str(exc),
+            "memory_confidence": "low",
+            "recommended_context_policy": "ask_or_operate_with_limited_memory",
+        }
+    global_used = bodega_global.get("status") == "ok"
     return {
         "status": "ok",
         "chat_context": {
             "user_input": user_input,
             "query_mode": "living_context",
             "recent_memory_window": len(episodes),
+            "bodega_global_used": global_used,
+            "memory_confidence": bodega_global.get("memory_confidence", "low"),
+            "recommended_context_policy": bodega_global.get("recommended_context_policy", "ask_or_operate_with_limited_memory"),
         },
         "internal_context": internal_context,
         "memory_context": memory_context,
+        "bodega_global_context": bodega_global,
         "mission_context": mission_context,
         "qualia_context": qualia_context,
         "trust_policy": trust_policy,
