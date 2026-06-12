@@ -421,8 +421,14 @@ class LearningPipeline:
                 "consolidation_trust": trust_store.get_trust("consolidation"),
                 "permissions": trust_store.get_permissions("consolidation"),
             }
-        except Exception:
-            pass
+        except Exception as exc:
+            from triade.core.error_bus import record_internal_error
+            record_internal_error(
+                "learning_pipeline.doctor.trust",
+                exc,
+                payload={"module": __name__, "function": "doctor", "operation": "load_trust_info"},
+                db_path=self.db_path,
+            )
         return {
             "status": "ok",
             "mode": "learning-pipeline-C",

@@ -11,6 +11,7 @@ from typing import Any, Callable
 
 from triade.core.background_neurons import candidates_from_system_debt
 from triade.core.contracts import CrystalPacket, MemoryPacket, PlanPacket, SignalPacket, utc_now
+from triade.core.error_bus import record_internal_error
 from triade.core.experimental_neuron_runtime import run_experimental_neurons
 from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.core.neuron_autopromoter import NeuronAutopromoter
@@ -132,6 +133,13 @@ class WorkerLoop:
             (artifact_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
             return {"status": status, "run_ref": run_ref, "artifact_dir": str(artifact_dir), **summary}
         except Exception as exc:
+            record_internal_error(
+                "worker_loop.run",
+                exc,
+                run_id=run_ref,
+                payload={"module": __name__, "function": "run", "operation": "worker_loop_main"},
+                db_path=self.db_path,
+            )
             summary["errors"].append(str(exc))
             self.store.finish_worker_run(run_ref, "failed", summary, error=str(exc))
             self.store.set_state("workers", {"status": "failed", "last_run_ref": run_ref, "error": str(exc), "finished_at": utc_now()})
@@ -188,6 +196,19 @@ class WorkerLoop:
                 self.store.finish_task(task.id or 0, result.get("status", "completed"), result, safety.status, run_ref=run_ref)
                 self.store.record_event("task_completed", f"{task.task_type} completada", run_ref=run_ref, task_id=task.id, task_type=task.task_type, payload=result)
             except Exception as exc:
+                record_internal_error(
+                    "worker_loop.execute_task",
+                    exc,
+                    run_id=run_ref,
+                    task_id=task.id,
+                    payload={
+                        "module": __name__,
+                        "function": "_execute_task",
+                        "operation": "execute_worker_task_handler",
+                        "task_type": task.task_type,
+                    },
+                    db_path=self.db_path,
+                )
                 result = {"status": "error", "task_type": task.task_type, "error": str(exc)}
                 self.store.finish_task(task.id or 0, "failed", result, safety.status, error=str(exc), run_ref=run_ref)
                 self.store.record_event("task_failed", str(exc), run_ref=run_ref, task_id=task.id, task_type=task.task_type, status="error", payload=result)
@@ -234,12 +255,31 @@ class WorkerLoop:
             result = bus.publish_experience(exp, ingest_learning=bool(proposed_learning))
             return {"published": True, "experience_id": exp.id, "state": result.get("state", {}).to_dict() if hasattr(result.get("state"), "to_dict") else result.get("state")}
         except Exception as exc:
+            record_internal_error(
+                "worker_loop.qualia_publish",
+                exc,
+                run_id=run_ref,
+                payload={
+                    "module": __name__,
+                    "function": "_publish_qualia_experience",
+                    "operation": "publish_worker_qualia_experience",
+                    "task_type": task_type,
+                },
+                db_path=self.db_path,
+            )
             return {"published": False, "error": str(exc)}
 
     def _pulse_check(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         from apps.services import build_system_pulse
         pulse = build_system_pulse(sync_relay=False)
-        return {"status": "completed", "pulse": pulse, "policy": "local_only_no_external_relay_sync"}
+        qualia = self._publish_qualia_experience(
+            run_ref,
+            "pulse_check",
+            "worker_pulse",
+            "Worker ejecutó verificación de pulso local.",
+            extracted_pattern=str({"status": pulse.get("status"), "mode": pulse.get("mode")})[:1000],
+        )
+        return {"status": "completed", "pulse": pulse, "policy": "local_only_no_external_relay_sync", "qualia": qualia}
 
     def _pending_learning_review(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         pipe = LearningPipeline(db_path=self.db_path)
@@ -252,7 +292,17 @@ class WorkerLoop:
             else:
                 processed.append(pipe.evaluate(candidate["candidate_id"]))
         for candidate in pipe.list_candidates(status="evaluated", limit=5):
-            processed.append(pipe.verify(candidate["candidate_id"]))
+            verified = pipe.verify(candidate["candidate_id"])
+            processed.append(verified)
+            if verified.get("status") == "verified" and verified.get("source_ref"):
+                try:
+                    processed.append(pipe.mark_used_in_run(
+                        verified["candidate_id"],
+                        run_ref,
+                        outcome_score=0.80,
+                    ))
+                except ValueError as exc:
+                    processed.append({"candidate_id": verified.get("candidate_id"), "action": "mark_used_skipped", "reason": str(exc)})
         qualia = self._publish_qualia_experience(
             run_ref, "pending_learning_review", "worker_learning",
             f"Worker revisó {len(processed)} candidatos de aprendizaje.",

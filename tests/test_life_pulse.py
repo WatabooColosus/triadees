@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from unittest.mock import patch
 
 from triade.core.life_pulse import LifePulseEngine
+from triade.core.error_bus import query_internal_errors
 
 
 def make_life_db(tmp_path: Path) -> Path:
@@ -73,3 +75,24 @@ def test_life_pulse_records_actions_without_db_write(tmp_path: Path) -> None:
 
     assert payload["actions"]["doctor"] == 2
     assert payload["counters"]["actions_observed"] == 2
+
+
+def test_continuous_runner_records_controlled_error(tmp_path: Path) -> None:
+    db_path = make_life_db(tmp_path)
+    engine = LifePulseEngine(
+        db_path=db_path,
+        runs_dir=tmp_path / "runs",
+        continuous_run_enabled=True,
+        continuous_interval_seconds=0,
+        continuous_max_cycles=1,
+        autonomy_level="form_candidates",
+    )
+
+    with patch("triade.core.background_neurons.candidates_from_system_debt", side_effect=RuntimeError("boom candidate formation")), \
+            patch.object(engine._stop, "wait", return_value=True):
+        engine._continuous_loop()
+
+    errors = query_internal_errors(scope="life_pulse.continuous.candidate_formation", db_path=db_path)
+    assert errors
+    assert errors[0]["payload"]["context"]["operation"] == "candidates_from_system_debt_and_form_candidates"
+    assert engine.snapshot()["continuous_runner"]["last_error"] == "boom candidate formation"

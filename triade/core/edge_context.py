@@ -198,8 +198,13 @@ def parse_intent(text: str, fallback_text: str = "") -> Dict[str, Any]:
                 "risk": risk,
                 "needs_tool": needs_tool,
             }
-    except Exception:
-        pass
+    except Exception as exc:
+        from triade.core.error_bus import record_internal_error
+        record_internal_error(
+            "edge_context.parse_model_output",
+            exc,
+            payload={"module": __name__, "function": "parse_edge_context", "operation": "parse_model_json"},
+        )
 
     # Fallback determinista desde el texto original, no desde la salida débil del LLM.
     return heuristic_intent(fallback_text or text, raw=text)

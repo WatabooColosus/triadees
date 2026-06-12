@@ -272,8 +272,14 @@ class HypothalamusStateStore:
         try:
             reward_count = len(self.reinforcement_history(1000))
             avg_reward = self.avg_reward(50)
-        except Exception:
-            pass
+        except Exception as exc:
+            from triade.core.error_bus import record_internal_error
+            record_internal_error(
+                "hypothalamus_store.doctor.reinforcement",
+                exc,
+                payload={"module": __name__, "function": "doctor", "operation": "load_reinforcement_summary"},
+                db_path=self.db_path,
+            )
         return {
             "status": "ok",
             "count": self.count(),

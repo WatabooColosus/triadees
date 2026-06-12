@@ -10,6 +10,7 @@ import pytest
 
 from triade.workers.mission_planner import MissionPlanner, PlannedTask
 from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
+from triade.core.error_bus import query_internal_errors
 
 
 def make_db(tmp_path: Path) -> Path:
@@ -34,6 +35,7 @@ def test_planned_task_to_dict() -> None:
     assert d["task_type"] == "pending_learning_review"
     assert d["priority"] == 20
     assert d["reason"] == "Test reason"
+    assert "planner_score" in d
     assert d["related_neuron_id"] == 5
     assert d["related_candidate_id"] == 10
     assert d["payload"]["key"] == "value"
@@ -45,6 +47,8 @@ def test_plan_empty_db_returns_minimal_tasks(tmp_path: Path) -> None:
     tasks = planner.plan_cycle()
     assert isinstance(tasks, list)
     assert all(isinstance(t, PlannedTask) for t in tasks)
+    assert [t.task_type for t in tasks] == ["pulse_check"]
+    assert all(t.reason and t.source and t.planner_score >= 0 for t in tasks)
 
 
 def test_plan_pending_learning(tmp_path: Path) -> None:
@@ -124,3 +128,17 @@ def test_plan_respects_limit(tmp_path: Path) -> None:
     planner = MissionPlanner(db_path=db_path)
     tasks = planner.plan_cycle()
     assert len(tasks) <= 15
+
+
+def test_plan_records_internal_error_when_query_fails(tmp_path: Path) -> None:
+    db_path = make_db(tmp_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("DROP TABLE learning_queue")
+
+    planner = MissionPlanner(db_path=db_path)
+    tasks = planner.plan_cycle()
+
+    assert any(t.task_type == "pulse_check" for t in tasks)
+    errors = query_internal_errors(scope="mission_planner.baseline", db_path=db_path)
+    assert errors
+    assert errors[0]["payload"]["context"]["operation"] == "baseline_sql_queries"

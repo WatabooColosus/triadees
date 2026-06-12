@@ -24,11 +24,12 @@ async function api(path: string, opts?: RequestInit) {
   return res.json()
 }
 
-type Tab = 'chat' | 'system' | 'router' | 'models' | 'federation' | 'memory' | 'neurons'
+type Tab = 'chat' | 'system' | 'observability' | 'router' | 'models' | 'federation' | 'memory' | 'neurons'
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'chat', label: 'Chat', icon: '💬' },
   { key: 'system', label: 'Sistema', icon: '⚙' },
+  { key: 'observability', label: 'Observabilidad', icon: '⌁' },
   { key: 'router', label: 'Router', icon: '🔀' },
   { key: 'models', label: 'Modelos', icon: '🧠' },
   { key: 'federation', label: 'Federación', icon: '🌐' },
@@ -154,6 +155,7 @@ export default function App() {
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {tab === 'chat' && <ChatTab apiKey={apiKey} />}
         {tab === 'system' && <SystemTab />}
+        {tab === 'observability' && <ObservabilityTab />}
         {tab === 'router' && <RouterTab />}
         {tab === 'models' && <ModelsTab />}
         {tab === 'federation' && <FederationTab apiKey={apiKey} />}
@@ -468,6 +470,111 @@ function ChatTab({ apiKey }: { apiKey: string }) {
         </button>
       </div>
     </div>
+  )
+}
+
+/* ─── Observability ───────────────────────────────── */
+
+function ObservabilityTab() {
+  const [data, setData] = useState<any>(null)
+  const [error, setError] = useState('')
+
+  const fetch = useCallback(() => {
+    Promise.all([
+      api('/api/internal/errors?limit=10'),
+      api('/api/workers/events?limit=10'),
+      api('/api/neurons/missions?status=experimental&limit=10'),
+      api('/api/learning/pending?limit=20'),
+      api('/api/system/life'),
+    ]).then(([errors, workerEvents, missions, learning, life]) => {
+      setData({ errors, workerEvents, missions, learning, life })
+      setError('')
+    }).catch(e => setError(e.message))
+  }, [])
+
+  useEffect(() => { fetch(); const id = setInterval(fetch, 10000); return () => clearInterval(id) }, [fetch])
+
+  if (error) return <PageError error={error} />
+  if (!data) return <PageLoading />
+
+  const usedLearning = (data.learning?.candidates || [])
+    .filter((c: any) => Number(c.run_use_count || 0) > 0)
+    .slice(0, 8)
+  const runner = data.life?.continuous_runner || {}
+
+  return (
+    <Page title="Observabilidad" subtitle="Errores, misiones, aprendizaje y runner continuo">
+      <Grid cols={2}>
+        <Card title={`Errores internos recientes (${data.errors?.count || 0})`} color="#ef4444">
+          {(data.errors?.errors || []).length ? (
+            <ListRows items={data.errors.errors.slice(0, 8)} render={(e: any) => (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <strong>{e.task_type || e.payload?.scope || 'internal_error'}</strong>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{e.created_at}</span>
+                </div>
+                <div style={{ color: 'var(--text-secondary)' }}>{e.message}</div>
+              </>
+            )} />
+          ) : <span style={{ color: 'var(--text-muted)' }}>Sin errores internos registrados</span>}
+        </Card>
+        <Card title="Continuous Runner" color={runner.running ? '#22c55e' : '#eab308'}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+            <Badge status={runner.running ? 'active' : runner.enabled ? 'stale' : 'blocked'} />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>ciclos {runner.cycles || 0}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>intervalo {runner.interval_seconds || 0}s</span>
+          </div>
+          <KVTable data={{
+            enabled: runner.enabled,
+            running: runner.running,
+            last_cycle_at: runner.last_cycle_at,
+            last_error: runner.last_error,
+            cycles_per_minute: runner.cycles_per_minute,
+          }} />
+        </Card>
+        <Card title={`Misiones neuronales activas (${data.missions?.count || 0})`} color="#8b5cf6">
+          {(data.missions?.missions || []).length ? (
+            <ListRows items={data.missions.missions} render={(m: any) => (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <strong>{m.title}</strong>
+                  <Badge status={m.status} />
+                </div>
+                <div style={{ color: 'var(--text-secondary)' }}>{m.domain}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>mission_id {m.id} · neuron_id {m.neuron_id || '—'}</div>
+              </>
+            )} />
+          ) : <span style={{ color: 'var(--text-muted)' }}>Sin misiones experimentales activas</span>}
+        </Card>
+        <Card title={`Aprendizajes usados recientemente (${usedLearning.length})`} color="#14b8a6">
+          {usedLearning.length ? (
+            <ListRows items={usedLearning} render={(c: any) => (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <strong>{c.title || c.candidate_id}</strong>
+                  <Badge status={c.status} />
+                </div>
+                <div style={{ color: 'var(--text-secondary)' }}>{c.domain || c.source_type}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>uses {c.run_use_count} · {c.candidate_id}</div>
+              </>
+            )} />
+          ) : <span style={{ color: 'var(--text-muted)' }}>Sin candidatos verificados usados recientemente</span>}
+        </Card>
+        <Card title="Eventos de workers" color="#3b82f6">
+          {(data.workerEvents?.events || []).length ? (
+            <ListRows items={data.workerEvents.events.slice(0, 8)} render={(e: any) => (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <strong>{e.event_type || e.task_type}</strong>
+                  <Badge status={e.status || 'ok'} />
+                </div>
+                <div style={{ color: 'var(--text-secondary)' }}>{e.message}</div>
+              </>
+            )} />
+          ) : <span style={{ color: 'var(--text-muted)' }}>Sin eventos recientes</span>}
+        </Card>
+      </Grid>
+    </Page>
   )
 }
 
@@ -1076,6 +1183,24 @@ function Grid({ cols, children }: { cols: number; children: React.ReactNode }) {
       display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12,
     }}>
       {children}
+    </div>
+  )
+}
+
+function ListRows({ items, render }: { items: any[]; render: (item: any, index: number) => React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {items.map((item, i) => (
+        <div key={item.id || item.candidate_id || i} style={{
+          padding: '8px 10px',
+          background: 'var(--bg-base)',
+          borderRadius: 6,
+          border: '1px solid var(--border)',
+          fontSize: 12,
+        }}>
+          {render(item, i)}
+        </div>
+      ))}
     </div>
   )
 }

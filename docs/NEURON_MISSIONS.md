@@ -86,11 +86,11 @@ mission_id = store.create_mission(mission)
 
 El `MissionPlanner` lee el estado real del sistema cada ciclo:
 
-1. **Tareas base** (siempre se ejecutan):
-   - `pulse_check` — Verificación de pulso del sistema
-   - `pending_learning_review` — Revisión de pipeline de aprendizaje
-   - `semantic_memory_governance` — Gobierno de memoria semántica
-   - `neuron_autopromotion` — Revisión de autopromoción neuronal
+1. **Baseline condicional**:
+   - `pulse_check` — siempre, verificación base de pulso del sistema
+   - `pending_learning_review` — solo si hay candidatos `candidate`, `evaluated` o `verified`
+   - `semantic_memory_governance` — solo si hay documentos `candidate` o `experimental`
+   - `neuron_autopromotion` — solo si hay neuronas promovibles con training o evidencia
 
 2. **Tareas condicionales** (según estado):
    - Candidatos de aprendizaje pendientes → `pending_learning_review`
@@ -101,12 +101,17 @@ El `MissionPlanner` lee el estado real del sistema cada ciclo:
    - Deuda del sistema → `system_debt_scan`
    - Candidatos neuronales sin training → `neuron_candidate_formation`
 
-Cada tarea encolada incluye en su payload:
+Cada tarea planificada incluye:
 - `reason`: Por qué se programó esta tarea
 - `source`: De dónde viene la decisión (mission_planner, mission_planner_baseline, etc.)
-- `planner_score`: Prioridad numérica (menor = más urgente)
+- `planner_score`: Score normalizado del planner (0.0–1.0)
 - `related_neuron_id`: ID de la neurona relacionada (opcional)
 - `related_candidate_id`: ID del candidato relacionado (opcional)
+
+Si una consulta del planner falla, el ciclo no muere: se registra un
+`internal_error` en `worker_events` mediante `record_internal_error()` con
+`module`, `function`, `operation` y contexto mínimo. El endpoint
+`/api/internal/errors?scope=mission_planner.baseline` permite auditarlo.
 
 ## Cómo Aprende
 
@@ -114,6 +119,20 @@ Cada tarea encolada incluye en su payload:
 2. Los resultados se registran como **evidencia** en `neuron_evidence`
 3. Los **ciclos de trabajo** se registran en `neuron_work_cycles`
 4. Los **scores** se calculan y registran en `neuron_scores`
+5. Si una respuesta usa aprendizaje verificado, `record_learning_usage_from_output()`
+   marca el candidato con `mark_used_in_run()` y deja trazabilidad en
+   `output.memory_diff.traceability`.
+
+La trazabilidad expuesta por run contiene:
+- `used_learning_candidate_ids`
+- `used_semantic_document_ids`
+- `used_neuron_mission_ids`
+- `evidence_refs`
+- `match_sources`
+- `heuristic_matches`
+
+Cuando el uso de aprendizaje se detecta por overlap heurístico, queda marcado
+con `heuristic_match=True` y `match_source="heuristic"`.
 
 ## Cuándo Dice "Ya Aprendí"
 
@@ -152,9 +171,12 @@ El `NeuronAutopromoter` evalúa:
 |--------|------|-------------|
 | GET | `/api/neurons/missions` | Lista misiones (filtro por status) |
 | POST | `/api/neurons/missions` | Crea nueva misión |
-| GET | `/api/neurons/missions/{neuron_id}` | Misiones de una neurona |
-| GET | `/api/neurons/missions/{neuron_id}/cycles` | Ciclos de trabajo |
-| GET | `/api/neurons/missions/{neuron_id}/evidence` | Evidencia reciente |
+| GET | `/api/neurons/missions/{id}` | Detalle por mission_id; fallback por neuron_id |
+| GET | `/api/neurons/missions/{id}/cycles` | Ciclos por mission_id; fallback por neuron_id |
+| GET | `/api/neurons/missions/{id}/evidence` | Evidencia por mission_id; fallback por neuron_id |
+| GET | `/api/neurons/missions/{id}/scores` | Scores por mission_id; fallback por neuron_id |
+| GET | `/api/internal/errors?scope=` | Errores internos registrados |
+| GET | `/api/workers/events` | Eventos recientes de workers |
 
 ## Tablas SQLite
 

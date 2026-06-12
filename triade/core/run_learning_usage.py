@@ -219,8 +219,12 @@ def _extract_explicit_candidate_ids(output_packet: Any) -> set[str | int]:
                 ids.add(item)
             elif isinstance(item, dict) and "candidate_id" in item:
                 ids.add(item["candidate_id"])
-    except Exception:
-        pass
+    except Exception as exc:
+        record_internal_error(
+            "learning_usage.extract_explicit_candidate_ids",
+            exc,
+            payload={"module": __name__, "function": "_extract_explicit_candidate_ids", "operation": "parse_output_memory_diff"},
+        )
     return ids
 
 
@@ -246,8 +250,12 @@ def _extract_semantic_document_ids(memory_packet: Any) -> set[str]:
             for m in matches:
                 if isinstance(m, dict) and "document_id" in m:
                     ids.add(str(m["document_id"]))
-    except Exception:
-        pass
+    except Exception as exc:
+        record_internal_error(
+            "learning_usage.extract_semantic_document_ids",
+            exc,
+            payload={"module": __name__, "function": "_extract_semantic_document_ids", "operation": "parse_memory_semantic_matches"},
+        )
     return ids
 
 
@@ -264,8 +272,12 @@ def _extract_evidence_refs(output_packet: Any) -> list[str]:
         raw_refs = mem_diff.get("evidence_refs") or []
         if isinstance(raw_refs, list):
             refs = [str(r) for r in raw_refs if r]
-    except Exception:
-        pass
+    except Exception as exc:
+        record_internal_error(
+            "learning_usage.extract_evidence_refs",
+            exc,
+            payload={"module": __name__, "function": "_extract_evidence_refs", "operation": "parse_output_evidence_refs"},
+        )
     return refs
 
 

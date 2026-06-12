@@ -29,6 +29,7 @@ from triade.memory.auto_identity_store import AutoIdentityStore
 from triade.memory.hypothalamus_store import HypothalamusStateStore, fatigue_decay
 from triade.memory.trust_store import TrustLevelStore
 
+from .error_bus import record_internal_error
 from .runner import TriadeRunner
 from .self_reflection import SelfReflectionEngine
 
@@ -84,6 +85,26 @@ class LifePulseEngine:
     _last_promotion_at: float | None = None
     _last_promotion_name: str | None = None
     _continuous_backoff_seconds: float = 0.0
+
+    def _record_error(
+        self,
+        scope: str,
+        error: Exception | str,
+        *,
+        function: str,
+        operation: str,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        context = {
+            "module": __name__,
+            "function": function,
+            "operation": operation,
+            "continuous_cycle": self._continuous_cycle_count,
+            "autonomy_level": self.autonomy_level,
+        }
+        if payload:
+            context.update(payload)
+        record_internal_error(scope, error, payload=context, db_path=self.db_path)
 
     @classmethod
     def from_env(cls) -> "LifePulseEngine":
@@ -282,7 +303,14 @@ class LifePulseEngine:
     @staticmethod
     def _light_diagnostic(neuron: dict[str, Any], match: dict[str, Any]) -> dict[str, Any]:
         # kept for backward compatibility
-        pass
+        return {
+            "diagnosis": [
+                f"Neurona {neuron.get('name', 'unknown')} evaluada en diagnóstico ligero.",
+                f"Match activo: {bool(match.get('active')) if isinstance(match, dict) else False}.",
+            ],
+            "test_plan": ["Registrar observación ligera y esperar evidencia adicional."],
+            "human_review_request": False,
+        }
 
     def _loop(self) -> None:
         self.tick()
@@ -325,11 +353,21 @@ class LifePulseEngine:
                 # 1. Generar candidatos desde deuda del sistema (requiere form_candidates+)
                 if AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("form_candidates"):
                     run_path = Path(str(self.runs_dir)) / f"pulse-{int(time.time())}"
-                    raw_candidates = candidates_from_system_debt(
-                        pulse_summary=self._build_system_dict(),
-                        system_events=[],
-                    )
-                    formed = form_candidates(raw_candidates)
+                    try:
+                        pulse_summary = self._build_system_dict()
+                        raw_candidates = candidates_from_system_debt(
+                            pulse_summary=pulse_summary,
+                            system_events=[],
+                        )
+                        formed = form_candidates(raw_candidates)
+                    except Exception as exc:
+                        self._record_error(
+                            "life_pulse.continuous.candidate_formation",
+                            exc,
+                            function="_continuous_loop",
+                            operation="candidates_from_system_debt_and_form_candidates",
+                        )
+                        raise
                 else:
                     formed = []
 
@@ -408,8 +446,14 @@ class LifePulseEngine:
                                 required_human_review=False,
                                 policy="trainer_auto_approves",
                             ))
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            self._record_error(
+                                "life_pulse.continuous.training",
+                                exc,
+                                function="_continuous_loop",
+                                operation="train_candidate_without_training",
+                                payload={"neuron_id": n.get("id"), "neuron_name": n.get("name")},
+                            )
 
                 # 3. Autopromoción (requiere promote_experimental+)
                 if AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("promote_experimental"):
@@ -424,15 +468,28 @@ class LifePulseEngine:
                 # 4. Activar neuronas experimental periódicamente (requiere promote_experimental+)
                 if AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("promote_experimental"):
                     if tick_counter % 3 == 0:
-                        self._activate_experimental_light()
+                        try:
+                            self._activate_experimental_light()
+                        except Exception as exc:
+                            self._record_error(
+                                "life_pulse.continuous.experimental_activation",
+                                exc,
+                                function="_continuous_loop",
+                                operation="activate_experimental_light",
+                            )
 
                 # 5. Recomputar trust cada 10 ciclos
                 if tick_counter % 10 == 0:
                     try:
                         from triade.memory.trust_store import TrustLevelStore
                         TrustLevelStore(db_path=self.db_path).recompute_all()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        self._record_error(
+                            "life_pulse.continuous.recompute_trust",
+                            exc,
+                            function="_continuous_loop",
+                            operation="trust_recompute_all",
+                        )
 
                 # 6. Cada ~20 ciclos, un ciclo cognitivo completo para reflexión profunda
                 if runner_pool_cycle >= 20:
@@ -445,8 +502,13 @@ class LifePulseEngine:
                             source="system_pulse_continuous",
                             propose_neurons=True,
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        self._record_error(
+                            "life_pulse.continuous.runner_run",
+                            exc,
+                            function="_continuous_loop",
+                            operation="triade_runner_deep_cycle",
+                        )
 
                 elapsed_ms = int((time.time() - cycle_start) * 1000)
                 with self._lock:
@@ -460,6 +522,13 @@ class LifePulseEngine:
 
             except Exception as exc:
                 elapsed_ms = int((time.time() - cycle_start) * 1000)
+                self._record_error(
+                    "life_pulse.continuous.loop",
+                    exc,
+                    function="_continuous_loop",
+                    operation="continuous_cycle",
+                    payload={"tick_counter": tick_counter},
+                )
                 with self._lock:
                     self._continuous_cycle_count += 1
                     self._last_continuous_at = time.time()
@@ -492,7 +561,13 @@ class LifePulseEngine:
                 "episodes_count": counts.get("episodes", 0),
                 "continuous_cycle": self._continuous_cycle_count,
             }
-        except Exception:
+        except Exception as exc:
+            self._record_error(
+                "life_pulse.build_system_dict",
+                exc,
+                function="_build_system_dict",
+                operation="compose_continuous_pulse_dict",
+            )
             return {"source": "continuous_pulse", "mood": "neutral"}
 
     def _build_system_pulse_text(self) -> str:
@@ -512,7 +587,13 @@ class LifePulseEngine:
                 f"Propongo, formo y promuevo neuronas autonomamente. "
                 f"Siempre encendida, nunca quieta."
             )
-        except Exception:
+        except Exception as exc:
+            self._record_error(
+                "life_pulse.build_system_pulse_text",
+                exc,
+                function="_build_system_pulse_text",
+                operation="compose_continuous_pulse_text",
+            )
             return "Soy Triade, pulso vital continuo. Auto-reflexion y formacion autonoma."
 
 
@@ -572,14 +653,24 @@ class LifePulseEngine:
                 if len(self._stream_of_consciousness) > 10:
                     self._stream_of_consciousness = self._stream_of_consciousness[-10:]
                 self._counters["thoughts_generated"] += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            record_internal_error(
+                "life_pulse.generate_thought",
+                exc,
+                payload={"module": __name__, "function": "_generate_thought", "operation": "append_stream_of_consciousness"},
+                db_path=self.db_path,
+            )
 
     def _recompute_trust(self) -> None:
         try:
             TrustLevelStore(db_path=self.db_path).recompute_all()
-        except Exception:
-            pass
+        except Exception as exc:
+            record_internal_error(
+                "life_pulse.recompute_trust",
+                exc,
+                payload={"module": __name__, "function": "_recompute_trust", "operation": "trust_recompute_all"},
+                db_path=self.db_path,
+            )
 
     def _get_trust_levels(self) -> dict[str, Any]:
         try:
@@ -591,7 +682,13 @@ class LifePulseEngine:
         try:
             store = AutoIdentityStore(db_path=self.db_path)
             return store.doctor()
-        except Exception:
+        except Exception as exc:
+            record_internal_error(
+                "life_pulse.check_auto_identity",
+                exc,
+                payload={"module": __name__, "function": "_check_auto_identity", "operation": "auto_identity_doctor"},
+                db_path=self.db_path,
+            )
             return None
 
     def _get_auto_identity(self) -> dict[str, Any]:
@@ -609,8 +706,13 @@ class LifePulseEngine:
                 decayed = fatigue_decay(latest.fatigue, float(self.interval_seconds))
                 if decayed != latest.fatigue:
                     store.update_fatigue(decayed)
-        except Exception:
-            pass
+        except Exception as exc:
+            record_internal_error(
+                "life_pulse.update_emotional_rest",
+                exc,
+                payload={"module": __name__, "function": "_update_emotional_rest", "operation": "decay_hypothalamus_fatigue"},
+                db_path=self.db_path,
+            )
 
     def _get_emotional_state(self) -> dict[str, Any]:
         try:

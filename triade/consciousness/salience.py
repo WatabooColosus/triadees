@@ -71,8 +71,14 @@ class SalienceEngine:
                     valence, arousal = float(row[0]), float(row[1])
                     congruence = 1.0 - abs(valence - 0.5) * 2
                     return max(0.0, min(1.0, base + congruence * 0.3 + arousal * 0.2))
-        except Exception:
-            pass
+        except Exception as exc:
+            from triade.core.error_bus import record_internal_error
+            record_internal_error(
+                "salience.emotional",
+                exc,
+                payload={"module": __name__, "function": "_emotional_salience", "operation": "load_hypothalamus_state"},
+                db_path=self.db_path,
+            )
         return base
 
     def _goal_salience(self, user_input: str) -> float:
@@ -91,7 +97,14 @@ class SalienceEngine:
                     if desc and any(w in text_lower for w in desc.lower().split()):
                         matches += 0.5
                 return max(0.1, min(1.0, matches / len(active)))
-        except Exception:
+        except Exception as exc:
+            from triade.core.error_bus import record_internal_error
+            record_internal_error(
+                "salience.goal",
+                exc,
+                payload={"module": __name__, "function": "_goal_salience", "operation": "load_active_goals"},
+                db_path=self.db_path,
+            )
             return 0.1
 
     def _novelty_salience(self, user_input: str) -> float:
@@ -114,7 +127,14 @@ class SalienceEngine:
                     return 0.5
                 novelty = 1.0 - (avg_overlap / max_possible)
                 return max(0.0, min(1.0, novelty))
-        except Exception:
+        except Exception as exc:
+            from triade.core.error_bus import record_internal_error
+            record_internal_error(
+                "salience.novelty",
+                exc,
+                payload={"module": __name__, "function": "_novelty_salience", "operation": "load_recent_runs"},
+                db_path=self.db_path,
+            )
             return 0.5
 
     @staticmethod

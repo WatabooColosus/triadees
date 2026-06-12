@@ -187,6 +187,11 @@ def workers_events(limit: int = 50, run_ref: str | None = None) -> dict[str, Any
     return _worker_service().events(limit=limit, run_ref=run_ref)
 
 
+@router.get("/api/workers/events")
+def api_workers_events(limit: int = 50, run_ref: str | None = None) -> dict[str, Any]:
+    return workers_events(limit=limit, run_ref=run_ref)
+
+
 @router.get("/workers/queue")
 def workers_queue(status: str | None = None, limit: int = 50) -> dict[str, Any]:
     LIFE_PULSE.record_action("workers_queue")
@@ -414,47 +419,87 @@ def create_neuron_mission(body: dict[str, Any]) -> dict[str, Any]:
     return {"status": "ok", "mission": created.to_dict() if created else None, "mission_id": mission_id}
 
 
-@router.get("/api/neurons/missions/{neuron_id}")
-def get_neuron_missions(neuron_id: int) -> dict[str, Any]:
+@router.get("/api/neurons/missions/{mission_or_neuron_id}")
+def get_neuron_missions(mission_or_neuron_id: int) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMissionStore
     store = NeuronMissionStore()
-    missions = store.get_missions_by_neuron(neuron_id)
+    mission = store.get_mission(mission_or_neuron_id)
+    if mission:
+        score = store.latest_score(mission_or_neuron_id)
+        return {
+            "status": "ok",
+            "lookup": "mission_id",
+            "mission": mission.to_dict(),
+            "latest_score": score.to_dict() if score else None,
+        }
+    missions = store.get_missions_by_neuron(mission_or_neuron_id)
     return {
         "status": "ok",
+        "lookup": "neuron_id",
         "count": len(missions),
         "missions": [m.to_dict() for m in missions],
     }
 
 
-@router.get("/api/neurons/missions/{neuron_id}/cycles")
-def get_neuron_mission_cycles(neuron_id: int, limit: int = 20) -> dict[str, Any]:
+@router.get("/api/neurons/missions/{mission_or_neuron_id}/cycles")
+def get_neuron_mission_cycles(mission_or_neuron_id: int, limit: int = 20) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMissionStore
     store = NeuronMissionStore()
-    missions = store.get_missions_by_neuron(neuron_id)
+    mission = store.get_mission(mission_or_neuron_id)
+    missions = [mission] if mission else store.get_missions_by_neuron(mission_or_neuron_id)
     all_cycles = []
     for m in missions:
+        if m is None:
+            continue
         cycles = store.list_cycles(m.id, limit=limit)
         all_cycles.extend([c.to_dict() for c in cycles])
     return {
         "status": "ok",
+        "lookup": "mission_id" if mission else "neuron_id",
         "count": len(all_cycles),
         "cycles": all_cycles[:limit],
     }
 
 
-@router.get("/api/neurons/missions/{neuron_id}/evidence")
-def get_neuron_mission_evidence(neuron_id: int, limit: int = 20) -> dict[str, Any]:
+@router.get("/api/neurons/missions/{mission_or_neuron_id}/evidence")
+def get_neuron_mission_evidence(mission_or_neuron_id: int, limit: int = 20) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMissionStore
     store = NeuronMissionStore()
-    missions = store.get_missions_by_neuron(neuron_id)
+    mission = store.get_mission(mission_or_neuron_id)
+    missions = [mission] if mission else store.get_missions_by_neuron(mission_or_neuron_id)
     all_evidence = []
     for m in missions:
+        if m is None:
+            continue
         evidence = store.list_evidence(m.id, limit=limit)
         all_evidence.extend([e.to_dict() for e in evidence])
     return {
         "status": "ok",
+        "lookup": "mission_id" if mission else "neuron_id",
         "count": len(all_evidence),
         "evidence": all_evidence[:limit],
+    }
+
+
+@router.get("/api/neurons/missions/{mission_or_neuron_id}/scores")
+def get_neuron_mission_scores_compat(mission_or_neuron_id: int, limit: int = 20) -> dict[str, Any]:
+    from triade.core.neuron_missions import NeuronMissionStore
+    store = NeuronMissionStore()
+    mission = store.get_mission(mission_or_neuron_id)
+    mission_ids = [mission_or_neuron_id] if mission else [m.id for m in store.get_missions_by_neuron(mission_or_neuron_id) if m.id]
+    scores = []
+    with store._connect() as conn:
+        for mission_id in mission_ids:
+            rows = conn.execute(
+                "SELECT * FROM neuron_scores WHERE mission_id = ? ORDER BY id DESC LIMIT ?",
+                (mission_id, limit),
+            ).fetchall()
+            scores.extend([store._score_from_row(r).to_dict() for r in rows])
+    return {
+        "status": "ok",
+        "lookup": "mission_id" if mission else "neuron_id",
+        "count": len(scores[:limit]),
+        "scores": scores[:limit],
     }
 
 

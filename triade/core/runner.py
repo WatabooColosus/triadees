@@ -695,6 +695,16 @@ def _build_traceability(
         if t.get("candidate_id") and not t.get("error")
     ]
     trace["learning_match_sources"] = learning_usage_result.get("matched_by_source", {})
+    trace["match_sources"] = learning_usage_result.get("matched_by_source", {})
+    trace["heuristic_matches"] = [
+        {
+            "candidate_id": t.get("candidate_id"),
+            "match_source": t.get("match_source"),
+            "reason": t.get("reason"),
+        }
+        for t in (learning_usage_result.get("trace") or [])
+        if t.get("heuristic_match") is True and not t.get("error")
+    ]
 
     # ── Semantic document IDs usados ──
     trace["used_semantic_document_ids"] = []
@@ -709,8 +719,14 @@ def _build_traceability(
                         for m in matches
                         if isinstance(m, dict) and m.get("document_id")
                     ]
-    except Exception:
-        pass
+    except Exception as exc:
+        from .error_bus import record_internal_error
+        record_internal_error(
+            "runner.traceability.semantic_documents",
+            exc,
+            run_id=run_id,
+            payload={"module": __name__, "function": "_build_traceability", "operation": "extract_semantic_document_ids"},
+        )
 
     # ── Neuron mission IDs activos ──
     trace["used_neuron_mission_ids"] = []
@@ -722,8 +738,14 @@ def _build_traceability(
                     mid = item.get("mission_id") or item.get("neuron_mission_id")
                     if mid:
                         trace["used_neuron_mission_ids"].append(str(mid))
-    except Exception:
-        pass
+    except Exception as exc:
+        from .error_bus import record_internal_error
+        record_internal_error(
+            "runner.traceability.neuron_missions",
+            exc,
+            run_id=run_id,
+            payload={"module": __name__, "function": "_build_traceability", "operation": "extract_neuron_mission_ids"},
+        )
 
     # ── Evidence refs ──
     trace["evidence_refs"] = []
@@ -731,7 +753,13 @@ def _build_traceability(
         mem_diff = getattr(output, "memory_diff", None)
         if isinstance(mem_diff, dict):
             trace["evidence_refs"] = mem_diff.get("evidence_refs") or []
-    except Exception:
-        pass
+    except Exception as exc:
+        from .error_bus import record_internal_error
+        record_internal_error(
+            "runner.traceability.evidence_refs",
+            exc,
+            run_id=run_id,
+            payload={"module": __name__, "function": "_build_traceability", "operation": "extract_output_evidence_refs"},
+        )
 
     return trace

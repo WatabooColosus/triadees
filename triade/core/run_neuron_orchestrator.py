@@ -13,6 +13,7 @@ from typing import Any
 
 from .background_neurons import candidates_from_system_debt
 from .contracts import NeuronContributionPacket
+from .error_bus import record_internal_error
 from .experimental_neuron_runtime import run_experimental_neurons
 from .neuron_activity_store import NeuronActivityStore
 from .neuron_formation_pipeline import form_candidates
@@ -141,7 +142,14 @@ def _generate_learning_candidates_from_contributions(
     candidates = []
     try:
         pipe = LearningPipeline(db_path=db_path)
-    except Exception:
+    except Exception as exc:
+        record_internal_error(
+            "run_neuron_orchestrator.learning_pipeline_init",
+            exc,
+            run_id=run_id,
+            payload={"module": __name__, "function": "_generate_learning_candidates_from_contributions", "operation": "init_learning_pipeline"},
+            db_path=db_path,
+        )
         return candidates
 
     for contrib in contributions:
@@ -171,7 +179,18 @@ def _generate_learning_candidates_from_contributions(
                 "confidence": confidence,
                 "run_id": run_id,
             })
-        except Exception:
-            pass
+        except Exception as exc:
+            record_internal_error(
+                "run_neuron_orchestrator.learning_candidate_ingest",
+                exc,
+                run_id=run_id,
+                payload={
+                    "module": __name__,
+                    "function": "_generate_learning_candidates_from_contributions",
+                    "operation": "ingest_neuron_proposed_learning",
+                    "neuron_name": neuron_name,
+                },
+                db_path=db_path,
+            )
 
     return candidates

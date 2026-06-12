@@ -177,4 +177,4 @@ def _cleanup(workdir: Path) -> None:
         import shutil
         shutil.rmtree(str(workdir), ignore_errors=True)
     except Exception:
-        pass
+        return

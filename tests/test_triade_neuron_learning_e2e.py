@@ -29,6 +29,8 @@ from triade.core.neuron_missions import (
     NeuronScore,
 )
 from triade.core.run_learning_usage import record_learning_usage_from_output
+from triade.core.runner import _build_traceability
+from triade.core.error_bus import query_internal_errors
 from triade.learning.pipeline import LearningPipeline
 from triade.workers.mission_planner import MissionPlanner
 
@@ -144,6 +146,80 @@ def test_e2e_usage_explicit_match(tmp_path: Path) -> None:
     # Verify run_use_count increased
     c = pipeline.get_candidate(cid)
     assert c["run_use_count"] >= 1
+
+
+def test_e2e_traceability_learning_mission_evidence_no_internal_errors(tmp_path: Path) -> None:
+    db_path = make_db(tmp_path)
+    mission_store = NeuronMissionStore(db_path=db_path)
+    pipeline = LearningPipeline(db_path=db_path)
+
+    mission_id = mission_store.create_mission(NeuronMission(
+        neuron_id=7,
+        title="Aprendizaje verificable",
+        mission="Trazar aprendizaje usado por outputs",
+        domain="observability",
+        status="experimental",
+    ))
+    candidate = pipeline.ingest(
+        content="La trazabilidad debe registrar candidate ids semantic docs evidence refs y heuristicas",
+        source_type="conversation",
+        source_ref="semantic-doc-obs-1",
+        title="Trazabilidad completa",
+        domain="observability",
+        risk_level="low",
+    )
+    cid = candidate["candidate_id"]
+    pipeline.evaluate(cid)
+    pipeline.verify(cid)
+
+    output = SimpleNamespace(
+        response="La trazabilidad completa debe registrar candidate ids semantic docs evidence refs y heuristicas",
+        status="ok",
+        model_ok=True,
+        memory_diff={
+            "used_learning_candidate_ids": [cid],
+            "evidence_refs": [f"mission:{mission_id}:semantic-doc-obs-1"],
+        },
+    )
+    memory = SimpleNamespace(
+        verification_status="ok",
+        semantic_recall={"authorized_matches": [{"document_id": "semantic-doc-obs-1"}]},
+    )
+
+    usage = record_learning_usage_from_output(
+        run_id="e2e-observability-run",
+        output_packet=output,
+        memory_packet=memory,
+        db_path=db_path,
+    )
+    mission_store.record_evidence(NeuronEvidence(
+        mission_id=mission_id,
+        neuron_id=7,
+        evidence_type="learning_used",
+        source="run",
+        content="Output usó aprendizaje verificado con referencias auditables.",
+        refs=["e2e-observability-run", cid, "semantic-doc-obs-1"],
+        score=0.9,
+    ))
+
+    traceability = _build_traceability(
+        run_id="e2e-observability-run",
+        output=output,
+        memory=memory,
+        learning_usage_result=usage,
+        neuron_orchestration={"experimental_neuron_activity": [{"mission_id": mission_id}]},
+        experimental_neuron_activity=[],
+    )
+
+    assert cid in traceability["used_learning_candidate_ids"]
+    assert "semantic-doc-obs-1" in traceability["used_semantic_document_ids"]
+    assert str(mission_id) in traceability["used_neuron_mission_ids"]
+    assert traceability["evidence_refs"] == [f"mission:{mission_id}:semantic-doc-obs-1"]
+    assert "explicit_candidate_id" in traceability["match_sources"]
+    assert "heuristic_matches" in traceability
+    assert pipeline.get_candidate(cid)["run_use_count"] >= 1
+    assert mission_store.list_evidence(mission_id)
+    assert query_internal_errors(db_path=db_path) == []
 
 
 # ── Step 4: Record learning usage with heuristic fallback ────────────────────
