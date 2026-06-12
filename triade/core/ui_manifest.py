@@ -102,6 +102,7 @@ def build_ui_manifest() -> dict[str, Any]:
                 "kind": "diagnostic",
                 "items": [
                     {"id": "health", "label": "Health completo", "method": "GET", "endpoint": "/api/health"},
+                    {"id": "bodega_global", "label": "Bodega Global", "method": "GET", "endpoint": "/api/bodega/global-context?query=estado%20interno"},
                     {"id": "compatibility", "label": "Compatibilidad", "method": "GET", "endpoint": "/api/models/compatibility"},
                     {"id": "queue", "label": "Cola modelos", "method": "GET", "endpoint": "/api/models/install-queue?include_allowed=false"},
                     {"id": "semantic", "label": "Memoria semántica", "method": "GET", "endpoint": "/api/semantic/governance/doctor"},

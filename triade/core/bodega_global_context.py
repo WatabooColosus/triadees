@@ -92,6 +92,27 @@ def _group_project_context(semantic_matches: list[dict[str, Any]]) -> dict[str, 
     return grouped
 
 
+def _detect_contradictions(
+    *,
+    confidence_level: str,
+    semantic_recall_info: dict[str, Any],
+    recent_episodes: list[dict[str, Any]],
+    stable_audit_summary: dict[str, Any],
+) -> list[str]:
+    """Detecta contradicciones simples en el estado de memoria."""
+    contradictions: list[str] = []
+    if confidence_level == "low" and not recent_episodes:
+        contradictions.append("Confianza baja y sin episodios recientes.")
+    if confidence_level == "low" and semantic_recall_info.get("status") == "disabled":
+        contradictions.append("Recuperación semántica desactivada con confianza baja.")
+    needs_review = stable_audit_summary.get("stable_needs_review", 0)
+    if needs_review > 0:
+        contradictions.append(f"{needs_review} neurona(s) stable(s) requieren revisión de evidencia.")
+    if semantic_recall_info.get("status") in ("unavailable", "disabled"):
+        contradictions.append("Recuperación semántica no disponible o desactivada.")
+    return contradictions
+
+
 def _get_qualia_snapshot() -> dict[str, Any]:
     """Obtiene snapshot de Qualia si está disponible."""
     try:
@@ -216,8 +237,17 @@ def build_bodega_global_context(
 
         confidence_level, recommended_policy = _confidence_level(confidence_score)
 
+        contradictions = _detect_contradictions(
+            confidence_level=confidence_level,
+            semantic_recall_info=semantic_recall_info,
+            recent_episodes=recent_episodes,
+            stable_audit_summary=stable_audit_summary,
+        )
+
         return {
             "status": "ok",
+            "mode": "bodega_global_context",
+            "user_input": user_input,
             "identity_context": identity_context,
             "recent_episodes": recent_episodes,
             "semantic_recall": semantic_recall_info,
@@ -229,16 +259,24 @@ def build_bodega_global_context(
             "qualia_context": qualia_context,
             "stable_audit_summary": stable_audit_summary,
             "continuity_summary": continuity_summary,
-            "contradictions": [],
+            "contradictions": contradictions,
             "memory_confidence": confidence_level,
             "memory_confidence_score": confidence_score,
             "recommended_context_policy": recommended_policy,
+            "truth": (
+                "La Bodega Global es la base obligatoria de contexto de Tríade. "
+                "Candidate memory no es verdad estable. "
+                "identity_core no se modifica desde este módulo. "
+                "Todo recuerdo recuperado conserva trazabilidad de origen."
+            ),
         }
 
     except Exception as exc:
         return {
             "status": "error",
             "error": str(exc),
+            "mode": "bodega_global_context",
+            "user_input": user_input,
             "identity_context": [],
             "recent_episodes": [],
             "semantic_recall": {},
@@ -254,8 +292,9 @@ def build_bodega_global_context(
             "qualia_context": {},
             "stable_audit_summary": {"status": "unavailable"},
             "continuity_summary": "error al construir contexto",
-            "contradictions": [],
+            "contradictions": ["Error al construir Bodega Global Context."],
             "memory_confidence": "low",
             "memory_confidence_score": 0.0,
             "recommended_context_policy": "ask_or_operate_with_limited_memory",
+            "truth": "La Bodega Global no pudo construirse. Operar con cautela.",
         }

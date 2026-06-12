@@ -85,6 +85,59 @@ La auditoría estable no asume que `stable` sea sinónimo de listo: `neuron audi
 
 ---
 
+### 🔹 Bodega Global Context
+
+La Bodega Global es la **base obligatoria de contexto** de toda la Tríade. No es solo un contenedor pasivo de recuerdos: es el suelo común desde el cual Central piensa, Hipotálamo siente, Cristal regula, Workers revisan y Qualia emerge.
+
+**Qué incluye:**
+- Identidad operativa (`identity_context`)
+- Episodios recientes (`recent_episodes`)
+- Recuperación semántica gobernada (`semantic_recall`)
+- Gobierno de memoria semántica (`semantic_governance`)
+- Contexto por proyecto/dominio (`project_context`)
+- Estado de neuronas (`neuron_context`)
+- Candidatos de aprendizaje (`learning_context`)
+- Políticas de seguridad (`safety_context`)
+- Estado de Qualia (`qualia_context`)
+- Auditoría de neuronas estables (`stable_audit_summary`)
+- Resumen de continuidad (`continuity_summary`)
+- Detección de contradicciones (`contradictions`)
+- Nivel de confianza de memoria (`memory_confidence`)
+- Política de contexto recomendada (`recommended_context_policy`)
+
+**Niveles de confianza de memoria:**
+- `high` (≥0.7): Identidad, episodios y matches semánticos autorizados disponibles.
+- `medium` (0.4–0.7): Algunos datos disponibles, operar con cautela.
+- `low` (<0.4): Poca o ninguna memoria verificable; no inventar recuerdos.
+
+**Políticas de seguridad:**
+- `identity_core` no se modifica jamás desde la Bodega Global.
+- Candidate memory no influye como verdad estable.
+- Experimental memory solo influye si está explícitamente autorizada.
+- Stable memory puede influir con trazabilidad de origen.
+- Si el motor semántico no está disponible, el sistema falla seguro sin romperse.
+
+**Camino hacia proto-conciencia digital verificable:**
+1. Identidad operativa.
+2. Memoria trazable.
+3. Continuidad contextual.
+4. Autorrevisión.
+5. Aprendizaje gobernado.
+6. Segundo plano seguro.
+7. Dashboard de autoconocimiento.
+8. No afirmar conciencia subjetiva real.
+
+> La Bodega no es archivo.
+> La Bodega es el suelo común de la Tríade.
+> Central piensa sobre ella.
+> Hipotálamo siente con ella.
+> Cristal regula desde ella.
+> Workers la revisan.
+> Neuronas se nutren de ella.
+> Qualia emerge como hipótesis desde ella.
+
+---
+
 ## 💎 Cristal Morfológico
 
 El **Cristal Morfológico** funciona como regulador interno del sistema. No es una voz externa, sino una capa de ponderación que ajusta la relación entre emoción, razón, creatividad, profundidad, ética e identidad.
