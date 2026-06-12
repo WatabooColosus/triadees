@@ -462,14 +462,12 @@ def test_local_jobs_only_accept_sandbox_tasks() -> None:
 
 def test_distributed_runtime_preprocess_merges_android_results(monkeypatch) -> None:
     single_port_app.LOCAL_JOBS.clear()
-    monkeypatch.setattr(
-        single_port_app,
-        "local_federated_nodes",
-        lambda task=None: [
-            {"node_id": "android-a", "capabilities": {"allowed_tasks": ["preprocess_text"]}},
-            {"node_id": "android-b", "capabilities": {"allowed_tasks": ["preprocess_text"]}},
-        ],
-    )
+    fake_nodes = lambda task=None: [
+        {"node_id": "android-a", "capabilities": {"allowed_tasks": ["preprocess_text"]}},
+        {"node_id": "android-b", "capabilities": {"allowed_tasks": ["preprocess_text"]}},
+    ]
+    monkeypatch.setattr(single_port_app, "local_federated_nodes", fake_nodes)
+    monkeypatch.setattr(routes_api, "local_federated_nodes", fake_nodes)
 
     def fake_wait(job_id: str, timeout: float = 25.0, interval: float = 0.5):
         job = single_port_app.LOCAL_JOBS[job_id]

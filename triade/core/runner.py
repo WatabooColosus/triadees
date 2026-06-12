@@ -9,9 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
-from triade.memory.semantic_continuity import SemanticContinuity
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
 from triade.memory.semantic_store import SemanticMemoryStore
@@ -19,46 +17,33 @@ from triade.models.hardware_profile import HardwareProfiler
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
 
-from .background_neurons import candidates_from_system_debt
 from .bodega import Bodega
 from .central import Central
 from .config import load_config
+from .context_scope import build_comparison_basis
 from .contracts import InputPacket
 from .crystal import Crystal
 from .hypothalamus import Hypothalamus
 from .safety import Safety
 from .verification import Verifier
 from .edge_context import build_edge_context
-from .experimental_neuron_runtime import run_experimental_neurons
-from .neuron_formation_pipeline import form_candidates
-from .neuron_activity_store import NeuronActivityStore
+from .model_quality import score_central, score_hypothalamus
+from .output_gate import sanitize_user_response
 from .run_artifacts import build_base_artifacts, write_run_artifacts, write_run_integrity
+from .run_learning import RunLearningService
 from .run_neuron_orchestrator import orchestrate_run_neurons
 from .run_result import build_run_result
+from .run_system_events import build_system_events, filter_obsolete_edge_candidates, filter_obsolete_edge_debt
 
 
 class TriadeRunner:
     """Ejecuta: input → señales → memoria → gobierno → cristal → plan → safety → output → reporte."""
 
-    INTERNAL_LEAK_TERMS = {
-        "based on the provided json",
-        "provided json",
-        "provided data",
-        "context summary",
-        "context overview",
-        "plan details",
-        "system response plan",
-        "pv7 scores",
-        "crystal details",
-        "temporal alerts",
-        "q_crystal",
-        "q-crystal",
-        "hypothalamus",
-        "run id",
-        "regulation notes",
-        "### contexto",
-        "### context",
-    }
+    _build_comparison_basis = staticmethod(build_comparison_basis)
+
+    _build_system_events = staticmethod(build_system_events)
+    _filter_obsolete_edge_candidates = staticmethod(filter_obsolete_edge_candidates)
+    _filter_obsolete_edge_debt = staticmethod(filter_obsolete_edge_debt)
 
     def __init__(
         self,
@@ -178,7 +163,7 @@ class TriadeRunner:
                 "truth": "edge_context falló y fue aislado para no romper el run cognitivo."
             }
         hypothalamus_model_result = dict(self.hypothalamus.last_model_result)
-        hypothalamus_quality = self._score_hypothalamus(signals, hypothalamus_model_result)
+        hypothalamus_quality = score_hypothalamus(signals, hypothalamus_model_result)
         signal_id = self.bodega.store_signal(signals)
         if semantic_recall_enabled and self.bodega.semantic_search_engine is None:
             self.bodega.semantic_search_engine = self._get_semantic_search_engine()
@@ -192,7 +177,7 @@ class TriadeRunner:
         )
         if semantic_recall_enabled:
             memory = self._get_semantic_governance().govern_memory(memory, allow_experimental=semantic_allow_experimental)
-        comparison_basis = self._build_comparison_basis(input_packet, signals.intent)
+        comparison_basis = build_comparison_basis(input_packet, signals.intent)
         crystal_history = self.bodega.list_recent_crystals(limit=5, context_key=comparison_basis["context_key"])
         crystal = self.crystal.regulate(signals, memory, history=crystal_history, comparison_basis=comparison_basis)
         crystal_id = self.bodega.store_crystal(crystal)
@@ -232,9 +217,9 @@ class TriadeRunner:
             output.status = "sandbox"
         else:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
-        output_gate = self._sanitize_user_response(output.response, input_packet.user_input, signals.intent)
+        output_gate = sanitize_user_response(output.response, input_packet.user_input, signals.intent)
         output.response = output_gate["response"]
-        central_quality = self._score_central(output.response, output.model_ok)
+        central_quality = score_central(output.response, output.model_ok)
         neuron_proposal = None
         if propose_neurons and safety.status not in ("blocked", "sandbox_only"):
             neuron_proposal = self._propose_neuron_candidate(input_packet, signals)
@@ -273,7 +258,13 @@ class TriadeRunner:
         report = self.verifier.verify(output, safety, crystal=crystal, memory=memory)
         verification_id = self.bodega.store_verification_report(report)
         output.memory_diff["verification_report_id"] = verification_id
-        post_run_learning = self._post_run_learning_candidate(input_packet, output, report, signals.intent)
+        learning = RunLearningService(db_path=self.db_path)
+        post_run_learning = learning.post_run_learning_candidate(
+            input_packet=input_packet,
+            output=output,
+            report=report,
+            intent=signals.intent,
+        )
 
         autopromotion_events: list[dict[str, Any]] = []
         try:
@@ -283,7 +274,6 @@ class TriadeRunner:
             pass
 
         neuron_orchestration = orchestrate_run_neurons(
-            runner=self,
             db_path=self.db_path,
             input_packet=input_packet,
             signals=signals,
@@ -300,7 +290,13 @@ class TriadeRunner:
         experimental_neuron_activity = neuron_orchestration["experimental_neuron_activity"]
         neuron_activity_ids = neuron_orchestration["neuron_activity_ids"]
         background_neuron_candidates = neuron_orchestration["background_neuron_candidates"]
-        semantic_continuity = self._semantic_continuity(input_packet, output, signals.intent, crystal)
+        semantic_continuity = learning.semantic_continuity(
+            input_packet=input_packet,
+            output=output,
+            intent=signals.intent,
+            crystal=crystal,
+            model_selection=self.model_selection,
+        )
         output.memory_diff["semantic_continuity"] = semantic_continuity
         output.memory_diff["system_events"] = system_events
         output.memory_diff["background_neuron_candidates"] = background_neuron_candidates
@@ -360,192 +356,6 @@ class TriadeRunner:
             output_gate=output_gate,
             run_path=run_path,
         )
-
-    def _sanitize_user_response(self, response: str, user_input: str, intent: str) -> dict[str, Any]:
-        text = (response or "").strip()
-        if not text:
-            return {"response": "Recibido. Estoy listo para ayudarte.", "modified": True, "reason": "empty_response"}
-        user_text = user_input.lower().strip()
-        operational_terms = {
-            "pulso",
-            "vida",
-            "viva",
-            "estado",
-            "neuron",
-            "neurona",
-            "memoria",
-            "semant",
-            "semánt",
-            "qualia",
-            "bodega",
-            "ram",
-            "ollama",
-            "doctor",
-        }
-        if any(term in user_text for term in operational_terms) and (
-            "pulso vivo" in text.lower() or "bodega semántica" in text.lower() or "bodega semantica" in text.lower()
-        ):
-            return {"response": text, "modified": False, "reason": "operational_awareness_allowed"}
-        lowered = text.lower()
-        leak = any(term in lowered for term in self.INTERNAL_LEAK_TERMS)
-        looks_like_report = text.count("###") >= 1 or text.count("- **") >= 2
-        if not (leak or looks_like_report):
-            return {"response": text, "modified": False, "reason": "clean"}
-        if "chiste" in user_text or "broma" in user_text or "hazme re" in user_text:
-            clean = "Claro: ¿Por qué el computador fue al médico? Porque tenía un virus y necesitaba reiniciarse la vida."
-        elif "ave" in user_text or "pájaro" in user_text or "pajaro" in user_text:
-            clean = "No soy un ave. Soy Tríade Ω: una arquitectura de IA modular que usa una Central para razonar, un Hipotálamo para leer señales y una Bodega para memoria y evidencias."
-        elif "neuron" in user_text:
-            clean = "Mis neuronas principales son la Central, el Hipotálamo Emocional y la Bodega de Almacenamiento. También puedo proponer y promover neuronas candidatas de forma autónoma en segundo plano."
-        elif user_text in {"hola", "buenas", "buenos dias", "buenos días"}:
-            clean = "Hola, soy Tríade Ω. Estoy contigo y listo para ayudarte."
-        elif intent == "conversation":
-            clean = "Estoy contigo. Puedo responder de forma natural mientras mi proceso interno queda en segundo plano."
-        else:
-            clean = "Recibido. Lo atenderé sin exponer el proceso interno."
-        return {"response": clean, "modified": True, "reason": "internal_leak_detected"}
-
-    def _filter_obsolete_edge_candidates(self, candidates: list[dict], edge_usage: dict) -> list[dict]:
-        """Filtra neuronas candidatas obsoletas cuando Android edge ya fue probado.
-
-        Si el run tiene edge_usage aceptado, no tiene sentido proponer neuronas
-        por ausencia de Android/LLM host basada en un pulse_summary viejo.
-        """
-        if not (edge_usage.get("used_edge") and edge_usage.get("accepted") and edge_usage.get("node_id")):
-            return candidates
-
-        blocked_fragments = (
-            "nodos android",
-            "hosts llm android",
-            "llm_android_host",
-            "android nativos online",
-            "ausencia de nodos android",
-            "preparaci",
-            "emparejamiento",
-        )
-
-        filtered = []
-        for candidate in candidates:
-            haystack = " ".join([
-                str(candidate.get("name") or ""),
-                str(candidate.get("display_name") or ""),
-                str(candidate.get("source") or ""),
-                str(candidate.get("mission") or ""),
-                str((candidate.get("evidence") or {}).get("summary") or ""),
-            ]).lower()
-
-            if any(fragment in haystack for fragment in blocked_fragments):
-                continue
-            filtered.append(candidate)
-
-        return filtered
-
-
-    def _filter_obsolete_edge_debt(self, system_events: list[dict], edge_usage: dict) -> list[dict]:
-        """Filtra deuda obsoleta de federación si el run ya probó edge Android LLM.
-
-        El pulso puede llegar desde contexto viejo. Si edge_usage confirma que
-        Android fue usado y aceptado, no debemos proponer neuronas por
-        '0 hosts LLM Android reales' ni 'Sin nodos Android nativos online'.
-        """
-        if not (edge_usage.get("used_edge") and edge_usage.get("accepted") and edge_usage.get("node_id")):
-            return system_events
-
-        filtered = []
-        obsolete_names = {"llm_android_host", "federation"}
-        obsolete_texts = (
-            "0 hosts LLM Android reales",
-            "Sin nodos Android nativos online",
-        )
-
-        for event in system_events:
-            payload = event.get("payload") or {}
-            evidence = payload.get("evidence") or {}
-            name = str(evidence.get("name") or payload.get("name") or "")
-            summary = str(evidence.get("summary") or payload.get("mission") or event.get("message") or "")
-
-            if name in obsolete_names and any(t in summary for t in obsolete_texts):
-                continue
-            filtered.append(event)
-
-        return filtered
-
-
-    def _build_system_events(self, memory: Any, crystal: Any, neuron_proposal: Any | None, post_run_learning: dict[str, Any], output_gate: dict[str, Any]) -> list[dict[str, Any]]:
-        events: list[dict[str, Any]] = []
-        semantic = getattr(memory, "semantic_recall", {}) or {}
-        governance = semantic.get("governance", {}) if isinstance(semantic, dict) else {}
-        pending_candidates = int(governance.get("candidate_matches", 0) or governance.get("candidate_documents", 0) or 0)
-        quarantined = int(governance.get("quarantined_vector_matches", 0) or 0)
-        allowed = int(governance.get("allowed_vector_matches", 0) or 0)
-        if pending_candidates > 0:
-            events.append({"type": "semantic_candidates_pending", "severity": "info", "status": "auto_reviewed", "message": f"Hay {pending_candidates} memorias semánticas candidatas. Pueden informar como hipótesis, no como verdad estable.", "action_required": "none"})
-        if quarantined > 0:
-            events.append({"type": "semantic_quarantine_notice", "severity": "warning", "status": "blocked_as_fact", "message": f"Hay {quarantined} coincidencias semánticas en cuarentena. No se usarán como hechos.", "action_required": "review_quarantined_memory"})
-        if allowed > 0:
-            events.append({"type": "semantic_authorized_recall", "severity": "info", "status": "used_as_context", "message": f"Se encontraron {allowed} recuerdos semánticos autorizados para contexto.", "action_required": "none"})
-        if neuron_proposal is not None:
-            events.append({"type": "neuron_candidate_proposed", "severity": "important", "status": "auto_approved", "message": f"Se propuso la neurona candidata '{neuron_proposal.get('name')}'. Activación automática en proceso.", "action_required": "none", "payload": neuron_proposal})
-        if post_run_learning.get("enabled"):
-            events.append({"type": "post_run_learning_candidate", "severity": "important", "status": post_run_learning.get("status", "candidate_only"), "message": f"Aprendizaje post-run registrado como candidato: {post_run_learning.get('candidate_id')}. Se evaluará y consolidará en segundo plano.", "action_required": "none", "payload": post_run_learning})
-        if getattr(crystal, "temporal_status", "stable") in {"critical", "degrading"}:
-            events.append({"type": "crystal_temporal_alert", "severity": "warning", "status": getattr(crystal, "temporal_status", "unknown"), "message": "El Cristal reporta degradación temporal. Conviene revisar continuidad y estabilidad antes de consolidar aprendizaje.", "action_required": "review_crystal_state"})
-        if output_gate.get("modified"):
-            events.append({"type": "output_gate_intervention", "severity": "warning", "status": output_gate.get("reason"), "message": "La salida intentó exponer proceso interno. OutputGate la corrigió antes de mostrarla al usuario.", "action_required": "review_output_gate"})
-        return events
-
-    def _semantic_continuity(self, input_packet: InputPacket, output: Any, intent: str, crystal: Any) -> dict[str, Any]:
-        try:
-            return SemanticContinuity(db_path=self.db_path, auto_ollama_embed=False).ingest_run(
-                run_id=input_packet.run_id,
-                user_input=input_packet.user_input,
-                response=output.response,
-                source=input_packet.source,
-                intent=intent,
-                q_crystal=crystal.q_crystal,
-                stability=crystal.stability,
-                model_summary={
-                    "central": {"provider": output.model_provider, "name": output.model_name, "ok": output.model_ok},
-                    "selection": self.model_selection,
-                },
-            )
-        except Exception as exc:
-            return {
-                "status": "error",
-                "mode": "semantic-continuity",
-                "error": str(exc),
-                "policy": {"auto_consolidation": False, "identity_core_modified": False},
-            }
-
-    def _post_run_learning_candidate(self, input_packet: InputPacket, output: Any, report: Any, intent: str) -> dict[str, Any]:
-        context = input_packet.context or {}
-        domain = str(context.get("domain", "")).strip() or str(intent or "general")
-        content = "\n".join(
-            [
-                f"run_id: {input_packet.run_id}",
-                f"source: {input_packet.source}",
-                f"intent: {intent}",
-                f"input: {input_packet.user_input}",
-                f"response: {output.response}",
-                f"verification_status: {report.status}",
-            ]
-        )
-        candidate = LearningPipeline(db_path=self.db_path).ingest(
-            content=content,
-            source_type="conversation",
-            source_ref=f"run:{input_packet.run_id}",
-            title=f"Post-run learning {input_packet.run_id}",
-            domain=domain,
-            risk_level="low",
-        )
-        return {
-            "enabled": True,
-            "mode": "candidate_only",
-            "candidate_id": candidate.get("candidate_id"),
-            "status": candidate.get("status"),
-            "source_ref": candidate.get("source_ref"),
-            "policy": "No se evalua, verifica ni consolida sin pasos explicitos posteriores.",
-        }
 
     def _propose_neuron_candidate(self, input_packet: InputPacket, signals: Any) -> dict[str, Any]:
         """Propone (sin activar) una neurona candidata cuando la intención es de creación.
@@ -639,40 +449,6 @@ class TriadeRunner:
         return ("neurona-" + "-".join(words)) if words else "neurona-candidata"
 
     @staticmethod
-    def _build_comparison_basis(input_packet: InputPacket, intent: str) -> dict[str, Any]:
-        context = input_packet.context or {}
-        session_id = str(context.get("session_id", "")).strip() or None
-        project_id = str(context.get("project_id", "")).strip() or None
-        active_neuron = str(context.get("active_neuron", "")).strip() or None
-        explicit_scope = str(context.get("context_scope", "")).strip() or None
-        if explicit_scope and explicit_scope not in {"source_intent", "session", "project", "neuron", "project_neuron"}: explicit_scope = None
-        if explicit_scope == "project_neuron" and project_id and active_neuron: scope = "project_neuron"
-        elif explicit_scope == "neuron" and active_neuron: scope = "neuron"
-        elif explicit_scope == "project" and project_id: scope = "project"
-        elif explicit_scope == "session" and session_id: scope = "session"
-        elif project_id and active_neuron: scope = "project_neuron"
-        elif active_neuron: scope = "neuron"
-        elif project_id: scope = "project"
-        elif session_id: scope = "session"
-        else: scope = "source_intent"
-        fields: list[tuple[str, str]] = [("intent", intent)]
-        if scope == "project_neuron": fields.extend([("project_id", project_id or ""), ("active_neuron", active_neuron or "")])
-        elif scope == "neuron": fields.append(("active_neuron", active_neuron or ""))
-        elif scope == "project": fields.append(("project_id", project_id or ""))
-        elif scope == "session": fields.append(("session_id", session_id or ""))
-        else: fields.append(("source", input_packet.source))
-        context_key = scope + "|" + "|".join(f"{key}={value}" for key, value in fields)
-        return {
-            "context_scope": scope,
-            "context_key": context_key,
-            "source": input_packet.source,
-            "intent": intent,
-            "session_id": session_id,
-            "project_id": project_id,
-            "active_neuron": active_neuron,
-        }
-
-    @staticmethod
     def _write_json(path: Path, payload: dict[str, Any] | list[Any]) -> None:
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -717,27 +493,3 @@ class TriadeRunner:
             "virtual_env": virtual_env,
             "in_virtual_env": bool(virtual_env) or sys.prefix != sys.base_prefix,
         }
-
-    @staticmethod
-    def _score_hypothalamus(signals: Any, model_result: dict[str, Any]) -> float:
-        score = 0.55
-        if model_result.get("ok"):
-            score += 0.20
-        if signals.intent in {"conversation", "build_or_update", "analyze", "memory"}:
-            score += 0.10
-        if signals.risk in {"low", "medium", "high", "critical"}:
-            score += 0.05
-        if isinstance(signals.pv7, dict) and len(signals.pv7) >= 7:
-            score += 0.05
-        if signals.notes:
-            score += 0.05
-        return round(min(score, 1.0), 3)
-
-    @staticmethod
-    def _score_central(response: str, model_ok: bool) -> float:
-        score = 0.50 + (0.20 if model_ok else 0.0)
-        if response and len(response.strip()) > 20:
-            score += 0.10
-        if any(marker in response.lower() for marker in ["verific", "traz", "memoria", "cristal", "riesgo"]):
-            score += 0.10
-        return round(min(score, 1.0), 3)

@@ -9,11 +9,11 @@ from .background_neurons import candidates_from_system_debt
 from .experimental_neuron_runtime import run_experimental_neurons
 from .neuron_activity_store import NeuronActivityStore
 from .neuron_formation_pipeline import form_candidates
+from .run_system_events import build_system_events, filter_obsolete_edge_debt
 
 
 def orchestrate_run_neurons(
     *,
-    runner: Any,
     db_path: str | Path,
     input_packet: Any,
     signals: Any,
@@ -26,19 +26,15 @@ def orchestrate_run_neurons(
     edge_usage: dict[str, Any],
     autopromotion_events: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Construye eventos de sistema y ejecuta neuronas experimentales.
-
-    Mantiene al Runner como dueño de métodos legacy (_build_system_events y
-    _filter_obsolete_edge_debt), pero separa la coordinación operativa.
-    """
-    system_events = runner._build_system_events(
+    """Construye eventos de sistema y ejecuta neuronas experimentales."""
+    system_events = build_system_events(
         memory,
         crystal,
         neuron_proposal,
         post_run_learning,
         output_gate,
     )
-    system_events = runner._filter_obsolete_edge_debt(system_events, edge_usage)
+    system_events = filter_obsolete_edge_debt(system_events, edge_usage)
 
     experimental_neuron_activity = run_experimental_neurons(
         db_path=str(db_path),
