@@ -19,7 +19,9 @@ from triade.core.runner import TriadeRunner
 from triade.core.repo_info import repo_info
 from triade.core.neuron_candidate_governance import NeuronCandidateGovernance
 from triade.core.neuron_dashboard import build_neuron_dashboard
+from triade.core.neuron_identity_view import NeuronIdentityView
 from triade.core.neuron_activity_store import NeuronActivityStore
+from triade.core.observability_view import TriadeObservabilityView
 from triade.federation.contracts import (
     FederatedJobResultPayload,
     SignedEnvelope,
@@ -351,10 +353,29 @@ def system_pulse_route(
     return build_system_pulse(sync_relay=sync_relay, intent=intent, urgency=urgency)
 
 
+@router.get("/api/observability")
+@router.get("/api/system/observability")
+def observability(limit: int = 20) -> dict[str, Any]:
+    LIFE_PULSE.record_action("observability")
+    view = TriadeObservabilityView(
+        system_pulse_fn=build_system_pulse,
+        health_fn=health,
+    )
+    return view.build(limit=limit)
+
+
 @router.get("/api/system/neurons")
 def system_neurons(limit: int = 100) -> dict[str, Any]:
     LIFE_PULSE.record_action("system_neurons")
-    return build_neuron_dashboard(limit=limit)
+    dashboard = build_neuron_dashboard(limit=limit)
+    identity = NeuronIdentityView().list(limit=limit)
+    return {
+        **dashboard,
+        "mode": "neuron_identity_dashboard",
+        "identity_view": identity,
+        "neurons": identity.get("neurons", []),
+        "dashboard_neurons": dashboard.get("neurons", []),
+    }
 
 
 @router.get("/api/system/neurons/{name}")
@@ -368,19 +389,40 @@ def system_neuron_detail(name: str, limit: int = 10) -> dict[str, Any]:
     training = registry.list_training(neuron_id=int(neuron["id"]), limit=limit)
     ap = NeuronAutopromoter()
     progress = ap.compute_progress(dict(neuron), training)
-    return {"status": "ok", "neuron": dict(neuron), "training": training, "progress": progress}
+    identity = NeuronIdentityView().detail(name, limit=limit)
+    return {
+        "status": "ok",
+        "neuron": (identity or {}).get("neuron", dict(neuron)),
+        "raw_neuron": dict(neuron),
+        "training": training,
+        "progress": progress,
+        "identity_view": identity,
+    }
 
 
 @router.post("/api/system/neurons/{name}/promote")
 def system_neuron_promote(name: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
     from triade.core.neuron_registry import NeuronRegistry
+    from triade.core.stable_promotion_readiness import evaluate_stable_readiness
     target = (body or {}).get("status", "experimental")
     valid = {"candidate_reviewable", "experimental", "stable", "rejected", "needs_changes"}
     if target not in valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Status inválido: {target}")
+    if target == "stable":
+        report = evaluate_stable_readiness(limit=200)
+        item = next((n for n in report.get("neurons", []) if n.get("name") == name), None)
+        if not item or not item.get("ready_for_stable_review"):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "stable_requires_evidence",
+                    "message": "Ninguna neurona puede declararse stable sin evidencia suficiente.",
+                    "readiness": item or {},
+                },
+            )
     registry = NeuronRegistry()
     neuron = registry.update_status(name, target)
-    return {"status": "ok", "neuron": neuron, "promoted_to": target}
+    return {"status": "ok", "neuron": NeuronIdentityView().detail(name, limit=20), "raw_neuron": neuron, "promoted_to": target}
 
 
 # ── Neuron Missions ─────────────────────────────────────────────────────

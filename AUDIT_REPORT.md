@@ -1,3 +1,5 @@
+> Documento historico. Para estado vigente ver `docs/STATUS_CURRENT.md`.
+
 # AUDIT_REPORT.md · Tríade Ω
 
 **Fase 0 — Auditoría y Comprensión**

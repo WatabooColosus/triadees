@@ -1,3 +1,5 @@
+> Documento historico. Para estado vigente ver `docs/STATUS_CURRENT.md`.
+
 # PR9 Audit Report
 
 ## Resumen ejecutivo

@@ -59,7 +59,11 @@ function usePendingCount() {
 /* ─── App ─────────────────────────────────────────── */
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('chat')
+  const [tab, setTab] = useState<Tab>(() => {
+    const path = window.location.pathname.toLowerCase()
+    if (path.includes('observabilidad') || path.includes('observability')) return 'observability'
+    return 'chat'
+  })
   const [health, setHealth] = useState<any>(null)
   const [apiKey, setApiKey] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -480,16 +484,9 @@ function ObservabilityTab() {
   const [error, setError] = useState('')
 
   const fetch = useCallback(() => {
-    Promise.all([
-      api('/api/internal/errors?limit=10'),
-      api('/api/workers/events?limit=10'),
-      api('/api/neurons/missions?status=experimental&limit=10'),
-      api('/api/learning/pending?limit=20'),
-      api('/api/system/life'),
-    ]).then(([errors, workerEvents, missions, learning, life]) => {
-      setData({ errors, workerEvents, missions, learning, life })
-      setError('')
-    }).catch(e => setError(e.message))
+    api('/api/observability?limit=20')
+      .then((payload) => { setData(payload); setError('') })
+      .catch(e => setError(e.message))
   }, [])
 
   useEffect(() => { fetch(); const id = setInterval(fetch, 10000); return () => clearInterval(id) }, [fetch])
@@ -497,81 +494,48 @@ function ObservabilityTab() {
   if (error) return <PageError error={error} />
   if (!data) return <PageLoading />
 
-  const usedLearning = (data.learning?.candidates || [])
-    .filter((c: any) => Number(c.run_use_count || 0) > 0)
-    .slice(0, 8)
-  const runner = data.life?.continuous_runner || {}
+  const workers = data.workers || {}
+  const learning = data.learning || {}
+  const neurons = data.neurons || {}
+  const qualia = data.qualia || {}
+  const federation = data.federation || {}
+  const models = data.models || {}
+  const errors = data.internal_errors || {}
 
   return (
-    <Page title="Observabilidad" subtitle="Errores, misiones, aprendizaje y runner continuo">
+    <Page title="Observabilidad" subtitle="Vista unificada de salud, aprendizaje, workers, neuronas y modelos">
       <Grid cols={2}>
-        <Card title={`Errores internos recientes (${data.errors?.count || 0})`} color="#ef4444">
-          {(data.errors?.errors || []).length ? (
-            <ListRows items={data.errors.errors.slice(0, 8)} render={(e: any) => (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <strong>{e.task_type || e.payload?.scope || 'internal_error'}</strong>
-                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{e.created_at}</span>
-                </div>
-                <div style={{ color: 'var(--text-secondary)' }}>{e.message}</div>
-              </>
-            )} />
-          ) : <span style={{ color: 'var(--text-muted)' }}>Sin errores internos registrados</span>}
+        <Card title="Salud general" color={data.status === 'ok' ? '#22c55e' : '#eab308'}>
+          <KVTable data={{ status: data.status, timestamp: data.timestamp, warnings: data.warnings, degraded_sources: data.degraded_sources }} />
         </Card>
-        <Card title="Continuous Runner" color={runner.running ? '#22c55e' : '#eab308'}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-            <Badge status={runner.running ? 'active' : runner.enabled ? 'stale' : 'blocked'} />
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>ciclos {runner.cycles || 0}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>intervalo {runner.interval_seconds || 0}s</span>
-          </div>
-          <KVTable data={{
-            enabled: runner.enabled,
-            running: runner.running,
-            last_cycle_at: runner.last_cycle_at,
-            last_error: runner.last_error,
-            cycles_per_minute: runner.cycles_per_minute,
-          }} />
+        <Card title="Último run" color="#3b82f6">
+          {data.last_run?.run_id ? <KVTable data={data.last_run} /> : <span style={{ color: 'var(--text-muted)' }}>No hay runs registrados todavía.</span>}
         </Card>
-        <Card title={`Misiones neuronales activas (${data.missions?.count || 0})`} color="#8b5cf6">
-          {(data.missions?.missions || []).length ? (
-            <ListRows items={data.missions.missions} render={(m: any) => (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <strong>{m.title}</strong>
-                  <Badge status={m.status} />
-                </div>
-                <div style={{ color: 'var(--text-secondary)' }}>{m.domain}</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>mission_id {m.id} · neuron_id {m.neuron_id || '—'}</div>
-              </>
-            )} />
-          ) : <span style={{ color: 'var(--text-muted)' }}>Sin misiones experimentales activas</span>}
+        <Card title="Workers" color={workers.active ? '#22c55e' : '#eab308'}>
+          <KVTable data={{ active: workers.active, pending_tasks: workers.pending_tasks, task_counts: workers.task_counts, run_counts: workers.run_counts, last_error: workers.last_error }} />
+          {!(workers.last_events || []).length && <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>No hay workers activos.</p>}
         </Card>
-        <Card title={`Aprendizajes usados recientemente (${usedLearning.length})`} color="#14b8a6">
-          {usedLearning.length ? (
-            <ListRows items={usedLearning} render={(c: any) => (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <strong>{c.title || c.candidate_id}</strong>
-                  <Badge status={c.status} />
-                </div>
-                <div style={{ color: 'var(--text-secondary)' }}>{c.domain || c.source_type}</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>uses {c.run_use_count} · {c.candidate_id}</div>
-              </>
-            )} />
-          ) : <span style={{ color: 'var(--text-muted)' }}>Sin candidatos verificados usados recientemente</span>}
+        <Card title={`Errores (${errors.count || 0})`} color="#ef4444">
+          {(errors.errors || []).length ? <ListRows items={errors.errors.slice(0, 8)} render={(e: any) => <><strong>{e.task_type || 'internal_error'}</strong><div style={{ color: 'var(--text-secondary)' }}>{e.message}</div></>} /> : <span style={{ color: 'var(--text-muted)' }}>No hay errores internos recientes.</span>}
         </Card>
-        <Card title="Eventos de workers" color="#3b82f6">
-          {(data.workerEvents?.events || []).length ? (
-            <ListRows items={data.workerEvents.events.slice(0, 8)} render={(e: any) => (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <strong>{e.event_type || e.task_type}</strong>
-                  <Badge status={e.status || 'ok'} />
-                </div>
-                <div style={{ color: 'var(--text-secondary)' }}>{e.message}</div>
-              </>
-            )} />
-          ) : <span style={{ color: 'var(--text-muted)' }}>Sin eventos recientes</span>}
+        <Card title="Aprendizaje" color="#14b8a6">
+          <KVTable data={{ candidates_by_status: learning.candidates_by_status, consolidated: learning.consolidated, rejected: learning.rejected }} />
+          {!(learning.pending || []).length && <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>No hay candidatos de aprendizaje pendientes.</p>}
+        </Card>
+        <Card title={`Neuronas (${neurons.summary?.total_neurons || 0})`} color="#ec4899">
+          {(neurons.neurons || []).length ? <ListRows items={neurons.neurons.slice(0, 6)} render={(n: any) => <><div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><strong>{n.name}</strong><Badge status={n.status} /></div><div style={{ color: 'var(--text-secondary)' }}>{n.mission}</div><div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{n.domain} · trust {n.trust_level}</div></>} /> : <span style={{ color: 'var(--text-muted)' }}>Esta neurona aún no tiene evidencia suficiente para identificarse plenamente.</span>}
+        </Card>
+        <Card title="Qualia" color="#a855f7">
+          <KVTable data={{ latest_state: qualia.latest_state, signals: (qualia.recent_signals || []).length, experiences: (qualia.recent_experiences || []).length }} />
+        </Card>
+        <Card title="Federación" color="#eab308">
+          <KVTable data={{ active_nodes: federation.active_count, revoked_nodes: federation.revoked_count, recent_exchanges: (federation.recent_exchanges || []).length }} />
+        </Card>
+        <Card title="Modelos" color={models.ollama?.ok ? '#22c55e' : '#eab308'}>
+          <KVTable data={models} />
+        </Card>
+        <Card title="Bodega y memoria semántica" color="#3b82f6">
+          <KVTable data={{ bodega: data.bodega?.counts, semantic_memory: data.semantic_memory }} />
         </Card>
       </Grid>
     </Page>
@@ -906,7 +870,7 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
 
   if (selectedNeuron) {
     const n = selectedNeuron.neuron || {}
-    const training = selectedNeuron.training || []
+    const training = n.training || selectedNeuron.training || []
     const status = (n.status || '').toLowerCase()
 
     async function promoteTo(to: string) {
@@ -919,7 +883,7 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
       } catch (e: any) { setError(e.message) }
     }
 
-    const p = selectedNeuron.progress || {}
+    const p = selectedNeuron.progress || n.progress || {}
 
     return (
       <Page title={`Neurona: ${n.name}`} subtitle={`Dominio: ${n.domain}`}>
@@ -967,8 +931,14 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
           )}
         </div>
         <Grid cols={2}>
-          <Card title="Detalles" color="#a855f7">
-            <KVTable data={n} />
+          <Card title="Identidad" color="#a855f7">
+            <KVTable data={{
+              name: n.name, type: n.type, mission: n.mission, state: n.state, trust_level: n.trust_level,
+              domain: n.domain, observing: n.observing, learning_state: n.learning_state,
+              learned_or_attempting: n.learned_or_attempting, current_risk: n.current_risk,
+              allowed_effects: n.allowed_effects, limits: n.limits, promotion_reason: n.promotion_reason,
+              identity_message: n.identity_message, triade_relation: n.triade_relation, evidence_used: n.evidence_used,
+            }} />
           </Card>
           <Card title={`Entrenamiento (${training.length})`} color="#3b82f6">
             {training.length ? training.map((t: any, i: number) => (
@@ -1102,7 +1072,8 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
                 transition: 'border-color var(--transition)',
               }}>
                 <span style={{ fontWeight: 600, flex: 1 }}>{n.name}</span>
-                <Badge status={n.status || n.activation} />
+                <span style={{ color: 'var(--text-muted)', fontSize: 11, flex: 2 }}>{n.mission || n.identity_message}</span>
+                <Badge status={n.status || n.state || n.activation} />
                 {p.progress !== undefined && p.progress > 0 && p.progress < 1 && (
                   <div style={{ width: 60 }}>
                     <div style={{ background: 'var(--bg-surface)', borderRadius: 6, height: 6, overflow: 'hidden' }}>

@@ -53,6 +53,8 @@ def legacy_ui() -> str:
 
 @router.get("/", response_class=HTMLResponse)
 @router.get("/ui", response_class=HTMLResponse)
+@router.get("/observabilidad", response_class=HTMLResponse)
+@router.get("/ui/observabilidad", response_class=HTMLResponse)
 def ui() -> FileResponse:
     """Entrada principal pública: sirve la SPA React si existe, o la consola limpia."""
     spa_index = FRONTEND_DIST / "index.html"

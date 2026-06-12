@@ -25,6 +25,7 @@ from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
 
 from .contracts import WORKER_TASK_TYPES, WorkerRunConfig, WorkerTask, new_worker_run_id
+from .neuron_mission_executor import NeuronMissionExecutor
 from .scheduler import WorkerScheduler
 from .state_store import WorkerStateStore
 from .task_queue import WorkerTaskQueue
@@ -234,6 +235,7 @@ class WorkerLoop:
         confidence: float = 0.6,
         risk: str = "low",
         usefulness: float = 0.5,
+        ingest_learning: bool | None = None,
     ) -> dict[str, Any] | None:
         try:
             bus = QualiaBus(db_path=self.db_path)
@@ -252,7 +254,7 @@ class WorkerLoop:
                 usefulness=usefulness,
                 evidence_refs=[f"worker:{run_ref}", f"task:{task_type}"],
             )
-            result = bus.publish_experience(exp, ingest_learning=bool(proposed_learning))
+            result = bus.publish_experience(exp, ingest_learning=bool(proposed_learning) if ingest_learning is None else ingest_learning)
             return {"published": True, "experience_id": exp.id, "state": result.get("state", {}).to_dict() if hasattr(result.get("state"), "to_dict") else result.get("state")}
         except Exception as exc:
             record_internal_error(
@@ -331,6 +333,34 @@ class WorkerLoop:
         return {"status": "completed", "raw_count": len(raw), "formed_count": len(formed), "candidates": formed, "qualia": qualia}
 
     def _experimental_neuron_activity(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        mission_id = task.payload.get("mission_id")
+        if mission_id is not None:
+            mission_result = NeuronMissionExecutor(db_path=self.db_path).execute(
+                mission_id=int(mission_id),
+                run_ref=run_ref,
+                task_payload=task.payload,
+                task_dir=task_dir,
+                config=config,
+            )
+            qualia = self._publish_qualia_experience(
+                run_ref,
+                "experimental_neuron_activity",
+                "worker_neuron_mission",
+                str(mission_result.get("observation") or mission_result.get("decision") or "Misión neuronal ejecutada."),
+                extracted_pattern=str({
+                    "mission_id": mission_result.get("mission_id"),
+                    "cycle_id": mission_result.get("cycle_id"),
+                    "evidence_id": mission_result.get("evidence_id"),
+                    "score_id": mission_result.get("score_id"),
+                    "decision": mission_result.get("decision"),
+                }),
+                proposed_learning=str(mission_result.get("proposed_learning") or "")[:1000],
+                confidence=float(mission_result.get("composite_score") or 0.6),
+                usefulness=float(mission_result.get("composite_score") or 0.5),
+                ingest_learning=False,
+            )
+            return {**mission_result, "stable_memory_written": False, "qualia": qualia}
+
         signals = SignalPacket(run_id=run_ref, intent="worker", tone="operational", urgency="low", risk="low", notes=["background"])
         activity = run_experimental_neurons(
             db_path=str(self.db_path),
