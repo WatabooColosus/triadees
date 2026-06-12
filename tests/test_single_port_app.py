@@ -451,6 +451,41 @@ def test_signed_federated_transport_rejects_bad_signature(tmp_path, monkeypatch)
     assert response.status_code == 401
 
 
+def test_signed_federated_transport_rejects_replayed_nonce(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+    routes_api.SIGNED_NONCE_CACHE.clear()
+    single_port_app.LOCAL_JOBS.clear()
+    register = client.post("/api/register", json={"display_name": "Android firmado", "capabilities": {"native_android": True, "app_node": True}})
+    identity = register.json()
+    single_port_app.create_local_job(identity["node_id"], "sha256", payload={"hello": "triade"})
+
+    payload = {"request": "next_job"}
+    timestamp = int(time.time())
+    envelope = {
+        "node_id": identity["node_id"],
+        "timestamp": timestamp,
+        "nonce": "nonce-replay-12345",
+        "payload": payload,
+        "signature": sign_payload(identity["node_token"], identity["node_id"], timestamp, "nonce-replay-12345", payload),
+    }
+
+    first = client.post("/api/federation/transport/next", json=envelope)
+    replay = client.post("/api/federation/transport/next", json=envelope)
+
+    assert first.status_code == 200
+    assert replay.status_code == 409
+    assert "replay" in replay.json()["detail"].lower()
+
+
+def test_signed_nonce_cache_prunes_expired_entries() -> None:
+    routes_api.SIGNED_NONCE_CACHE.clear()
+    routes_api.SIGNED_NONCE_CACHE["node:old"] = 1.0
+
+    routes_api._prune_signed_nonce_cache(now=2.0)
+
+    assert routes_api.SIGNED_NONCE_CACHE == {}
+
+
 def test_local_jobs_only_accept_sandbox_tasks() -> None:
     try:
         single_port_app.create_local_job("node", "execute_system_commands")

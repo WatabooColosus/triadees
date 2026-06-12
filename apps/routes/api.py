@@ -78,6 +78,9 @@ from apps.services import (
 
 router = APIRouter()
 
+SIGNED_NONCE_TTL_SECONDS = 300
+SIGNED_NONCE_CACHE: dict[str, float] = {}
+
 
 def require_key(value: str | None) -> None:
     expected = os.getenv("TRIADE_API_KEY")
@@ -85,6 +88,29 @@ def require_key(value: str | None) -> None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="API key inválida o ausente."
         )
+
+
+def _prune_signed_nonce_cache(now: float | None = None) -> None:
+    current = time.monotonic() if now is None else now
+    expired = [
+        key
+        for key, expires_at in SIGNED_NONCE_CACHE.items()
+        if expires_at <= current
+    ]
+    for key in expired:
+        SIGNED_NONCE_CACHE.pop(key, None)
+
+
+def _remember_signed_nonce(node_id: str, nonce: str) -> None:
+    now = time.monotonic()
+    _prune_signed_nonce_cache(now)
+    key = f"{node_id}:{nonce}"
+    if key in SIGNED_NONCE_CACHE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Nonce federado ya usado; posible replay bloqueado.",
+        )
+    SIGNED_NONCE_CACHE[key] = now + SIGNED_NONCE_TTL_SECONDS
 
 
 def verify_signed_node_envelope(envelope: SignedEnvelope) -> None:
@@ -100,6 +126,7 @@ def verify_signed_node_envelope(envelope: SignedEnvelope) -> None:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Firma federada inválida o expirada.",
         )
+    _remember_signed_nonce(envelope.node_id, envelope.nonce)
     if envelope.public_key:
         federation = Federation()
         node = federation.get_node(envelope.node_id)
