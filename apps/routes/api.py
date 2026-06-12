@@ -522,6 +522,28 @@ def list_neuron_missions(status: str | None = None, limit: int = 50) -> dict[str
     }
 
 
+@router.get("/api/neurons/missions/relevant")
+def relevant_missions(query: str = "", domain: str | None = None, limit: int = 5) -> dict[str, Any]:
+    from triade.core.neuron_mission_selector import select_relevant_missions
+    LIFE_PULSE.record_action("neuron_missions_relevant")
+    return select_relevant_missions(
+        user_input=query,
+        domain=domain,
+        limit=limit,
+    )
+
+
+@router.get("/api/system/neurons/missions/relevant")
+def system_relevant_missions(query: str = "", domain: str | None = None, limit: int = 5) -> dict[str, Any]:
+    from triade.core.neuron_mission_selector import select_relevant_missions
+    LIFE_PULSE.record_action("system_neuron_missions_relevant")
+    return select_relevant_missions(
+        user_input=query,
+        domain=domain,
+        limit=limit,
+    )
+
+
 @router.post("/api/neuron_missions/backfill")
 def backfill_neuron_missions_route(limit: int = 500) -> dict[str, Any]:
     LIFE_PULSE.record_action("neuron_missions_backfill")

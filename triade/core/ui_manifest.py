@@ -107,6 +107,7 @@ def build_ui_manifest() -> dict[str, Any]:
                     {"id": "queue", "label": "Cola modelos", "method": "GET", "endpoint": "/api/models/install-queue?include_allowed=false"},
                     {"id": "semantic", "label": "Memoria semántica", "method": "GET", "endpoint": "/api/semantic/governance/doctor"},
                     {"id": "stable_audit", "label": "Auditoría stable", "method": "GET", "endpoint": "/api/neurons/stable-audit"},
+                    {"id": "relevant_missions", "label": "Misiones relevantes", "method": "GET", "endpoint": "/api/neurons/missions/relevant?query=estado%20interno"},
                     {"id": "router", "label": "Recomendar modelos", "method": "POST", "endpoint": "/api/router/doctor"},
                     {"id": "android_doctor", "label": "Doctor Android", "method": "POST", "endpoint": "/api/distributed-runtime/android-model-doctor"},
                     {"id": "runtime_probe", "label": "Probar runtime distribuido", "method": "POST", "endpoint": "/api/distributed-runtime/probe"},

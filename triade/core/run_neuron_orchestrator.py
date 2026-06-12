@@ -17,6 +17,7 @@ from .error_bus import record_internal_error
 from .experimental_neuron_runtime import run_experimental_neurons
 from .neuron_activity_store import NeuronActivityStore
 from .neuron_formation_pipeline import form_candidates
+from .neuron_mission_selector import select_relevant_missions
 from .run_system_events import build_system_events, filter_obsolete_edge_debt
 
 
@@ -43,6 +44,15 @@ def orchestrate_run_neurons(
         output_gate,
     )
     system_events = filter_obsolete_edge_debt(system_events, edge_usage)
+
+    living_context = (input_packet.context or {}).get("living_context")
+    mission_selection = select_relevant_missions(
+        user_input=input_packet.user_input,
+        domain=str((input_packet.context or {}).get("semantic_domain") or ""),
+        memory_context=living_context if isinstance(living_context, dict) else input_packet.context or {},
+        db_path=db_path,
+        limit=5,
+    )
 
     experimental_neuron_activity = run_experimental_neurons(
         db_path=str(db_path),
@@ -113,6 +123,8 @@ def orchestrate_run_neurons(
     output.memory_diff["output_gate"] = output_gate
     output.memory_diff["neuron_contributions"] = contributions
     output.memory_diff["neuron_learning_candidates"] = learning_candidates
+    output.memory_diff["relevant_missions"] = mission_selection.get("selected", [])
+    output.memory_diff["mission_selection_policy"] = mission_selection.get("policy", {})
 
     return {
         "system_events": system_events,
@@ -121,6 +133,8 @@ def orchestrate_run_neurons(
         "background_neuron_candidates": background_neuron_candidates,
         "neuron_contributions": contributions,
         "neuron_learning_candidates": learning_candidates,
+        "relevant_missions": mission_selection.get("selected", []),
+        "mission_selection_policy": mission_selection.get("policy", {}),
     }
 
 

@@ -168,6 +168,19 @@ Después del backfill, `MissionPlanner` ya puede encolar `experimental_neuron_ac
 
 `learning_candidate` no es memoria estable. Sigue siendo un candidato hasta que `LearningPipeline` lo evalúa, verifica, valida en runs y consolida.
 
+## Selección De Misiones Relevantes
+
+No toda misión activa se ejecuta por defecto. Tríade usa `select_relevant_missions()` para puntuar misiones por dominio, palabras clave, contexto de memoria, score reciente y recencia.
+
+Exposición read-only:
+
+```bash
+curl "http://127.0.0.1:8010/api/neurons/missions/relevant?query=estado%20interno&limit=5"
+curl "http://127.0.0.1:8010/api/system/neurons/missions/relevant?query=estado%20interno&limit=5"
+```
+
+La UI de Neuronas muestra una tarjeta de "Misiones relevantes" sin botones de escritura. Si el selector no encuentra misiones útiles, el sistema no fuerza ejecución solo por tener una misión registrada.
+
 ## Auditoría De Neuronas Stable
 
 La etiqueta `stable` no se toma como verdad automática. El auditor read-only revisa evidencia actual y separa:

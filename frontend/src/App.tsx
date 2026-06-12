@@ -919,6 +919,9 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
   const [selectedMission, setSelectedMission] = useState<any>(null)
   const [pendingSafety, setPendingSafety] = useState<any[]>([])
   const [stableAudit, setStableAudit] = useState<any>(null)
+  const [relevantMissions, setRelevantMissions] = useState<any>(null)
+  const [relevantQuery, setRelevantQuery] = useState('estado interno')
+  const [relevantDomain, setRelevantDomain] = useState('')
   const [error, setError] = useState('')
   const [selectedNeuron, setSelectedNeuron] = useState<any>(null)
 
@@ -928,7 +931,12 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
     api('/api/neurons/missions?limit=20').then(setMissions).catch(() => {})
     api('/api/safety/pending').then(r => setPendingSafety(r.pending || [])).catch(() => {})
     api('/api/neurons/stable-audit?limit=50').then(setStableAudit).catch(() => {})
-  }, [])
+    const qs = new URLSearchParams()
+    qs.set('query', relevantQuery || 'estado interno')
+    if (relevantDomain.trim()) qs.set('domain', relevantDomain.trim())
+    qs.set('limit', '5')
+    api(`/api/neurons/missions/relevant?${qs.toString()}`).then(setRelevantMissions).catch(() => {})
+  }, [relevantDomain, relevantQuery])
 
   useEffect(() => { fetch(); const id = setInterval(fetch, 8000); return () => clearInterval(id) }, [fetch])
 
@@ -1117,6 +1125,57 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
           </div>
         </Card>
       )}
+      <Card title="Misiones Relevantes" color="#0ea5e9">
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+          <input
+            value={relevantQuery}
+            onChange={e => setRelevantQuery(e.target.value)}
+            placeholder="Consulta de relevancia"
+            style={{
+              minWidth: 220, flex: 1, background: 'var(--bg-base)', border: '1px solid var(--border)',
+              color: 'var(--text-primary)', borderRadius: 6, padding: '6px 10px', fontSize: 12, outline: 'none',
+            }}
+          />
+          <input
+            value={relevantDomain}
+            onChange={e => setRelevantDomain(e.target.value)}
+            placeholder="Dominio (opcional)"
+            style={{
+              minWidth: 180, background: 'var(--bg-base)', border: '1px solid var(--border)',
+              color: 'var(--text-primary)', borderRadius: 6, padding: '6px 10px', fontSize: 12, outline: 'none',
+            }}
+          />
+          <button onClick={() => fetch()} style={btnStyle}>Actualizar</button>
+        </div>
+        <div style={{ color: 'var(--text-muted)', fontSize: 11, marginBottom: 8 }}>
+          Vista read-only de las misiones que el selector considera relevantes para el contexto actual.
+        </div>
+        {relevantMissions?.selected?.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {relevantMissions.selected.slice(0, 10).map((m: any) => (
+              <div key={m.id} style={{
+                padding: '8px 10px', background: 'var(--bg-base)', borderRadius: 6,
+                border: '1px solid var(--border)', fontSize: 12,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600 }}>{m.title}</span>
+                  <Badge status={m.status} />
+                </div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
+                  {m.domain} · score {Number(m.relevance_score || 0).toFixed(2)}
+                </div>
+                <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 3 }}>
+                  {m.reason}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+            {relevantMissions?.status === 'ok' ? 'No hay misiones relevantes seleccionadas.' : 'Cargando…'}
+          </div>
+        )}
+      </Card>
       {activity && (
         <Card title="Actividad de Fondo" color="#22c55e">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

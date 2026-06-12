@@ -337,8 +337,75 @@ class WorkerLoop:
         return {"status": "completed", "raw_count": len(raw), "formed_count": len(formed), "candidates": formed, "qualia": qualia}
 
     def _experimental_neuron_activity(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        from triade.core.neuron_mission_selector import select_relevant_missions
+        from triade.core.neuron_missions import NeuronMissionStore
+
         mission_id = task.payload.get("mission_id")
         if mission_id is not None:
+            store = NeuronMissionStore(db_path=self.db_path)
+            mission = store.get_mission(int(mission_id))
+            selection = select_relevant_missions(
+                user_input=str(task.payload.get("query") or task.payload.get("user_input") or ""),
+                domain=str(task.payload.get("domain") or (mission.domain if mission else "") or ""),
+                memory_context=task.payload.get("memory_context") or task.payload.get("context") or {},
+                db_path=self.db_path,
+                limit=5,
+            )
+            relevant_ids = {
+                int(item["id"])
+                for item in (selection.get("selected") or [])
+                if item.get("id") is not None
+            }
+            if mission is None:
+                blocked = {
+                    "status": "blocked",
+                    "decision": "mission_not_found",
+                    "mission_id": int(mission_id),
+                    "mission_selection": selection,
+                    "mission_selection_policy": selection.get("policy", {}),
+                    "relevant_missions": selection.get("selected", []),
+                    "stable_memory_written": False,
+                }
+                qualia = self._publish_qualia_experience(
+                    run_ref,
+                    "experimental_neuron_activity",
+                    "worker_neuron_mission_blocked",
+                    f"Misión neuronal {mission_id} no encontrada; ejecución bloqueada.",
+                    extracted_pattern=str({"mission_id": mission_id, "decision": "mission_not_found"}),
+                    proposed_learning="No ejecutar misiones neuronales inexistentes.",
+                    confidence=0.1,
+                    usefulness=0.1,
+                    ingest_learning=False,
+                )
+                return {**blocked, "qualia": qualia}
+            if int(mission_id) not in relevant_ids:
+                blocked = {
+                    "status": "blocked",
+                    "decision": "blocked_by_relevance",
+                    "mission_id": int(mission_id),
+                    "mission_title": mission.title,
+                    "mission_domain": mission.domain,
+                    "mission_selection": selection,
+                    "mission_selection_policy": selection.get("policy", {}),
+                    "relevant_missions": selection.get("selected", []),
+                    "stable_memory_written": False,
+                }
+                qualia = self._publish_qualia_experience(
+                    run_ref,
+                    "experimental_neuron_activity",
+                    "worker_neuron_mission_blocked",
+                    f"Misión neuronal {mission_id} bloqueada por relevancia insuficiente.",
+                    extracted_pattern=str({
+                        "mission_id": mission_id,
+                        "decision": "blocked_by_relevance",
+                        "selected_count": selection.get("count", 0),
+                    }),
+                    proposed_learning="No ejecutar misiones neuronales irrelevantes.",
+                    confidence=0.2,
+                    usefulness=0.2,
+                    ingest_learning=False,
+                )
+                return {**blocked, "qualia": qualia}
             mission_result = NeuronMissionExecutor(db_path=self.db_path).execute(
                 mission_id=int(mission_id),
                 run_ref=run_ref,
@@ -363,9 +430,61 @@ class WorkerLoop:
                 usefulness=float(mission_result.get("composite_score") or 0.5),
                 ingest_learning=False,
             )
-            return {**mission_result, "stable_memory_written": False, "qualia": qualia}
+            return {
+                **mission_result,
+                "stable_memory_written": False,
+                "qualia": qualia,
+                "mission_selection": selection,
+                "mission_selection_policy": selection.get("policy", {}),
+                "relevant_missions": selection.get("selected", []),
+            }
 
         signals = SignalPacket(run_id=run_ref, intent="worker", tone="operational", urgency="low", risk="low", notes=["background"])
+        query = str(task.payload.get("query") or "pulso memoria federacion modelo estado worker")
+        domain = str(task.payload.get("domain") or "")
+        selection = select_relevant_missions(
+            user_input=query,
+            domain=domain or None,
+            db_path=self.db_path,
+            limit=5,
+        )
+        relevant = selection.get("selected") or []
+        first_mission_id = relevant[0]["id"] if relevant else None
+        if first_mission_id is not None:
+            mission_result = NeuronMissionExecutor(db_path=self.db_path).execute(
+                mission_id=int(first_mission_id),
+                run_ref=run_ref,
+                task_payload={**task.payload, "selected_by_relevance": True, "selection_result": selection},
+                task_dir=task_dir,
+                config=config,
+            )
+            qualia = self._publish_qualia_experience(
+                run_ref,
+                "experimental_neuron_activity",
+                "worker_neuron_relevant_mission",
+                str(mission_result.get("observation") or mission_result.get("decision") or "Misión neuronal ejecutada por relevancia."),
+                extracted_pattern=str({
+                    "mission_id": mission_result.get("mission_id"),
+                    "cycle_id": mission_result.get("cycle_id"),
+                    "evidence_id": mission_result.get("evidence_id"),
+                    "score_id": mission_result.get("score_id"),
+                    "decision": mission_result.get("decision"),
+                    "relevance_count": selection.get("count"),
+                }),
+                proposed_learning=str(mission_result.get("proposed_learning") or "")[:1000],
+                confidence=float(mission_result.get("composite_score") or 0.6),
+                usefulness=float(mission_result.get("composite_score") or 0.5),
+                ingest_learning=False,
+            )
+            return {
+                **mission_result,
+                "stable_memory_written": False,
+                "qualia": qualia,
+                "mission_selection": selection,
+                "mission_selection_policy": selection.get("policy", {}),
+                "relevant_missions": selection.get("selected", []),
+            }
+
         activity = run_experimental_neurons(
             db_path=str(self.db_path),
             user_input="pulso memoria federacion modelo estado worker",

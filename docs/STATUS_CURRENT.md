@@ -26,7 +26,7 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - Sandbox real: `triade/sandbox/` ejecuta tareas permitidas en aislamiento controlado. Whitelist de tareas, sin shell arbitrario, sin red, sin escritura fuera de runs/sandbox. `run_in_sandbox()` soporta dry_run, crea artifacts input.json/result.json, y reporta `policy_version`, `allowed_task`, `writes_outside_sandbox`, `network_used`, `shell_used`. Safety `sandbox_only` no rompe el runner.
 - Memory Trace visible: `GET /api/observability` incluye `memory_trace` del último run y `last_run.memory_trace_summary` con confidence, matches, quarantined, contradictions, stable_needs_review y bodega_global_status. UI muestra Memory Trace card en Observabilidad.
 - Creación neuronal con misión ejecutable: `_propose_neuron_candidate` crea `NeuronMission` con `mission_id` asociado a la neurona candidate. Misión incluye allowed_sources, allowed_actions y schedule_hint. Si la creación falla, el run no falla.
-- Selección de misiones por relevancia: `select_relevant_missions()` filtra misiones por dominio, triggers, estado activo y score. Solo selecciona misiones con status candidate/experimental/stable.
+- Selección de misiones por relevancia: `select_relevant_missions()` filtra misiones por dominio, keywords, estado activo, score y recencia. Solo selecciona misiones con status candidate/experimental/stable, y su resultado se expone en modo read-only por API/UI.
 
 ## Parcial
 
