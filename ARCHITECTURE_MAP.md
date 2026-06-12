@@ -1,6 +1,6 @@
 # ARCHITECTURE_MAP.md · Tríade Ω
 
-Mapa de la arquitectura **tal como existe en el código** (no la visión). Estado al 2026-06-12, commit base `f6e999c`, frontera ≈ v2.1.
+Mapa de la arquitectura **tal como existe en el código** (no la visión). Estado al 2026-06-12, commit base `e597618`, frontera ≈ v2.1.
 
 Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin código).
 
@@ -42,8 +42,8 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
                                             │                         │
                         ┌───────────────────▼──────────┐   ┌──────────▼─────────┐
    MODELOS              │ triade/models/                │   │ SQLite triade.db   │
-                        │ ollama_client · model_router  │   │ (16 tablas; 4      │
-                        │ hardware_profile ·            │   │  "muertas": ver §4)│
+                         │ ollama_client · model_router  │   │ (16 tablas; 1      │
+                         │ hardware_profile ·            │   │  "muerta": goals)  │
                         │ compatibility_matrix ·        │   └────────────────────┘
                         │ model_install_queue           │
                         │ → Ollama 127.0.0.1:11434 (opc)│
@@ -153,28 +153,41 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 
 ---
 
-## 4. Esquema SQLite (`schemas.sql` — 16 tablas)
+## 4. Esquema SQLite (`schemas.sql` — 29 tablas)
 
 | Tabla | Usada por código | Estado |
 |---|---|---|
 | `identity_core` | Bodega (recall identidad) | 🟢 activa (semilla: entity_name, misión, ética, origen) |
 | `runs` | Bodega | 🟢 activa |
 | `episodic_memory` | Bodega | 🟢 activa |
+| `semantic_memory` | Bodega `_search_semantic` | 🟡 activa pero vacía |
+| `neurons` | NeuronRegistry (CLI) | 🟡 activa solo vía CLI |
+| `neuron_activity` | neuron_activity_store, experimental_neuron_evidence, qualia/adapters | 🟢 activa |
+| `neuron_training` | NeuronRegistry (CLI) | 🟡 activa solo vía CLI |
 | `signal_states` | Bodega | 🟢 activa |
 | `crystal_states` (+22 cols migradas v2) | Bodega/Crystal | 🟢 activa |
-| `verification_reports` | Bodega/Verifier | 🟢 activa |
+| `learning_queue` | LearningPipeline (Fase C) | 🟢 activa |
 | `knowledge_patterns` | Bodega (safety + patrones) | 🟢 activa |
 | `model_events` | Bodega | 🟢 activa |
-| `neurons` / `neuron_training` | NeuronRegistry (CLI) | 🟡 activa solo vía CLI |
-| `semantic_memory` (keyword legacy) | Bodega `_search_semantic` | 🟡 activa pero vacía |
-| `semantic_documents` / `semantic_embeddings` / `semantic_governance_events` (migración 1.9A/1.9E) | capa semántica | 🟡 activa, con regresión 1.9F |
-| `learning_queue` | LearningPipeline (Fase C) | 🟢 activa |
+| `verification_reports` | Bodega/Verifier | 🟢 activa |
+| `trust_levels` | trust_store, life_pulse | 🟢 activa |
+| `reinforcement_log` | hypothalamus_store, trust_store | 🟢 activa |
 | `federated_nodes` | Federation (Fase D) | 🟢 activa |
 | `federated_exchange_log` | Federation (Fase D) | 🟢 activa |
-| `qualia_*` | QualiaBus | 🟢 activa (experiencias, señales, paquetes y estado) |
-| `goals` | — | 🔴 muerta (única restante) |
+| `goals` | consciousness/salience | 🟢 activa (baja actividad) |
+| `qualia_experiences` | QualiaBus | 🟢 activa |
+| `qualia_signals` | QualiaBus | 🟢 activa |
+| `qualia_central_packets` | QualiaBus | 🟢 activa |
+| `qualia_storage_packets` | QualiaBus | 🟢 activa |
+| `qualia_states` | QualiaBus | 🟢 activa |
+| `worker_tasks` | Living Workers | 🟢 activa |
+| `worker_runs` | Living Workers | 🟢 activa |
+| `worker_events` | Living Workers | 🟢 activa |
+| `worker_state` | Living Workers | 🟢 activa |
+| `hypothalamus_state` | hypothalamus_store, consciousness | 🟢 activa |
+| `auto_identity` | auto_identity_store, bodega, life_pulse | 🟢 activa |
 
-*Nota:* `triade.db` está en `.gitignore` (correcto); la única DB versionada es `backups/triade-before-systemd.db` (24 runs, 14 ciclos cristal/señal/safety/verificación, 10 eventos de modelo; tablas muertas en 0).
+*Nota:* `triade.db` está en `.gitignore` (correcto); la única DB versionada es `backups/triade-before-systemd.db` (24 runs, 14 ciclos cristal/señal/safety/verificación, 10 eventos de modelo; todas las tablas activas).
 
 ---
 
@@ -182,7 +195,7 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 
 | Superficie | Archivo | Rol |
 |---|---|---|
-| CLI | `triade_digimon.py` | run, chat, recall, doctor, align, api, neuron, models |
+| CLI | `triade_digimon.py` | run, chat, recall, doctor, align, api, neuron, models, qualia, workers |
 | API principal | `apps/api_app.py` | `/triade/run`, `/recall`, `/doctor`, `/neurons*` (con API key) |
 | App unificada | `apps/single_port_app.py` | chat + semántica + router + run en un puerto |
 | Chat UI | `apps/chat_ui_app.py`, `apps/chat_ui_router_app.py` | UIs web (⚠ duplicación, D-07) |

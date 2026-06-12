@@ -1,7 +1,7 @@
 # ROADMAP.md · Tríade Ω (alineado al estado real)
 
 Ruta priorizada derivada de la auditoría Fase 0 (ver `AUDIT_REPORT.md` y `ARCHITECTURE_MAP.md`).
-Estado base: 2026-06-02 · commit `90c548f` · frontera técnica ≈ **v1.9F**.
+Estado base: 2026-06-12 · commit `e597618` · frontera técnica ≈ **v2.1**.
 
 > Este ROADMAP refleja **lo que el código hace hoy** y prioriza estabilizar antes de expandir.
 > El roadmap conceptual histórico original se conserva intacto en `docs/ROADMAP.md`.
@@ -16,13 +16,13 @@ Estado base: 2026-06-02 · commit `90c548f` · frontera técnica ≈ **v1.9F**.
 | Fase 0 · Base fundacional | en progreso | ✅ completa |
 | Fase 1 · Arquitectura documentada | activo | ✅ completa |
 | Fase 2 · MVP consola | pendiente | ✅ completa (CLI run/chat/recall/doctor) |
-| Fase 3 · Memoria viva + aprendizaje | pendiente | 🟡 memoria ✅ / aprendizaje 🔴 |
+| Fase 3 · Memoria viva + aprendizaje | pendiente | ✅ completa (LearningPipeline + validated_in_runs) |
 | Fase 4 · Doble modelo por neurona | pendiente | ✅ completa (Hipotálamo+Central, Ollama+router+fallback) |
 | Fase 5 · Integración n8n + API | pendiente | ✅ completa (FastAPI + 4 workflows + systemd) |
-| Fase 6 · Federación | pendiente | 🔴 solo visión |
+| Fase 6 · Federación | pendiente | ✅ completa (nodos, permisos, receive→candidate, revoke) |
 | Fase 7 · Framework publicable | futuro | 🔴 futuro |
 
-**Implicación:** el proyecto está mucho más avanzado de lo que su propia documentación admite. El trabajo pendiente no es construir el MVP — ya existe — sino **reparar la regresión semántica, decir la verdad del estado, y cerrar las dos promesas grandes (Learning y Federation).**
+**Implicación:** el proyecto cubre las fases 0–6. El trabajo pendiente es estabilizar, documentar y preparar para publicación (Fase 7).
 
 ---
 
@@ -30,8 +30,8 @@ Estado base: 2026-06-02 · commit `90c548f` · frontera técnica ≈ **v1.9F**.
 
 - **Fase A · ✅ COMPLETA** (A.1, A.2, A.3). Suite verde, base verificable restaurada, docs sincronizados, `align` dinámico.
 - **Fase B.1 · ✅ COMPLETA** — N Creadora/Formadora integradas al ciclo `run()` como propuesta auditable (candidate, sin activación).
-- **Fase C · ✅ COMPLETA** — Learning Pipeline sobre `learning_queue` (candidate→evaluated→verified→consolidated), consolidación vía gobernanza semántica 1.9E, CLI `learn`. `align` mide **0.93 (strong)**; `learning_queue` deja de ser tabla muerta.
-- **Fase D · ✅ COMPLETA** — Federación de nodos sobre `federated_nodes`/`federated_exchange_log`: registro con permisos/confianza, recepción gated (autenticación→permiso→Safety→log→Learning Pipeline como candidato), envío con bloqueo de fuga, revocación. CLI `federate`. Solo queda `goals` como tabla muerta.
+- **Fase C · ✅ COMPLETA** — Learning Pipeline sobre `learning_queue` (candidate→evaluated→verified→validated_in_runs→consolidated), gates de consolidación (3 usos, score ≥ 0.70, source_ref, risk ≠ critical), CLI `learn`. `learning_queue` deja de ser tabla muerta.
+- **Fase D · ✅ COMPLETA** — Federación de nodos sobre `federated_nodes`/`federated_exchange_log`: registro con permisos/confianza, recepción gated (autenticación→permiso→Safety→log→Learning Pipeline como candidato), envío con bloqueo de fuga, revocación. CLI `federate`. Las 29 tablas están activas.
 - **Fase W · ✅ IMPLEMENTADA EN PR** — Triade Living Workers: loop acotado, cola persistente, artefactos `runs/background`, revisión de aprendizaje, gobierno semántico, actividad experimental, autopromoción y endpoints/CLI. Pendiente: persistencia avanzada de scheduler, workers externos y política formal de promoción stable.
 - **Fase Q · ✅ IMPLEMENTADA EN PR** — QualiaBus: experiencias neuronales circulan hacia Hipotálamo, Central, Bodega y LearningPipeline como señales/paquetes/candidatos auditables, sin escritura estable automática.
 - **Fase NC · ✅ COMPLETA** — Neuron Contributions: `NeuronContributionPacket` con política de efectos por estado (candidate→experimental→active_assistant→trusted_worker→stable), runtime produce contributions, orquestador genera candidatos de aprendizaje, runner filtra por risk/confidence/Safety/identity_core, workers implementan `stable_consolidation_review`, CLI `daemon`.
@@ -113,10 +113,11 @@ Estado base: 2026-06-02 · commit `90c548f` · frontera técnica ≈ **v1.9F**.
 ## Fase W · Triade Living Workers ✅ IMPLEMENTADA EN PR
 
 - Nuevo paquete `triade/workers/` con scheduler, task queue, state store, worker loop, background service y contratos.
-- Tareas periódicas: `pulse_check`, `pending_learning_review`, `semantic_memory_governance`, `neuron_candidate_formation`, `experimental_neuron_activity`, `neuron_autopromotion`, `federation_inbox_review`, `memory_consolidation_review`, `system_debt_scan`.
-- CLI `triade workers ...` y endpoints `/workers/*`, `/neurons/activity`, `/learning/pending`.
-- Reglas: no toca `identity_core`, no escribe memoria stable, no ejecuta shell/red, usa Safety y deja artefactos auditables.
-- Evidencia: tests `test_worker_*`, smoke `workers once` y `workers start --max-iterations 5 --sleep 2`.
+- 10 tareas: `pulse_check`, `pending_learning_review`, `semantic_memory_governance`, `neuron_candidate_formation`, `experimental_neuron_activity`, `neuron_autopromotion`, `federation_inbox_review`, `memory_consolidation_review`, `stable_consolidation_review`, `system_debt_scan`.
+- `memory_consolidation_review` marca candidatos verified como `used_in_run` (no consolida directamente).
+- `stable_consolidation_review` consolida solo candidatos `validated_in_runs` con evidencia suficiente.
+- CLI `triade workers once/start/daemon/status/stop/queue/events/doctor` y endpoints `/workers/*`.
+- Reglas: no toca `identity_core`, no escribe memoria stable sin evidencia, no ejecuta shell/red, usa Safety y deja artefactos auditables.
 
 ## Fase E · Consolidación y Framework Publicable
 **Prioridad P3 · calidad y difusión.**

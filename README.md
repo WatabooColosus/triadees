@@ -311,31 +311,37 @@ Motor de memoria recomendado para MVP:
 - SQLite con WAL.
 - Migración futura a PostgreSQL cuando el sistema crezca.
 
-Tablas existentes en SQLite:
+Tablas existentes en SQLite (29):
 
 - `identity_core`
 - `runs`
 - `episodic_memory`
 - `semantic_memory`
 - `neurons`
+- `neuron_activity`
 - `neuron_training`
 - `signal_states`
 - `crystal_states`
 - `learning_queue`
 - `knowledge_patterns`
+- `model_events`
+- `verification_reports`
+- `trust_levels`
+- `reinforcement_log`
 - `federated_nodes`
 - `federated_exchange_log`
-- `verification_reports`
 - `goals`
 - `qualia_experiences` (QualiaBus)
 - `qualia_signals` (QualiaBus)
 - `qualia_central_packets` (QualiaBus)
 - `qualia_storage_packets` (QualiaBus)
 - `qualia_states` (QualiaBus)
-- `worker_runs` (Living Workers)
 - `worker_tasks` (Living Workers)
+- `worker_runs` (Living Workers)
 - `worker_events` (Living Workers)
 - `worker_state` (Living Workers)
+- `hypothalamus_state` (Hypothalamus)
+- `auto_identity` (Auto Identity)
 
 ---
 
