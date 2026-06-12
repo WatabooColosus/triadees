@@ -95,6 +95,16 @@ curl -X POST http://127.0.0.1:8010/api/system/life/continuous-runner \
 
 El chat no es el motor de pensamiento. El motor interno es el runtime supervisor que observa, planifica, ejecuta misiones y procesa aprendizaje en segundo plano con límites explícitos.
 
+### Pulso Vivo 24/7 verificable
+
+Para inspección rápida del estado vivo:
+
+- `GET /api/runtime/heartbeat`
+- `GET /api/runtime/learning-journal`
+- `GET /api/runtime/neuron-nutrition`
+
+Estos reportes muestran ciclos recientes, misiones ejecutadas, evidencias creadas, candidatos de aprendizaje, rejections y neuronas nutridas. `run_neuron_nutrition_cycle()` solo usa acciones permitidas y nunca consolida memoria estable por sí mismo.
+
 Modos de autonomía:
 
 - `observe_only`: observa y registra eventos; no crea aprendizaje.

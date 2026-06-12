@@ -8,6 +8,7 @@ from typing import Any
 
 from triade.core.contracts import utc_now
 
+from triade.core.learning_journal import build_learning_journal
 from triade.services.event_bus import build_context_from_events, publish_event
 from triade.services.supervisor import InternalRuntimeSupervisor
 
@@ -147,3 +148,156 @@ def runtime_background_status() -> dict[str, Any]:
         "background_thread_alive": bool(_BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive()),
         "last_context_snapshot": _LAST_CONTEXT_SNAPSHOT,
     }
+
+
+def build_runtime_heartbeat(
+    *,
+    db_path: str | Path = "triade/memory/triade.db",
+    runs_dir: str | Path = "runs/background",
+    since_hours: int = 24,
+    limit: int = 50,
+) -> dict[str, Any]:
+    from triade.core.context_engine import build_living_context_for_chat
+    from triade.core.error_bus import query_internal_errors
+    from triade.workers.background_service import WorkerBackgroundService
+
+    runtime_state = get_internal_runtime_state(db_path=db_path, runs_dir=runs_dir)
+    learning_journal = build_learning_journal(db_path=db_path, since_hours=since_hours, limit=limit)
+    living_context = build_living_context_for_chat(
+        user_input="pulso vivo",
+        db_path=db_path,
+        runs_dir=runs_dir,
+        limit=limit,
+    )
+    worker_status = WorkerBackgroundService(db_path=db_path, runs_dir=runs_dir).status()
+    recent_events = list_recent_runtime_events(limit=max(limit * 2, 100), db_path=db_path)
+    last_cycle_at = _last_timestamp(recent_events, {"runtime_cycle_start", "runtime_cycle_complete"})
+    latest_event = recent_events[0] if recent_events else None
+    latest_error = (query_internal_errors(limit=1, db_path=db_path) or [{}])[0]
+    active_missions = int((living_context.get("mission_context") or {}).get("active_missions", 0))
+    cycles_last_hour = _count_recent(recent_events, {"runtime_cycle_start", "runtime_cycle_complete"}, hours=1)
+    cycles_last_24h = _count_recent(recent_events, {"runtime_cycle_start", "runtime_cycle_complete"}, hours=24)
+    heartbeat = {
+        "status": "ok",
+        "runtime_enabled": bool(runtime_state.get("enabled")),
+        "mode": runtime_state.get("mode"),
+        "last_cycle_at": last_cycle_at,
+        "cycles_last_hour": cycles_last_hour,
+        "cycles_last_24h": max(cycles_last_24h, int(learning_journal.get("cycles_last_24h", 0) or 0)),
+        "is_thinking_without_chat": bool(
+            (learning_journal.get("cycles_last_24h", 0) or 0)
+            or (learning_journal.get("missions_executed", 0) or 0)
+            or (learning_journal.get("candidates_created", 0) or 0)
+        ),
+        "runtime_continuity_score": _heartbeat_continuity_score(
+            runtime_enabled=bool(runtime_state.get("enabled")),
+            cycles_last_hour=cycles_last_hour,
+            active_workers=bool(worker_status.get("running")),
+            active_missions=active_missions,
+            learning_journal=learning_journal,
+            latest_error=latest_error,
+        ),
+        "latest_action": (latest_event or {}).get("event_type") or _first_event_type(runtime_state.get("last_events")),
+        "latest_error": latest_error.get("message") or latest_error.get("error") or _first_event_message(runtime_state.get("last_events")),
+        "active_workers": bool(worker_status.get("running")),
+        "active_missions": active_missions,
+        "learning_activity_summary": {
+            "missions_executed": learning_journal.get("missions_executed", 0),
+            "evidence_created": learning_journal.get("evidence_created", 0),
+            "candidates_created": learning_journal.get("candidates_created", 0),
+            "candidates_evaluated": learning_journal.get("candidates_evaluated", 0),
+            "candidates_verified": learning_journal.get("candidates_verified", 0),
+            "candidates_consolidated": learning_journal.get("candidates_consolidated", 0),
+            "candidates_rejected": learning_journal.get("candidates_rejected", 0),
+            "neurons_nourished": learning_journal.get("neurons_nourished", 0),
+        },
+        "neurons_nourished_last_24h": learning_journal.get("neurons_nourished", 0),
+        "latest_contradiction": _latest_contradiction(living_context),
+        "latest_learning_candidate": (learning_journal.get("latest_learning_candidates") or [{}])[0],
+        "latest_rejection": (learning_journal.get("latest_rejections") or [{}])[0],
+        "learning_journal": learning_journal,
+        "living_context": living_context,
+        "worker_status": worker_status,
+        "runtime_state": runtime_state,
+    }
+    return heartbeat
+
+
+def list_recent_runtime_events(limit: int = 100, db_path: str | Path = "triade/memory/triade.db") -> list[dict[str, Any]]:
+    return build_context_from_events(limit=limit, db_path=db_path).get("recent_events", [])
+
+
+def _count_recent(events: list[dict[str, Any]], wanted: set[str], hours: int) -> int:
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    total = 0
+    for event in events:
+        if str(event.get("event_type") or "") not in wanted:
+            continue
+        created = str(event.get("created_at") or "")
+        try:
+            ts = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if ts >= cutoff:
+            total += 1
+    return total
+
+
+def _last_timestamp(events: list[dict[str, Any]], wanted: set[str]) -> str | None:
+    for event in events:
+        if str(event.get("event_type") or "") in wanted:
+            return str(event.get("created_at") or "")
+    return None
+
+
+def _heartbeat_continuity_score(
+    *,
+    runtime_enabled: bool,
+    cycles_last_hour: int,
+    active_workers: bool,
+    active_missions: int,
+    learning_journal: dict[str, Any],
+    latest_error: dict[str, Any],
+) -> float:
+    score = 0.0
+    if runtime_enabled:
+        score += 0.20
+    if cycles_last_hour > 0:
+        score += 0.20
+    if active_workers:
+        score += 0.15
+    if active_missions > 0:
+        score += 0.15
+    if int(learning_journal.get("candidates_created", 0) or 0) > 0:
+        score += 0.10
+    if int(learning_journal.get("evidence_created", 0) or 0) > 0:
+        score += 0.10
+    if not latest_error or not latest_error.get("message"):
+        score += 0.10
+    return round(min(score, 1.0), 3)
+
+
+def _latest_contradiction(living_context: dict[str, Any]) -> str | None:
+    contradictions = (living_context.get("bodega_global_context") or {}).get("contradictions") or []
+    if contradictions:
+        return str(contradictions[0])
+    bodega_summary = living_context.get("bodega_global_context") or {}
+    if bodega_summary.get("contradictions"):
+        return str(bodega_summary.get("contradictions")[0])
+    return None
+
+
+def _first_event_type(events: Any) -> str | None:
+    if not isinstance(events, list) or not events:
+        return None
+    first = events[0] if isinstance(events[0], dict) else {}
+    return str(first.get("event_type") or "") or None
+
+
+def _first_event_message(events: Any) -> str | None:
+    if not isinstance(events, list) or not events:
+        return None
+    first = events[0] if isinstance(events[0], dict) else {}
+    return str(first.get("message") or "") or None

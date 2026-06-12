@@ -17,11 +17,13 @@ from triade.core.life_pulse import LIFE_PULSE
 from triade.core.context_engine import build_living_context_for_chat
 from triade.core.internal_runtime import (
     build_internal_context_snapshot,
+    build_runtime_heartbeat,
     get_internal_runtime_state,
     get_internal_runtime_supervisor,
     start_internal_runtime_background,
     stop_internal_runtime_background,
 )
+from triade.core.learning_journal import build_learning_journal
 from triade.core.living_report import build_living_report
 from triade.core.qualia import QUALIA
 from triade.core.runner import TriadeRunner
@@ -54,6 +56,7 @@ from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
 from triade.workers.background_service import WorkerBackgroundService
 from triade.workers.neuron_mission_backfill import backfill_neuron_missions, neuron_missions_doctor
+from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
 from triade.services.event_bus import list_recent_events
 
 from apps import services
@@ -855,6 +858,12 @@ def runtime_status() -> dict[str, Any]:
     }
 
 
+@router.get("/api/runtime/heartbeat")
+def runtime_heartbeat(since_hours: int = 24, limit: int = 50) -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_heartbeat")
+    return build_runtime_heartbeat(since_hours=since_hours, limit=limit)
+
+
 @router.post("/api/runtime/once")
 def runtime_once(body: dict[str, Any] | None = None) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_once")
@@ -884,6 +893,18 @@ def runtime_events(limit: int = 50) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_events")
     events = list_recent_events(limit=limit)
     return {"status": "ok", "count": len(events), "events": events}
+
+
+@router.get("/api/runtime/learning-journal")
+def runtime_learning_journal(since_hours: int = 24, limit: int = 50) -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_learning_journal")
+    return build_learning_journal(since_hours=since_hours, limit=limit)
+
+
+@router.get("/api/runtime/neuron-nutrition")
+def runtime_neuron_nutrition(mode: str = "observe_only", limit: int = 5) -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_neuron_nutrition")
+    return run_neuron_nutrition_cycle(mode=mode, limit=limit)
 
 
 @router.get("/api/runtime/context")

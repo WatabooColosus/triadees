@@ -16,6 +16,7 @@ from triade.core.contracts import utc_now
 from triade.core.error_bus import query_internal_errors, record_internal_error
 from triade.core.life_pulse import LIFE_PULSE
 from triade.core.neuron_missions import NeuronMissionStore
+from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
 from triade.core.qualia import QUALIA
 from triade.learning.pipeline import LearningPipeline
 from triade.core.bodega import Bodega
@@ -133,7 +134,7 @@ class InternalRuntimeSupervisor:
             results["services"]["qualia_service"] = self._qualia_service(current_mode)
             results["services"]["model_service"] = self._model_service(current_mode)
             results["services"]["observability_service"] = self._observability_service(current_mode)
-            if AUTONOMY_RANK[current_mode] >= AUTONOMY_RANK["execute_missions"]:
+            if AUTONOMY_RANK[current_mode] >= AUTONOMY_RANK["learn_candidates"]:
                 results["services"]["mission_service"] = self._mission_service(current_mode)
             if AUTONOMY_RANK[current_mode] >= AUTONOMY_RANK["full_local"]:
                 results["services"]["learning_service"] = self._learning_service(current_mode)
@@ -278,6 +279,10 @@ class InternalRuntimeSupervisor:
                 "status": "ok",
                 "doctor": None,
             },
+            "nutrition": {
+                "available": True,
+                "mode_hint": self.mode,
+            },
             "model_router": {
                 "hardware": hardware.to_dict(),
                 "ollama": ollama_health,
@@ -329,19 +334,24 @@ class InternalRuntimeSupervisor:
         planned = planner.plan_cycle(run_ref=self.runtime_id)
         planned_dicts = [item.to_dict() for item in planned]
         self.counters["tasks_planned"] += len(planned_dicts)
-        if AUTONOMY_RANK[mode] >= AUTONOMY_RANK["execute_missions"]:
-            service = WorkerBackgroundService(db_path=self.db_path, runs_dir=self.runs_dir)
-            result = service.run_once(dry_run=False, task_timeout=float(os.environ.get("TRIADE_RUNTIME_TASK_TIMEOUT", "30") or 30))
-            self.counters["tasks_executed"] += int(result.get("tasks_completed") or 0)
-            self.counters["missions_executed"] += int(result.get("tasks_completed") or 0)
+        nutrition = None
+        if AUTONOMY_RANK[mode] >= AUTONOMY_RANK["learn_candidates"]:
+            nutrition = run_neuron_nutrition_cycle(
+                db_path=self.db_path,
+                runs_dir=self.runs_dir,
+                mode=mode,
+                limit=5,
+            )
+            self.counters["tasks_executed"] += int(nutrition.get("missions_executed") or 0)
+            self.counters["missions_executed"] += int(nutrition.get("missions_executed") or 0)
+            self.counters["learning_candidates_created"] += int(nutrition.get("candidates_created") or 0)
             publish_event(
                 "missions_executed",
                 "mission_service",
-                {"planned_count": len(planned_dicts), "worker_result": result},
+                {"planned_count": len(planned_dicts), "nutrition_result": nutrition},
                 db_path=self.db_path,
                 run_ref=self.runtime_id,
             )
-            return {"status": "ok", "planned": planned_dicts, "worker_result": result}
         publish_event(
             "missions_planned",
             "mission_service",
@@ -349,7 +359,7 @@ class InternalRuntimeSupervisor:
             db_path=self.db_path,
             run_ref=self.runtime_id,
         )
-        return {"status": "ok", "planned": planned_dicts, "worker_result": None}
+        return {"status": "ok", "planned": planned_dicts, "nutrition": nutrition}
 
     def _learning_service(self, mode: str) -> dict[str, Any]:
         pipe = LearningPipeline(db_path=self.db_path)

@@ -7,6 +7,16 @@ No es solo un modelo ni un prompt: es un **núcleo cognitivo expandible**, pensa
 
 La Tríade no piensa porque alguien escribe; el chat solo consulta y expresa el estado de un sistema interno que observa, trabaja y aprende bajo reglas.
 
+## Pulso Vivo 24/7 verificable
+
+El runtime local puede exponer un pulso operativo continuo sin depender del chat:
+
+- `build_runtime_heartbeat()` resume actividad reciente, continuidad y errores.
+- `build_learning_journal()` resume ciclos, evidencias, candidatos y consolidaciones de 24h.
+- `run_neuron_nutrition_cycle()` revisa misiones activas y produce evidencia segura sin consolidar memoria estable.
+
+El runtime por defecto sigue apagado. Activarlo requiere configuración explícita y los resultados siguen sujetos a Safety, LearningPipeline y trazabilidad.
+
 ---
 
 ## 🌱 ¿Qué es Tríade?

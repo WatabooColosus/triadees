@@ -499,34 +499,95 @@ function ChatTab({ apiKey }: { apiKey: string }) {
 function ObservabilityTab() {
   const [data, setData] = useState<any>(null)
   const [error, setError] = useState('')
+  const [pulseBusy, setPulseBusy] = useState(false)
 
   const fetch = useCallback(() => {
-    api('/api/observability?limit=20')
-      .then((payload) => { setData(payload); setError('') })
-      .catch(e => setError(e.message))
+    Promise.allSettled([
+      api('/api/observability?limit=20'),
+      api('/api/runtime/heartbeat?since_hours=24&limit=20'),
+      api('/api/runtime/learning-journal?since_hours=24&limit=20'),
+      api('/api/runtime/neuron-nutrition?mode=observe_only&limit=5'),
+    ]).then((results) => {
+      const observability = results[0].status === 'fulfilled' ? results[0].value : null
+      const heartbeat = results[1].status === 'fulfilled' ? results[1].value : null
+      const learningJournal = results[2].status === 'fulfilled' ? results[2].value : null
+      const nutrition = results[3].status === 'fulfilled' ? results[3].value : null
+      setData({ observability, heartbeat, learning_journal: learningJournal, nutrition })
+      const rejectedObservability = results[0].status === 'rejected' ? results[0] : null
+      setError(rejectedObservability ? rejectedObservability.reason?.message || 'Error al cargar observabilidad' : '')
+    })
   }, [])
 
   useEffect(() => { fetch(); const id = setInterval(fetch, 10000); return () => clearInterval(id) }, [fetch])
 
+  async function runDryPulse() {
+    if (pulseBusy) return
+    setPulseBusy(true)
+    try {
+      await api('/api/runtime/once', {
+        method: 'POST',
+        body: JSON.stringify({ mode: 'observe_only' }),
+      })
+      await fetch()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setPulseBusy(false)
+    }
+  }
+
   if (error) return <PageError error={error} />
   if (!data) return <PageLoading />
 
-  const workers = data.workers || {}
-  const learning = data.learning || {}
-  const neurons = data.neurons || {}
-  const qualia = data.qualia || {}
-  const federation = data.federation || {}
-  const models = data.models || {}
-  const errors = data.internal_errors || {}
+  const obs = data.observability || {}
+  const workers = obs.workers || {}
+  const learning = obs.learning || {}
+  const neurons = obs.neurons || {}
+  const qualia = obs.qualia || {}
+  const federation = obs.federation || {}
+  const models = obs.models || {}
+  const errors = obs.internal_errors || {}
+  const heartbeat = data.heartbeat || {}
+  const learningJournal = data.learning_journal || {}
+  const nutrition = data.nutrition || {}
+  const nutritionSummary = nutrition.summary || {}
+  const latestLearning = heartbeat.latest_learning_candidate || (learningJournal.latest_learning_candidates || [])[0] || null
+  const latestRejection = heartbeat.latest_rejection || (learningJournal.latest_rejections || [])[0] || null
+  const topNeedsReview = obs.stable_neuron_audit?.top_needs_review || []
 
   return (
     <Page title="Observabilidad" subtitle="Vista unificada de salud, aprendizaje, workers, neuronas y modelos">
       <Grid cols={2}>
-        <Card title="Salud general" color={data.status === 'ok' ? '#22c55e' : '#eab308'}>
-          <KVTable data={{ status: data.status, timestamp: data.timestamp, warnings: data.warnings, degraded_sources: data.degraded_sources }} />
+        <Card title="Pulso Vivo 24/7" color={heartbeat.runtime_enabled ? '#22c55e' : '#f59e0b'}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <KVTable data={{
+              runtime_enabled: heartbeat.runtime_enabled,
+              mode: heartbeat.mode,
+              last_cycle_at: heartbeat.last_cycle_at,
+              cycles_last_hour: heartbeat.cycles_last_hour,
+              cycles_last_24h: heartbeat.cycles_last_24h,
+              runtime_continuity_score: heartbeat.runtime_continuity_score,
+              latest_action: heartbeat.latest_action,
+              latest_error: heartbeat.latest_error,
+              active_workers: heartbeat.active_workers,
+              active_missions: heartbeat.active_missions,
+              neurons_nourished_last_24h: heartbeat.neurons_nourished_last_24h,
+              nutrition_missions_executed: nutritionSummary.missions_executed,
+              nutrition_candidates_created: nutritionSummary.candidates_created,
+            }} />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={fetch} style={btnStyle}>Refrescar</button>
+              <button onClick={runDryPulse} disabled={pulseBusy} style={btnStyle}>
+                {pulseBusy ? 'Ejecutando…' : 'Ciclo dry-run'}
+              </button>
+            </div>
+          </div>
+        </Card>
+        <Card title="Salud general" color={obs.status === 'ok' ? '#22c55e' : '#eab308'}>
+          <KVTable data={{ status: obs.status, timestamp: obs.timestamp, warnings: obs.warnings, degraded_sources: obs.degraded_sources }} />
         </Card>
         <Card title="Último run" color="#3b82f6">
-          {data.last_run?.run_id ? <KVTable data={data.last_run} /> : <span style={{ color: 'var(--text-muted)' }}>No hay runs registrados todavía.</span>}
+          {obs.last_run?.run_id ? <KVTable data={obs.last_run} /> : <span style={{ color: 'var(--text-muted)' }}>No hay runs registrados todavía.</span>}
         </Card>
         <Card title="Workers" color={workers.active ? '#22c55e' : '#eab308'}>
           <KVTable data={{ active: workers.active, pending_tasks: workers.pending_tasks, task_counts: workers.task_counts, run_counts: workers.run_counts, last_error: workers.last_error }} />
@@ -552,34 +613,79 @@ function ObservabilityTab() {
           <KVTable data={models} />
         </Card>
         <Card title="Bodega y memoria semántica" color="#3b82f6">
-          <KVTable data={{ bodega: data.bodega?.counts, semantic_memory: data.semantic_memory }} />
+          <KVTable data={{ bodega: obs.bodega?.counts, semantic_memory: obs.semantic_memory }} />
         </Card>
         <Card title="Memory Trace (último run)" color="#8b5cf6">
-          {data.memory_trace && data.memory_trace.run_id ? (
+          {obs.memory_trace && obs.memory_trace.run_id ? (
             <KVTable data={{
-              run_id: data.memory_trace.run_id,
-              memory_confidence: data.memory_trace.memory_confidence,
-              memory_confidence_score: data.memory_trace.memory_confidence_score,
-              identity_matches: data.memory_trace.identity_matches_count,
-              semantic_matches: data.memory_trace.semantic_matches_count,
-              episodic_matches: data.memory_trace.episodic_matches_count,
-              authorized: data.memory_trace.authorized_matches_count,
-              quarantined: data.memory_trace.quarantined_matches_count,
-              contradictions: data.memory_trace.contradictions_count,
-              stable_needs_review: data.memory_trace.stable_needs_review,
-              bodega_global_status: data.memory_trace.bodega_global_status,
+              run_id: obs.memory_trace.run_id,
+              memory_confidence: obs.memory_trace.memory_confidence,
+              memory_confidence_score: obs.memory_trace.memory_confidence_score,
+              identity_matches: obs.memory_trace.identity_matches_count,
+              semantic_matches: obs.memory_trace.semantic_matches_count,
+              episodic_matches: obs.memory_trace.episodic_matches_count,
+              authorized: obs.memory_trace.authorized_matches_count,
+              quarantined: obs.memory_trace.quarantined_matches_count,
+              contradictions: obs.memory_trace.contradictions_count,
+              stable_needs_review: obs.memory_trace.stable_needs_review,
+              bodega_global_status: obs.memory_trace.bodega_global_status,
             }} />
           ) : (
             <span style={{ color: 'var(--text-muted)' }}>No hay memory_trace en el último run.</span>
           )}
         </Card>
-        <Card title="Continuidad Runtime" color="#f59e0b">
+        <Card title="Aprendizaje vivo 24h" color="#14b8a6">
           <KVTable data={{
-            runtime_continuity_score: data.runtime_continuity_score,
-            cycles_last_hour: data.cycles_last_hour,
-            missions_executed_last_hour: data.missions_executed_last_hour,
-            learning_candidates_created_last_hour: data.learning_candidates_created_last_hour,
+            cycles_last_24h: learningJournal.cycles_last_24h,
+            missions_executed: learningJournal.missions_executed,
+            evidence_created: learningJournal.evidence_created,
+            candidates_created: learningJournal.candidates_created,
+            candidates_evaluated: learningJournal.candidates_evaluated,
+            candidates_verified: learningJournal.candidates_verified,
+            candidates_consolidated: learningJournal.candidates_consolidated,
+            candidates_rejected: learningJournal.candidates_rejected,
+            neurons_nourished: learningJournal.neurons_nourished,
           }} />
+          <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)' }}>{learningJournal.truth}</div>
+          {latestLearning && (
+            <div style={{ marginTop: 8, padding: 8, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-base)' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Último aprendizaje</div>
+              <div style={{ fontSize: 12, fontWeight: 600 }}>{latestLearning.title || latestLearning.candidate_id}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{latestLearning.status} · {latestLearning.domain || 'general'}</div>
+            </div>
+          )}
+          {latestRejection && (
+            <div style={{ marginTop: 8, padding: 8, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-base)' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Último rechazo</div>
+              <div style={{ fontSize: 12, fontWeight: 600 }}>{latestRejection.title || latestRejection.candidate_id}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{latestRejection.status} · {latestRejection.domain || 'general'}</div>
+            </div>
+          )}
+        </Card>
+        <Card title="Pulso y riesgo" color="#f59e0b">
+          <KVTable data={{
+            runtime_continuity_score: heartbeat.runtime_continuity_score,
+            latest_contradiction: heartbeat.latest_contradiction,
+            learning_candidates_created_last_hour: heartbeat.learning_activity_summary?.candidates_created,
+            missions_executed_last_hour: heartbeat.learning_activity_summary?.missions_executed,
+            evidence_created_last_hour: heartbeat.learning_activity_summary?.evidence_created,
+          }} />
+          {!!topNeedsReview.length && (
+            <div style={{ marginTop: 10, padding: 10, border: '1px solid rgba(245,158,11,0.35)', borderRadius: 8, background: 'rgba(245,158,11,0.08)' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Stable necesita revisión</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {topNeedsReview.slice(0, 10).map((item: any, idx: number) => (
+                  <div key={idx} style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                    <strong>{item.name}</strong> · {item.recommended_action}
+                    {item.blockers?.length ? ` · ${item.blockers.join(', ')}` : ''}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+            Política: {obs.stable_neuron_audit?.policy?.read_only_by_default ? 'read-only' : 'n/a'}
+          </div>
         </Card>
       </Grid>
     </Page>
