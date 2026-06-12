@@ -35,6 +35,7 @@ Estado base: 2026-06-12 · commit `e597618` · frontera técnica ≈ **v2.1**.
 - **Fase W · ✅ IMPLEMENTADA EN PR** — Triade Living Workers: loop acotado, cola persistente, artefactos `runs/background`, revisión de aprendizaje, gobierno semántico, actividad experimental, autopromoción y endpoints/CLI. Pendiente: persistencia avanzada de scheduler, workers externos y política formal de promoción stable.
 - **Fase Q · ✅ IMPLEMENTADA EN PR** — QualiaBus: experiencias neuronales circulan hacia Hipotálamo, Central, Bodega y LearningPipeline como señales/paquetes/candidatos auditables, sin escritura estable automática.
 - **Fase NC · ✅ COMPLETA** — Neuron Contributions: `NeuronContributionPacket` con política de efectos por estado (candidate→experimental→active_assistant→trusted_worker→stable), runtime produce contributions, orquestador genera candidatos de aprendizaje, runner filtra por risk/confidence/Safety/identity_core, workers implementan `stable_consolidation_review`, CLI `daemon`.
+- **Fase NM · ✅ COMPLETA** — Neuron Missions: misiones neuronales persistentes (`neuron_missions`, `neuron_work_cycles`, `neuron_evidence`, `neuron_scores`), MissionPlanner lee estado real del sistema y produce tareas priorizadas con razones, WorkerScheduler usa MissionPlanner con fallback a enqueue_defaults, aprendizaje conectado a uso real en runs via `record_learning_usage_from_output`, endpoints API para CRUD de misiones, UI dashboard, 28 tests nuevos.
 
 ---
 

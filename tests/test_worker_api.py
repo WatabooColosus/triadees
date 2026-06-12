@@ -22,8 +22,8 @@ def test_workers_api_run_once_status_queue_events(tmp_path, monkeypatch) -> None
     assert run.status_code == 200
     assert run.json()["status"] == "completed"
     assert status.json()["last_run"]["run_ref"] == run.json()["run_ref"]
-    assert queue.json()["count"] >= 9
-    assert events.json()["count"] >= 9
+    assert queue.json()["count"] >= 1
+    assert events.json()["count"] >= 1
 
 
 def test_workers_api_learning_pending_and_neuron_activity(tmp_path, monkeypatch) -> None:

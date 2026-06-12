@@ -749,6 +749,7 @@ function MemoryTab({ apiKey }: { apiKey: string }) {
 function NeuronsTab({ apiKey }: { apiKey: string }) {
   const [candidates, setCandidates] = useState<any>(null)
   const [activity, setActivity] = useState<any>(null)
+  const [missions, setMissions] = useState<any>(null)
   const [pendingSafety, setPendingSafety] = useState<any[]>([])
   const [error, setError] = useState('')
   const [selectedNeuron, setSelectedNeuron] = useState<any>(null)
@@ -756,6 +757,7 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
   const fetch = useCallback(() => {
     api('/api/system/neurons?limit=50').then(setCandidates).catch(e => setError(e.message))
     api('/api/system/activity').then(setActivity).catch(() => {})
+    api('/api/neurons/missions?limit=20').then(setMissions).catch(() => {})
     api('/api/safety/pending').then(r => setPendingSafety(r.pending || [])).catch(() => {})
   }, [])
 
@@ -923,6 +925,30 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
                 ))}
               </div>
             )}
+          </div>
+        </Card>
+      )}
+      {missions && missions.missions?.length > 0 && (
+        <Card title={`Misiones Neuronales (${missions.count})`} color="#8b5cf6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {missions.missions.map((m: any) => (
+              <div key={m.id} style={{
+                padding: '8px 10px', background: 'var(--bg-base)', borderRadius: 6,
+                border: '1px solid var(--border)', fontSize: 12,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600 }}>{m.title}</span>
+                  <Badge status={m.status} />
+                </div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
+                  {m.mission?.slice(0, 80)}{m.mission?.length > 80 ? '...' : ''}
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 4, fontSize: 10, color: 'var(--text-muted)' }}>
+                  <span>📂 {m.domain}</span>
+                  <span>🔄 {m.schedule_hint}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </Card>
       )}

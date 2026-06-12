@@ -378,6 +378,86 @@ def system_neuron_promote(name: str, body: dict[str, Any] | None = None) -> dict
     return {"status": "ok", "neuron": neuron, "promoted_to": target}
 
 
+# ── Neuron Missions ─────────────────────────────────────────────────────
+
+
+@router.get("/api/neurons/missions")
+def list_neuron_missions(status: str | None = None, limit: int = 50) -> dict[str, Any]:
+    from triade.core.neuron_missions import NeuronMissionStore
+    store = NeuronMissionStore()
+    missions = store.list_missions(status=status, limit=limit)
+    return {
+        "status": "ok",
+        "count": len(missions),
+        "missions": [m.to_dict() for m in missions],
+    }
+
+
+@router.post("/api/neurons/missions")
+def create_neuron_mission(body: dict[str, Any]) -> dict[str, Any]:
+    from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
+    if not body.get("title") or not body.get("mission"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="title y mission son requeridos")
+    store = NeuronMissionStore()
+    mission = NeuronMission(
+        neuron_id=body.get("neuron_id"),
+        title=str(body["title"]),
+        mission=str(body["mission"]),
+        domain=str(body.get("domain", "general")),
+        allowed_sources=body.get("allowed_sources", ["worker", "run", "federation"]),
+        allowed_actions=body.get("allowed_actions", ["observe", "diagnose", "propose_learning"]),
+        schedule_hint=str(body.get("schedule_hint", "every_cycle")),
+        status=str(body.get("status", "candidate")),
+    )
+    mission_id = store.create_mission(mission)
+    created = store.get_mission(mission_id)
+    return {"status": "ok", "mission": created.to_dict() if created else None, "mission_id": mission_id}
+
+
+@router.get("/api/neurons/missions/{neuron_id}")
+def get_neuron_missions(neuron_id: int) -> dict[str, Any]:
+    from triade.core.neuron_missions import NeuronMissionStore
+    store = NeuronMissionStore()
+    missions = store.get_missions_by_neuron(neuron_id)
+    return {
+        "status": "ok",
+        "count": len(missions),
+        "missions": [m.to_dict() for m in missions],
+    }
+
+
+@router.get("/api/neurons/missions/{neuron_id}/cycles")
+def get_neuron_mission_cycles(neuron_id: int, limit: int = 20) -> dict[str, Any]:
+    from triade.core.neuron_missions import NeuronMissionStore
+    store = NeuronMissionStore()
+    missions = store.get_missions_by_neuron(neuron_id)
+    all_cycles = []
+    for m in missions:
+        cycles = store.list_cycles(m.id, limit=limit)
+        all_cycles.extend([c.to_dict() for c in cycles])
+    return {
+        "status": "ok",
+        "count": len(all_cycles),
+        "cycles": all_cycles[:limit],
+    }
+
+
+@router.get("/api/neurons/missions/{neuron_id}/evidence")
+def get_neuron_mission_evidence(neuron_id: int, limit: int = 20) -> dict[str, Any]:
+    from triade.core.neuron_missions import NeuronMissionStore
+    store = NeuronMissionStore()
+    missions = store.get_missions_by_neuron(neuron_id)
+    all_evidence = []
+    for m in missions:
+        evidence = store.list_evidence(m.id, limit=limit)
+        all_evidence.extend([e.to_dict() for e in evidence])
+    return {
+        "status": "ok",
+        "count": len(all_evidence),
+        "evidence": all_evidence[:limit],
+    }
+
+
 @router.get("/api/system/life")
 def system_life(tick: bool = False) -> dict[str, Any]:
     LIFE_PULSE.record_action("life_snapshot")

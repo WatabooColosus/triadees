@@ -371,6 +371,18 @@ class TriadeRunner:
         except Exception:
             pass
 
+        learning_usage_result: dict[str, Any] = {}
+        try:
+            from .run_learning_usage import record_learning_usage_from_output
+            learning_usage_result = record_learning_usage_from_output(
+                run_id=input_packet.run_id,
+                output_packet=output,
+                memory_packet=memory,
+                db_path=self.db_path,
+            )
+        except Exception:
+            pass
+
         neuron_orchestration = orchestrate_run_neurons(
             db_path=self.db_path,
             input_packet=input_packet,
@@ -409,6 +421,7 @@ class TriadeRunner:
         output.memory_diff["neuron_contributions"] = neuron_contributions
         output.memory_diff["neuron_learning_candidates"] = neuron_learning_candidates
         output.memory_diff["neuron_contribution_summary"] = neuron_contribution_summary
+        output.memory_diff["learning_usage"] = learning_usage_result
         qualia_experiences = build_run_experiences(
             run_id=input_packet.run_id,
             post_run_learning=post_run_learning,

@@ -480,6 +480,70 @@ CREATE TABLE IF NOT EXISTS auto_identity (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ── Neuron Missions ─────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS neuron_missions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    neuron_id INTEGER,
+    title TEXT NOT NULL,
+    mission TEXT NOT NULL,
+    domain TEXT NOT NULL DEFAULT 'general',
+    allowed_sources_json TEXT DEFAULT '[]',
+    allowed_actions_json TEXT DEFAULT '[]',
+    schedule_hint TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'candidate',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    metrics_json TEXT DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_neuron_missions_status ON neuron_missions(status);
+CREATE INDEX IF NOT EXISTS idx_neuron_missions_neuron_id ON neuron_missions(neuron_id);
+
+CREATE TABLE IF NOT EXISTS neuron_work_cycles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL,
+    neuron_id INTEGER,
+    cycle_type TEXT NOT NULL DEFAULT 'observation',
+    input_summary TEXT DEFAULT '',
+    output_summary TEXT DEFAULT '',
+    evidence_refs_json TEXT DEFAULT '[]',
+    duration_ms INTEGER DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'completed',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (mission_id) REFERENCES neuron_missions(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_neuron_work_cycles_mission ON neuron_work_cycles(mission_id);
+
+CREATE TABLE IF NOT EXISTS neuron_evidence (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL,
+    neuron_id INTEGER,
+    evidence_type TEXT NOT NULL DEFAULT 'observation',
+    source TEXT NOT NULL DEFAULT 'worker',
+    content TEXT DEFAULT '',
+    refs_json TEXT DEFAULT '[]',
+    score REAL DEFAULT 0.0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (mission_id) REFERENCES neuron_missions(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_neuron_evidence_mission ON neuron_evidence(mission_id);
+
+CREATE TABLE IF NOT EXISTS neuron_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL,
+    neuron_id INTEGER,
+    score_type TEXT NOT NULL DEFAULT 'composite',
+    value REAL NOT NULL DEFAULT 0.0,
+    components_json TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (mission_id) REFERENCES neuron_missions(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_neuron_scores_mission ON neuron_scores(mission_id);
+
 INSERT OR IGNORE INTO identity_core (key, value, category, confidence)
 VALUES
 ('entity_name', 'Tríade Ω', 'identity', 1.0),
