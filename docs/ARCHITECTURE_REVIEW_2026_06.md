@@ -53,7 +53,7 @@ El sistema aun no es produccion ni inferencia distribuida real. No hay RAM/CPU/G
 
 - `apps/public_relay_app.py` conserva compatibilidad con `/api/jobs/next?node_id=...&node_token=...`; los tokens en query pueden filtrarse por logs, historial o proxies.
 - El cliente Android intenta primero transporte firmado, pero si falla cae al endpoint legado con token en query.
-- El transporte firmado HMAC valida timestamp y firma, pero no conserva cache de nonces usados contra replay dentro de la ventana temporal.
+- El transporte firmado HMAC local valida timestamp, firma y cachea nonces en memoria dentro de la ventana temporal; falta persistir nonces/revocaciones si se quiere tolerar reinicios o operar como infraestructura publica.
 - El relay guarda tokens de nodo en SQLite en texto claro.
 - `apps/single_port_app.py` permite registro local de nodos de forma permisiva en LAN; debe tratarse como entorno local confiable, no como exposicion publica.
 - Varias APIs locales dependen de `TRIADE_API_KEY`; si no esta definida, la superficie queda abierta por diseno local.
@@ -73,7 +73,7 @@ El sistema aun no es produccion ni inferencia distribuida real. No hay RAM/CPU/G
 
 1. Corto plazo: aceptar `Authorization: Bearer <node_token>` para polling de jobs y resultados, manteniendo el query param solo como compatibilidad temporal marcada como deprecated.
 2. Fase E: usar exclusivamente transporte firmado HMAC para claim/result de jobs, aprovechando `SignedEnvelope` y `verify_envelope`.
-3. Produccion: agregar cache de nonces, rotacion/revocacion de tokens por nodo y registros de auditoria por intento fallido.
+3. Produccion: persistir cache de nonces/revocaciones, rotar tokens por nodo y registrar auditoria por intento fallido.
 
 Bearer reduce filtrado accidental de tokens. Firma criptografica agrega integridad de payload, frescura temporal y defensa parcial contra suplantacion. Para Tríade, el destino correcto es firma criptografica; Bearer es solo el escalon minimo de compatibilidad.
 
