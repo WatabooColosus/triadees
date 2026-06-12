@@ -8,18 +8,22 @@ BLOCKED_KEYWORDS = {
     "shutdown", "reboot", "halt", "poweroff",
     "sudo ", "su ", "pkexec",
     "wget ", "curl ", "nc ", "ncat ",
+    "ssh ", "scp ", "rsync ", "ftp ", "sftp ", "telnet ",
     "import os; os.system", "import subprocess", "subprocess.run",
     "eval(", "exec(", "__import__", "compile(",
-    "open(/etc/", "open(/proc/",
+    "open(/etc/", "open(/proc/", "open(/root/",
 }
 
 SANDBOX_ONLY_KEYWORDS = {
     "git push", "git commit", "git merge", "git rebase",
-    "npm publish", "pip install", "pip uninstall",
+    "npm publish", "npm install", "npm uninstall",
+    "pip install", "pip uninstall",
     "docker ", "docker-compose", "kubectl ",
     "chmod", "chown", "mv /", "cp /",
     "apt install", "apt-get install", "yum install", "brew install",
     "systemctl ", "service ",
+    "rm -rf", "rm -r /", "unmount", "umount",
+    "crontab -r", "atrm ",
 }
 
 SANDBOX_ONLY_TOOLS = {"git", "deploy", "install", "publish", "infra", "shell", "filesystem_write"}

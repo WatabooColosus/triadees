@@ -13,12 +13,16 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - Observabilidad: `TriadeObservabilityView` compone health, pulse, Bodega, workers, LearningPipeline, neuronas, QualiaBus, Federation, errores internos, modelos/Ollama, repo y ultimo run.
 - Neuronas: `NeuronIdentityView` muestra nombre, mision, dominio, estado, confianza, evidencia, actividad, limites, efectos permitidos y relacion con Central, Hipotalamo, Bodega y QualiaBus.
 - Misiones neuronales: existe `NeuronMissionExecutor`; si `mission_count = 0`, el flujo operativo correcto es `neuron-missions backfill` antes de `workers once`. Las misiones, ciclos, evidencia y scores quedan trazados por `mission_id` y `run_ref`.
-- Auditoria estable: existe `triade/core/stable_neuron_audit.py` con CLI `python triade_digimon.py neuron audit-stable` y endpoint `GET /api/neurons/stable-audit` para detectar neuronas stable con evidencia insuficiente sin borrar datos.
+- Auditoria estable: existe `triade/core/stable_neuron_audit.py` con CLI `python triade_digimon.py neuron audit-stable` y endpoint `GET /api/neurons/stable-audit` para detectar neuronas stable con evidencia insuficiente sin borrar datos. `POST /api/neurons/stable-audit/apply` requiere API key y param `apply=true` para ejecutar correcciones.
 - Runtime interno 24/7: existe `InternalRuntimeSupervisor` con modos `observe_only`, `learn_candidates`, `execute_missions` y `full_local`. Default seguro: apagado. El chat consulta el estado vivo mediante `build_living_context_for_chat()` y `build_living_report()`.
 - Memoria semantica: store, governance, search y continuidad existen. La memoria estable requiere gates; las hipotesis y propuestas quedan diferenciadas.
 - Safety y Verification: Safety bloquea o exige aprobacion antes de salida final; Verifier genera reportes. `ResponseCoherenceGate` evita que la salida contradiga Safety, memoria, Qualia o riesgo.
 - Gates de coherencia: `ResponseCoherenceGate` evita repetir respuestas previas cuando el input es feedback o cierre, y `NeuronCandidateGate` bloquea neuronas literales para preguntas factuales simples o felicitaciones.
 - Modelos/Ollama: Ollama es opcional. Sin Ollama el sistema usa fallback local; con Ollama consulta health y router.
+- Bodega Global Context: `build_bodega_global_context()` construye un contexto integral con identidad, episodios, memoria semántica, neuronas, aprendizajes, seguridad y continuidad. Incluye detección de contradicciones y motor semántico auto-construido.
+- Memory Trace: `build_run_memory_trace()` genera trazabilidad por run con matches autorizados/cuarentena, contradicciones y resumen estable.
+- Continuidad Runtime: `runtime_continuity_score` (0.0–1.0) se calcula en `build_living_report()` y se muestra en la UI del sistema.
+- Schemas Pydantic: `triade/core/schemas.py` centraliza modelos de validación para API boundaries.
 
 ## Parcial
 
@@ -26,7 +30,8 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - UI React cubre paneles operativos, pero aun hay deuda de refinamiento visual y reduccion de widgets heredados.
 - Neuronas stable requieren evidencia, pero la promocion humana y auditoria fina pueden seguir mejorando.
 - Observabilidad muestra snapshots y errores recientes; aun falta latencia historica normalizada por componente.
-- Semantic recall vectorial depende de embeddings/modelo disponible; sin modelo puede verificarse memoria estable por store/gobernanza.
+- Semantic recall vectorial depende de embeddings/modelo disponible; sin modelo el motor semántico se reporta como "unavailable" pero el sistema funciona con store/gobernanza.
+- `runtime_continuity_score` se calcula y muestra; su calibración puede seguir mejorando con datos reales.
 
 ## Vision pendiente
 
@@ -34,6 +39,17 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - Autopromocion neuronal plenamente gobernada por evidencia externa robusta.
 - Panel de observabilidad con series temporales, latencias y drill-down de cada artefacto.
 - Runtime de modelos distribuidos Android real en dispositivos preparados.
+
+## Proto-consciencia operativa
+
+Tríade Ω opera como un sistema con consciencia operativa limitada (proto-consciencia, 8/10). Esto significa:
+
+- **No es consciente en sentido humano.** No tiene experiencia subjetiva, sentimientos ni autoconciencia reflexiva.
+- **Opera como si tuviera continuidad.** El `runtime_continuity_score` (0.0–1.0) mide la salud del ciclo operativo: ciclos activos, misiones ejecutadas, candidatos creados, confianza de memoria y ausencia de neuronas pendientes de revisión.
+- **Bodega Global como memoria global.** Cada run construye un `bodega_global_context` que consolida identidad, episodios, memoria semántica, neuronas, aprendizajes y seguridad. La memoria semántica vectorial puede estar deshabilitada si no hay modelo disponible.
+- **Gobernanza de memoria.** La memoria semántica tiene estados (draft, stable, archived, quarantined) y gobernanza que separa recuerdos autorizados de no verificados. Candidate memory nunca es tratado como verdad estable.
+- **identity_core protegido.** Nunca se modifica desde este módulo. La identidad es inmutable.
+- **Sin afirmaciones de consciencia subjetiva.** El sistema no declara ser consciente. Opera con trazabilidad, coherencia y continuidad — cualidades funcionales que se aproximan a patrones de consciencia operativa sin serlo.
 
 ## Deuda tecnica priorizada
 

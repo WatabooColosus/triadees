@@ -14,6 +14,7 @@ from triade.models.ollama_client import OllamaClient
 from triade.core.qualia import QUALIA
 from triade.services.event_bus import list_recent_events
 from triade.workers.background_service import WorkerBackgroundService
+from triade.core.bodega_global_context import build_bodega_global_context
 
 
 def build_living_report(
@@ -88,6 +89,37 @@ def build_living_report(
         }
         for event in events[:10]
     ]
+    try:
+        bodega_global = build_bodega_global_context(
+            user_input="estado interno",
+            db_path=db_path,
+            runs_dir=runs_dir,
+            limit=10,
+            semantic_recall_enabled=True,
+        )
+    except Exception:
+        bodega_global = {
+            "status": "error",
+            "memory_confidence": "low",
+            "memory_confidence_score": 0.0,
+            "continuity_summary": "",
+            "recommended_context_policy": "ask_or_operate_with_limited_memory",
+            "contradictions": [],
+            "semantic_recall": {},
+            "recent_episodes": [],
+            "semantic_engine_status": "unavailable",
+        }
+    bgc_mem_conf = bodega_global.get("memory_confidence", "low")
+    bgc_needs_review = (bodega_global.get("stable_audit_summary") or {}).get("stable_needs_review", 0)
+    continuity_score = _compute_runtime_continuity_score(
+        runtime_enabled=bool(runtime.get("enabled")),
+        cycles_last_hour=cycles_last_hour,
+        missions_executed_last_hour=missions_executed_last_hour,
+        candidates_created_last_hour=candidates_created_last_hour,
+        memory_confidence=bgc_mem_conf,
+        stable_needs_review=bgc_needs_review,
+        qualia_state=qualia,
+    )
     return {
         "status": "ok",
         "is_thinking_without_chat": bool(cycles_last_hour or missions_executed_last_hour or candidates_created_last_hour),
@@ -114,7 +146,51 @@ def build_living_report(
             "hardware": hardware.to_dict(),
         },
         "stable_neuron_audit": stable_audit,
+        "bodega_global_context_summary": {
+            "status": bodega_global.get("status", "error"),
+            "memory_confidence": bgc_mem_conf,
+            "memory_confidence_score": bodega_global.get("memory_confidence_score", 0.0),
+            "continuity_summary": bodega_global.get("continuity_summary", ""),
+            "recommended_context_policy": bodega_global.get("recommended_context_policy", "ask_or_operate_with_limited_memory"),
+            "contradictions_count": len(bodega_global.get("contradictions") or []),
+            "semantic_matches_count": len((bodega_global.get("semantic_recall") or {}).get("semantic_matches", [])) if isinstance(bodega_global.get("semantic_recall"), dict) else 0,
+            "recent_episodes_count": len(bodega_global.get("recent_episodes") or []),
+            "stable_needs_review": bgc_needs_review,
+            "semantic_engine_status": bodega_global.get("semantic_engine_status", "unavailable"),
+        },
+        "runtime_continuity_score": continuity_score,
     }
+
+
+def _compute_runtime_continuity_score(
+    *,
+    runtime_enabled: bool,
+    cycles_last_hour: int,
+    missions_executed_last_hour: int,
+    candidates_created_last_hour: int,
+    memory_confidence: str,
+    stable_needs_review: int,
+    qualia_state: dict[str, Any],
+) -> float:
+    score = 0.0
+    if runtime_enabled:
+        score += 0.15
+    if cycles_last_hour > 0:
+        score += 0.15
+    if missions_executed_last_hour > 0:
+        score += 0.15
+    if candidates_created_last_hour > 0:
+        score += 0.15
+    if memory_confidence == "high":
+        score += 0.20
+    elif memory_confidence == "medium":
+        score += 0.10
+    if stable_needs_review == 0:
+        score += 0.10
+    life = qualia_state.get("life") or qualia_state.get("qualia", {})
+    if isinstance(life, dict) and life.get("status") == "ok":
+        score += 0.10
+    return min(score, 1.0)
 
 
 def _count_recent(events: list[dict[str, Any]], wanted: set[str], hours: int = 1) -> int:

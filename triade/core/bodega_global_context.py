@@ -21,9 +21,15 @@ from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.core.neuron_registry import NeuronRegistry
 
 try:
+    from triade.memory.semantic_store import SemanticMemoryStore
+    from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
     from triade.memory.semantic_search import SemanticSearchEngine
+    from triade.models.ollama_client import OllamaClient
 except ImportError:
+    SemanticMemoryStore = None  # type: ignore[assignment,misc]
+    SemanticEmbeddingEngine = None  # type: ignore[assignment,misc]
     SemanticSearchEngine = None  # type: ignore[assignment,misc]
+    OllamaClient = None  # type: ignore[assignment,misc]
 
 try:
     from triade.core.stable_neuron_audit import audit_stable_neurons
@@ -122,6 +128,28 @@ def _get_qualia_snapshot() -> dict[str, Any]:
         return {}
 
 
+def _build_semantic_search_engine(
+    db_path: str | Path,
+    base_url: str | None = None,
+    timeout: int = 60,
+) -> Any:
+    """Construye un SemanticSearchEngine completo con Ollama embeddings.
+
+    Returns the engine if all dependencies are available, None otherwise.
+    Does not raise.
+    """
+    if SemanticMemoryStore is None or SemanticEmbeddingEngine is None or SemanticSearchEngine is None or OllamaClient is None:
+        return None
+    try:
+        store = SemanticMemoryStore(db_path=db_path)
+        client = OllamaClient(base_url=base_url or "http://127.0.0.1:11434", timeout=timeout)
+        embedding = SemanticEmbeddingEngine(store=store, client=client)
+        engine = SemanticSearchEngine(store=store, client=client, embedding_engine=embedding)
+        return engine
+    except Exception:
+        return None
+
+
 def build_bodega_global_context(
     user_input: str,
     *,
@@ -145,7 +173,19 @@ def build_bodega_global_context(
         db_path = Path(db_path)
         runs_dir = Path(runs_dir)
 
-        bodega = Bodega(db_path=db_path)
+        semantic_engine_status = "disabled"
+        semantic_engine_error: str | None = None
+        semantic_engine = None
+
+        if semantic_recall_enabled:
+            semantic_engine = _build_semantic_search_engine(db_path)
+            if semantic_engine is not None:
+                semantic_engine_status = "available"
+            else:
+                semantic_engine_status = "unavailable"
+                semantic_engine_error = "No se pudo construir SemanticSearchEngine (Ollama o dependencias no disponibles)."
+
+        bodega = Bodega(db_path=db_path, semantic_search_engine=semantic_engine)
 
         packet = InputPacket(
             user_input=user_input or "contexto global",
@@ -263,6 +303,8 @@ def build_bodega_global_context(
             "memory_confidence": confidence_level,
             "memory_confidence_score": confidence_score,
             "recommended_context_policy": recommended_policy,
+            "semantic_engine_status": semantic_engine_status,
+            "semantic_engine_error": semantic_engine_error,
             "truth": (
                 "La Bodega Global es la base obligatoria de contexto de Tríade. "
                 "Candidate memory no es verdad estable. "
@@ -296,5 +338,7 @@ def build_bodega_global_context(
             "memory_confidence": "low",
             "memory_confidence_score": 0.0,
             "recommended_context_policy": "ask_or_operate_with_limited_memory",
+            "semantic_engine_status": "unavailable",
+            "semantic_engine_error": str(exc),
             "truth": "La Bodega Global no pudo construirse. Operar con cautela.",
         }

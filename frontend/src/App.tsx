@@ -554,6 +554,14 @@ function ObservabilityTab() {
         <Card title="Bodega y memoria semántica" color="#3b82f6">
           <KVTable data={{ bodega: data.bodega?.counts, semantic_memory: data.semantic_memory }} />
         </Card>
+        <Card title="Continuidad Runtime" color="#f59e0b">
+          <KVTable data={{
+            runtime_continuity_score: data.runtime_continuity_score,
+            cycles_last_hour: data.cycles_last_hour,
+            missions_executed_last_hour: data.missions_executed_last_hour,
+            learning_candidates_created_last_hour: data.learning_candidates_created_last_hour,
+          }} />
+        </Card>
       </Grid>
     </Page>
   )
@@ -568,7 +576,8 @@ function SystemTab() {
   const fetch = useCallback(() => {
     Promise.all([
       api('/api/health'), api('/api/system/pulse'), api('/api/system/life'), api('/api/system/qualia'),
-    ]).then(([h, p, l, q]) => setData({ health: h, pulse: p, life: l, qualia: q }))
+      api('/api/observability?limit=1'),
+    ]).then(([h, p, l, q, obs]) => setData({ health: h, pulse: p, life: l, qualia: q, living_report: obs }))
       .catch(e => setError(e.message))
   }, [])
 
@@ -576,6 +585,10 @@ function SystemTab() {
 
   if (error) return <PageError error={error} />
   if (!data) return <PageLoading />
+
+  const lr = data.living_report
+  const continuityScore = lr?.runtime_continuity_score ?? 0
+  const scoreColor = continuityScore >= 0.7 ? 'var(--green)' : continuityScore >= 0.4 ? 'var(--yellow)' : 'var(--red)'
 
   return (
     <Page title="Sistema" subtitle="Auto-refresh cada 10s">
@@ -593,6 +606,21 @@ function SystemTab() {
           <KVTable data={data.qualia} />
         </Card>
       </Grid>
+      <Card title="Continuidad Runtime" color="#f59e0b">
+        <div style={{ display: 'flex', gap: 24, alignItems: 'center', fontSize: 13 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <div style={{ fontSize: 32, fontWeight: 700, color: scoreColor }}>{(continuityScore * 100).toFixed(0)}%</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Continuidad</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+            <span>Ciclos/hora: <strong>{lr?.cycles_last_hour ?? 0}</strong></span>
+            <span>Misiones/hora: <strong>{lr?.missions_executed_last_hour ?? 0}</strong></span>
+            <span>Candidatos/hora: <strong>{lr?.learning_candidates_created_last_hour ?? 0}</strong></span>
+            <span>Workers activos: <strong>{lr?.workers_active ? 'sí' : 'no'}</strong></span>
+            <span>Runtime habilitado: <strong>{lr?.runtime_enabled ? 'sí' : 'no'}</strong></span>
+          </div>
+        </div>
+      </Card>
     </Page>
   )
 }
@@ -801,6 +829,7 @@ function MemoryTab({ apiKey }: { apiKey: string }) {
               <span>Episodios: <strong>{globalCtx.recent_episodes?.length || 0}</strong></span>
               <span>Semántica: <strong>{globalCtx.semantic_recall?.matches_count || 0}</strong></span>
               <span>Neuronas: <strong>{globalCtx.neuron_context?.length || 0}</strong></span>
+              <span>Motor semántico: <strong style={{ color: globalCtx.semantic_engine_status === 'available' ? 'var(--green)' : 'var(--red)' }}>{globalCtx.semantic_engine_status || 'unavailable'}</strong></span>
             </div>
             <div style={{ color: 'var(--text-muted)' }}>{globalCtx.continuity_summary}</div>
             {globalCtx.learning_context && (globalCtx.learning_context.candidates > 0 || globalCtx.learning_context.verified > 0) && (

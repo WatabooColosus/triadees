@@ -40,6 +40,7 @@ from .run_artifacts import build_base_artifacts, write_run_artifacts, write_run_
 from .run_learning import RunLearningService
 from .run_neuron_orchestrator import orchestrate_run_neurons
 from .run_result import build_run_result
+from .run_memory_trace import build_run_memory_trace
 from .run_system_events import build_system_events, filter_obsolete_edge_candidates, filter_obsolete_edge_debt
 
 
@@ -591,6 +592,27 @@ class TriadeRunner:
             response_coherence_gate=response_coherence_gate,
             neuron_candidate_gate=neuron_candidate_gate,
         )
+        try:
+            bgc = input_packet.context.get("bodega_global_context") if isinstance(input_packet.context, dict) else {}
+            memory_trace = build_run_memory_trace(
+                run_id=input_packet.run_id,
+                memory=memory,
+                bodega_global_context=bgc if isinstance(bgc, dict) else {},
+                plan_dict=plan_dict,
+            )
+            output.memory_diff["memory_trace"] = memory_trace
+            plan_dict["memory_trace_summary"] = {
+                "run_id": memory_trace["run_id"],
+                "memory_confidence": memory_trace["memory_confidence"],
+                "identity_matches_count": memory_trace["identity_matches_count"],
+                "semantic_matches_count": memory_trace["semantic_matches_count"],
+                "episodic_matches_count": memory_trace["episodic_matches_count"],
+                "authorized_matches_count": len(memory_trace["authorized_matches"]),
+                "contradictions_count": len(memory_trace["contradictions"]),
+            }
+        except Exception as exc:
+            from .error_bus import record_internal_error
+            record_internal_error("runner.memory_trace", exc, run_id=input_packet.run_id, db_path=self.db_path)
         qualia_experiences = build_run_experiences(
             run_id=input_packet.run_id,
             post_run_learning=post_run_learning,

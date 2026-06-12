@@ -646,9 +646,19 @@ def stable_neuron_audit(limit: int = 300) -> dict[str, Any]:
 
 
 @router.post("/api/neurons/stable-audit/apply")
-def stable_neuron_audit_apply(limit: int = 300) -> dict[str, Any]:
+def stable_neuron_audit_apply(
+    limit: int = 300,
+    apply: bool = False,
+    x_triade_api_key: str | None = Header(default=None),
+) -> dict[str, Any]:
+    require_key(x_triade_api_key)
     LIFE_PULSE.record_action("stable_neuron_audit_apply")
-    return apply_stable_neuron_audit(db_path="triade/memory/triade.db", runs_dir="runs", limit=limit, apply=True)
+    return apply_stable_neuron_audit(
+        db_path="triade/memory/triade.db",
+        runs_dir="runs",
+        limit=limit,
+        apply=apply,
+    )
 
 
 @router.get("/api/neuron_missions/{mission_id}")
