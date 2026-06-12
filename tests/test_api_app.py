@@ -85,3 +85,12 @@ def test_api_key_allows_sensitive_endpoints(monkeypatch, tmp_path) -> None:
     )
     assert response.status_code == 200
     assert response.json()["memory_diff"]["stored"] is True
+
+
+def test_legacy_api_app_exposes_observability_and_ui() -> None:
+    obs = client.get("/api/observability?limit=2")
+    assert obs.status_code == 200
+    assert obs.json()["mode"] == "triade_observability_view"
+
+    ui = client.get("/observabilidad")
+    assert ui.status_code == 200

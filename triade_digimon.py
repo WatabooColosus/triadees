@@ -291,6 +291,22 @@ def handle_qualia(args: argparse.Namespace) -> None:
 
     raise SystemExit("Comando qualia inválido")
 
+def handle_neuron(args: argparse.Namespace) -> None:
+    from triade.core.neuron_identity_view import NeuronIdentityView
+
+    view = NeuronIdentityView(db_path=args.db, runs_dir=args.runs_dir)
+    if args.neuron_command == "list":
+        print_json(view.list(limit=args.limit))
+        return
+    if args.neuron_command == "show":
+        payload = view.detail(args.name, limit=args.limit)
+        if payload is None:
+            raise SystemExit(f"No existe neurona: {args.name}")
+        print_json(payload)
+        return
+    raise SystemExit("Comando neuron inválido")
+
+
 def handle_workers(args: argparse.Namespace) -> None:
     service = WorkerBackgroundService(db_path=args.db, runs_dir=args.runs_dir)
 
@@ -582,6 +598,16 @@ def main() -> None:
     qualia_pub.add_argument("--confidence", type=float, default=0.7, help="Confianza")
     qualia_pub.add_argument("--usefulness", type=float, default=0.7, help="Utilidad")
 
+    neuron_parser = subparsers.add_parser("neuron", help="Neuronas internas con identidad y evidencia")
+    neuron_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    neuron_parser.add_argument("--runs-dir", default="runs", help="Directorio de runs auditables")
+    neuron_sub = neuron_parser.add_subparsers(dest="neuron_command")
+    neuron_list = neuron_sub.add_parser("list", help="Lista neuronas con identidad diferenciada")
+    neuron_list.add_argument("--limit", type=int, default=50, help="Cantidad máxima")
+    neuron_show = neuron_sub.add_parser("show", help="Muestra detalle de una neurona")
+    neuron_show.add_argument("name", help="Nombre de la neurona")
+    neuron_show.add_argument("--limit", type=int, default=20, help="Cantidad máxima de evidencias")
+
     workers_parser = subparsers.add_parser("workers", help="Triade Living Workers en segundo plano controlado")
     workers_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
     workers_parser.add_argument("--runs-dir", default="runs/background", help="Directorio de artefactos background")
@@ -734,6 +760,10 @@ def main() -> None:
 
     if args.command == "federate":
         handle_federate(args)
+        return
+
+    if args.command == "neuron":
+        handle_neuron(args)
         return
 
     if args.command == "workers":

@@ -32,6 +32,7 @@ from .verification import Verifier
 from .edge_context import build_edge_context
 from .model_quality import score_central, score_hypothalamus
 from .output_gate import sanitize_user_response
+from .response_governance import ConversationContinuityService, ResponseCoherenceGate, ResponseDeduplicationGate
 from .run_artifacts import build_base_artifacts, write_run_artifacts, write_run_integrity
 from .run_learning import RunLearningService
 from .run_neuron_orchestrator import orchestrate_run_neurons
@@ -321,6 +322,57 @@ class TriadeRunner:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
         output_gate = sanitize_user_response(output.response, input_packet.user_input, signals.intent)
         output.response = output_gate["response"]
+        conversation_history = input_packet.context.get("conversation_history") if isinstance(input_packet.context, dict) else None
+        continuity = ConversationContinuityService().analyze(
+            user_input=input_packet.user_input,
+            conversation_history=conversation_history,
+        )
+        recent_response = ""
+        if isinstance(conversation_history, list):
+            for item in reversed(conversation_history):
+                if isinstance(item, dict) and item.get("role") in {"bot", "assistant", "assistant_final"}:
+                    recent_response = str(item.get("content") or "")
+                    break
+        dedup_result = ResponseDeduplicationGate().apply(
+            response=output.response,
+            recent_response=recent_response,
+            continuity=continuity,
+        )
+        semantic_for_gate = dict(memory.semantic_recall)
+        semantic_for_gate["authorized_matches"] = memory.semantic_matches
+        semantic_for_gate["confidence"] = memory.confidence
+        coherence_result = ResponseCoherenceGate().apply(
+            user_input=input_packet.user_input,
+            intent=str(signals.intent),
+            risk=str(signals.risk),
+            crystal_temporal_status=crystal.temporal_status,
+            safety=safety,
+            memory_recall=semantic_for_gate,
+            neuron_contribution_summary=None,
+            qualia_hypothesis=plan_dict.get("qualia_hypothesis"),
+            output_preliminary=dedup_result.deduplicated_response,
+            continuity=continuity,
+        )
+        output.response = coherence_result.response_final
+        output_gate["deduplication"] = {
+            "repeated_blocks_removed": dedup_result.repeated_blocks_removed,
+            "similarity_to_recent_response": dedup_result.similarity_to_recent_response,
+            "action": dedup_result.action,
+            "trace": dedup_result.trace,
+        }
+        output_gate["coherence"] = {
+            "coherence_status": coherence_result.coherence_status,
+            "corrections_applied": coherence_result.corrections_applied,
+            "warnings": coherence_result.warnings,
+            "trace": coherence_result.trace,
+        }
+        output_gate["source_labels"] = {
+            "stable_memory": bool(memory.semantic_matches),
+            "experimental_memory": bool(semantic_for_gate.get("experimental_matches")),
+            "qualia_hypothesis": bool(plan_dict.get("qualia_hypothesis", {}).get("status") == "available"),
+            "neuron_proposal": False,
+            "output_claim": True,
+        }
         central_quality = score_central(output.response, output.model_ok)
         neuron_proposal = None
         if propose_neurons and safety.status not in ("blocked", "sandbox_only"):
@@ -428,6 +480,10 @@ class TriadeRunner:
         output.memory_diff["neuron_learning_candidates"] = neuron_learning_candidates
         output.memory_diff["neuron_contribution_summary"] = neuron_contribution_summary
         output.memory_diff["learning_usage"] = learning_usage_result
+        output.memory_diff["response_deduplication"] = output_gate.get("deduplication", {})
+        output.memory_diff["response_coherence"] = output_gate.get("coherence", {})
+        output.memory_diff["source_labels"] = output_gate.get("source_labels", {})
+        output.memory_diff["source_labels"]["neuron_proposal"] = bool(neuron_contribution_summary.get("used"))
         output.memory_diff["traceability"] = _build_traceability(
             run_id=input_packet.run_id,
             output=output,

@@ -146,3 +146,12 @@ def triade_neuron_show(name: str, limit: int = 10, db_path: str = "triade/memory
 
 
 
+
+
+# Compatibilidad: el CLI `triade_digimon.py api` usa esta app legacy.
+# Incluimos las rutas single-port para que UI/observabilidad no diverjan.
+from apps.routes.api import router as single_port_api_router  # noqa: E402
+from apps.routes.ui import router as single_port_ui_router  # noqa: E402
+
+app.include_router(single_port_api_router)
+app.include_router(single_port_ui_router)

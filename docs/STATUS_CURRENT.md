@@ -1,0 +1,116 @@
+# Estado vigente de Triade Omega v2.1
+
+Este documento es la fuente vigente del estado real del repositorio. Los reportes de auditoria antiguos son historicos si contradicen este archivo.
+
+## Implementado
+
+- Runner cognitivo: `TriadeRunner` ejecuta input, Hipotalamo, Bodega, Cristal, Central, Safety, output gate, deduplicacion, coherencia, aprendizaje post-run, neuronas, QualiaBus, artefactos e integridad cerrada.
+- LearningPipeline: ciclo real `candidate -> evaluated -> verified -> validated_in_runs -> consolidated | rejected`, con `source_ref`, conteo de uso, score promedio, proteccion de `identity_core` y consolidacion via gobernanza semantica.
+- Living Workers: `WorkerBackgroundService` y `WorkerLoop` ejecutan tareas acotadas, cola, eventos, doctor, dry-run, revision de aprendizaje y consolidacion estable sin shell arbitrario.
+- Federation: nodos, permisos, logs de intercambio y transporte local existen. La federacion Android/local puede estar activa o simulada segun nodos disponibles; no se asume red externa obligatoria.
+- QualiaBus: experiencias, señales, paquetes para Central/Bodega y estados se persisten en SQLite y se integran como hipotesis, no como memoria estable.
+- UI/API: FastAPI single-port sirve SPA, health, pulse, modelos, memoria, federacion, workers, Qualia, neuronas y observabilidad.
+- Observabilidad: `TriadeObservabilityView` compone health, pulse, Bodega, workers, LearningPipeline, neuronas, QualiaBus, Federation, errores internos, modelos/Ollama, repo y ultimo run.
+- Neuronas: `NeuronIdentityView` muestra nombre, mision, dominio, estado, confianza, evidencia, actividad, limites, efectos permitidos y relacion con Central, Hipotalamo, Bodega y QualiaBus.
+- Memoria semantica: store, governance, search y continuidad existen. La memoria estable requiere gates; las hipotesis y propuestas quedan diferenciadas.
+- Safety y Verification: Safety bloquea o exige aprobacion antes de salida final; Verifier genera reportes. `ResponseCoherenceGate` evita que la salida contradiga Safety, memoria, Qualia o riesgo.
+- Modelos/Ollama: Ollama es opcional. Sin Ollama el sistema usa fallback local; con Ollama consulta health y router.
+
+## Parcial
+
+- Federation real depende de nodos autorizados disponibles; el codigo existe pero el entorno puede no tener nodos vivos.
+- UI React cubre paneles operativos, pero aun hay deuda de refinamiento visual y reduccion de widgets heredados.
+- Neuronas stable requieren evidencia, pero la promocion humana y auditoria fina pueden seguir mejorando.
+- Observabilidad muestra snapshots y errores recientes; aun falta latencia historica normalizada por componente.
+- Semantic recall vectorial depende de embeddings/modelo disponible; sin modelo puede verificarse memoria estable por store/gobernanza.
+
+## Vision pendiente
+
+- Federacion multi-nodo sostenida en produccion.
+- Autopromocion neuronal plenamente gobernada por evidencia externa robusta.
+- Panel de observabilidad con series temporales, latencias y drill-down de cada artefacto.
+- Runtime de modelos distribuidos Android real en dispositivos preparados.
+
+## Deuda tecnica priorizada
+
+1. Reducir duplicacion entre dashboard neuronal, identity view y endpoints legacy.
+2. Normalizar causa de fallback de modelos y latencias por rol.
+3. Ampliar observabilidad con metricas historicas y filtros por run/task.
+4. Separar UI legacy de SPA moderna sin romper compatibilidad.
+5. Endurecer CLI `doctor` para cubrir observabilidad, workers y neuronas en una sola salida.
+
+## Como ejecutar tests
+
+```bash
+python -m pytest
+```
+
+## Como ejecutar UI
+
+```bash
+python triade_digimon.py api --host 127.0.0.1 --port 8010
+```
+
+Abrir:
+
+- `http://127.0.0.1:8010/`
+- `http://127.0.0.1:8010/observabilidad`
+- `http://127.0.0.1:8010/ui/observabilidad`
+
+## Como ejecutar workers
+
+```bash
+python triade_digimon.py workers status
+python triade_digimon.py workers once --dry-run
+python triade_digimon.py workers doctor
+```
+
+Para un ciclo acotado real:
+
+```bash
+python triade_digimon.py workers start --max-iterations 5 --sleep 2
+```
+
+## Como comprobar que Triade aprendio algo
+
+1. Ingerir candidato con fuente:
+
+```bash
+python triade_digimon.py learn ingest "Aprendizaje verificable" --source-ref run:demo --domain demo
+```
+
+2. Evaluar y verificar:
+
+```bash
+python triade_digimon.py learn evaluate <candidate_id>
+python triade_digimon.py learn verify <candidate_id>
+```
+
+3. Marcar uso en runs o ejecutar workers que acumulen evidencia.
+4. Ejecutar revision estable:
+
+```bash
+python triade_digimon.py workers once --dry-run
+```
+
+En tests, `test_end_to_end_learning_consolidates_without_skipping_gates` demuestra el flujo completo sin Ollama: run, candidato, 3 usos, `stable_consolidation_review`, documento semantico stable, artefactos y `identity_core` intacto.
+
+## Como abrir Observabilidad
+
+API:
+
+```bash
+curl http://127.0.0.1:8010/api/observability
+```
+
+UI:
+
+```text
+http://127.0.0.1:8010/observabilidad
+```
+
+Si la DB esta vacia, el endpoint responde 200 con mensajes como "No hay runs registrados todavia", "No hay errores internos recientes", "No hay workers activos" y "No hay candidatos de aprendizaje pendientes".
+
+## Documentos historicos
+
+`AUDIT_REPORT.md`, `PR9_AUDIT_REPORT.md`, `docs/ARCHITECTURE_REVIEW_2026_06.md` y reportes de version anteriores conservan contexto historico. Para estado vigente usar este archivo.

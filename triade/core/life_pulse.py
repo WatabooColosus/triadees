@@ -145,6 +145,70 @@ class LifePulseEngine:
         if cthread and cthread.is_alive():
             cthread.join(timeout=2)
 
+    def configure_continuous_runner(
+        self,
+        *,
+        enabled: bool,
+        autonomy_level: str | None = None,
+        interval_seconds: int | None = None,
+        max_cycles: int | None = None,
+    ) -> dict[str, Any]:
+        """Activa/desactiva el runner continuo en el proceso actual.
+
+        No cambia el default global ni escribe configuración persistente. El
+        arranque automático sigue dependiendo de TRIADE_CONTINUOUS_RUNNER=1.
+        """
+        with self._lock:
+            if autonomy_level is not None:
+                clean_level = str(autonomy_level).strip()
+                if clean_level not in AUTONOMY_LEVELS:
+                    return {
+                        "status": "error",
+                        "error": f"autonomy_level inválido: {autonomy_level}",
+                        "available": list(AUTONOMY_LEVELS),
+                    }
+                self.autonomy_level = clean_level
+            if interval_seconds is not None:
+                self.continuous_interval_seconds = max(_MIN_CONTINUOUS_INTERVAL, int(interval_seconds))
+            if max_cycles is not None:
+                self.continuous_max_cycles = max(0, int(max_cycles))
+            self.continuous_run_enabled = bool(enabled)
+            continuous_alive = bool(self._continuous_thread and self._continuous_thread.is_alive())
+            should_start = self.continuous_run_enabled and not continuous_alive
+            should_stop = not self.continuous_run_enabled and continuous_alive
+
+        if should_start:
+            self._stop.clear()
+            self._continuous_thread = threading.Thread(
+                target=self._continuous_loop,
+                name="triade-continuous-runner",
+                daemon=True,
+            )
+            self._continuous_thread.start()
+        elif should_stop:
+            pulse_was_alive = bool(self._thread and self._thread.is_alive())
+            self._stop.set()
+            cthread = self._continuous_thread
+            if cthread and cthread.is_alive():
+                cthread.join(timeout=2)
+            self._continuous_thread = None
+            self._stop.clear()
+            if pulse_was_alive and (self._thread is None or not self._thread.is_alive()):
+                self._thread = threading.Thread(target=self._loop, name="triade-life-pulse", daemon=True)
+                self._thread.start()
+
+        snapshot = self.snapshot()
+        return {
+            "status": "ok",
+            "continuous_runner": snapshot.get("continuous_runner", {}),
+            "autonomy_level": snapshot.get("autonomy_level"),
+            "policy": {
+                "runtime_only": True,
+                "default_remains_off": True,
+                "requires_explicit_activation": True,
+            },
+        }
+
     def record_action(self, name: str) -> None:
         clean = str(name or "unknown").strip() or "unknown"
         with self._lock:
