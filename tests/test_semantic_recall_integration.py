@@ -176,7 +176,7 @@ def test_runner_allows_stable_semantic_memory_to_central_packet(tmp_path) -> Non
 def test_runner_without_semantic_recall_does_not_require_embedding_engine(tmp_path) -> None:
     runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
 
-    result = runner.run("Ciclo normal sin memoria vectorial", source="test")
+    result = runner.run("Ciclo normal sin memoria vectorial", source="test", semantic_recall_enabled=False)
 
     assert result["semantic_recall"]["enabled"] is False
     assert result["semantic_recall"]["status"] == "disabled"
