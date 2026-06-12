@@ -14,6 +14,15 @@ from fastapi import APIRouter, Header, HTTPException, status
 from fastapi.responses import FileResponse, PlainTextResponse
 
 from triade.core.life_pulse import LIFE_PULSE
+from triade.core.context_engine import build_living_context_for_chat
+from triade.core.internal_runtime import (
+    build_internal_context_snapshot,
+    get_internal_runtime_state,
+    get_internal_runtime_supervisor,
+    start_internal_runtime_background,
+    stop_internal_runtime_background,
+)
+from triade.core.living_report import build_living_report
 from triade.core.qualia import QUALIA
 from triade.core.runner import TriadeRunner
 from triade.core.repo_info import repo_info
@@ -44,6 +53,7 @@ from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
 from triade.workers.background_service import WorkerBackgroundService
 from triade.workers.neuron_mission_backfill import backfill_neuron_missions, neuron_missions_doctor
+from triade.services.event_bus import list_recent_events
 
 from apps import services
 from apps.gates.safety import safety_gate
@@ -768,6 +778,68 @@ def system_activity() -> dict[str, Any]:
 def system_qualia(refresh_life: bool = False) -> dict[str, Any]:
     LIFE_PULSE.record_action("qualia_snapshot")
     return QUALIA.snapshot(refresh_life=refresh_life)
+
+
+# ── Runtime interno 24/7 ───────────────────────────────────────────────
+
+
+@router.get("/api/runtime/status")
+def runtime_status() -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_status")
+    return {
+        "status": "ok",
+        "supervisor": get_internal_runtime_state(),
+        "context_snapshot": build_internal_context_snapshot(limit=10),
+    }
+
+
+@router.post("/api/runtime/once")
+def runtime_once(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_once")
+    payload = body or {}
+    return get_internal_runtime_supervisor().run_once(mode=payload.get("mode"))
+
+
+@router.post("/api/runtime/start")
+def runtime_start(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_start")
+    payload = body or {}
+    return start_internal_runtime_background(
+        mode=payload.get("mode"),
+        interval_seconds=payload.get("interval_seconds"),
+        max_cycles=payload.get("max_cycles"),
+    )
+
+
+@router.post("/api/runtime/stop")
+def runtime_stop() -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_stop")
+    return stop_internal_runtime_background()
+
+
+@router.get("/api/runtime/events")
+def runtime_events(limit: int = 50) -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_events")
+    events = list_recent_events(limit=limit)
+    return {"status": "ok", "count": len(events), "events": events}
+
+
+@router.get("/api/runtime/context")
+def runtime_context(user_input: str = "", limit: int = 10) -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_context")
+    return build_living_context_for_chat(user_input=user_input, limit=limit)
+
+
+@router.get("/api/system/living-context")
+def system_living_context(user_input: str = "", limit: int = 10) -> dict[str, Any]:
+    LIFE_PULSE.record_action("system_living_context")
+    return build_living_context_for_chat(user_input=user_input, limit=limit)
+
+
+@router.get("/api/system/living-report")
+def system_living_report(limit: int = 20) -> dict[str, Any]:
+    LIFE_PULSE.record_action("system_living_report")
+    return build_living_report(limit=limit)
 
 
 # ── Federación ──────────────────────────────────────────────────────────

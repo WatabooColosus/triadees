@@ -5,6 +5,8 @@
 
 No es solo un modelo ni un prompt: es un **núcleo cognitivo expandible**, pensado para convivir con humanos, sistemas, repositorios, herramientas, modelos locales y otras IAs como un **acompañante funcional tipo Digimon**.
 
+La Tríade no piensa porque alguien escribe; el chat solo consulta y expresa el estado de un sistema interno que observa, trabaja y aprende bajo reglas.
+
 ---
 
 ## 🌱 ¿Qué es Tríade?

@@ -230,6 +230,25 @@ class TriadeRunner:
         propose_neurons: bool = True,
     ) -> dict[str, Any]:
         input_packet = InputPacket(user_input=user_input, source=source, context=context or {})
+        try:
+            from .context_engine import build_living_context_for_chat
+
+            living_context = build_living_context_for_chat(
+                user_input,
+                db_path=self.db_path,
+                runs_dir=self.runs_dir,
+                limit=20,
+            )
+            input_packet.context = {
+                **(input_packet.context or {}),
+                "living_context": living_context,
+                "triade_operational_awareness": living_context.get("internal_context", {}),
+                "system_pulse_summary": (living_context.get("internal_context", {}) or {}).get("life_pulse", {}),
+            }
+        except Exception as exc:
+            from .error_bus import record_internal_error
+
+            record_internal_error("runner.living_context", exc, run_id=input_packet.run_id, db_path=self.db_path)
         self.bodega.create_run(input_packet)
         run_path = self.runs_dir / input_packet.run_id
         run_path.mkdir(parents=True, exist_ok=True)
@@ -553,6 +572,8 @@ class TriadeRunner:
         output.memory_diff["neuron_learning_candidates"] = neuron_learning_candidates
         output.memory_diff["neuron_contribution_summary"] = neuron_contribution_summary
         output.memory_diff["learning_usage"] = learning_usage_result
+        output.memory_diff["living_context"] = input_packet.context.get("living_context")
+        output.memory_diff["internal_runtime_state"] = input_packet.context.get("living_context", {}).get("runtime_state") if isinstance(input_packet.context.get("living_context"), dict) else {}
         output.memory_diff["response_deduplication"] = output_gate.get("deduplication", {})
         output.memory_diff["response_coherence"] = output_gate.get("coherence", {})
         output.memory_diff["response_coherence_gate"] = response_coherence_gate

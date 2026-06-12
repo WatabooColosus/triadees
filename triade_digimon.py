@@ -12,6 +12,14 @@ import httpx
 
 from triade.core.alignment import CoreAlignment
 from triade.core.conversation_analyzer import ConversationAnalyzer, add_analyze_conversations_args
+from triade.core.context_engine import build_living_context_for_chat
+from triade.core.internal_runtime import (
+    get_internal_runtime_state,
+    get_internal_runtime_supervisor,
+    start_internal_runtime_background,
+    stop_internal_runtime_background,
+)
+from triade.core.living_report import build_living_report
 from triade.core.runner import TriadeRunner
 from triade.core.self_reflection import SelfReflectionEngine, add_reflect_core_args
 from triade.federation.federation import Federation
@@ -23,6 +31,7 @@ from triade.models.ollama_client import OllamaClient
 from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
 from triade.qualia.store import QualiaStore
+from triade.services.event_bus import list_recent_events
 from triade.workers.background_service import WorkerBackgroundService
 
 
@@ -355,6 +364,33 @@ def handle_workers(args: argparse.Namespace) -> None:
 
     raise SystemExit("Comando workers inválido")
 
+
+def handle_runtime(args: argparse.Namespace) -> None:
+    supervisor = get_internal_runtime_supervisor(db_path=args.db, runs_dir=args.runs_dir)
+
+    if args.runtime_command == "status":
+        print_json(get_internal_runtime_state())
+        return
+    if args.runtime_command == "once":
+        print_json(supervisor.run_once(mode=args.mode))
+        return
+    if args.runtime_command == "start":
+        print_json(supervisor.run_forever(interval_seconds=args.interval_seconds, max_cycles=args.max_cycles, mode=args.mode))
+        return
+    if args.runtime_command == "stop":
+        print_json(stop_internal_runtime_background(db_path=args.db, runs_dir=args.runs_dir))
+        return
+    if args.runtime_command == "events":
+        print_json({"status": "ok", "count": len(list_recent_events(limit=args.limit, db_path=args.db)), "events": list_recent_events(limit=args.limit, db_path=args.db)})
+        return
+    if args.runtime_command == "context":
+        print_json(build_living_context_for_chat(user_input=args.user_input or "", db_path=args.db, runs_dir=args.runs_dir, limit=args.limit))
+        return
+    if args.runtime_command == "report":
+        print_json(build_living_report(db_path=args.db, runs_dir=args.runs_dir, limit=args.limit))
+        return
+    raise SystemExit("Comando runtime inválido")
+
 def handle_relay(args: argparse.Namespace) -> None:
     base_url = args.url.rstrip("/")
     headers = {"Authorization": f"Bearer {args.admin_token}"} if args.admin_token else {}
@@ -668,6 +704,24 @@ def main() -> None:
     workers_daemon.add_argument("--sleep", type=float, default=5.0, help="Segundos entre iteraciones (default: 5.0)")
     workers_daemon.add_argument("--task-timeout", type=float, default=30.0, help="Timeout por tarea")
 
+    runtime_common = argparse.ArgumentParser(add_help=False)
+    runtime_common.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    runtime_common.add_argument("--runs-dir", default="runs/background", help="Directorio de artefactos runtime")
+    runtime_common.add_argument("--mode", default=None, help="observe_only|learn_candidates|execute_missions|full_local")
+    runtime_common.add_argument("--interval-seconds", type=int, default=30, help="Intervalo entre ciclos en modo start")
+    runtime_common.add_argument("--max-cycles", type=int, default=0, help="Máximo de ciclos en modo start")
+    runtime_common.add_argument("--limit", type=int, default=20, help="Cantidad máxima para events/context/report")
+    runtime_common.add_argument("--user-input", default="", help="Entrada para construir contexto vivo")
+    runtime_parser = subparsers.add_parser("runtime", help="Runtime interno 24/7 y estado vivo", parents=[runtime_common])
+    runtime_sub = runtime_parser.add_subparsers(dest="runtime_command")
+    runtime_sub.add_parser("status", help="Estado actual del runtime", parents=[runtime_common])
+    runtime_sub.add_parser("once", help="Ejecuta un ciclo interno único", parents=[runtime_common])
+    runtime_sub.add_parser("start", help="Inicia runtime continuo controlado", parents=[runtime_common])
+    runtime_sub.add_parser("stop", help="Detiene runtime continuo", parents=[runtime_common])
+    runtime_sub.add_parser("events", help="Muestra eventos internos recientes", parents=[runtime_common])
+    runtime_sub.add_parser("context", help="Muestra contexto vivo resumido", parents=[runtime_common])
+    runtime_sub.add_parser("report", help="Muestra reporte vivo resumido", parents=[runtime_common])
+
     relay_parser = subparsers.add_parser("relay", help="Controla un relay publico Triade")
     relay_parser.add_argument("--url", required=True, help="URL publica del relay")
     relay_parser.add_argument("--admin-token", default=None, help="Token admin del relay")
@@ -799,6 +853,10 @@ def main() -> None:
 
     if args.command == "workers":
         handle_workers(args)
+        return
+
+    if args.command == "runtime":
+        handle_runtime(args)
         return
 
     if args.command == "qualia":

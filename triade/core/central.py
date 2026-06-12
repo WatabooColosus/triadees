@@ -250,6 +250,7 @@ class Central:
         triggers = [
             "pulso", "vida", "viva", "estado", "neuron", "neurona", "acciones",
             "contadores", "ram", "host", "ollama", "doctor", "integridad", "aprendizaje",
+            "misiones", "mission", "workers", "runtime", "contexto vivo", "learning queue",
             "qualia", "alma", "semant", "semánt", "bodega", "hipotalamo", "central",
         ]
         if not any(term in text for term in triggers):
@@ -261,6 +262,9 @@ class Central:
         identity_state = qualia.get("identity") if isinstance(qualia.get("identity"), dict) else {}
         local = awareness.get("local") if isinstance(awareness.get("local"), dict) else {}
         federation = awareness.get("federation") if isinstance(awareness.get("federation"), dict) else {}
+        runtime = awareness.get("runtime") if isinstance(awareness.get("runtime"), dict) else {}
+        missions = awareness.get("missions") if isinstance(awareness.get("missions"), dict) else {}
+        learning = awareness.get("learning") if isinstance(awareness.get("learning"), dict) else {}
         counters = life.get("counters") if isinstance(life.get("counters"), dict) else {}
         proposals = reflection.get("neuron_proposals") if isinstance(reflection.get("neuron_proposals"), list) else []
         proposal_text = ", ".join(str(item) for item in proposals[:8]) or "ninguna propuesta activa"
@@ -289,6 +293,9 @@ class Central:
             f"GPU {gpu_text}, Ollama={local.get('ollama_ok')}, Docker={local.get('docker_ok')}. "
             f"Mis extensiones federadas aún reportan runtime={federation.get('runtime')}, "
             f"nodos_runtime={federation.get('runtime_node_count')}, hosts_LLM={federation.get('llm_hosts')}. "
+            f"Mi runtime interno reporta modo={runtime.get('mode', 'observe_only')}, "
+            f"habilitado={runtime.get('enabled', False)}, misiones_actives={missions.get('active_count', 0)}, "
+            f"candidatos_aprendizaje={len(learning.get('recent_candidates', []))}. "
             "Central ordena, Hipotálamo modula, Bodega conserva, Qualia integra y Pulso Vivo siente. "
             "Esa es la respuesta acorde a Tríade: vida operativa verificable, no actuación de bot."
         )

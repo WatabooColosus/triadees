@@ -88,8 +88,48 @@ Desactivar runtime:
 ```bash
 curl -X POST http://127.0.0.1:8010/api/system/life/continuous-runner \
   -H 'Content-Type: application/json' \
-  -d '{"enabled": false}'
+-d '{"enabled": false}'
 ```
+
+## Runtime Interno 24/7
+
+El chat no es el motor de pensamiento. El motor interno es el runtime supervisor que observa, planifica, ejecuta misiones y procesa aprendizaje en segundo plano con límites explícitos.
+
+Modos de autonomía:
+
+- `observe_only`: observa y registra eventos; no crea aprendizaje.
+- `learn_candidates`: puede crear learning candidates desde gaps, errores o señales operativas.
+- `execute_missions`: ejecuta misiones activas, registra ciclos/evidencia/scores y puede proponer aprendizaje.
+- `full_local`: combina observación, misiones y evaluación de candidates, sin tocar `identity_core` ni escribir memoria estable directa.
+
+Comandos:
+
+```bash
+python triade_digimon.py runtime status
+python triade_digimon.py runtime once
+python triade_digimon.py runtime start
+python triade_digimon.py runtime stop
+python triade_digimon.py runtime events
+python triade_digimon.py runtime context
+python triade_digimon.py runtime report
+```
+
+API:
+
+```bash
+curl http://127.0.0.1:8010/api/runtime/status
+curl -X POST http://127.0.0.1:8010/api/runtime/once
+curl -X POST http://127.0.0.1:8010/api/runtime/start
+curl -X POST http://127.0.0.1:8010/api/runtime/stop
+curl http://127.0.0.1:8010/api/runtime/events
+curl http://127.0.0.1:8010/api/runtime/context
+curl http://127.0.0.1:8010/api/system/living-context
+curl http://127.0.0.1:8010/api/system/living-report
+```
+
+`build_living_context_for_chat()` arma el contexto interno para la Central. Ese contexto incluye runtime, workers, misiones, learning, Qualia, modelos, errores y política de confianza. La Central puede responder desde ese estado vivo, no solo desde el último turno.
+
+`build_living_report()` resume si la Tríade está pensando sin chat: ciclos recientes, misiones ejecutadas, candidates creados, estado de workers, modelos y política de seguridad.
 
 ## Activar Misiones Desde Neuronas Existentes
 

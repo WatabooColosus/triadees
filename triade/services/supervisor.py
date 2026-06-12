@@ -1,0 +1,469 @@
+"""Supervisor local de runtime 24/7 para Tríade Ω."""
+
+from __future__ import annotations
+
+import json
+import os
+import sqlite3
+import threading
+import time
+from collections import Counter
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+from triade.core.contracts import utc_now
+from triade.core.error_bus import query_internal_errors, record_internal_error
+from triade.core.life_pulse import LIFE_PULSE
+from triade.core.neuron_missions import NeuronMissionStore
+from triade.core.qualia import QUALIA
+from triade.learning.pipeline import LearningPipeline
+from triade.core.bodega import Bodega
+from triade.models.hardware_profile import HardwareProfiler
+from triade.models.model_router import ModelRouter
+from triade.models.ollama_client import OllamaClient
+from triade.qualia.bus import QualiaBus
+from triade.workers.background_service import WorkerBackgroundService
+from triade.workers.mission_planner import MissionPlanner
+from triade.workers.neuron_mission_executor import NeuronMissionExecutor
+from triade.workers.state_store import WorkerStateStore
+
+from .event_bus import build_context_from_events, list_recent_events, publish_event
+
+
+AUTONOMY_LEVELS = ("observe_only", "learn_candidates", "execute_missions", "full_local")
+AUTONOMY_RANK = {name: index for index, name in enumerate(AUTONOMY_LEVELS)}
+
+
+class InternalRuntimeSupervisor:
+    """Orquesta observación, misiones, aprendizaje y observabilidad local."""
+
+    def __init__(
+        self,
+        db_path: str | Path = "triade/memory/triade.db",
+        runs_dir: str | Path = "runs/background",
+        *,
+        mode: str | None = None,
+        enabled: bool | None = None,
+        interval_seconds: int | None = None,
+        max_cycles: int | None = None,
+    ) -> None:
+        self.db_path = Path(db_path)
+        self.runs_dir = Path(runs_dir)
+        self.runs_dir.mkdir(parents=True, exist_ok=True)
+        self.mode = self._normalize_mode(mode or os.environ.get("TRIADE_RUNTIME_MODE", "observe_only"))
+        self.enabled = enabled if enabled is not None else self._env_flag("TRIADE_RUNTIME_ENABLED", default=False)
+        self.interval_seconds = max(1, int(interval_seconds or os.environ.get("TRIADE_RUNTIME_INTERVAL_SECONDS", "30") or 30))
+        self.max_cycles = max(0, int(max_cycles or os.environ.get("TRIADE_RUNTIME_MAX_CYCLES", "0") or 0))
+        self.runtime_id = f"runtime-{uuid4().hex[:12]}"
+        self.started_at = utc_now()
+        self.lock_file = self.runs_dir / ".triade_runtime.lock"
+        self.stop_file = self.runs_dir / ".triade_runtime.stop"
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._lock = threading.Lock()
+        self.counters: Counter[str] = Counter()
+        self.last_events: list[dict[str, Any]] = []
+        self.last_context_snapshot: dict[str, Any] = {}
+        self.safety_policy = {
+            "identity_core_modified": False,
+            "stable_memory_written": False,
+            "external_network_by_default": False,
+            "shell_by_default": False,
+            "default_mode": "observe_only",
+            "requires_explicit_activation": True,
+        }
+
+    @staticmethod
+    def _env_flag(name: str, default: bool = False) -> bool:
+        value = str(os.environ.get(name, "1" if default else "0") or "0").strip().lower()
+        return value in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _normalize_mode(mode: str) -> str:
+        clean = str(mode or "observe_only").strip().lower()
+        return clean if clean in AUTONOMY_RANK else "observe_only"
+
+    def configure(
+        self,
+        *,
+        mode: str | None = None,
+        enabled: bool | None = None,
+        interval_seconds: int | None = None,
+        max_cycles: int | None = None,
+    ) -> dict[str, Any]:
+        with self._lock:
+            if mode is not None:
+                self.mode = self._normalize_mode(mode)
+            if enabled is not None:
+                self.enabled = bool(enabled)
+            if interval_seconds is not None:
+                self.interval_seconds = max(1, int(interval_seconds))
+            if max_cycles is not None:
+                self.max_cycles = max(0, int(max_cycles))
+        return self.snapshot()
+
+    def run_once(self, mode: str | None = None) -> dict[str, Any]:
+        current_mode = self._normalize_mode(mode or self.mode)
+        with self._lock:
+            self.last_context_snapshot = {}
+        cycle_id = f"cycle-{uuid4().hex[:10]}"
+        publish_event(
+            "runtime_cycle_start",
+            "internal_runtime",
+            {"runtime_id": self.runtime_id, "cycle_id": cycle_id, "mode": current_mode},
+            db_path=self.db_path,
+            run_ref=self.runtime_id,
+        )
+        snapshot = self._build_snapshot()
+        self.last_context_snapshot = snapshot
+
+        results: dict[str, Any] = {
+            "status": "ok",
+            "runtime_id": self.runtime_id,
+            "cycle_id": cycle_id,
+            "mode": current_mode,
+            "enabled": self.enabled,
+            "services": {},
+            "counters": dict(self.counters),
+        }
+
+        try:
+            results["services"]["memory_service"] = self._memory_service(current_mode)
+            results["services"]["qualia_service"] = self._qualia_service(current_mode)
+            results["services"]["model_service"] = self._model_service(current_mode)
+            results["services"]["observability_service"] = self._observability_service(current_mode)
+            if AUTONOMY_RANK[current_mode] >= AUTONOMY_RANK["execute_missions"]:
+                results["services"]["mission_service"] = self._mission_service(current_mode)
+            if AUTONOMY_RANK[current_mode] >= AUTONOMY_RANK["full_local"]:
+                results["services"]["learning_service"] = self._learning_service(current_mode)
+            self.counters["cycles"] += 1
+            self.last_events = list_recent_events(limit=20, db_path=self.db_path)
+            publish_event(
+                "runtime_cycle_complete",
+                "internal_runtime",
+                {"runtime_id": self.runtime_id, "cycle_id": cycle_id, "mode": current_mode, "services": list(results["services"].keys())},
+                db_path=self.db_path,
+                run_ref=self.runtime_id,
+            )
+            results["counters"] = dict(self.counters)
+            results["snapshot"] = self.snapshot()
+            return results
+        except Exception as exc:
+            self.counters["errors"] += 1
+            record_internal_error(
+                "internal_runtime.run_once",
+                exc,
+                run_id=self.runtime_id,
+                payload={"cycle_id": cycle_id, "mode": current_mode},
+                db_path=self.db_path,
+            )
+            publish_event(
+                "runtime_cycle_error",
+                "internal_runtime",
+                {"runtime_id": self.runtime_id, "cycle_id": cycle_id, "mode": current_mode, "error": str(exc)},
+                severity="error",
+                db_path=self.db_path,
+                run_ref=self.runtime_id,
+            )
+            return {
+                "status": "error",
+                "runtime_id": self.runtime_id,
+                "cycle_id": cycle_id,
+                "mode": current_mode,
+                "error": str(exc),
+                "snapshot": self.snapshot(),
+            }
+
+    def run_forever(self, interval_seconds: int = 30, max_cycles: int = 0, mode: str | None = None) -> dict[str, Any]:
+        self.configure(mode=mode, enabled=True, interval_seconds=interval_seconds, max_cycles=max_cycles)
+        self._stop.clear()
+        self.lock_file.write_text(self.runtime_id, encoding="utf-8")
+        try:
+            cycle = 0
+            while not self._stop.is_set():
+                if self.stop_file.exists():
+                    break
+                self.run_once(mode=self.mode)
+                cycle += 1
+                if self.max_cycles > 0 and cycle >= self.max_cycles:
+                    break
+                self._stop.wait(max(1, self.interval_seconds))
+            return self.snapshot()
+        finally:
+            self.enabled = False
+            try:
+                self.lock_file.unlink()
+            except FileNotFoundError:
+                pass
+            try:
+                self.stop_file.unlink()
+            except FileNotFoundError:
+                pass
+
+    def stop(self) -> dict[str, Any]:
+        self._stop.set()
+        self.stop_file.write_text(utc_now(), encoding="utf-8")
+        publish_event(
+            "runtime_stop_requested",
+            "internal_runtime",
+            {"runtime_id": self.runtime_id},
+            db_path=self.db_path,
+            run_ref=self.runtime_id,
+        )
+        return {"status": "stop_requested", "runtime_id": self.runtime_id, "stop_file": str(self.stop_file)}
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "status": "ok",
+            "runtime_id": self.runtime_id,
+            "started_at": self.started_at,
+            "mode": self.mode,
+            "enabled": self.enabled,
+            "running": bool(self._thread and self._thread.is_alive()),
+            "services": self._build_services_snapshot(),
+            "counters": dict(self.counters),
+            "last_events": self.last_events[-20:],
+            "last_context_snapshot": self.last_context_snapshot,
+            "safety_policy": self.safety_policy,
+            "files": {
+                "lock_file": str(self.lock_file),
+                "stop_file": str(self.stop_file),
+            },
+        }
+
+    def _build_snapshot(self) -> dict[str, Any]:
+        return {
+            "runtime": {
+                "runtime_id": self.runtime_id,
+                "started_at": self.started_at,
+                "mode": self.mode,
+                "enabled": self.enabled,
+            },
+            "services": self._build_services_snapshot(),
+            "counters": dict(self.counters),
+            "events": build_context_from_events(limit=20, db_path=self.db_path),
+        }
+
+    def _build_services_snapshot(self) -> dict[str, Any]:
+        worker_service = WorkerBackgroundService(db_path=self.db_path, runs_dir=self.runs_dir)
+        learning = LearningPipeline(db_path=self.db_path)
+        mission_store = NeuronMissionStore(db_path=self.db_path)
+        missions = mission_store.list_missions(limit=20)
+        active_missions = [m for m in missions if m.status in {"experimental", "stable"}]
+        try:
+            ollama_health = OllamaClient().health()
+        except Exception as exc:
+            ollama_health = {"ok": False, "error": str(exc)}
+        hardware = HardwareProfiler().detect()
+        router = ModelRouter(available_models=ollama_health.get("models", []) if isinstance(ollama_health, dict) else [], hardware=hardware)
+        model_route = router.route_many(intent="runtime", urgency="medium")
+        model_decisions = model_route.get("decisions", {}) if isinstance(model_route, dict) else {}
+        return {
+            "life_pulse": LIFE_PULSE.snapshot(),
+            "worker_loop": worker_service.status(),
+            "mission_planner": {
+                "active_missions": len(active_missions),
+                "missions": [m.to_dict() for m in active_missions[:5]],
+                "next_plan_preview": [item.to_dict() for item in MissionPlanner(db_path=self.db_path).plan_cycle(run_ref=self.runtime_id)[:5]],
+            },
+            "neuron_mission_executor": {
+                "available": True,
+                "safe_local_only": True,
+            },
+            "qualia_bus": QUALIA.snapshot(refresh_life=False),
+            "learning_pipeline": learning.doctor(),
+            "semantic_memory": Bodega(db_path=self.db_path).doctor(runs_dir=self.runs_dir),
+            "federation": {
+                "status": "ok",
+                "doctor": None,
+            },
+            "model_router": {
+                "hardware": hardware.to_dict(),
+                "ollama": ollama_health,
+                "recommendations": model_decisions,
+            },
+            "errors": {
+                "count": len(query_internal_errors(limit=10, db_path=self.db_path)),
+                "recent": query_internal_errors(limit=5, db_path=self.db_path),
+            },
+        }
+
+    def _memory_service(self, mode: str) -> dict[str, Any]:
+        bodega = Bodega(db_path=self.db_path)
+        doctor = bodega.doctor(runs_dir=self.runs_dir)
+        episodes = bodega.list_recent_episodes(limit=10)
+        gaps = max(0, int(doctor.get("runs", 0) or 0) - int(doctor.get("episodes", 0) or 0))
+        created_candidate = None
+        if AUTONOMY_RANK[mode] >= AUTONOMY_RANK["learn_candidates"] and gaps > 0:
+            pipe = LearningPipeline(db_path=self.db_path)
+            source_ref = f"runtime:{self.runtime_id}:memory-gap"
+            existing = [item for item in pipe.list_candidates(status="candidate", limit=100) if item.get("source_ref") == source_ref]
+            if not existing:
+                created_candidate = pipe.ingest(
+                    content=f"Gap operativo detectado por runtime: runs={doctor.get('runs', 0)} episodes={doctor.get('episodes', 0)}.",
+                    source_type="tool",
+                    source_ref=source_ref,
+                    title="Runtime memory gap scan",
+                    domain="runtime",
+                    risk_level="low",
+                )
+                self.counters["learning_candidates_created"] += 1
+                publish_event(
+                    "learning_candidate_created",
+                    "memory_service",
+                    {"candidate_id": created_candidate.get("candidate_id"), "source_ref": source_ref, "reason": "memory_gap"},
+                    db_path=self.db_path,
+                    run_ref=self.runtime_id,
+                )
+        return {
+            "status": "ok",
+            "gap_count": gaps,
+            "recent_episodes": episodes,
+            "created_candidate": created_candidate,
+            "mode": mode,
+        }
+
+    def _mission_service(self, mode: str) -> dict[str, Any]:
+        planner = MissionPlanner(db_path=self.db_path)
+        planned = planner.plan_cycle(run_ref=self.runtime_id)
+        planned_dicts = [item.to_dict() for item in planned]
+        self.counters["tasks_planned"] += len(planned_dicts)
+        if AUTONOMY_RANK[mode] >= AUTONOMY_RANK["execute_missions"]:
+            service = WorkerBackgroundService(db_path=self.db_path, runs_dir=self.runs_dir)
+            result = service.run_once(dry_run=False, task_timeout=float(os.environ.get("TRIADE_RUNTIME_TASK_TIMEOUT", "30") or 30))
+            self.counters["tasks_executed"] += int(result.get("tasks_completed") or 0)
+            self.counters["missions_executed"] += int(result.get("tasks_completed") or 0)
+            publish_event(
+                "missions_executed",
+                "mission_service",
+                {"planned_count": len(planned_dicts), "worker_result": result},
+                db_path=self.db_path,
+                run_ref=self.runtime_id,
+            )
+            return {"status": "ok", "planned": planned_dicts, "worker_result": result}
+        publish_event(
+            "missions_planned",
+            "mission_service",
+            {"planned_count": len(planned_dicts), "planned": planned_dicts[:5]},
+            db_path=self.db_path,
+            run_ref=self.runtime_id,
+        )
+        return {"status": "ok", "planned": planned_dicts, "worker_result": None}
+
+    def _learning_service(self, mode: str) -> dict[str, Any]:
+        pipe = LearningPipeline(db_path=self.db_path)
+        processed = []
+        for candidate in pipe.list_candidates(status="candidate", limit=10):
+            try:
+                processed.append(pipe.evaluate(candidate["candidate_id"]))
+                self.counters["learning_candidates_evaluated"] += 1
+                publish_event(
+                    "learning_candidate_evaluated",
+                    "learning_service",
+                    {"candidate_id": candidate.get("candidate_id"), "status": "evaluated"},
+                    db_path=self.db_path,
+                    run_ref=self.runtime_id,
+                )
+            except Exception as exc:
+                record_internal_error("internal_runtime.learning.evaluate", exc, run_id=self.runtime_id, db_path=self.db_path)
+        for candidate in pipe.list_candidates(status="evaluated", limit=10):
+            try:
+                processed.append(pipe.verify(candidate["candidate_id"]))
+                self.counters["learning_candidates_evaluated"] += 1
+                publish_event(
+                    "learning_candidate_verified",
+                    "learning_service",
+                    {"candidate_id": candidate.get("candidate_id"), "status": "verified"},
+                    db_path=self.db_path,
+                    run_ref=self.runtime_id,
+                )
+            except Exception as exc:
+                record_internal_error("internal_runtime.learning.verify", exc, run_id=self.runtime_id, db_path=self.db_path)
+        return {"status": "ok", "processed": processed, "mode": mode}
+
+    def _qualia_service(self, mode: str) -> dict[str, Any]:
+        qualia = QUALIA.snapshot(refresh_life=False)
+        mood = {
+            "state": "neutral",
+            "valence": 0.0,
+            "arousal": 0.0,
+            "reason": "operational_state_only_no_human_emotion",
+            "mode": mode,
+        }
+        publish_event(
+            "qualia_compacted",
+            "qualia_service",
+            {"qualia_status": qualia.get("status"), "mood": mood},
+            db_path=self.db_path,
+            run_ref=self.runtime_id,
+        )
+        return {"status": "ok", "qualia": qualia, "operational_mood": mood}
+
+    def _model_service(self, mode: str) -> dict[str, Any]:
+        try:
+            health = OllamaClient().health()
+        except Exception as exc:
+            health = {"ok": False, "error": str(exc)}
+        hardware = HardwareProfiler().detect()
+        router = ModelRouter(available_models=health.get("models", []) if isinstance(health, dict) else [], hardware=hardware)
+        recommendations = router.route_many(intent="runtime", urgency="medium")
+        decisions = recommendations.get("decisions", {}) if isinstance(recommendations, dict) else {}
+        if isinstance(decisions, dict) and decisions.get("central"):
+            primary = decisions.get("central") or {}
+        elif isinstance(decisions, dict):
+            primary = next(iter(decisions.values()), {})
+        else:
+            primary = {}
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute(
+                """INSERT INTO model_events (run_id, role, provider, model_name, ok, error, quality_score, latency_ms, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    self.runtime_id,
+                    "runtime",
+                    "ollama",
+                    str(primary.get("selected_model") or "unknown"),
+                    1 if bool(health.get("ok")) else 0,
+                    None if health.get("ok") else str(health.get("error") or "health_failed"),
+                    0.75 if health.get("ok") else 0.0,
+                    None,
+                    utc_now(),
+                ),
+            )
+        publish_event(
+            "model_service_checked",
+            "model_service",
+            {"health_ok": bool(health.get("ok")), "recommendations": [item.to_dict() for item in recommendations] if isinstance(recommendations, list) else []},
+            db_path=self.db_path,
+            run_ref=self.runtime_id,
+        )
+        return {
+            "status": "ok",
+            "mode": mode,
+            "hardware": hardware.to_dict(),
+            "ollama": health,
+            "recommendations": decisions,
+        }
+
+    def _observability_service(self, mode: str) -> dict[str, Any]:
+        worker = WorkerStateStore(db_path=self.db_path).doctor()
+        missions = NeuronMissionStore(db_path=self.db_path)
+        learning = LearningPipeline(db_path=self.db_path).doctor()
+        recent_errors = query_internal_errors(limit=10, db_path=self.db_path)
+        recent_events = list_recent_events(limit=10, db_path=self.db_path)
+        payload = {
+            "status": "ok",
+            "mode": mode,
+            "worker": worker,
+            "missions": {
+                "total": len(missions.list_missions(limit=100)),
+                "active": len([m for m in missions.list_missions(limit=100) if m.status in {"experimental", "stable"}]),
+            },
+            "learning": learning,
+            "errors": recent_errors,
+            "events": recent_events,
+        }
+        publish_event("observability_snapshot", "observability_service", payload, db_path=self.db_path, run_ref=self.runtime_id)
+        return payload
