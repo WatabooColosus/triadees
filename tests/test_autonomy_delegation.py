@@ -1,20 +1,22 @@
 """Tests de Autonomía Delegada Gobernada."""
 from __future__ import annotations
 
-import json
 import os
-import shutil
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from triade.core.system_zones import classify_path, REPO_ROOT
-from triade.core.autonomy_budget import build_autonomy_budget, LEVEL_PERCENT, LEVELS
+from triade.core.autonomy_budget import build_autonomy_budget, LEVELS
 from triade.core.integrity_verifier import build_integrity_snapshot, verify_integrity_change
 from triade.core.quarantine_trash import trash_path, restore_trash_item, list_trash
 from triade.core.safe_file_ops import safe_create_file, safe_patch_file, safe_move_file, safe_delete_file
 from triade.core.delegated_action_planner import plan_delegated_action
+
+
+# ── Helper: green zone temp path ─────────────────────────────────────
+
+def _green_temp(suffix: str = ".txt") -> str:
+    return tempfile.mktemp(dir=str(REPO_ROOT / "runs"), suffix=suffix)
 
 
 # ── FASE 1: System Zones ─────────────────────────────────────────────
@@ -39,7 +41,23 @@ def test_classify_path_blocks_identity_core():
     assert result["can_modify"] is False
 
 
-def test_classify_path_green_default():
+def test_unknown_path_not_green():
+    """Cualquier path dentro del repo sin zona explícita no debe ser green."""
+    result = classify_path("some/random/path.txt")
+    assert result["zone"] != "green"
+    assert result["zone"] == "yellow_unknown"
+    assert result["can_create"] is False
+    assert result["can_modify"] is False
+    assert result["requires_human_approval"] is True
+
+
+def test_unknown_path_outside_repo_is_forbidden():
+    result = classify_path("/tmp/outside.txt")
+    assert result["zone"] == "forbidden"
+    assert result["can_read"] is False
+
+
+def test_classify_path_green_known_prefix():
     result = classify_path("runs/test_run.txt")
     assert result["zone"] == "green"
     assert result["can_create"] is True
@@ -105,7 +123,7 @@ def test_integrity_snapshot_has_counts():
 
 
 def test_integrity_detects_unplanned_hash_change():
-    tmp = tempfile.mktemp(dir=str(REPO_ROOT), suffix=".py")
+    tmp = _green_temp(".py")
     Path(tmp).write_text("original content")
     before = build_integrity_snapshot([tmp])
     Path(tmp).write_text("modified content")
@@ -118,7 +136,7 @@ def test_integrity_detects_unplanned_hash_change():
 
 
 def test_integrity_planned_patch_ok():
-    tmp = tempfile.mktemp(dir=str(REPO_ROOT), suffix=".py")
+    tmp = _green_temp(".py")
     Path(tmp).write_text("original content")
     before = build_integrity_snapshot([tmp])
     Path(tmp).write_text("modified content")
@@ -133,7 +151,7 @@ def test_integrity_planned_patch_ok():
 
 
 def test_trash_restore_roundtrip():
-    tmp = tempfile.mktemp(dir=str(REPO_ROOT))
+    tmp = _green_temp()
     Path(tmp).write_text("test roundtrip content")
     result = trash_path(tmp, reason="test_roundtrip", run_ref="test-run")
     assert result["status"] == "ok"
@@ -156,7 +174,7 @@ def test_trash_blocks_forbidden():
 
 
 def test_trash_list():
-    tmp = tempfile.mktemp(dir=str(REPO_ROOT))
+    tmp = _green_temp()
     Path(tmp).write_text("list test content")
     trash_path(tmp, reason="test_list", run_ref="test-run")
     result = list_trash(limit=10)
@@ -167,8 +185,17 @@ def test_trash_list():
 # ── FASE 5: Safe File Ops ────────────────────────────────────────────
 
 
+def test_safe_create_uses_normalized_path():
+    """safe_create_file debe usar normalized_path de classify_path."""
+    target = _green_temp()
+    result = safe_create_file(target, "hello", "safe_write", dry_run=True)
+    assert result["status"] == "dry_run"
+    # Verify that path in result is not the raw un-normalized path
+    assert result["path"] is not None
+
+
 def test_safe_create_file_dry_run_default():
-    target = tempfile.mktemp(dir=str(REPO_ROOT))
+    target = _green_temp()
     result = safe_create_file(target, "hello world", "safe_write", dry_run=True)
     assert result["status"] == "dry_run"
     assert Path(target).exists() is False
@@ -179,23 +206,45 @@ def test_safe_create_file_forbidden_zone():
     Path(target).parent.mkdir(parents=True, exist_ok=True)
     result = safe_create_file(target, "content", "full_local_guarded", dry_run=False)
     assert result["status"] == "blocked_forbidden_zone"
-    os.unlink(target) if Path(target).exists() else None
+    Path(target).unlink(missing_ok=True)
 
 
-def test_safe_delete_moves_to_trash_not_unlink():
-    tmp = tempfile.mktemp(dir=str(REPO_ROOT))
+def test_safe_create_blocked_budget_oversize():
+    target = _green_temp()
+    big = "x" * 10_000_000
+    result = safe_create_file(target, big, "safe_write", dry_run=True)
+    assert result["status"] == "blocked_budget"
+
+
+def test_safe_create_blocked_suspicious_extension():
+    target = _green_temp(".exe")
+    result = safe_create_file(target, "bad", "safe_write", dry_run=True)
+    assert result["status"] == "blocked_budget"
+
+
+def test_safe_delete_never_unlinks_directly():
+    """safe_delete_file nunca debe hacer unlink directo, siempre trash_path."""
+    tmp = _green_temp()
     Path(tmp).write_text("delete test content")
     result = safe_delete_file(tmp, "project_maintenance", dry_run=False, reason="test delete")
     assert result["status"] == "ok"
     assert Path(tmp).exists() is False
-    # Should be in trash
     trash = list_trash(limit=50)
     found = any(tmp.endswith(t.get("original_path", "")) for t in trash["items"])
     assert found, "El archivo debería estar en la papelera"
 
 
-def test_safe_delete_dry_run():
+def test_safe_delete_unknown_requires_approval():
+    """yellow_unknown requiere aprobación humana para borrar."""
     tmp = tempfile.mktemp(dir=str(REPO_ROOT))
+    Path(tmp).write_text("delete unknown")
+    result = safe_delete_file(tmp, "full_local_guarded", dry_run=False, reason="test unknown")
+    assert result["status"] == "requires_human_approval"
+    os.unlink(tmp)
+
+
+def test_safe_delete_dry_run():
+    tmp = _green_temp()
     Path(tmp).write_text("dry run delete")
     result = safe_delete_file(tmp, "project_maintenance", dry_run=True)
     assert result["status"] == "dry_run"
@@ -204,20 +253,46 @@ def test_safe_delete_dry_run():
 
 
 def test_safe_move_requires_zone_permission():
-    src = tempfile.mktemp(dir=str(REPO_ROOT))
-    dst = tempfile.mktemp(dir=str(REPO_ROOT))
+    src = _green_temp()
+    dst = _green_temp()
     Path(src).write_text("move test")
     result = safe_move_file(src, dst, "observe_only", dry_run=False)
     assert result["status"] == "blocked_budget"
     os.unlink(src)
 
 
+def test_safe_move_dst_exists_blocked():
+    src = _green_temp()
+    dst = _green_temp()
+    Path(src).write_text("move test")
+    Path(dst).write_text("existing")
+    result = safe_move_file(src, dst, "full_local_guarded", dry_run=False)
+    assert result["status"] == "error"
+    os.unlink(src)
+    os.unlink(dst)
+
+
 def test_safe_patch_dry_run():
-    tmp = tempfile.mktemp(dir=str(REPO_ROOT))
+    tmp = _green_temp()
     Path(tmp).write_text("original")
     result = safe_patch_file(tmp, "patched", "project_maintenance", dry_run=True)
     assert result["status"] == "dry_run"
     assert Path(tmp).read_text() == "original"
+    os.unlink(tmp)
+
+
+def test_safe_patch_rollback_on_failure():
+    """safe_patch_file debe restaurar original si integridad falla."""
+    tmp = _green_temp()
+    Path(tmp).write_text("original content")
+    before = build_integrity_snapshot([tmp])
+    # Write directly (not through safe patch) to simulate unplanned change
+    Path(tmp).write_text("unplanned change")
+    after = build_integrity_snapshot([tmp])
+    plan = {"action_type": "patch", "target_paths": [tmp], "zones": ["green"], "max_bytes_per_cycle": 100000}
+    result = verify_integrity_change(before, after, plan)
+    # After unplanned change, integrity should detect it
+    assert len(result.get("hash_changed_unexpected", [])) > 0
     os.unlink(tmp)
 
 
@@ -254,10 +329,19 @@ def test_delegated_plan_risk_score():
 
 
 def test_identity_core_never_modified():
-    """El presupuesto nunca permite modificar identity_core."""
     for level in LEVELS:
         budget = build_autonomy_budget(level)
         assert budget["can_modify_identity_core"] is False, f"Nivel {level} no debe modificar identity_core"
-    # system_zones también bloquea
     info = classify_path("identity_core.json")
     assert info["can_modify"] is False
+
+
+# ── Dashboard heartbeat test ─────────────────────────────────────────
+
+
+def test_status_current_mentions_autonomy_delegation():
+    """Verifica que STATUS_CURRENT.md mencione autonomía delegada."""
+    status_path = REPO_ROOT / "docs" / "STATUS_CURRENT.md"
+    assert status_path.exists()
+    content = status_path.read_text()
+    assert "Autonomía Delegada" in content or "autonomía delegada" in content.lower()

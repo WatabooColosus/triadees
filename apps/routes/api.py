@@ -1038,6 +1038,7 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
 
     No ejecuta workers, no modifica memoria, no toca identity_core.
     """
+    from triade.core.internal_runtime import build_runtime_heartbeat
     from triade.core.living_report import build_living_report
     from triade.core.bodega_global_context import build_bodega_global_context
     from triade.core.observability_view import TriadeObservabilityView
@@ -1061,7 +1062,7 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             _errors.append({"block": block_name, "error": str(exc)[:200]})
             return default if default is not None else {"status": "unavailable", "error": str(exc)[:200]}
 
-    heartbeat = _safe(lambda: build_living_report(limit=20), "heartbeat", {"status": "unavailable"})
+    heartbeat = _safe(lambda: build_runtime_heartbeat(limit=20), "heartbeat", {"status": "unavailable"})
     blood = _safe(lambda: check_ollama_blood(), "ollama_blood", {"status": "unavailable", "cognitive_blood_active": False})
     bodega_ctx = _safe(
         lambda: build_bodega_global_context(user_input=query or "dashboard", limit=limit, semantic_recall_enabled=True),
@@ -1083,7 +1084,7 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             "api_server_alive": heartbeat.get("api_server_alive", True),
             "heartbeat_truth": heartbeat.get("heartbeat_truth", "API encendida, runtime apagado"),
             "runtime_enabled": heartbeat.get("runtime_enabled"),
-            "mode": heartbeat.get("runtime_mode"),
+            "mode": heartbeat.get("mode") or heartbeat.get("runtime_mode"),
             "cycles_last_hour": heartbeat.get("cycles_last_hour", 0),
             "cycles_last_24h": heartbeat.get("cycles_last_24h", 0),
             "runtime_continuity_score": heartbeat.get("runtime_continuity_score"),
@@ -1154,7 +1155,7 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         },
         "system_processes": {
             "runtime_enabled": heartbeat.get("runtime_enabled"),
-            "runtime_mode": heartbeat.get("mode"),
+            "runtime_mode": heartbeat.get("mode") or heartbeat.get("runtime_mode"),
             "background_thread_alive": heartbeat.get("background_thread_alive", False),
             "workers_active": heartbeat.get("workers_active", False),
             "active_tasks": workers.get("active_tasks", 0),

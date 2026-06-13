@@ -82,11 +82,22 @@ def classify_path(path: str) -> dict[str, Any]:
                 "requires_human_approval": False,
             }
 
-    # Green (default si está dentro del repo)
+    # Green
+    for gr in GREEN_PREFIXES:
+        if rel == gr or rel.startswith(gr):
+            return {
+                "path": path, "normalized_path": str(norm), "zone": "green",
+                "reason": f"Zona verde: {gr}. Operaciones permitidas dentro del presupuesto.",
+                "can_read": True, "can_create": True, "can_modify": True,
+                "can_move": True, "can_delete_to_trash": True,
+                "requires_human_approval": False,
+            }
+
+    # Unknown — dentro del repo pero sin zona explícita
     return {
-        "path": path, "normalized_path": str(norm), "zone": "green",
-        "reason": "Zona verde. Operaciones permitidas dentro del presupuesto.",
-        "can_read": True, "can_create": True, "can_modify": True,
-        "can_move": True, "can_delete_to_trash": True,
-        "requires_human_approval": False,
+        "path": path, "normalized_path": str(norm), "zone": "yellow_unknown",
+        "reason": "Zona desconocida. Solo lectura sin aprobación humana o dry-run.",
+        "can_read": True, "can_create": False, "can_modify": False,
+        "can_move": False, "can_delete_to_trash": False,
+        "requires_human_approval": True,
     }

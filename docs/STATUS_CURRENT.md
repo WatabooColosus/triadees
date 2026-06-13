@@ -4,6 +4,18 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 
 ## Implementado
 
+- Autonomía Delegada Gobernada: capa completa para que Tríade Ω pueda crear, mover, organizar y limpiar archivos de forma segura, con límites porcentuales, zonas de riesgo, verificador de integridad, papelera reversible, dry-run y auditoría.
+  - System Zones (`system_zones.py`): clasifica cada ruta en `green`, `yellow`, `red`, `yellow_unknown` o `forbidden`. `.git/`, `.env`, identity_core y rutas fuera del repo son `forbidden`. Paths sin zona explícita son `yellow_unknown` (solo lectura sin aprobación humana).
+  - Autonomy Budget (`autonomy_budget.py`): 5 niveles (`observe_only`=0%, `safe_write`=20%, `project_maintenance`=45%, `repo_refactor`=65%, `full_local_guarded`=80%) con límites de archivos/bytes por ciclo, zonas permitidas, acciones explícitas y `can_modify_identity_core=false` siempre.
+  - Integrity Verifier (`integrity_verifier.py`): snapshots SHA-256 antes/después, detección de cambios no planeados, risk_score, `requires_rollback` y `requires_human_review`.
+  - Quarantine Trash (`quarantine_trash.py`): `trash_path()` mueve a `.triade_trash/YYYYMMDD/` con manifest JSON (original_path, sha256, size, reason, run_ref). `restore_trash_item()` revierte. Nunca borra definitivamente.
+  - Safe File Ops (`safe_file_ops.py`): `safe_create/patch/move/delete_file` con dry_run=true por defecto, validación de zona, presupuesto, extensión sospechosa, integridad y rollback automático si la verificación falla. `safe_delete_file` siempre usa `trash_path()`, nunca unlink directo.
+  - Delegated Action Planner (`delegated_action_planner.py`): `plan_delegated_action()` clasifica intención (read/create/patch/move/delete/organize/refactor/test/build), valida zonas, calcula risk_score, determina dry_run_required, tests_required y human_approval_required.
+  - API: 9 endpoints (`/api/autonomy/budget`, `/api/system/zones`, `/api/integrity/snapshot`, `/api/trash/list|restore`, `/api/delegated/plan`, `/api/files/create|patch|move|delete-to-trash`). Todos los endpoints write tienen dry_run=true por defecto.
+  - React Cabina Viva: 3 nuevas cards (Autonomía Delegada con selector de nivel, Papelera Tríade con restore, Acciones Delegadas con planificador inline).
+  - `full_local_guarded` no es acceso libre: no modifica identity_core, no modifica .git, no borra directo, solo escribe en zonas green/yellow con verificación.
+  - Hardening: paths sin zona explícita ahora son `yellow_unknown` (no `green`). safe_file_ops usa `normalized_path` de classify_path. Budget valida tamaño de contenido y extensión sospechosa. Move rechaza dst que ya existe. Patch rollback si integridad falla.
+
 - Runner cognitivo: `TriadeRunner` ejecuta input, Hipotalamo, Bodega, Cristal, Central, Safety, output gate, deduplicacion, coherencia, aprendizaje post-run, neuronas, QualiaBus, artefactos e integridad cerrada.
 - LearningPipeline: ciclo real `candidate -> evaluated -> verified -> validated_in_runs -> consolidated | rejected`, con `source_ref`, conteo de uso, score promedio, proteccion de `identity_core` y consolidacion via gobernanza semantica.
 - Living Workers: `WorkerBackgroundService` y `WorkerLoop` ejecutan tareas acotadas, cola, eventos, doctor, dry-run, revision de aprendizaje y consolidacion estable sin shell arbitrario.
@@ -38,6 +50,7 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - Observabilidad muestra snapshots y errores recientes; aun falta latencia historica normalizada por componente.
 - Semantic recall vectorial depende de Ollama y un modelo de embeddings compatible; sin modelo el motor semántico se reporta como "unavailable" y no habilita aprendizaje semántico, aunque keyword recall/store/gobernanza sigan disponibles.
 - `runtime_continuity_score` se calcula y muestra; su calibración puede seguir mejorando con datos reales.
+- Autonomía Delegada requiere hardening continuo: más zonas explícitas, mejor detección de extensiones peligrosas, integración worker/Runtime completa para ejecución delegada real (hoy es solo plan + dry-run via API).
 
 ## Vision pendiente
 
