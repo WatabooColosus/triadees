@@ -19,6 +19,13 @@ _LOCK = threading.Lock()
 _LAST_CONTEXT_SNAPSHOT: dict[str, Any] = {}
 _RUNTIME_EVENT_LOG: list[dict[str, Any]] = []
 
+RUNTIME_CYCLE_EVENTS = {
+    "runtime_cycle_start",
+    "runtime_cycle_started",
+    "runtime_cycle_complete",
+    "runtime_cycle_completed",
+}
+
 
 def get_internal_runtime_supervisor(
     *,
@@ -173,7 +180,7 @@ def build_runtime_heartbeat(
     )
     worker_status = WorkerBackgroundService(db_path=db_path, runs_dir=runs_dir).status()
     recent_events = list_recent_runtime_events(limit=max(limit * 2, 100), db_path=db_path)
-    last_cycle_at = _last_timestamp(recent_events, {"runtime_cycle_start", "runtime_cycle_complete"})
+    last_cycle_at = _last_timestamp(recent_events, RUNTIME_CYCLE_EVENTS)
     latest_event = recent_events[0] if recent_events else None
     latest_error = (query_internal_errors(limit=1, db_path=db_path) or [{}])[0]
     active_missions = int((living_context.get("mission_context") or {}).get("active_missions", 0))
@@ -201,11 +208,25 @@ def build_runtime_heartbeat(
         | set(blood_semantic_policy.get("blocked_actions", []))
     )
     fallback_message = "Tríade respira en fallback, pero no tiene sangre cognitiva activa."
-    cycles_last_hour = _count_recent(recent_events, {"runtime_cycle_start", "runtime_cycle_complete"}, hours=1)
-    cycles_last_24h = _count_recent(recent_events, {"runtime_cycle_start", "runtime_cycle_complete"}, hours=24)
+    cycles_last_hour = _count_recent(recent_events, RUNTIME_CYCLE_EVENTS, hours=1)
+    cycles_last_24h = _count_recent(recent_events, RUNTIME_CYCLE_EVENTS, hours=24)
+    runtime_enabled = bool(runtime_state.get("enabled"))
+    bg_alive = bool(_BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive())
+    if not runtime_enabled:
+        truth = "API encendida, runtime apagado"
+    elif cycles_last_hour > 0:
+        truth = "Runtime activo con ciclos recientes"
+    elif bg_alive:
+        truth = "Runtime activo sin ciclos recientes"
+    else:
+        truth = "Runtime activo sin ciclos recientes"
+
     heartbeat = {
         "status": "ok",
-        "runtime_enabled": bool(runtime_state.get("enabled")),
+        "api_server_alive": True,
+        "heartbeat_truth": truth,
+        "background_thread_alive": bg_alive,
+        "runtime_enabled": runtime_enabled,
         "mode": runtime_state.get("mode"),
         "last_cycle_at": last_cycle_at,
         "cycles_last_hour": cycles_last_hour,
@@ -270,6 +291,7 @@ def build_runtime_heartbeat(
         "living_context": living_context,
         "worker_status": worker_status,
         "runtime_state": runtime_state,
+        "runtime_events": recent_events[:20],
     }
     return heartbeat
 

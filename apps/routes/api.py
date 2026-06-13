@@ -885,18 +885,50 @@ def runtime_heartbeat(since_hours: int = 24, limit: int = 50) -> dict[str, Any]:
 def runtime_once(body: dict[str, Any] | None = None) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_once")
     payload = body or {}
-    return get_internal_runtime_supervisor().run_once(mode=payload.get("mode"))
+    result = get_internal_runtime_supervisor().run_once(mode=payload.get("mode"))
+    event_ids = []
+    for e in result.get("snapshot", {}).get("last_events", []):
+        if e.get("event_type", "") in ("runtime_cycle_start", "runtime_cycle_complete",
+                                        "runtime_cycle_started", "runtime_cycle_completed"):
+            event_ids.append(e.get("id"))
+    return {
+        "status": result.get("status", "error"),
+        "mode": result.get("mode", payload.get("mode", "observe_only")),
+        "cycle_recorded": result.get("status") == "ok",
+        "cycle_id": result.get("cycle_id"),
+        "event_ids": event_ids,
+        "started_at": next(iter(result.get("snapshot", {}).get("last_events", [])), {}).get("created_at") if result.get("status") == "ok" else None,
+        "completed_at": (
+            [e.get("created_at") for e in (result.get("snapshot", {}).get("last_events", []) or [])
+             if e.get("event_type") in ("runtime_cycle_complete", "runtime_cycle_completed")] or [None]
+        )[-1],
+        "summary": {
+            "services": list(result.get("services", {}).keys()) if result.get("status") == "ok" else [],
+            "counters": result.get("counters", {}),
+            "error": result.get("error"),
+        },
+    }
 
 
 @router.post("/api/runtime/start")
 def runtime_start(body: dict[str, Any] | None = None) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_start")
     payload = body or {}
-    return start_internal_runtime_background(
+    from triade.core.internal_runtime import runtime_background_status
+    result = start_internal_runtime_background(
         mode=payload.get("mode"),
         interval_seconds=payload.get("interval_seconds"),
         max_cycles=payload.get("max_cycles"),
     )
+    bg = runtime_background_status()
+    snapshot = result.get("snapshot", bg.get("snapshot", {}))
+    return {
+        "status": result.get("status", "error"),
+        "mode": snapshot.get("mode", payload.get("mode", "observe_only")),
+        "interval_seconds": payload.get("interval_seconds") or snapshot.get("interval_seconds", 30),
+        "background_thread_alive": bg.get("background_thread_alive", False),
+        "snapshot": snapshot,
+    }
 
 
 @router.post("/api/runtime/stop")
@@ -1036,8 +1068,10 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         "refresh_hint_seconds": 5,
         "errors": _errors,
         "heartbeat": {
+            "api_server_alive": heartbeat.get("api_server_alive", True),
+            "heartbeat_truth": heartbeat.get("heartbeat_truth", "API encendida, runtime apagado"),
             "runtime_enabled": heartbeat.get("runtime_enabled"),
-            "mode": heartbeat.get("mode"),
+            "mode": heartbeat.get("runtime_mode"),
             "cycles_last_hour": heartbeat.get("cycles_last_hour", 0),
             "cycles_last_24h": heartbeat.get("cycles_last_24h", 0),
             "runtime_continuity_score": heartbeat.get("runtime_continuity_score"),

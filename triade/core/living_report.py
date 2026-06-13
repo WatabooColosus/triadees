@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from triade.core.internal_runtime import get_internal_runtime_state
+from triade.core.internal_runtime import get_internal_runtime_state, RUNTIME_CYCLE_EVENTS
 from triade.core.neuron_missions import NeuronMissionStore
 from triade.core.stable_neuron_audit import audit_stable_neurons
 from triade.learning.pipeline import LearningPipeline
@@ -74,10 +74,10 @@ def build_living_report(
         }
     hardware = HardwareProfiler().detect()
     recent_events = list_recent_events(limit=200, db_path=db_path)
-    cycles_last_hour = _count_recent(recent_events, {"runtime_cycle_start", "runtime_cycle_complete"}, hours=1)
+    cycles_last_hour = _count_recent(recent_events, RUNTIME_CYCLE_EVENTS, hours=1)
     missions_executed_last_hour = _count_recent(recent_events, {"missions_executed"}, hours=1)
     candidates_created_last_hour = _count_recent(recent_events, {"learning_candidate_created"}, hours=1)
-    last_cycle_at = _last_timestamp(recent_events, {"runtime_cycle_complete", "runtime_cycle_start"})
+    last_cycle_at = _last_timestamp(recent_events, RUNTIME_CYCLE_EVENTS)
     top_internal_events = [
         {
             "id": event.get("id"),
@@ -120,10 +120,16 @@ def build_living_report(
         stable_needs_review=bgc_needs_review,
         qualia_state=qualia,
     )
+    runtime_enabled = bool(runtime.get("enabled"))
+    truth = "API encendida, runtime apagado" if not runtime_enabled else \
+            ("Runtime activo con ciclos recientes" if cycles_last_hour > 0 else "Runtime activo sin ciclos recientes")
+
     return {
         "status": "ok",
+        "api_server_alive": True,
+        "heartbeat_truth": truth,
         "is_thinking_without_chat": bool(cycles_last_hour or missions_executed_last_hour or candidates_created_last_hour),
-        "runtime_enabled": bool(runtime.get("enabled")),
+        "runtime_enabled": runtime_enabled,
         "runtime_mode": runtime.get("mode"),
         "runtime_id": runtime.get("runtime_id"),
         "last_cycle_at": last_cycle_at,

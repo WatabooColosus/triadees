@@ -215,3 +215,86 @@ def test_react_dashboard_contains_technical_debt():
     data = resp.json()
     assert "technical_debt" in data
     assert "score" in data["technical_debt"]
+
+
+def test_runtime_once_records_cycle_event():
+    """POST /api/runtime/once debe registrar runtime_cycle_start / complete."""
+    resp = client.post("/api/runtime/once", json={"mode": "observe_only"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("status") in ("ok", "error")
+    if data.get("status") == "ok":
+        assert data.get("cycle_recorded") is True
+        assert data.get("cycle_id")
+        assert data.get("mode") == "observe_only"
+        # Verificar que se publicaron eventos de ciclo
+        events_resp = client.get("/api/runtime/events?limit=10")
+        ev = events_resp.json()
+        types = {e.get("event_type") for e in ev.get("events", [])}
+        assert types & {"runtime_cycle_start", "runtime_cycle_started"}, "Falta runtime_cycle_start/started"
+        assert types & {"runtime_cycle_complete", "runtime_cycle_completed"}, "Falta runtime_cycle_complete/completed"
+
+
+def test_heartbeat_contains_api_server_alive():
+    """GET /api/runtime/heartbeat debe incluir api_server_alive y heartbeat_truth."""
+    resp = client.get("/api/runtime/heartbeat")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("api_server_alive") is True
+    assert data.get("heartbeat_truth") in (
+        "API encendida, runtime apagado",
+        "Runtime activo sin ciclos recientes",
+        "Runtime activo con ciclos recientes",
+    )
+
+
+def test_heartbeat_counts_both_event_variants():
+    """build_runtime_heartbeat cuenta runtime_cycle_start y runtime_cycle_started."""
+    from triade.core.internal_runtime import RUNTIME_CYCLE_EVENTS
+    assert "runtime_cycle_start" in RUNTIME_CYCLE_EVENTS
+    assert "runtime_cycle_started" in RUNTIME_CYCLE_EVENTS
+    assert "runtime_cycle_complete" in RUNTIME_CYCLE_EVENTS
+    assert "runtime_cycle_completed" in RUNTIME_CYCLE_EVENTS
+
+
+def test_heartbeat_truth_api_alive_runtime_off():
+    """Cuando runtime está apagado, heartbeat_truth lo indica."""
+    from triade.core.internal_runtime import stop_internal_runtime_background
+    stop_internal_runtime_background()
+    resp = client.get("/api/runtime/heartbeat")
+    data = resp.json()
+    assert data.get("api_server_alive") is True
+    if not data.get("runtime_enabled"):
+        assert data.get("heartbeat_truth") == "API encendida, runtime apagado"
+
+
+def test_runtime_start_reports_background_thread():
+    """POST /api/runtime/start debe devolver background_thread_alive."""
+    from triade.core.internal_runtime import stop_internal_runtime_background
+    stop_internal_runtime_background()
+    # Usar interval muy largo para que no se ejecuten ciclos
+    resp = client.post("/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("status") in ("started", "already_running")
+    assert data.get("mode") == "observe_only"
+    assert "background_thread_alive" in data
+    # Limpiar
+    stop_internal_runtime_background()
+
+
+def test_react_dashboard_shows_runtime_off_not_error():
+    """Cuando runtime está apagado, el dashboard no debe mostrar error."""
+    from triade.core.internal_runtime import stop_internal_runtime_background
+    stop_internal_runtime_background()
+    resp = client.get("/api/ui/react-dashboard")
+    assert resp.status_code == 200
+    data = resp.json()
+    hb = data.get("heartbeat", {})
+    assert hb.get("api_server_alive") is True
+    assert "runtime_enabled" in hb
+    if not hb.get("runtime_enabled"):
+        assert "heartbeat_truth" in hb
+        assert hb["heartbeat_truth"] == "API encendida, runtime apagado"
+    # No debe ser error
+    assert data.get("status") in ("ok", "partial")

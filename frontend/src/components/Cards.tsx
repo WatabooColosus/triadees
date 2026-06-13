@@ -77,27 +77,60 @@ function UnavailableBlock({ label, error }: { label: string; error?: string }) {
 
 /* ── Cards ───────────────────────────────── */
 
-export function PulseCard({ data }: { data: any }) {
+const btn = {
+  background: 'var(--accent)', color: '#fff', border: 'none',
+  borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontSize: 11,
+}
+const btnSec = {
+  background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border)',
+  borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontWeight: 500, fontSize: 11,
+}
+
+export function PulseCard({ data, onCycle }: { data: any; onCycle?: () => void }) {
   if (!data || data.status === 'error') return <UnavailableBlock label="Pulso Vivo" error={data?.error} />
   const score = data.runtime_continuity_score ?? 0
   const scoreColor = score >= 0.7 ? '#22c55e' : score >= 0.4 ? '#eab308' : '#ef4444'
+  const truth = data.heartbeat_truth || ''
+  const apiAlive = data.api_server_alive
+  const runtimeOn = data.runtime_enabled
+  const bgOn = data.background_thread_alive
+
+  let banner: { msg: string; color: string; bg: string; border: string } | null = null
+  if (!runtimeOn) {
+    banner = { msg: 'Servidor activo · Runtime apagado', color: '#fde047', bg: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)' }
+  } else if (data.cycles_last_hour > 0) {
+    banner = { msg: 'Runtime activo con ciclos recientes', color: '#bbf7d0', bg: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)' }
+  } else if (bgOn) {
+    banner = { msg: 'Runtime activo sin ciclos recientes', color: '#fde047', bg: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)' }
+  }
+
   return (
-    <Card title="Pulso Vivo" color={data.runtime_enabled ? '#22c55e' : '#f59e0b'}>
+    <Card title="Pulso Vivo" color={runtimeOn ? '#22c55e' : '#f59e0b'}>
+      {banner && (
+        <div style={{ padding: '8px 10px', marginBottom: 8, borderRadius: 6, background: banner.bg, border: banner.border, fontSize: 12, color: banner.color }}>
+          {banner.msg}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 8 }}>
         <div style={{ fontSize: 28, fontWeight: 700, color: scoreColor }}>{(score * 100).toFixed(0)}%</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>continuidad</div>
       </div>
       <KVTable data={{
-        runtime: data.runtime_enabled ? 'activo' : 'inactivo',
+        runtime: runtimeOn ? 'activo' : 'inactivo',
         modo: data.mode,
+        api: apiAlive ? 'encendido' : '—',
         ciclos_hora: data.cycles_last_hour,
         ciclos_24h: data.cycles_last_24h,
-        misiones_hora: data.missions_executed_last_hour,
         workers: data.workers_active,
-        background: data.background_thread_alive ? 'vivo' : 'inactivo',
+        background: bgOn ? 'vivo' : 'inactivo',
         ultima_accion: data.latest_action,
         ultimo_error: data.latest_error,
       }} />
+      {onCycle && (
+        <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+          <button onClick={onCycle} style={btn}>Ejecutar ciclo observe_only</button>
+        </div>
+      )}
     </Card>
   )
 }
@@ -105,16 +138,20 @@ export function PulseCard({ data }: { data: any }) {
 export function OllamaBloodCard({ data }: { data: any }) {
   if (!data || data.status === 'error') return <UnavailableBlock label="Sangre Cognitiva" error={data?.error} />
   const active = data.cognitive_blood_active
+  const degraded = data.status === 'degraded_no_ollama' || data.status === 'degraded'
   return (
-    <Card title="Sangre Cognitiva" color={active ? '#22c55e' : '#ef4444'}>
-      {!active && data.status === 'degraded_no_ollama' && (
-        <div style={{ padding: '8px 10px', marginBottom: 8, borderRadius: 6, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', fontSize: 12, color: '#fca5a5' }}>
-          Tríade respira en fallback; no hay sangre cognitiva activa.
-        </div>
-      )}
-      {active && (
+    <Card title="Sangre Cognitiva" color={active ? '#22c55e' : degraded ? '#eab308' : '#ef4444'}>
+      {active ? (
         <div style={{ padding: '8px 10px', marginBottom: 8, borderRadius: 6, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', fontSize: 12, color: '#bbf7d0' }}>
           Sangre cognitiva activa.
+        </div>
+      ) : degraded ? (
+        <div style={{ padding: '8px 10px', marginBottom: 8, borderRadius: 6, background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)', fontSize: 12, color: '#fde047' }}>
+          Sin conexión Ollama — runtime degradado, sin sangre cognitiva activa.
+        </div>
+      ) : (
+        <div style={{ padding: '8px 10px', marginBottom: 8, borderRadius: 6, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', fontSize: 12, color: '#fca5a5' }}>
+          Tríade respira en fallback; no hay sangre cognitiva activa.
         </div>
       )}
       <KVTable data={{
@@ -337,10 +374,27 @@ export function WorkersCard({ data }: { data: any }) {
 
 /* ── Cabina Viva ──────────────────────────── */
 
-import { useLiveDashboard } from './useLiveDashboard'
+import { useLiveDashboard, api as liveApi } from './useLiveDashboard'
 
 export function CabinaViva() {
   const { data, loading, error, lastUpdated, refresh } = useLiveDashboard()
+  const [cycleBusy, setCycleBusy] = useState(false)
+
+  async function runCycle() {
+    if (cycleBusy) return
+    setCycleBusy(true)
+    try {
+      await liveApi('/api/runtime/once', {
+        method: 'POST',
+        body: JSON.stringify({ mode: 'observe_only' }),
+      })
+      refresh()
+    } catch {
+      // refresh will pick up errors
+    } finally {
+      setCycleBusy(false)
+    }
+  }
 
   if (loading && !data) {
     return (
@@ -359,16 +413,14 @@ export function CabinaViva() {
             Error: {error}
           </div>
         )}
-        <button onClick={refresh} style={{
-          background: 'var(--accent)', color: '#fff', border: 'none',
-          borderRadius: 6, padding: '8px 20px', cursor: 'pointer', fontWeight: 600, fontSize: 13,
-        }}>Reintentar</button>
+        <button onClick={refresh} style={btn}>Reintentar</button>
       </div>
     )
   }
 
   const dash = data!
   const blockErrors = dash.errors || []
+  const hb = dash.heartbeat || {}
 
   return (
     <div>
@@ -379,14 +431,29 @@ export function CabinaViva() {
           </span>
           <Badge status={dash.status || 'unknown'} />
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            endpoint: /api/ui/react-dashboard · refresh cada {Math.round((dash.refresh_hint_seconds || 5) / 5)}s
+            /api/ui/react-dashboard · refresh {Math.round((dash.refresh_hint_seconds || 5) / 5)}s
           </span>
         </div>
-        <button onClick={refresh} style={{
-          background: 'var(--accent)', color: '#fff', border: 'none',
-          borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontSize: 11,
-        }}>Refrescar ahora</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={runCycle} disabled={cycleBusy} style={cycleBusy ? { ...btnSec, opacity: 0.6, cursor: 'not-allowed' } : btnSec}>
+            {cycleBusy ? 'Ejecutando…' : 'Ciclo observe_only'}
+          </button>
+          <button onClick={refresh} style={btn}>Refrescar</button>
+        </div>
       </div>
+
+      {hb.heartbeat_truth === 'API encendida, runtime apagado' && (
+        <div style={{
+          padding: '8px 12px', marginBottom: 12, borderRadius: 6,
+          background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)',
+          fontSize: 12, color: '#fde047',
+        }}>
+          Servidor API encendido — Runtime apagado. Usa "Ciclo observe_only" para encenderlo o "start" desde CLI.
+          <div style={{ marginTop: 4, fontSize: 10, color: '#a16207' }}>
+            curl -X POST http://127.0.0.1:8010/api/runtime/start -H 'Content-Type: application/json' -d '{{"mode":"observe_only","interval_seconds":30}}'
+          </div>
+        </div>
+      )}
 
       {error && (
         <div style={{
@@ -412,7 +479,7 @@ export function CabinaViva() {
       )}
 
       <Grid cols={2}>
-        <PulseCard data={dash.heartbeat} />
+        <PulseCard data={dash.heartbeat} onCycle={runCycle} />
         <OllamaBloodCard data={dash.ollama_blood} />
         <RepoChangesCard data={dash.git_status} />
         <ProcessStatusCard data={dash.heartbeat} />
