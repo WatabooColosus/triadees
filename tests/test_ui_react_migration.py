@@ -244,6 +244,9 @@ def test_heartbeat_contains_api_server_alive():
     data = resp.json()
     assert data.get("api_server_alive") is True
     assert data.get("heartbeat_truth") in (
+        "ALWAYS-ON activo · Tríade en proceso continuo",
+        "ALWAYS-ON configurado, pero background no está vivo",
+        "ALWAYS-ON apagado · Runtime manual",
         "Servidor activo · Runtime apagado",
         "Runtime activo sin ciclos recientes",
         "Runtime activo con ciclos recientes",
@@ -269,7 +272,12 @@ def test_heartbeat_truth_api_alive_runtime_off():
     data = resp.json()
     assert data.get("api_server_alive") is True
     if not data.get("runtime_enabled"):
-        assert "Runtime apagado" in (data.get("heartbeat_truth") or "")
+        truth = data.get("heartbeat_truth") or ""
+        assert (
+            "Runtime apagado" in truth
+            or "ALWAYS-ON configurado, pero background no está vivo" in truth
+            or "ALWAYS-ON apagado" in truth
+        )
 
 
 def test_runtime_start_observe_only_returns_enabled():
@@ -332,6 +340,11 @@ def test_react_dashboard_shows_runtime_off_not_error():
     assert "runtime_enabled" in hb
     if not hb.get("runtime_enabled"):
         assert "heartbeat_truth" in hb
-        assert "Runtime apagado" in (hb["heartbeat_truth"] or "")
+        truth = hb["heartbeat_truth"] or ""
+        assert (
+            "Runtime apagado" in truth
+            or "ALWAYS-ON configurado, pero background no está vivo" in truth
+            or "ALWAYS-ON apagado" in truth
+        )
     # No debe ser error
     assert data.get("status") in ("ok", "partial")

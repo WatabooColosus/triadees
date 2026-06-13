@@ -955,21 +955,24 @@ def runtime_stop() -> dict[str, Any]:
 def always_on_status() -> dict[str, Any]:
     from triade.core.always_on import build_always_on_status, load_always_on_config
     cfg = load_always_on_config()
-    status = build_always_on_status()
+    runtime_status = build_always_on_status()
     return {
-        "status": "ok",
-        "config_source": cfg.get("_config_source", "default"),
-        "always_on_enabled": cfg.get("enabled", False),
+        "enabled": bool(cfg.get("enabled", False)),
+        "always_on_enabled": bool(cfg.get("enabled", False)),
         "configured_mode": cfg.get("mode", "observe_only"),
-        "effective_mode": status.get("effective_mode", "observe_only"),
+        "effective_mode": runtime_status.get("effective_mode", "observe_only"),
         "interval_seconds": cfg.get("interval_seconds", 60),
+        "config_source": cfg.get("_config_source", "default"),
+        "status": runtime_status.get("status", "disabled"),
+        "background_thread_alive": runtime_status.get("background_thread_alive", False),
+        "last_start_at": runtime_status.get("last_start_at"),
+        "last_start_result": runtime_status.get("last_start_result"),
+        "last_self_test_status": runtime_status.get("last_self_test_status"),
+        "error": runtime_status.get("error"),
         "max_cycles": cfg.get("max_cycles", 0),
-        "background_thread_alive": status.get("background_thread_alive", False),
-        "runtime_enabled": status.get("runtime_enabled", False),
-        "started_at": status.get("started_at"),
-        "always_on_status": status.get("status", "disabled"),
-        "last_start_result": status.get("last_start_result"),
-        "last_self_test_status": status.get("last_self_test_status"),
+        "runtime_enabled": runtime_status.get("background_thread_alive", False),
+        "started_at": runtime_status.get("started_at"),
+        "always_on_status": runtime_status.get("status", "disabled"),
         "safe_only": cfg.get("safe_only", True),
         "require_ollama": cfg.get("require_ollama", False),
         "self_test_on_start": cfg.get("self_test_on_start", True),
@@ -1147,6 +1150,8 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             "workers_active": heartbeat.get("workers_active"),
             "background_thread_alive": heartbeat.get("background_thread_alive"),
         },
+        "always_on": heartbeat.get("always_on", {}),
+        "always_on_detail": heartbeat.get("always_on_detail", {}),
         "ollama_blood": {
             "status": blood.get("status"),
             "cognitive_blood_active": blood.get("cognitive_blood_active", False),

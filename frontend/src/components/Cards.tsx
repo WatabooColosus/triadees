@@ -744,18 +744,18 @@ export function AlwaysOnCard({ data }: { data: any }) {
   const interval = data.interval_seconds || 60
   const source = data.config_source || 'default'
 
-  let color = '#6b7280'
+  let color = '#eab308'
   let label = 'Apagado'
-  let msg = 'Always-On apagado. Activa TRIADE_ALWAYS_ON=true para que Tríade se pruebe sola al arrancar.'
+  let msg = 'Always-On apagado · Runtime manual'
 
   if (enabled && bgAlive) {
     color = '#22c55e'
     label = 'Activo'
-    msg = 'Tríade en proceso continuo.'
+    msg = 'Tríade en proceso continuo'
   } else if (enabled && !bgAlive) {
     color = '#ef4444'
     label = 'Background muerto'
-    msg = 'Always-On configurado, pero background no está vivo.'
+    msg = 'Always-On configurado, pero background no está vivo'
   }
 
   return (
@@ -783,5 +783,4 @@ export function AlwaysOnCard({ data }: { data: any }) {
     </Card>
   )
 }
-
 

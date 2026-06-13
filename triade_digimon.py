@@ -580,6 +580,7 @@ def handle_always_on(args: argparse.Namespace) -> None:
         status = build_always_on_status()
         print_json({
             "config_source": cfg.get("_config_source", "default"),
+            "enabled": cfg.get("enabled", False),
             "always_on_enabled": cfg.get("enabled", False),
             "configured_mode": cfg.get("mode", "observe_only"),
             "effective_mode": status.get("effective_mode", "observe_only"),
@@ -1027,7 +1028,7 @@ def main() -> None:
     if args.command == "api":
         import uvicorn
 
-        uvicorn.run("apps.api_app:app", host=args.host, port=args.port, reload=args.reload)
+        uvicorn.run("apps.single_port_app:app", host=args.host, port=args.port, reload=args.reload)
         return
 
     if args.command == "models":

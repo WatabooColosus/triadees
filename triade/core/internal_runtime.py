@@ -266,14 +266,12 @@ def build_runtime_heartbeat(
     else:
         runtime_activity_state = "idle_supervisor_off"
 
-    if not runtime_enabled:
-        truth = "Servidor activo · Runtime apagado"
-        if always_on_enabled and not bg_alive:
-            truth = "ALWAYS-ON configurado, pero background no está vivo"
-        elif has_recent_activity:
-            truth = "Actividad reciente detectada, pero supervisor apagado"
-        if ollama_degraded:
-            truth += " · Ollama no conectado"
+    if always_on_enabled and bg_alive:
+        truth = "ALWAYS-ON activo · Tríade en proceso continuo"
+    elif always_on_enabled and not bg_alive:
+        truth = "ALWAYS-ON configurado, pero background no está vivo"
+    elif not always_on_enabled:
+        truth = "ALWAYS-ON apagado · Runtime manual"
     elif ollama_degraded:
         truth = "Runtime degradado por falta de Ollama Blood"
     elif cycles_last_hour > 0:
@@ -358,17 +356,25 @@ def build_runtime_heartbeat(
         "runtime_activity_state": runtime_activity_state,
         "always_on": {
             "enabled": always_on_enabled,
+            "always_on_enabled": always_on_enabled,
             "configured_mode": always_on_status.get("configured_mode", "observe_only"),
             "effective_mode": always_on_status.get("effective_mode", "observe_only"),
             "interval_seconds": always_on_status.get("interval_seconds", 60),
+            "config_source": always_on_status.get("config_source", "default"),
             "status": always_on_state,
             "background_thread_alive": bg_alive,
+            "last_start_at": always_on_status.get("last_start_at"),
+            "last_start_result": always_on_status.get("last_start_result"),
+            "last_self_test_status": always_on_status.get("last_self_test_status"),
+            "error": always_on_status.get("error"),
             "self_test_on_start": always_on_status.get("self_test_on_start", True),
             "self_test_every_cycles": always_on_status.get("self_test_every_cycles", 5),
-            "config_source": always_on_status.get("config_source", "default"),
         },
         "always_on_enabled": always_on_enabled,
         "always_on_status": always_on_state,
+        "always_on_background_thread_alive": bg_alive,
+        "always_on_config_source": always_on_status.get("config_source", "default"),
+        "always_on_effective_mode": always_on_status.get("effective_mode", "observe_only"),
         "always_on_detail": always_on_status,
         "self_test_last_status": getattr(get_internal_runtime_supervisor(db_path=db_path, runs_dir=runs_dir), "last_self_test_result", None),
     }

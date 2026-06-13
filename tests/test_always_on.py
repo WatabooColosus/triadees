@@ -1,6 +1,7 @@
 import os
 import json
 import pytest
+import yaml
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -77,6 +78,34 @@ class TestAlwaysOnConfig:
         assert cfg.get('self_test_on_start') is False
         assert cfg.get('self_test_every_cycles') == 3
 
+    def test_triade_yml_always_on_maps_to_enabled(self):
+        """runtime.always_on en triade.yml activa cfg.enabled."""
+        from triade.core.always_on import load_always_on_config
+        yml = {
+            "runtime": {
+                "always_on": True,
+                "mode": "execute_missions",
+                "interval_seconds": 60,
+            }
+        }
+        with patch('triade.core.always_on.load_config', return_value=yml):
+            with patch.dict(os.environ, {}, clear=True):
+                cfg = load_always_on_config()
+        assert cfg.get('enabled') is True
+        assert cfg.get('mode') == 'execute_missions'
+        assert cfg.get('_config_source') == 'triade.yml'
+
+    def test_always_on_false_stays_disabled(self):
+        """runtime.always_on=false mantiene Always-On deshabilitado."""
+        from triade.core.always_on import load_always_on_config, should_start_always_on
+        yml = {"runtime": {"always_on": False, "mode": "execute_missions"}}
+        with patch('triade.core.always_on.load_config', return_value=yml):
+            with patch.dict(os.environ, {}, clear=True):
+                cfg = load_always_on_config()
+                should_start = should_start_always_on()
+        assert cfg.get('enabled') is False
+        assert should_start is False
+
 
 # ── Tests de should_start_always_on ─────────────────────────────────────────
 
@@ -90,8 +119,9 @@ class TestShouldStartAlwaysOn:
     def test_should_start_false(self):
         """should_start_always_on() devuelve False por defecto."""
         from triade.core.always_on import should_start_always_on
-        with patch.dict(os.environ, {}, clear=True):
-            assert should_start_always_on() is False
+        with patch('triade.core.always_on.load_config', return_value={}):
+            with patch.dict(os.environ, {}, clear=True):
+                assert should_start_always_on() is False
 
 
 # ── Tests de build_always_on_status ─────────────────────────────────────────
@@ -112,9 +142,90 @@ class TestBuildAlwaysOnStatus:
         with patch.dict(os.environ, {'TRIADE_ALWAYS_ON': 'true'}, clear=True):
             _ALWAYS_ON_STATE.clear()
             _ALWAYS_ON_STATE.update({"enabled": True, "status": "stopped"})
-            status = build_always_on_status()
+        status = build_always_on_status()
         assert status.get('enabled') is True
         assert status.get('background_thread_alive') is False
+        assert status.get('always_on_enabled') is True
+
+
+class TestAlwaysOnStartup:
+    def test_always_on_true_in_yml_starts_on_startup(self, monkeypatch):
+        """start_always_on_if_enabled arranca cuando triade.yml trae runtime.always_on=true."""
+        import triade.core.always_on as ao
+
+        yml = {
+            "runtime": {
+                "always_on": True,
+                "mode": "execute_missions",
+                "interval_seconds": 60,
+                "start_delay_seconds": 0,
+                "require_ollama": False,
+                "safe_only": True,
+            }
+        }
+        ao._ALWAYS_ON_STATE.clear()
+        ao._ALWAYS_ON_STATE.update({
+            "enabled": False,
+            "configured_mode": "observe_only",
+            "effective_mode": "observe_only",
+            "interval_seconds": 60,
+            "max_cycles": 0,
+            "config_source": "default",
+            "background_thread_alive": False,
+            "last_start_at": None,
+            "last_cycle_at": None,
+            "last_self_test_status": None,
+            "last_start_result": None,
+            "started_at": None,
+            "status": "disabled",
+            "error": None,
+        })
+        monkeypatch.setattr(ao, "load_config", lambda _path: yml)
+        import triade.core.internal_runtime as runtime_mod
+        monkeypatch.setattr(runtime_mod, "_BACKGROUND_THREAD", None)
+        monkeypatch.setattr(ao, "start_internal_runtime_background", lambda **_kw: {"status": "started"})
+        monkeypatch.setattr(ao, "run_self_test_cycle", lambda **_kw: {"status": "ok"})
+        monkeypatch.setattr(ao, "record_internal_runtime_event", lambda *_args, **_kw: None)
+        monkeypatch.setattr(ao, "time", MagicMock(sleep=lambda _seconds: None))
+        monkeypatch.setattr(
+            ao,
+            "get_internal_runtime_supervisor",
+            lambda **_kw: MagicMock(snapshot=lambda: {}),
+        )
+        import triade.core.ollama_blood as blood_mod
+        import triade.core.resource_probe as probe_mod
+        monkeypatch.setattr(blood_mod, "check_ollama_blood", lambda: {
+            "ollama_ok": True,
+            "can_reason": True,
+            "can_embed": True,
+        })
+        monkeypatch.setattr(probe_mod, "build_resource_probe", lambda: {})
+
+        result = ao.start_always_on_if_enabled()
+
+        assert result.get("status") == "started"
+        assert result.get("effective_mode") in ("execute_missions", "observe_only")
+        assert ao.build_always_on_status().get("enabled") is True
+
+    def test_always_on_no_duplicate_thread(self, monkeypatch):
+        """Si ya existe background vivo, no se arranca otro thread."""
+        import triade.core.always_on as ao
+
+        class AliveThread:
+            def is_alive(self):
+                return True
+
+        yml = {"runtime": {"always_on": True, "start_delay_seconds": 0}}
+        monkeypatch.setattr(ao, "load_config", lambda _path: yml)
+        import triade.core.internal_runtime as runtime_mod
+        monkeypatch.setattr(runtime_mod, "_BACKGROUND_THREAD", AliveThread())
+        starter = MagicMock(return_value={"status": "started"})
+        monkeypatch.setattr(ao, "start_internal_runtime_background", starter)
+
+        result = ao.start_always_on_if_enabled()
+
+        assert result.get("status") == "already_running"
+        starter.assert_not_called()
 
 
 # ── Tests del self-test cycle ───────────────────────────────────────────────
@@ -155,11 +266,18 @@ class TestAlwaysOnAPI:
         resp = _api_client.get('/api/runtime/always-on/status')
         assert resp.status_code == 200
         data = resp.json()
+        assert 'enabled' in data
         assert 'always_on_enabled' in data
         assert 'background_thread_alive' in data
-        assert 'always_on_status' in data or 'status' in data
+        assert 'status' in data
         assert 'configured_mode' in data
+        assert 'effective_mode' in data
+        assert 'interval_seconds' in data
         assert 'config_source' in data
+        assert 'last_start_at' in data
+        assert 'last_start_result' in data
+        assert 'last_self_test_status' in data
+        assert 'error' in data
 
     def test_self_test_endpoint(self):
         """POST /api/runtime/self-test ejecuta self-test y devuelve resultado."""
@@ -205,7 +323,18 @@ class TestHeartbeatAlwaysOn:
         hb = build_runtime_heartbeat()
         assert 'always_on_enabled' in hb
         assert 'always_on_status' in hb
+        assert 'always_on_background_thread_alive' in hb
+        assert 'always_on_config_source' in hb
+        assert 'always_on_effective_mode' in hb
         assert 'always_on_detail' in hb
+
+    def test_react_dashboard_includes_always_on(self):
+        """El dashboard React expone always_on como bloque top-level."""
+        resp = _api_client.get('/api/ui/react-dashboard')
+        assert resp.status_code == 200
+        data = resp.json()
+        assert 'always_on' in data
+        assert 'enabled' in data['always_on']
 
 
 # ── Tests de CLI commands ───────────────────────────────────────────────────
@@ -221,6 +350,31 @@ class TestAlwaysOnCLI:
             handle_always_on(ns)
         except SystemExit:
             pass
+
+    def test_cli_enable_writes_runtime_always_on_true(self, tmp_path, capsys):
+        """always-on enable escribe runtime.always_on=true en triade.yml."""
+        from triade_digimon import handle_always_on
+        from argparse import Namespace
+
+        config = tmp_path / "triade.yml"
+        config.write_text("runtime:\n  always_on: false\n", encoding="utf-8")
+        ns = Namespace(
+            always_on_command='enable',
+            config=str(config),
+            mode='execute_missions',
+            interval=60,
+            safe_only=None,
+            require_ollama=None,
+            self_test_every=None,
+        )
+
+        handle_always_on(ns)
+        capsys.readouterr()
+        yml = yaml.safe_load(config.read_text(encoding="utf-8"))
+
+        assert yml["runtime"]["always_on"] is True
+        assert yml["runtime"]["mode"] == "execute_missions"
+        assert yml["runtime"]["interval_seconds"] == 60
 
     def test_self_test_cli(self):
         """CLI self-test se ejecuta sin error."""

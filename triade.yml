@@ -8,7 +8,7 @@ models:
     central: qwen2.5:3b-instruct
 
 runtime:
-  always_on: false
+  always_on: true
   mode: execute_missions
   interval_seconds: 60
   start_delay_seconds: 3

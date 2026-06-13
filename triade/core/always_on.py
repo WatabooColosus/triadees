@@ -14,7 +14,6 @@ from typing import Any
 from triade.core.config import load_config
 from triade.core.contracts import utc_now
 from triade.core.internal_runtime import (
-    _BACKGROUND_THREAD,
     get_internal_runtime_supervisor,
     record_internal_runtime_event,
     start_internal_runtime_background,
@@ -82,6 +81,8 @@ def load_always_on_config(yml_path: str | Path = "triade.yml") -> dict[str, Any]
             for key in YML_DEFAULTS:
                 if key in rtc:
                     cfg[key] = rtc[key]
+            if "always_on" in rtc:
+                cfg["enabled"] = bool(rtc["always_on"])
             cfg["_config_source"] = "triade.yml"
     except Exception:
         pass
@@ -114,9 +115,16 @@ def should_start_always_on(yml_path: str | Path = "triade.yml") -> bool:
     return bool(cfg.get("enabled", False))
 
 
+def _background_thread_alive() -> bool:
+    from triade.core import internal_runtime
+
+    thread = getattr(internal_runtime, "_BACKGROUND_THREAD", None)
+    return bool(thread and thread.is_alive())
+
+
 def build_always_on_status() -> dict[str, Any]:
     global _ALWAYS_ON_STATE
-    bg_alive = bool(_BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive())
+    bg_alive = _background_thread_alive()
     _ALWAYS_ON_STATE["background_thread_alive"] = bg_alive
     if _ALWAYS_ON_STATE["enabled"] and not bg_alive:
         _ALWAYS_ON_STATE["status"] = "background_dead"
@@ -124,7 +132,9 @@ def build_always_on_status() -> dict[str, Any]:
         _ALWAYS_ON_STATE["status"] = "running"
     else:
         _ALWAYS_ON_STATE["status"] = "disabled"
-    return dict(_ALWAYS_ON_STATE)
+    state = dict(_ALWAYS_ON_STATE)
+    state["always_on_enabled"] = bool(state.get("enabled", False))
+    return state
 
 
 def start_always_on_if_enabled(
@@ -143,7 +153,7 @@ def start_always_on_if_enabled(
         _ALWAYS_ON_STATE["error"] = None
         return {"status": "disabled", "message": "ALWAYS-ON no está habilitado.", "config_source": cfg["_config_source"]}
 
-    bg_alive = bool(_BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive())
+    bg_alive = _background_thread_alive()
     if bg_alive:
         _ALWAYS_ON_STATE["background_thread_alive"] = True
         _ALWAYS_ON_STATE["status"] = "running"
