@@ -223,9 +223,7 @@ def start_always_on_if_enabled(
     require_ollama = bool(cfg.get("require_ollama", False))
     safe_only = bool(cfg.get("safe_only", True))
 
-    if not ollama_ok and not require_ollama:
-        effective_mode = "observe_only"
-    elif not ollama_ok and require_ollama:
+    if not ollama_ok and require_ollama:
         effective_mode = "observe_only"
         preflight_errors.append("ollama_required_but_unavailable")
 
