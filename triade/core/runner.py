@@ -464,6 +464,40 @@ class TriadeRunner:
         }
         output_gate["source_labels"]["response_coherence_gate"] = response_coherence_gate.get("status")
 
+        from .expression_cortex import ExpressionCortex
+
+        bodega_context = (
+            (input_packet.context or {}).get("living_context", {}).get("bodega_global_context", {})
+            or (input_packet.context or {}).get("bodega_global_context", {})
+        )
+        cortex = ExpressionCortex()
+        shaped = cortex.shape_response(
+            user_input=input_packet.user_input,
+            raw_response=output.response,
+            intent=str(signals.intent),
+            signals={},
+            memory={"semantic_matches": len(memory.semantic_matches) if hasattr(memory, "semantic_matches") else 0,
+                    "confidence": memory.confidence if hasattr(memory, "confidence") else 0.0},
+            crystal={"temporal_status": crystal.temporal_status if hasattr(crystal, "temporal_status") else "unknown",
+                     "status": crystal.status if hasattr(crystal, "status") else "unknown"},
+            qualia={"hypothesis_available": bool(plan_dict.get("qualia_hypothesis", {}).get("status") == "available"),
+                    "status": plan_dict.get("qualia_hypothesis", {}).get("status", "unavailable")},
+            bodega_context={"domain_count": bodega_context.get("domain_count", 0)},
+            learning_context={},
+        )
+        output.response = shaped["response"]
+        output.memory_diff["expression_cortex"] = {
+            "expression_mode": shaped["expression_mode"],
+            "corrections": shaped["corrections"],
+            "visible_modular_trace": shaped["visible_modular_trace"],
+            "hidden_evidence": shaped["hidden_evidence"],
+        }
+        output_gate["expression_cortex"] = {
+            "expression_mode": shaped["expression_mode"],
+            "corrections": shaped["corrections"],
+            "visible_modular_trace": shaped["visible_modular_trace"],
+        }
+
         neuron_candidate_gate = evaluate_neuron_candidate_worthiness(
             user_input=input_packet.user_input,
             intent=str(signals.intent),

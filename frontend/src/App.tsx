@@ -253,6 +253,7 @@ function ChatTab({ apiKey }: { apiKey: string }) {
         headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'X-TRIADE-API-Key': apiKey } : {}) },
       })
       const safety = res.safety || {}
+      const visibleMeta = res.visible_meta || {}
       setMessages(m => [...m, {
         role: 'bot',
         content: res.response || '(sin respuesta)',
@@ -260,6 +261,7 @@ function ChatTab({ apiKey }: { apiKey: string }) {
           safety,
           models: res.models,
           run_id: res.run_id,
+          visible_meta: visibleMeta,
           neuron_proposal: res.neuron_proposal,
           neuron_candidate_gate: res.neuron_candidate_gate || res.memory_diff?.neuron_candidate_gate,
           response_coherence_gate: res.response_coherence_gate || res.memory_diff?.response_coherence_gate,
@@ -268,6 +270,7 @@ function ChatTab({ apiKey }: { apiKey: string }) {
           experimental_activity: res.experimental_neuron_activity,
           autopromotions: res.memory_diff?.autopromotion_events,
           system_events: res.system_events?.filter((e: any) => e.severity !== 'info').slice(0, 5),
+          deep_evidence: res.deep_evidence,
         },
       }])
     } catch (e: any) {
@@ -363,6 +366,53 @@ function ChatTab({ apiKey }: { apiKey: string }) {
               color: m.role === 'user' ? '#fff' : 'var(--text-primary)',
             }}>
               <div>{m.content}</div>
+              {m.meta?.visible_meta && (() => {
+                const vm = m.meta.visible_meta
+                const chips = (vm.modules_used || []).filter(Boolean)
+                return (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {chips.map((mod: string) => (
+                      <span key={mod} style={{
+                        fontSize: 10, padding: '2px 6px', borderRadius: 4,
+                        background: 'var(--bg-base)', border: '1px solid var(--border)',
+                        color: 'var(--text-secondary)',
+                      }}>{mod}</span>
+                    ))}
+                    {vm.learning_active && (
+                      <span style={{
+                        fontSize: 10, padding: '2px 6px', borderRadius: 4,
+                        background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)',
+                        color: '#22c55e',
+                      }}>aprendizaje</span>
+                    )}
+                    {vm.evidence_ref && (
+                      <span style={{
+                        fontSize: 10, padding: '2px 6px', borderRadius: 4,
+                        background: 'var(--bg-base)', border: '1px solid var(--border)',
+                        color: 'var(--text-muted)', fontFamily: 'monospace',
+                      }}>{vm.evidence_ref.slice(0, 12)}</span>
+                    )}
+                  </div>
+                )
+              })()}
+              {m.meta?.visible_meta?.modular_trace && (
+                <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  {m.meta.visible_meta.modular_trace}
+                </div>
+              )}
+              {m.meta?.deep_evidence && (
+                <details style={{ marginTop: 6 }}>
+                  <summary style={{
+                    fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer',
+                    userSelect: 'none',
+                  }}>ver evidencia del run</summary>
+                  <pre style={{
+                    marginTop: 4, padding: 8, fontSize: 10, lineHeight: 1.4,
+                    background: 'var(--bg-base)', borderRadius: 6, border: '1px solid var(--border)',
+                    overflow: 'auto', maxHeight: 200, color: 'var(--text-secondary)',
+                  }}>{JSON.stringify(m.meta.deep_evidence, null, 2)}</pre>
+                </details>
+              )}
               {m.meta?.safety && m.meta?.safety.status && !m.meta?.pending && (
                 <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <Badge status={m.meta.safety.status} />

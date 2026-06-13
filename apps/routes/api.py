@@ -2315,7 +2315,23 @@ def run_triade(
             semantic_domain=request.semantic_domain,
             semantic_allow_experimental=request.semantic_allow_experimental,
         )
-        return safety_gate(result)
+        result = safety_gate(result)
+        output_gate = result.get("output_gate") or {}
+        expression_meta = output_gate.get("expression_cortex") or {}
+        memory_diff = result.get("memory_diff") or {}
+        expression_evidence = memory_diff.get("expression_cortex") or {}
+        learning_active = bool(result.get("post_run_learning", {}).get("enabled"))
+        result["visible_meta"] = {
+            "modules_used": ["Central", "Hipotálamo", "Bodega", "Cristal"],
+            "modular_trace": expression_meta.get("visible_modular_trace", ""),
+            "expression_mode": expression_meta.get("expression_mode", "natural"),
+            "learning_active": learning_active,
+            "evidence_ref": result.get("run_id"),
+        }
+        hidden = expression_evidence.get("hidden_evidence")
+        if request.debug and hidden:
+            result["deep_evidence"] = hidden
+        return result
     except HTTPException:
         raise
     except Exception as exc:

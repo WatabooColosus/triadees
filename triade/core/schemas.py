@@ -26,6 +26,7 @@ class RunRequest(BaseModel):
     semantic_min_similarity: float = Field(default=0.55, ge=-1.0, le=1.0)
     semantic_domain: str | None = None
     semantic_allow_experimental: bool = False
+    debug: bool = False
 
 
 class RunApiRequest(BaseModel):
