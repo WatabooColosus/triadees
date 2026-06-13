@@ -112,10 +112,10 @@ def _build_decision(
 
     can_embed = bool(blood.get("can_embed"))
     can_reason = bool(blood.get("can_reason"))
-    can_nourish = effective_mode in ("balanced_background", "full_local") and can_reason
+    can_nourish = effective_mode in ("balanced_background", "full_local", "execute_missions") and can_reason
     can_evaluate = effective_mode in ("light_background", "balanced_background", "full_local") and can_reason
     can_consolidate = effective_mode == "full_local" and can_reason
-    can_workers = effective_mode in ("light_background", "balanced_background", "full_local")
+    can_workers = effective_mode in ("light_background", "balanced_background", "full_local", "execute_missions")
     can_write = effective_mode in ("balanced_background", "full_local")
     can_write_repo = effective_mode == "full_local"
     can_shell = False  # siempre requiere aprobación
@@ -127,9 +127,9 @@ def _build_decision(
 
     if effective_mode in ("observe_only", "light_background", "balanced_background", "full_local"):
         allowed_actions.append("observe_bodega")
-    if effective_mode in ("light_background", "balanced_background", "full_local"):
+    if effective_mode in ("light_background", "balanced_background", "full_local", "execute_missions"):
         allowed_actions.append("run_workers")
-    if effective_mode in ("balanced_background", "full_local"):
+    if effective_mode in ("balanced_background", "full_local", "execute_missions"):
         allowed_actions.append("run_neuron_nutrition")
         allowed_actions.append("write_runs")
         allowed_actions.append("write_artifacts")

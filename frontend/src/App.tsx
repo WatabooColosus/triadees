@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import './index.css'
-import { CabinaViva } from './components/Cards'
+import { CabinaViva } from './components/CabinaViva'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const BASE = ''
 
@@ -159,7 +160,7 @@ export default function App() {
       </aside>
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {tab === 'cabin' && <CabinaViva />}
+        {tab === 'cabin' && <ErrorBoundary><CabinaViva /></ErrorBoundary>}
         {tab === 'chat' && <ChatTab apiKey={apiKey} />}
         {tab === 'system' && <SystemTab />}
         {tab === 'observability' && <ObservabilityTab />}

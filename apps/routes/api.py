@@ -2325,3 +2325,32 @@ echo
 echo "[triade] Nota: la APK no puede instalar paquetes dentro de Termux desde otra app."
 echo "[triade] Este script prepara Termux cuando lo ejecutas manualmente dentro de Termux."
 """
+
+
+# ── Legacy route aliases (D-07) ──────────────────────────────────────────
+
+@router.get("/triade/recall")
+def triade_recall_legacy(query: str = "", limit: int = 10) -> dict[str, Any]:
+    LIFE_PULSE.record_action("triade_recall")
+    from triade.memory.semantic_search import SemanticSearchEngine
+    engine = SemanticSearchEngine()
+    results = engine.search(query=query, limit=limit)
+    return {"query": query, "limit": limit, "status": "ok", "results": results[:limit]}
+
+
+@router.get("/triade/doctor")
+def triade_doctor_legacy(use_ollama: bool = True) -> dict[str, Any]:
+    LIFE_PULSE.record_action("triade_doctor")
+    runner = TriadeRunner(use_ollama=use_ollama)
+    return {"status": "ok", "doctor": runner.doctor()}
+
+
+@router.get("/triade/neurons/{name}")
+def triade_neuron_show_legacy(name: str, limit: int = 10) -> dict[str, Any]:
+    from triade.core.neuron_registry import NeuronRegistry
+    registry = NeuronRegistry()
+    neuron = registry.get_neuron(name)
+    if neuron is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Neurona no encontrada.")
+    training = registry.list_training(neuron_id=int(neuron["id"]), limit=limit)
+    return {"status": "ok", "neuron": neuron, "training": training}
