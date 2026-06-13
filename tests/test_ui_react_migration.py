@@ -74,10 +74,35 @@ def test_react_dashboard_endpoint_read_only():
     resp = client.get("/api/ui/react-dashboard")
     assert resp.status_code == 200
     data = resp.json()
-    assert data.get("status") == "ok"
+    assert data.get("status") in ("ok", "partial")
     assert data.get("policy", {}).get("read_only") is True
     assert data.get("policy", {}).get("identity_core_protected") is True
     assert data.get("policy", {}).get("no_shell_execution") is True
+
+
+def test_react_dashboard_errors_array():
+    """El dashboard debe incluir un array errors (puede estar vacío)."""
+    resp = client.get("/api/ui/react-dashboard")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" in data
+    assert isinstance(data["errors"], list)
+    for err in data["errors"]:
+        assert "block" in err
+        assert "error" in err
+
+
+def test_react_dashboard_partial_not_500():
+    """Si un bloque falla, status es 'partial' y no 500."""
+    resp = client.get("/api/ui/react-dashboard")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("status") in ("ok", "partial")
+    if data.get("errors"):
+        # al menos un bloque falló — asegurarse que los demás bloques existen
+        assert "heartbeat" in data
+        assert "ollama_blood" in data
+        assert "git_status" in data
 
 
 def test_react_dashboard_contains_heartbeat():

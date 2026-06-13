@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 export function Card({ title, color, children }: { title: string; color?: string; children: React.ReactNode }) {
   return (
     <div style={{
@@ -31,6 +33,7 @@ export function Grid({ cols, children }: { cols: number; children: React.ReactNo
 export function Badge({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
     ok: '#22c55e', active: '#22c55e', enabled: '#22c55e', approved: '#22c55e', healthy: '#22c55e',
+    partial: '#eab308',
     degraded: '#eab308', warning: '#eab308', medium: '#eab308',
     error: '#ef4444', failed: '#ef4444', blocked: '#ef4444', high: '#ef4444', critical: '#ef4444',
     unavailable: '#6b7280', inactive: '#6b7280', unknown: '#6b7280', paused: '#6b7280', rejected: '#6b7280',
@@ -46,7 +49,8 @@ export function Badge({ status }: { status: string }) {
 
 export function KVTable({ data, exclude }: { data: any; exclude?: string[] }) {
   if (!data || typeof data !== 'object') return <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Sin datos</div>
-  const keys = Object.keys(data).filter(k => !exclude?.includes(k) && data[k] !== undefined && data[k] !== null)
+  const keys = Object.keys(data).filter(k => !exclude?.includes(k) && data[k] !== undefined && data[k] !== null && data[k] !== '')
+  if (keys.length === 0) return <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Sin datos disponibles</div>
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {keys.map(k => (
@@ -61,10 +65,20 @@ export function KVTable({ data, exclude }: { data: any; exclude?: string[] }) {
   )
 }
 
+function UnavailableBlock({ label, error }: { label: string; error?: string }) {
+  return (
+    <Card title={label} color="#6b7280">
+      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+        {error ? `No disponible: ${error}` : 'No disponible'}
+      </div>
+    </Card>
+  )
+}
+
 /* ── Cards ───────────────────────────────── */
 
 export function PulseCard({ data }: { data: any }) {
-  if (!data) return null
+  if (!data || data.status === 'error') return <UnavailableBlock label="Pulso Vivo" error={data?.error} />
   const score = data.runtime_continuity_score ?? 0
   const scoreColor = score >= 0.7 ? '#22c55e' : score >= 0.4 ? '#eab308' : '#ef4444'
   return (
@@ -89,7 +103,7 @@ export function PulseCard({ data }: { data: any }) {
 }
 
 export function OllamaBloodCard({ data }: { data: any }) {
-  if (!data) return null
+  if (!data || data.status === 'error') return <UnavailableBlock label="Sangre Cognitiva" error={data?.error} />
   const active = data.cognitive_blood_active
   return (
     <Card title="Sangre Cognitiva" color={active ? '#22c55e' : '#ef4444'}>
@@ -123,7 +137,7 @@ export function OllamaBloodCard({ data }: { data: any }) {
 }
 
 export function RepoChangesCard({ data }: { data: any }) {
-  if (!data) return null
+  if (!data || data.status === 'error') return <UnavailableBlock label="Repo: Git status" error={data?.error} />
   if (data.status === 'unavailable') {
     return (
       <Card title="Repo: Git status" color="#6b7280">
@@ -161,7 +175,7 @@ export function RepoChangesCard({ data }: { data: any }) {
 }
 
 export function ProcessStatusCard({ data }: { data: any }) {
-  if (!data) return null
+  if (!data || data.status === 'error') return <UnavailableBlock label="Procesos Internos" error={data?.error} />
   return (
     <Card title="Procesos Internos" color="#22c55e">
       <KVTable data={{
@@ -180,7 +194,7 @@ export function ProcessStatusCard({ data }: { data: any }) {
 }
 
 export function BodegaCard({ data }: { data: any }) {
-  if (!data) return null
+  if (!data || data.status === 'error') return <UnavailableBlock label="Bodega Global" error={data?.error} />
   const confianza = data.memory_confidence ?? 'unknown'
   const color = confianza === 'high' ? '#22c55e' : confianza === 'medium' ? '#eab308' : '#6b7280'
   return (
@@ -198,7 +212,7 @@ export function BodegaCard({ data }: { data: any }) {
 }
 
 export function MemoryTraceCard({ data }: { data: any }) {
-  if (!data) return null
+  if (!data || data.status === 'error') return <UnavailableBlock label="Memory Trace" error={data?.error} />
   const m = data.memory_trace_summary || {}
   return (
     <Card title="Memory Trace" color="#8b5cf6">
@@ -216,7 +230,7 @@ export function MemoryTraceCard({ data }: { data: any }) {
 }
 
 export function LearningJournalCard({ data }: { data: any }) {
-  if (!data) return null
+  if (!data || data.status === 'error') return <UnavailableBlock label="Learning Journal" error={data?.error} />
   return (
     <Card title="Learning Journal" color="#22c55e">
       <KVTable data={{
@@ -232,12 +246,12 @@ export function LearningJournalCard({ data }: { data: any }) {
       }} />
       {data.latest_learning_candidate && (
         <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-          Último candidato: {typeof data.latest_learning_candidate === 'string' ? data.latest_learning_candidate : JSON.stringify(data.latest_learning_candidate).slice(0, 80)}
+          Último candidato: {typeof data.latest_learning_candidate === 'string' ? data.latest_learning_candidate.slice(0, 100) : JSON.stringify(data.latest_learning_candidate).slice(0, 100)}
         </div>
       )}
       {data.latest_rejection && (
         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          Último rechazo: {typeof data.latest_rejection === 'string' ? data.latest_rejection : JSON.stringify(data.latest_rejection).slice(0, 80)}
+          Último rechazo: {typeof data.latest_rejection === 'string' ? data.latest_rejection.slice(0, 100) : JSON.stringify(data.latest_rejection).slice(0, 100)}
         </div>
       )}
     </Card>
@@ -245,7 +259,7 @@ export function LearningJournalCard({ data }: { data: any }) {
 }
 
 export function TechnicalDebtCard({ data }: { data: any }) {
-  if (!data) return null
+  if (!data || data.status === 'error') return <UnavailableBlock label="Deuda Técnica" error={data?.error} />
   const [expanded, setExpanded] = useState(false)
   const score = data.score ?? 0
   const color = score >= 70 ? '#22c55e' : score >= 40 ? '#eab308' : '#ef4444'
@@ -309,7 +323,7 @@ export function EventsFeed({ events }: { events: any[] }) {
 /* ── Workers Card ─────────────────────────── */
 
 export function WorkersCard({ data }: { data: any }) {
-  if (!data) return null
+  if (!data || data.status === 'error') return <UnavailableBlock label="Workers" error={data?.error} />
   return (
     <Card title="Workers" color="#f59e0b">
       <KVTable data={{
@@ -336,16 +350,37 @@ export function CabinaViva() {
     )
   }
 
-  const dash = data
+  if (!data && !loading) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        <div style={{ color: '#ef4444', fontSize: 16, marginBottom: 12 }}>No se pudieron cargar datos</div>
+        {error && (
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 16 }}>
+            Error: {error}
+          </div>
+        )}
+        <button onClick={refresh} style={{
+          background: 'var(--accent)', color: '#fff', border: 'none',
+          borderRadius: 6, padding: '8px 20px', cursor: 'pointer', fontWeight: 600, fontSize: 13,
+        }}>Reintentar</button>
+      </div>
+    )
+  }
+
+  const dash = data!
+  const blockErrors = dash.errors || []
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
             {lastUpdated ? `Última actualización: ${lastUpdated}` : ''}
           </span>
-          <Badge status={dash?.status || 'unknown'} />
+          <Badge status={dash.status || 'unknown'} />
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            endpoint: /api/ui/react-dashboard · refresh cada {Math.round((dash.refresh_hint_seconds || 5) / 5)}s
+          </span>
         </div>
         <button onClick={refresh} style={{
           background: 'var(--accent)', color: '#fff', border: 'none',
@@ -359,22 +394,35 @@ export function CabinaViva() {
           background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
           fontSize: 12, color: '#fca5a5',
         }}>
-          Error: {error} (manteniendo último dato válido)
+          Error de conexión: {error} (mostrando datos anteriores)
+        </div>
+      )}
+
+      {blockErrors.length > 0 && (
+        <div style={{
+          padding: '8px 12px', marginBottom: 12, borderRadius: 6,
+          background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)',
+          fontSize: 11, color: '#fde047',
+        }}>
+          <strong>Bloques con error:</strong>
+          {blockErrors.map((b: any, i: number) => (
+            <div key={i} style={{ marginTop: 2 }}>· {b.block}: {b.error}</div>
+          ))}
         </div>
       )}
 
       <Grid cols={2}>
-        <PulseCard data={dash?.heartbeat} />
-        <OllamaBloodCard data={dash?.ollama_blood} />
-        <RepoChangesCard data={dash?.git_status} />
-        <ProcessStatusCard data={dash?.heartbeat} />
-        <BodegaCard data={dash?.bodega_summary} />
-        <MemoryTraceCard data={dash?.observability} />
-        <LearningJournalCard data={dash?.learning_journal} />
-        <TechnicalDebtCard data={dash?.technical_debt} />
-        <WorkersCard data={dash?.workers} />
+        <PulseCard data={dash.heartbeat} />
+        <OllamaBloodCard data={dash.ollama_blood} />
+        <RepoChangesCard data={dash.git_status} />
+        <ProcessStatusCard data={dash.heartbeat} />
+        <BodegaCard data={dash.bodega_summary} />
+        <MemoryTraceCard data={dash.observability} />
+        <LearningJournalCard data={dash.learning_journal} />
+        <TechnicalDebtCard data={dash.technical_debt} />
+        <WorkersCard data={dash.workers} />
       </Grid>
-      <EventsFeed events={dash?.runtime_events} />
+      <EventsFeed events={dash.runtime_events} />
     </div>
   )
 }

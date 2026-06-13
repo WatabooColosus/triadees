@@ -37,6 +37,8 @@ export interface DashboardData {
   git_status?: any
   workers?: any
   runtime_events?: any[]
+  system_processes?: any
+  errors?: { block: string; error: string }[]
   policy?: any
 }
 
@@ -48,23 +50,26 @@ export function useLiveDashboard(): {
   refresh: () => void
 } {
   const [data, setData] = useState<DashboardData | null>(null)
+  const [lastGoodData, setLastGoodData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lastUpdated, setLastUpdated] = useState('')
   const mountedRef = useRef(true)
 
   const fetch = useCallback(async () => {
+    setLoading(true)
     try {
       const res = await api('/api/ui/react-dashboard')
       if (mountedRef.current) {
         setData(res)
+        setLastGoodData(res)
         setError('')
         setLastUpdated(new Date().toLocaleTimeString())
       }
     } catch (e: any) {
       if (mountedRef.current) {
         setError(e.message)
-        // keep last valid data
+        // keep lastGoodData — it's already set
       }
     } finally {
       if (mountedRef.current) setLoading(false)
@@ -80,5 +85,5 @@ export function useLiveDashboard(): {
     return () => { mountedRef.current = false; clearInterval(id) }
   }, [fetch])
 
-  return { data, loading, error, lastUpdated, refresh: fetch }
+  return { data: data || lastGoodData, loading, error, lastUpdated, refresh: fetch }
 }

@@ -1004,31 +1004,37 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
     from triade.services.event_bus import list_recent_events
 
     import time as _time
+    import traceback as _traceback
 
     LIFE_PULSE.record_action("react_dashboard")
 
-    def _safe(fn, default: Any = None):
+    _errors: list[dict[str, str]] = []
+
+    def _safe(fn, block_name: str, default: Any = None):
         try:
             return fn()
-        except Exception:
-            return default if default is not None else {"status": "unavailable"}
+        except Exception as exc:
+            _errors.append({"block": block_name, "error": str(exc)[:200]})
+            return default if default is not None else {"status": "unavailable", "error": str(exc)[:200]}
 
-    heartbeat = _safe(lambda: build_living_report(summary=True), {"status": "unavailable"})
-    blood = _safe(lambda: check_ollama_blood(), {"status": "unavailable", "cognitive_blood_active": False})
+    heartbeat = _safe(lambda: build_living_report(summary=True), "heartbeat", {"status": "unavailable"})
+    blood = _safe(lambda: check_ollama_blood(), "ollama_blood", {"status": "unavailable", "cognitive_blood_active": False})
     bodega_ctx = _safe(
         lambda: build_bodega_global_context(user_input=query or "dashboard", limit=limit, semantic_recall_enabled=True),
+        "bodega_summary",
         {"memory_confidence": "unavailable"},
     )
-    observability = _safe(lambda: TriadeObservabilityView().build(), {"status": "unavailable"})
-    debt = _safe(lambda: build_technical_debt_audit(), {"score": 0, "debts": [], "warnings": []})
-    git = _safe(lambda: build_repo_runtime_status(), {"status": "unavailable"})
-    workers = _safe(lambda: WorkerBackgroundService().status(), {"status": "unavailable"})
-    events = _safe(lambda: list_recent_events(limit=50), [])
+    observability = _safe(lambda: TriadeObservabilityView().build(), "observability", {"status": "unavailable"})
+    debt = _safe(lambda: build_technical_debt_audit(), "technical_debt", {"score": 0, "debts": [], "warnings": []})
+    git = _safe(lambda: build_repo_runtime_status(), "git_status", {"status": "unavailable"})
+    workers = _safe(lambda: WorkerBackgroundService().status(), "workers", {"status": "unavailable"})
+    events = _safe(lambda: list_recent_events(limit=50), "runtime_events", [])
 
     return {
-        "status": "ok",
+        "status": "partial" if _errors else "ok",
         "generated_at": _time.strftime("%Y-%m-%dT%H:%M:%S"),
         "refresh_hint_seconds": 5,
+        "errors": _errors,
         "heartbeat": {
             "runtime_enabled": heartbeat.get("runtime_enabled"),
             "mode": heartbeat.get("mode"),
