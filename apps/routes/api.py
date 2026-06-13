@@ -1039,7 +1039,6 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
     No ejecuta workers, no modifica memoria, no toca identity_core.
     """
     from triade.core.internal_runtime import build_runtime_heartbeat
-    from triade.core.living_report import build_living_report
     from triade.core.bodega_global_context import build_bodega_global_context
     from triade.core.observability_view import TriadeObservabilityView
     from triade.core.ollama_blood import check_ollama_blood
@@ -1377,7 +1376,10 @@ def delegated_plan(body: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 @router.post("/api/files/create")
-def files_create(body: dict[str, Any] | None = None) -> dict[str, Any]:
+def files_create(
+    body: dict[str, Any] | None = None,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
     """Crea archivo de forma segura con dry-run por defecto."""
     LIFE_PULSE.record_action("files_create")
     payload = body or {}
@@ -1385,6 +1387,13 @@ def files_create(body: dict[str, Any] | None = None) -> dict[str, Any]:
     content = payload.get("content", "")
     level = payload.get("budget_level", "observe_only")
     dry_run = payload.get("dry_run", True)
+    if not dry_run:
+        require_key(x_triade_api_key)
+        if not payload.get("human_approved"):
+            raise HTTPException(
+                status_code=428,
+                detail={"error": "human_approved_required", "message": "dry_run=false requiere human_approved=true"},
+            )
     if not path:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="path requerido")
     from triade.core.safe_file_ops import safe_create_file
@@ -1392,7 +1401,10 @@ def files_create(body: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 @router.post("/api/files/patch")
-def files_patch(body: dict[str, Any] | None = None) -> dict[str, Any]:
+def files_patch(
+    body: dict[str, Any] | None = None,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
     """Modifica archivo existente de forma segura con dry-run."""
     LIFE_PULSE.record_action("files_patch")
     payload = body or {}
@@ -1400,6 +1412,13 @@ def files_patch(body: dict[str, Any] | None = None) -> dict[str, Any]:
     content = payload.get("content", "")
     level = payload.get("budget_level", "observe_only")
     dry_run = payload.get("dry_run", True)
+    if not dry_run:
+        require_key(x_triade_api_key)
+        if not payload.get("human_approved"):
+            raise HTTPException(
+                status_code=428,
+                detail={"error": "human_approved_required", "message": "dry_run=false requiere human_approved=true"},
+            )
     if not path:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="path requerido")
     from triade.core.safe_file_ops import safe_patch_file
@@ -1407,7 +1426,10 @@ def files_patch(body: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 @router.post("/api/files/move")
-def files_move(body: dict[str, Any] | None = None) -> dict[str, Any]:
+def files_move(
+    body: dict[str, Any] | None = None,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
     """Mueve archivo de forma segura con dry-run."""
     LIFE_PULSE.record_action("files_move")
     payload = body or {}
@@ -1415,6 +1437,13 @@ def files_move(body: dict[str, Any] | None = None) -> dict[str, Any]:
     dst = payload.get("dst", "")
     level = payload.get("budget_level", "observe_only")
     dry_run = payload.get("dry_run", True)
+    if not dry_run:
+        require_key(x_triade_api_key)
+        if not payload.get("human_approved"):
+            raise HTTPException(
+                status_code=428,
+                detail={"error": "human_approved_required", "message": "dry_run=false requiere human_approved=true"},
+            )
     if not src or not dst:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="src y dst requeridos")
     from triade.core.safe_file_ops import safe_move_file
@@ -1422,7 +1451,10 @@ def files_move(body: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 @router.post("/api/files/delete-to-trash")
-def files_delete_to_trash(body: dict[str, Any] | None = None) -> dict[str, Any]:
+def files_delete_to_trash(
+    body: dict[str, Any] | None = None,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
     """Mueve archivo a papelera (nunca borra directo)."""
     LIFE_PULSE.record_action("files_delete_to_trash")
     payload = body or {}
@@ -1430,6 +1462,13 @@ def files_delete_to_trash(body: dict[str, Any] | None = None) -> dict[str, Any]:
     reason = payload.get("reason", "Eliminación vía API delegada.")
     level = payload.get("budget_level", "observe_only")
     dry_run = payload.get("dry_run", True)
+    if not dry_run:
+        require_key(x_triade_api_key)
+        if not payload.get("human_approved"):
+            raise HTTPException(
+                status_code=428,
+                detail={"error": "human_approved_required", "message": "dry_run=false requiere human_approved=true"},
+            )
     if not path:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="path requerido")
     from triade.core.safe_file_ops import safe_delete_file

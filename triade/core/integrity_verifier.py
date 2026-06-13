@@ -118,7 +118,14 @@ def verify_integrity_change(
     """
     bf = before.get("files", {})
     af = after.get("files", {})
-    planned_rel = set(plan.get("target_paths", []))
+    raw = plan.get("target_paths", [])
+    planned_rel: set[str] = set()
+    repo = REPO_ROOT
+    for p in raw:
+        try:
+            planned_rel.add(str(Path(p).relative_to(repo)))
+        except (ValueError, TypeError):
+            planned_rel.add(str(p))
     planned_action = plan.get("action_type", "read")
 
     created = []

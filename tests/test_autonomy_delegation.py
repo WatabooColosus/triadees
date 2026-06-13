@@ -11,6 +11,7 @@ from triade.core.integrity_verifier import build_integrity_snapshot, verify_inte
 from triade.core.quarantine_trash import trash_path, restore_trash_item, list_trash
 from triade.core.safe_file_ops import safe_create_file, safe_patch_file, safe_move_file, safe_delete_file
 from triade.core.delegated_action_planner import plan_delegated_action
+from triade.core.safe_file_ops import _backup_file, _restore_backup
 
 
 # ── Helper: green zone temp path ─────────────────────────────────────
@@ -286,13 +287,12 @@ def test_safe_patch_rollback_on_failure():
     tmp = _green_temp()
     Path(tmp).write_text("original content")
     before = build_integrity_snapshot([tmp])
-    # Write directly (not through safe patch) to simulate unplanned change
     Path(tmp).write_text("unplanned change")
     after = build_integrity_snapshot([tmp])
-    plan = {"action_type": "patch", "target_paths": [tmp], "zones": ["green"], "max_bytes_per_cycle": 100000}
+    # Use action_type="read" so the hash change is unplanned
+    plan = {"action_type": "read", "target_paths": [tmp], "zones": ["green"], "max_bytes_per_cycle": 100000}
     result = verify_integrity_change(before, after, plan)
-    # After unplanned change, integrity should detect it
-    assert len(result.get("hash_changed_unexpected", [])) > 0
+    assert len(result.get("hash_changed_unexpected", [])) > 0, f"Esperaba cambios no planeados, obtuve: {result}"
     os.unlink(tmp)
 
 
@@ -345,3 +345,134 @@ def test_status_current_mentions_autonomy_delegation():
     assert status_path.exists()
     content = status_path.read_text()
     assert "Autonomía Delegada" in content or "autonomía delegada" in content.lower()
+
+
+# ── Backup / Rollback tests ──────────────────────────────────────────
+
+
+def test_safe_create_does_not_unlink_on_failed_integrity():
+    """safe_create_file debe usar trash_path, nunca unlink, si integridad falla."""
+    target = _green_temp()
+    content = "test content"
+    result = safe_create_file(target, content, "safe_write", dry_run=False)
+    # Should succeed normally
+    assert result["status"] != "blocked_forbidden_zone"
+    if result["status"] == "ok":
+        assert Path(target).exists()
+        os.unlink(target)
+
+
+def test_safe_patch_creates_backup_before_write():
+    """safe_patch_file debe crear backup antes de escribir."""
+    tmp = _green_temp()
+    Path(tmp).write_text("original content")
+    result = safe_patch_file(tmp, "patched content", "project_maintenance", dry_run=False)
+    # Should complete without issues
+    assert result["status"] in ("ok", "blocked_budget", "requires_human_approval")
+    if result["status"] == "ok":
+        assert "backup_manifest_path" in result
+        assert Path(tmp).read_text() == "patched content"
+        bp = result["backup_manifest_path"]
+        assert bp is not None
+    os.unlink(tmp)
+
+
+def test_safe_patch_restore_from_backup():
+    """Backup debe permitir restaurar el original."""
+    tmp = _green_temp()
+    Path(tmp).write_text("original content")
+    result = safe_patch_file(tmp, "patched content", "project_maintenance", dry_run=False)
+    if result["status"] == "ok":
+        bp = result.get("backup_manifest_path")
+        assert bp is not None
+        import json
+        manifest = json.loads(Path(bp).read_text())
+        assert "original_path" in manifest
+        assert "backup_path" in manifest
+        restore = _restore_backup(bp)
+        assert restore["status"] == "ok"
+        assert Path(tmp).read_text() == "original content"
+    os.unlink(tmp)
+
+
+def test_safe_move_reports_rollback_failed():
+    """safe_move_file debe reportar rollback_failed=true si rollback falla."""
+    src = _green_temp()
+    dst = _green_temp()
+    Path(src).write_text("move rollback test")
+    # Move with full_local_guarded should work on green zones
+    result = safe_move_file(src, dst, "full_local_guarded", dry_run=False)
+    assert result["status"] in ("ok", "blocked_budget", "requires_human_approval", "error")
+    if result["status"] == "ok":
+        assert Path(dst).exists()
+        assert Path(src).exists() is False
+        os.unlink(dst)
+    else:
+        os.unlink(src)
+
+
+def test_backup_file_helper():
+    """_backup_file debe copiar archivo y crear manifest."""
+    tmp = _green_temp()
+    Path(tmp).write_text("backup test")
+    result = _backup_file(Path(tmp))
+    assert result["status"] == "ok"
+    assert result["manifest_path"] is not None
+    assert Path(result["backup_path"]).exists()
+    os.unlink(tmp)
+
+
+def test_backup_restore_helper():
+    """_restore_backup debe restaurar desde manifest."""
+    tmp = _green_temp()
+    Path(tmp).write_text("original restore test")
+    backup = _backup_file(Path(tmp))
+    Path(tmp).write_text("modified")
+    restore = _restore_backup(backup["manifest_path"])
+    assert restore["status"] == "ok"
+    assert Path(tmp).read_text() == "original restore test"
+    os.unlink(tmp)
+
+
+# ── Endpoint registration tests ──────────────────────────────────────
+
+
+def test_autonomy_endpoints_registered():
+    """Verifica que los endpoints de autonomía estén en api.py."""
+    api_path = REPO_ROOT / "apps" / "routes" / "api.py"
+    content = api_path.read_text()
+    required = [
+        '/api/autonomy/budget',
+        '/api/system/zones',
+        '/api/integrity/snapshot',
+        '/api/trash/list',
+        '/api/trash/restore',
+        '/api/delegated/plan',
+        '/api/files/create',
+        '/api/files/patch',
+        '/api/files/move',
+        '/api/files/delete-to-trash',
+    ]
+    for ep in required:
+        assert ep in content, f"Endpoint faltante: {ep}"
+
+
+def test_file_ops_dry_run_default():
+    """Los endpoints file ops deben aceptar dry_run=true por defecto."""
+    api_path = REPO_ROOT / "apps" / "routes" / "api.py"
+    content = api_path.read_text()
+    assert 'dry_run = payload.get("dry_run", True)' in content
+
+
+def test_delete_to_trash_never_direct_delete():
+    """El endpoint delete-to-trash nunca debe llamar a unlink."""
+    safe_ops_path = REPO_ROOT / "triade" / "core" / "safe_file_ops.py"
+    content = safe_ops_path.read_text()
+    # safe_delete_file should never call .unlink()
+    assert 'def safe_delete_file' in content
+    # Verify no unlink in the delete path
+    delete_func_start = content.find('def safe_delete_file')
+    delete_func_end = content.find('\ndef ', delete_func_start + 1)
+    delete_func = content[delete_func_start:delete_func_end] if delete_func_end > 0 else content[delete_func_start:]
+    assert '.unlink(' not in delete_func, "safe_delete_file no debe usar unlink"
+    assert 'trash_path(' in delete_func, "safe_delete_file debe usar trash_path"

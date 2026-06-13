@@ -51,6 +51,9 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - Semantic recall vectorial depende de Ollama y un modelo de embeddings compatible; sin modelo el motor semántico se reporta como "unavailable" y no habilita aprendizaje semántico, aunque keyword recall/store/gobernanza sigan disponibles.
 - `runtime_continuity_score` se calcula y muestra; su calibración puede seguir mejorando con datos reales.
 - Autonomía Delegada requiere hardening continuo: más zonas explícitas, mejor detección de extensiones peligrosas, integración worker/Runtime completa para ejecución delegada real (hoy es solo plan + dry-run via API).
+- Rollback/backup de Safe File Ops seguirá endureciéndose: el backup de patch usa copia a .triade_trash/.backups/ con manifest, pero restore si el backup falta es un edge case abierto.
+- `full_local_guarded` no es full access libre. No modifica identity_core, no modifica .git, no borra directo, solo escribe en zonas green/yellow con verificación de integridad y restricción de extensiones/tamaño.
+- Delete definitivo no existe. `safe_delete_file` siempre mueve a `.triade_trash/`. No hay purge implementado; requeriría aprobación humana fuerte.
 
 ## Vision pendiente
 

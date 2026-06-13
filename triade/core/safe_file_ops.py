@@ -2,22 +2,61 @@
 
 from __future__ import annotations
 
+import json
 import shutil
+import time
 from pathlib import Path
 from typing import Any
 
 from triade.core.autonomy_budget import build_autonomy_budget
 from triade.core.integrity_verifier import build_integrity_snapshot, verify_integrity_change
-from triade.core.quarantine_trash import trash_path
-from triade.core.system_zones import classify_path
+from triade.core.quarantine_trash import trash_path, list_trash
+from triade.core.system_zones import classify_path, REPO_ROOT
 
 EVENT_SOURCE = "safe_file_ops"
-
 SUSPICIOUS_EXTENSIONS = {".exe", ".bat", ".sh", ".dll", ".so", ".dylib", ".bin", ".elf"}
+BACKUP_DIR = REPO_ROOT / ".triade_trash" / ".backups"
 
 
 def _norm(info: dict) -> str:
     return info.get("normalized_path", info.get("path", ""))
+
+
+def _backup_file(path: Path) -> dict[str, Any]:
+    """Copia un archivo a .triade_trash/.backups/ con manifest y devuelve manifest_path."""
+    if not path.exists():
+        return {"status": "error", "reason": f"No existe: {path}"}
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    rel = str(path.relative_to(REPO_ROOT)) if path != REPO_ROOT else path.name
+    safe_name = rel.replace("/", "_").replace("\\", "_")
+    backup_path = BACKUP_DIR / f"{ts}_{safe_name}"
+    shutil.copy2(str(path), str(backup_path))
+    manifest = {
+        "original_path": str(path),
+        "relative_path": str(path.relative_to(REPO_ROOT)) if path != REPO_ROOT else path.name,
+        "backup_path": str(backup_path),
+        "created_at": ts,
+    }
+    manifest_file = backup_path.with_suffix(backup_path.suffix + ".manifest.json")
+    manifest_file.write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+    return {"status": "ok", "manifest_path": str(manifest_file), "backup_path": str(backup_path), "manifest": manifest}
+
+
+def _restore_backup(manifest_path: str) -> dict[str, Any]:
+    """Restaura un archivo desde backup usando manifest."""
+    mp = Path(manifest_path)
+    if not mp.exists():
+        return {"status": "error", "reason": f"Manifest no encontrado: {manifest_path}"}
+    manifest = json.loads(mp.read_text())
+    backup = Path(manifest["backup_path"])
+    if not backup.exists():
+        return {"status": "error", "reason": f"Backup no encontrado: {manifest['backup_path']}"}
+    orig = Path(manifest["original_path"])
+    orig.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(str(backup), str(orig))
+    mp.unlink(missing_ok=True)
+    return {"status": "ok", "restored_path": str(orig), "manifest": manifest}
 
 
 def _plan(action_type: str, path: str, budget: dict, zones: list[str] | None = None) -> dict[str, Any]:
@@ -71,14 +110,10 @@ def safe_create_file(
 
     if dry_run:
         return {
-            "status": "dry_run",
-            "action": "create",
-            "path": str(target),
-            "zone": info["zone"],
-            "content_length": len(content),
-            "max_bytes_per_cycle": max_bytes,
-            "plan": plan,
-            "budget": budget,
+            "status": "dry_run", "action": "create",
+            "path": str(target), "zone": info["zone"],
+            "content_length": len(content), "max_bytes_per_cycle": max_bytes,
+            "plan": plan, "budget": budget,
         }
 
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -87,11 +122,15 @@ def safe_create_file(
     result = verify_integrity_change(before, after, plan)
 
     if result.get("status") == "failed":
-        target.unlink(missing_ok=True)
-        return {"status": result["status"], "action": "create", "path": str(target), "zone": info["zone"], "integrity": result, "requires_rollback": True}
+        trash_result = trash_path(str(target), reason="rollback_failed_integrity")
+        return {
+            "status": result["status"], "action": "create",
+            "path": str(target), "zone": info["zone"],
+            "integrity": result, "requires_rollback": True,
+            "rollback_trash": trash_result.get("manifest_path") if trash_result.get("status") == "ok" else None,
+        }
 
     _register_event("safe_file_created", {"path": str(target), "zone": info["zone"], "status": result["status"], "budget_level": budget_level})
-
     return {"status": result["status"], "action": "create", "path": str(target), "zone": info["zone"], "integrity": result}
 
 
@@ -119,27 +158,32 @@ def safe_patch_file(
 
     if dry_run:
         return {
-            "status": "dry_run",
-            "action": "patch",
-            "path": str(target),
-            "zone": info["zone"],
+            "status": "dry_run", "action": "patch",
+            "path": str(target), "zone": info["zone"],
             "original_size": target.stat().st_size,
-            "new_size": len(patch_or_content),
-            "budget": budget,
+            "new_size": len(patch_or_content), "budget": budget,
         }
 
-    original = target.read_text(encoding="utf-8")
+    backup = _backup_file(target)
+    backup_path = backup.get("manifest_path")
+
     target.write_text(patch_or_content, encoding="utf-8")
     after = build_integrity_snapshot([str(target)])
     result = verify_integrity_change(before, after, plan)
 
     if result.get("status") == "failed":
-        target.write_text(original, encoding="utf-8")
-        return {"status": result["status"], "action": "patch", "path": str(target), "zone": info["zone"], "integrity": result, "requires_rollback": True}
+        restore = _restore_backup(backup.get("backup_path") + ".manifest.json") if backup_path else {"status": "error", "reason": "sin backup"}
+        return {
+            "status": result["status"], "action": "patch",
+            "path": str(target), "zone": info["zone"],
+            "integrity": result, "requires_rollback": True,
+            "backup_manifest_path": backup_path,
+            "restore_status": restore.get("status"),
+            "rollback_failed": restore.get("status") != "ok",
+        }
 
     _register_event("safe_file_patched", {"path": str(target), "zone": info["zone"], "status": result["status"], "budget_level": budget_level})
-
-    return {"status": result["status"], "action": "patch", "path": str(target), "zone": info["zone"], "integrity": result}
+    return {"status": result["status"], "action": "patch", "path": str(target), "zone": info["zone"], "integrity": result, "backup_manifest_path": backup_path}
 
 
 def safe_move_file(
@@ -171,12 +215,9 @@ def safe_move_file(
 
     if dry_run:
         return {
-            "status": "dry_run",
-            "action": "move",
-            "src": str(src_p),
-            "dst": str(dst_p),
-            "src_zone": src_info["zone"],
-            "dst_zone": dst_info["zone"],
+            "status": "dry_run", "action": "move",
+            "src": str(src_p), "dst": str(dst_p),
+            "src_zone": src_info["zone"], "dst_zone": dst_info["zone"],
             "budget": budget,
         }
 
@@ -186,11 +227,20 @@ def safe_move_file(
     result = verify_integrity_change(before, after, plan)
 
     if result.get("status") == "failed":
-        shutil.move(str(dst_p), str(src_p))
-        return {"status": result["status"], "action": "move", "src": str(src_p), "dst": str(dst_p), "integrity": result, "requires_rollback": True}
+        try:
+            shutil.move(str(dst_p), str(src_p))
+            rollback_ok = True
+        except OSError as exc:
+            rollback_ok = False
+            result["rollback_error"] = str(exc)
+        return {
+            "status": result["status"], "action": "move",
+            "src": str(src_p), "dst": str(dst_p),
+            "integrity": result, "requires_rollback": True,
+            "rollback_failed": not rollback_ok,
+        }
 
     _register_event("safe_file_moved", {"src": str(src_p), "dst": str(dst_p), "src_zone": src_info["zone"], "dst_zone": dst_info["zone"], "status": result["status"], "budget_level": budget_level})
-
     return {"status": result["status"], "action": "move", "src": str(src_p), "dst": str(dst_p), "src_zone": src_info["zone"], "dst_zone": dst_info["zone"], "integrity": result}
 
 
