@@ -494,6 +494,32 @@ class TriadeRunner:
             (input_packet.context or {}).get("living_context", {}).get("bodega_global_context", {})
             or (input_packet.context or {}).get("bodega_global_context", {})
         )
+        runtime_context = (
+            (input_packet.context or {}).get("runtime_heartbeat")
+            or (input_packet.context or {}).get("heartbeat")
+            or (input_packet.context or {}).get("runtime")
+            or {}
+        )
+        runtime_payload = runtime_context if isinstance(runtime_context, dict) else {}
+        ollama_context = (
+            (input_packet.context or {}).get("ollama_blood")
+            or runtime_payload.get("ollama_blood")
+            or {}
+        )
+        always_on_context = (
+            (input_packet.context or {}).get("always_on")
+            or runtime_payload.get("always_on")
+            or {}
+        )
+        workers_context = (
+            (input_packet.context or {}).get("workers_always_on")
+            or runtime_payload.get("workers_always_on")
+            or (input_packet.context or {}).get("workers")
+            or {}
+        )
+        ollama_payload = ollama_context if isinstance(ollama_context, dict) else {}
+        always_on_payload = always_on_context if isinstance(always_on_context, dict) else {}
+        workers_payload = workers_context if isinstance(workers_context, dict) else {}
         expression_result = ExpressionCortex().shape_response(
             user_input=input_packet.user_input,
             raw_response=output.response,
@@ -524,6 +550,14 @@ class TriadeRunner:
                 "run_id": input_packet.run_id,
                 "safety_status": safety.status,
                 "central_quality": central_quality,
+                "ollama_status": ollama_payload.get("status") or runtime_payload.get("cognitive_blood_status"),
+                "cognitive_blood_status": runtime_payload.get("cognitive_blood_status"),
+                "degraded_components": runtime_payload.get("degraded_components", []),
+                "always_on": always_on_payload,
+                "workers": workers_payload,
+                "runtime_mode": runtime_payload.get("mode"),
+                "effective_mode": runtime_payload.get("effective_autonomy") or always_on_payload.get("effective_mode"),
+                "learning_active": bool(neuron_proposal or feedback_reinforcement_result),
             },
         )
         output.response = expression_result["response"]

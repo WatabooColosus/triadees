@@ -133,7 +133,7 @@ class TestCasualQuestionGetsNaturalSynthesis:
             bodega_context={"domain_count": 5},
             learning_context={"active": True, "enabled": True},
         )
-        assert result["expression_mode"] == "natural"
+        assert result["expression_mode"] == "self_state"
         assert len(result["visible_modular_trace"]) > 0
         assert "Central" in result["visible_modular_trace"] or "Hipotálamo" in result["visible_modular_trace"]
 
@@ -162,6 +162,63 @@ class TestCasualQuestionGetsNaturalSynthesis:
         assert "Central" in result["response"]
         assert "Bodega" in result["response"]
 
+    def test_self_state_generates_human_modular_response(self):
+        """Self-state reinterpreta informes internos como respuesta conversacional."""
+        from triade.core.expression_cortex import ExpressionCortex
+
+        raw = (
+            "Resumen operativo:\n"
+            "- Último tema trabajado: Operó en modo degradado sin Ollama.\n"
+            "- Hipótesis/contexto actual: candidato de aprendizaje activo.\n"
+            "- política recomendada: observe_only.\n"
+            "Traza modular: Central coordinada · Hipotálamo estable · Bodega · Cristal improving."
+        )
+        result = ExpressionCortex().shape_response(
+            user_input="como te sientes",
+            raw_response=raw,
+            intent="conversation",
+            signals={"hypothalamus_quality": 0.8},
+            memory={"confidence": 0.4, "semantic_matches": 1},
+            crystal={"temporal_status": "improving"},
+            qualia={"status": "available"},
+            bodega_context={"domain_count": 4},
+            learning_context={"active": True},
+        )
+        response = result["response"]
+        assert result["expression_mode"] == "self_state"
+        assert "No siento como una persona" in response
+        assert "operando" in response or "activa" in response
+        assert "Central" in response
+        assert "Hipotálamo" in response
+        assert "Bodega" in response
+        assert "Cristal" in response
+        assert not response.startswith("Resumen operativo")
+        assert "Hipótesis/contexto actual" not in response
+        assert "candidato" not in response.lower()
+        assert "política recomendada" not in response.lower()
+
+    def test_degraded_state_is_brief_in_self_state(self):
+        """Self-state puede mencionar degradación sin volverse reporte."""
+        from triade.core.expression_cortex import ExpressionCortex
+
+        result = ExpressionCortex().shape_response(
+            user_input="como te sientes",
+            raw_response="Resumen operativo: Ollama no disponible. Bodega Global: {...}",
+            intent="conversation",
+            signals={"hypothalamus_quality": 0.8},
+            memory={},
+            crystal={"temporal_status": "coherent"},
+            qualia={},
+            bodega_context={},
+            learning_context={},
+            system_context={"ollama_status": "degraded_no_ollama"},
+        )
+        response = result["response"]
+        assert "Ollama" in response
+        assert "limitado" in response or "degradación" in response
+        assert not response.startswith("Resumen operativo")
+        assert len(response.splitlines()) <= 3
+
 
 class TestDiagnosticQuestionAllowsSummary:
     """FASE 7 — Test 3: Pregunta de diagnóstico → resumen técnico."""
@@ -182,6 +239,60 @@ class TestDiagnosticQuestionAllowsSummary:
             learning_context={},
         )
         assert result["expression_mode"] == "diagnostic"
+
+    def test_diagnostic_can_use_resumen_operativo(self):
+        """Diagnóstico sí puede usar Resumen operativo."""
+        from triade.core.expression_cortex import ExpressionCortex
+
+        result = ExpressionCortex().shape_response(
+            user_input="verifica sistema",
+            raw_response="Bodega Global: {...}\nruntime activo\nworkers vivos",
+            intent="analyze",
+            signals={},
+            memory={},
+            crystal={},
+            qualia={},
+            bodega_context={},
+            learning_context={},
+        )
+        assert result["expression_mode"] == "diagnostic"
+        assert result["response"].startswith("Resumen operativo")
+
+    def test_non_diagnostic_does_not_start_resumen_operativo(self):
+        """Fuera de diagnóstico no debe comenzar con Resumen operativo."""
+        from triade.core.expression_cortex import ExpressionCortex
+
+        for prompt in ("como te sientes", "hola", "como vuela un ave"):
+            result = ExpressionCortex().shape_response(
+                user_input=prompt,
+                raw_response="Resumen operativo:\n- Bodega Global: {...}\n- learning_candidate: x",
+                intent="conversation",
+                signals={},
+                memory={},
+                crystal={},
+                qualia={},
+                bodega_context={},
+                learning_context={},
+            )
+            assert not result["response"].startswith("Resumen operativo")
+
+    def test_modular_trace_no_english_states(self):
+        """La traza visible no mezcla estados en inglés."""
+        from triade.core.expression_cortex import ExpressionCortex
+
+        result = ExpressionCortex().shape_response(
+            user_input="como te sientes",
+            raw_response="ok",
+            intent="conversation",
+            signals={"hypothalamus_quality": 0.8},
+            memory={},
+            crystal={"temporal_status": "improving"},
+            qualia={"status": "available"},
+            bodega_context={"domain_count": 1},
+            learning_context={},
+        )
+        assert "improving" not in result["visible_modular_trace"]
+        assert "estabilizando" in result["visible_modular_trace"]
 
     def test_diagnostic_not_infinite_dump(self):
         """Diagnóstico no se convierte en dump interno infinito."""
@@ -234,6 +345,28 @@ class TestFactualQuestionStaysFactual:
         )
         assert result["expression_mode"] == "technical_summary"
         assert "ave" in result["response"] or "alas" in result["response"]
+
+    def test_factual_question_never_summarizes_triade(self):
+        """Pregunta factual responde el tema, no la fisiología de Tríade."""
+        from triade.core.expression_cortex import ExpressionCortex
+
+        result = ExpressionCortex().shape_response(
+            user_input="como vuela un ave",
+            raw_response="Resumen operativo:\n- Ollama degradado\n- Bodega Global: {...}",
+            intent="conversation",
+            signals={},
+            memory={},
+            crystal={},
+            qualia={},
+            bodega_context={},
+            learning_context={},
+        )
+        response = result["response"].lower()
+        assert "alas" in response
+        assert "aire" in response
+        assert "sustentación" in response
+        assert "ollama" not in response
+        assert "bodega" not in response
 
 
 class TestLearningPipelineIntact:
