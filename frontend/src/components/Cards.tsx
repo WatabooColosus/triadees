@@ -243,6 +243,39 @@ export function OllamaBloodCard({ data }: { data: any }) {
   )
 }
 
+export function EdgeContextHealthCard({ data }: { data: any }) {
+  if (!data || data.status === 'error') return <UnavailableBlock label="Edge Context" error={data?.error} />
+  const status = data.status || 'unknown'
+  const degraded = ['degraded', 'empty_response_repeated', 'malformed_repeated'].includes(status)
+  const repeated = ['empty_response_repeated', 'malformed_repeated'].includes(status)
+  const color = status === 'ok' ? '#22c55e' : repeated ? '#f59e0b' : degraded ? '#eab308' : '#6b7280'
+  return (
+    <Card title="Edge Context" color={color}>
+      {degraded && (
+        <div style={{
+          padding: '8px 10px', marginBottom: 8, borderRadius: 6,
+          background: repeated ? 'rgba(245,158,11,0.1)' : 'rgba(234,179,8,0.1)',
+          border: repeated ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(234,179,8,0.3)',
+          fontSize: 12, color: repeated ? '#fed7aa' : '#fde047',
+        }}>
+          Señal edge degradada; el run continúa con fallback heurístico y deja observación fisiológica.
+        </div>
+      )}
+      <KVTable data={{
+        estado: status,
+        ultima_observacion: data.last_observation_type,
+        calidad: data.last_signal_quality,
+        fallback_24h: data.fallback_rate_24h,
+        vacias_24h: data.empty_count_24h,
+        malformadas_24h: data.malformed_count_24h,
+        no_json_24h: data.non_json_count_24h,
+        observaciones_24h: data.total_observations_24h,
+        recomendacion: data.recommended_action,
+      }} />
+    </Card>
+  )
+}
+
 export function RepoChangesCard({ data }: { data: any }) {
   if (!data || data.status === 'error') return <UnavailableBlock label="Repo: Git status" error={data?.error} />
   if (data.status === 'unavailable') {

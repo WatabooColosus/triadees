@@ -385,6 +385,13 @@ function ChatTab({ apiKey }: { apiKey: string }) {
                         color: '#22c55e',
                       }}>aprendizaje</span>
                     )}
+                    {vm.expression_mode && (
+                      <span style={{
+                        fontSize: 10, padding: '2px 6px', borderRadius: 4,
+                        background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)',
+                        color: '#93c5fd',
+                      }}>{vm.expression_mode}</span>
+                    )}
                     {vm.evidence_ref && (
                       <span style={{
                         fontSize: 10, padding: '2px 6px', borderRadius: 4,

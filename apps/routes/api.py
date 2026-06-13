@@ -1201,6 +1201,7 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         "always_on": heartbeat.get("always_on", {}),
         "always_on_detail": heartbeat.get("always_on_detail", {}),
         "workers_always_on": heartbeat.get("workers_always_on", {}),
+        "edge_context_health": heartbeat.get("edge_context_health", {}),
         "ollama_blood": {
             "status": blood.get("status"),
             "cognitive_blood_active": blood.get("cognitive_blood_active", False),
@@ -2319,7 +2320,6 @@ def run_triade(
         output_gate = result.get("output_gate") or {}
         expression_meta = output_gate.get("expression_cortex") or {}
         memory_diff = result.get("memory_diff") or {}
-        expression_evidence = memory_diff.get("expression_cortex") or {}
         learning_active = bool(result.get("post_run_learning", {}).get("enabled"))
         result["visible_meta"] = {
             "modules_used": ["Central", "Hipotálamo", "Bodega", "Cristal"],
@@ -2328,7 +2328,7 @@ def run_triade(
             "learning_active": learning_active,
             "evidence_ref": result.get("run_id"),
         }
-        hidden = expression_evidence.get("hidden_evidence")
+        hidden = memory_diff.get("expression_hidden_evidence")
         if request.debug and hidden:
             result["deep_evidence"] = hidden
         return result

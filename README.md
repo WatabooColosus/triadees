@@ -49,6 +49,19 @@ python triade_digimon.py runtime blood
 python triade_digimon.py runtime heartbeat
 ```
 
+## Corteza de Expresión
+
+Tríade razona con todo su metabolismo interno, pero no debe volcarlo crudo en
+el chat. La **Corteza de Expresión** transforma la salida de Central después de
+las puertas de coherencia: responde al humano con una síntesis natural,
+factual, operativa o diagnóstica según el caso, y conserva la evidencia profunda
+en el run, Memory Trace y Cabina Viva.
+
+Esto evita que preguntas conversacionales como “cómo te sientes” muestren
+dumps de Bodega Global, QualiaBus, candidatos de aprendizaje o políticas
+internas. El sistema sigue aprendiendo y registrando evidencia; solo cambia el
+canal visible de salida.
+
 ---
 
 ## 🌱 ¿Qué es Tríade?

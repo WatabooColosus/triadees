@@ -196,6 +196,7 @@ def build_runtime_heartbeat(
     from triade.core.context_engine import build_living_context_for_chat
     from triade.core.error_bus import query_internal_errors
     from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
+    from triade.core.edge_observations import build_edge_context_health
     from triade.models.ollama_client import check_ollama_cognitive_health
     from triade.workers.background_service import WorkerBackgroundService
     from triade.core.always_on import build_always_on_status
@@ -214,7 +215,8 @@ def build_runtime_heartbeat(
     recent_events = list_recent_runtime_events(limit=max(limit * 2, 100), db_path=db_path)
     last_cycle_at = _last_timestamp(recent_events, RUNTIME_CYCLE_EVENTS)
     latest_event = recent_events[0] if recent_events else None
-    latest_error = (query_internal_errors(limit=1, db_path=db_path) or [{}])[0]
+    latest_error = _latest_noncritical_filtered_error(query_internal_errors(limit=20, db_path=db_path))
+    edge_context_health = build_edge_context_health(since_hours=since_hours, limit=max(limit * 4, 200), db_path=db_path)
     active_missions = int((living_context.get("mission_context") or {}).get("active_missions", 0))
     ollama_blood = check_ollama_blood()
     blood_nutrition_policy = ollama_blood_policy("neuron_nutrition", ollama_blood)
@@ -332,6 +334,7 @@ def build_runtime_heartbeat(
         "active_missions": active_missions,
         "ollama_health": ollama_health,
         "ollama_blood": ollama_blood,
+        "edge_context_health": edge_context_health,
         "cognitive_blood_status": ollama_blood.get("status"),
         "blood_pressure_score": ollama_blood.get("blood_pressure_score", 0.0),
         "can_reason": bool(ollama_blood.get("can_reason")),
@@ -409,6 +412,33 @@ def build_runtime_heartbeat(
 
 def list_recent_runtime_events(limit: int = 100, db_path: str | Path = "triade/memory/triade.db") -> list[dict[str, Any]]:
     return build_context_from_events(limit=limit, db_path=db_path).get("recent_events", [])
+
+
+def _latest_noncritical_filtered_error(errors: list[dict[str, Any]]) -> dict[str, Any]:
+    for err in errors or []:
+        if not _is_expected_edge_parse_signal(err):
+            return err
+    return {}
+
+
+def _is_expected_edge_parse_signal(err: dict[str, Any]) -> bool:
+    text = " ".join(
+        str(part or "")
+        for part in (
+            err.get("task_type"),
+            err.get("message"),
+            (err.get("payload") or {}).get("error_message"),
+            ((err.get("payload") or {}).get("context") or {}).get("operation"),
+        )
+    ).lower()
+    return (
+        "edge_context.parse_model_output" in text
+        and (
+            "expecting value" in text
+            or "jsondecodeerror" in text
+            or "parse_model_json" in text
+        )
+    )
 
 
 def _count_recent(events: list[dict[str, Any]], wanted: set[str], hours: int) -> int:

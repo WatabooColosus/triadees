@@ -158,7 +158,9 @@ class TestCasualQuestionGetsNaturalSynthesis:
             learning_context={},
         )
         assert "background_neuron_candidates" not in result["response"]
-        assert "temperatura" in result["response"] or "memoria" in result["response"]
+        assert "No siento como una persona" in result["response"]
+        assert "Central" in result["response"]
+        assert "Bodega" in result["response"]
 
 
 class TestDiagnosticQuestionAllowsSummary:

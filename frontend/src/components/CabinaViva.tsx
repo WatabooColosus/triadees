@@ -7,6 +7,7 @@ import {
   TrashCard, DelegatedActionsCard, BodegaCard, MemoryTraceCard,
   LearningJournalCard, TechnicalDebtCard, WorkersCard,
   SafeShellCard, EventsFeed, AlwaysOnCard, WorkersAlwaysOnCard,
+  EdgeContextHealthCard,
 } from './Cards'
 
 export function CabinaViva() {
@@ -167,6 +168,7 @@ export function CabinaViva() {
         <AlwaysOnCard data={dash.always_on || dash.heartbeat?.always_on || dash.always_on_detail || {}} />
         <PulseCard data={dash.heartbeat} onCycle={runCycle} onStart={startMode} onStop={stopRuntime} />
         <OllamaBloodCard data={dash.ollama_blood} />
+        <EdgeContextHealthCard data={dash.edge_context_health || dash.heartbeat?.edge_context_health} />
         <ResourcesCard data={governor} />
         <WorkModeCard data={governor} />
         <RepoChangesCard data={dash.git_status} />

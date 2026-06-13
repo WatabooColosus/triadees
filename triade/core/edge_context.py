@@ -18,6 +18,70 @@ import time
 from triade.core.edge_processing import EdgeProcessingService
 
 
+def parse_model_json_safely(text: str | None, *, fallback_text: str, parser_name: str) -> dict[str, Any]:
+    """Convierte salida JSON de modelo en dato o señal; no lanza por JSON inválido."""
+    raw = "" if text is None else str(text)
+    stripped = raw.strip()
+    base = {
+        "parser_name": parser_name,
+        "data": None,
+        "raw_preview": " ".join(stripped.split())[:300],
+        "empty": False,
+        "non_json": False,
+        "json_error": None,
+        "fallback_required": True,
+        "fallback_text_preview": " ".join(str(fallback_text or "").split())[:300],
+    }
+    if not stripped:
+        return {
+            **base,
+            "ok": False,
+            "empty": True,
+            "signal_quality": "empty",
+            "observation_type": "empty_response",
+        }
+
+    cleaned = stripped.replace("```json", "").replace("```", "").strip()
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    candidate = cleaned[start:end + 1] if start >= 0 and end > start else cleaned
+    if "{" not in candidate or "}" not in candidate:
+        return {
+            **base,
+            "ok": False,
+            "non_json": True,
+            "signal_quality": "low",
+            "observation_type": "non_json_response",
+        }
+
+    try:
+        data = json.loads(candidate)
+    except json.JSONDecodeError as exc:
+        return {
+            **base,
+            "ok": False,
+            "json_error": str(exc),
+            "signal_quality": "low",
+            "observation_type": "malformed_json",
+        }
+    if not isinstance(data, dict):
+        return {
+            **base,
+            "ok": False,
+            "non_json": True,
+            "signal_quality": "low",
+            "observation_type": "non_json_response",
+        }
+    return {
+        **base,
+        "ok": True,
+        "data": data,
+        "fallback_required": False,
+        "signal_quality": "high",
+        "observation_type": "valid_json",
+    }
+
+
 @dataclass
 class EdgeContext:
     enabled: bool
@@ -29,6 +93,10 @@ class EdgeContext:
     keywords: list[str]
     summary: str
     evidence: Dict[str, Any]
+    edge_signal_quality: str
+    edge_observations: list[dict[str, Any]]
+    fallback_used: bool
+    edge_confidence_score: float
     truth: str
 
     def to_dict(self) -> Dict[str, Any]:
@@ -40,6 +108,7 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
     service = EdgeProcessingService()
 
     evidence: Dict[str, Any] = {}
+    edge_observations: list[dict[str, Any]] = []
     node_id: Optional[str] = None
     used_edge = False
     accepted = False
@@ -51,6 +120,7 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
     node_id = probe_result.node_id or node_id
 
     probe = parse_context_probe(probe_result.response, fallback_text=user_text)
+    edge_observations.extend(_extract_edge_observations(probe, "context_probe"))
     intent_data = probe["intent_probe"]
     keywords = probe["keywords"]
 
@@ -62,6 +132,7 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
         accepted = accepted or intent_result.accepted_for_context
         node_id = intent_result.node_id or node_id
         intent_data = parse_intent(intent_result.response, fallback_text=user_text)
+        edge_observations.extend(_extract_edge_observations(intent_data, "intent_probe"))
 
         keywords_result = service.keywords(user_text)
         evidence["keywords"] = keywords_result.to_dict()
@@ -80,6 +151,13 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
         summary = sanitize_summary(summary_result.response, fallback_text=user_text)
 
     intent_data = compact_intent_probe(intent_data)
+    edge_signal_quality = _merge_signal_quality(edge_observations)
+    fallback_used = any(bool(obs.get("fallback_used")) for obs in edge_observations)
+    edge_confidence_score = _edge_confidence_score(
+        observations=edge_observations,
+        accepted_for_context=accepted,
+        used_edge=used_edge,
+    )
 
     ctx = EdgeContext(
         enabled=True,
@@ -91,6 +169,10 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
         keywords=keywords,
         summary=summary,
         evidence=evidence,
+        edge_signal_quality=edge_signal_quality,
+        edge_observations=edge_observations,
+        fallback_used=fallback_used,
+        edge_confidence_score=edge_confidence_score,
         truth=(
             "edge_context es auxiliar: Android procesa subtareas con sus propios recursos; "
             "la Central valida antes de usarlo."
@@ -123,15 +205,27 @@ def parse_context_probe(text: str, fallback_text: str = "") -> dict[str, Any]:
     Devuelve un dict con intent_probe y keywords. Si el JSON viene incompleto
     o sucio, usa fallback determinista.
     """
-    try:
-        cleaned = (text or "").replace("```json", "").replace("```", "").strip()
-        start = cleaned.find("{")
-        end = cleaned.rfind("}")
-        if start >= 0 and end > start:
-            data = json.loads(cleaned[start:end + 1])
-        else:
-            data = json.loads(cleaned)
+    result = parse_model_json_safely(text, fallback_text=fallback_text, parser_name="context_probe")
+    if not result["ok"]:
+        _record_edge_signal(result, fallback_text=fallback_text, parser_name="context_probe")
+        intent_data = heuristic_intent(fallback_text or text, raw=text)
+        intent_data.update({
+            "_edge_signal_quality": result["signal_quality"],
+            "_edge_observation_type": result["observation_type"],
+            "_fallback_used": True,
+        })
+        return {
+            "ok": False,
+            "intent_probe": intent_data,
+            "keywords": heuristic_keywords(fallback_text or text),
+            "fallback_reason": result["observation_type"],
+            "edge_signal_quality": result["signal_quality"],
+            "edge_observation_type": result["observation_type"],
+            "fallback_used": True,
+        }
 
+    try:
+        data = result["data"] or {}
         intent_data = {
             "intent": str(data.get("intent", "unknown")).strip().lower(),
             "urgency": normalize_level(data.get("urgency", "medium"), default="medium"),
@@ -166,19 +260,40 @@ def parse_context_probe(text: str, fallback_text: str = "") -> dict[str, Any]:
             "ok": True,
             "intent_probe": intent_data,
             "keywords": keywords,
+            "edge_signal_quality": result["signal_quality"],
+            "edge_observation_type": result["observation_type"],
+            "fallback_used": False,
         }
     except Exception:
+        malformed = {
+            **result,
+            "ok": False,
+            "signal_quality": "low",
+            "observation_type": "malformed_json",
+        }
+        _record_edge_signal(malformed, fallback_text=fallback_text, parser_name="context_probe")
+        intent_data = heuristic_intent(fallback_text or text, raw=text)
+        intent_data.update({
+            "_edge_signal_quality": "low",
+            "_edge_observation_type": "malformed_json",
+            "_fallback_used": True,
+        })
         return {
             "ok": False,
-            "intent_probe": heuristic_intent(fallback_text or text, raw=text),
+            "intent_probe": intent_data,
             "keywords": heuristic_keywords(fallback_text or text),
+            "fallback_reason": "malformed_json",
+            "edge_signal_quality": "low",
+            "edge_observation_type": "malformed_json",
+            "fallback_used": True,
         }
 
 
 
 def parse_intent(text: str, fallback_text: str = "") -> Dict[str, Any]:
-    try:
-        data = json.loads(text)
+    result = parse_model_json_safely(text, fallback_text=fallback_text, parser_name="intent_probe")
+    if result["ok"]:
+        data = result["data"] or {}
         intent = str(data.get("intent", "unknown")).strip().lower()
         urgency = normalize_level(data.get("urgency", "medium"), default="medium")
         risk = normalize_level(data.get("risk", "low"), default="low")
@@ -197,17 +312,83 @@ def parse_intent(text: str, fallback_text: str = "") -> Dict[str, Any]:
                 "urgency": urgency,
                 "risk": risk,
                 "needs_tool": needs_tool,
+                "_edge_signal_quality": result["signal_quality"],
+                "_edge_observation_type": result["observation_type"],
+                "_fallback_used": False,
             }
-    except Exception as exc:
-        from triade.core.error_bus import record_internal_error
-        record_internal_error(
-            "edge_context.parse_model_output",
-            exc,
-            payload={"module": __name__, "function": "parse_edge_context", "operation": "parse_model_json"},
-        )
+    else:
+        _record_edge_signal(result, fallback_text=fallback_text, parser_name="intent_probe")
 
     # Fallback determinista desde el texto original, no desde la salida débil del LLM.
-    return heuristic_intent(fallback_text or text, raw=text)
+    intent_data = heuristic_intent(fallback_text or text, raw=text)
+    intent_data.update({
+        "_edge_signal_quality": result["signal_quality"],
+        "_edge_observation_type": result["observation_type"],
+        "_fallback_used": True,
+    })
+    return intent_data
+
+
+def _record_edge_signal(result: dict[str, Any], *, fallback_text: str, parser_name: str) -> None:
+    from triade.core.edge_observations import record_edge_observation
+
+    record_edge_observation(
+        parser_name=parser_name,
+        observation_type=str(result.get("observation_type") or "unknown"),
+        signal_quality=str(result.get("signal_quality") or "low"),
+        fallback_used=True,
+        raw_preview=str(result.get("raw_preview") or ""),
+        user_text_preview=" ".join(str(fallback_text or "").split())[:300],
+    )
+
+
+def _extract_edge_observations(payload: dict[str, Any], parser_name: str) -> list[dict[str, Any]]:
+    obs_type = payload.get("edge_observation_type") or payload.get("_edge_observation_type")
+    quality = payload.get("edge_signal_quality") or payload.get("_edge_signal_quality")
+    fallback = payload.get("fallback_used") if "fallback_used" in payload else payload.get("_fallback_used")
+    nested = payload.get("intent_probe") if isinstance(payload.get("intent_probe"), dict) else {}
+    obs_type = obs_type or nested.get("_edge_observation_type")
+    quality = quality or nested.get("_edge_signal_quality")
+    fallback = fallback if fallback is not None else nested.get("_fallback_used")
+    if not obs_type:
+        return []
+    return [{
+        "parser_name": parser_name,
+        "observation_type": obs_type,
+        "signal_quality": quality or "low",
+        "fallback_used": bool(fallback),
+    }]
+
+
+def _merge_signal_quality(observations: list[dict[str, Any]]) -> str:
+    if not observations:
+        return "high"
+    qualities = {str(obs.get("signal_quality") or "low") for obs in observations}
+    types = {str(obs.get("observation_type") or "") for obs in observations}
+    if "empty_response" in types or "empty" in qualities:
+        return "empty"
+    if "low" in qualities:
+        return "low"
+    if "medium" in qualities:
+        return "medium"
+    return "high"
+
+
+def _edge_confidence_score(*, observations: list[dict[str, Any]], accepted_for_context: bool, used_edge: bool) -> float:
+    types = {str(obs.get("observation_type") or "") for obs in observations}
+    score = 0.0
+    if not observations or "valid_json" in types:
+        score += 0.5
+    if accepted_for_context:
+        score += 0.3
+    if used_edge:
+        score += 0.2
+    cap = 1.0
+    if "empty_response" in types:
+        cap = 0.2
+    elif types & {"non_json_response", "malformed_json"}:
+        cap = 0.3
+    return round(min(score, cap), 3)
 
 
 def parse_keywords(text: str, fallback_text: str = "") -> list[str]:

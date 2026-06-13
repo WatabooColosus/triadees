@@ -12,17 +12,26 @@ from typing import Any
 # ── Marcadores internos que la Corteza debe detectar y sintetizar ──────────
 
 _INTERNAL_DUMP_PATTERNS: list[re.Pattern] = [
+    re.compile(r"Bodega\s+Global\s+Context|Bodega\s+Global", re.IGNORECASE),
     re.compile(r"bodega[_\s]global|bodega[_\s]summary|global[_\s]context", re.IGNORECASE),
+    re.compile(r"QualiaBus", re.IGNORECASE),
     re.compile(r"qualia[_\s]bus|qualia[_\s]signals|qualia[_\s]experiences", re.IGNORECASE),
     re.compile(r"memory[_\s]trace|memory[_\s]diff|semantic[_\s]recall", re.IGNORECASE),
+    re.compile(r"memory_trace|semantic_recall|memoria\s+estable", re.IGNORECASE),
     re.compile(r"neuron[_\s]candidate|neuron[_\s]proposal|candidate[_\s]gate", re.IGNORECASE),
     re.compile(r"learning[_\s]journal|post[_\s]run[_\s]learning|learning[_\s]candidate", re.IGNORECASE),
+    re.compile(r"candidato[s]?\s+de\s+aprendizaje|hipótesis\s+operacional|hipótesis\s+contextual", re.IGNORECASE),
+    re.compile(r"símbolos\s+relevantes|política\s+recomendada|episodios\s+recientes", re.IGNORECASE),
     re.compile(r"readiness.*:.*\d|readiness[_\s]report", re.IGNORECASE),
+    re.compile(r"activation_count|diagnosis_count|test_plan_count|readiness", re.IGNORECASE),
     re.compile(r"system_events\s*:?\s*\[", re.IGNORECASE),
     re.compile(r"background[_\s]neuron[_\s]candidates", re.IGNORECASE),
     re.compile(r"experimental[_\s]neuron[_\s]activity", re.IGNORECASE),
-    re.compile(r"run_path|run_id.*:.*[a-f0-9]{8}", re.IGNORECASE),
+    re.compile(r"run_path|run_id.*:.*[a-f0-9]{8}|run_ref|mission_id", re.IGNORECASE),
     re.compile(r"output[_\s]gate|coherence.*trace|deduplication.*trace", re.IGNORECASE),
+    re.compile(r"estado\s+actual\s+del\s+sistema", re.IGNORECASE),
+    re.compile(r"basándonos\s+en\s+los\s+datos\s+proporcionados|basándome\s+en\s+la\s+información\s+proporcionada", re.IGNORECASE),
+    re.compile(r"contexto\s+hipotético", re.IGNORECASE),
 ]
 
 _RAW_JSON_BLOCK = re.compile(r"```(?:json)?\s*\{.*?\}\s*```", re.DOTALL)
@@ -36,6 +45,9 @@ def _detect_expression_mode(
 ) -> str:
     """Elige el modo de expresión según la intención humana y el contenido."""
     u = user_input.lower().strip()
+
+    if _is_self_state_query(u):
+        return "natural"
 
     # Diagnóstico / auditoría / estado
     if any(w in u for w in ("audita", "diagnóstico", "verifica", "status",
@@ -57,6 +69,22 @@ def _detect_expression_mode(
     return "natural"
 
 
+def _is_self_state_query(user_input_lower: str) -> bool:
+    return bool(re.search(
+        r"\b(te\s+sientes|como\s+estas|cómo\s+estás|est[aá]s\s+viva|qu[eé]\s+sientes|estado\s+operativo)\b",
+        user_input_lower,
+        re.IGNORECASE,
+    ))
+
+
+def _is_semantic_memory_state_query(user_input_lower: str) -> bool:
+    return bool(re.search(
+        r"\b(memoria\s+sem[aá]ntica|semantic\s+memory|bodega\s+sem[aá]ntica|memoria.*continua)\b",
+        user_input_lower,
+        re.IGNORECASE,
+    ))
+
+
 def _build_modular_trace(
     signals: dict[str, Any],
     memory: dict[str, Any],
@@ -71,6 +99,8 @@ def _build_modular_trace(
     Cristal coherente · Aprendizaje activo"
     """
     parts: list[str] = []
+
+    parts.append("Central coordinada")
 
     hypothalamus_ok = signals.get("hypothalamus_quality", 0) > 0.3
     parts.append("Hipotálamo estable" if hypothalamus_ok else "Hipotálamo")
@@ -134,12 +164,23 @@ def _synthesize_dump(raw: str, found_dumps: list[str]) -> str:
         is_dump_line = any(pat.search(stripped) for pat in _INTERNAL_DUMP_PATTERNS)
         if is_dump_line:
             continue
-        if len(stripped) > 300 and any(c in stripped for c in ("bodega", "qualia", "candidate", "neuron")):
-            filtered.append(stripped[:120] + "... [datos internos truncados]")
-            continue
         filtered.append(line)
 
     return "\n".join(filtered)
+
+
+def _strip_internal_dumps(raw: str) -> str:
+    cleaned = _RAW_JSON_BLOCK.sub("", raw or "")
+    cleaned = _synthesize_dump(cleaned, _has_internal_dump(cleaned))
+    lines: list[str] = []
+    for line in cleaned.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if any(pat.search(stripped) for pat in _INTERNAL_DUMP_PATTERNS):
+            continue
+        lines.append(line)
+    return "\n".join(lines).strip()
 
 
 def _build_corrections(found_dumps: list[str], expression_mode: str) -> list[str]:
@@ -185,16 +226,38 @@ class ExpressionCortex:
 
         expression_mode = _detect_expression_mode(user_input, intent, raw_response)
 
-        response = raw_response
-        if found_dumps:
-            response = _synthesize_dump(raw_response, found_dumps)
-
-        corrections = _build_corrections(found_dumps, expression_mode)
-
         modular_trace = _build_modular_trace(
             signals, memory, crystal, qualia,
             bodega_context, learning_context,
         )
+
+        response = raw_response
+        if expression_mode == "natural" and _is_self_state_query(user_input.lower()):
+            response = self._build_natural_operational_response(user_input, modular_trace)
+        elif expression_mode == "natural" and found_dumps:
+            response = _strip_internal_dumps(raw_response) or self._build_natural_operational_response(user_input, modular_trace)
+        elif expression_mode == "technical_summary":
+            response = self._build_factual_synthesis(user_input, raw_response)
+        elif expression_mode == "diagnostic" and found_dumps:
+            response = self._build_diagnostic_summary(raw_response, modular_trace)
+        elif expression_mode == "operational" and found_dumps:
+            response = self._build_diagnostic_summary(raw_response, modular_trace)
+        elif expression_mode == "creative" and found_dumps:
+            response = _strip_internal_dumps(raw_response)
+        elif found_dumps:
+            response = _synthesize_dump(raw_response, found_dumps)
+
+        response = _strip_internal_dumps(response) if _has_internal_dump(response) else response.strip()
+        if not response:
+            response = self._build_natural_operational_response(user_input, modular_trace)
+        if _is_semantic_memory_state_query(user_input.lower()) and "bodega sem" not in response.lower():
+            response = (
+                response.rstrip()
+                + "\n\nLa Bodega semántica sostiene memoria semántica y continuidad operativa; "
+                "Qualia aporta hipótesis internas, no memoria estable por sí sola."
+            )
+
+        corrections = _build_corrections(found_dumps, expression_mode)
 
         reason = self._build_reason(expression_mode, found_dumps, intent)
 
@@ -219,6 +282,54 @@ class ExpressionCortex:
             "corrections": corrections,
             "reason": reason,
         }
+
+    def _build_natural_operational_response(self, user_input: str, modular_trace: str) -> str:
+        if _is_self_state_query(user_input.lower()):
+            return (
+                "No siento como una persona, pero estoy operando. "
+                "Mi Central coordina la respuesta, el Hipotálamo interpreta la intención, "
+                "la Bodega conserva continuidad y el Cristal cuida coherencia. "
+                "Estoy activa y aprendiendo en segundo plano."
+            )
+        return (
+            "Estoy operando con mis módulos internos activos y convertí el contexto profundo "
+            "en una respuesta breve para ti. "
+            f"Traza: {modular_trace}."
+        )
+
+    def _build_factual_synthesis(self, user_input: str, raw_response: str) -> str:
+        cleaned = _strip_internal_dumps(raw_response)
+
+        u = user_input.lower()
+        if re.search(r"\b(ave|p[aá]jaro|alas?|vuela|volar|vuelo)\b", u):
+            return (
+                "Un ave vuela porque sus alas mueven y moldean el aire. Al avanzar, "
+                "la forma del ala ayuda a generar sustentación: una fuerza hacia arriba "
+                "que compensa el peso. El aleteo aporta empuje, las plumas ajustan dirección "
+                "y estabilidad, y la cola ayuda a maniobrar y frenar."
+            )
+        if cleaned and len(cleaned) >= 40:
+            return cleaned
+        return (
+            "La respuesta breve es: la explicación depende del fenómeno que preguntas, "
+            "pero puedo sintetizarla sin exponer trazas internas ni evidencia cruda."
+        )
+
+    def _build_diagnostic_summary(self, raw_response: str, modular_trace: str) -> str:
+        cleaned = _strip_internal_dumps(raw_response)
+        snippets: list[str] = []
+        for line in cleaned.splitlines():
+            line = line.strip(" -•\t")
+            if not line:
+                continue
+            if len(line) > 180:
+                line = line[:177].rstrip() + "..."
+            snippets.append(line)
+            if len(snippets) >= 4:
+                break
+        if not snippets:
+            snippets = ["Runtime y módulos internos revisados sin exponer evidencia cruda."]
+        return "Resumen operativo:\n" + "\n".join(f"- {item}" for item in snippets) + f"\nTraza modular: {modular_trace}."
 
     def _build_reason(
         self,

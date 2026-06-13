@@ -464,40 +464,6 @@ class TriadeRunner:
         }
         output_gate["source_labels"]["response_coherence_gate"] = response_coherence_gate.get("status")
 
-        from .expression_cortex import ExpressionCortex
-
-        bodega_context = (
-            (input_packet.context or {}).get("living_context", {}).get("bodega_global_context", {})
-            or (input_packet.context or {}).get("bodega_global_context", {})
-        )
-        cortex = ExpressionCortex()
-        shaped = cortex.shape_response(
-            user_input=input_packet.user_input,
-            raw_response=output.response,
-            intent=str(signals.intent),
-            signals={},
-            memory={"semantic_matches": len(memory.semantic_matches) if hasattr(memory, "semantic_matches") else 0,
-                    "confidence": memory.confidence if hasattr(memory, "confidence") else 0.0},
-            crystal={"temporal_status": crystal.temporal_status if hasattr(crystal, "temporal_status") else "unknown",
-                     "status": crystal.status if hasattr(crystal, "status") else "unknown"},
-            qualia={"hypothesis_available": bool(plan_dict.get("qualia_hypothesis", {}).get("status") == "available"),
-                    "status": plan_dict.get("qualia_hypothesis", {}).get("status", "unavailable")},
-            bodega_context={"domain_count": bodega_context.get("domain_count", 0)},
-            learning_context={},
-        )
-        output.response = shaped["response"]
-        output.memory_diff["expression_cortex"] = {
-            "expression_mode": shaped["expression_mode"],
-            "corrections": shaped["corrections"],
-            "visible_modular_trace": shaped["visible_modular_trace"],
-            "hidden_evidence": shaped["hidden_evidence"],
-        }
-        output_gate["expression_cortex"] = {
-            "expression_mode": shaped["expression_mode"],
-            "corrections": shaped["corrections"],
-            "visible_modular_trace": shaped["visible_modular_trace"],
-        }
-
         neuron_candidate_gate = evaluate_neuron_candidate_worthiness(
             user_input=input_packet.user_input,
             intent=str(signals.intent),
@@ -522,6 +488,53 @@ class TriadeRunner:
                 coherence_score=float(response_coherence_gate.get("coherence_score") or 0.0),
                 central_quality=central_quality,
             )
+        from .expression_cortex import ExpressionCortex
+
+        bodega_context = (
+            (input_packet.context or {}).get("living_context", {}).get("bodega_global_context", {})
+            or (input_packet.context or {}).get("bodega_global_context", {})
+        )
+        expression_result = ExpressionCortex().shape_response(
+            user_input=input_packet.user_input,
+            raw_response=output.response,
+            intent=str(signals.intent),
+            signals={
+                "intent": str(signals.intent),
+                "risk": str(signals.risk),
+                "urgency": getattr(signals, "urgency", None),
+                "hypothalamus_quality": hypothalamus_quality,
+            },
+            memory={
+                "confidence": getattr(memory, "confidence", 0),
+                "semantic_matches": len(getattr(memory, "semantic_matches", []) or []),
+                "semantic_recall": getattr(memory, "semantic_recall", {}),
+            },
+            crystal={
+                "temporal_status": crystal.temporal_status,
+                "q_delta": crystal.q_delta,
+                "stability_delta": crystal.stability_delta,
+            },
+            qualia=plan_dict.get("qualia_hypothesis", {}),
+            bodega_context=bodega_context if isinstance(bodega_context, dict) else {},
+            learning_context={
+                "active": bool(neuron_proposal or feedback_reinforcement_result),
+                "neuron_candidate_gate": neuron_candidate_gate,
+            },
+            system_context={
+                "run_id": input_packet.run_id,
+                "safety_status": safety.status,
+                "central_quality": central_quality,
+            },
+        )
+        output.response = expression_result["response"]
+        output_gate["expression_cortex"] = {
+            "expression_mode": expression_result["expression_mode"],
+            "internal_context_used": expression_result["internal_context_used"],
+            "visible_modular_trace": expression_result["visible_modular_trace"],
+            "corrections": expression_result["corrections"],
+            "reason": expression_result["reason"],
+        }
+        expression_hidden_evidence = expression_result["hidden_evidence"]
         self.bodega.update_run_models(input_packet.run_id, hypothalamus_model_result.get("name", self.hypothalamus_model), output.model_name)
         hypothalamus_event_id = self.bodega.store_model_event(input_packet.run_id, "hypothalamus", str(hypothalamus_model_result.get("provider")), str(hypothalamus_model_result.get("name")), bool(hypothalamus_model_result.get("ok")), hypothalamus_model_result.get("error"), hypothalamus_quality)
         central_event_id = self.bodega.store_model_event(input_packet.run_id, "central", output.model_provider, output.model_name, output.model_ok, output.model_error, central_quality)
@@ -633,6 +646,7 @@ class TriadeRunner:
         output.memory_diff["response_coherence"] = output_gate.get("coherence", {})
         output.memory_diff["response_coherence_gate"] = response_coherence_gate
         output.memory_diff["neuron_candidate_gate"] = neuron_candidate_gate
+        output.memory_diff["expression_hidden_evidence"] = expression_hidden_evidence
         output.memory_diff["source_labels"] = output_gate.get("source_labels", {})
         output.memory_diff["source_labels"]["neuron_proposal"] = bool(neuron_proposal)
         output.memory_diff["traceability"] = _build_traceability(
