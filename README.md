@@ -15,7 +15,15 @@ El runtime local puede exponer un pulso operativo continuo sin depender del chat
 - `build_learning_journal()` resume ciclos, evidencias, candidatos y consolidaciones de 24h.
 - `run_neuron_nutrition_cycle()` revisa misiones activas y produce evidencia segura sin consolidar memoria estable.
 
-El runtime por defecto sigue apagado. Activarlo requiere configuración explícita y los resultados siguen sujetos a Safety, LearningPipeline y trazabilidad.
+En esta instalación local el runtime arranca por defecto en `full_local_guarded`
+con Always-On activo y workers supervisados. Si Resource Governor no permite ese
+modo por recursos, el modo efectivo se degrada a `balanced_background`,
+`light_background` u `observe_only`, pero no se apaga la vida operativa segura.
+
+`full_local_guarded` no es full access libre: no permite borrado directo, shell
+libre, modificación de `identity_core`, `.git`, `.env`, installs ni push sin
+aprobación/gates. Todo sigue sujeto a Safety, Permission Governor, Integrity
+Verifier y Safe File Ops.
 
 ## Ollama como motor cognitivo local
 

@@ -106,6 +106,33 @@ class TestAlwaysOnConfig:
         assert cfg.get('enabled') is False
         assert should_start is False
 
+    def test_triade_yml_defaults_full_local_guarded(self):
+        """La instalación local arranca por defecto en full_local_guarded."""
+        yml = yaml.safe_load(Path("triade.yml").read_text(encoding="utf-8"))
+        runtime = yml["runtime"]
+        assert runtime["always_on"] is True
+        assert runtime["mode"] == "full_local_guarded"
+        assert runtime["workers_always_on"] is True
+        assert runtime["workers_autostart"] is True
+        assert runtime["workers_watchdog"] is True
+        assert runtime["worker_mode"] == "full_local_guarded"
+
+    def test_always_on_mode_full_local_guarded_configured(self):
+        """load_always_on_config conserva full_local_guarded como modo configurado."""
+        from triade.core.always_on import load_always_on_config
+        cfg = load_always_on_config()
+        assert cfg["enabled"] is True
+        assert cfg["mode"] == "full_local_guarded"
+
+    def test_workers_always_on_config_loaded(self):
+        """La config Always-On incluye workers supervisados."""
+        from triade.core.always_on import load_always_on_config
+        cfg = load_always_on_config()
+        assert cfg["workers_always_on"] is True
+        assert cfg["workers_autostart"] is True
+        assert cfg["workers_watchdog"] is True
+        assert cfg["worker_mode"] == "full_local_guarded"
+
 
 # ── Tests de should_start_always_on ─────────────────────────────────────────
 
@@ -227,6 +254,71 @@ class TestAlwaysOnStartup:
         assert result.get("status") == "already_running"
         starter.assert_not_called()
 
+    def test_governor_can_degrade_full_local_guarded(self):
+        """Resource Governor degrada full_local_guarded si el hardware no alcanza."""
+        from triade.core.resource_governor import decide_work_mode
+        probe = {
+            "limits": {"ram_available_gb": 8.0, "disk_free_gb": 20.0, "tier": "medium", "cpu_count": 4},
+            "power": {"ac_connected": True},
+            "cpu": {"load_1min": 0.1},
+            "thermal": {"thermal_status": "ok"},
+            "warnings": [],
+        }
+        blood = {"status": "ok", "can_reason": True, "can_embed": True}
+        decision = decide_work_mode(probe, blood, "full_local_guarded")
+        assert decision["requested_mode"] == "full_local_guarded"
+        assert decision["effective_mode"] == "balanced_background"
+        assert "Degradado" in decision["reason"]
+
+    def test_workers_watchdog_restarts_dead_worker(self, monkeypatch):
+        """ensure_workers_alive reinicia si watchdog está activo y no hay thread vivo."""
+        import triade.core.worker_autostart as wa
+
+        class FakeService:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def start(self, **kwargs):
+                return {"status": "completed"}
+
+            def status(self):
+                return {"status": "ok", "running": False, "stop_requested": False}
+
+        monkeypatch.setattr(wa, "WorkerBackgroundService", FakeService)
+        monkeypatch.setattr(wa, "_decide_worker_mode", lambda mode: (mode, False, None))
+        monkeypatch.setattr(wa, "_event", lambda *args, **kwargs: None)
+        with wa._WORKER_LOCK:
+            wa._WORKER_THREAD = None
+            wa._WORKER_STATE.update({
+                "configured": True,
+                "autostart": True,
+                "watchdog": True,
+                "last_start_at": "earlier",
+                "restart_attempts": 0,
+                "status": "inactive",
+            })
+
+        status = wa.ensure_workers_alive({
+            "workers_always_on": True,
+            "workers_autostart": True,
+            "workers_watchdog": True,
+            "worker_mode": "full_local_guarded",
+        })
+
+        assert status["configured"] is True
+        assert status["restart_attempts"] >= 1
+
+    def test_full_local_guarded_does_not_allow_identity_core_modify(self):
+        from triade.core.permission_governor import build_permission_profile
+        profile = build_permission_profile("full_local_guarded", human_approved=True)
+        assert profile["permissions"]["can_modify_identity_core"] is False
+
+    def test_full_local_guarded_does_not_allow_direct_delete(self):
+        from triade.core.autonomy_budget import build_autonomy_budget
+        budget = build_autonomy_budget("full_local_guarded")
+        assert budget["can_delete_directly"] is False
+        assert "delete_permanently" in budget["forbidden_actions"]
+
 
 # ── Tests del self-test cycle ───────────────────────────────────────────────
 
@@ -328,6 +420,52 @@ class TestHeartbeatAlwaysOn:
         assert 'always_on_effective_mode' in hb
         assert 'always_on_detail' in hb
 
+    def test_heartbeat_reports_workers_inactive_when_expected_active(self):
+        """Heartbeat incluye estado de workers always-on aunque estén inactivos."""
+        from triade.core.internal_runtime import build_runtime_heartbeat
+        hb = build_runtime_heartbeat()
+        assert 'workers_always_on' in hb
+        assert 'configured' in hb['workers_always_on']
+        assert 'active' in hb['workers_always_on']
+
+    def test_heartbeat_truth_full_local_guarded_degraded(self, monkeypatch):
+        """Heartbeat muestra degradación de full_local_guarded por gobernador."""
+        from triade.core.internal_runtime import build_runtime_heartbeat
+        import triade.core.internal_runtime as rt
+        import triade.core.always_on as ao
+        import triade.core.worker_autostart as wa
+
+        class AliveThread:
+            def is_alive(self):
+                return True
+
+        monkeypatch.setattr(rt, "_BACKGROUND_THREAD", AliveThread())
+        monkeypatch.setattr(ao, "build_always_on_status", lambda: {
+            "enabled": True,
+            "configured_mode": "full_local_guarded",
+            "effective_mode": "balanced_background",
+            "interval_seconds": 60,
+            "config_source": "triade.yml",
+            "status": "running",
+            "background_thread_alive": True,
+            "degraded_by_governor": True,
+            "degradation_reason": "test degradation",
+        })
+        monkeypatch.setattr(wa, "build_workers_always_on_status", lambda **_kw: {
+            "configured": True,
+            "active": True,
+            "watchdog": True,
+            "autostart": True,
+            "mode_configured": "full_local_guarded",
+            "mode_effective": "balanced_background",
+            "status": "running",
+            "restart_attempts": 0,
+            "degraded_by_governor": True,
+            "degradation_reason": "test degradation",
+        })
+        hb = build_runtime_heartbeat()
+        assert "Autonomía full_local_guarded configurada" in hb["heartbeat_truth"]
+
     def test_react_dashboard_includes_always_on(self):
         """El dashboard React expone always_on como bloque top-level."""
         resp = _api_client.get('/api/ui/react-dashboard')
@@ -335,6 +473,14 @@ class TestHeartbeatAlwaysOn:
         data = resp.json()
         assert 'always_on' in data
         assert 'enabled' in data['always_on']
+
+    def test_react_dashboard_shows_workers_always_on(self):
+        """El dashboard React expone workers_always_on como bloque top-level."""
+        resp = _api_client.get('/api/ui/react-dashboard')
+        assert resp.status_code == 200
+        data = resp.json()
+        assert 'workers_always_on' in data
+        assert 'configured' in data['workers_always_on']
 
 
 # ── Tests de CLI commands ───────────────────────────────────────────────────

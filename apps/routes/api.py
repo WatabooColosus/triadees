@@ -199,6 +199,52 @@ def workers_stop() -> dict[str, Any]:
     return _worker_service().stop()
 
 
+@router.get("/api/runtime/workers-always-on/status")
+def workers_always_on_status() -> dict[str, Any]:
+    LIFE_PULSE.record_action("workers_always_on_status")
+    from triade.core.worker_autostart import build_workers_always_on_status
+    return build_workers_always_on_status()
+
+
+@router.post("/api/runtime/workers/start")
+def runtime_workers_start(
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_workers_start")
+    require_key(x_triade_api_key)
+    from triade.core.always_on import load_always_on_config
+    from triade.core.worker_autostart import start_workers_if_configured
+    return start_workers_if_configured(load_always_on_config())
+
+
+@router.post("/api/runtime/workers/stop")
+def runtime_workers_stop(
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_workers_stop")
+    require_key(x_triade_api_key)
+    from triade.core.worker_autostart import stop_workers_always_on
+    return stop_workers_always_on()
+
+
+@router.post("/api/runtime/workers/restart")
+def runtime_workers_restart(
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_workers_restart")
+    require_key(x_triade_api_key)
+    from triade.core.always_on import load_always_on_config
+    from triade.core.worker_autostart import start_workers_if_configured, stop_workers_always_on
+    stop_workers_always_on()
+    return start_workers_if_configured(load_always_on_config())
+
+
+@router.post("/api/runtime/workers/once")
+def runtime_workers_once(dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_workers_once")
+    return _worker_service().run_once(dry_run=dry_run, task_timeout=task_timeout)
+
+
 @router.get("/workers/events")
 def workers_events(limit: int = 50, run_ref: str | None = None) -> dict[str, Any]:
     LIFE_PULSE.record_action("workers_events")
@@ -965,6 +1011,8 @@ def always_on_status() -> dict[str, Any]:
         "config_source": cfg.get("_config_source", "default"),
         "status": runtime_status.get("status", "disabled"),
         "background_thread_alive": runtime_status.get("background_thread_alive", False),
+        "degraded_by_governor": runtime_status.get("degraded_by_governor", False),
+        "degradation_reason": runtime_status.get("degradation_reason"),
         "last_start_at": runtime_status.get("last_start_at"),
         "last_start_result": runtime_status.get("last_start_result"),
         "last_self_test_status": runtime_status.get("last_self_test_status"),
@@ -1152,6 +1200,7 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         },
         "always_on": heartbeat.get("always_on", {}),
         "always_on_detail": heartbeat.get("always_on_detail", {}),
+        "workers_always_on": heartbeat.get("workers_always_on", {}),
         "ollama_blood": {
             "status": blood.get("status"),
             "cognitive_blood_active": blood.get("cognitive_blood_active", False),

@@ -6,7 +6,7 @@ import {
   RepoChangesCard, ProcessStatusCard, AutonomyBudgetCard,
   TrashCard, DelegatedActionsCard, BodegaCard, MemoryTraceCard,
   LearningJournalCard, TechnicalDebtCard, WorkersCard,
-  SafeShellCard, EventsFeed, AlwaysOnCard,
+  SafeShellCard, EventsFeed, AlwaysOnCard, WorkersAlwaysOnCard,
 } from './Cards'
 
 export function CabinaViva() {
@@ -53,6 +53,14 @@ export function CabinaViva() {
 
   function stopRuntime() {
     act('Apagar', () => liveApi('/api/runtime/stop', { method: 'POST' }))
+  }
+
+  function restartWorkers() {
+    act('Reiniciar workers', () => liveApi('/api/runtime/workers/restart', { method: 'POST' }))
+  }
+
+  function runWorkerOnce() {
+    act('Ejecutar worker cycle', () => liveApi('/api/runtime/workers/once', { method: 'POST' }))
   }
 
   if (loading && !data) {
@@ -181,6 +189,7 @@ export function CabinaViva() {
         <MemoryTraceCard data={dash.observability} />
         <LearningJournalCard data={dash.learning_journal} />
         <TechnicalDebtCard data={dash.technical_debt} />
+        <WorkersAlwaysOnCard data={dash.workers_always_on} onRestart={restartWorkers} onRunOnce={runWorkerOnce} />
         <WorkersCard data={dash.workers} />
         <SafeShellCard onRunShell={runShell} />
       </Grid>

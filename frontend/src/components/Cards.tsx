@@ -440,6 +440,50 @@ export function WorkersCard({ data }: { data: any }) {
   )
 }
 
+export function WorkersAlwaysOnCard({
+  data,
+  onRestart,
+  onRunOnce,
+}: {
+  data: any
+  onRestart?: () => void
+  onRunOnce?: () => void
+}) {
+  if (!data) return null
+  const configured = Boolean(data.configured)
+  const active = Boolean(data.active)
+  const watchdog = Boolean(data.watchdog)
+  const color = configured && active ? '#22c55e' : configured && !active ? '#ef4444' : '#eab308'
+  const msg = configured && active
+    ? 'Workers vivos y supervisados'
+    : configured
+      ? 'Workers deberían estar activos, pero están inactivos.'
+      : 'Workers always-on apagado'
+
+  return (
+    <Card title="Workers Siempre Activos" color={color}>
+      <div style={{ fontSize: 12, color: configured && !active ? '#fca5a5' : 'var(--text-primary)', marginBottom: 6 }}>
+        {msg}
+      </div>
+      <KVTable data={{
+        workers_always_on: configured,
+        active,
+        watchdog,
+        autostart: data.autostart,
+        modo_configurado: data.mode_configured,
+        modo_efectivo: data.mode_effective,
+        estado: data.status,
+        reinicios: data.restart_attempts,
+        ultimo_error: data.last_error || 'ninguno',
+      }} />
+      <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+        {onRestart && <button onClick={onRestart} style={btnSec}>Reiniciar workers</button>}
+        {onRunOnce && <button onClick={onRunOnce} style={btnSec}>Ejecutar ciclo</button>}
+      </div>
+    </Card>
+  )
+}
+
 /* ── Governor Cards ────────────────────────── */
 
 export function ResourcesCard({ data }: { data: any }) {
@@ -775,6 +819,8 @@ export function AlwaysOnCard({ data }: { data: any }) {
           interval_seconds: interval,
           background_alive: bgAlive,
           status,
+          degradado: data.degraded_by_governor ? 'sí' : 'no',
+          razon_degradacion: data.degradation_reason || 'ninguna',
           config_source: source,
           self_test_every_cycles: data.self_test_every_cycles,
           self_test_on_start: data.self_test_on_start,
@@ -783,4 +829,3 @@ export function AlwaysOnCard({ data }: { data: any }) {
     </Card>
   )
 }
-

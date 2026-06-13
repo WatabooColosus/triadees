@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-WORK_MODES = ["blocked", "cooldown", "observe_only", "light_background", "balanced_background", "full_local"]
+WORK_MODES = [
+    "blocked",
+    "cooldown",
+    "observe_only",
+    "light_background",
+    "balanced_background",
+    "full_local",
+    "full_local_guarded",
+]
 WORK_MODE_RANK = {m: i for i, m in enumerate(WORK_MODES)}
 
 
@@ -86,8 +94,8 @@ def decide_work_mode(
         reasons.append(f"Hardware tier {tier} con AC y Ollama OK. Máximo balanced_background.")
     # --- Full local por high ---
     elif tier == "high" and blood_ok and (ac is not False):
-        allowed_mode = "full_local"
-        reasons.append(f"Hardware tier {tier} con AC y Ollama Blood activa. Full local permitido.")
+        allowed_mode = "full_local_guarded"
+        reasons.append(f"Hardware tier {tier} con AC y Ollama Blood activa. Full local guarded permitido.")
     else:
         allowed_mode = "balanced_background"
         reasons.append(f"Hardware tier {tier}, recursos suficientes. Modo balanced.")
@@ -112,12 +120,12 @@ def _build_decision(
 
     can_embed = bool(blood.get("can_embed"))
     can_reason = bool(blood.get("can_reason"))
-    can_nourish = effective_mode in ("balanced_background", "full_local", "execute_missions") and can_reason
-    can_evaluate = effective_mode in ("light_background", "balanced_background", "full_local") and can_reason
-    can_consolidate = effective_mode == "full_local" and can_reason
-    can_workers = effective_mode in ("light_background", "balanced_background", "full_local", "execute_missions")
-    can_write = effective_mode in ("balanced_background", "full_local")
-    can_write_repo = effective_mode == "full_local"
+    can_nourish = effective_mode in ("balanced_background", "full_local", "full_local_guarded", "execute_missions") and can_reason
+    can_evaluate = effective_mode in ("light_background", "balanced_background", "full_local", "full_local_guarded") and can_reason
+    can_consolidate = effective_mode in ("full_local", "full_local_guarded") and can_reason
+    can_workers = effective_mode in ("light_background", "balanced_background", "full_local", "full_local_guarded", "execute_missions")
+    can_write = effective_mode in ("balanced_background", "full_local", "full_local_guarded")
+    can_write_repo = False
     can_shell = False  # siempre requiere aprobación
     can_test = effective_mode == "full_local"
     can_build = effective_mode == "full_local"
@@ -125,15 +133,15 @@ def _build_decision(
     blocked: list[str] = []
     allowed_actions: list[str] = ["read_project", "publish_events", "record_heartbeat"]
 
-    if effective_mode in ("observe_only", "light_background", "balanced_background", "full_local"):
+    if effective_mode in ("observe_only", "light_background", "balanced_background", "full_local", "full_local_guarded"):
         allowed_actions.append("observe_bodega")
-    if effective_mode in ("light_background", "balanced_background", "full_local", "execute_missions"):
+    if effective_mode in ("light_background", "balanced_background", "full_local", "full_local_guarded", "execute_missions"):
         allowed_actions.append("run_workers")
-    if effective_mode in ("balanced_background", "full_local", "execute_missions"):
+    if effective_mode in ("balanced_background", "full_local", "full_local_guarded", "execute_missions"):
         allowed_actions.append("run_neuron_nutrition")
         allowed_actions.append("write_runs")
         allowed_actions.append("write_artifacts")
-    if effective_mode == "full_local":
+    if effective_mode in ("full_local", "full_local_guarded"):
         allowed_actions.append("evaluate_learning")
         allowed_actions.append("consolidate_stable")
         allowed_actions.append("run_tests")

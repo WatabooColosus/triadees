@@ -8,22 +8,33 @@ Configuración persistente en `triade.yml` (sección `runtime`):
 
 ```yaml
 runtime:
-  always_on: false                  # Habilitar auto-arranque
-  always_on_mode: execute_missions  # Modo por defecto
-  always_on_interval_seconds: 60    # Intervalo entre ciclos
-  always_on_start_delay_seconds: 2  # Espera antes de arrancar
-  self_test_on_start: true          # Ejecutar self-test al arrancar
-  self_test_every_cycles: 5         # Self-test cada N ciclos (0=desactivado)
-  safe_only: true                   # Solo operaciones seguras
-  require_ollama: false             # Exigir Ollama para arrancar
+  always_on: true
+  mode: full_local_guarded
+  interval_seconds: 60
+  start_delay_seconds: 3
+  max_cycles: 0
+  require_ollama: false
+  safe_only: true
+  self_test_on_start: true
+  self_test_every_cycles: 5
+  workers_always_on: true
+  workers_autostart: true
+  workers_watchdog: true
+  worker_mode: full_local_guarded
 ```
+
+En esta instalación local, el modo predeterminado es `full_local_guarded`.
+Eso no equivale a acceso libre destructivo: Safety, Permission Governor,
+Resource Governor, Integrity Verifier y Safe File Ops siguen bloqueando
+`identity_core`, `.git`, `.env`, shell libre, borrado directo, installs y
+acciones de zona roja sin aprobación.
 
 ### Variables de entorno (override)
 
 | Variable | Descripción |
 |---|---|
 | `TRIADE_ALWAYS_ON` | `true`/`false` |
-| `TRIADE_ALWAYS_ON_MODE` | `observe_only`, `execute_missions`, `full_local` |
+| `TRIADE_ALWAYS_ON_MODE` | `observe_only`, `light_background`, `balanced_background`, `full_local_guarded` |
 | `TRIADE_ALWAYS_ON_INTERVAL_SECONDS` | Intervalo en segundos |
 | `TRIADE_ALWAYS_ON_START_DELAY_SECONDS` | Delay inicial |
 | `TRIADE_ALWAYS_ON_MAX_CYCLES` | Máximo de ciclos (0=infinito) |
@@ -31,6 +42,10 @@ runtime:
 | `TRIADE_ALWAYS_ON_SAFE_ONLY` | `true`/`false` |
 | `TRIADE_SELF_TEST_ON_START` | `true`/`false` |
 | `TRIADE_SELF_TEST_EVERY_CYCLES` | Cada N ciclos |
+| `TRIADE_WORKERS_ALWAYS_ON` | `true`/`false` |
+| `TRIADE_WORKERS_AUTOSTART` | `true`/`false` |
+| `TRIADE_WORKERS_WATCHDOG` | `true`/`false` |
+| `TRIADE_WORKER_MODE` | Modo configurado para workers |
 
 Orden de precedencia: defaults → `triade.yml` → env vars.
 
@@ -52,8 +67,10 @@ python triade_digimon.py self-test --mode full   # Full (requiere governor)
 
 ```bash
 curl http://localhost:8010/api/runtime/always-on/status
+curl http://localhost:8010/api/runtime/workers-always-on/status
 curl -X POST http://localhost:8010/api/runtime/always-on/start   # requiere API key
 curl -X POST http://localhost:8010/api/runtime/always-on/stop    # requiere API key
+curl -X POST http://localhost:8010/api/runtime/workers/restart   # requiere API key si TRIADE_API_KEY existe
 curl -X POST http://localhost:8010/api/runtime/self-test         # safe mode, sin auth
 ```
 
@@ -82,14 +99,22 @@ El heartbeat incluye un bloque `always_on`:
 {
   "always_on": {
     "enabled": true,
-    "configured_mode": "execute_missions",
-    "effective_mode": "observe_only",
+    "configured_mode": "full_local_guarded",
+    "effective_mode": "balanced_background",
     "interval_seconds": 60,
     "status": "running",
     "background_thread_alive": true,
+    "degraded_by_governor": true,
+    "degradation_reason": "Modo solicitado excede permitido por recursos.",
     "self_test_on_start": true,
     "self_test_every_cycles": 5,
     "config_source": "triade.yml"
   }
 }
 ```
+
+La vida 24/7 se mide por `always_on.background_thread_alive`,
+`workers_always_on.active`, `cycles_last_hour`, `self_test_last_status`,
+`neurons_nourished_last_24h` y `runtime_continuity_score`. Si el gobernador no
+permite `full_local_guarded`, el modo efectivo se degrada, pero el sistema
+mantiene respiración operativa y workers supervisados cuando es seguro.

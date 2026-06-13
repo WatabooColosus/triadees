@@ -33,10 +33,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     global _ALWAYS_ON_RESULT
     try:
-        from triade.core.always_on import start_always_on_if_enabled
+        from triade.core.always_on import load_always_on_config, start_always_on_if_enabled
+        from triade.core.worker_autostart import start_workers_if_configured
+        from triade.core.internal_runtime import record_internal_runtime_event
+        cfg = load_always_on_config()
+        record_internal_runtime_event("always_on_startup_checked", "single_port_app", {"enabled": cfg.get("enabled")})
         result = start_always_on_if_enabled()
+        workers_result = start_workers_if_configured(cfg)
+        record_internal_runtime_event("workers_autostart_checked", "single_port_app", workers_result)
         with _ALWAYS_ON_LOCK:
-            _ALWAYS_ON_RESULT = result
+            _ALWAYS_ON_RESULT = {**result, "workers_always_on": workers_result}
     except Exception as exc:
         with _ALWAYS_ON_LOCK:
             _ALWAYS_ON_RESULT = {"status": "error", "message": f"always_on_start_failed: {exc}"}

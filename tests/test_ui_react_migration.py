@@ -245,8 +245,11 @@ def test_heartbeat_contains_api_server_alive():
     assert data.get("api_server_alive") is True
     assert data.get("heartbeat_truth") in (
         "ALWAYS-ON activo · Tríade en proceso continuo",
+        "ALWAYS-ON activo · Workers vivos · Tríade en proceso continuo",
         "ALWAYS-ON configurado, pero background no está vivo",
+        "ALWAYS-ON activo · Workers inactivos: revisar autostart/watchdog",
         "ALWAYS-ON apagado · Runtime manual",
+        "Autonomía full_local_guarded configurada · degradada a balanced_background por gobernador",
         "Servidor activo · Runtime apagado",
         "Runtime activo sin ciclos recientes",
         "Runtime activo con ciclos recientes",
@@ -274,10 +277,11 @@ def test_heartbeat_truth_api_alive_runtime_off():
     if not data.get("runtime_enabled"):
         truth = data.get("heartbeat_truth") or ""
         assert (
-            "Runtime apagado" in truth
-            or "ALWAYS-ON configurado, pero background no está vivo" in truth
-            or "ALWAYS-ON apagado" in truth
-        )
+                "Runtime apagado" in truth
+                or "ALWAYS-ON configurado, pero background no está vivo" in truth
+                or "ALWAYS-ON apagado" in truth
+                or "Autonomía full_local_guarded configurada" in truth
+            )
 
 
 def test_runtime_start_observe_only_returns_enabled():
@@ -342,9 +346,10 @@ def test_react_dashboard_shows_runtime_off_not_error():
         assert "heartbeat_truth" in hb
         truth = hb["heartbeat_truth"] or ""
         assert (
-            "Runtime apagado" in truth
-            or "ALWAYS-ON configurado, pero background no está vivo" in truth
-            or "ALWAYS-ON apagado" in truth
-        )
+                "Runtime apagado" in truth
+                or "ALWAYS-ON configurado, pero background no está vivo" in truth
+                or "ALWAYS-ON apagado" in truth
+                or "Autonomía full_local_guarded configurada" in truth
+            )
     # No debe ser error
     assert data.get("status") in ("ok", "partial")

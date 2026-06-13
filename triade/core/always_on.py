@@ -32,6 +32,10 @@ ENV_KEYS = {
     "safe_only": "TRIADE_ALWAYS_ON_SAFE_ONLY",
     "self_test_on_start": "TRIADE_SELF_TEST_ON_START",
     "self_test_every_cycles": "TRIADE_SELF_TEST_EVERY_CYCLES",
+    "workers_always_on": "TRIADE_WORKERS_ALWAYS_ON",
+    "workers_autostart": "TRIADE_WORKERS_AUTOSTART",
+    "workers_watchdog": "TRIADE_WORKERS_WATCHDOG",
+    "worker_mode": "TRIADE_WORKER_MODE",
 }
 
 YML_DEFAULTS = {
@@ -44,6 +48,10 @@ YML_DEFAULTS = {
     "safe_only": True,
     "self_test_on_start": True,
     "self_test_every_cycles": 5,
+    "workers_always_on": True,
+    "workers_autostart": True,
+    "workers_watchdog": True,
+    "worker_mode": "full_local_guarded",
 }
 
 _ALWAYS_ON_STATE: dict[str, Any] = {
@@ -54,6 +62,8 @@ _ALWAYS_ON_STATE: dict[str, Any] = {
     "max_cycles": 0,
     "config_source": "default",
     "background_thread_alive": False,
+    "degraded_by_governor": False,
+    "degradation_reason": None,
     "last_start_at": None,
     "last_cycle_at": None,
     "last_self_test_status": None,
@@ -93,7 +103,15 @@ def load_always_on_config(yml_path: str | Path = "triade.yml") -> dict[str, Any]
         raw = os.environ.get(env_name)
         if raw is not None:
             env_hit = True
-            if key in ("enabled", "require_ollama", "safe_only", "self_test_on_start"):
+            if key in (
+                "enabled",
+                "require_ollama",
+                "safe_only",
+                "self_test_on_start",
+                "workers_always_on",
+                "workers_autostart",
+                "workers_watchdog",
+            ):
                 cfg[key] = _str_to_bool(raw)
             elif key in ("interval_seconds", "start_delay_seconds", "max_cycles", "self_test_every_cycles"):
                 try:
@@ -200,6 +218,8 @@ def start_always_on_if_enabled(
     # ── Decide effective mode ──
     requested_mode = str(cfg.get("mode", "observe_only"))
     effective_mode = requested_mode
+    degraded_by_governor = False
+    degradation_reason = None
     require_ollama = bool(cfg.get("require_ollama", False))
     safe_only = bool(cfg.get("safe_only", True))
 
@@ -214,6 +234,8 @@ def start_always_on_if_enabled(
         allowed = decision.get("effective_mode", "observe_only")
         if WORK_MODE_RANK.get(effective_mode, 0) > WORK_MODE_RANK.get(allowed, 0):
             effective_mode = allowed
+            degraded_by_governor = True
+            degradation_reason = decision.get("reason") or f"{requested_mode} degradado a {allowed} por gobernador."
     except Exception as exc:
         preflight_errors.append(f"governor_decision_failed: {exc}")
 
@@ -238,6 +260,8 @@ def start_always_on_if_enabled(
 
     now_utc = datetime.now(timezone.utc).isoformat()
     _ALWAYS_ON_STATE["effective_mode"] = effective_mode
+    _ALWAYS_ON_STATE["degraded_by_governor"] = degraded_by_governor
+    _ALWAYS_ON_STATE["degradation_reason"] = degradation_reason
     _ALWAYS_ON_STATE["background_thread_alive"] = True
     _ALWAYS_ON_STATE["last_start_at"] = now_utc
     _ALWAYS_ON_STATE["last_cycle_at"] = now_utc
@@ -259,6 +283,7 @@ def start_always_on_if_enabled(
         record_internal_runtime_event(
             "always_on_started", "always_on",
             {"configured_mode": requested_mode, "effective_mode": effective_mode,
+             "degraded_by_governor": degraded_by_governor, "degradation_reason": degradation_reason,
              "interval_seconds": cfg.get("interval_seconds"), "max_cycles": cfg.get("max_cycles"),
              "config_source": cfg["_config_source"], "preflight_errors": preflight_errors},
             severity="info",
@@ -270,6 +295,8 @@ def start_always_on_if_enabled(
         "status": "started",
         "configured_mode": requested_mode,
         "effective_mode": effective_mode,
+        "degraded_by_governor": degraded_by_governor,
+        "degradation_reason": degradation_reason,
         "interval_seconds": cfg.get("interval_seconds"),
         "config_source": cfg["_config_source"],
         "background_thread_alive": True,

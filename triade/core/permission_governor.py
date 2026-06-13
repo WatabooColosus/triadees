@@ -18,7 +18,7 @@ def build_permission_profile(
       lectura + artifacts/runs.
     balanced_background:
       lectura + artifacts + candidates + neuron evidence.
-    full_local:
+    full_local/full_local_guarded:
       todo lo anterior + tests/build whitelist.
       repo write solo con human approval.
       shell solo whitelist.
@@ -47,12 +47,12 @@ def build_permission_profile(
     p["explanations"]["can_modify_identity_core"] = "identity_core nunca se modifica."
 
     # repo_write requiere human_approved
-    if mode == "full_local" and not human_approved:
+    if mode in ("full_local", "full_local_guarded") and not human_approved:
         p["permissions"]["can_write_repo"] = False
         p["explanations"]["can_write_repo"] = "Repo write requiere aprobación humana."
 
     # shell solo whitelist
-    if mode in ("balanced_background", "full_local") and human_approved:
+    if mode in ("balanced_background", "full_local", "full_local_guarded") and human_approved:
         p["permissions"]["can_run_shell"] = True
         p["explanations"]["can_run_shell"] = "Shell permitido solo whitelist con aprobación."
     else:
@@ -79,20 +79,20 @@ def _grants_for(mode: str) -> dict[str, tuple[bool, str]]:
         "can_promote_neuron_stable": (False, ""),
     }
 
-    if mode in ("observe_only", "light_background", "balanced_background", "full_local"):
+    if mode in ("observe_only", "light_background", "balanced_background", "full_local", "full_local_guarded"):
         base["can_read_project"] = (True, "Lectura de proyecto permitida.")
         base["can_write_runs"] = (True, "Escritura de runs permitida.")
         base["can_call_ollama"] = (True, "Llamadas a Ollama permitidas.")
 
-    if mode in ("light_background", "balanced_background", "full_local"):
+    if mode in ("light_background", "balanced_background", "full_local", "full_local_guarded"):
         base["can_write_artifacts"] = (True, "Escritura de artifacts permitida.")
         base["can_create_files"] = (True, "Creación de archivos en runs/artifacts.")
 
-    if mode in ("balanced_background", "full_local"):
+    if mode in ("balanced_background", "full_local", "full_local_guarded"):
         base["can_write_reports"] = (True, "Escritura de informes permitida.")
         base["can_run_git_status"] = (True, "Git status permitido.")
 
-    if mode == "full_local":
+    if mode in ("full_local", "full_local_guarded"):
         base["can_run_tests"] = (True, "Tests permitidos (whitelist).")
         base["can_run_build"] = (True, "Build permitido (whitelist).")
         base["can_consolidate_stable"] = (True, "Consolidación estable permitida con gates.")

@@ -199,6 +199,7 @@ def build_runtime_heartbeat(
     from triade.models.ollama_client import check_ollama_cognitive_health
     from triade.workers.background_service import WorkerBackgroundService
     from triade.core.always_on import build_always_on_status
+    from triade.core.worker_autostart import build_workers_always_on_status
 
     runtime_state = get_internal_runtime_state(db_path=db_path, runs_dir=runs_dir)
     learning_journal = build_learning_journal(db_path=db_path, since_hours=since_hours, limit=limit)
@@ -209,6 +210,7 @@ def build_runtime_heartbeat(
         limit=limit,
     )
     worker_status = WorkerBackgroundService(db_path=db_path, runs_dir=runs_dir).status()
+    workers_always_on_status = build_workers_always_on_status(db_path=db_path, runs_dir=runs_dir)
     recent_events = list_recent_runtime_events(limit=max(limit * 2, 100), db_path=db_path)
     last_cycle_at = _last_timestamp(recent_events, RUNTIME_CYCLE_EVENTS)
     latest_event = recent_events[0] if recent_events else None
@@ -242,7 +244,7 @@ def build_runtime_heartbeat(
     cycles_last_24h = _count_recent(recent_events, RUNTIME_CYCLE_EVENTS, hours=24)
     runtime_enabled = bool(runtime_state.get("enabled"))
     bg_alive = bool(_BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive())
-    workers_active = bool(worker_status.get("running"))
+    workers_active = bool(worker_status.get("running") or workers_always_on_status.get("active"))
     ollama_degraded = ollama_blood.get("status") == "degraded_no_ollama"
 
     always_on_status = build_always_on_status()
@@ -266,7 +268,18 @@ def build_runtime_heartbeat(
     else:
         runtime_activity_state = "idle_supervisor_off"
 
-    if always_on_enabled and bg_alive:
+    configured_mode = str(always_on_status.get("configured_mode", "observe_only"))
+    effective_mode = str(always_on_status.get("effective_mode", "observe_only"))
+    degraded_by_governor = bool(always_on_status.get("degraded_by_governor") or workers_always_on_status.get("degraded_by_governor"))
+    degradation_reason = always_on_status.get("degradation_reason") or workers_always_on_status.get("degradation_reason")
+
+    if always_on_enabled and bg_alive and workers_active:
+        truth = "ALWAYS-ON activo · Workers vivos · Tríade en proceso continuo"
+    elif always_on_enabled and bg_alive and not workers_active:
+        truth = "ALWAYS-ON activo · Workers inactivos: revisar autostart/watchdog"
+    elif configured_mode == "full_local_guarded" and effective_mode != "full_local_guarded":
+        truth = f"Autonomía full_local_guarded configurada · degradada a {effective_mode} por gobernador"
+    elif always_on_enabled and bg_alive:
         truth = "ALWAYS-ON activo · Tríade en proceso continuo"
     elif always_on_enabled and not bg_alive:
         truth = "ALWAYS-ON configurado, pero background no está vivo"
@@ -278,6 +291,12 @@ def build_runtime_heartbeat(
         truth = "Runtime activo con ciclos recientes"
     else:
         truth = "Runtime activo sin ciclos recientes"
+    if (
+        configured_mode == "full_local_guarded"
+        and effective_mode != "full_local_guarded"
+        and "Autonomía full_local_guarded configurada" not in truth
+    ):
+        truth += f" · Autonomía full_local_guarded configurada · degradada a {effective_mode} por gobernador"
 
     heartbeat = {
         "status": "ok",
@@ -349,6 +368,11 @@ def build_runtime_heartbeat(
         "learning_journal": learning_journal,
         "living_context": living_context,
         "worker_status": worker_status,
+        "workers_always_on": workers_always_on_status,
+        "configured_autonomy": configured_mode,
+        "effective_autonomy": effective_mode,
+        "autonomy_degraded_by_governor": degraded_by_governor,
+        "autonomy_degradation_reason": degradation_reason,
         "runtime_state": runtime_state,
         "runtime_events": recent_events[:20],
         "supervisor_enabled": supervisor_enabled,
@@ -363,6 +387,8 @@ def build_runtime_heartbeat(
             "config_source": always_on_status.get("config_source", "default"),
             "status": always_on_state,
             "background_thread_alive": bg_alive,
+            "degraded_by_governor": bool(always_on_status.get("degraded_by_governor")),
+            "degradation_reason": always_on_status.get("degradation_reason"),
             "last_start_at": always_on_status.get("last_start_at"),
             "last_start_result": always_on_status.get("last_start_result"),
             "last_self_test_status": always_on_status.get("last_self_test_status"),

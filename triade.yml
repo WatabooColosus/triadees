@@ -9,7 +9,7 @@ models:
 
 runtime:
   always_on: true
-  mode: execute_missions
+  mode: full_local_guarded
   interval_seconds: 60
   start_delay_seconds: 3
   max_cycles: 0
@@ -17,3 +17,7 @@ runtime:
   safe_only: true
   self_test_on_start: true
   self_test_every_cycles: 5
+  workers_always_on: true
+  workers_autostart: true
+  workers_watchdog: true
+  worker_mode: full_local_guarded
