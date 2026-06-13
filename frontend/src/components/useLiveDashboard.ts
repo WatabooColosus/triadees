@@ -38,6 +38,7 @@ export interface DashboardData {
   workers?: any
   runtime_events?: any[]
   system_processes?: any
+  autonomy_delegation?: any
   errors?: { block: string; error: string }[]
   policy?: any
 }

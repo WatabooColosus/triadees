@@ -576,6 +576,165 @@ export function PermissionsCard({ data }: { data: any }) {
   )
 }
 
+/* ── Autonomía Delegada Cards ─────────────── */
+
+
+export function AutonomyBudgetCard({ data }: { data: any }) {
+  if (!data || data.status === 'unavailable') return <UnavailableBlock label="Presupuesto de Autonomía" error={data?.error} />
+  const levels = data.levels || {}
+  const entries = Object.entries(levels) as [string, any][]
+  const [selected, setSelected] = useState(entries[0]?.[0] || 'observe_only')
+  const current = levels[selected] || {}
+
+  const pctColor = current.autonomy_percent === 0 ? '#6b7280' : current.autonomy_percent <= 20 ? '#eab308' : current.autonomy_percent <= 45 ? '#3b82f6' : current.autonomy_percent <= 65 ? '#8b5cf6' : '#22c55e'
+
+  return (
+    <Card title={`Autonomía: ${selected}`} color={pctColor}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+        {entries.map(([k, v]) => (
+          <button key={k} onClick={() => setSelected(k)} style={{
+            padding: '3px 8px', fontSize: 10, borderRadius: 4, cursor: 'pointer',
+            background: k === selected ? 'var(--accent)' : 'transparent',
+            color: k === selected ? '#fff' : 'var(--text-secondary)',
+            border: k === selected ? 'none' : '1px solid var(--border)',
+            fontWeight: k === selected ? 700 : 400,
+          }}>{k} ({v.autonomy_percent}%)</button>
+        ))}
+      </div>
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ height: 8, background: 'var(--bg-base)', borderRadius: 4, overflow: 'hidden', marginBottom: 2 }}>
+          <div style={{ width: `${current.autonomy_percent}%`, height: '100%', background: pctColor, borderRadius: 4 }} />
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'right' }}>{current.autonomy_percent}% · {current.max_files_per_cycle} archivos · {Math.round((current.max_bytes_per_cycle || 0) / 1024)}KB</div>
+      </div>
+      <KVTable data={{
+        archivos_por_ciclo: current.max_files_per_cycle,
+        bytes_por_ciclo: current.max_bytes_per_cycle ? `${(current.max_bytes_per_cycle / 1024).toFixed(0)} KB` : '0',
+        eliminar_directo: current.can_delete_directly ? 'sí' : 'no (papelera)',
+        borrar_identity: current.can_modify_identity_core ? 'sí' : 'nunca',
+        modificar_git: current.can_modify_git ? 'sí' : 'nunca',
+        dry_run: current.can_dry_run ? 'disponible' : 'solo lectura',
+      }} />
+      <div style={{ marginTop: 6 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 2 }}>Acciones permitidas</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+          {(current.allowed_actions || []).map((a: string) => (
+            <span key={a} style={{ padding: '2px 6px', fontSize: 10, background: 'rgba(34,197,94,0.1)', color: '#22c55e', borderRadius: 4 }}>{a}</span>
+          ))}
+        </div>
+      </div>
+      <div style={{ marginTop: 4 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 2 }}>Zonas permitidas</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+          {(current.allowed_zones || []).map((z: string) => {
+            const zColor = z === 'green' ? '#22c55e' : z === 'yellow' ? '#eab308' : z === 'red' ? '#ef4444' : '#6b7280'
+            return <span key={z} style={{ padding: '2px 6px', fontSize: 10, background: `rgba(255,255,255,0.05)`, color: zColor, borderRadius: 4 }}>{z}</span>
+          })}
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+
+export function TrashCard({ data, onRestore }: { data: any; onRestore?: (manifestPath: string) => void }) {
+  if (!data || data.status === 'unavailable') return <UnavailableBlock label="Papelera Tríade" error={data?.error} />
+  const trash = data.trash || {}
+  const items = trash.items || []
+  return (
+    <Card title={`Papelera Tríade (${trash.total_count || 0})`} color="#6b7280">
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+        Los archivos no se borran. Se mueven a .triade_trash/ con manifiesto.
+      </div>
+      {items.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Papelera vacía</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 160, overflowY: 'auto' }}>
+          {items.slice(0, 5).map((item: any, i: number) => (
+            <div key={i} style={{ padding: '4px 6px', background: 'var(--bg-base)', borderRadius: 4, fontSize: 10 }}>
+              <div style={{ color: 'var(--text-primary)', fontFamily: 'monospace' }}>{item.original_path}</div>
+              <div style={{ color: 'var(--text-muted)', marginTop: 1 }}>
+                {item.reason?.slice(0, 40)} · {item.size ? `${(item.size / 1024).toFixed(1)}KB` : ''}
+              </div>
+              {onRestore && item.manifest_path && (
+                <button onClick={() => onRestore(item.manifest_path)} style={{
+                  marginTop: 2, background: 'transparent', border: '1px solid var(--border)',
+                  color: '#22c55e', borderRadius: 4, padding: '2px 8px', fontSize: 10, cursor: 'pointer',
+                }}>Restaurar</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+
+export function DelegatedActionsCard({ onPlan }: { onPlan?: (intent: string, path: string, level: string) => void }) {
+  const [intent, setIntent] = useState('read')
+  const [path, setPath] = useState('./')
+  const [level, setLevel] = useState('observe_only')
+  const [result, setResult] = useState<any>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function handlePlan() {
+    if (!onPlan || busy) return
+    setBusy(true)
+    try {
+      const res = await onPlan(intent, path, level)
+      setResult(res)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card title="Acciones Delegadas" color="#8b5cf6">
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+        Planifica acciones delegadas. Siempre dry-run primero.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', width: 36 }}>Intención</span>
+          <select value={intent} onChange={e => setIntent(e.target.value)} style={{
+            flex: 1, background: 'var(--bg-base)', color: 'var(--text-primary)',
+            border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 11,
+          }}>
+            {['read', 'create', 'patch', 'move', 'delete', 'organize', 'refactor', 'test', 'build'].map(i => (
+              <option key={i} value={i}>{i}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', width: 36 }}>Ruta</span>
+          <input value={path} onChange={e => setPath(e.target.value)} style={{
+            flex: 1, background: 'var(--bg-base)', color: 'var(--text-primary)',
+            border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 11, fontFamily: 'monospace',
+          }} />
+        </div>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', width: 36 }}>Nivel</span>
+          <select value={level} onChange={e => setLevel(e.target.value)} style={{
+            flex: 1, background: 'var(--bg-base)', color: 'var(--text-primary)',
+            border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 11,
+          }}>
+            {['observe_only', 'safe_write', 'project_maintenance', 'repo_refactor', 'full_local_guarded'].map(l => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+        </div>
+        <button onClick={handlePlan} disabled={busy} style={btnSec}>Planificar Acción</button>
+      </div>
+      {result && (
+        <div style={{ marginTop: 8, padding: '6px 8px', background: 'var(--bg-base)', borderRadius: 6, fontSize: 10, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 150, overflowY: 'auto', color: result.allowed ? '#22c55e' : '#ef4444' }}>
+          {JSON.stringify(result, null, 2)}
+        </div>
+      )}
+    </Card>
+  )
+}
+
 /* ── Cabina Viva ──────────────────────────── */
 
 import { useLiveDashboard, api as liveApi } from './useLiveDashboard'
@@ -733,6 +892,20 @@ export function CabinaViva() {
         <WorkModeCard data={governor} />
         <RepoChangesCard data={dash.git_status} />
         <ProcessStatusCard data={dash.heartbeat} />
+        <AutonomyBudgetCard data={dash.autonomy_delegation} />
+        <TrashCard data={dash.autonomy_delegation} onRestore={(manifestPath) => act('Restaurar', () =>
+          liveApi('/api/trash/restore', {
+            method: 'POST',
+            body: JSON.stringify({ manifest_path: manifestPath }),
+          })
+        )} />
+        <DelegatedActionsCard onPlan={async (intent, path, level) => {
+          const res = await liveApi('/api/delegated/plan', {
+            method: 'POST',
+            body: JSON.stringify({ intent, paths: [path], autonomy_level: level }),
+          })
+          return res
+        }} />
         <BodegaCard data={dash.bodega_summary} />
         <MemoryTraceCard data={dash.observability} />
         <LearningJournalCard data={dash.learning_journal} />

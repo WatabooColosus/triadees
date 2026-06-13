@@ -9,6 +9,7 @@ __pycache__/
 
 # Runs y memoria local
 runs/
+.triade_trash/
 triade/memory/triade.db
 triade/memory/triade.db-*
 triade/memory/public_relay.db

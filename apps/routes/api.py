@@ -1175,6 +1175,11 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             "governor",
             {"status": "unavailable"},
         ),
+        "autonomy_delegation": _safe(
+            lambda: _build_autonomy_block(),
+            "autonomy_delegation",
+            {"status": "unavailable"},
+        ),
         "policy": {
             "read_only": True,
             "identity_core_protected": True,
@@ -1217,6 +1222,23 @@ def _build_governor_block(query: str, limit: int) -> dict[str, Any]:
             "can_run_shell": decision.get("can_run_shell"),
             "can_run_tests": decision.get("can_run_tests"),
             "can_run_build": decision.get("can_run_build"),
+        },
+    }
+
+
+def _build_autonomy_block() -> dict[str, Any]:
+    """Construye bloque de autonomía delegada para el dashboard React."""
+    from triade.core.autonomy_budget import build_autonomy_budget, LEVELS
+    from triade.core.quarantine_trash import list_trash
+    levels = {}
+    for lvl in LEVELS:
+        levels[lvl] = build_autonomy_budget(lvl)
+    trash = list_trash(limit=5)
+    return {
+        "levels": levels,
+        "trash": {
+            "total_count": trash.get("total_count", 0),
+            "items": trash.get("items", []),
         },
     }
 
@@ -1283,6 +1305,134 @@ def system_safe_shell_run(body: dict[str, Any] | None = None) -> dict[str, Any]:
     command_key = payload.get("command_key", "")
     from triade.core.safe_shell import run_safe_command
     return run_safe_command(command_key)
+
+
+# ── Autonomía Delegada (FASE 8) ─────────────────────────────────────
+
+
+@router.get("/api/autonomy/budget")
+def autonomy_budget(level: str = "observe_only") -> dict[str, Any]:
+    """Presupuesto de autonomía para el nivel solicitado."""
+    LIFE_PULSE.record_action("autonomy_budget")
+    from triade.core.autonomy_budget import build_autonomy_budget
+    return build_autonomy_budget(level)
+
+
+@router.get("/api/system/zones")
+def system_zones(path: str = ".") -> dict[str, Any]:
+    """Clasifica una ruta en zona green/yellow/red/forbidden."""
+    LIFE_PULSE.record_action("system_zones")
+    from triade.core.system_zones import classify_path
+    return classify_path(path)
+
+
+@router.get("/api/integrity/snapshot")
+def integrity_snapshot(path: str | None = None, paths: str | None = None) -> dict[str, Any]:
+    """Snapshot de integridad. paths puede ser JSON array o path simple."""
+    LIFE_PULSE.record_action("integrity_snapshot")
+    from triade.core.integrity_verifier import build_integrity_snapshot
+    target_paths: list[str] | None = None
+    if paths:
+        try:
+            import json
+            target_paths = json.loads(paths)
+        except Exception:
+            target_paths = [p.strip() for p in paths.split(",") if p.strip()]
+    elif path:
+        target_paths = [path]
+    return build_integrity_snapshot(target_paths)
+
+
+@router.get("/api/trash/list")
+def trash_list(limit: int = 100) -> dict[str, Any]:
+    """Lista archivos en la papelera reversible."""
+    LIFE_PULSE.record_action("trash_list")
+    from triade.core.quarantine_trash import list_trash
+    return list_trash(limit=limit)
+
+
+@router.post("/api/trash/restore")
+def trash_restore(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Restaura archivo desde la papelera usando su manifest."""
+    LIFE_PULSE.record_action("trash_restore")
+    payload = body or {}
+    manifest_path = payload.get("manifest_path", "")
+    if not manifest_path:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="manifest_path requerido")
+    from triade.core.quarantine_trash import restore_trash_item
+    return restore_trash_item(manifest_path)
+
+
+@router.post("/api/delegated/plan")
+def delegated_plan(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Planifica una acción delegada sin ejecutarla."""
+    LIFE_PULSE.record_action("delegated_plan")
+    payload = body or {}
+    intent = payload.get("intent", "read")
+    paths = payload.get("paths", [])
+    level = payload.get("autonomy_level", "observe_only")
+    from triade.core.delegated_action_planner import plan_delegated_action
+    return plan_delegated_action(intent, paths, level)
+
+
+@router.post("/api/files/create")
+def files_create(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Crea archivo de forma segura con dry-run por defecto."""
+    LIFE_PULSE.record_action("files_create")
+    payload = body or {}
+    path = payload.get("path", "")
+    content = payload.get("content", "")
+    level = payload.get("budget_level", "observe_only")
+    dry_run = payload.get("dry_run", True)
+    if not path:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="path requerido")
+    from triade.core.safe_file_ops import safe_create_file
+    return safe_create_file(path, content, level, dry_run=dry_run)
+
+
+@router.post("/api/files/patch")
+def files_patch(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Modifica archivo existente de forma segura con dry-run."""
+    LIFE_PULSE.record_action("files_patch")
+    payload = body or {}
+    path = payload.get("path", "")
+    content = payload.get("content", "")
+    level = payload.get("budget_level", "observe_only")
+    dry_run = payload.get("dry_run", True)
+    if not path:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="path requerido")
+    from triade.core.safe_file_ops import safe_patch_file
+    return safe_patch_file(path, content, level, dry_run=dry_run)
+
+
+@router.post("/api/files/move")
+def files_move(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Mueve archivo de forma segura con dry-run."""
+    LIFE_PULSE.record_action("files_move")
+    payload = body or {}
+    src = payload.get("src", "")
+    dst = payload.get("dst", "")
+    level = payload.get("budget_level", "observe_only")
+    dry_run = payload.get("dry_run", True)
+    if not src or not dst:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="src y dst requeridos")
+    from triade.core.safe_file_ops import safe_move_file
+    return safe_move_file(src, dst, level, dry_run=dry_run)
+
+
+@router.post("/api/files/delete-to-trash")
+def files_delete_to_trash(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Mueve archivo a papelera (nunca borra directo)."""
+    LIFE_PULSE.record_action("files_delete_to_trash")
+    payload = body or {}
+    path = payload.get("path", "")
+    reason = payload.get("reason", "Eliminación vía API delegada.")
+    level = payload.get("budget_level", "observe_only")
+    dry_run = payload.get("dry_run", True)
+    if not path:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="path requerido")
+    from triade.core.safe_file_ops import safe_delete_file
+    return safe_delete_file(path, level, dry_run=dry_run, reason=reason)
 
 
 # ── Technical Debt ────────────────────────────────────────────────────
