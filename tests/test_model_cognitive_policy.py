@@ -31,6 +31,30 @@ NO_OLLAMA_HEALTH = {
     "mode": "degraded_no_ollama",
 }
 
+NO_OLLAMA_BLOOD = {
+    "status": "degraded_no_ollama",
+    "ok": False,
+    "ollama_ok": False,
+    "mode": "fallback_breathing",
+    "base_url": "http://127.0.0.1:11434",
+    "models_available": [],
+    "reasoning_model": None,
+    "embedding_model": None,
+    "coder_model": None,
+    "latency_ms": 0,
+    "can_reason": False,
+    "can_embed": False,
+    "can_nourish_neurons": False,
+    "can_evaluate_learning": False,
+    "can_consolidate_stable": False,
+    "degraded_components": ["neuron_nutrition", "learning_evaluation", "semantic_embedding"],
+    "recommended_action": "Iniciar Ollama.",
+    "blood_pressure_score": 0.0,
+    "checked_at": "2026-06-13T00:00:00+00:00",
+    "cognitive_blood_active": False,
+    "fallback_mode": True,
+}
+
 
 def test_model_policy_blocks_learning_without_ollama() -> None:
     policy = get_model_cognitive_policy("neuron_nutrition", ollama_available=False)
@@ -47,7 +71,7 @@ def test_model_policy_allows_chat_fallback_without_ollama() -> None:
 
 
 def test_neuron_nutrition_no_ollama_observe_only(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr("triade.core.neuron_nutrition.check_ollama_cognitive_health", lambda: NO_OLLAMA_HEALTH)
+    monkeypatch.setattr("triade.core.neuron_nutrition.check_ollama_blood", lambda: NO_OLLAMA_BLOOD)
     result = run_neuron_nutrition_cycle(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs", mode="execute_missions")
     assert result["mode"] == "observe_only"
     assert result["degraded_mode"] is True
@@ -57,7 +81,7 @@ def test_neuron_nutrition_no_ollama_observe_only(tmp_path: Path, monkeypatch) ->
 
 
 def test_learning_evaluation_requires_model_or_human_approval(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr("triade.learning.pipeline.check_ollama_cognitive_health", lambda: NO_OLLAMA_HEALTH)
+    monkeypatch.setattr("triade.learning.pipeline.check_ollama_blood", lambda: NO_OLLAMA_BLOOD)
     pipe = LearningPipeline(db_path=tmp_path / "triade.db", enforce_model_policy=True)
     cid = pipe.ingest(
         content="Aprendizaje candidato con fuente, pero sin motor cognitivo disponible.",
@@ -74,7 +98,7 @@ def test_learning_evaluation_requires_model_or_human_approval(tmp_path: Path, mo
 
 
 def test_bodega_global_reports_semantic_degraded_without_ollama(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr("triade.core.bodega_global_context.check_ollama_cognitive_health", lambda: NO_OLLAMA_HEALTH)
+    monkeypatch.setattr("triade.core.bodega_global_context.check_ollama_blood", lambda: NO_OLLAMA_BLOOD)
     result = build_bodega_global_context("test", db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs")
     assert result["semantic_engine_status"] == "unavailable"
     assert result["semantic_learning_allowed"] is False
@@ -82,7 +106,7 @@ def test_bodega_global_reports_semantic_degraded_without_ollama(tmp_path: Path, 
 
 
 def test_runtime_heartbeat_reports_cognitive_model_status(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr("triade.models.ollama_client.check_ollama_cognitive_health", lambda: NO_OLLAMA_HEALTH)
+    monkeypatch.setattr("triade.core.ollama_blood.check_ollama_blood", lambda: NO_OLLAMA_BLOOD)
     result = build_runtime_heartbeat(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs", limit=5)
     assert result["cognitive_model_status"] == "degraded_no_ollama"
     assert result["can_nourish_neurons"] is False

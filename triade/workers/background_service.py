@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from triade.core.ollama_blood import check_ollama_blood
+
 from .contracts import WorkerRunConfig
 from .state_store import WorkerStateStore
 from .task_queue import WorkerTaskQueue
@@ -36,10 +38,15 @@ class WorkerBackgroundService:
 
     def status(self) -> dict[str, Any]:
         payload = self.store.status()
+        blood = check_ollama_blood()
         payload["lock_file"] = str(self.lock_file)
         payload["stop_file"] = str(self.stop_file)
         payload["running"] = self.lock_file.exists()
         payload["stop_requested"] = self.stop_file.exists()
+        payload["ollama_blood_status"] = blood.get("status")
+        payload["model_used"] = blood.get("reasoning_model")
+        payload["degraded_mode"] = bool(blood.get("fallback_mode"))
+        payload["cognitive_blood_active"] = bool(blood.get("cognitive_blood_active"))
         return payload
 
     def queue_status(self, status: str | None = None, limit: int = 50) -> dict[str, Any]:
@@ -53,4 +60,5 @@ class WorkerBackgroundService:
     def doctor(self) -> dict[str, Any]:
         payload = self.store.doctor()
         payload["service"] = {"runs_dir": str(self.runs_dir), "safe_loop": True, "daemon_is_bounded": True}
+        payload["ollama_blood"] = check_ollama_blood()
         return payload

@@ -18,6 +18,7 @@ from triade.core.neuron_missions import (
     NeuronScore,
     NeuronWorkCycle,
 )
+from triade.core.ollama_blood import ollama_blood_policy
 from triade.learning.pipeline import LearningPipeline
 
 from .contracts import WorkerRunConfig
@@ -44,6 +45,24 @@ class NeuronMissionExecutor:
     ) -> dict[str, Any]:
         started = time.monotonic()
         task_dir.mkdir(parents=True, exist_ok=True)
+        explicit_blood = isinstance(task_payload.get("ollama_blood"), dict)
+        blood = task_payload.get("ollama_blood") if explicit_blood else _degraded_blood()
+        blood_policy = ollama_blood_policy("neuron_nutrition", blood)
+        blood_result = {
+            "ollama_blood_status": blood.get("status"),
+            "model_used": blood.get("reasoning_model"),
+            "degraded_mode": bool(blood_policy.get("degraded")),
+            "cognitive_blood_active": bool(blood.get("cognitive_blood_active")),
+        }
+        if explicit_blood and not blood_policy.get("allowed"):
+            return {
+                "status": "blocked",
+                "mission_id": mission_id,
+                "decision": "blocked_no_ollama_blood",
+                "reason": "Ollama Blood no disponible; solo observación segura.",
+                "stable_memory_written": False,
+                **blood_result,
+            }
 
         mission = self.store.get_mission(int(mission_id))
         if mission is None:
@@ -52,6 +71,7 @@ class NeuronMissionExecutor:
                 "mission_id": mission_id,
                 "decision": "mission_not_found",
                 "stable_memory_written": False,
+                **blood_result,
             }
         if mission.status not in ACTIVE_MISSION_STATUSES:
             return {
@@ -60,6 +80,7 @@ class NeuronMissionExecutor:
                 "mission_status": mission.status,
                 "decision": "mission_status_not_active",
                 "stable_memory_written": False,
+                **blood_result,
             }
 
         recent_cycles = self.store.list_cycles(mission.id or mission_id, limit=5)
@@ -144,6 +165,7 @@ class NeuronMissionExecutor:
             "decision": decision,
             "stable_memory_written": False,
             "policy": work["policy"],
+            **blood_result,
         }
         (task_dir / "neuron_mission_context.json").write_text(json.dumps(context, ensure_ascii=False, indent=2), encoding="utf-8")
         (task_dir / "neuron_mission_result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -261,3 +283,18 @@ class NeuronMissionExecutor:
 
     def _compact(self, payload: dict[str, Any], limit: int = 900) -> str:
         return json.dumps(payload, ensure_ascii=False, sort_keys=True)[:limit]
+
+
+def _degraded_blood() -> dict[str, Any]:
+    return {
+        "status": "degraded_no_ollama",
+        "ollama_ok": False,
+        "cognitive_blood_active": False,
+        "reasoning_model": None,
+        "can_reason": False,
+        "can_embed": False,
+        "can_nourish_neurons": False,
+        "can_evaluate_learning": False,
+        "can_consolidate_stable": False,
+        "fallback_mode": True,
+    }

@@ -16,6 +16,7 @@ from triade.core.experimental_neuron_runtime import run_experimental_neurons
 from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.core.neuron_autopromoter import NeuronAutopromoter
 from triade.core.neuron_formation_pipeline import form_candidates
+from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
 from triade.core.safety import Safety
 from triade.federation.federation import Federation
 from triade.learning.pipeline import LearningPipeline
@@ -70,6 +71,8 @@ class WorkerSandbox:
 
 
 class WorkerLoop:
+    READ_ONLY_TASKS_WITHOUT_BLOOD = {"pulse_check", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review"}
+
     def __init__(
         self,
         db_path: str | Path = "triade/memory/triade.db",
@@ -102,7 +105,36 @@ class WorkerLoop:
         run_ref = new_worker_run_id()
         artifact_dir = self._artifact_dir(run_ref)
         artifact_dir.mkdir(parents=True, exist_ok=True)
-        summary: dict[str, Any] = {"run_ref": run_ref, "iterations": 0, "tasks_completed": 0, "tasks_blocked": 0, "errors": []}
+        blood = check_ollama_blood()
+        blood_policy = ollama_blood_policy("worker_cycle", blood)
+        from triade.services.event_bus import publish_event
+
+        publish_event(
+            "ollama_blood_checked",
+            "worker_loop",
+            {"status": blood.get("status"), "blood_pressure_score": blood.get("blood_pressure_score")},
+            db_path=self.db_path,
+            run_ref=run_ref,
+        )
+        publish_event(
+            "ollama_blood_active" if blood_policy.get("allowed") and not blood_policy.get("degraded") else "ollama_blood_degraded",
+            "worker_loop",
+            {"status": blood.get("status"), "degraded_components": blood.get("degraded_components", [])},
+            severity="info" if blood_policy.get("allowed") and not blood_policy.get("degraded") else "warning",
+            db_path=self.db_path,
+            run_ref=run_ref,
+        )
+        summary: dict[str, Any] = {
+            "run_ref": run_ref,
+            "iterations": 0,
+            "tasks_completed": 0,
+            "tasks_blocked": 0,
+            "errors": [],
+            "ollama_blood_status": blood.get("status"),
+            "model_used": blood.get("reasoning_model"),
+            "degraded_mode": bool(blood_policy.get("degraded")),
+            "cognitive_blood_active": bool(blood.get("cognitive_blood_active")),
+        }
         self.store.create_worker_run(run_ref, config, artifact_dir)
         self.store.set_state("workers", {"status": "running", "run_ref": run_ref, "started_at": utc_now(), "config": config.to_dict()})
 
@@ -167,13 +199,28 @@ class WorkerLoop:
 
     def _execute_task(self, task: WorkerTask, run_ref: str, artifact_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         started = time.monotonic()
+        blood = check_ollama_blood()
+        blood_policy = ollama_blood_policy("worker_cycle", blood)
         safety = self._safety_for_task(task, run_ref)
         task_dir = artifact_dir / f"task-{task.id}-{task.task_type}"
         task_dir.mkdir(parents=True, exist_ok=True)
+        if isinstance(task.payload, dict):
+            task.payload.setdefault("ollama_blood", blood)
         base = {"task": task.to_dict(), "safety": safety.to_dict(), "dry_run": config.dry_run, "started_at": utc_now()}
         (task_dir / "input.json").write_text(json.dumps(base, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        if safety.status == "blocked" or safety.human_approval_required:
+        if blood_policy.get("degraded") and task.task_type not in self.READ_ONLY_TASKS_WITHOUT_BLOOD:
+            result = {
+                "status": "blocked",
+                "reason": "Ollama Blood no disponible; worker limitado a observe/read-only.",
+                "ollama_blood_status": blood.get("status"),
+                "model_used": blood.get("reasoning_model"),
+                "degraded_mode": True,
+                "cognitive_blood_active": False,
+            }
+            self.store.finish_task(task.id or 0, "blocked", result, safety.status, run_ref=run_ref)
+            self.store.record_event("task_blocked_no_blood", result["reason"], run_ref=run_ref, task_id=task.id, task_type=task.task_type, status="blocked", payload=result)
+        elif safety.status == "blocked" or safety.human_approval_required:
             result = {"status": "blocked", "reason": safety.reason, "safety_status": safety.status}
             self.store.finish_task(task.id or 0, "blocked", result, safety.status, run_ref=run_ref)
             self.store.record_event("task_blocked", safety.reason, run_ref=run_ref, task_id=task.id, task_type=task.task_type, status="blocked", payload=result)
@@ -217,6 +264,10 @@ class WorkerLoop:
                 result = {"status": "error", "task_type": task.task_type, "error": str(exc)}
                 self.store.finish_task(task.id or 0, "failed", result, safety.status, error=str(exc), run_ref=run_ref)
                 self.store.record_event("task_failed", str(exc), run_ref=run_ref, task_id=task.id, task_type=task.task_type, status="error", payload=result)
+        result["ollama_blood_status"] = blood.get("status")
+        result["model_used"] = blood.get("reasoning_model")
+        result["degraded_mode"] = bool(blood_policy.get("degraded"))
+        result["cognitive_blood_active"] = bool(blood.get("cognitive_blood_active"))
         result["elapsed"] = round(time.monotonic() - started, 4)
         (task_dir / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         return result

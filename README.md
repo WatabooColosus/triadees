@@ -21,6 +21,8 @@ El runtime por defecto sigue apagado. Activarlo requiere configuración explíci
 
 Tríade puede operar sin Ollama en modo fallback seguro, pero el fallback no equivale a aprendizaje profundo. Ollama es el motor local recomendado para razonamiento, embeddings, evaluación de dudas, nutrición neuronal y consolidación de memoria. Sin Ollama, Tríade puede observar y registrar, pero no debe afirmar que aprendió o consolidó conocimiento salvo aprobación humana y evidencia suficiente.
 
+En v2.2, esta dependencia se expone como **Ollama Blood**: fallback mantiene respiración mínima; Ollama Blood alimenta cognición local para Bodega, neuronas, workers y evaluación de aprendizaje. No es vida biológica ni conciencia subjetiva.
+
 Escala vigente:
 
 - Respuesta fallback: disponible, con aviso de modo degradado.
@@ -33,7 +35,9 @@ Diagnóstico:
 
 ```bash
 python triade_digimon.py models ollama-health
+python triade_digimon.py models ollama-blood
 python triade_digimon.py models cognitive-policy
+python triade_digimon.py runtime blood
 python triade_digimon.py runtime heartbeat
 ```
 

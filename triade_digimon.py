@@ -22,6 +22,7 @@ from triade.core.internal_runtime import (
 )
 from triade.core.living_report import build_living_report
 from triade.core.model_policy import get_model_cognitive_policy
+from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
 from triade.core.runner import TriadeRunner
 from triade.core.self_reflection import SelfReflectionEngine, add_reflect_core_args
 from triade.federation.federation import Federation
@@ -125,6 +126,31 @@ def handle_models(args: argparse.Namespace) -> None:
 
     if args.models_command == "ollama-health":
         print_json(check_ollama_cognitive_health(base_url=args.ollama_url))
+        return
+
+    if args.models_command == "ollama-blood":
+        blood = check_ollama_blood(base_url=args.ollama_url)
+        print_json(
+            {
+                "status": blood.get("status"),
+                "ollama_blood": blood,
+                "policies": {
+                    role: ollama_blood_policy(role, blood)
+                    for role in [
+                        "chat_response",
+                        "central_reasoning",
+                        "hypothalamus_analysis",
+                        "semantic_embedding",
+                        "bodega_diagnosis",
+                        "neuron_nutrition",
+                        "learning_evaluation",
+                        "stable_consolidation",
+                        "memory_contradiction_check",
+                        "worker_cycle",
+                    ]
+                },
+            }
+        )
         return
 
     if args.models_command == "cognitive-policy":
@@ -420,6 +446,16 @@ def handle_runtime(args: argparse.Namespace) -> None:
     if args.runtime_command == "heartbeat":
         print_json(build_runtime_heartbeat(db_path=args.db, runs_dir=args.runs_dir, limit=args.limit))
         return
+    if args.runtime_command == "blood":
+        blood = check_ollama_blood()
+        print_json(
+            {
+                "status": blood.get("status"),
+                "ollama_blood": blood,
+                "worker_policy": ollama_blood_policy("worker_cycle", blood),
+            }
+        )
+        return
     if args.runtime_command == "once":
         print_json(supervisor.run_once(mode=args.mode))
         return
@@ -587,6 +623,7 @@ def main() -> None:
     models_doctor.add_argument("--intent", default="conversation", help="Intención detectada")
     models_doctor.add_argument("--urgency", default="medium", help="Urgencia: low, medium, high")
     models_subparsers.add_parser("ollama-health", help="Diagnostica Ollama como motor cognitivo local")
+    models_subparsers.add_parser("ollama-blood", help="Diagnostica Ollama Blood como sangre cognitiva local")
     models_subparsers.add_parser("cognitive-policy", help="Muestra la política cognitiva por rol")
 
     learn_parser = subparsers.add_parser("learn", help="Pipeline de aprendizaje controlado (learning_queue)")
@@ -776,6 +813,7 @@ def main() -> None:
     runtime_sub.add_parser("stop", help="Detiene runtime continuo", parents=[runtime_common])
     runtime_sub.add_parser("events", help="Muestra eventos internos recientes", parents=[runtime_common])
     runtime_sub.add_parser("heartbeat", help="Muestra heartbeat cognitivo del runtime", parents=[runtime_common])
+    runtime_sub.add_parser("blood", help="Muestra estado de sangre cognitiva Ollama", parents=[runtime_common])
     runtime_sub.add_parser("context", help="Muestra contexto vivo resumido", parents=[runtime_common])
     runtime_sub.add_parser("report", help="Muestra reporte vivo resumido", parents=[runtime_common])
 

@@ -159,7 +159,7 @@ def build_runtime_heartbeat(
 ) -> dict[str, Any]:
     from triade.core.context_engine import build_living_context_for_chat
     from triade.core.error_bus import query_internal_errors
-    from triade.core.model_policy import get_model_cognitive_policy
+    from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
     from triade.models.ollama_client import check_ollama_cognitive_health
     from triade.workers.background_service import WorkerBackgroundService
 
@@ -177,28 +177,30 @@ def build_runtime_heartbeat(
     latest_event = recent_events[0] if recent_events else None
     latest_error = (query_internal_errors(limit=1, db_path=db_path) or [{}])[0]
     active_missions = int((living_context.get("mission_context") or {}).get("active_missions", 0))
+    ollama_blood = check_ollama_blood()
+    blood_nutrition_policy = ollama_blood_policy("neuron_nutrition", ollama_blood)
+    blood_evaluation_policy = ollama_blood_policy("learning_evaluation", ollama_blood)
+    blood_stable_policy = ollama_blood_policy("stable_consolidation", ollama_blood)
+    blood_semantic_policy = ollama_blood_policy("semantic_embedding", ollama_blood)
     ollama_health = check_ollama_cognitive_health()
-    model_available = bool(ollama_health.get("ok") and ollama_health.get("reasoning_model_available"))
-    embedding_available = bool(ollama_health.get("ok") and ollama_health.get("embedding_model_available"))
-    nutrition_policy = get_model_cognitive_policy("neuron_nutrition", model_available, (ollama_health.get("selected_models") or {}).get("reasoning"))
-    evaluation_policy = get_model_cognitive_policy("learning_evaluation", model_available, (ollama_health.get("selected_models") or {}).get("reasoning"))
-    stable_policy = get_model_cognitive_policy("stable_consolidation", model_available, (ollama_health.get("selected_models") or {}).get("reasoning"))
-    semantic_policy = get_model_cognitive_policy("semantic_embedding", embedding_available, (ollama_health.get("selected_models") or {}).get("embeddings"))
+    model_available = bool(ollama_blood.get("can_reason"))
+    embedding_available = bool(ollama_blood.get("can_embed"))
     degraded_components: list[str] = []
-    if nutrition_policy["status"] != "full_local":
+    if blood_nutrition_policy["degraded"]:
         degraded_components.append("neuron_nutrition")
-    if evaluation_policy["status"] != "full_local":
+    if blood_evaluation_policy["degraded"]:
         degraded_components.append("learning_evaluation")
-    if stable_policy["status"] != "full_local":
+    if blood_stable_policy["degraded"]:
         degraded_components.append("stable_consolidation")
-    if semantic_policy["status"] != "full_local":
+    if blood_semantic_policy["degraded"]:
         degraded_components.append("semantic_embedding")
     blocked_learning_actions = sorted(
-        set(nutrition_policy.get("blocked_actions", []))
-        | set(evaluation_policy.get("blocked_actions", []))
-        | set(stable_policy.get("blocked_actions", []))
-        | set(semantic_policy.get("blocked_actions", []))
+        set(blood_nutrition_policy.get("blocked_actions", []))
+        | set(blood_evaluation_policy.get("blocked_actions", []))
+        | set(blood_stable_policy.get("blocked_actions", []))
+        | set(blood_semantic_policy.get("blocked_actions", []))
     )
+    fallback_message = "Tríade respira en fallback, pero no tiene sangre cognitiva activa."
     cycles_last_hour = _count_recent(recent_events, {"runtime_cycle_start", "runtime_cycle_complete"}, hours=1)
     cycles_last_24h = _count_recent(recent_events, {"runtime_cycle_start", "runtime_cycle_complete"}, hours=24)
     heartbeat = {
@@ -221,22 +223,33 @@ def build_runtime_heartbeat(
             learning_journal=learning_journal,
             latest_error=latest_error,
         ),
-        "latest_action": (latest_event or {}).get("event_type") or _first_event_type(runtime_state.get("last_events")),
+        "latest_action": (
+            fallback_message
+            if ollama_blood.get("status") == "degraded_no_ollama"
+            else (latest_event or {}).get("event_type") or _first_event_type(runtime_state.get("last_events"))
+        ),
         "latest_error": latest_error.get("message") or latest_error.get("error") or _first_event_message(runtime_state.get("last_events")),
         "active_workers": bool(worker_status.get("running")),
         "active_missions": active_missions,
         "ollama_health": ollama_health,
-        "cognitive_model_status": "full_local" if model_available and embedding_available else ("degraded_no_ollama" if not ollama_health.get("ok") else "partial_local"),
+        "ollama_blood": ollama_blood,
+        "cognitive_blood_status": ollama_blood.get("status"),
+        "blood_pressure_score": ollama_blood.get("blood_pressure_score", 0.0),
+        "can_reason": bool(ollama_blood.get("can_reason")),
+        "can_embed": bool(ollama_blood.get("can_embed")),
+        "fallback_mode": bool(ollama_blood.get("fallback_mode")),
+        "cognitive_model_status": "full_local" if model_available and embedding_available else ("degraded_no_ollama" if not ollama_blood.get("ollama_ok") else "partial_local"),
         "degraded_components": degraded_components,
         "blocked_learning_actions": blocked_learning_actions,
-        "can_nourish_neurons": nutrition_policy["status"] == "full_local",
-        "can_evaluate_learning": evaluation_policy["status"] == "full_local",
-        "can_consolidate_stable_memory": stable_policy["status"] == "full_local",
+        "can_nourish_neurons": bool(ollama_blood.get("can_nourish_neurons")),
+        "can_evaluate_learning": bool(ollama_blood.get("can_evaluate_learning")),
+        "can_consolidate_stable_memory": bool(ollama_blood.get("can_consolidate_stable")),
+        "can_consolidate_stable": bool(ollama_blood.get("can_consolidate_stable")),
         "model_policies": {
-            "neuron_nutrition": nutrition_policy,
-            "learning_evaluation": evaluation_policy,
-            "stable_consolidation": stable_policy,
-            "semantic_embedding": semantic_policy,
+            "neuron_nutrition": blood_nutrition_policy,
+            "learning_evaluation": blood_evaluation_policy,
+            "stable_consolidation": blood_stable_policy,
+            "semantic_embedding": blood_semantic_policy,
         },
         "learning_activity_summary": {
             "missions_executed": learning_journal.get("missions_executed", 0),
@@ -247,6 +260,7 @@ def build_runtime_heartbeat(
             "candidates_consolidated": learning_journal.get("candidates_consolidated", 0),
             "candidates_rejected": learning_journal.get("candidates_rejected", 0),
             "neurons_nourished": learning_journal.get("neurons_nourished", 0),
+            "ollama_blood_message": fallback_message if ollama_blood.get("status") == "degraded_no_ollama" else "Sangre cognitiva activa o parcial.",
         },
         "neurons_nourished_last_24h": learning_journal.get("neurons_nourished", 0),
         "latest_contradiction": _latest_contradiction(living_context),

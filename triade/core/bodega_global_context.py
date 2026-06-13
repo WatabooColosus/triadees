@@ -16,6 +16,7 @@ from typing import Any
 from triade.core.bodega import Bodega
 from triade.core.contracts import InputPacket
 from triade.core.neuron_missions import NeuronMissionStore
+from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
 from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.core.neuron_registry import NeuronRegistry
@@ -180,15 +181,18 @@ def build_bodega_global_context(
         embedding_model_used: str | None = None
         semantic_learning_allowed = False
         semantic_engine = None
+        ollama_blood = check_ollama_blood()
+        policy_bodega = ollama_blood_policy("bodega_diagnosis", ollama_blood)
+        policy_semantic = ollama_blood_policy("semantic_embedding", ollama_blood)
         ollama_health = check_ollama_cognitive_health() if check_ollama_cognitive_health is not None else {"ok": False, "errors": ["ollama health unavailable"]}
 
         if semantic_recall_enabled:
-            semantic_ready = bool(ollama_health.get("ok") and ollama_health.get("embedding_model_available"))
+            semantic_ready = bool(ollama_blood.get("can_embed"))
             if semantic_ready:
                 semantic_engine = _build_semantic_search_engine(db_path)
             if semantic_engine is not None and semantic_ready:
                 semantic_engine_status = "available"
-                embedding_model_used = (ollama_health.get("selected_models") or {}).get("embeddings")
+                embedding_model_used = ollama_blood.get("embedding_model")
                 semantic_learning_allowed = True
             else:
                 semantic_engine_status = "unavailable"
@@ -284,6 +288,14 @@ def build_bodega_global_context(
         qualia_context = _get_qualia_snapshot()
 
         continuity_summary = _compute_continuity_summary(recent_episodes, semantic_matches)
+        if not ollama_blood.get("ollama_ok"):
+            semantic_recall_mode = "degraded_no_ollama" if semantic_recall_enabled else "keyword_only"
+        elif ollama_blood.get("can_embed"):
+            semantic_recall_mode = "semantic_vector"
+        elif ollama_blood.get("can_reason"):
+            semantic_recall_mode = "model_reasoned"
+        else:
+            semantic_recall_mode = "keyword_only"
 
         confidence_level, recommended_policy = _confidence_level(confidence_score)
 
@@ -293,6 +305,21 @@ def build_bodega_global_context(
             recent_episodes=recent_episodes,
             stable_audit_summary=stable_audit_summary,
         )
+        if not ollama_blood.get("ollama_ok") or not ollama_blood.get("can_embed"):
+            from triade.services.event_bus import publish_event
+
+            publish_event(
+                "bodega_semantic_degraded_no_blood",
+                "bodega_global_context",
+                {
+                    "blood_status": ollama_blood.get("status"),
+                    "semantic_recall_mode": semantic_recall_mode,
+                    "recommended_action": "Iniciar Ollama o instalar modelo de embeddings.",
+                },
+                severity="warning",
+                db_path=db_path,
+                run_ref="bodega-global-context",
+            )
 
         return {
             "status": "ok",
@@ -319,6 +346,14 @@ def build_bodega_global_context(
             "ollama_required_for_semantic_recall": True,
             "semantic_learning_allowed": semantic_learning_allowed,
             "embedding_model_used": embedding_model_used,
+            "ollama_blood": ollama_blood,
+            "semantic_recall_mode": semantic_recall_mode,
+            "bodega_diagnosis_allowed": bool(policy_bodega.get("allowed")),
+            "recommended_model_action": (
+                "Iniciar Ollama o instalar modelo de embeddings."
+                if not ollama_blood.get("ollama_ok") or not ollama_blood.get("can_embed")
+                else "Ollama Blood activo para Bodega y memoria semántica."
+            ),
             "recommended_action": (
                 "Iniciar Ollama o instalar modelo de embeddings."
                 if semantic_engine_status == "unavailable"
@@ -327,8 +362,10 @@ def build_bodega_global_context(
             "recall_modes": {
                 "keyword_recall": True,
                 "semantic_vector_recall": semantic_engine_status == "available",
-                "model_reasoned_recall": bool(ollama_health.get("ok") and ollama_health.get("reasoning_model_available")),
+                "model_reasoned_recall": bool(ollama_blood.get("can_reason")),
             },
+            "bodega_blood_policy": policy_bodega,
+            "semantic_blood_policy": policy_semantic,
             "truth": (
                 "La Bodega Global es la base obligatoria de contexto de Tríade. "
                 "Candidate memory no es verdad estable. "

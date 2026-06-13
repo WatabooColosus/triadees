@@ -508,13 +508,15 @@ function ObservabilityTab() {
       api('/api/runtime/learning-journal?since_hours=24&limit=20'),
       api('/api/runtime/neuron-nutrition?mode=observe_only&limit=5'),
       api('/api/models/ollama/cognitive-health'),
+      api('/api/models/ollama/blood'),
     ]).then((results) => {
       const observability = results[0].status === 'fulfilled' ? results[0].value : null
       const heartbeat = results[1].status === 'fulfilled' ? results[1].value : null
       const learningJournal = results[2].status === 'fulfilled' ? results[2].value : null
       const nutrition = results[3].status === 'fulfilled' ? results[3].value : null
       const cognitiveHealth = results[4].status === 'fulfilled' ? results[4].value : null
-      setData({ observability, heartbeat, learning_journal: learningJournal, nutrition, cognitive_health: cognitiveHealth })
+      const ollamaBlood = results[5].status === 'fulfilled' ? results[5].value : null
+      setData({ observability, heartbeat, learning_journal: learningJournal, nutrition, cognitive_health: cognitiveHealth, ollama_blood: ollamaBlood })
       const rejectedObservability = results[0].status === 'rejected' ? results[0] : null
       setError(rejectedObservability ? rejectedObservability.reason?.message || 'Error al cargar observabilidad' : '')
     })
@@ -552,7 +554,7 @@ function ObservabilityTab() {
   const heartbeat = data.heartbeat || {}
   const learningJournal = data.learning_journal || {}
   const nutrition = data.nutrition || {}
-  const cognitive = heartbeat.ollama_health || data.cognitive_health?.cognitive_health || data.cognitive_health || {}
+  const cognitive = heartbeat.ollama_blood || data.ollama_blood?.ollama_blood || data.ollama_blood || heartbeat.ollama_health || data.cognitive_health?.cognitive_health || data.cognitive_health || {}
   const nutritionSummary = nutrition.summary || {}
   const latestLearning = heartbeat.latest_learning_candidate || (learningJournal.latest_learning_candidates || [])[0] || null
   const latestRejection = heartbeat.latest_rejection || (learningJournal.latest_rejections || [])[0] || null
@@ -589,22 +591,25 @@ function ObservabilityTab() {
         <Card title="Salud general" color={obs.status === 'ok' ? '#22c55e' : '#eab308'}>
           <KVTable data={{ status: obs.status, timestamp: obs.timestamp, warnings: obs.warnings, degraded_sources: obs.degraded_sources }} />
         </Card>
-        <Card title="Motor Cognitivo Local" color={cognitive.ok ? '#22c55e' : '#ef4444'}>
+        <Card title="Sangre Cognitiva Ollama" color={cognitive.cognitive_blood_active ? '#22c55e' : '#ef4444'}>
           <KVTable data={{
-            ollama: cognitive.ok ? 'conectado' : 'no conectado',
+            estado: cognitive.cognitive_blood_active ? 'activa' : (cognitive.ollama_ok ? 'degradada' : 'apagada'),
+            blood_pressure_score: cognitive.blood_pressure_score,
+            ollama: cognitive.ollama_ok || cognitive.ok ? 'conectado' : 'no conectado',
             url: cognitive.base_url,
-            modelos_detectados: cognitive.models_available,
-            modelo_razonamiento: cognitive.selected_models?.reasoning,
-            modelo_embeddings: cognitive.selected_models?.embeddings,
-            modo_actual: heartbeat.cognitive_model_status || cognitive.mode,
-            responder: true,
-            recordar_semanticamente: Boolean(cognitive.embedding_model_available),
-            nutrir_neuronas: Boolean(heartbeat.can_nourish_neurons),
-            evaluar_candidatos: Boolean(heartbeat.can_evaluate_learning),
-            consolidar_memoria: Boolean(heartbeat.can_consolidate_stable_memory),
+            modelos_disponibles: cognitive.models_available,
+            modelo_razonador: cognitive.reasoning_model || cognitive.selected_models?.reasoning,
+            modelo_embeddings: cognitive.embedding_model || cognitive.selected_models?.embeddings,
+            modelo_coder: cognitive.coder_model || cognitive.selected_models?.coding,
+            puede_razonar: Boolean(cognitive.can_reason || cognitive.reasoning_model_available),
+            puede_crear_embeddings: Boolean(cognitive.can_embed || cognitive.embedding_model_available),
+            puede_nutrir_neuronas: Boolean(heartbeat.can_nourish_neurons || cognitive.can_nourish_neurons),
+            puede_evaluar_aprendizaje: Boolean(heartbeat.can_evaluate_learning || cognitive.can_evaluate_learning),
+            puede_consolidar_stable: Boolean(heartbeat.can_consolidate_stable || heartbeat.can_consolidate_stable_memory || cognitive.can_consolidate_stable),
             bloqueadas: heartbeat.degraded_components || cognitive.degraded_functions,
+            recomendacion: cognitive.recommended_action,
           }} />
-          {!cognitive.ok && (
+          {!cognitive.cognitive_blood_active && (
             <div style={{
               marginTop: 10,
               padding: 10,
@@ -615,7 +620,21 @@ function ObservabilityTab() {
               fontSize: 12,
               lineHeight: 1.4,
             }}>
-              Ollama no está disponible. Tríade puede responder en fallback, pero no debe afirmar aprendizaje profundo ni consolidar memoria estable.
+              Tríade respira en fallback, pero no tiene sangre cognitiva activa. Puede observar y responder básico, pero no debe afirmar aprendizaje profundo ni consolidación stable.
+            </div>
+          )}
+          {cognitive.cognitive_blood_active && (
+            <div style={{
+              marginTop: 10,
+              padding: 10,
+              borderRadius: 8,
+              border: '1px solid rgba(34,197,94,0.35)',
+              color: '#bbf7d0',
+              background: 'rgba(34,197,94,0.10)',
+              fontSize: 12,
+              lineHeight: 1.4,
+            }}>
+              Sangre cognitiva activa: Ollama puede alimentar Bodega, neuronas, workers y evaluación de aprendizaje.
             </div>
           )}
         </Card>

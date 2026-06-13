@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.bodega_global_context import build_bodega_global_context
-from triade.core.model_policy import get_model_cognitive_policy
 from triade.core.neuron_mission_selector import select_relevant_missions
 from triade.core.neuron_missions import NeuronMissionStore
+from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
 from triade.models.ollama_client import check_ollama_cognitive_health
 from triade.services.event_bus import publish_event
 from triade.workers.contracts import WorkerRunConfig
@@ -34,20 +34,19 @@ def run_neuron_nutrition_cycle(
     db_path = Path(db_path)
     runs_dir = Path(runs_dir)
     runs_dir.mkdir(parents=True, exist_ok=True)
+    ollama_blood = check_ollama_blood()
+    blood_policy = ollama_blood_policy("neuron_nutrition", ollama_blood)
     ollama_health = check_ollama_cognitive_health()
-    model_policy = get_model_cognitive_policy(
-        role="neuron_nutrition",
-        ollama_available=bool(ollama_health.get("ok") and ollama_health.get("reasoning_model_available")),
-        requested_model=(ollama_health.get("selected_models") or {}).get("reasoning"),
-    )
-    degraded_mode = model_policy["status"] != "full_local"
-    learning_allowed = bool(model_policy["allowed_actions"].get("allow_learning_write"))
-    stable_write_allowed = bool(model_policy["allowed_actions"].get("allow_stable_memory_write"))
+    model_policy = blood_policy
+    degraded_mode = bool(blood_policy.get("degraded") or not blood_policy.get("allowed"))
+    learning_allowed = bool(blood_policy.get("allowed"))
+    stable_write_allowed = False
     model_used = {
-        "model_provider": "ollama" if not degraded_mode else "fallback",
-        "model_name": model_policy.get("selected_model"),
+        "model_provider": "ollama" if blood_policy.get("model_used") else "fallback",
+        "model_name": blood_policy.get("model_used"),
         "model_required": True,
-        "model_status": model_policy.get("status"),
+        "model_status": ollama_blood.get("status"),
+        "ollama_blood_active": bool(ollama_blood.get("cognitive_blood_active")),
     }
 
     bodega_global = build_bodega_global_context(
@@ -65,20 +64,35 @@ def run_neuron_nutrition_cycle(
         run_ref="neuron-nutrition",
     )
 
-    if degraded_mode:
+    publish_event(
+        "ollama_blood_checked",
+        "neuron_nutrition",
+        {"status": ollama_blood.get("status"), "blood_pressure_score": ollama_blood.get("blood_pressure_score")},
+        db_path=db_path,
+        run_ref="neuron-nutrition",
+    )
+
+    if not blood_policy.get("allowed"):
         publish_event(
-            "neuron_nutrition_degraded_no_ollama",
+            "neuron_nutrition_degraded_no_blood",
             "neuron_nutrition",
             {
                 "mode": mode,
-                "degraded_reason": model_policy.get("degraded_reason"),
+                "degraded_reason": blood_policy.get("reason"),
                 "blocked_actions": model_policy.get("blocked_actions", []),
             },
             severity="warning",
             db_path=db_path,
             run_ref="neuron-nutrition",
         )
-        mode = "observe_only"
+    else:
+        publish_event(
+            "ollama_blood_active_neuron_nutrition",
+            "neuron_nutrition",
+            {"model_used": blood_policy.get("model_used"), "blood_pressure_score": ollama_blood.get("blood_pressure_score")},
+            db_path=db_path,
+            run_ref="neuron-nutrition",
+        )
 
     store = NeuronMissionStore(db_path=db_path)
     active_missions = [
@@ -113,13 +127,16 @@ def run_neuron_nutrition_cycle(
     )
     selected_missions = selection.get("selected") or []
 
-    if mode == "observe_only":
+    if mode == "observe_only" or not blood_policy.get("allowed"):
         return {
             "status": "ok",
-            "mode": mode,
+            "mode": "observe_only" if not blood_policy.get("allowed") else mode,
+            "ollama_blood": ollama_blood,
             "ollama_health": ollama_health,
             "model_policy": model_policy,
+            "cognitive_blood_active": bool(ollama_blood.get("cognitive_blood_active")),
             "degraded_mode": degraded_mode,
+            "can_nourish_neurons": bool(ollama_blood.get("can_nourish_neurons")),
             "model_used": model_used,
             "learning_allowed": learning_allowed,
             "stable_write_allowed": stable_write_allowed,
@@ -135,9 +152,10 @@ def run_neuron_nutrition_cycle(
             "selection": selection,
             "summary": (
                 "observe_only: solo se revisa el estado vivo y la deuda operativa."
-                if not degraded_mode
-                else "Ollama no disponible; solo observación segura. No se crean candidatos profundos ni memoria stable."
+                if blood_policy.get("allowed")
+                else "Ollama Blood no disponible; solo observación segura."
             ),
+            "reason": "Ollama Blood no disponible; solo observación segura." if not blood_policy.get("allowed") else None,
         }
 
     executor = NeuronMissionExecutor(db_path=db_path)
@@ -163,8 +181,11 @@ def run_neuron_nutrition_cycle(
                 "memory_context": bodega_global,
                 "selected_by_nutrition": True,
                 "selection_result": selection,
+                "ollama_blood": ollama_blood,
                 "model_policy": model_policy,
                 "evidence": model_used,
+                "model_used": model_used,
+                "cognitive_blood_active": True,
             },
             task_dir=runs_dir / f"nutrition-{mission_id}",
             config=WorkerRunConfig(task_timeout=30.0, runs_dir=str(runs_dir)),
@@ -223,9 +244,12 @@ def run_neuron_nutrition_cycle(
     return {
         "status": "ok",
         "mode": mode,
+        "ollama_blood": ollama_blood,
         "ollama_health": ollama_health,
         "model_policy": model_policy,
+        "cognitive_blood_active": bool(ollama_blood.get("cognitive_blood_active")),
         "degraded_mode": degraded_mode,
+        "can_nourish_neurons": bool(ollama_blood.get("can_nourish_neurons")),
         "model_used": model_used,
         "learning_allowed": learning_allowed,
         "stable_write_allowed": stable_write_allowed,

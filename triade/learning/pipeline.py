@@ -33,6 +33,7 @@ from uuid import uuid4
 
 from triade.core.contracts import utc_now
 from triade.core.model_policy import get_model_cognitive_policy
+from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
 from triade.models.ollama_client import check_ollama_cognitive_health
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore
@@ -526,6 +527,47 @@ class LearningPipeline:
             )
 
     def _model_guard(self, role: str, human_approval: str | None = None) -> dict[str, Any]:
+        blood = check_ollama_blood()
+        blood_policy = ollama_blood_policy(role, blood)
+        approved = bool((human_approval or "").strip())
+        if role == "stable_consolidation":
+            model_ready = bool(blood.get("can_consolidate_stable"))
+        else:
+            model_ready = bool(blood.get("can_reason"))
+        metadata = {
+            "model_provider": "ollama" if model_ready else ("human" if approved else "none"),
+            "model_name": blood.get("reasoning_model") if model_ready else None,
+            "model_required": True,
+            "model_status": blood.get("status"),
+            "evaluation_mode": "ollama_blood" if model_ready else ("human_approval" if approved else "requires_model"),
+            "human_approval": (human_approval or "").strip() or None,
+            "ollama_blood_active": bool(blood.get("cognitive_blood_active")),
+            "candidate_requires_model_review": not model_ready and not approved,
+            "ollama_blood": blood,
+            "model_policy": blood_policy,
+        }
+        blocked = self.enforce_model_policy and not model_ready and not approved
+        if blocked:
+            from triade.services.event_bus import publish_event
+
+            event_type = "stable_consolidation_blocked_no_blood" if role == "stable_consolidation" else "learning_evaluation_requires_blood"
+            publish_event(
+                event_type,
+                "learning_pipeline",
+                {"role": role, "blood_status": blood.get("status"), "reason": blood_policy.get("reason")},
+                severity="warning",
+                db_path=self.db_path,
+                run_ref="learning-pipeline",
+            )
+        payload = {
+            "status": "requires_model",
+            "reason": "Ollama Blood no disponible para evaluación cognitiva.",
+            "at": utc_now(),
+            **metadata,
+        }
+        return {"blocked": blocked, "metadata": metadata, "payload": payload}
+
+    def _legacy_model_guard(self, role: str, human_approval: str | None = None) -> dict[str, Any]:
         health = check_ollama_cognitive_health()
         selected = (health.get("selected_models") or {}).get("reasoning")
         ollama_ready = bool(health.get("ok") and health.get("reasoning_model_available"))

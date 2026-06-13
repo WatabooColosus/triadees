@@ -34,6 +34,7 @@ from triade.core.neuron_identity_view import NeuronIdentityView
 from triade.core.stable_neuron_audit import audit_stable_neurons, apply_stable_neuron_audit
 from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.core.observability_view import TriadeObservabilityView
+from triade.core.ollama_blood import check_ollama_blood
 from triade.federation.contracts import (
     FederatedJobResultPayload,
     SignedEnvelope,
@@ -349,6 +350,15 @@ def ollama_cognitive_health() -> dict[str, Any]:
     LIFE_PULSE.record_action("ollama_cognitive_health")
     health = check_ollama_cognitive_health()
     return {"status": "ok", "cognitive_health": health, **health}
+
+
+@router.get("/api/models/ollama/blood")
+@router.get("/api/system/ollama-blood")
+@router.get("/api/runtime/blood")
+def ollama_blood_route() -> dict[str, Any]:
+    LIFE_PULSE.record_action("ollama_blood")
+    blood = check_ollama_blood()
+    return {"status": blood.get("status"), "ollama_blood": blood, **blood}
 
 
 @router.get("/api/models/install-queue")
