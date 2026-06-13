@@ -14,12 +14,14 @@ from triade.core.alignment import CoreAlignment
 from triade.core.conversation_analyzer import ConversationAnalyzer, add_analyze_conversations_args
 from triade.core.context_engine import build_living_context_for_chat
 from triade.core.internal_runtime import (
+    build_runtime_heartbeat,
     get_internal_runtime_state,
     get_internal_runtime_supervisor,
     start_internal_runtime_background,
     stop_internal_runtime_background,
 )
 from triade.core.living_report import build_living_report
+from triade.core.model_policy import get_model_cognitive_policy
 from triade.core.runner import TriadeRunner
 from triade.core.self_reflection import SelfReflectionEngine, add_reflect_core_args
 from triade.federation.federation import Federation
@@ -27,7 +29,7 @@ from triade.federation.relay_client import PublicRelayClient
 from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_continuity import SemanticContinuity
 from triade.models.model_router import ModelRouter
-from triade.models.ollama_client import OllamaClient
+from triade.models.ollama_client import OllamaClient, check_ollama_cognitive_health
 from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
 from triade.qualia.store import QualiaStore
@@ -120,6 +122,43 @@ def _read_run_json(run_path: Path, name: str, required: bool = True) -> dict[str
 def handle_models(args: argparse.Namespace) -> None:
     health = OllamaClient(base_url=args.ollama_url).health()
     router = ModelRouter(available_models=health.get("models", []))
+
+    if args.models_command == "ollama-health":
+        print_json(check_ollama_cognitive_health(base_url=args.ollama_url))
+        return
+
+    if args.models_command == "cognitive-policy":
+        cognitive_health = check_ollama_cognitive_health(base_url=args.ollama_url)
+        reasoning_ready = bool(cognitive_health.get("ok") and cognitive_health.get("reasoning_model_available"))
+        embedding_ready = bool(cognitive_health.get("ok") and cognitive_health.get("embedding_model_available"))
+        selected = cognitive_health.get("selected_models") or {}
+        roles = [
+            "chat_response",
+            "hypothalamus_analysis",
+            "central_reasoning",
+            "semantic_embedding",
+            "neuron_nutrition",
+            "learning_evaluation",
+            "memory_diagnosis",
+            "stable_consolidation",
+            "federation_probe",
+            "safety_review",
+        ]
+        print_json(
+            {
+                "status": "ok",
+                "ollama_health": cognitive_health,
+                "policies": {
+                    role: get_model_cognitive_policy(
+                        role=role,
+                        ollama_available=embedding_ready if role == "semantic_embedding" else reasoning_ready,
+                        requested_model=selected.get("embeddings" if role == "semantic_embedding" else "reasoning"),
+                    )
+                    for role in roles
+                },
+            }
+        )
+        return
 
     if args.models_command == "route":
         decision = router.route(
@@ -376,7 +415,10 @@ def handle_runtime(args: argparse.Namespace) -> None:
     supervisor = get_internal_runtime_supervisor(db_path=args.db, runs_dir=args.runs_dir)
 
     if args.runtime_command == "status":
-        print_json(get_internal_runtime_state())
+        print_json(get_internal_runtime_state(db_path=args.db, runs_dir=args.runs_dir))
+        return
+    if args.runtime_command == "heartbeat":
+        print_json(build_runtime_heartbeat(db_path=args.db, runs_dir=args.runs_dir, limit=args.limit))
         return
     if args.runtime_command == "once":
         print_json(supervisor.run_once(mode=args.mode))
@@ -544,6 +586,8 @@ def main() -> None:
     models_doctor = models_subparsers.add_parser("doctor", help="Muestra recomendaciones para todos los roles")
     models_doctor.add_argument("--intent", default="conversation", help="Intención detectada")
     models_doctor.add_argument("--urgency", default="medium", help="Urgencia: low, medium, high")
+    models_subparsers.add_parser("ollama-health", help="Diagnostica Ollama como motor cognitivo local")
+    models_subparsers.add_parser("cognitive-policy", help="Muestra la política cognitiva por rol")
 
     learn_parser = subparsers.add_parser("learn", help="Pipeline de aprendizaje controlado (learning_queue)")
     learn_parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
@@ -731,6 +775,7 @@ def main() -> None:
     runtime_sub.add_parser("start", help="Inicia runtime continuo controlado", parents=[runtime_common])
     runtime_sub.add_parser("stop", help="Detiene runtime continuo", parents=[runtime_common])
     runtime_sub.add_parser("events", help="Muestra eventos internos recientes", parents=[runtime_common])
+    runtime_sub.add_parser("heartbeat", help="Muestra heartbeat cognitivo del runtime", parents=[runtime_common])
     runtime_sub.add_parser("context", help="Muestra contexto vivo resumido", parents=[runtime_common])
     runtime_sub.add_parser("report", help="Muestra reporte vivo resumido", parents=[runtime_common])
 

@@ -362,7 +362,7 @@ class InternalRuntimeSupervisor:
         return {"status": "ok", "planned": planned_dicts, "nutrition": nutrition}
 
     def _learning_service(self, mode: str) -> dict[str, Any]:
-        pipe = LearningPipeline(db_path=self.db_path)
+        pipe = LearningPipeline(db_path=self.db_path, enforce_model_policy=True)
         processed = []
         for candidate in pipe.list_candidates(status="candidate", limit=10):
             try:

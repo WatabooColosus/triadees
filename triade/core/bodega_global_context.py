@@ -24,12 +24,13 @@ try:
     from triade.memory.semantic_store import SemanticMemoryStore
     from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
     from triade.memory.semantic_search import SemanticSearchEngine
-    from triade.models.ollama_client import OllamaClient
+    from triade.models.ollama_client import OllamaClient, check_ollama_cognitive_health
 except ImportError:
     SemanticMemoryStore = None  # type: ignore[assignment,misc]
     SemanticEmbeddingEngine = None  # type: ignore[assignment,misc]
     SemanticSearchEngine = None  # type: ignore[assignment,misc]
     OllamaClient = None  # type: ignore[assignment,misc]
+    check_ollama_cognitive_health = None  # type: ignore[assignment,misc]
 
 try:
     from triade.core.stable_neuron_audit import audit_stable_neurons
@@ -175,14 +176,23 @@ def build_bodega_global_context(
 
         semantic_engine_status = "disabled"
         semantic_engine_error: str | None = None
+        semantic_degraded_reason: str | None = None
+        embedding_model_used: str | None = None
+        semantic_learning_allowed = False
         semantic_engine = None
+        ollama_health = check_ollama_cognitive_health() if check_ollama_cognitive_health is not None else {"ok": False, "errors": ["ollama health unavailable"]}
 
         if semantic_recall_enabled:
-            semantic_engine = _build_semantic_search_engine(db_path)
-            if semantic_engine is not None:
+            semantic_ready = bool(ollama_health.get("ok") and ollama_health.get("embedding_model_available"))
+            if semantic_ready:
+                semantic_engine = _build_semantic_search_engine(db_path)
+            if semantic_engine is not None and semantic_ready:
                 semantic_engine_status = "available"
+                embedding_model_used = (ollama_health.get("selected_models") or {}).get("embeddings")
+                semantic_learning_allowed = True
             else:
                 semantic_engine_status = "unavailable"
+                semantic_degraded_reason = "Ollama o modelo de embeddings no disponible."
                 semantic_engine_error = "No se pudo construir SemanticSearchEngine (Ollama o dependencias no disponibles)."
 
         bodega = Bodega(db_path=db_path, semantic_search_engine=semantic_engine)
@@ -305,6 +315,20 @@ def build_bodega_global_context(
             "recommended_context_policy": recommended_policy,
             "semantic_engine_status": semantic_engine_status,
             "semantic_engine_error": semantic_engine_error,
+            "semantic_degraded_reason": semantic_degraded_reason,
+            "ollama_required_for_semantic_recall": True,
+            "semantic_learning_allowed": semantic_learning_allowed,
+            "embedding_model_used": embedding_model_used,
+            "recommended_action": (
+                "Iniciar Ollama o instalar modelo de embeddings."
+                if semantic_engine_status == "unavailable"
+                else "Semantic recall disponible con embeddings locales."
+            ),
+            "recall_modes": {
+                "keyword_recall": True,
+                "semantic_vector_recall": semantic_engine_status == "available",
+                "model_reasoned_recall": bool(ollama_health.get("ok") and ollama_health.get("reasoning_model_available")),
+            },
             "truth": (
                 "La Bodega Global es la base obligatoria de contexto de Tríade. "
                 "Candidate memory no es verdad estable. "

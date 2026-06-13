@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Any
+
+from triade.models.model_router import ModelRouter
 
 
 @dataclass(slots=True)
@@ -163,3 +166,98 @@ class OllamaClient:
                 return {"ok": True, "base_url": self.base_url, "models": models}
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
             return {"ok": False, "base_url": self.base_url, "models": [], "error": str(exc)}
+
+
+def check_ollama_cognitive_health(
+    base_url: str = "http://127.0.0.1:11434",
+    timeout: int = 5,
+) -> dict[str, Any]:
+    """Diagnóstico de Ollama como motor cognitivo local."""
+
+    client = OllamaClient(base_url=base_url, timeout=timeout)
+    started = time.perf_counter()
+    health = client.health()
+    latency_ms = round((time.perf_counter() - started) * 1000, 2)
+    models = [str(model) for model in health.get("models", []) if model]
+    router = ModelRouter(available_models=models)
+
+    reasoning = router.route("central")
+    coding = router.route("coder")
+    embedding = router.route("embedding")
+    lightweight = router.route("fast", prefer_speed=True)
+    selected_reasoning = reasoning.selected_model
+    selected_coding = coding.selected_model
+    selected_embedding = embedding.selected_model
+    selected_lightweight = lightweight.selected_model
+    if not models:
+        selected_reasoning = "qwen2.5:3b-instruct"
+        selected_coding = "qwen2.5-coder:3b"
+        selected_embedding = "nomic-embed-text:latest"
+        selected_lightweight = "qwen3:4b"
+
+    installed = set(models)
+    reasoning_available = bool(health.get("ok")) and selected_reasoning in installed
+    coder_available = bool(health.get("ok")) and selected_coding in installed
+    embedding_available = bool(health.get("ok")) and selected_embedding in installed
+    required_present = reasoning_available and embedding_available
+
+    roles_by_model: dict[str, list[str]] = {}
+    for role, decision in {
+        "reasoning": selected_reasoning,
+        "coding": selected_coding,
+        "embedding": selected_embedding,
+        "lightweight": selected_lightweight,
+    }.items():
+        roles_by_model.setdefault(decision, []).append(role)
+
+    degraded_functions: list[str] = []
+    if not health.get("ok"):
+        degraded_functions = [
+            "semantic_embedding",
+            "neuron_nutrition",
+            "learning_evaluation",
+            "memory_diagnosis",
+            "stable_consolidation",
+        ]
+    else:
+        if not reasoning_available:
+            degraded_functions.extend(["neuron_nutrition", "learning_evaluation", "memory_diagnosis", "stable_consolidation"])
+        if not embedding_available:
+            degraded_functions.append("semantic_embedding")
+
+    errors: list[str] = []
+    if health.get("error"):
+        errors.append(str(health["error"]))
+
+    if not health.get("ok"):
+        recommended_action = "Iniciar Ollama y confirmar que /api/tags responda."
+    elif not embedding_available:
+        recommended_action = "Instalar un modelo de embeddings compatible, por ejemplo nomic-embed-text."
+    elif not reasoning_available:
+        recommended_action = "Instalar un modelo de razonamiento recomendado, por ejemplo qwen2.5:3b-instruct."
+    else:
+        recommended_action = "Ollama listo como motor cognitivo local."
+
+    return {
+        "ok": bool(health.get("ok")),
+        "base_url": health.get("base_url", base_url),
+        "models_available": models,
+        "models": models,
+        "required_models_present": required_present,
+        "embedding_model_available": embedding_available,
+        "reasoning_model_available": reasoning_available,
+        "coder_model_available": coder_available,
+        "latency_ms": latency_ms,
+        "errors": errors,
+        "recommended_action": recommended_action,
+        "selected_models": {
+            "reasoning": selected_reasoning,
+            "coding": selected_coding,
+            "embeddings": selected_embedding,
+            "lightweight": selected_lightweight,
+        },
+        "role_capabilities": roles_by_model,
+        "degraded_functions": sorted(set(degraded_functions)),
+        "mode": "full_local" if health.get("ok") and required_present else ("degraded_no_ollama" if not health.get("ok") else "partial_local"),
+        "truth": "Sin Ollama, Tríade opera en observación/fallback; no consolida aprendizaje profundo automáticamente.",
+    }

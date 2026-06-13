@@ -507,12 +507,14 @@ function ObservabilityTab() {
       api('/api/runtime/heartbeat?since_hours=24&limit=20'),
       api('/api/runtime/learning-journal?since_hours=24&limit=20'),
       api('/api/runtime/neuron-nutrition?mode=observe_only&limit=5'),
+      api('/api/models/ollama/cognitive-health'),
     ]).then((results) => {
       const observability = results[0].status === 'fulfilled' ? results[0].value : null
       const heartbeat = results[1].status === 'fulfilled' ? results[1].value : null
       const learningJournal = results[2].status === 'fulfilled' ? results[2].value : null
       const nutrition = results[3].status === 'fulfilled' ? results[3].value : null
-      setData({ observability, heartbeat, learning_journal: learningJournal, nutrition })
+      const cognitiveHealth = results[4].status === 'fulfilled' ? results[4].value : null
+      setData({ observability, heartbeat, learning_journal: learningJournal, nutrition, cognitive_health: cognitiveHealth })
       const rejectedObservability = results[0].status === 'rejected' ? results[0] : null
       setError(rejectedObservability ? rejectedObservability.reason?.message || 'Error al cargar observabilidad' : '')
     })
@@ -550,6 +552,7 @@ function ObservabilityTab() {
   const heartbeat = data.heartbeat || {}
   const learningJournal = data.learning_journal || {}
   const nutrition = data.nutrition || {}
+  const cognitive = heartbeat.ollama_health || data.cognitive_health?.cognitive_health || data.cognitive_health || {}
   const nutritionSummary = nutrition.summary || {}
   const latestLearning = heartbeat.latest_learning_candidate || (learningJournal.latest_learning_candidates || [])[0] || null
   const latestRejection = heartbeat.latest_rejection || (learningJournal.latest_rejections || [])[0] || null
@@ -585,6 +588,36 @@ function ObservabilityTab() {
         </Card>
         <Card title="Salud general" color={obs.status === 'ok' ? '#22c55e' : '#eab308'}>
           <KVTable data={{ status: obs.status, timestamp: obs.timestamp, warnings: obs.warnings, degraded_sources: obs.degraded_sources }} />
+        </Card>
+        <Card title="Motor Cognitivo Local" color={cognitive.ok ? '#22c55e' : '#ef4444'}>
+          <KVTable data={{
+            ollama: cognitive.ok ? 'conectado' : 'no conectado',
+            url: cognitive.base_url,
+            modelos_detectados: cognitive.models_available,
+            modelo_razonamiento: cognitive.selected_models?.reasoning,
+            modelo_embeddings: cognitive.selected_models?.embeddings,
+            modo_actual: heartbeat.cognitive_model_status || cognitive.mode,
+            responder: true,
+            recordar_semanticamente: Boolean(cognitive.embedding_model_available),
+            nutrir_neuronas: Boolean(heartbeat.can_nourish_neurons),
+            evaluar_candidatos: Boolean(heartbeat.can_evaluate_learning),
+            consolidar_memoria: Boolean(heartbeat.can_consolidate_stable_memory),
+            bloqueadas: heartbeat.degraded_components || cognitive.degraded_functions,
+          }} />
+          {!cognitive.ok && (
+            <div style={{
+              marginTop: 10,
+              padding: 10,
+              borderRadius: 8,
+              border: '1px solid rgba(239,68,68,0.35)',
+              color: '#fecaca',
+              background: 'rgba(239,68,68,0.10)',
+              fontSize: 12,
+              lineHeight: 1.4,
+            }}>
+              Ollama no está disponible. Tríade puede responder en fallback, pero no debe afirmar aprendizaje profundo ni consolidar memoria estable.
+            </div>
+          )}
         </Card>
         <Card title="Último run" color="#3b82f6">
           {obs.last_run?.run_id ? <KVTable data={obs.last_run} /> : <span style={{ color: 'var(--text-muted)' }}>No hay runs registrados todavía.</span>}

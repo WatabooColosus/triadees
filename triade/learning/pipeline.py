@@ -24,6 +24,7 @@ Reglas innegociables (alineadas con docs/LEARNING.md y docs/SAFETY.md):
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -31,6 +32,8 @@ from typing import Any
 from uuid import uuid4
 
 from triade.core.contracts import utc_now
+from triade.core.model_policy import get_model_cognitive_policy
+from triade.models.ollama_client import check_ollama_cognitive_health
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.memory.trust_store import TrustLevelStore
@@ -75,8 +78,18 @@ class LearningPipeline:
     MIN_RUN_USES = 3
     MIN_OUTCOME_SCORE = 0.70
 
-    def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
+    def __init__(
+        self,
+        db_path: str | Path = "triade/memory/triade.db",
+        *,
+        enforce_model_policy: bool | None = None,
+    ) -> None:
         self.db_path = Path(db_path)
+        self.enforce_model_policy = (
+            os.getenv("TRIADE_ENFORCE_MODEL_POLICY", "").strip().lower() in {"1", "true", "yes"}
+            if enforce_model_policy is None
+            else bool(enforce_model_policy)
+        )
         self.schema_path = Path("triade/memory/schemas.sql")
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
@@ -154,10 +167,17 @@ class LearningPipeline:
     # 2. Evaluación (utilidad, confianza, riesgo)
     # ------------------------------------------------------------------
 
-    def evaluate(self, candidate_id: str) -> dict[str, Any]:
+    def evaluate(self, candidate_id: str, human_approval: str | None = None) -> dict[str, Any]:
         row = self._require(candidate_id)
         if row["status"] != "candidate":
             raise ValueError(f"Solo se evalúa un candidato en estado 'candidate' (actual: {row['status']}).")
+
+        model_guard = self._model_guard("learning_evaluation", human_approval=human_approval)
+        if model_guard["blocked"]:
+            self._append_note(candidate_id, "requires_model", model_guard["payload"])
+            result = self.get_candidate(candidate_id) or {}
+            result.update({"status": "requires_model", "reason": model_guard["payload"]["reason"]})
+            return result
 
         content = str(row["content"] or "")
         normalized = " ".join(content.strip().split())
@@ -190,6 +210,7 @@ class LearningPipeline:
             "identity_violation": identity_violation,
             "warnings": warnings,
             "at": utc_now(),
+            **model_guard["metadata"],
         }
 
         if identity_violation or risk == "critical":
@@ -208,10 +229,17 @@ class LearningPipeline:
     # 3. Verificación
     # ------------------------------------------------------------------
 
-    def verify(self, candidate_id: str) -> dict[str, Any]:
+    def verify(self, candidate_id: str, human_approval: str | None = None) -> dict[str, Any]:
         row = self._require(candidate_id)
         if row["status"] != "evaluated":
             raise ValueError(f"Solo se verifica un candidato en estado 'evaluated' (actual: {row['status']}).")
+
+        model_guard = self._model_guard("learning_evaluation", human_approval=human_approval)
+        if model_guard["blocked"]:
+            self._append_note(candidate_id, "requires_model", model_guard["payload"])
+            result = self.get_candidate(candidate_id) or {}
+            result.update({"status": "requires_model", "reason": model_guard["payload"]["reason"]})
+            return result
 
         gates: dict[str, bool] = {
             "has_source_ref": bool(row["source_ref"]),
@@ -226,6 +254,7 @@ class LearningPipeline:
             "coherence_score": 0.80 if passed else 0.45,
             "traceability_score": 0.90 if gates["has_source_ref"] else 0.40,
             "at": utc_now(),
+            **model_guard["metadata"],
         }
         if passed:
             report["decision"] = "verified"
@@ -294,6 +323,9 @@ class LearningPipeline:
 
     def consolidate(self, candidate_id: str, approved_by: str = "", auto_consolidate: bool = True) -> dict[str, Any]:
         row = self._require(candidate_id)
+        model_guard = self._model_guard("stable_consolidation", human_approval=approved_by)
+        if model_guard["blocked"]:
+            raise ValueError("Ollama no disponible para consolidación stable y no hay aprobación humana explícita.")
         if row["status"] not in ("verified", "validated_in_runs"):
             raise ValueError(f"Solo se consolida un candidato 'verified' o 'validated_in_runs' (actual: {row['status']}).")
         if not row["source_ref"]:
@@ -364,6 +396,7 @@ class LearningPipeline:
             "risk": risk,
             "semantic_document_id": document.document_id,
             "at": utc_now(),
+            **model_guard["metadata"],
         }
         self._update(candidate_id, status="consolidated", note_step="consolidated", note_payload=consolidation)
         result = self.get_candidate(candidate_id) or {}
@@ -438,6 +471,8 @@ class LearningPipeline:
                 "stable_memory_via": "semantic_governance_1.9E",
                 "auto_consolidation": trust_info.get("permissions", {}).get("auto_consolidate_low_risk", False),
                 "trust_system": trust_info,
+                "ollama_required_for_learning_evaluation": True,
+                "strict_model_policy": self.enforce_model_policy,
             },
             "candidates_by_status": counts,
         }
@@ -474,6 +509,45 @@ class LearningPipeline:
         params.append(candidate_id)
         with self._connect() as conn:
             conn.execute(f"UPDATE learning_queue SET {', '.join(sets)} WHERE candidate_id = ?", params)
+
+    def _append_note(self, candidate_id: str, note_step: str, note_payload: dict[str, Any]) -> None:
+        current = self.get_candidate(candidate_id) or {}
+        notes = current.get("verification_notes") or {}
+        if not isinstance(notes, dict):
+            notes = {}
+        notes[note_step] = note_payload
+        history = notes.get("history") or []
+        history.append({"step": note_step, "status": current.get("status", "candidate"), "at": note_payload.get("at", utc_now())})
+        notes["history"] = history
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE learning_queue SET verification_notes = ?, updated_at = ? WHERE candidate_id = ?",
+                (json.dumps(notes, ensure_ascii=False), utc_now(), candidate_id),
+            )
+
+    def _model_guard(self, role: str, human_approval: str | None = None) -> dict[str, Any]:
+        health = check_ollama_cognitive_health()
+        selected = (health.get("selected_models") or {}).get("reasoning")
+        ollama_ready = bool(health.get("ok") and health.get("reasoning_model_available"))
+        policy = get_model_cognitive_policy(role=role, ollama_available=ollama_ready, requested_model=selected)
+        approved = bool((human_approval or "").strip())
+        metadata = {
+            "model_provider": "ollama" if ollama_ready else ("human" if approved else "none"),
+            "model_name": selected if ollama_ready else None,
+            "model_required": True,
+            "model_status": policy.get("status"),
+            "evaluation_mode": "ollama" if ollama_ready else ("human_approval" if approved else "requires_model"),
+            "human_approval": (human_approval or "").strip() or None,
+            "model_policy": policy,
+        }
+        blocked = self.enforce_model_policy and policy.get("status") != "full_local" and not approved
+        payload = {
+            "status": "requires_model",
+            "reason": "Ollama no disponible para evaluación semántica/cognitiva.",
+            "at": utc_now(),
+            **metadata,
+        }
+        return {"blocked": blocked, "metadata": metadata, "payload": payload}
 
     @staticmethod
     def _decode(row: dict[str, Any]) -> dict[str, Any]:

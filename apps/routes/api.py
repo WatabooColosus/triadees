@@ -53,7 +53,7 @@ from triade.models.compatibility_matrix import ModelCompatibilityMatrix
 from triade.models.hardware_profile import HardwareProfiler
 from triade.models.model_install_queue import ModelInstallQueue
 from triade.models.model_router import ModelRouter
-from triade.models.ollama_client import OllamaClient
+from triade.models.ollama_client import OllamaClient, check_ollama_cognitive_health
 from triade.workers.background_service import WorkerBackgroundService
 from triade.workers.neuron_mission_backfill import backfill_neuron_missions, neuron_missions_doctor
 from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
@@ -342,6 +342,13 @@ def model_compatibility() -> dict[str, Any]:
         hardware=hardware, available_models=ollama.get("models", [])
     )
     return {"status": "ok", "mode": "single-port", "ollama": ollama, "matrix": matrix.build()}
+
+
+@router.get("/api/models/ollama/cognitive-health")
+def ollama_cognitive_health() -> dict[str, Any]:
+    LIFE_PULSE.record_action("ollama_cognitive_health")
+    health = check_ollama_cognitive_health()
+    return {"status": "ok", "cognitive_health": health, **health}
 
 
 @router.get("/api/models/install-queue")

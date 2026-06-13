@@ -127,13 +127,17 @@ class Central:
         identity = next((item["value"] for item in memory.identity_matches if item.get("key") == "entity_name"), "Tríade Ω")
         wants_internal_audit = self._wants_internal_audit(input_packet.user_input)
         fallback_response = self._fallback_response(identity, input_packet, signals, crystal, wants_internal_audit)
+        degraded_notice = (
+            "Operé en modo degradado sin Ollama; puedo registrar observación, "
+            "pero no consolidar aprendizaje profundo. "
+        )
         temporal_action = "crystal_temporal_regulation_applied"
         if self.model_client is None:
             return OutputPacket(
                 run_id=input_packet.run_id,
-                response=fallback_response,
+                response=degraded_notice + fallback_response,
                 actions_taken=["plan_created", "crystal_regulation_applied", temporal_action, "template_fallback_response_generated"],
-                memory_diff={"pending_persistence": True},
+                memory_diff={"pending_persistence": True, "degraded_no_ollama": True, "learning_write_allowed": False},
                 status="ok",
                 model_provider="template",
                 model_name="template-fallback",
@@ -151,9 +155,9 @@ class Central:
         if not result.ok or not result.text:
             return OutputPacket(
                 run_id=input_packet.run_id,
-                response=fallback_response,
+                response=degraded_notice + fallback_response,
                 actions_taken=["plan_created", "crystal_regulation_applied", temporal_action, "ollama_failed", "template_fallback_response_generated"],
-                memory_diff={"pending_persistence": True},
+                memory_diff={"pending_persistence": True, "degraded_no_ollama": True, "learning_write_allowed": False},
                 status="ok",
                 model_provider="ollama",
                 model_name=self.central_model,

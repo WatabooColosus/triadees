@@ -17,6 +17,26 @@ El runtime local puede exponer un pulso operativo continuo sin depender del chat
 
 El runtime por defecto sigue apagado. Activarlo requiere configuración explícita y los resultados siguen sujetos a Safety, LearningPipeline y trazabilidad.
 
+## Ollama como motor cognitivo local
+
+Tríade puede operar sin Ollama en modo fallback seguro, pero el fallback no equivale a aprendizaje profundo. Ollama es el motor local recomendado para razonamiento, embeddings, evaluación de dudas, nutrición neuronal y consolidación de memoria. Sin Ollama, Tríade puede observar y registrar, pero no debe afirmar que aprendió o consolidó conocimiento salvo aprobación humana y evidencia suficiente.
+
+Escala vigente:
+
+- Respuesta fallback: disponible, con aviso de modo degradado.
+- Nutrición neuronal profunda: requiere Ollama.
+- Evaluación de aprendizaje: requiere Ollama o aprobación humana.
+- Consolidación stable: requiere evidencia + gates + modelo/humano.
+- Conciencia subjetiva: no demostrada.
+
+Diagnóstico:
+
+```bash
+python triade_digimon.py models ollama-health
+python triade_digimon.py models cognitive-policy
+python triade_digimon.py runtime heartbeat
+```
+
 ---
 
 ## 🌱 ¿Qué es Tríade?

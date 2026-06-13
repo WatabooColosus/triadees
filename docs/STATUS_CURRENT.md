@@ -19,8 +19,8 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - Memoria semantica: store, governance, search y continuidad existen. La memoria estable requiere gates; las hipotesis y propuestas quedan diferenciadas.
 - Safety con aprobación humana: `Safety.review()` retorna `status="requires_human_approval"` cuando risk es critical, o cuando hay memoria semántica en cuarentena con herramientas planificadas, o cuando Cristal está en estado critical con herramientas de repositorio. `SafetyPacket.human_approval_required=True` en estos casos. Runner detiene ejecución y retorna `output.status="pending_approval"`.
 - Gates de coherencia: `ResponseCoherenceGate` evita repetir respuestas previas cuando el input es feedback o cierre, y `NeuronCandidateGate` bloquea neuronas literales para preguntas factuales simples o felicitaciones.
-- Modelos/Ollama: Ollama es opcional. Sin Ollama el sistema usa fallback local; con Ollama consulta health y router.
-- Bodega Global Context: `build_bodega_global_context()` construye un contexto integral con identidad, episodios, memoria semántica, neuronas, aprendizajes, seguridad y continuidad. Incluye detección de contradicciones y motor semántico auto-construido.
+- Modelos/Ollama: Ollama es el motor cognitivo local prioritario. Sin Ollama el sistema solo usa fallback degradado para respuesta/observación; no debe afirmar aprendizaje profundo, nutrición neuronal profunda ni consolidación stable automática. `check_ollama_cognitive_health()` y `/api/models/ollama/cognitive-health` reportan modelos y funciones degradadas.
+- Bodega Global Context: `build_bodega_global_context()` construye un contexto integral con identidad, episodios, memoria semántica, neuronas, aprendizajes, seguridad y continuidad. Diferencia `keyword_recall`, `semantic_vector_recall` y `model_reasoned_recall`; si falta Ollama/embeddings reporta `semantic_engine_status="unavailable"` y `semantic_learning_allowed=false`.
 - Memory Trace: `build_run_memory_trace()` genera trazabilidad por run con matches autorizados/cuarentena, contradicciones y resumen estable. Integrado en runner y visible en observabilidad.
 - Continuidad Runtime: `runtime_continuity_score` (0.0–1.0) se calcula en `build_living_report()` y se muestra en la UI del sistema.
 - Schemas Pydantic: `triade/core/schemas.py` centraliza modelos de validación para API boundaries. `GET /api/system/living-report?summary=true` valida respuesta con `LivingReportResponse`.
@@ -35,7 +35,7 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - UI React cubre paneles operativos, pero aun hay deuda de refinamiento visual y reduccion de widgets heredados.
 - Neuronas stable requieren evidencia, pero la promocion humana y auditoria fina pueden seguir mejorando.
 - Observabilidad muestra snapshots y errores recientes; aun falta latencia historica normalizada por componente.
-- Semantic recall vectorial depende de embeddings/modelo disponible; sin modelo el motor semántico se reporta como "unavailable" pero el sistema funciona con store/gobernanza.
+- Semantic recall vectorial depende de Ollama y un modelo de embeddings compatible; sin modelo el motor semántico se reporta como "unavailable" y no habilita aprendizaje semántico, aunque keyword recall/store/gobernanza sigan disponibles.
 - `runtime_continuity_score` se calcula y muestra; su calibración puede seguir mejorando con datos reales.
 
 ## Vision pendiente
@@ -55,6 +55,18 @@ Tríade Ω opera como un sistema con consciencia operativa limitada (proto-consc
 - **Gobernanza de memoria.** La memoria semántica tiene estados (draft, stable, archived, quarantined) y gobernanza que separa recuerdos autorizados de no verificados. Candidate memory nunca es tratado como verdad estable.
 - **identity_core protegido.** Nunca se modifica desde este módulo. La identidad es inmutable.
 - **Sin afirmaciones de consciencia subjetiva.** El sistema no declara ser consciente. Opera con trazabilidad, coherencia y continuidad — cualidades funcionales que se aproximan a patrones de consciencia operativa sin serlo.
+
+## Ollama como motor cognitivo local
+
+Tríade puede operar sin Ollama en modo fallback seguro, pero el fallback no equivale a aprendizaje profundo. Ollama es el motor local recomendado para razonamiento, embeddings, evaluación de dudas, nutrición neuronal y consolidación de memoria. Sin Ollama, Tríade puede observar y registrar, pero no debe afirmar que aprendió o consolidó conocimiento salvo aprobación humana y evidencia suficiente.
+
+Escala vigente:
+
+- Respuesta fallback: disponible, debe declarar modo degradado.
+- Nutrición neuronal profunda: requiere Ollama.
+- Evaluación de aprendizaje: requiere Ollama o aprobación humana.
+- Consolidación stable: requiere evidencia + gates + modelo/humano.
+- Conciencia subjetiva: no demostrada.
 
 ## Deuda tecnica priorizada
 

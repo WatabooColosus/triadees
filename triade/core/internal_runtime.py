@@ -159,6 +159,8 @@ def build_runtime_heartbeat(
 ) -> dict[str, Any]:
     from triade.core.context_engine import build_living_context_for_chat
     from triade.core.error_bus import query_internal_errors
+    from triade.core.model_policy import get_model_cognitive_policy
+    from triade.models.ollama_client import check_ollama_cognitive_health
     from triade.workers.background_service import WorkerBackgroundService
 
     runtime_state = get_internal_runtime_state(db_path=db_path, runs_dir=runs_dir)
@@ -175,6 +177,28 @@ def build_runtime_heartbeat(
     latest_event = recent_events[0] if recent_events else None
     latest_error = (query_internal_errors(limit=1, db_path=db_path) or [{}])[0]
     active_missions = int((living_context.get("mission_context") or {}).get("active_missions", 0))
+    ollama_health = check_ollama_cognitive_health()
+    model_available = bool(ollama_health.get("ok") and ollama_health.get("reasoning_model_available"))
+    embedding_available = bool(ollama_health.get("ok") and ollama_health.get("embedding_model_available"))
+    nutrition_policy = get_model_cognitive_policy("neuron_nutrition", model_available, (ollama_health.get("selected_models") or {}).get("reasoning"))
+    evaluation_policy = get_model_cognitive_policy("learning_evaluation", model_available, (ollama_health.get("selected_models") or {}).get("reasoning"))
+    stable_policy = get_model_cognitive_policy("stable_consolidation", model_available, (ollama_health.get("selected_models") or {}).get("reasoning"))
+    semantic_policy = get_model_cognitive_policy("semantic_embedding", embedding_available, (ollama_health.get("selected_models") or {}).get("embeddings"))
+    degraded_components: list[str] = []
+    if nutrition_policy["status"] != "full_local":
+        degraded_components.append("neuron_nutrition")
+    if evaluation_policy["status"] != "full_local":
+        degraded_components.append("learning_evaluation")
+    if stable_policy["status"] != "full_local":
+        degraded_components.append("stable_consolidation")
+    if semantic_policy["status"] != "full_local":
+        degraded_components.append("semantic_embedding")
+    blocked_learning_actions = sorted(
+        set(nutrition_policy.get("blocked_actions", []))
+        | set(evaluation_policy.get("blocked_actions", []))
+        | set(stable_policy.get("blocked_actions", []))
+        | set(semantic_policy.get("blocked_actions", []))
+    )
     cycles_last_hour = _count_recent(recent_events, {"runtime_cycle_start", "runtime_cycle_complete"}, hours=1)
     cycles_last_24h = _count_recent(recent_events, {"runtime_cycle_start", "runtime_cycle_complete"}, hours=24)
     heartbeat = {
@@ -201,6 +225,19 @@ def build_runtime_heartbeat(
         "latest_error": latest_error.get("message") or latest_error.get("error") or _first_event_message(runtime_state.get("last_events")),
         "active_workers": bool(worker_status.get("running")),
         "active_missions": active_missions,
+        "ollama_health": ollama_health,
+        "cognitive_model_status": "full_local" if model_available and embedding_available else ("degraded_no_ollama" if not ollama_health.get("ok") else "partial_local"),
+        "degraded_components": degraded_components,
+        "blocked_learning_actions": blocked_learning_actions,
+        "can_nourish_neurons": nutrition_policy["status"] == "full_local",
+        "can_evaluate_learning": evaluation_policy["status"] == "full_local",
+        "can_consolidate_stable_memory": stable_policy["status"] == "full_local",
+        "model_policies": {
+            "neuron_nutrition": nutrition_policy,
+            "learning_evaluation": evaluation_policy,
+            "stable_consolidation": stable_policy,
+            "semantic_embedding": semantic_policy,
+        },
         "learning_activity_summary": {
             "missions_executed": learning_journal.get("missions_executed", 0),
             "evidence_created": learning_journal.get("evidence_created", 0),

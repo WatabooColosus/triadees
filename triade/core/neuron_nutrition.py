@@ -6,8 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.bodega_global_context import build_bodega_global_context
+from triade.core.model_policy import get_model_cognitive_policy
 from triade.core.neuron_mission_selector import select_relevant_missions
 from triade.core.neuron_missions import NeuronMissionStore
+from triade.models.ollama_client import check_ollama_cognitive_health
 from triade.services.event_bus import publish_event
 from triade.workers.contracts import WorkerRunConfig
 from triade.workers.neuron_mission_executor import NeuronMissionExecutor
@@ -32,6 +34,21 @@ def run_neuron_nutrition_cycle(
     db_path = Path(db_path)
     runs_dir = Path(runs_dir)
     runs_dir.mkdir(parents=True, exist_ok=True)
+    ollama_health = check_ollama_cognitive_health()
+    model_policy = get_model_cognitive_policy(
+        role="neuron_nutrition",
+        ollama_available=bool(ollama_health.get("ok") and ollama_health.get("reasoning_model_available")),
+        requested_model=(ollama_health.get("selected_models") or {}).get("reasoning"),
+    )
+    degraded_mode = model_policy["status"] != "full_local"
+    learning_allowed = bool(model_policy["allowed_actions"].get("allow_learning_write"))
+    stable_write_allowed = bool(model_policy["allowed_actions"].get("allow_stable_memory_write"))
+    model_used = {
+        "model_provider": "ollama" if not degraded_mode else "fallback",
+        "model_name": model_policy.get("selected_model"),
+        "model_required": True,
+        "model_status": model_policy.get("status"),
+    }
 
     bodega_global = build_bodega_global_context(
         user_input="pulso vivo interno",
@@ -47,6 +64,21 @@ def run_neuron_nutrition_cycle(
         db_path=db_path,
         run_ref="neuron-nutrition",
     )
+
+    if degraded_mode:
+        publish_event(
+            "neuron_nutrition_degraded_no_ollama",
+            "neuron_nutrition",
+            {
+                "mode": mode,
+                "degraded_reason": model_policy.get("degraded_reason"),
+                "blocked_actions": model_policy.get("blocked_actions", []),
+            },
+            severity="warning",
+            db_path=db_path,
+            run_ref="neuron-nutrition",
+        )
+        mode = "observe_only"
 
     store = NeuronMissionStore(db_path=db_path)
     active_missions = [
@@ -85,6 +117,12 @@ def run_neuron_nutrition_cycle(
         return {
             "status": "ok",
             "mode": mode,
+            "ollama_health": ollama_health,
+            "model_policy": model_policy,
+            "degraded_mode": degraded_mode,
+            "model_used": model_used,
+            "learning_allowed": learning_allowed,
+            "stable_write_allowed": stable_write_allowed,
             "bodega_global": bodega_global,
             "missions_seen": len(active_missions),
             "missions_selected": len(selected_missions),
@@ -95,7 +133,11 @@ def run_neuron_nutrition_cycle(
             "stable_memory_written": False,
             "identity_core_modified": False,
             "selection": selection,
-            "summary": "observe_only: solo se revisa el estado vivo y la deuda operativa.",
+            "summary": (
+                "observe_only: solo se revisa el estado vivo y la deuda operativa."
+                if not degraded_mode
+                else "Ollama no disponible; solo observación segura. No se crean candidatos profundos ni memoria stable."
+            ),
         }
 
     executor = NeuronMissionExecutor(db_path=db_path)
@@ -121,6 +163,8 @@ def run_neuron_nutrition_cycle(
                 "memory_context": bodega_global,
                 "selected_by_nutrition": True,
                 "selection_result": selection,
+                "model_policy": model_policy,
+                "evidence": model_used,
             },
             task_dir=runs_dir / f"nutrition-{mission_id}",
             config=WorkerRunConfig(task_timeout=30.0, runs_dir=str(runs_dir)),
@@ -130,6 +174,9 @@ def run_neuron_nutrition_cycle(
             evidence_created += 1
         if result.get("learning_candidate"):
             candidates_created += 1
+            result["learning_candidate"]["model_provider"] = "ollama"
+            result["learning_candidate"]["model_name"] = model_policy.get("selected_model")
+            result["learning_candidate"]["model_required"] = True
         if mission.neuron_id is not None:
             nourished_neuron_ids.add(int(mission.neuron_id))
         publish_event(
@@ -176,6 +223,12 @@ def run_neuron_nutrition_cycle(
     return {
         "status": "ok",
         "mode": mode,
+        "ollama_health": ollama_health,
+        "model_policy": model_policy,
+        "degraded_mode": degraded_mode,
+        "model_used": model_used,
+        "learning_allowed": learning_allowed,
+        "stable_write_allowed": stable_write_allowed,
         "bodega_global": bodega_global,
         "missions_seen": len(active_missions),
         "missions_selected": len(selected_missions),
