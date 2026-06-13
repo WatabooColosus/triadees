@@ -121,8 +121,18 @@ def build_living_report(
         qualia_state=qualia,
     )
     runtime_enabled = bool(runtime.get("enabled"))
-    truth = "API encendida, runtime apagado" if not runtime_enabled else \
-            ("Runtime activo con ciclos recientes" if cycles_last_hour > 0 else "Runtime activo sin ciclos recientes")
+    from triade.core.ollama_blood import check_ollama_blood
+    _ollama_degraded = check_ollama_blood().get("status") == "degraded_no_ollama"
+    if not runtime_enabled:
+        truth = "Servidor activo · Runtime apagado"
+        if _ollama_degraded:
+            truth = "Servidor activo · Runtime apagado · Ollama no conectado"
+    elif _ollama_degraded:
+        truth = "Runtime degradado por falta de Ollama Blood"
+    elif cycles_last_hour > 0:
+        truth = "Runtime activo con ciclos recientes"
+    else:
+        truth = "Runtime activo sin ciclos recientes"
 
     return {
         "status": "ok",

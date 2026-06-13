@@ -223,6 +223,8 @@ def test_runtime_once_records_cycle_event():
     assert resp.status_code == 200
     data = resp.json()
     assert data.get("status") in ("ok", "error")
+    assert data.get("runtime_enabled") is True
+    assert data.get("message")
     if data.get("status") == "ok":
         assert data.get("cycle_recorded") is True
         assert data.get("cycle_id")
@@ -242,9 +244,11 @@ def test_heartbeat_contains_api_server_alive():
     data = resp.json()
     assert data.get("api_server_alive") is True
     assert data.get("heartbeat_truth") in (
-        "API encendida, runtime apagado",
+        "Servidor activo · Runtime apagado",
         "Runtime activo sin ciclos recientes",
         "Runtime activo con ciclos recientes",
+        "Runtime degradado por falta de Ollama Blood",
+        "Servidor activo · Runtime apagado · Ollama no conectado",
     )
 
 
@@ -265,21 +269,54 @@ def test_heartbeat_truth_api_alive_runtime_off():
     data = resp.json()
     assert data.get("api_server_alive") is True
     if not data.get("runtime_enabled"):
-        assert data.get("heartbeat_truth") == "API encendida, runtime apagado"
+        assert "Runtime apagado" in (data.get("heartbeat_truth") or "")
 
 
-def test_runtime_start_reports_background_thread():
-    """POST /api/runtime/start debe devolver background_thread_alive."""
+def test_runtime_start_observe_only_returns_enabled():
+    """POST /api/runtime/start con observe_only devuelve runtime_enabled True."""
     from triade.core.internal_runtime import stop_internal_runtime_background
     stop_internal_runtime_background()
-    # Usar interval muy largo para que no se ejecuten ciclos
     resp = client.post("/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999})
     assert resp.status_code == 200
     data = resp.json()
     assert data.get("status") in ("started", "already_running")
+    assert data.get("runtime_enabled") is True
     assert data.get("mode") == "observe_only"
-    assert "background_thread_alive" in data
-    # Limpiar
+    assert data.get("background_thread_alive") is True
+    assert data.get("interval_seconds") == 9999
+    assert data.get("started_at")
+    assert data.get("message")
+    stop_internal_runtime_background()
+
+
+def test_runtime_start_does_not_duplicate_thread():
+    """Llamar start dos veces devuelve already_running sin duplicar."""
+    from triade.core.internal_runtime import stop_internal_runtime_background, _BACKGROUND_THREAD
+    stop_internal_runtime_background()
+    resp1 = client.post("/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999})
+    assert resp1.status_code == 200
+    assert resp1.json()["status"] == "started"
+    resp2 = client.post("/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999})
+    assert resp2.status_code == 200
+    data2 = resp2.json()
+    assert data2["status"] == "already_running"
+    assert data2["background_thread_alive"] is True
+    assert data2["runtime_enabled"] is True
+    stop_internal_runtime_background()
+
+
+def test_runtime_stop_returns_disabled():
+    """POST /api/runtime/stop devuelve runtime_enabled False."""
+    from triade.core.internal_runtime import stop_internal_runtime_background
+    client.post("/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999})
+    resp = client.post("/api/runtime/stop")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("status") in ("stop_requested", "stopped")
+    assert data.get("runtime_enabled") is False
+    assert data.get("background_thread_alive") is False
+    assert data.get("stopped_at")
+    assert data.get("message")
     stop_internal_runtime_background()
 
 
@@ -295,6 +332,6 @@ def test_react_dashboard_shows_runtime_off_not_error():
     assert "runtime_enabled" in hb
     if not hb.get("runtime_enabled"):
         assert "heartbeat_truth" in hb
-        assert hb["heartbeat_truth"] == "API encendida, runtime apagado"
+        assert "Runtime apagado" in (hb["heartbeat_truth"] or "")
     # No debe ser error
     assert data.get("status") in ("ok", "partial")

@@ -51,7 +51,17 @@ def start_internal_runtime_background(
     supervisor = get_internal_runtime_supervisor(db_path=db_path, runs_dir=runs_dir)
     with _LOCK:
         if _BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive():
-            return {"status": "already_running", "snapshot": supervisor.snapshot()}
+            snap = supervisor.snapshot()
+            return {
+                "status": "already_running",
+                "runtime_enabled": True,
+                "mode": snap.get("mode"),
+                "background_thread_alive": True,
+                "interval_seconds": supervisor.interval_seconds,
+                "started_at": snap.get("started_at"),
+                "message": f"Runtime ya está activo en modo {snap.get('mode')}. No se creó duplicado.",
+                "snapshot": snap,
+            }
         supervisor.configure(mode=mode, enabled=True, interval_seconds=interval_seconds, max_cycles=max_cycles)
         supervisor.stop_file.unlink(missing_ok=True)
         thread = threading.Thread(
@@ -66,7 +76,17 @@ def start_internal_runtime_background(
         )
         _BACKGROUND_THREAD = thread
         thread.start()
-        return {"status": "started", "snapshot": supervisor.snapshot()}
+        snap = supervisor.snapshot()
+        return {
+            "status": "started",
+            "runtime_enabled": True,
+            "mode": snap.get("mode"),
+            "background_thread_alive": True,
+            "interval_seconds": supervisor.interval_seconds,
+            "started_at": snap.get("started_at"),
+            "message": f"Runtime iniciado en modo {snap.get('mode')} cada {supervisor.interval_seconds}s.",
+            "snapshot": snap,
+        }
 
 
 def stop_internal_runtime_background(
@@ -82,7 +102,16 @@ def stop_internal_runtime_background(
         if thread and thread.is_alive():
             thread.join(timeout=2)
         _BACKGROUND_THREAD = None
-    return {**result, "snapshot": supervisor.snapshot()}
+    from datetime import datetime, timezone
+    return {
+        "status": result.get("status", "stopped"),
+        "runtime_enabled": False,
+        "mode": supervisor.mode,
+        "background_thread_alive": False,
+        "stopped_at": datetime.now(timezone.utc).isoformat(),
+        "message": "Runtime apagado.",
+        "snapshot": supervisor.snapshot(),
+    }
 
 
 def get_internal_runtime_state(
@@ -212,12 +241,16 @@ def build_runtime_heartbeat(
     cycles_last_24h = _count_recent(recent_events, RUNTIME_CYCLE_EVENTS, hours=24)
     runtime_enabled = bool(runtime_state.get("enabled"))
     bg_alive = bool(_BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive())
+    workers_active = bool(worker_status.get("running"))
+    ollama_degraded = ollama_blood.get("status") == "degraded_no_ollama"
     if not runtime_enabled:
-        truth = "API encendida, runtime apagado"
+        truth = "Servidor activo · Runtime apagado"
+        if ollama_degraded:
+            truth = "Servidor activo · Runtime apagado · Ollama no conectado"
+    elif ollama_degraded:
+        truth = "Runtime degradado por falta de Ollama Blood"
     elif cycles_last_hour > 0:
         truth = "Runtime activo con ciclos recientes"
-    elif bg_alive:
-        truth = "Runtime activo sin ciclos recientes"
     else:
         truth = "Runtime activo sin ciclos recientes"
 
@@ -226,6 +259,7 @@ def build_runtime_heartbeat(
         "api_server_alive": True,
         "heartbeat_truth": truth,
         "background_thread_alive": bg_alive,
+        "workers_active": workers_active,
         "runtime_enabled": runtime_enabled,
         "mode": runtime_state.get("mode"),
         "last_cycle_at": last_cycle_at,

@@ -33,10 +33,13 @@ export function Grid({ cols, children }: { cols: number; children: React.ReactNo
 export function Badge({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
     ok: '#22c55e', active: '#22c55e', enabled: '#22c55e', approved: '#22c55e', healthy: '#22c55e',
+    started: '#22c55e',
     partial: '#eab308',
     degraded: '#eab308', warning: '#eab308', medium: '#eab308',
     error: '#ef4444', failed: '#ef4444', blocked: '#ef4444', high: '#ef4444', critical: '#ef4444',
     unavailable: '#6b7280', inactive: '#6b7280', unknown: '#6b7280', paused: '#6b7280', rejected: '#6b7280',
+    already_running: '#3b82f6',
+    stop_requested: '#6b7280', stopped: '#6b7280',
   }
   const bg = colorMap[status?.toLowerCase()] || '#8b5cf6'
   return (
@@ -75,8 +78,6 @@ function UnavailableBlock({ label, error }: { label: string; error?: string }) {
   )
 }
 
-/* ── Cards ───────────────────────────────── */
-
 const btn = {
   background: 'var(--accent)', color: '#fff', border: 'none',
   borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontSize: 11,
@@ -85,53 +86,122 @@ const btnSec = {
   background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border)',
   borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontWeight: 500, fontSize: 11,
 }
+const btnDanger = {
+  background: 'transparent', color: '#ef4444', border: '1px solid #ef4444',
+  borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontSize: 11,
+}
 
-export function PulseCard({ data, onCycle }: { data: any; onCycle?: () => void }) {
+/* ── Cards ───────────────────────────────── */
+
+export function PulseCard({ data, onCycle, onStart, onStop }: {
+  data: any; onCycle?: () => void; onStart?: (mode: string) => void; onStop?: () => void;
+}) {
   if (!data || data.status === 'error') return <UnavailableBlock label="Pulso Vivo" error={data?.error} />
   const score = data.runtime_continuity_score ?? 0
   const scoreColor = score >= 0.7 ? '#22c55e' : score >= 0.4 ? '#eab308' : '#ef4444'
-  const truth = data.heartbeat_truth || ''
-  const apiAlive = data.api_server_alive
   const runtimeOn = data.runtime_enabled
   const bgOn = data.background_thread_alive
-
-  let banner: { msg: string; color: string; bg: string; border: string } | null = null
-  if (!runtimeOn) {
-    banner = { msg: 'Servidor activo · Runtime apagado', color: '#fde047', bg: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)' }
-  } else if (data.cycles_last_hour > 0) {
-    banner = { msg: 'Runtime activo con ciclos recientes', color: '#bbf7d0', bg: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)' }
-  } else if (bgOn) {
-    banner = { msg: 'Runtime activo sin ciclos recientes', color: '#fde047', bg: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)' }
-  }
+  const cycles = data.cycles_last_hour
 
   return (
     <Card title="Pulso Vivo" color={runtimeOn ? '#22c55e' : '#f59e0b'}>
-      {banner && (
-        <div style={{ padding: '8px 10px', marginBottom: 8, borderRadius: 6, background: banner.bg, border: banner.border, fontSize: 12, color: banner.color }}>
-          {banner.msg}
-        </div>
-      )}
+      <Banner data={data} />
       <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 8 }}>
         <div style={{ fontSize: 28, fontWeight: 700, color: scoreColor }}>{(score * 100).toFixed(0)}%</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>continuidad</div>
+        <Badge status={runtimeOn ? (cycles > 0 ? 'active' : 'partial') : 'inactive'} />
       </div>
       <KVTable data={{
         runtime: runtimeOn ? 'activo' : 'inactivo',
-        modo: data.mode,
-        api: apiAlive ? 'encendido' : '—',
-        ciclos_hora: data.cycles_last_hour,
+        modo: data.mode || '—',
+        api: data.api_server_alive ? 'encendido' : '—',
+        ciclos_hora: cycles,
         ciclos_24h: data.cycles_last_24h,
-        workers: data.workers_active,
+        workers: data.workers_active ? 'activos' : 'inactivos',
         background: bgOn ? 'vivo' : 'inactivo',
-        ultima_accion: data.latest_action,
-        ultimo_error: data.latest_error,
+        ultima_accion: data.latest_action?.slice(0, 60),
+        ultimo_error: data.latest_error?.slice(0, 60),
       }} />
-      {onCycle && (
-        <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-          <button onClick={onCycle} style={btn}>Ejecutar ciclo observe_only</button>
-        </div>
-      )}
+      <Controls runtimeOn={runtimeOn} bgOn={bgOn} onCycle={onCycle} onStart={onStart} onStop={onStop} />
     </Card>
+  )
+}
+
+function Banner({ data }: { data: any }) {
+  const truth = data.heartbeat_truth || ''
+  const cycles = data.cycles_last_hour
+  let msg = ''
+  let color = ''
+  let bg = ''
+  let border = ''
+
+  if (truth.includes('Runtime apagado')) {
+    msg = 'Servidor activo. Runtime interno apagado. Enciende observe_only para iniciar ciclos seguros.'
+    color = '#fde047'; bg = 'rgba(234,179,8,0.1)'; border = '1px solid rgba(234,179,8,0.3)'
+  } else if (truth.includes('Runtime degradado')) {
+    msg = 'Runtime activo pero degradado por falta de Ollama Blood. Sin ciclo cognitivo completo.'
+    color = '#fde047'; bg = 'rgba(234,179,8,0.1)'; border = '1px solid rgba(234,179,8,0.3)'
+  } else if (cycles > 0) {
+    msg = 'Runtime activo con ciclos recientes.'
+    color = '#bbf7d0'; bg = 'rgba(34,197,94,0.1)'; border = '1px solid rgba(34,197,94,0.3)'
+  } else {
+    msg = 'Runtime activo. Esperando próximo ciclo.'
+    color = '#fde047'; bg = 'rgba(234,179,8,0.1)'; border = '1px solid rgba(234,179,8,0.3)'
+  }
+
+  return (
+    <div style={{ padding: '8px 10px', marginBottom: 8, borderRadius: 6, background: bg, border, fontSize: 12, color }}>
+      {msg}
+    </div>
+  )
+}
+
+function Controls({ runtimeOn, bgOn, onCycle, onStart, onStop }: {
+  runtimeOn: boolean; bgOn: boolean; onCycle?: () => void; onStart?: (mode: string) => void; onStop?: () => void;
+}) {
+  const [showMissions, setShowMissions] = useState(false)
+  const [confirmFull, setConfirmFull] = useState(false)
+
+  if (!runtimeOn) {
+    return (
+      <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {onStart && <button onClick={() => onStart('observe_only')} style={btn}>Encender observe_only</button>}
+        {onStart && <button onClick={() => setShowMissions(!showMissions)} style={btnSec}>
+          {showMissions ? 'Cancelar' : 'Encender misiones'}
+        </button>}
+        {showMissions && (
+          <div style={{ width: '100%', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              ¿Activar execute_missions? Se crearán candidatos y se ejecutarán misiones. No se consolida stable.
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => { setShowMissions(false); onStart?.('execute_missions') }} style={btnSec}>
+                Confirmar execute_missions
+              </button>
+              <button onClick={() => setConfirmFull(!confirmFull)} style={btnSec}>full_local</button>
+            </div>
+          </div>
+        )}
+        {confirmFull && (
+          <div style={{ width: '100%', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ fontSize: 11, color: '#ef4444' }}>
+              ⚠ full_local ejecuta aprendizaje, evaluación y consolidación. ¿Estás seguro?
+            </div>
+            <button onClick={() => { setConfirmFull(false); onStart?.('full_local') }} style={btnDanger}>
+              Confirmar full_local
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {onCycle && <button onClick={onCycle} style={btn}>Ejecutar ciclo ahora</button>}
+      {!bgOn && onStart && <button onClick={() => onStart('observe_only')} style={btnSec}>Encender background</button>}
+      {onStop && <button onClick={onStop} style={btnDanger}>Apagar runtime</button>}
+    </div>
   )
 }
 
@@ -237,7 +307,7 @@ export function BodegaCard({ data }: { data: any }) {
   return (
     <Card title="Bodega Global" color={color}>
       <KVTable data={{
-        confianza: confianza,
+        confianza,
         motor_semantico: data.semantic_engine_status,
         modo_recall: data.semantic_recall_mode,
         aprendizaje: data.semantic_learning_allowed,
@@ -357,8 +427,6 @@ export function EventsFeed({ events }: { events: any[] }) {
   )
 }
 
-/* ── Workers Card ─────────────────────────── */
-
 export function WorkersCard({ data }: { data: any }) {
   if (!data || data.status === 'error') return <UnavailableBlock label="Workers" error={data?.error} />
   return (
@@ -378,22 +446,47 @@ import { useLiveDashboard, api as liveApi } from './useLiveDashboard'
 
 export function CabinaViva() {
   const { data, loading, error, lastUpdated, refresh } = useLiveDashboard()
-  const [cycleBusy, setCycleBusy] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [actionMsg, setActionMsg] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
-  async function runCycle() {
-    if (cycleBusy) return
-    setCycleBusy(true)
+  async function act(label: string, fn: () => Promise<any>) {
+    if (busy) return
+    setBusy(label)
+    setActionError(null)
+    setActionMsg(null)
     try {
-      await liveApi('/api/runtime/once', {
-        method: 'POST',
-        body: JSON.stringify({ mode: 'observe_only' }),
-      })
+      const res = await fn()
+      setActionMsg(res?.message || `${label} completado`)
       refresh()
-    } catch {
-      // refresh will pick up errors
+    } catch (e: any) {
+      setActionError(e.message || `Error en ${label}`)
     } finally {
-      setCycleBusy(false)
+      setBusy(null)
     }
+  }
+
+  function runCycle() {
+    act('Ejecutar ciclo', () =>
+      liveApi('/api/runtime/once', { method: 'POST', body: JSON.stringify({ mode: 'observe_only' }) }))
+  }
+
+  function startMode(mode: string) {
+    if (mode === 'execute_missions') {
+      if (!window.confirm('¿Activar execute_missions? Se crearán candidatos y se ejecutarán misiones. No se consolida stable.')) return
+    }
+    if (mode === 'full_local') {
+      if (!window.confirm('⚠️ full_local ejecuta aprendizaje, evaluación y consolidación estable. ¿Continuar?')) return
+    }
+    act(`Encender ${mode}`, () =>
+      liveApi('/api/runtime/start', {
+        method: 'POST',
+        body: JSON.stringify({ mode, interval_seconds: mode === 'observe_only' ? 30 : 60 }),
+      }))
+  }
+
+  function stopRuntime() {
+    act('Apagar', () => liveApi('/api/runtime/stop', { method: 'POST' }))
   }
 
   if (loading && !data) {
@@ -434,24 +527,24 @@ export function CabinaViva() {
             /api/ui/react-dashboard · refresh {Math.round((dash.refresh_hint_seconds || 5) / 5)}s
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={runCycle} disabled={cycleBusy} style={cycleBusy ? { ...btnSec, opacity: 0.6, cursor: 'not-allowed' } : btnSec}>
-            {cycleBusy ? 'Ejecutando…' : 'Ciclo observe_only'}
-          </button>
-          <button onClick={refresh} style={btn}>Refrescar</button>
-        </div>
+        <button onClick={refresh} style={btn} disabled={!!busy}>Refrescar</button>
       </div>
 
-      {hb.heartbeat_truth === 'API encendida, runtime apagado' && (
-        <div style={{
-          padding: '8px 12px', marginBottom: 12, borderRadius: 6,
-          background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)',
-          fontSize: 12, color: '#fde047',
-        }}>
-          Servidor API encendido — Runtime apagado. Usa "Ciclo observe_only" para encenderlo o "start" desde CLI.
-          <div style={{ marginTop: 4, fontSize: 10, color: '#a16207' }}>
-            curl -X POST http://127.0.0.1:8010/api/runtime/start -H 'Content-Type: application/json' -d '{{"mode":"observe_only","interval_seconds":30}}'
-          </div>
+      {busy && (
+        <div style={{ padding: '8px 12px', marginBottom: 12, borderRadius: 6, background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', fontSize: 12, color: '#93c5fd' }}>
+          {busy}…
+        </div>
+      )}
+
+      {actionMsg && (
+        <div style={{ padding: '8px 12px', marginBottom: 12, borderRadius: 6, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', fontSize: 12, color: '#bbf7d0' }}>
+          {actionMsg}
+        </div>
+      )}
+
+      {actionError && (
+        <div style={{ padding: '8px 12px', marginBottom: 12, borderRadius: 6, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', fontSize: 12, color: '#fca5a5' }}>
+          {actionError}
         </div>
       )}
 
@@ -479,7 +572,7 @@ export function CabinaViva() {
       )}
 
       <Grid cols={2}>
-        <PulseCard data={dash.heartbeat} onCycle={runCycle} />
+        <PulseCard data={dash.heartbeat} onCycle={runCycle} onStart={startMode} onStop={stopRuntime} />
         <OllamaBloodCard data={dash.ollama_blood} />
         <RepoChangesCard data={dash.git_status} />
         <ProcessStatusCard data={dash.heartbeat} />

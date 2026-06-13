@@ -891,19 +891,22 @@ def runtime_once(body: dict[str, Any] | None = None) -> dict[str, Any]:
         if e.get("event_type", "") in ("runtime_cycle_start", "runtime_cycle_complete",
                                         "runtime_cycle_started", "runtime_cycle_completed"):
             event_ids.append(e.get("id"))
+    ok = result.get("status") == "ok"
     return {
         "status": result.get("status", "error"),
         "mode": result.get("mode", payload.get("mode", "observe_only")),
-        "cycle_recorded": result.get("status") == "ok",
+        "runtime_enabled": True,
+        "cycle_recorded": ok,
         "cycle_id": result.get("cycle_id"),
         "event_ids": event_ids,
-        "started_at": next(iter(result.get("snapshot", {}).get("last_events", [])), {}).get("created_at") if result.get("status") == "ok" else None,
+        "started_at": next(iter(result.get("snapshot", {}).get("last_events", [])), {}).get("created_at") if ok else None,
         "completed_at": (
             [e.get("created_at") for e in (result.get("snapshot", {}).get("last_events", []) or [])
              if e.get("event_type") in ("runtime_cycle_complete", "runtime_cycle_completed")] or [None]
         )[-1],
+        "message": f"Ciclo {result.get('cycle_id', '?')} {'completado' if ok else 'falló'} en modo {result.get('mode', payload.get('mode', 'observe_only'))}.",
         "summary": {
-            "services": list(result.get("services", {}).keys()) if result.get("status") == "ok" else [],
+            "services": list(result.get("services", {}).keys()) if ok else [],
             "counters": result.get("counters", {}),
             "error": result.get("error"),
         },
@@ -914,27 +917,36 @@ def runtime_once(body: dict[str, Any] | None = None) -> dict[str, Any]:
 def runtime_start(body: dict[str, Any] | None = None) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_start")
     payload = body or {}
-    from triade.core.internal_runtime import runtime_background_status
     result = start_internal_runtime_background(
         mode=payload.get("mode"),
         interval_seconds=payload.get("interval_seconds"),
         max_cycles=payload.get("max_cycles"),
     )
-    bg = runtime_background_status()
-    snapshot = result.get("snapshot", bg.get("snapshot", {}))
     return {
         "status": result.get("status", "error"),
-        "mode": snapshot.get("mode", payload.get("mode", "observe_only")),
-        "interval_seconds": payload.get("interval_seconds") or snapshot.get("interval_seconds", 30),
-        "background_thread_alive": bg.get("background_thread_alive", False),
-        "snapshot": snapshot,
+        "runtime_enabled": result.get("runtime_enabled", False),
+        "mode": result.get("mode"),
+        "interval_seconds": result.get("interval_seconds", payload.get("interval_seconds", 30)),
+        "background_thread_alive": result.get("background_thread_alive", False),
+        "started_at": result.get("started_at"),
+        "message": result.get("message", ""),
+        "snapshot": result.get("snapshot", {}),
     }
 
 
 @router.post("/api/runtime/stop")
 def runtime_stop() -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_stop")
-    return stop_internal_runtime_background()
+    result = stop_internal_runtime_background()
+    return {
+        "status": result.get("status", "stopped"),
+        "runtime_enabled": result.get("runtime_enabled", False),
+        "mode": result.get("mode"),
+        "background_thread_alive": result.get("background_thread_alive", False),
+        "stopped_at": result.get("stopped_at"),
+        "message": result.get("message", "Runtime apagado."),
+        "snapshot": result.get("snapshot", {}),
+    }
 
 
 @router.get("/api/runtime/events")
@@ -1049,7 +1061,7 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             _errors.append({"block": block_name, "error": str(exc)[:200]})
             return default if default is not None else {"status": "unavailable", "error": str(exc)[:200]}
 
-    heartbeat = _safe(lambda: build_living_report(summary=True), "heartbeat", {"status": "unavailable"})
+    heartbeat = _safe(lambda: build_living_report(limit=20), "heartbeat", {"status": "unavailable"})
     blood = _safe(lambda: check_ollama_blood(), "ollama_blood", {"status": "unavailable", "cognitive_blood_active": False})
     bodega_ctx = _safe(
         lambda: build_bodega_global_context(user_input=query or "dashboard", limit=limit, semantic_recall_enabled=True),
