@@ -9,11 +9,11 @@
 
 | Ruta | Archivo | Reemplazo React | Fecha objetivo | Test de compatibilidad |
 |---|---|---|---|---|
-| `/api/ui/clean` | `apps/routes/ui.py` | `/observabilidad` (SPA) | v2.4 | `test_legacy_ui_routes_redirect_or_wrapper` |
-| `/api/ui/legacy` | `apps/routes/ui.py` | `/` (SPA) | v2.4 | `test_legacy_ui_routes_redirect_or_wrapper` |
-| `/ui` | `apps/routes/ui.py` | `/` (SPA) | v2.4 | `test_single_port_serves_spa_index` |
-| `/ui/observabilidad` | `apps/routes/ui.py` | `/observabilidad` (SPA) | v2.4 | `test_single_port_serves_spa_index` |
-| `/observabilidad` | `apps/routes/ui.py` | `/` (SPA maneja routing) | v2.4 | `test_single_port_serves_spa_index` |
+| `/api/ui/clean` | `apps/routes/ui.py` | `/observabilidad` (SPA) o tab Cabina Viva | v2.4 | `test_legacy_ui_routes_deprecated` |
+| `/api/ui/legacy` | `apps/routes/ui.py` | `/` (SPA) o tab Cabina Viva | v2.4 | `test_legacy_ui_routes_deprecated` |
+| `/ui` | `apps/routes/ui.py` | `/` (SPA) | v2.4 | `test_spa_routes_return_html_or_index` |
+| `/ui/observabilidad` | `apps/routes/ui.py` | `/observabilidad` (SPA) | v2.4 | `test_spa_routes_return_html_or_index` |
+| `/observabilidad` | `apps/routes/ui.py` | `/` (SPA maneja routing) | v2.4 | `test_spa_routes_return_html_or_index` |
 
 ## Apps deprecadas
 

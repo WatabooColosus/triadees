@@ -9,6 +9,20 @@
 
 ---
 
+## Cabina React viva
+
+La SPA incluye una **Cabina Viva** (tab 🖥) que refresca automáticamente cada 5 segundos.
+
+- React consulta `GET /api/ui/react-dashboard` en un loop con `useLiveDashboard`.
+- El polling se pausa cuando la pestaña no está visible (`document.visibilityState`).
+- Los datos incluyen: Pulse, Ollama Blood, Git status, procesos internos, Bodega, Memory Trace, Learning Journal, Deuda Técnica y eventos recientes.
+- Si una petición falla, se conserva el último dato válido.
+- Botón "Refrescar ahora" para recarga manual.
+
+La UI es **read-only para estado del sistema**. Git status se muestra con comandos whitelist (shell=False, timeout 3s). Acciones peligrosas requieren API key y confirmación explícita.
+
+---
+
 ## Estructura React actual
 
 ```

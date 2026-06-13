@@ -644,14 +644,16 @@ Endpoints principales para la SPA:
 
 | Endpoint | Propósito |
 |---|---|
+| `GET /api/ui/react-dashboard` | Dashboard vivo read-only con heartbeat, blood, git, bodega, memory, learning, debt, workers, eventos |
 | `GET /api/runtime/heartbeat` | Pulso vivo y continuidad |
 | `GET /api/models/ollama/blood` | Sangre cognitiva Ollama |
 | `GET /api/bodega/global-context` | Contexto global de memoria |
 | `GET /api/observability` | Observabilidad completa |
-| `GET /api/ui/react-dashboard` | Dashboard agregado read-only |
 | `GET /api/system/technical-debt` | Auditoría de deuda técnica |
 | `GET /api/runtime/learning-journal` | Diario de aprendizaje 24h |
 | `GET /api/runtime/neuron-nutrition` | Nutrición neuronal |
+
+La SPA incluye un tab **Cabina Viva** (🖥) con auto-refresh cada 5s, que muestra en tiempo real: Pulso, Ollama Blood, Git status (solo lectura), procesos internos, Bodega Global, Memory Trace, Learning Journal, Deuda Técnica y eventos del sistema. El dashboard es read-only, no ejecuta workers ni modifica identity_core.
 
 Toda nueva visualización debe implementarse en React. Las pantallas HTML legacy quedan deprecated.
 Ver `docs/UI_REACT_MIGRATION.md` para guía de migración.

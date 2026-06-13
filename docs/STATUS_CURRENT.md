@@ -83,9 +83,24 @@ La UI oficial de Tríade Ω es **React SPA** en `frontend/`. FastAPI single-port
 - Los endpoints deben devolver JSON limpio. No crear nuevas pantallas HTML embebidas.
 
 Endpoints agregados para la SPA:
-- `GET /api/ui/react-dashboard` — payload agregado read-only para la cabina.
+- `GET /api/ui/react-dashboard` — payload agregado vivo read-only con heartbeat, blood, git, bodega, memory, learning, debt, workers, eventos.
 - `GET /api/system/technical-debt` — auditoría automática de deuda técnica.
 - `GET /api/system/ollama-blood` — sangre cognitiva (alias de `/api/models/ollama/blood`).
+
+La SPA incluye un tab "Cabina Viva" (🖥) que refresca cada 5s con `useLiveDashboard`, mostrando:
+- Pulso Vivo (continuidad, ciclos, modo, workers)
+- Sangre Cognitiva Ollama (presión, modelos, capacidades)
+- Estado Git del repo (branch, commit, dirty, files, commits recientes) — solo lectura, shell=False
+- Procesos internos (runtime, workers, misiones)
+- Bodega Global (confianza, motor semántico, contradicciones)
+- Memory Trace (matches, quarantined, stable)
+- Learning Journal (candidatos, evaluaciones, consolidaciones)
+- Deuda Técnica (score, deudas, acciones recomendadas)
+- Workers (estado, tareas activas)
+- Eventos recientes del sistema
+
+El dashboard es read-only. No ejecuta workers, no modifica memoria, no toca identity_core.
+Las peticiones fallidas mantienen el último dato válido.
 
 Ver `docs/UI_REACT_MIGRATION.md` para guía de migración.
 

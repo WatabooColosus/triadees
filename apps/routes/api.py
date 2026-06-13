@@ -990,7 +990,7 @@ def system_bodega_global_context(query: str = "", limit: int = 10) -> dict[str, 
 
 @router.get("/api/ui/react-dashboard")
 def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
-    """Payload agregado read-only para la SPA React.
+    """Payload agregado vivo read-only para la SPA React.
 
     No ejecuta workers, no modifica memoria, no toca identity_core.
     """
@@ -998,33 +998,38 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
     from triade.core.bodega_global_context import build_bodega_global_context
     from triade.core.observability_view import TriadeObservabilityView
     from triade.core.ollama_blood import check_ollama_blood
+    from triade.core.technical_debt_audit import build_technical_debt_audit
+    from triade.core.repo_runtime_status import build_repo_runtime_status
+    from triade.workers.background_service import WorkerBackgroundService
+    from triade.services.event_bus import list_recent_events
+
+    import time as _time
 
     LIFE_PULSE.record_action("react_dashboard")
 
-    try:
-        heartbeat = build_living_report(summary=True)
-    except Exception:
-        heartbeat = {"status": "unavailable"}
+    def _safe(fn, default: Any = None):
+        try:
+            return fn()
+        except Exception:
+            return default if default is not None else {"status": "unavailable"}
 
-    try:
-        blood = check_ollama_blood()
-    except Exception:
-        blood = {"status": "unavailable", "cognitive_blood_active": False}
-
-    try:
-        bodega_ctx = build_bodega_global_context(user_input=query or "dashboard", limit=limit, semantic_recall_enabled=True)
-    except Exception:
-        bodega_ctx = {"memory_confidence": "unavailable"}
-
-    try:
-        obs_view = TriadeObservabilityView()
-        observability = obs_view.build()
-    except Exception:
-        observability = {"status": "unavailable"}
+    heartbeat = _safe(lambda: build_living_report(summary=True), {"status": "unavailable"})
+    blood = _safe(lambda: check_ollama_blood(), {"status": "unavailable", "cognitive_blood_active": False})
+    bodega_ctx = _safe(
+        lambda: build_bodega_global_context(user_input=query or "dashboard", limit=limit, semantic_recall_enabled=True),
+        {"memory_confidence": "unavailable"},
+    )
+    observability = _safe(lambda: TriadeObservabilityView().build(), {"status": "unavailable"})
+    debt = _safe(lambda: build_technical_debt_audit(), {"score": 0, "debts": [], "warnings": []})
+    git = _safe(lambda: build_repo_runtime_status(), {"status": "unavailable"})
+    workers = _safe(lambda: WorkerBackgroundService().status(), {"status": "unavailable"})
+    events = _safe(lambda: list_recent_events(limit=50), [])
 
     return {
         "status": "ok",
-        "heartbeat_summary": {
+        "generated_at": _time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "refresh_hint_seconds": 5,
+        "heartbeat": {
             "runtime_enabled": heartbeat.get("runtime_enabled"),
             "mode": heartbeat.get("mode"),
             "cycles_last_hour": heartbeat.get("cycles_last_hour", 0),
@@ -1033,12 +1038,15 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             "latest_action": heartbeat.get("latest_action"),
             "latest_error": heartbeat.get("latest_error"),
             "missions_executed_last_hour": heartbeat.get("missions_executed_last_hour", 0),
+            "workers_active": heartbeat.get("workers_active"),
+            "background_thread_alive": heartbeat.get("background_thread_alive"),
         },
         "ollama_blood": {
             "status": blood.get("status"),
             "cognitive_blood_active": blood.get("cognitive_blood_active", False),
             "ollama_ok": blood.get("ollama_ok", False),
             "blood_pressure_score": blood.get("blood_pressure_score"),
+            "base_url": blood.get("base_url"),
             "reasoning_model": blood.get("reasoning_model"),
             "embedding_model": blood.get("embedding_model"),
             "coder_model": blood.get("coder_model"),
@@ -1050,6 +1058,10 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             "degraded_components": blood.get("degraded_components", []),
             "recommended_action": blood.get("recommended_action"),
         },
+        "observability": {
+            "status": observability.get("status"),
+            "memory_trace_summary": observability.get("last_run", {}).get("memory_trace_summary", {}),
+        },
         "bodega_summary": {
             "memory_confidence": bodega_ctx.get("memory_confidence", "unknown"),
             "semantic_engine_status": bodega_ctx.get("semantic_engine_status", "unavailable"),
@@ -1058,11 +1070,47 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             "contradictions_count": len(bodega_ctx.get("contradictions") or []),
             "recommended_context_policy": bodega_ctx.get("recommended_context_policy"),
         },
-        "memory_trace_summary": observability.get("last_run", {}).get("memory_trace_summary", {}),
-        "observability_status": observability.get("status"),
+        "learning_journal": {
+            "cycles_last_24h": heartbeat.get("cycles_last_24h", 0),
+            "missions_executed": heartbeat.get("missions_executed_last_hour", 0),
+            "evidence_created": heartbeat.get("evidence_created_last_24h", 0),
+            "candidates_created": heartbeat.get("learning_candidates_created_last_hour", 0),
+            "candidates_evaluated": heartbeat.get("candidates_evaluated", 0),
+            "candidates_verified": heartbeat.get("candidates_verified", 0),
+            "candidates_consolidated": heartbeat.get("candidates_consolidated", 0),
+            "candidates_rejected": heartbeat.get("candidates_rejected_last_24h", 0),
+            "neurons_nourished": heartbeat.get("neurons_nourished", 0),
+            "latest_learning_candidate": heartbeat.get("latest_learning_candidate"),
+            "latest_rejection": heartbeat.get("latest_rejection"),
+        },
+        "technical_debt": {
+            "score": debt.get("score", 0),
+            "debts_count": debt.get("debts_count", 0),
+            "warnings_count": debt.get("warnings_count", 0),
+            "debts": debt.get("debts", []),
+            "warnings": debt.get("warnings", []),
+            "recommended_actions": debt.get("recommended_actions", []),
+        },
+        "git_status": {
+            "status": git.get("status"),
+            "branch": git.get("branch"),
+            "commit": git.get("commit"),
+            "dirty": git.get("dirty", False),
+            "changed_files_count": git.get("changed_files_count", 0),
+            "changed_files": git.get("changed_files", []),
+            "recent_commits": git.get("recent_commits", []),
+        },
+        "workers": {
+            "status": workers.get("status"),
+            "active_tasks": workers.get("active_tasks", 0),
+            "last_run_ref": workers.get("last_run_ref"),
+            "summary": workers.get("summary"),
+        },
+        "runtime_events": events[:20] if isinstance(events, list) else [],
         "policy": {
             "read_only": True,
-            "no_identity_core_modification": True,
+            "identity_core_protected": True,
+            "no_shell_execution": True,
         },
     }
 

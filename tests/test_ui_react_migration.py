@@ -1,4 +1,4 @@
-"""Tests para UI React SPA, legacy routes, dashboard y deuda técnica."""
+"""Tests para UI React SPA, legacy routes, dashboard, git status y deuda técnica."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from apps.single_port_app import app
+from triade.core.repo_runtime_status import build_repo_runtime_status
 
 client = TestClient(app, raise_server_exceptions=False)
 
@@ -31,8 +32,8 @@ def test_single_port_serves_spa_index():
     assert "root" in body or "Triade" in body or "triade" in body
 
 
-def test_legacy_ui_routes_redirect_or_wrapper():
-    """Las rutas UI legacy deben redirigir o mostrar wrapper de deprecación."""
+def test_legacy_ui_routes_deprecated():
+    """Las rutas UI legacy deben ser wrappers deprecated con aviso de migración."""
     for route in ["/api/ui/clean", "/api/ui/legacy"]:
         resp = client.get(route)
         assert resp.status_code in (200, 302, 307), f"{route} returned {resp.status_code}"
@@ -75,9 +76,35 @@ def test_react_dashboard_endpoint_read_only():
     data = resp.json()
     assert data.get("status") == "ok"
     assert data.get("policy", {}).get("read_only") is True
+    assert data.get("policy", {}).get("identity_core_protected") is True
+    assert data.get("policy", {}).get("no_shell_execution") is True
 
 
-def test_technical_debt_audit_endpoint():
+def test_react_dashboard_contains_heartbeat():
+    """El dashboard debe incluir heartbeat."""
+    resp = client.get("/api/ui/react-dashboard")
+    data = resp.json()
+    assert "heartbeat" in data
+    assert "runtime_enabled" in data["heartbeat"] or "mode" in data["heartbeat"]
+
+
+def test_react_dashboard_contains_ollama_blood():
+    """El dashboard debe incluir ollama_blood."""
+    resp = client.get("/api/ui/react-dashboard")
+    data = resp.json()
+    assert "ollama_blood" in data
+    assert "cognitive_blood_active" in data["ollama_blood"]
+
+
+def test_react_dashboard_contains_repo_status():
+    """El dashboard debe incluir git_status."""
+    resp = client.get("/api/ui/react-dashboard")
+    data = resp.json()
+    assert "git_status" in data
+    assert "branch" in data["git_status"]
+
+
+def test_technical_debt_endpoint():
     """GET /api/system/technical-debt debe responder con auditoría."""
     resp = client.get("/api/system/technical-debt")
     assert resp.status_code == 200
@@ -89,17 +116,17 @@ def test_technical_debt_audit_endpoint():
     assert "recommended_actions" in data
 
 
-def test_identity_core_not_modified_by_dashboard():
+def test_identity_core_not_modified_by_ui_dashboard():
     """Los endpoints de dashboard no deben modificar identity_core."""
     resp_debt = client.get("/api/system/technical-debt")
     resp_dash = client.get("/api/ui/react-dashboard")
     assert resp_debt.status_code == 200
     assert resp_dash.status_code == 200
-    assert resp_debt.json().get("policy", {}).get("no_identity_core_modification") is False or True  # policy present
+    assert resp_dash.json().get("policy", {}).get("identity_core_protected") is True
 
 
 def test_ollama_blood_alias_routes():
-    """Los alias de Ollama Blood deben responder igual."""
+    """Los alias de Ollama Blood deben responder."""
     resp1 = client.get("/api/models/ollama/blood")
     resp2 = client.get("/api/system/ollama-blood")
     resp3 = client.get("/api/runtime/blood")
@@ -108,8 +135,28 @@ def test_ollama_blood_alias_routes():
     assert resp3.status_code == 200
 
 
-def test_react_dashboard_policy_no_identity_core():
-    """El dashboard debe declarar que no modifica identity_core."""
+def test_repo_runtime_status_no_shell_user_input():
+    """repo_runtime_status no debe aceptar input de usuario ni ejecutar shell arbitrario."""
+    status = build_repo_runtime_status()
+    assert isinstance(status, dict)
+    assert "status" in status
+    assert status["status"] in ("ok", "unavailable")
+    assert "dirty" in status or "error" in status
+    assert "branch" in status or "error" in status
+    assert "commit" in status or "error" in status
+
+
+def test_spa_routes_return_html_or_index():
+    """Las rutas SPA deben devolver HTML."""
+    for route in ["/", "/ui", "/observabilidad", "/ui/observabilidad"]:
+        resp = client.get(route)
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers.get("content-type", "")
+
+
+def test_react_dashboard_has_generated_at():
+    """El dashboard debe incluir generated_at y refresh_hint_seconds."""
     resp = client.get("/api/ui/react-dashboard")
     data = resp.json()
-    assert data["policy"]["no_identity_core_modification"] is True
+    assert "generated_at" in data
+    assert "refresh_hint_seconds" in data

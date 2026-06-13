@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import './index.css'
+import { CabinaViva } from './components/Cards'
 
 const BASE = ''
 
@@ -24,12 +25,13 @@ async function api(path: string, opts?: RequestInit) {
   return res.json()
 }
 
-type Tab = 'chat' | 'system' | 'observability' | 'router' | 'models' | 'federation' | 'memory' | 'neurons'
+type Tab = 'chat' | 'system' | 'observability' | 'router' | 'models' | 'federation' | 'memory' | 'neurons' | 'cabin'
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'chat', label: 'Chat', icon: '💬' },
   { key: 'system', label: 'Sistema', icon: '⚙' },
   { key: 'observability', label: 'Observabilidad', icon: '⌁' },
+  { key: 'cabin', label: 'Cabina Viva', icon: '🖥' },
   { key: 'router', label: 'Router', icon: '🔀' },
   { key: 'models', label: 'Modelos', icon: '🧠' },
   { key: 'federation', label: 'Federación', icon: '🌐' },
@@ -157,6 +159,7 @@ export default function App() {
       </aside>
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {tab === 'cabin' && <CabinaViva />}
         {tab === 'chat' && <ChatTab apiKey={apiKey} />}
         {tab === 'system' && <SystemTab />}
         {tab === 'observability' && <ObservabilityTab />}
