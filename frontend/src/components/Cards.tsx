@@ -440,6 +440,142 @@ export function WorkersCard({ data }: { data: any }) {
   )
 }
 
+/* ── Governor Cards ────────────────────────── */
+
+export function ResourcesCard({ data }: { data: any }) {
+  if (!data) return null
+  const rp = data.resource_probe || {}
+  const mem = rp.memory || {}
+  const disk = rp.disk || {}
+  const cpu = rp.cpu || {}
+  const power = rp.power || {}
+  const thermal = rp.thermal || {}
+  const warnings = rp.warnings || []
+
+  const diskFree = disk.free_gb ?? 0
+  const memAvail = mem.available_gb ?? 0
+  const diskColor = diskFree < 2 ? '#ef4444' : diskFree < 10 ? '#eab308' : '#22c55e'
+  const memColor = memAvail < 2 ? '#ef4444' : memAvail < 5 ? '#eab308' : '#22c55e'
+
+  return (
+    <Card title="Recursos del Sistema" color="#3b82f6">
+      <KVTable data={{
+        cpu: `${cpu.count} núcleos${cpu.load_1min != null ? ` · load ${cpu.load_1min}` : ''}`,
+        ram_libre: `${memAvail} GB`,
+        disco_libre: `${diskFree} GB`,
+      }} />
+      <div style={{ marginTop: 6, display: 'flex', gap: '0 16px', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 11, color: memColor }}>● RAM {memAvail}GB libre</div>
+        <div style={{ fontSize: 11, color: diskColor }}>● Disco {diskFree}GB libre</div>
+      </div>
+      {power.battery_percent != null && (
+        <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+          {power.ac_connected ? '🔌 AC' : '🔋 Batería'} {power.battery_percent != null ? `${power.battery_percent}%` : ''} {power.battery_status || ''}
+        </div>
+      )}
+      {thermal.temperature_celsius != null && (
+        <div style={{ fontSize: 11, color: thermal.thermal_status === 'critical' ? '#ef4444' : thermal.thermal_status === 'high' ? '#eab308' : 'var(--text-muted)' }}>
+          🌡 {thermal.temperature_celsius}°C {thermal.thermal_status !== 'ok' ? `(${thermal.thermal_status})` : ''}
+        </div>
+      )}
+      {warnings.length > 0 && (
+        <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {warnings.map((w: string, i: number) => (
+            <div key={i} style={{ fontSize: 10, color: '#fde047' }}>⚠ {w}</div>
+          ))}
+        </div>
+      )}
+      {cpu.load_1min != null && (
+        <div style={{ marginTop: 6 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>
+            Load: 1m={cpu.load_1min} 5m={cpu.load_5min} 15m={cpu.load_15min}
+          </div>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+export function WorkModeCard({ data }: { data: any }) {
+  if (!data) return null
+  const wm = data.work_mode || {}
+  const caps = data.capabilities || {}
+  const effMode = wm.effective_mode || 'unknown'
+  const statusColor = effMode === 'full_local' ? '#22c55e' : effMode === 'cooldown' || effMode === 'blocked' ? '#ef4444' : effMode === 'observe_only' ? '#eab308' : '#3b82f6'
+
+  return (
+    <Card title={`Modo: ${effMode}`} color={statusColor}>
+      <div style={{ marginBottom: 6 }}>
+        <Badge status={effMode} />
+        {wm.reason && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>{wm.reason}</div>}
+      </div>
+      <KVTable data={{
+        solicitado: wm.requested_mode,
+        permitido: wm.allowed_mode,
+        efectivo: effMode,
+      }} />
+      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11 }}>
+        {caps.can_nourish_neurons ? <span style={{ color: '#22c55e' }}>✓ Nutrir neuronas</span> : <span style={{ color: '#6b7280' }}>✗ Nutrir neuronas</span>}
+        {caps.can_evaluate_learning ? <span style={{ color: '#22c55e' }}>✓ Evaluar aprendizaje</span> : <span style={{ color: '#6b7280' }}>✗ Evaluar aprendizaje</span>}
+        {caps.can_consolidate_stable ? <span style={{ color: '#22c55e' }}>✓ Consolidar stable</span> : <span style={{ color: '#6b7280' }}>✗ Consolidar stable</span>}
+        {caps.can_run_workers ? <span style={{ color: '#22c55e' }}>✓ Workers</span> : <span style={{ color: '#6b7280' }}>✗ Workers</span>}
+        {caps.can_run_tests ? <span style={{ color: '#22c55e' }}>✓ Tests</span> : <span style={{ color: '#6b7280' }}>✗ Tests</span>}
+        {caps.can_run_build ? <span style={{ color: '#22c55e' }}>✓ Build</span> : <span style={{ color: '#6b7280' }}>✗ Build</span>}
+        {caps.can_run_shell ? <span style={{ color: '#22c55e' }}>✓ Shell whitelist</span> : <span style={{ color: '#6b7280' }}>✗ Shell</span>}
+      </div>
+    </Card>
+  )
+}
+
+const SHELL_COMMANDS = ['git_status', 'git_branch', 'ollama_list', 'ollama_ps', 'pytest', 'frontend_build']
+
+export function SafeShellCard({ onRunShell }: { onRunShell?: (key: string) => void }) {
+  return (
+    <Card title="Shell Seguro" color="#f59e0b">
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+        Comandos whitelist. Sin entrada libre. shell=false.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {SHELL_COMMANDS.map(key => (
+          <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-primary)' }}>{key}</span>
+            {onRunShell && (
+              <button onClick={() => onRunShell(key)} style={btnSec}>Ejecutar</button>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
+export function PermissionsCard({ data }: { data: any }) {
+  if (!data) return null
+  const perms = data.permissions || {}
+  return (
+    <Card title="Permisos" color="#8b5cf6">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11 }}>
+        {Object.entries(perms).map(([k, v]) => {
+          const label = k.replace(/^can_/, '').replace(/_/g, ' ')
+          const granted = Boolean(v)
+          return (
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>{label}</span>
+              <span style={{ color: granted ? '#22c55e' : '#ef4444', fontWeight: 600 }}>
+                {granted ? 'sí' : 'no'}
+              </span>
+            </div>
+          )
+        })}
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+          <span style={{ color: 'var(--text-muted)' }}>identidad</span>
+          <span style={{ color: '#ef4444', fontWeight: 600 }}>nunca</span>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 /* ── Cabina Viva ──────────────────────────── */
 
 import { useLiveDashboard, api as liveApi } from './useLiveDashboard'
@@ -514,6 +650,25 @@ export function CabinaViva() {
   const dash = data!
   const blockErrors = dash.errors || []
   const hb = dash.heartbeat || {}
+  const governor = dash.governor || {}
+  const [shellResult, setShellResult] = useState<{ key: string; stdout: string } | null>(null)
+
+  async function runShell(key: string) {
+    if (busy) return
+    setBusy(`Shell: ${key}`)
+    setShellResult(null)
+    try {
+      const res = await liveApi('/api/system/safe-shell/run', {
+        method: 'POST',
+        body: JSON.stringify({ command_key: key }),
+      })
+      setShellResult({ key, stdout: res.stdout || res.stderr || '(sin salida)' })
+    } catch (e: any) {
+      setActionError(e.message || `Error en ${key}`)
+    } finally {
+      setBusy(null)
+    }
+  }
 
   return (
     <div>
@@ -574,6 +729,8 @@ export function CabinaViva() {
       <Grid cols={2}>
         <PulseCard data={dash.heartbeat} onCycle={runCycle} onStart={startMode} onStop={stopRuntime} />
         <OllamaBloodCard data={dash.ollama_blood} />
+        <ResourcesCard data={governor} />
+        <WorkModeCard data={governor} />
         <RepoChangesCard data={dash.git_status} />
         <ProcessStatusCard data={dash.heartbeat} />
         <BodegaCard data={dash.bodega_summary} />
@@ -581,7 +738,15 @@ export function CabinaViva() {
         <LearningJournalCard data={dash.learning_journal} />
         <TechnicalDebtCard data={dash.technical_debt} />
         <WorkersCard data={dash.workers} />
+        <SafeShellCard onRunShell={runShell} />
       </Grid>
+      {shellResult && (
+        <div style={{ marginTop: 12 }}>
+          <Card title={`Shell: ${shellResult.key}`} color="#f59e0b">
+            <pre style={{ fontSize: 10, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 200, overflow: 'auto', margin: 0 }}>{shellResult.stdout}</pre>
+          </Card>
+        </div>
+      )}
       <EventsFeed events={dash.runtime_events} />
     </div>
   )

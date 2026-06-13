@@ -1170,12 +1170,119 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             "summary": workers.get("summary"),
         },
         "runtime_events": events[:20] if isinstance(events, list) else [],
+        "governor": _safe(
+            lambda: _build_governor_block(query, limit),
+            "governor",
+            {"status": "unavailable"},
+        ),
         "policy": {
             "read_only": True,
             "identity_core_protected": True,
             "no_shell_execution": True,
         },
     }
+
+
+def _build_governor_block(query: str, limit: int) -> dict[str, Any]:
+    """Construye bloque governor para el dashboard React."""
+    from triade.core.resource_probe import build_resource_probe
+    from triade.core.resource_governor import decide_work_mode
+    from triade.core.ollama_blood import check_ollama_blood
+    probe = build_resource_probe()
+    blood = check_ollama_blood()
+    decision = decide_work_mode(probe, blood, query or "observe_only")
+    return {
+        "resource_probe": {
+            "cpu": probe.get("cpu", {}),
+            "memory": probe.get("memory", {}),
+            "disk": probe.get("disk", {}),
+            "power": probe.get("power", {}),
+            "thermal": probe.get("thermal", {}),
+            "warnings": probe.get("warnings", []),
+        },
+        "work_mode": {
+            "requested_mode": decision.get("requested_mode"),
+            "allowed_mode": decision.get("allowed_mode"),
+            "effective_mode": decision.get("effective_mode"),
+            "reason": decision.get("reason"),
+        },
+        "capabilities": {
+            "can_run_ollama": decision.get("can_run_ollama"),
+            "can_run_workers": decision.get("can_run_workers"),
+            "can_nourish_neurons": decision.get("can_nourish_neurons"),
+            "can_evaluate_learning": decision.get("can_evaluate_learning"),
+            "can_consolidate_stable": decision.get("can_consolidate_stable"),
+            "can_write_artifacts": decision.get("can_write_artifacts"),
+            "can_write_repo": decision.get("can_write_repo"),
+            "can_run_shell": decision.get("can_run_shell"),
+            "can_run_tests": decision.get("can_run_tests"),
+            "can_run_build": decision.get("can_run_build"),
+        },
+    }
+
+
+# ── Resource Governor ─────────────────────────────────────────────────
+
+
+@router.get("/api/system/resources")
+def system_resources() -> dict[str, Any]:
+    """Perfil de recursos actual (hardware + energía + carga)."""
+    LIFE_PULSE.record_action("system_resources")
+    from triade.core.resource_probe import build_resource_probe
+    return build_resource_probe()
+
+
+@router.get("/api/system/work-mode")
+def system_work_mode(requested: str = "observe_only") -> dict[str, Any]:
+    """Modo de trabajo decidido por resource governor."""
+    LIFE_PULSE.record_action("system_work_mode")
+    from triade.core.resource_probe import build_resource_probe
+    from triade.core.resource_governor import decide_work_mode
+    from triade.core.ollama_blood import check_ollama_blood
+    probe = build_resource_probe()
+    blood = check_ollama_blood()
+    return decide_work_mode(probe, blood, requested)
+
+
+@router.get("/api/system/permissions")
+def system_permissions(requested: str = "observe_only") -> dict[str, Any]:
+    """Perfil de permisos para el modo solicitado."""
+    LIFE_PULSE.record_action("system_permissions")
+    from triade.core.resource_probe import build_resource_probe
+    from triade.core.resource_governor import decide_work_mode
+    from triade.core.permission_governor import build_permission_profile
+    from triade.core.ollama_blood import check_ollama_blood
+    probe = build_resource_probe()
+    blood = check_ollama_blood()
+    decision = decide_work_mode(probe, blood, requested)
+    mode = decision.get("effective_mode", requested)
+    return build_permission_profile(mode)
+
+
+@router.get("/api/system/safe-shell/commands")
+def system_safe_shell_commands() -> dict[str, Any]:
+    """Lista de comandos whitelist disponibles."""
+    LIFE_PULSE.record_action("safe_shell_commands")
+    from triade.core.safe_shell import list_allowed_commands
+    return {
+        "status": "ok",
+        "commands": list_allowed_commands(),
+        "policy": {
+            "shell_enabled": True,
+            "whitelist_only": True,
+            "no_free_input": True,
+        },
+    }
+
+
+@router.post("/api/system/safe-shell/run")
+def system_safe_shell_run(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Ejecuta un comando whitelist."""
+    LIFE_PULSE.record_action("safe_shell_run")
+    payload = body or {}
+    command_key = payload.get("command_key", "")
+    from triade.core.safe_shell import run_safe_command
+    return run_safe_command(command_key)
 
 
 # ── Technical Debt ────────────────────────────────────────────────────

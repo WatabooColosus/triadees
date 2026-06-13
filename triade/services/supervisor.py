@@ -129,15 +129,50 @@ class InternalRuntimeSupervisor:
             "counters": dict(self.counters),
         }
 
+        # ── Resource Governor ──────────────────────────────────────────
+        governor = self._run_governor(current_mode)
+        effective_mode = governor.get("effective_mode", current_mode)
+        perm = governor.get("permissions", {})
+        results["governor"] = governor
+
         try:
+            if effective_mode in ("cooldown", "blocked"):
+                publish_event(
+                    "runtime_cycle_skipped_resource_cooldown",
+                    "internal_runtime",
+                    {
+                        "cycle_id": cycle_id,
+                        "mode": current_mode,
+                        "effective_mode": effective_mode,
+                        "reason": governor.get("reason", ""),
+                    },
+                    severity="warning",
+                    db_path=self.db_path,
+                    run_ref=self.runtime_id,
+                )
+                results["status"] = "skipped"
+                results["skipped_reason"] = governor.get("reason", "Cooldown por recursos.")
+                self.counters["cycles"] += 1
+                self.last_events = list_recent_events(limit=20, db_path=self.db_path)
+                publish_event(
+                    "runtime_cycle_complete",
+                    "internal_runtime",
+                    {"cycle_id": cycle_id, "mode": current_mode, "skipped": True, "effective_mode": effective_mode},
+                    db_path=self.db_path,
+                    run_ref=self.runtime_id,
+                )
+                results["counters"] = dict(self.counters)
+                results["snapshot"] = self.snapshot()
+                return results
+
             results["services"]["memory_service"] = self._memory_service(current_mode)
             results["services"]["qualia_service"] = self._qualia_service(current_mode)
             results["services"]["model_service"] = self._model_service(current_mode)
             results["services"]["observability_service"] = self._observability_service(current_mode)
             if AUTONOMY_RANK[current_mode] >= AUTONOMY_RANK["learn_candidates"]:
-                results["services"]["mission_service"] = self._mission_service(current_mode)
+                results["services"]["mission_service"] = self._governed_mission_service(current_mode, governor)
             if AUTONOMY_RANK[current_mode] >= AUTONOMY_RANK["full_local"]:
-                results["services"]["learning_service"] = self._learning_service(current_mode)
+                results["services"]["learning_service"] = self._governed_learning_service(current_mode, governor)
             self.counters["cycles"] += 1
             self.last_events = list_recent_events(limit=20, db_path=self.db_path)
             publish_event(
@@ -175,6 +210,50 @@ class InternalRuntimeSupervisor:
                 "error": str(exc),
                 "snapshot": self.snapshot(),
             }
+
+    def _run_governor(self, mode: str) -> dict[str, Any]:
+        """Ejecuta Resource Governor + Permission Governor."""
+        from triade.core.resource_probe import build_resource_probe
+        from triade.core.resource_governor import decide_work_mode
+        from triade.core.permission_governor import build_permission_profile
+        from triade.core.ollama_blood import check_ollama_blood
+
+        probe = build_resource_probe()
+        blood = check_ollama_blood()
+        decision = decide_work_mode(probe, blood, mode)
+        permissions = build_permission_profile(decision.get("effective_mode", mode))
+
+        publish_event(
+            "work_mode_decided",
+            "resource_governor",
+            {
+                "requested": mode,
+                "allowed": decision.get("allowed_mode"),
+                "effective": decision.get("effective_mode"),
+                "reason": decision.get("reason", ""),
+            },
+            db_path=self.db_path,
+            run_ref=self.runtime_id,
+        )
+
+        return {**decision, "permissions": permissions, "resource_probe": probe}
+
+    def _governed_mission_service(self, mode: str, governor: dict[str, Any]) -> dict[str, Any]:
+        """Ejecuta misiones solo si el governor lo permite."""
+        if not governor.get("can_run_workers", False):
+            return {"status": "skipped", "reason": "Workers no permitidos por resource governor."}
+        if not governor.get("can_nourish_neurons", False):
+            # Sin nutrición, solo planear
+            planner = MissionPlanner(db_path=self.db_path)
+            planned = planner.plan_cycle(run_ref=self.runtime_id)
+            return {"status": "ok", "planned": [p.to_dict() for p in planned], "nutrition": None}
+        return self._mission_service(mode)
+
+    def _governed_learning_service(self, mode: str, governor: dict[str, Any]) -> dict[str, Any]:
+        """Ejecuta aprendizaje solo si permisos lo permiten."""
+        if not governor.get("can_evaluate_learning", False):
+            return {"status": "skipped", "reason": "Evaluación no permitida por resource governor."}
+        return self._learning_service(mode)
 
     def run_forever(self, interval_seconds: int = 30, max_cycles: int = 0, mode: str | None = None) -> dict[str, Any]:
         self.configure(mode=mode, enabled=True, interval_seconds=interval_seconds, max_cycles=max_cycles)
