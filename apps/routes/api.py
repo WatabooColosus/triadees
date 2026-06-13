@@ -1100,6 +1100,17 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             "changed_files": git.get("changed_files", []),
             "recent_commits": git.get("recent_commits", []),
         },
+        "system_processes": {
+            "runtime_enabled": heartbeat.get("runtime_enabled"),
+            "runtime_mode": heartbeat.get("mode"),
+            "background_thread_alive": heartbeat.get("background_thread_alive", False),
+            "workers_active": heartbeat.get("workers_active", False),
+            "active_tasks": workers.get("active_tasks", 0),
+            "cycles_last_hour": heartbeat.get("cycles_last_hour", 0),
+            "cycles_last_24h": heartbeat.get("cycles_last_24h", 0),
+            "latest_action": heartbeat.get("latest_action"),
+            "latest_error": heartbeat.get("latest_error"),
+        },
         "workers": {
             "status": workers.get("status"),
             "active_tasks": workers.get("active_tasks", 0),

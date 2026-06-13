@@ -160,3 +160,33 @@ def test_react_dashboard_has_generated_at():
     data = resp.json()
     assert "generated_at" in data
     assert "refresh_hint_seconds" in data
+
+
+def test_react_dashboard_contains_system_processes():
+    """El dashboard debe incluir system_processes con estado de runtime."""
+    resp = client.get("/api/ui/react-dashboard")
+    data = resp.json()
+    assert "system_processes" in data
+    sp = data["system_processes"]
+    for k in ("runtime_enabled", "runtime_mode", "background_thread_alive", "workers_active", "active_tasks", "cycles_last_hour", "latest_action"):
+        assert k in sp, f"Missing system_processes.{k}"
+
+
+def test_repo_runtime_status_uses_whitelist_no_shell():
+    """build_repo_runtime_status usa solo comandos whitelist con shell=False."""
+    import inspect
+    from triade.core.repo_runtime_status import build_repo_runtime_status, _run_git
+    src = inspect.getsource(_run_git)
+    assert "shell=False" in src, "_run_git debe usar shell=False"
+    assert "subprocess.run" in src
+    assert '["git"]' in src or '"git"' in src
+    status = build_repo_runtime_status()
+    assert status.get("status") in ("ok", "unavailable")
+
+
+def test_react_dashboard_contains_technical_debt():
+    """El dashboard debe incluir technical_debt con score."""
+    resp = client.get("/api/ui/react-dashboard")
+    data = resp.json()
+    assert "technical_debt" in data
+    assert "score" in data["technical_debt"]
