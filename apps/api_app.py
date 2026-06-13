@@ -1,4 +1,7 @@
-"""API local FastAPI para Tríade Ω."""
+"""API local FastAPI para Tríade Ω.
+
+DEPRECATED_UI: Migrated to single_port_app.py. Keep until v2.4.
+"""
 
 from __future__ import annotations
 

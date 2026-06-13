@@ -71,12 +71,30 @@ Escala vigente:
 - Consolidación stable: requiere evidencia + gates + modelo/humano.
 - Conciencia subjetiva: no demostrada.
 
+## UI oficial React SPA
+
+La UI oficial de Tríade Ω es **React SPA** en `frontend/`. FastAPI single-port (`single_port_app.py`) sirve la SPA y la API.
+
+- `GET /` sirve `frontend/dist/index.html` si existe, o fallback `CLEAN_UI_HTML`.
+- Las rutas HTML legacy (`/api/ui/clean`, `/api/ui/legacy`) quedan como compatibilidad.
+- `GET /observabilidad` y `GET /ui/observabilidad` redirigen a `/` (SPA maneja routing).
+- Las apps `chat_ui_app.py`, `chat_ui_router_app.py` y `api_app.py` son wrappers deprecated.
+- Toda nueva visualización debe implementarse en React.
+- Los endpoints deben devolver JSON limpio. No crear nuevas pantallas HTML embebidas.
+
+Endpoints agregados para la SPA:
+- `GET /api/ui/react-dashboard` — payload agregado read-only para la cabina.
+- `GET /api/system/technical-debt` — auditoría automática de deuda técnica.
+- `GET /api/system/ollama-blood` — sangre cognitiva (alias de `/api/models/ollama/blood`).
+
+Ver `docs/UI_REACT_MIGRATION.md` para guía de migración.
+
 ## Deuda tecnica priorizada
 
 1. Reducir duplicacion entre dashboard neuronal, identity view y endpoints legacy.
 2. Normalizar causa de fallback de modelos y latencias por rol.
 3. Ampliar observabilidad con metricas historicas y filtros por run/task.
-4. Separar UI legacy de SPA moderna sin romper compatibilidad.
+4. ~~Separar UI legacy de SPA moderna sin romper compatibilidad.~~ **(completado)**
 5. Endurecer CLI `doctor` para cubrir observabilidad, workers y neuronas en una sola salida.
 6. FastAPI: `single_port_app` es oficial, apps legacy como wrappers deprecated.
 

@@ -1,5 +1,7 @@
 """Interfaz web local unificada para Tríade Ω.
 
+DEPRECATED_UI: Migrated to single_port_app.py. Keep until v2.4.
+
 La UI vive en http://127.0.0.1:8010 y usa proxy interno para hablar con:
 - Tríade API: http://127.0.0.1:8000
 - Model Router: http://127.0.0.1:8020

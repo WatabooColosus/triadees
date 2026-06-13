@@ -628,6 +628,36 @@ Autor conceptual: **Santiago & Tríade**
 
 ---
 
+## 🖥️ UI oficial — React SPA
+
+La UI oficial de Tríade Ω es **React SPA** en `frontend/`. FastAPI single-port (`single_port_app.py`) sirve la SPA y la API.
+
+```bash
+# Construir frontend
+npm --prefix frontend run build
+
+# Servir
+python triade_digimon.py api --host 127.0.0.1 --port 8010
+```
+
+Endpoints principales para la SPA:
+
+| Endpoint | Propósito |
+|---|---|
+| `GET /api/runtime/heartbeat` | Pulso vivo y continuidad |
+| `GET /api/models/ollama/blood` | Sangre cognitiva Ollama |
+| `GET /api/bodega/global-context` | Contexto global de memoria |
+| `GET /api/observability` | Observabilidad completa |
+| `GET /api/ui/react-dashboard` | Dashboard agregado read-only |
+| `GET /api/system/technical-debt` | Auditoría de deuda técnica |
+| `GET /api/runtime/learning-journal` | Diario de aprendizaje 24h |
+| `GET /api/runtime/neuron-nutrition` | Nutrición neuronal |
+
+Toda nueva visualización debe implementarse en React. Las pantallas HTML legacy quedan deprecated.
+Ver `docs/UI_REACT_MIGRATION.md` para guía de migración.
+
+---
+
 ## 🤝 Contribuir / Explorar
 
 Este repositorio es una **semilla abierta**.  

@@ -754,7 +754,9 @@ function SystemTab() {
     Promise.all([
       api('/api/health'), api('/api/system/pulse'), api('/api/system/life'), api('/api/system/qualia'),
       api('/api/observability?limit=1'),
-    ]).then(([h, p, l, q, obs]) => setData({ health: h, pulse: p, life: l, qualia: q, living_report: obs }))
+      api('/api/ui/react-dashboard').catch(() => null),
+      api('/api/system/technical-debt').catch(() => null),
+    ]).then(([h, p, l, q, obs, dash, debt]) => setData({ health: h, pulse: p, life: l, qualia: q, living_report: obs, dashboard: dash, technical_debt: debt }))
       .catch(e => setError(e.message))
   }, [])
 
@@ -798,6 +800,70 @@ function SystemTab() {
           </div>
         </div>
       </Card>
+      {data.technical_debt && (
+        <Card title={`Deuda Técnica · Score ${data.technical_debt.score}/100`} color={data.technical_debt.score >= 70 ? '#22c55e' : data.technical_debt.score >= 40 ? '#eab308' : '#ef4444'}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, marginBottom: 8 }}>
+            <span>Deudas: <strong>{data.technical_debt.debts_count}</strong></span>
+            <span>Advertencias: <strong>{data.technical_debt.warnings_count}</strong></span>
+          </div>
+          {data.technical_debt.debts?.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {data.technical_debt.debts.slice(0, 5).map((d: any, i: number) => (
+                <div key={i} style={{
+                  padding: '6px 10px', background: 'var(--bg-base)', borderRadius: 6,
+                  border: '1px solid var(--border)', fontSize: 11,
+                }}>
+                  <div style={{ fontWeight: 600 }}>{d.item} <Badge status={d.severity} /></div>
+                  <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>{d.detail}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {data.technical_debt.recommended_actions?.length > 0 && (
+            <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+              {data.technical_debt.recommended_actions.map((a: string, i: number) => (
+                <div key={i} style={{ padding: '2px 0' }}>→ {a}</div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+      {data.dashboard && (
+        <Card title="Dashboard React (agregado)" color="#8b5cf6">
+          <Grid cols={2}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>Pulso Vivo</div>
+              <KVTable data={{
+                runtime: data.dashboard.heartbeat_summary?.runtime_enabled ? 'activo' : 'inactivo',
+                modo: data.dashboard.heartbeat_summary?.mode,
+                ciclos_hora: data.dashboard.heartbeat_summary?.cycles_last_hour,
+                continuidad: data.dashboard.heartbeat_summary?.runtime_continuity_score,
+                ultima_accion: data.dashboard.heartbeat_summary?.latest_action,
+              }} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>Sangre Cognitiva</div>
+              <KVTable data={{
+                activa: data.dashboard.ollama_blood?.cognitive_blood_active ? 'sí' : 'no',
+                presion: data.dashboard.ollama_blood?.blood_pressure_score,
+                razonador: data.dashboard.ollama_blood?.reasoning_model,
+                puede_razonar: data.dashboard.ollama_blood?.can_reason ? 'sí' : 'no',
+                puede_nutrir: data.dashboard.ollama_blood?.can_nourish_neurons ? 'sí' : 'no',
+              }} />
+            </div>
+          </Grid>
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 4 }}>Bodega Global</div>
+            <KVTable data={{
+              confianza: data.dashboard.bodega_summary?.memory_confidence,
+              motor_semantico: data.dashboard.bodega_summary?.semantic_engine_status,
+              recall: data.dashboard.bodega_summary?.semantic_recall_mode,
+              contradicciones: data.dashboard.bodega_summary?.contradictions_count,
+              politica: data.dashboard.bodega_summary?.recommended_context_policy,
+            }} />
+          </div>
+        </Card>
+      )}
     </Page>
   )
 }
