@@ -735,4 +735,53 @@ export function DelegatedActionsCard({ onPlan }: { onPlan?: (intent: string, pat
   )
 }
 
+export function AlwaysOnCard({ data }: { data: any }) {
+  if (!data) return null
+  const enabled = data.enabled
+  const bgAlive = data.background_thread_alive
+  const status = data.status || 'disabled'
+  const mode = data.effective_mode || data.configured_mode || 'observe_only'
+  const interval = data.interval_seconds || 60
+  const source = data.config_source || 'default'
+
+  let color = '#6b7280'
+  let label = 'Apagado'
+  let msg = 'Always-On apagado. Activa TRIADE_ALWAYS_ON=true para que Tríade se pruebe sola al arrancar.'
+
+  if (enabled && bgAlive) {
+    color = '#22c55e'
+    label = 'Activo'
+    msg = 'Tríade en proceso continuo.'
+  } else if (enabled && !bgAlive) {
+    color = '#ef4444'
+    label = 'Background muerto'
+    msg = 'Always-On configurado, pero background no está vivo.'
+  }
+
+  return (
+    <Card title={`Always-On · ${label}`} color={color}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{
+            width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+            background: color,
+          }} />
+          <span style={{ fontSize: 12, color: 'var(--text-primary)' }}>{msg}</span>
+        </div>
+        <KVTable data={{
+          enabled,
+          configured_mode: data.configured_mode,
+          effective_mode: mode,
+          interval_seconds: interval,
+          background_alive: bgAlive,
+          status,
+          config_source: source,
+          self_test_every_cycles: data.self_test_every_cycles,
+          self_test_on_start: data.self_test_on_start,
+        }} />
+      </div>
+    </Card>
+  )
+}
+
 

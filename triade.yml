@@ -6,3 +6,14 @@ models:
   roles:
     hypothalamus: qwen2.5:3b-instruct
     central: qwen2.5:3b-instruct
+
+runtime:
+  always_on: false
+  mode: execute_missions
+  interval_seconds: 60
+  start_delay_seconds: 3
+  max_cycles: 0
+  require_ollama: false
+  safe_only: true
+  self_test_on_start: true
+  self_test_every_cycles: 5

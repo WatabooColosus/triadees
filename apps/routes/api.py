@@ -949,6 +949,60 @@ def runtime_stop() -> dict[str, Any]:
     }
 
 
+# ── Always-On ────────────────────────────────────────────────────────────
+
+@router.get("/api/runtime/always-on/status")
+def always_on_status() -> dict[str, Any]:
+    from triade.core.always_on import build_always_on_status, load_always_on_config
+    cfg = load_always_on_config()
+    status = build_always_on_status()
+    return {
+        "status": "ok",
+        "config_source": cfg.get("_config_source", "default"),
+        "always_on_enabled": cfg.get("enabled", False),
+        "configured_mode": cfg.get("mode", "observe_only"),
+        "effective_mode": status.get("effective_mode", "observe_only"),
+        "interval_seconds": cfg.get("interval_seconds", 60),
+        "max_cycles": cfg.get("max_cycles", 0),
+        "background_thread_alive": status.get("background_thread_alive", False),
+        "runtime_enabled": status.get("runtime_enabled", False),
+        "started_at": status.get("started_at"),
+        "always_on_status": status.get("status", "disabled"),
+        "last_start_result": status.get("last_start_result"),
+        "last_self_test_status": status.get("last_self_test_status"),
+        "safe_only": cfg.get("safe_only", True),
+        "require_ollama": cfg.get("require_ollama", False),
+        "self_test_on_start": cfg.get("self_test_on_start", True),
+        "self_test_every_cycles": cfg.get("self_test_every_cycles", 5),
+    }
+
+
+@router.post("/api/runtime/always-on/start")
+def always_on_start(
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    from triade.core.always_on import start_always_on_if_enabled
+    require_key(x_triade_api_key)
+    return start_always_on_if_enabled()
+
+
+@router.post("/api/runtime/always-on/stop")
+def always_on_stop(
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    from triade.core.always_on import stop_always_on
+    require_key(x_triade_api_key)
+    return stop_always_on()
+
+
+@router.post("/api/runtime/self-test")
+def runtime_self_test(mode: str = "safe") -> dict[str, Any]:
+    LIFE_PULSE.record_action("runtime_self_test")
+    from triade.core.self_test_cycle import run_self_test_cycle
+    result = run_self_test_cycle(mode=mode)
+    return {"status": "ok", "self_test": result}
+
+
 @router.get("/api/runtime/events")
 def runtime_events(limit: int = 50) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_events")

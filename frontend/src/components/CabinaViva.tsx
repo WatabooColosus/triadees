@@ -6,7 +6,7 @@ import {
   RepoChangesCard, ProcessStatusCard, AutonomyBudgetCard,
   TrashCard, DelegatedActionsCard, BodegaCard, MemoryTraceCard,
   LearningJournalCard, TechnicalDebtCard, WorkersCard,
-  SafeShellCard, EventsFeed,
+  SafeShellCard, EventsFeed, AlwaysOnCard,
 } from './Cards'
 
 export function CabinaViva() {
@@ -156,6 +156,7 @@ export function CabinaViva() {
       )}
 
       <Grid cols={2}>
+        <AlwaysOnCard data={dash.heartbeat?.always_on || dash.always_on_detail || {}} />
         <PulseCard data={dash.heartbeat} onCycle={runCycle} onStart={startMode} onStop={stopRuntime} />
         <OllamaBloodCard data={dash.ollama_blood} />
         <ResourcesCard data={governor} />

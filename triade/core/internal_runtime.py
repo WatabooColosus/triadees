@@ -198,6 +198,7 @@ def build_runtime_heartbeat(
     from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
     from triade.models.ollama_client import check_ollama_cognitive_health
     from triade.workers.background_service import WorkerBackgroundService
+    from triade.core.always_on import build_always_on_status
 
     runtime_state = get_internal_runtime_state(db_path=db_path, runs_dir=runs_dir)
     learning_journal = build_learning_journal(db_path=db_path, since_hours=since_hours, limit=limit)
@@ -243,10 +244,36 @@ def build_runtime_heartbeat(
     bg_alive = bool(_BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive())
     workers_active = bool(worker_status.get("running"))
     ollama_degraded = ollama_blood.get("status") == "degraded_no_ollama"
+
+    always_on_status = build_always_on_status()
+    always_on_enabled = always_on_status.get("enabled", False)
+    always_on_state = always_on_status.get("status", "disabled")
+    supervisor_enabled = bool(runtime_state.get("enabled"))
+    has_recent_activity = cycles_last_hour > 0 or int(learning_journal.get("missions_executed", 0) or 0) > 0
+
+    if has_recent_activity and not runtime_enabled and not bg_alive:
+        runtime_activity_state = "recent_activity_supervisor_off"
+    elif not has_recent_activity and not runtime_enabled and not bg_alive:
+        runtime_activity_state = "idle_supervisor_off"
+    elif always_on_enabled and not bg_alive:
+        runtime_activity_state = "always_on_enabled_but_background_dead"
+    elif always_on_enabled and bg_alive:
+        runtime_activity_state = "active_background"
+    elif ollama_degraded:
+        runtime_activity_state = "degraded_no_ollama"
+    elif bg_alive:
+        runtime_activity_state = "always_on_enabled_background_running" if always_on_enabled else "active_background"
+    else:
+        runtime_activity_state = "idle_supervisor_off"
+
     if not runtime_enabled:
         truth = "Servidor activo · Runtime apagado"
+        if always_on_enabled and not bg_alive:
+            truth = "ALWAYS-ON configurado, pero background no está vivo"
+        elif has_recent_activity:
+            truth = "Actividad reciente detectada, pero supervisor apagado"
         if ollama_degraded:
-            truth = "Servidor activo · Runtime apagado · Ollama no conectado"
+            truth += " · Ollama no conectado"
     elif ollama_degraded:
         truth = "Runtime degradado por falta de Ollama Blood"
     elif cycles_last_hour > 0:
@@ -326,6 +353,24 @@ def build_runtime_heartbeat(
         "worker_status": worker_status,
         "runtime_state": runtime_state,
         "runtime_events": recent_events[:20],
+        "supervisor_enabled": supervisor_enabled,
+        "has_recent_activity": has_recent_activity,
+        "runtime_activity_state": runtime_activity_state,
+        "always_on": {
+            "enabled": always_on_enabled,
+            "configured_mode": always_on_status.get("configured_mode", "observe_only"),
+            "effective_mode": always_on_status.get("effective_mode", "observe_only"),
+            "interval_seconds": always_on_status.get("interval_seconds", 60),
+            "status": always_on_state,
+            "background_thread_alive": bg_alive,
+            "self_test_on_start": always_on_status.get("self_test_on_start", True),
+            "self_test_every_cycles": always_on_status.get("self_test_every_cycles", 5),
+            "config_source": always_on_status.get("config_source", "default"),
+        },
+        "always_on_enabled": always_on_enabled,
+        "always_on_status": always_on_state,
+        "always_on_detail": always_on_status,
+        "self_test_last_status": getattr(get_internal_runtime_supervisor(db_path=db_path, runs_dir=runs_dir), "last_self_test_result", None),
     }
     return heartbeat
 

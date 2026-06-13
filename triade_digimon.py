@@ -567,6 +567,91 @@ def _require_admin_token(admin_token: str | None) -> None:
         raise SystemExit("Este comando requiere --admin-token.")
 
 
+def handle_always_on(args: argparse.Namespace) -> None:
+    from triade.core.always_on import (
+        build_always_on_status,
+        load_always_on_config,
+        start_always_on_if_enabled,
+        stop_always_on,
+    )
+
+    if args.always_on_command == "status":
+        cfg = load_always_on_config()
+        status = build_always_on_status()
+        print_json({
+            "config_source": cfg.get("_config_source", "default"),
+            "always_on_enabled": cfg.get("enabled", False),
+            "configured_mode": cfg.get("mode", "observe_only"),
+            "effective_mode": status.get("effective_mode", "observe_only"),
+            "interval_seconds": cfg.get("interval_seconds", 60),
+            "max_cycles": cfg.get("max_cycles", 0),
+            "background_thread_alive": status.get("background_thread_alive", False),
+            "status": status.get("status", "disabled"),
+            "last_self_test_status": status.get("last_self_test_status"),
+        })
+        return
+
+    if args.always_on_command == "enable":
+        import yaml
+        path = Path(args.config or "triade.yml")
+        try:
+            with open(path) as f:
+                yml = yaml.safe_load(f) or {}
+        except Exception:
+            yml = {}
+        if "runtime" not in yml:
+            yml["runtime"] = {}
+        yml["runtime"]["always_on"] = True
+        if args.mode:
+            yml["runtime"]["mode"] = args.mode
+        if args.interval:
+            yml["runtime"]["interval_seconds"] = args.interval
+        if args.safe_only is not None:
+            yml["runtime"]["safe_only"] = args.safe_only
+        if args.require_ollama is not None:
+            yml["runtime"]["require_ollama"] = args.require_ollama
+        if args.self_test_every is not None:
+            yml["runtime"]["self_test_every_cycles"] = args.self_test_every
+        with open(path, "w") as f:
+            yaml.dump(yml, f, default_flow_style=False)
+        print_json({"status": "ok", "message": "ALWAYS-ON habilitado en triade.yml.", "config": yml["runtime"]})
+        return
+
+    if args.always_on_command == "disable":
+        import yaml
+        path = Path(args.config or "triade.yml")
+        try:
+            with open(path) as f:
+                yml = yaml.safe_load(f) or {}
+        except Exception:
+            yml = {}
+        if "runtime" in yml:
+            yml["runtime"]["always_on"] = False
+        with open(path, "w") as f:
+            yaml.dump(yml, f, default_flow_style=False)
+        result = stop_always_on()
+        print_json({"status": "ok", "message": "ALWAYS-ON deshabilitado en triade.yml.", "stop_result": result})
+        return
+
+    if args.always_on_command == "start":
+        result = start_always_on_if_enabled()
+        print_json(result)
+        return
+
+    if args.always_on_command == "stop":
+        result = stop_always_on()
+        print_json(result)
+        return
+
+    print_json(build_always_on_status())
+
+
+def handle_self_test(args: argparse.Namespace) -> None:
+    from triade.core.self_test_cycle import run_self_test_cycle
+    result = run_self_test_cycle(mode=args.mode)
+    print_json(result)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Tríade Ω · MVP local auditable con memoria SQLite")
     subparsers = parser.add_subparsers(dest="command")
@@ -817,6 +902,25 @@ def main() -> None:
     runtime_sub.add_parser("context", help="Muestra contexto vivo resumido", parents=[runtime_common])
     runtime_sub.add_parser("report", help="Muestra reporte vivo resumido", parents=[runtime_common])
 
+    # ── Always-On ────────────────────────────────────────────────────────
+    ao_parser = subparsers.add_parser("always-on", help="Controla ALWAYS-ON runtime persistente")
+    ao_sub = ao_parser.add_subparsers(dest="always_on_command")
+    ao_sub.add_parser("status", help="Estado actual de ALWAYS-ON")
+    ao_enable = ao_sub.add_parser("enable", help="Habilita ALWAYS-ON en triade.yml")
+    ao_enable.add_argument("--mode", default=None, help="observe_only|execute_missions|balanced_background|full_local_guarded")
+    ao_enable.add_argument("--interval", type=int, default=None, help="Intervalo en segundos")
+    ao_enable.add_argument("--safe-only", dest="safe_only", type=bool, default=None, help="Solo acciones seguras")
+    ao_enable.add_argument("--require-ollama", dest="require_ollama", type=bool, default=None, help="Requerir Ollama")
+    ao_enable.add_argument("--self-test-every", dest="self_test_every", type=int, default=None, help="Self-test cada N ciclos")
+    ao_enable.add_argument("--config", default="triade.yml", help="Ruta de configuración")
+    ao_sub.add_parser("disable", help="Deshabilita ALWAYS-ON en triade.yml").add_argument("--config", default="triade.yml")
+    ao_sub.add_parser("start", help="Inicia ALWAYS-ON ahora")
+    ao_sub.add_parser("stop", help="Detiene ALWAYS-ON ahora")
+
+    # ── Self-test ────────────────────────────────────────────────────────
+    st_parser = subparsers.add_parser("self-test", help="Ejecuta ciclo de autodiagnóstico seguro")
+    st_parser.add_argument("--mode", default="safe", help="safe|full")
+
     relay_parser = subparsers.add_parser("relay", help="Controla un relay publico Triade")
     relay_parser.add_argument("--url", required=True, help="URL publica del relay")
     relay_parser.add_argument("--admin-token", default=None, help="Token admin del relay")
@@ -960,6 +1064,14 @@ def main() -> None:
 
     if args.command == "relay":
         handle_relay(args)
+        return
+
+    if args.command == "always-on":
+        handle_always_on(args)
+        return
+
+    if args.command == "self-test":
+        handle_self_test(args)
         return
 
     parser.print_help()

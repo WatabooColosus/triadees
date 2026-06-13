@@ -10,6 +10,7 @@ El HTML vive en apps/ui_html.py.
 
 from __future__ import annotations
 
+import threading
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
@@ -21,11 +22,25 @@ from triade.federation.node_live_registry import NODE_LIVE_REGISTRY
 from apps.routes.api import router as api_router
 from apps.routes.ui import router as ui_router
 
+_ALWAYS_ON_RESULT: dict[str, Any] = {}
+_ALWAYS_ON_LOCK = threading.Lock()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     LIFE_PULSE.start()
     NODE_LIVE_REGISTRY.start()
+
+    global _ALWAYS_ON_RESULT
+    try:
+        from triade.core.always_on import start_always_on_if_enabled
+        result = start_always_on_if_enabled()
+        with _ALWAYS_ON_LOCK:
+            _ALWAYS_ON_RESULT = result
+    except Exception as exc:
+        with _ALWAYS_ON_LOCK:
+            _ALWAYS_ON_RESULT = {"status": "error", "message": f"always_on_start_failed: {exc}"}
+
     try:
         yield
     finally:
@@ -36,6 +51,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Tríade Ω Single Port", version="0.9.0", lifespan=lifespan)
 app.include_router(api_router)
 app.include_router(ui_router)
+
+
+def get_always_on_startup_result() -> dict[str, Any]:
+    with _ALWAYS_ON_LOCK:
+        return dict(_ALWAYS_ON_RESULT)
 
 
 # ── Re-exportaciones para compatibilidad con tests ──────────────────────

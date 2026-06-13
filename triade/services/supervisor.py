@@ -74,6 +74,9 @@ class InternalRuntimeSupervisor:
             "default_mode": "observe_only",
             "requires_explicit_activation": True,
         }
+        self.self_test_cycle_count = 0
+        self.self_test_every_cycles = int(os.environ.get("TRIADE_SELF_TEST_EVERY_CYCLES", "5") or "5")
+        self.last_self_test_result: dict[str, Any] | None = None
 
     @staticmethod
     def _env_flag(name: str, default: bool = False) -> bool:
@@ -173,6 +176,17 @@ class InternalRuntimeSupervisor:
                 results["services"]["mission_service"] = self._governed_mission_service(current_mode, governor)
             if AUTONOMY_RANK[current_mode] >= AUTONOMY_RANK["full_local"]:
                 results["services"]["learning_service"] = self._governed_learning_service(current_mode, governor)
+            self.self_test_cycle_count += 1
+            if self.self_test_cycle_count % self.self_test_every_cycles == 0:
+                try:
+                    from triade.core.self_test_cycle import run_self_test_cycle
+                    self.last_self_test_result = run_self_test_cycle(
+                        mode="safe", db_path=self.db_path, runs_dir=self.runs_dir,
+                    )
+                    results["self_test"] = self.last_self_test_result
+                except Exception as st_exc:
+                    self.last_self_test_result = {"status": "error", "error": str(st_exc)}
+                    results["self_test"] = self.last_self_test_result
             self.counters["cycles"] += 1
             self.last_events = list_recent_events(limit=20, db_path=self.db_path)
             publish_event(
