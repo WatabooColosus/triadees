@@ -63,6 +63,8 @@ Las suites heredadas que esperan promoción deben adjuntar evidencia `improved`.
 
 Las pruebas de autoconsolidación por trust y las revisiones estables de workers también deben pasar por el mismo bridge. El trust autoriza la decisión final, pero no sustituye la demostración de mejora.
 
+Los escenarios E2E neuronales siguen la misma regla: tres usos y un promedio suficiente solo habilitan la promoción cuando la hipótesis tiene baseline, evaluación posterior y comparación `improved` asociada al mismo candidato.
+
 ## Garantías
 
 - no modifica `identity_core`;
