@@ -1,0 +1,32 @@
+name: Apply Learning Evidence Bridge
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/learning-evidence-bridge
+          fetch-depth: 0
+      - name: Integrate bridge into LearningPipeline
+        run: python scripts/apply_learning_evidence_bridge.py
+      - name: Validate syntax
+        run: python -m py_compile triade/learning/pipeline.py triade/learning/evidence_bridge.py
+      - name: Remove temporary migration files
+        run: rm scripts/apply_learning_evidence_bridge.py .github/workflows/apply-learning-evidence-bridge.yml
+      - name: Commit integration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "feat(learning): enforce measurable improvement gates"
+          git push origin HEAD:feat/learning-evidence-bridge
