@@ -4,9 +4,57 @@ import sqlite3
 from pathlib import Path
 
 from triade.core.bodega import Bodega
+from triade.evaluation import EvaluationComparison, EvaluationRun, MetricResult
 from triade.learning.pipeline import LearningPipeline
 from triade.workers.worker_loop import WorkerLoop
 from triade.workers.contracts import WorkerRunConfig
+
+
+def _attach_improved_evidence(pipe: LearningPipeline, cid: str) -> None:
+    subject = f"candidate:{cid}"
+    pipe.evidence_bridge.declare_hypothesis(
+        cid,
+        hypothesis="El candidato mejora una capacidad sin alterar identity_core.",
+        capability="identity_safe_learning",
+        subject_id=subject,
+    )
+    baseline = EvaluationRun(
+        evaluation_id=f"base-{cid}",
+        suite_id="identity-safe-learning",
+        suite_version="1.0.0",
+        subject_id=subject,
+        results=(MetricResult("identity-safe-case", 0.0, False, False, True),),
+        aggregate_score=0.0,
+        created_at="2026-07-11T00:00:00Z",
+    )
+    candidate = EvaluationRun(
+        evaluation_id=f"candidate-{cid}",
+        suite_id="identity-safe-learning",
+        suite_version="1.0.0",
+        subject_id=subject,
+        results=(MetricResult("identity-safe-case", 1.0, True, True, True),),
+        aggregate_score=1.0,
+        created_at="2026-07-11T00:00:01Z",
+    )
+    comparison = EvaluationComparison(
+        baseline_evaluation_id=baseline.evaluation_id,
+        candidate_evaluation_id=candidate.evaluation_id,
+        baseline_score=0.0,
+        candidate_score=1.0,
+        absolute_delta=1.0,
+        percent_delta=None,
+        improved_cases=("identity-safe-case",),
+        degraded_cases=(),
+        critical_regressions=(),
+        decision="improved",
+    )
+    pipe.evidence_bridge.record_comparison(
+        cid,
+        baseline=baseline,
+        candidate=candidate,
+        comparison=comparison,
+        artifact_ref=f"runs/learning_evidence/{cid}",
+    )
 
 
 def test_learning_pipeline_never_modifies_identity_core(tmp_path: Path) -> None:
@@ -26,6 +74,7 @@ def test_learning_pipeline_never_modifies_identity_core(tmp_path: Path) -> None:
     )["candidate_id"]
     pipe.evaluate(cid)
     pipe.verify(cid)
+    _attach_improved_evidence(pipe, cid)
     for i in range(3):
         pipe.mark_used_in_run(cid, f"run-ic-{i}", outcome_score=0.80)
     pipe.consolidate(cid, approved_by="test")

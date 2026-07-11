@@ -31,8 +31,56 @@ from triade.core.neuron_missions import (
 from triade.core.run_learning_usage import record_learning_usage_from_output
 from triade.core.runner import _build_traceability
 from triade.core.error_bus import query_internal_errors
+from triade.evaluation import EvaluationComparison, EvaluationRun, MetricResult
 from triade.learning.pipeline import LearningPipeline
 from triade.workers.mission_planner import MissionPlanner
+
+
+def _attach_improved_evidence(pipeline: LearningPipeline, cid: str) -> None:
+    subject = f"candidate:{cid}"
+    pipeline.evidence_bridge.declare_hypothesis(
+        cid,
+        hypothesis="El candidato mejora aprendizaje neuronal medible.",
+        capability="neuron_learning",
+        subject_id=subject,
+    )
+    baseline = EvaluationRun(
+        evaluation_id=f"base-{cid}",
+        suite_id="neuron-learning",
+        suite_version="1.0.0",
+        subject_id=subject,
+        results=(MetricResult("neuron-case", 0.0, False, False, True),),
+        aggregate_score=0.0,
+        created_at="2026-07-11T00:00:00Z",
+    )
+    candidate = EvaluationRun(
+        evaluation_id=f"candidate-{cid}",
+        suite_id="neuron-learning",
+        suite_version="1.0.0",
+        subject_id=subject,
+        results=(MetricResult("neuron-case", 1.0, True, True, True),),
+        aggregate_score=1.0,
+        created_at="2026-07-11T00:00:01Z",
+    )
+    comparison = EvaluationComparison(
+        baseline_evaluation_id=baseline.evaluation_id,
+        candidate_evaluation_id=candidate.evaluation_id,
+        baseline_score=0.0,
+        candidate_score=1.0,
+        absolute_delta=1.0,
+        percent_delta=None,
+        improved_cases=("neuron-case",),
+        degraded_cases=(),
+        critical_regressions=(),
+        decision="improved",
+    )
+    pipeline.evidence_bridge.record_comparison(
+        cid,
+        baseline=baseline,
+        candidate=candidate,
+        comparison=comparison,
+        artifact_ref=f"runs/learning_evidence/{cid}",
+    )
 
 
 def make_db(tmp_path: Path) -> Path:
@@ -387,6 +435,7 @@ def test_e2e_consolidation_after_gates(tmp_path: Path) -> None:
     cid = candidate["candidate_id"]
     pipeline.evaluate(cid)
     pipeline.verify(cid)
+    _attach_improved_evidence(pipeline, cid)
 
     output = SimpleNamespace(
         response="Los sistemas distribuidos tolerantes a fallos son esenciales",
@@ -409,6 +458,7 @@ def test_e2e_consolidation_after_gates(tmp_path: Path) -> None:
     c = pipeline.get_candidate(cid)
     # After 3 uses with avg >= 0.70, should be promoted to validated_in_runs
     assert c["status"] == "validated_in_runs"
+    assert c["measurement_evidence"]["decision"] == "improved"
     assert c["run_use_count"] >= 3
     assert c["avg_outcome_score"] >= 0.70
 

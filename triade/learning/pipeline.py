@@ -38,6 +38,7 @@ from triade.models.ollama_client import check_ollama_cognitive_health
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.memory.trust_store import TrustLevelStore
+from triade.learning.evidence_bridge import LearningEvidenceBridge
 
 RISK_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 VALID_SOURCE_TYPES = {"conversation", "document", "web", "repo", "model", "node", "tool", "federated_node", "qualia_bus"}
@@ -97,6 +98,7 @@ class LearningPipeline:
         # Reutiliza la maquinaria semántica para la consolidación a memoria estable.
         self.semantic_store = SemanticMemoryStore(db_path=self.db_path)
         self.governance = SemanticMemoryGovernance(db_path=self.db_path)
+        self.evidence_bridge = LearningEvidenceBridge(db_path=self.db_path)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -294,6 +296,7 @@ class LearningPipeline:
 
         if (use_count >= self.MIN_RUN_USES and avg_score >= self.MIN_OUTCOME_SCORE
                 and row["status"] == "verified"):
+            evidence = self.evidence_bridge.require_improvement(candidate_id)
             self._update(
                 candidate_id, status="validated_in_runs",
                 note_step="validated_in_runs",
@@ -301,6 +304,8 @@ class LearningPipeline:
                     "decision": "validated_in_runs",
                     "run_use_count": use_count,
                     "avg_outcome_score": avg_score,
+                    "measurement_decision": evidence["decision"],
+                    "measurement_artifact_ref": evidence.get("artifact_ref"),
                     "at": utc_now(),
                 },
             )
@@ -348,6 +353,8 @@ class LearningPipeline:
                 f"avg_outcome_score={avg_score:.3f}, mínimo={self.MIN_OUTCOME_SCORE}."
             )
 
+        measurement_evidence = self.evidence_bridge.require_improvement(candidate_id)
+
         explicit_approver = (approved_by or "").strip()
         if explicit_approver:
             approver = explicit_approver
@@ -375,7 +382,7 @@ class LearningPipeline:
             domain=str(row["domain"] or "general"),
             source_type="learning_pipeline",
             source_ref=str(row["source_ref"]),
-            metadata={"learning_candidate_id": candidate_id, "approved_by": approver},
+            metadata={"learning_candidate_id": candidate_id, "approved_by": approver, "measurement_evidence": measurement_evidence.get("comparison")},
             status="candidate",
         )
         # candidate → experimental → stable (la gobernanza exige source_ref para stable).
@@ -426,7 +433,11 @@ class LearningPipeline:
     def get_candidate(self, candidate_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute("SELECT * FROM learning_queue WHERE candidate_id = ?", (candidate_id,)).fetchone()
-        return self._decode(dict(row)) if row else None
+        if not row:
+            return None
+        candidate = self._decode(dict(row))
+        candidate["measurement_evidence"] = self.evidence_bridge.get(candidate_id)
+        return candidate
 
     def list_candidates(self, status: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -467,7 +478,7 @@ class LearningPipeline:
             "status": "ok",
             "mode": "learning-pipeline-C",
             "policy": {
-                "consolidation_requires": ["status=verified_or_validated_in_runs", "source_ref", "risk!=critical", "run_use_count>=3", "avg_outcome_score>=0.70"],
+                "consolidation_requires": ["status=verified_or_validated_in_runs", "source_ref", "risk!=critical", "run_use_count>=3", "avg_outcome_score>=0.70", "measurement_decision=improved", "critical_regressions=0"],
                 "identity_core_protected": True,
                 "stable_memory_via": "semantic_governance_1.9E",
                 "auto_consolidation": trust_info.get("permissions", {}).get("auto_consolidate_low_risk", False),

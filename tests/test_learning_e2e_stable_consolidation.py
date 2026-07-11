@@ -4,6 +4,7 @@ import sqlite3
 from pathlib import Path
 
 from triade.core.runner import TriadeRunner
+from triade.evaluation import EvaluationComparison, EvaluationRun, MetricResult
 from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.workers.worker_loop import WorkerLoop
@@ -12,6 +13,53 @@ from triade.workers.worker_loop import WorkerLoop
 def _identity_rows(db_path: Path) -> list[tuple]:
     with sqlite3.connect(db_path) as conn:
         return conn.execute("SELECT key, value, category, confidence FROM identity_core ORDER BY key").fetchall()
+
+
+def _attach_improved_evidence(pipe: LearningPipeline, cid: str) -> None:
+    subject = f"candidate:{cid}"
+    pipe.evidence_bridge.declare_hypothesis(
+        cid,
+        hypothesis="La observabilidad consolidada mejora una capacidad medible.",
+        capability="learning_observability",
+        subject_id=subject,
+    )
+    baseline = EvaluationRun(
+        evaluation_id=f"base-{cid}",
+        suite_id="learning-observability",
+        suite_version="1.0.0",
+        subject_id=subject,
+        results=(MetricResult("observability-case", 0.0, False, False, True),),
+        aggregate_score=0.0,
+        created_at="2026-07-11T00:00:00Z",
+    )
+    candidate = EvaluationRun(
+        evaluation_id=f"candidate-{cid}",
+        suite_id="learning-observability",
+        suite_version="1.0.0",
+        subject_id=subject,
+        results=(MetricResult("observability-case", 1.0, True, True, True),),
+        aggregate_score=1.0,
+        created_at="2026-07-11T00:00:01Z",
+    )
+    comparison = EvaluationComparison(
+        baseline_evaluation_id=baseline.evaluation_id,
+        candidate_evaluation_id=candidate.evaluation_id,
+        baseline_score=0.0,
+        candidate_score=1.0,
+        absolute_delta=1.0,
+        percent_delta=None,
+        improved_cases=("observability-case",),
+        degraded_cases=(),
+        critical_regressions=(),
+        decision="improved",
+    )
+    pipe.evidence_bridge.record_comparison(
+        cid,
+        baseline=baseline,
+        candidate=candidate,
+        comparison=comparison,
+        artifact_ref=f"runs/learning_evidence/{cid}",
+    )
 
 
 def test_end_to_end_learning_consolidates_without_skipping_gates(tmp_path: Path) -> None:
@@ -43,9 +91,11 @@ def test_end_to_end_learning_consolidates_without_skipping_gates(tmp_path: Path)
     cid = candidate["candidate_id"]
     assert pipe.evaluate(cid)["status"] == "evaluated"
     assert pipe.verify(cid)["status"] == "verified"
+    _attach_improved_evidence(pipe, cid)
     for idx in range(3):
         used = pipe.mark_used_in_run(cid, f"e2e-run-{idx}", outcome_score=0.86)
     assert used["status"] == "validated_in_runs"
+    assert used["measurement_evidence"]["decision"] == "improved"
 
     loop = WorkerLoop(db_path=db_path, runs_dir=tmp_path / "worker-runs")
     task_dir = tmp_path / "worker-runs" / "stable-review"
@@ -67,4 +117,5 @@ def test_end_to_end_learning_consolidates_without_skipping_gates(tmp_path: Path)
     stable_docs = [doc for doc in documents if doc.get("status") == "stable" and doc.get("metadata", {}).get("learning_candidate_id") == cid]
     assert stable_docs
     assert "observabilidad consolidada" in stable_docs[0]["content"].lower()
+    assert stable_docs[0]["metadata"]["measurement_evidence"]["decision"] == "improved"
     assert _identity_rows(db_path) == identity_before
