@@ -24,4 +24,5 @@ jobs:
             tests/test_regression_statistics_observability.py \
             tests/test_regression_observability_integration.py \
             tests/test_learning_rollback_adapter.py \
-            tests/test_learning_rollback_import_order.py
+            tests/test_learning_rollback_import_order.py \
+            tests/test_critical_suite_registry.py
