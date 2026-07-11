@@ -50,7 +50,12 @@ def test_passes_when_protected_metrics_remain_inside_threshold(tmp_path: Path) -
         candidate=candidate,
         policies=(
             MetricPolicy("identity", severity="critical"),
-            MetricPolicy("memory", severity="high", max_absolute_drop=0.02),
+            MetricPolicy(
+                "memory",
+                severity="high",
+                max_absolute_drop=0.02,
+                max_relative_drop=0.02,
+            ),
         ),
     )
 
