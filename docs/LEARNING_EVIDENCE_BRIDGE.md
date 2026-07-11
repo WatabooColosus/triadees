@@ -61,6 +61,8 @@ Esto preserva diagnósticos claros y evita que la ausencia de evidencia oculte e
 
 Las suites heredadas que esperan promoción deben adjuntar evidencia `improved`. Los casos sin evidencia deben comprobar que el candidato permanece `verified`, incluso si ya alcanzó tres usos y un promedio suficiente.
 
+Las pruebas de autoconsolidación por trust y las revisiones estables de workers también deben pasar por el mismo bridge. El trust autoriza la decisión final, pero no sustituye la demostración de mejora.
+
 ## Garantías
 
 - no modifica `identity_core`;
