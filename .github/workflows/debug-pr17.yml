@@ -1,9 +1,9 @@
 name: Debug PR17
 
 on:
-  push:
+  pull_request:
     branches:
-      - fix/cognitive-body-ci
+      - main
   workflow_dispatch:
 
 jobs:
