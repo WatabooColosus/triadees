@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sqlite3
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -21,24 +20,20 @@ class RegressionObservability:
 
     def snapshot(self) -> dict[str, Any]:
         if not self.db_path.exists():
-            return {
-                "status": "not_initialized",
-                "reports": {"total": 0, "by_decision": {}},
-                "quarantine": {"active": 0},
-                "protections": {"active": 0, "immutable": 0},
-                "rollbacks": {"total": 0, "by_status": {}},
-                "stable_capabilities": 0,
-            }
+            return self._empty("not_initialized", schema_ready=False)
         with self._connect() as conn:
-            report_rows = conn.execute(
-                "SELECT decision, COUNT(*) AS count FROM regression_reports GROUP BY decision"
-            ).fetchall()
-            quarantine_active = conn.execute(
-                "SELECT COUNT(*) AS count FROM regression_quarantine WHERE active = 1"
-            ).fetchone()["count"]
-            stable_count = conn.execute(
-                "SELECT COUNT(*) AS count FROM stable_capability_state"
-            ).fetchone()["count"]
+            report_rows = self._safe_rows(
+                conn,
+                "SELECT decision, COUNT(*) AS count FROM regression_reports GROUP BY decision",
+            )
+            quarantine_active = self._safe_scalar(
+                conn,
+                "SELECT COUNT(*) FROM regression_quarantine WHERE active = 1",
+            )
+            stable_count = self._safe_scalar(
+                conn,
+                "SELECT COUNT(*) FROM stable_capability_state",
+            )
             protection_active = self._safe_scalar(
                 conn,
                 "SELECT COUNT(*) FROM capability_protection_rules WHERE status = 'active'",
@@ -51,16 +46,29 @@ class RegressionObservability:
                 conn,
                 "SELECT status, COUNT(*) AS count FROM rollback_operations GROUP BY status",
             )
+            schema_ready = self._has_tables(
+                conn,
+                {
+                    "regression_reports",
+                    "regression_quarantine",
+                    "stable_capability_state",
+                },
+            )
         decisions = {str(row["decision"]): int(row["count"]) for row in report_rows}
         rollbacks = {str(row["status"]): int(row["count"]) for row in rollback_rows}
-        unhealthy = int(quarantine_active) > 0 or decisions.get("fail", 0) > 0 or decisions.get("invalid", 0) > 0
+        unhealthy = quarantine_active > 0 or decisions.get("fail", 0) > 0 or decisions.get("invalid", 0) > 0
+        if not schema_ready:
+            status = "not_initialized"
+        else:
+            status = "attention" if unhealthy else "healthy"
         return {
-            "status": "attention" if unhealthy else "healthy",
+            "status": status,
+            "schema_ready": schema_ready,
             "reports": {
                 "total": sum(decisions.values()),
                 "by_decision": decisions,
             },
-            "quarantine": {"active": int(quarantine_active)},
+            "quarantine": {"active": quarantine_active},
             "protections": {
                 "active": protection_active,
                 "immutable": protection_immutable,
@@ -69,8 +77,28 @@ class RegressionObservability:
                 "total": sum(rollbacks.values()),
                 "by_status": rollbacks,
             },
-            "stable_capabilities": int(stable_count),
+            "stable_capabilities": stable_count,
         }
+
+    @staticmethod
+    def _empty(status: str, *, schema_ready: bool) -> dict[str, Any]:
+        return {
+            "status": status,
+            "schema_ready": schema_ready,
+            "reports": {"total": 0, "by_decision": {}},
+            "quarantine": {"active": 0},
+            "protections": {"active": 0, "immutable": 0},
+            "rollbacks": {"total": 0, "by_status": {}},
+            "stable_capabilities": 0,
+        }
+
+    @staticmethod
+    def _has_tables(conn: sqlite3.Connection, required: set[str]) -> bool:
+        rows = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+        existing = {str(row[0]) for row in rows}
+        return required.issubset(existing)
 
     @staticmethod
     def _safe_scalar(conn: sqlite3.Connection, query: str) -> int:

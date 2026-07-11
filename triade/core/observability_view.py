@@ -17,6 +17,7 @@ from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.models.ollama_client import OllamaClient
 from triade.qualia.store import QualiaStore
+from triade.regression.observability import RegressionObservability
 from triade.workers.background_service import WorkerBackgroundService
 
 
@@ -57,6 +58,11 @@ class TriadeObservabilityView:
         health = collect("health", self.health_fn, {}) if self.health_fn else {}
         workers = collect("workers", lambda: self._workers(limit), self._empty_workers())
         learning = collect("learning", lambda: self._learning(limit), self._empty_learning())
+        regression = collect(
+            "regression_gate",
+            lambda: RegressionObservability(self.db_path).snapshot(),
+            self._empty_regression(),
+        )
         neurons = collect("neurons", lambda: NeuronIdentityView(self.db_path, self.runs_dir).list(limit=limit), self._empty_neurons())
         qualia = collect("qualia", lambda: self._qualia(limit), self._empty_qualia())
         federation = collect("federation", lambda: self._federation(limit), self._empty_federation())
@@ -67,10 +73,11 @@ class TriadeObservabilityView:
         memory_trace = collect("memory_trace", lambda: self._last_run_memory_trace(), {})
 
         status = "ok"
-        if recent_errors:
+        if recent_errors or degraded_sources:
             status = "degraded"
-        if degraded_sources:
+        if regression.get("status") == "attention":
             status = "degraded"
+            warnings.append("Regression Gate requiere atención: existen fallos, evidencia inválida o cuarentenas activas.")
 
         last_run_data = last_run or {"message": "No hay runs registrados todavía."}
         if memory_trace and memory_trace.get("run_id"):
@@ -94,6 +101,7 @@ class TriadeObservabilityView:
             "bodega": bodega,
             "workers": workers,
             "learning": learning,
+            "regression_gate": regression,
             "neurons": neurons,
             "qualia": qualia,
             "federation": federation,
@@ -113,6 +121,7 @@ class TriadeObservabilityView:
                 "errors": "No hay errores internos recientes.",
                 "workers": "No hay workers activos.",
                 "learning": "No hay candidatos de aprendizaje pendientes.",
+                "regression_gate": "Regression Gate todavía no ha sido inicializado." if regression.get("status") == "not_initialized" else None,
             },
         }
 
@@ -261,6 +270,18 @@ class TriadeObservabilityView:
     @staticmethod
     def _empty_learning() -> dict[str, Any]:
         return {"status": "ok", "candidates_by_status": {}, "pending": [], "consolidated": 0, "rejected": 0, "message": "No hay candidatos de aprendizaje pendientes."}
+
+    @staticmethod
+    def _empty_regression() -> dict[str, Any]:
+        return {
+            "status": "not_initialized",
+            "schema_ready": False,
+            "reports": {"total": 0, "by_decision": {}},
+            "quarantine": {"active": 0},
+            "protections": {"active": 0, "immutable": 0},
+            "rollbacks": {"total": 0, "by_status": {}},
+            "stable_capabilities": 0,
+        }
 
     @staticmethod
     def _empty_neurons() -> dict[str, Any]:
