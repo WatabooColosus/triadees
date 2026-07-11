@@ -1,0 +1,32 @@
+name: Patch Neuron Learning E2E
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/learning-evidence-bridge
+          fetch-depth: 0
+      - name: Patch E2E test
+        run: python scripts/patch_neuron_learning_e2e_evidence.py
+      - name: Validate syntax
+        run: python -m py_compile tests/test_triade_neuron_learning_e2e.py
+      - name: Remove temporary files
+        run: rm scripts/patch_neuron_learning_e2e_evidence.py .github/workflows/patch-neuron-learning-e2e.yml
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "test(learning): add evidence to neuron E2E promotion"
+          git push origin HEAD:feat/learning-evidence-bridge
