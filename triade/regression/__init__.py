@@ -1,6 +1,12 @@
 """Regression Gate para capacidades medibles de Tríade Ω."""
 
 from .artifacts import RegressionArtifactExporter
+from .critical_suites import (
+    CriticalMetricDefinition,
+    CriticalSuiteDefinition,
+    CriticalSuiteRegistry,
+    default_critical_suites,
+)
 from .gate import (
     GateDecision,
     MetricPolicy,
@@ -19,6 +25,9 @@ from .statistics import (
 
 __all__ = [
     "CapabilityProtectionRegistry",
+    "CriticalMetricDefinition",
+    "CriticalSuiteDefinition",
+    "CriticalSuiteRegistry",
     "GateDecision",
     "MetricPolicy",
     "ProtectionRule",
@@ -33,4 +42,5 @@ __all__ = [
     "StatisticalComparison",
     "StatisticalPolicy",
     "StatisticalRegressionAnalyzer",
+    "default_critical_suites",
 ]
