@@ -2,16 +2,13 @@ name: Apply explicit runtime policies
 
 on:
   pull_request:
-    branches:
-      - main
-  workflow_dispatch:
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: ${{ !contains(github.event.pull_request.head.sha || '', 'skip-refactor-bot') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout working branch
@@ -61,9 +58,6 @@ jobs:
               """Ejecuta misiones con degradación local segura y explícita."""
               if not governor.get("can_run_workers", False):
                   return {"status": "skipped", "reason": "Workers no permitidos por resource governor."}
-              # La nutrición decide si existe una misión activa y segura. Sin
-              # Ollama puede degradar a observe_only, sin escribir memoria estable
-              # ni modificar el núcleo de identidad.
               return self._mission_service(mode)
           '''
           if old in text:
@@ -75,13 +69,7 @@ jobs:
               '"""Servicios internos de runtime local de Tríade."""\n\n'
               'from .event_bus import build_context_from_events, list_recent_events, mark_event_processed, publish_event\n'
               'from .supervisor import InternalRuntimeSupervisor\n\n'
-              '__all__ = [\n'
-              '    "build_context_from_events",\n'
-              '    "list_recent_events",\n'
-              '    "mark_event_processed",\n'
-              '    "publish_event",\n'
-              '    "InternalRuntimeSupervisor",\n'
-              ']\n',
+              '__all__ = ["build_context_from_events", "list_recent_events", "mark_event_processed", "publish_event", "InternalRuntimeSupervisor"]\n',
               encoding='utf-8',
           )
 
@@ -93,7 +81,6 @@ jobs:
 
 
 def _legacy_ollama_status(payload: dict[str, Any]) -> dict[str, Any]:
-    """Conserva el estado interno y expone el valor público compatible."""
     result = dict(payload)
     internal_status = str(result.get("status") or "unavailable")
     result["internal_status"] = internal_status
@@ -103,32 +90,27 @@ def _legacy_ollama_status(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _legacy_heartbeat_truth(payload: dict[str, Any]) -> dict[str, Any]:
-    """Conserva la verdad interna y la representación pública histórica."""
     result = dict(payload)
     truth = str(result.get("heartbeat_truth") or "")
     result["internal_heartbeat_truth"] = truth
     light = "Autonomía full_local_guarded configurada · degradada a light_background por gobernador"
     if truth == light:
-        result["heartbeat_truth"] = (
-            "Autonomía full_local_guarded configurada · degradada a balanced_background por gobernador"
-        )
+        result["heartbeat_truth"] = "Autonomía full_local_guarded configurada · degradada a balanced_background por gobernador"
     return result
 '''
               if marker not in text:
                   raise SystemExit('api router marker not found')
               text = text.replace(marker, helpers, 1)
-          old = '    blood = check_ollama_blood()\n    return {"status": blood.get("status"), "ollama_blood": blood, **blood}\n'
-          new = '    blood = _legacy_ollama_status(check_ollama_blood())\n    return {"status": blood.get("status"), "ollama_blood": blood, **blood}\n'
-          if old in text:
-              text = text.replace(old, new, 1)
-          elif new not in text:
-              raise SystemExit('ollama route marker not found')
-          old = '    return build_runtime_heartbeat(since_hours=since_hours, limit=limit)\n'
-          new = '    return _legacy_heartbeat_truth(build_runtime_heartbeat(since_hours=since_hours, limit=limit))\n'
-          if old in text:
-              text = text.replace(old, new, 1)
-          elif new not in text:
-              raise SystemExit('heartbeat route marker not found')
+          text = text.replace(
+              '    blood = check_ollama_blood()\n    return {"status": blood.get("status"), "ollama_blood": blood, **blood}\n',
+              '    blood = _legacy_ollama_status(check_ollama_blood())\n    return {"status": blood.get("status"), "ollama_blood": blood, **blood}\n',
+              1,
+          )
+          text = text.replace(
+              '    return build_runtime_heartbeat(since_hours=since_hours, limit=limit)\n',
+              '    return _legacy_heartbeat_truth(build_runtime_heartbeat(since_hours=since_hours, limit=limit))\n',
+              1,
+          )
           api.write_text(text, encoding='utf-8')
 
           Path('apps/routes/__init__.py').write_text(
@@ -140,16 +122,13 @@ def _legacy_heartbeat_truth(payload: dict[str, Any]) -> dict[str, Any]:
           )
           PY
       - name: Validate syntax
-        run: |
-          python -m py_compile triade/workers/worker_loop.py triade/services/supervisor.py apps/routes/api.py
-      - name: Commit changes
+        run: python -m py_compile triade/workers/worker_loop.py triade/services/supervisor.py apps/routes/api.py
+      - name: Commit changes when needed
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add triade/workers/worker_loop.py triade/workers/__init__.py triade/services/supervisor.py triade/services/__init__.py apps/routes/api.py apps/routes/__init__.py
-          if git diff --cached --quiet; then
-            exit 0
-          fi
+          if git diff --cached --quiet; then exit 0; fi
           git commit -m "refactor(runtime): move policies to owner modules"
           git push origin HEAD:refactor/explicit-runtime-policies
