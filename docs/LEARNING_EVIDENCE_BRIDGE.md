@@ -43,6 +43,24 @@ La tabla `learning_evidence` conserva:
 - regresiones críticas;
 - referencia al artefacto.
 
+## Orden de validación
+
+La consolidación mantiene el orden de gates existente:
+
+1. estado del candidato;
+2. fuente trazable;
+3. riesgo permitido;
+4. usos mínimos;
+5. outcome score mínimo;
+6. evidencia Measurement Core con decisión `improved`;
+7. aprobación humana o trust suficiente.
+
+Esto preserva diagnósticos claros y evita que la ausencia de evidencia oculte errores previos de estado, fuente o score.
+
+## Compatibilidad de pruebas
+
+Las suites heredadas que esperan promoción deben adjuntar evidencia `improved`. Los casos sin evidencia deben comprobar que el candidato permanece `verified`, incluso si ya alcanzó tres usos y un promedio suficiente.
+
 ## Garantías
 
 - no modifica `identity_core`;
