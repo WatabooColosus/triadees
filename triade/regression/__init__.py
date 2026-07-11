@@ -8,8 +8,14 @@ from .gate import (
     RegressionGate,
     RegressionReport,
 )
+from .observability import RegressionObservability
 from .protection_registry import CapabilityProtectionRegistry, ProtectionRule
 from .rollback import RollbackExecutor, RollbackPlan, RollbackResult
+from .statistics import (
+    StatisticalComparison,
+    StatisticalPolicy,
+    StatisticalRegressionAnalyzer,
+)
 
 __all__ = [
     "CapabilityProtectionRegistry",
@@ -19,8 +25,12 @@ __all__ = [
     "RegressionArtifactExporter",
     "RegressionFinding",
     "RegressionGate",
+    "RegressionObservability",
     "RegressionReport",
     "RollbackExecutor",
     "RollbackPlan",
     "RollbackResult",
+    "StatisticalComparison",
+    "StatisticalPolicy",
+    "StatisticalRegressionAnalyzer",
 ]
