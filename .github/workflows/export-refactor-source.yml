@@ -1,0 +1,25 @@
+name: Export refactor source
+
+on:
+  push:
+    branches:
+      - refactor/explicit-runtime-policies
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: refactor-source-snapshot
+          path: |
+            triade/workers/worker_loop.py
+            triade/workers/__init__.py
+            triade/services/supervisor.py
+            triade/services/__init__.py
+            apps/routes/api.py
+            apps/routes/__init__.py
