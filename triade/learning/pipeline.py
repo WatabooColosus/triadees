@@ -329,7 +329,6 @@ class LearningPipeline:
 
     def consolidate(self, candidate_id: str, approved_by: str = "", auto_consolidate: bool = True) -> dict[str, Any]:
         row = self._require(candidate_id)
-        measurement_evidence = self.evidence_bridge.require_improvement(candidate_id)
         model_guard = self._model_guard("stable_consolidation", human_approval=approved_by)
         if model_guard["blocked"]:
             raise ValueError("Ollama no disponible para consolidación stable y no hay aprobación humana explícita.")
@@ -353,6 +352,8 @@ class LearningPipeline:
                 f"No se consolida sin score suficiente: "
                 f"avg_outcome_score={avg_score:.3f}, mínimo={self.MIN_OUTCOME_SCORE}."
             )
+
+        measurement_evidence = self.evidence_bridge.require_improvement(candidate_id)
 
         explicit_approver = (approved_by or "").strip()
         if explicit_approver:
