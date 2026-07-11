@@ -11,9 +11,39 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
-from triade.core.internal_runtime import build_runtime_heartbeat, get_internal_runtime_state
-from triade.core.learning_journal import build_learning_journal
-from triade.workers.background_service import WorkerBackgroundService
+
+
+def get_internal_runtime_state(**kwargs: Any) -> dict[str, Any]:
+    """Adaptador perezoso para evitar ciclos de importación al cargar el módulo."""
+
+    from triade.core.internal_runtime import get_internal_runtime_state as implementation
+
+    return implementation(**kwargs)
+
+
+def build_runtime_heartbeat(**kwargs: Any) -> dict[str, Any]:
+    """Adaptador perezoso del pulso interno."""
+
+    from triade.core.internal_runtime import build_runtime_heartbeat as implementation
+
+    return implementation(**kwargs)
+
+
+def build_learning_journal(**kwargs: Any) -> dict[str, Any]:
+    """Adaptador perezoso del diario de aprendizaje."""
+
+    from triade.core.learning_journal import build_learning_journal as implementation
+
+    return implementation(**kwargs)
+
+
+class WorkerBackgroundService:
+    """Proxy perezoso para el servicio real de workers."""
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> Any:
+        from triade.workers.background_service import WorkerBackgroundService as implementation
+
+        return implementation(*args, **kwargs)
 
 
 @dataclass(slots=True)
@@ -38,11 +68,12 @@ class CognitiveBody:
             limit=limit,
         )
 
+        recent_events = heartbeat.get("recent_events") or heartbeat.get("last_events") or []
         nervous_system = {
             "sensory_periphery": {
                 "source": "events_and_project_context",
-                "status": "active" if heartbeat.get("recent_events") else "quiet",
-                "signals": len(heartbeat.get("recent_events") or []),
+                "status": "active" if recent_events else "quiet",
+                "signals": len(recent_events),
             },
             "central_integration": {
                 "runtime_enabled": bool(runtime.get("enabled")),
@@ -77,7 +108,7 @@ class CognitiveBody:
             "status": "operational" if alive else "dormant",
             "entity": "Tríade Ω",
             "generated_at": utc_now(),
-            "body_version": "0.1.0",
+            "body_version": "0.1.1",
             "nervous_system": nervous_system,
             "heartbeat": heartbeat,
             "learning": learning,
