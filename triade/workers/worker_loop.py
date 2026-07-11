@@ -71,7 +71,7 @@ class WorkerSandbox:
 
 
 class WorkerLoop:
-    READ_ONLY_TASKS_WITHOUT_BLOOD = {"pulse_check", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review"}
+    READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset({"pulse_check", "pending_learning_review", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review"})
 
     def __init__(
         self,

@@ -253,14 +253,9 @@ class InternalRuntimeSupervisor:
         return {**decision, "permissions": permissions, "resource_probe": probe}
 
     def _governed_mission_service(self, mode: str, governor: dict[str, Any]) -> dict[str, Any]:
-        """Ejecuta misiones solo si el governor lo permite."""
+        """Ejecuta misiones con degradación local segura y explícita."""
         if not governor.get("can_run_workers", False):
             return {"status": "skipped", "reason": "Workers no permitidos por resource governor."}
-        if not governor.get("can_nourish_neurons", False):
-            # Sin nutrición, solo planear
-            planner = MissionPlanner(db_path=self.db_path)
-            planned = planner.plan_cycle(run_ref=self.runtime_id)
-            return {"status": "ok", "planned": [p.to_dict() for p in planned], "nutrition": None}
         return self._mission_service(mode)
 
     def _governed_learning_service(self, mode: str, governor: dict[str, Any]) -> dict[str, Any]:
