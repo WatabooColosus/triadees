@@ -102,6 +102,25 @@ from apps.services import (
 
 router = APIRouter()
 
+
+def _legacy_ollama_status(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload)
+    internal_status = str(result.get("status") or "unavailable")
+    result["internal_status"] = internal_status
+    if internal_status == "degraded_no_ollama":
+        result["status"] = "degraded"
+    return result
+
+
+def _legacy_heartbeat_truth(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload)
+    truth = str(result.get("heartbeat_truth") or "")
+    result["internal_heartbeat_truth"] = truth
+    light = "Autonomía full_local_guarded configurada · degradada a light_background por gobernador"
+    if truth == light:
+        result["heartbeat_truth"] = "Autonomía full_local_guarded configurada · degradada a balanced_background por gobernador"
+    return result
+
 SIGNED_NONCE_TTL_SECONDS = 300
 SIGNED_NONCE_CACHE: dict[str, float] = {}
 
@@ -403,7 +422,7 @@ def ollama_cognitive_health() -> dict[str, Any]:
 @router.get("/api/runtime/blood")
 def ollama_blood_route() -> dict[str, Any]:
     LIFE_PULSE.record_action("ollama_blood")
-    blood = check_ollama_blood()
+    blood = _legacy_ollama_status(check_ollama_blood())
     return {"status": blood.get("status"), "ollama_blood": blood, **blood}
 
 
@@ -924,7 +943,7 @@ def runtime_status() -> dict[str, Any]:
 @router.get("/api/runtime/heartbeat")
 def runtime_heartbeat(since_hours: int = 24, limit: int = 50) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_heartbeat")
-    return build_runtime_heartbeat(since_hours=since_hours, limit=limit)
+    return _legacy_heartbeat_truth(build_runtime_heartbeat(since_hours=since_hours, limit=limit))
 
 
 @router.post("/api/runtime/once")
