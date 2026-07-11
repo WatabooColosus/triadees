@@ -1,0 +1,37 @@
+name: Debug PR17
+
+on:
+  push:
+    branches:
+      - fix/cognitive-body-ci
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run tests and capture output
+        shell: bash
+        run: |
+          set +e
+          pytest -q > pytest-output.txt 2>&1
+          status=$?
+          echo "$status" > pytest-exit-code.txt
+          exit 0
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr17-pytest-diagnostic
+          path: |
+            pytest-output.txt
+            pytest-exit-code.txt
