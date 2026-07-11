@@ -2,41 +2,32 @@
 ........................................................................ [ 17%]
 ........................................................................ [ 25%]
 ........................................................................ [ 34%]
-.................F
+.............................F
 =================================== FAILURES ===================================
-_____________ test_learning_pipeline_never_modifies_identity_core ______________
+__________ test_full_pipeline_consolidates_to_stable_semantic_memory ___________
 
-tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-0/test_learning_pipeline_never_m0')
+tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-0/test_full_pipeline_consolidate0')
 
-    def test_learning_pipeline_never_modifies_identity_core(tmp_path: Path) -> None:
-        db_path = tmp_path / "triade.db"
-        Bodega(db_path=db_path)
-        with sqlite3.connect(db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            before = {row["key"]: row["value"] for row in conn.execute("SELECT key, value FROM identity_core").fetchall()}
+    def test_full_pipeline_consolidates_to_stable_semantic_memory(tmp_path: Path) -> None:
+        pipe = pipeline(tmp_path)
+        cid = good_candidate(pipe)
     
-        pipe = LearningPipeline(db_path=db_path)
-        cid = pipe.ingest(
-            content="Contenido normal sin riesgo.",
-            source_type="document",
-            source_ref="test:identity-check",
-            title="Test identity",
-            domain="test",
-        )["candidate_id"]
-        pipe.evaluate(cid)
-        pipe.verify(cid)
-        for i in range(3):
->           pipe.mark_used_in_run(cid, f"run-ic-{i}", outcome_score=0.80)
+        assert pipe.get_candidate(cid)["status"] == "candidate"
+        assert pipe.evaluate(cid)["status"] == "evaluated"
+        assert pipe.verify(cid)["status"] == "verified"
+    
+        for i in range(5):
+>           pipe.mark_used_in_run(cid, f"run-{i}", outcome_score=0.85)
 
-tests/test_identity_core_never_modified.py:30: 
+tests/test_learning_pipeline.py:38: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 triade/learning/pipeline.py:299: in mark_used_in_run
     evidence = self.evidence_bridge.require_improvement(candidate_id)
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <triade.learning.evidence_bridge.LearningEvidenceBridge object at 0x7fe3744d3a10>
-candidate_id = 'learn-53d5617d0231431e'
+self = <triade.learning.evidence_bridge.LearningEvidenceBridge object at 0x7f48d853ae90>
+candidate_id = 'learn-08575798a3c747d6'
 
     def require_improvement(self, candidate_id: str) -> dict[str, Any]:
         evidence = self.get(candidate_id)
@@ -52,5 +43,5 @@ triade/learning/evidence_bridge.py:122: ValueError
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 =========================== short test summary info ============================
-FAILED tests/test_identity_core_never_modified.py::test_learning_pipeline_never_modifies_identity_core - ValueError: No existe evidencia Measurement Core para el candidato
+FAILED tests/test_learning_pipeline.py::test_full_pipeline_consolidates_to_stable_semantic_memory - ValueError: No existe evidencia Measurement Core para el candidato
 !!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
