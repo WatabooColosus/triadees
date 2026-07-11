@@ -8,6 +8,7 @@ from .gate import (
     RegressionGate,
     RegressionReport,
 )
+from .learning_rollback import LearningRollbackAdapter, register_learning_rollback
 from .observability import RegressionObservability
 from .protection_registry import CapabilityProtectionRegistry, ProtectionRule
 from .rollback import RollbackExecutor, RollbackPlan, RollbackResult
@@ -20,6 +21,7 @@ from .statistics import (
 __all__ = [
     "CapabilityProtectionRegistry",
     "GateDecision",
+    "LearningRollbackAdapter",
     "MetricPolicy",
     "ProtectionRule",
     "RegressionArtifactExporter",
@@ -33,4 +35,5 @@ __all__ = [
     "StatisticalComparison",
     "StatisticalPolicy",
     "StatisticalRegressionAnalyzer",
+    "register_learning_rollback",
 ]
