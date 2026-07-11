@@ -1,9 +1,9 @@
 name: Apply explicit runtime policies
 
 on:
-  push:
+  pull_request:
     branches:
-      - refactor/explicit-runtime-policies
+      - main
   workflow_dispatch:
 
 permissions:
@@ -11,28 +11,28 @@ permissions:
 
 jobs:
   apply:
-    if: ${{ !contains(github.event.head_commit.message, '[skip-refactor-bot]') }}
+    if: ${{ !contains(github.event.pull_request.head.sha || '', 'skip-refactor-bot') }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout working branch
         uses: actions/checkout@v4
         with:
           ref: refactor/explicit-runtime-policies
           fetch-depth: 0
-      - name: Apply refactor to owner modules
+      - name: Apply owner-module refactor
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          # Worker policy lives in the real class.
-          p = Path('triade/workers/worker_loop.py')
-          s = p.read_text(encoding='utf-8')
+          worker = Path('triade/workers/worker_loop.py')
+          text = worker.read_text(encoding='utf-8')
           old = 'READ_ONLY_TASKS_WITHOUT_BLOOD = {"pulse_check", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review"}'
           new = 'READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset({"pulse_check", "pending_learning_review", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review"})'
-          if old not in s:
+          if old in text:
+              worker.write_text(text.replace(old, new, 1), encoding='utf-8')
+          elif new not in text:
               raise SystemExit('worker policy marker not found')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
 
           Path('triade/workers/__init__.py').write_text(
               '"""Triade Living Workers: ciclos de neuronas persistentes, seguros y auditables."""\n\n'
@@ -44,9 +44,8 @@ jobs:
               encoding='utf-8',
           )
 
-          # Supervisor policy lives in the supervisor itself.
-          p = Path('triade/services/supervisor.py')
-          s = p.read_text(encoding='utf-8')
+          supervisor = Path('triade/services/supervisor.py')
+          text = supervisor.read_text(encoding='utf-8')
           old = '''    def _governed_mission_service(self, mode: str, governor: dict[str, Any]) -> dict[str, Any]:
               """Ejecuta misiones solo si el governor lo permite."""
               if not governor.get("can_run_workers", False):
@@ -59,17 +58,18 @@ jobs:
               return self._mission_service(mode)
           '''
           new = '''    def _governed_mission_service(self, mode: str, governor: dict[str, Any]) -> dict[str, Any]:
-              """Ejecuta misiones según permisos, con degradación local segura explícita."""
+              """Ejecuta misiones con degradación local segura y explícita."""
               if not governor.get("can_run_workers", False):
                   return {"status": "skipped", "reason": "Workers no permitidos por resource governor."}
               # La nutrición decide si existe una misión activa y segura. Sin
-              # Ollama puede degradar a observe_only, pero nunca escribe memoria
-              # estable ni modifica identidad.
+              # Ollama puede degradar a observe_only, sin escribir memoria estable
+              # ni modificar el núcleo de identidad.
               return self._mission_service(mode)
           '''
-          if old not in s:
+          if old in text:
+              supervisor.write_text(text.replace(old, new, 1), encoding='utf-8')
+          elif new not in text:
               raise SystemExit('supervisor policy marker not found')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
 
           Path('triade/services/__init__.py').write_text(
               '"""Servicios internos de runtime local de Tríade."""\n\n'
@@ -85,53 +85,51 @@ jobs:
               encoding='utf-8',
           )
 
-          # API compatibility becomes explicit route normalization.
-          p = Path('apps/routes/api.py')
-          s = p.read_text(encoding='utf-8')
-          marker = 'router = APIRouter()\n'
-          helpers = '''
-
-          def _legacy_ollama_status(payload: dict[str, Any]) -> dict[str, Any]:
-              """Conserva detalle interno y expone el valor público compatible."""
-              result = dict(payload)
-              internal_status = str(result.get("status") or "unavailable")
-              result["internal_status"] = internal_status
-              if internal_status == "degraded_no_ollama":
-                  result["status"] = "degraded"
-              return result
+          api = Path('apps/routes/api.py')
+          text = api.read_text(encoding='utf-8')
+          if 'def _legacy_ollama_status' not in text:
+              marker = 'router = APIRouter()\n'
+              helpers = '''router = APIRouter()
 
 
-          def _legacy_heartbeat_truth(payload: dict[str, Any]) -> dict[str, Any]:
-              """Mantiene la verdad interna y la representación pública histórica."""
-              result = dict(payload)
-              truth = str(result.get("heartbeat_truth") or "")
-              result["internal_heartbeat_truth"] = truth
-              light = "Autonomía full_local_guarded configurada · degradada a light_background por gobernador"
-              if truth == light:
-                  result["heartbeat_truth"] = (
-                      "Autonomía full_local_guarded configurada · degradada a balanced_background por gobernador"
-                  )
-              return result
-          '''
-          if 'def _legacy_ollama_status' not in s:
-              if marker not in s:
+def _legacy_ollama_status(payload: dict[str, Any]) -> dict[str, Any]:
+    """Conserva el estado interno y expone el valor público compatible."""
+    result = dict(payload)
+    internal_status = str(result.get("status") or "unavailable")
+    result["internal_status"] = internal_status
+    if internal_status == "degraded_no_ollama":
+        result["status"] = "degraded"
+    return result
+
+
+def _legacy_heartbeat_truth(payload: dict[str, Any]) -> dict[str, Any]:
+    """Conserva la verdad interna y la representación pública histórica."""
+    result = dict(payload)
+    truth = str(result.get("heartbeat_truth") or "")
+    result["internal_heartbeat_truth"] = truth
+    light = "Autonomía full_local_guarded configurada · degradada a light_background por gobernador"
+    if truth == light:
+        result["heartbeat_truth"] = (
+            "Autonomía full_local_guarded configurada · degradada a balanced_background por gobernador"
+        )
+    return result
+'''
+              if marker not in text:
                   raise SystemExit('api router marker not found')
-              s = s.replace(marker, marker + helpers, 1)
-          old = '''    blood = check_ollama_blood()
-              return {"status": blood.get("status"), "ollama_blood": blood, **blood}
-          '''
-          new = '''    blood = _legacy_ollama_status(check_ollama_blood())
-              return {"status": blood.get("status"), "ollama_blood": blood, **blood}
-          '''
-          if old not in s:
+              text = text.replace(marker, helpers, 1)
+          old = '    blood = check_ollama_blood()\n    return {"status": blood.get("status"), "ollama_blood": blood, **blood}\n'
+          new = '    blood = _legacy_ollama_status(check_ollama_blood())\n    return {"status": blood.get("status"), "ollama_blood": blood, **blood}\n'
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
               raise SystemExit('ollama route marker not found')
-          s = s.replace(old, new, 1)
           old = '    return build_runtime_heartbeat(since_hours=since_hours, limit=limit)\n'
           new = '    return _legacy_heartbeat_truth(build_runtime_heartbeat(since_hours=since_hours, limit=limit))\n'
-          if old not in s:
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
               raise SystemExit('heartbeat route marker not found')
-          s = s.replace(old, new, 1)
-          p.write_text(s, encoding='utf-8')
+          api.write_text(text, encoding='utf-8')
 
           Path('apps/routes/__init__.py').write_text(
               '"""Tríade Ω — Route handlers y normalizadores de contrato público."""\n\n'
@@ -143,11 +141,8 @@ jobs:
           PY
       - name: Validate syntax
         run: |
-          python -m py_compile \
-            triade/workers/worker_loop.py \
-            triade/services/supervisor.py \
-            apps/routes/api.py
-      - name: Commit explicit policies
+          python -m py_compile triade/workers/worker_loop.py triade/services/supervisor.py apps/routes/api.py
+      - name: Commit changes
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -156,5 +151,5 @@ jobs:
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m "refactor(runtime): move policies to owner modules [skip-refactor-bot]"
+          git commit -m "refactor(runtime): move policies to owner modules"
           git push origin HEAD:refactor/explicit-runtime-policies
