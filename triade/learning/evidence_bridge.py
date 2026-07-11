@@ -1,4 +1,4 @@
-"""Puente entre LearningPipeline y Measurement Core."""
+"""Puente entre LearningPipeline, Measurement Core y Regression Gate."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from typing import Any
 
 from triade.core.contracts import utc_now
 from triade.evaluation import EvaluationComparison, EvaluationRun
+from triade.regression import RegressionGate, RegressionReport
 
 
 class LearningEvidenceBridge:
@@ -20,6 +21,7 @@ class LearningEvidenceBridge:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
+        self.regression_gate = RegressionGate(db_path=self.db_path)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -41,10 +43,23 @@ class LearningEvidenceBridge:
                     decision TEXT DEFAULT 'pending',
                     critical_regressions_json TEXT DEFAULT '[]',
                     artifact_ref TEXT,
+                    regression_required INTEGER NOT NULL DEFAULT 0,
+                    regression_report_id TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )"""
             )
+            columns = {
+                row["name"] for row in conn.execute("PRAGMA table_info(learning_evidence)").fetchall()
+            }
+            if "regression_required" not in columns:
+                conn.execute(
+                    "ALTER TABLE learning_evidence ADD COLUMN regression_required INTEGER NOT NULL DEFAULT 0"
+                )
+            if "regression_report_id" not in columns:
+                conn.execute(
+                    "ALTER TABLE learning_evidence ADD COLUMN regression_report_id TEXT"
+                )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_learning_evidence_decision ON learning_evidence(decision)"
             )
@@ -56,6 +71,7 @@ class LearningEvidenceBridge:
         hypothesis: str,
         capability: str,
         subject_id: str,
+        require_regression: bool = False,
     ) -> dict[str, Any]:
         clean_hypothesis = hypothesis.strip()
         clean_capability = capability.strip()
@@ -66,14 +82,24 @@ class LearningEvidenceBridge:
         with self._connect() as conn:
             conn.execute(
                 """INSERT INTO learning_evidence
-                (candidate_id, hypothesis, capability, subject_id, decision, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 'pending', ?, ?)
+                (candidate_id, hypothesis, capability, subject_id, decision,
+                 regression_required, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)
                 ON CONFLICT(candidate_id) DO UPDATE SET
                     hypothesis=excluded.hypothesis,
                     capability=excluded.capability,
                     subject_id=excluded.subject_id,
+                    regression_required=excluded.regression_required,
                     updated_at=excluded.updated_at""",
-                (candidate_id, clean_hypothesis, clean_capability, clean_subject, now, now),
+                (
+                    candidate_id,
+                    clean_hypothesis,
+                    clean_capability,
+                    clean_subject,
+                    1 if require_regression else 0,
+                    now,
+                    now,
+                ),
             )
         return self.get(candidate_id) or {}
 
@@ -116,6 +142,29 @@ class LearningEvidenceBridge:
             )
         return self.get(candidate_id) or {}
 
+    def record_regression_report(
+        self,
+        candidate_id: str,
+        report: RegressionReport,
+    ) -> dict[str, Any]:
+        evidence = self.get(candidate_id)
+        if evidence is None:
+            raise ValueError("Primero debe declararse una hipótesis de mejora")
+        if report.candidate_id != candidate_id:
+            raise ValueError("El reporte de regresión no corresponde al candidato")
+        if report.capability != evidence["capability"]:
+            raise ValueError("El reporte de regresión no corresponde a la capacidad declarada")
+        with self._connect() as conn:
+            conn.execute(
+                """UPDATE learning_evidence SET
+                    regression_required=1,
+                    regression_report_id=?,
+                    updated_at=?
+                WHERE candidate_id=?""",
+                (report.report_id, utc_now(), candidate_id),
+            )
+        return self.get(candidate_id) or {}
+
     def require_improvement(self, candidate_id: str) -> dict[str, Any]:
         evidence = self.get(candidate_id)
         if evidence is None:
@@ -128,6 +177,14 @@ class LearningEvidenceBridge:
             raise ValueError(f"La evidencia contiene regresiones críticas: {critical}")
         if not evidence.get("baseline_evaluation") or not evidence.get("candidate_evaluation"):
             raise ValueError("La evidencia antes/después está incompleta")
+        if evidence.get("regression_required"):
+            report_id = evidence.get("regression_report_id")
+            if not report_id:
+                raise ValueError("Regression Gate requerido pero no existe reporte asociado")
+            report = self.regression_gate.require_pass(candidate_id)
+            if report.report_id != report_id:
+                raise ValueError("El reporte vigente de Regression Gate no coincide con la evidencia")
+            evidence["regression_report"] = report.to_dict()
         return evidence
 
     def get(self, candidate_id: str) -> dict[str, Any] | None:
@@ -138,6 +195,7 @@ class LearningEvidenceBridge:
         if row is None:
             return None
         result = dict(row)
+        result["regression_required"] = bool(result.get("regression_required"))
         for source, target, default in (
             ("baseline_evaluation_json", "baseline_evaluation", None),
             ("candidate_evaluation_json", "candidate_evaluation", None),
@@ -149,4 +207,7 @@ class LearningEvidenceBridge:
                 result[target] = json.loads(raw) if raw else default
             except (json.JSONDecodeError, TypeError):
                 result[target] = default
+        latest = self.regression_gate.latest_for_candidate(candidate_id)
+        result["regression_report"] = latest.to_dict() if latest else None
+        result["regression_quarantined"] = self.regression_gate.is_quarantined(candidate_id)
         return result
