@@ -19,4 +19,5 @@ jobs:
           pytest -q \
             tests/test_regression_gate.py \
             tests/test_learning_regression_gate_integration.py \
-            tests/test_regression_protection_registry.py
+            tests/test_regression_protection_registry.py \
+            tests/test_regression_rollback.py
