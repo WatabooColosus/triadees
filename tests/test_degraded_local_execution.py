@@ -1,20 +1,21 @@
 from pathlib import Path
 
-from triade.core.neuron_missions import NeuronMissionStore
+from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
 from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
-from triade.learning.pipeline import LearningPipeline
 
 
 def _seed_safe_mission(db_path: Path) -> int:
     store = NeuronMissionStore(db_path=db_path)
-    mission = store.create_mission(
-        title="Diagnóstico local degradado",
-        domain="runtime",
-        mission="Registrar evidencia local sin depender de Ollama.",
-        allowed_actions=["observe", "diagnose", "propose_learning"],
-        status="experimental",
+    mission_id = store.create_mission(
+        NeuronMission(
+            title="Diagnóstico local degradado",
+            domain="runtime",
+            mission="Registrar evidencia local sin depender de Ollama.",
+            allowed_actions=["observe", "diagnose", "propose_learning"],
+            status="experimental",
+        )
     )
-    return int(mission.id)
+    return int(mission_id)
 
 
 def test_safe_mission_runs_without_ollama_and_preserves_guards(monkeypatch, tmp_path):
