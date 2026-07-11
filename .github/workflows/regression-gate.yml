@@ -22,4 +22,5 @@ jobs:
             tests/test_regression_protection_registry.py \
             tests/test_regression_rollback.py \
             tests/test_regression_statistics_observability.py \
-            tests/test_regression_observability_integration.py
+            tests/test_regression_observability_integration.py \
+            tests/test_learning_rollback_adapter.py
