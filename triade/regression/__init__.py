@@ -9,6 +9,7 @@ from .gate import (
     RegressionReport,
 )
 from .protection_registry import CapabilityProtectionRegistry, ProtectionRule
+from .rollback import RollbackExecutor, RollbackPlan, RollbackResult
 
 __all__ = [
     "CapabilityProtectionRegistry",
@@ -19,4 +20,7 @@ __all__ = [
     "RegressionFinding",
     "RegressionGate",
     "RegressionReport",
+    "RollbackExecutor",
+    "RollbackPlan",
+    "RollbackResult",
 ]
