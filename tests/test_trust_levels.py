@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from triade.learning.pipeline import LearningPipeline
+from tests.learning_evidence_helpers import attach_improved_evidence
 from triade.memory.trust_store import (
     PERMISSION_THRESHOLDS,
     TRUST_DOMAINS,
@@ -197,6 +198,7 @@ class TestAutoConsolidation:
         cid = good_candidate(pipe)
         pipe.evaluate(cid)
         pipe.verify(cid)
+        attach_improved_evidence(pipe, cid, capability="trust_consolidation")
         for i in range(5):
             pipe.mark_used_in_run(cid, f"run-trust-{i}", outcome_score=0.85)
 
@@ -230,6 +232,7 @@ class TestAutoConsolidation:
         )["candidate_id"]
         pipe.evaluate(cid)
         pipe.verify(cid)
+        attach_improved_evidence(pipe, cid, capability="trust_consolidation")
         for i in range(5):
             pipe.mark_used_in_run(cid, f"run-medium-{i}", outcome_score=0.80)
 
@@ -262,6 +265,7 @@ class TestAutoConsolidation:
         )["candidate_id"]
         pipe.evaluate(cid)
         pipe.verify(cid)
+        attach_improved_evidence(pipe, cid, capability="trust_consolidation")
         for i in range(5):
             pipe.mark_used_in_run(cid, f"run-high-{i}", outcome_score=0.90)
 
@@ -303,6 +307,7 @@ class TestAutoConsolidation:
         cid = good_candidate(pipe)
         pipe.evaluate(cid)
         pipe.verify(cid)
+        attach_improved_evidence(pipe, cid, capability="trust_consolidation")
         for i in range(5):
             pipe.mark_used_in_run(cid, f"run-human-{i}", outcome_score=0.85)
 

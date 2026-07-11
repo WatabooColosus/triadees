@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from triade.learning.pipeline import LearningPipeline
+from tests.learning_evidence_helpers import attach_improved_evidence
 from triade.workers.worker_loop import WorkerLoop
 
 
@@ -20,6 +21,7 @@ def _setup_verified_candidates(tmp_path: Path, count: int = 3) -> list[str]:
         )["candidate_id"]
         pipe.evaluate(cid)
         pipe.verify(cid)
+        attach_improved_evidence(pipe, cid, capability="worker_stable_consolidation")
         for j in range(3):
             pipe.mark_used_in_run(cid, f"run-{i}-{j}", outcome_score=0.85)
         cids.append(cid)
