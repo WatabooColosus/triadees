@@ -16,6 +16,7 @@ from triade.workers.neuron_mission_executor import NeuronMissionExecutor
 
 
 SAFE_NUTRITION_ACTIONS = {"observe", "diagnose", "propose_learning"}
+ACTIVE_MISSION_STATUSES = {"experimental", "stable"}
 
 
 def run_neuron_nutrition_cycle(
@@ -26,9 +27,9 @@ def run_neuron_nutrition_cycle(
 ) -> dict[str, Any]:
     """Ejecuta una pasada segura de nutrición neuronal.
 
-    Sin Ollama, las misiones locales seguras pueden ejecutarse en modo degradado.
-    En ese estado no se permite consolidar memoria estable ni afirmar aprendizaje
-    validado por modelo.
+    Sin Ollama solo se ejecutan misiones activas cuyo alcance sea completamente
+    local y seguro. Si no existe una misión elegible, el ciclo se degrada a
+    ``observe_only`` para conservar el contrato histórico.
     """
     db_path = Path(db_path)
     runs_dir = Path(runs_dir)
@@ -70,26 +71,11 @@ def run_neuron_nutrition_cycle(
         run_ref="neuron-nutrition",
     )
 
-    if not blood_policy.get("allowed"):
-        publish_event(
-            "neuron_nutrition_degraded_no_blood",
-            "neuron_nutrition",
-            {
-                "mode": mode,
-                "degraded_reason": blood_policy.get("reason"),
-                "blocked_actions": model_policy.get("blocked_actions", []),
-                "local_safe_execution": mode != "observe_only",
-            },
-            severity="warning",
-            db_path=db_path,
-            run_ref="neuron-nutrition",
-        )
-
     store = NeuronMissionStore(db_path=db_path)
     active_missions = [
         mission
         for mission in store.list_missions(limit=200)
-        if mission.status in {"candidate", "experimental", "stable"}
+        if mission.status in ACTIVE_MISSION_STATUSES
     ]
     query_seed = " ".join(
         filter(
@@ -116,24 +102,54 @@ def run_neuron_nutrition_cycle(
         db_path=db_path,
         limit=limit,
     )
-    selected_missions = selection.get("selected") or []
+    selected_missions = [
+        item
+        for item in (selection.get("selected") or [])
+        if int(item.get("id") or 0) in {int(m.id or 0) for m in active_missions}
+    ]
+    safe_selected = []
+    for item in selected_missions:
+        mission = store.get_mission(int(item.get("id") or 0))
+        if mission and set(mission.allowed_actions or []).intersection(SAFE_NUTRITION_ACTIONS):
+            safe_selected.append(item)
 
-    if mode == "observe_only":
+    effective_mode = mode
+    if degraded_mode and mode != "observe_only" and not safe_selected:
+        effective_mode = "observe_only"
+
+    if not blood_policy.get("allowed"):
+        publish_event(
+            "neuron_nutrition_degraded_no_blood",
+            "neuron_nutrition",
+            {
+                "requested_mode": mode,
+                "effective_mode": effective_mode,
+                "degraded_reason": blood_policy.get("reason"),
+                "blocked_actions": model_policy.get("blocked_actions", []),
+                "local_safe_execution": bool(safe_selected and effective_mode != "observe_only"),
+            },
+            severity="warning",
+            db_path=db_path,
+            run_ref="neuron-nutrition",
+        )
+
+    if effective_mode == "observe_only":
         return {
             "status": "ok",
-            "mode": mode,
+            "mode": "observe_only",
+            "requested_mode": mode,
             "ollama_blood": ollama_blood,
             "ollama_health": ollama_health,
             "model_policy": model_policy,
             "cognitive_blood_active": bool(ollama_blood.get("cognitive_blood_active")),
             "degraded_mode": degraded_mode,
-            "can_nourish_neurons": bool(selected_missions),
+            "can_nourish_neurons": bool(safe_selected),
             "model_used": model_used,
             "learning_allowed": learning_allowed,
             "stable_write_allowed": stable_write_allowed,
             "bodega_global": bodega_global,
             "missions_seen": len(active_missions),
-            "missions_selected": len(selected_missions),
+            "missions_selected": len(safe_selected),
             "missions_executed": 0,
             "evidence_created": 0,
             "candidates_created": 0,
@@ -142,39 +158,43 @@ def run_neuron_nutrition_cycle(
             "identity_core_modified": False,
             "selection": selection,
             "summary": "observe_only: solo se revisa el estado vivo y la deuda operativa.",
-            "reason": None,
+            "reason": blood_policy.get("reason") if degraded_mode else None,
         }
 
     executor = NeuronMissionExecutor(db_path=db_path)
     executed: list[dict[str, Any]] = []
-    nourished_neuron_ids: set[int] = set()
+    nourished_entities: set[str] = set()
     evidence_created = 0
     candidates_created = 0
 
-    for item in selected_missions[:limit]:
+    for item in safe_selected[:limit]:
         mission_id = int(item.get("id") or 0)
         mission = store.get_mission(mission_id)
         if mission is None:
             continue
-        if not set(mission.allowed_actions or []).intersection(SAFE_NUTRITION_ACTIONS):
-            continue
+        task_payload = {
+            "mode": effective_mode,
+            "query": "pulso vivo interno",
+            "domain": mission.domain,
+            "memory_context": bodega_global,
+            "selected_by_nutrition": True,
+            "selection_result": selection,
+            "model_policy": model_policy,
+            "evidence": model_used,
+            "model_used": model_used,
+            "cognitive_blood_active": bool(ollama_blood.get("cognitive_blood_active")),
+            "degraded_local_safe": degraded_mode,
+        }
+        # El executor interpreta la presencia explícita de ollama_blood como una
+        # exigencia de modelo. En ejecución local degradada se omite para usar su
+        # ruta determinista y mantener bloqueada toda escritura estable.
+        if not degraded_mode:
+            task_payload["ollama_blood"] = ollama_blood
+
         result = executor.execute(
             mission_id=mission_id,
             run_ref=f"neuron-nutrition-{mission_id}",
-            task_payload={
-                "mode": mode,
-                "query": "pulso vivo interno",
-                "domain": mission.domain,
-                "memory_context": bodega_global,
-                "selected_by_nutrition": True,
-                "selection_result": selection,
-                "ollama_blood": ollama_blood,
-                "model_policy": model_policy,
-                "evidence": model_used,
-                "model_used": model_used,
-                "cognitive_blood_active": bool(ollama_blood.get("cognitive_blood_active")),
-                "degraded_local_safe": degraded_mode,
-            },
+            task_payload=task_payload,
             task_dir=runs_dir / f"nutrition-{mission_id}",
             config=WorkerRunConfig(task_timeout=30.0, runs_dir=str(runs_dir)),
         )
@@ -186,8 +206,10 @@ def run_neuron_nutrition_cycle(
             result["learning_candidate"]["model_provider"] = model_used["model_provider"]
             result["learning_candidate"]["model_name"] = model_used["model_name"]
             result["learning_candidate"]["model_required"] = False
-        if mission.neuron_id is not None:
-            nourished_neuron_ids.add(int(mission.neuron_id))
+        if result.get("status") == "completed":
+            nourished_entities.add(
+                f"neuron:{mission.neuron_id}" if mission.neuron_id is not None else f"mission:{mission_id}"
+            )
         publish_event(
             "neuron_mission_executed",
             "neuron_nutrition",
@@ -196,25 +218,27 @@ def run_neuron_nutrition_cycle(
             run_ref=f"neuron-nutrition-{mission_id}",
         )
 
+    completed = [item for item in executed if item.get("status") == "completed"]
     summary = {
         "missions_seen": len(active_missions),
-        "missions_selected": len(selected_missions),
-        "missions_executed": len(executed),
+        "missions_selected": len(safe_selected),
+        "missions_executed": len(completed),
         "evidence_created": evidence_created,
         "candidates_created": candidates_created,
-        "neurons_nourished": len(nourished_neuron_ids),
+        "neurons_nourished": len(nourished_entities),
         "stable_memory_written": False,
         "identity_core_modified": False,
     }
     return {
         "status": "ok",
-        "mode": mode,
+        "mode": effective_mode,
+        "requested_mode": mode,
         "ollama_blood": ollama_blood,
         "ollama_health": ollama_health,
         "model_policy": model_policy,
         "cognitive_blood_active": bool(ollama_blood.get("cognitive_blood_active")),
         "degraded_mode": degraded_mode,
-        "can_nourish_neurons": bool(selected_missions),
+        "can_nourish_neurons": bool(safe_selected),
         "model_used": model_used,
         "learning_allowed": learning_allowed,
         "stable_write_allowed": stable_write_allowed,
