@@ -4,7 +4,7 @@ Puerto único 8010 para UI, health, router, compatibilidad,
 memoria semántica y runs locales.
 
 La lógica de negocio vive en apps/services.py.
-Las rutas viven en apps/routes/{api,ui}.py.
+Las rutas viven en apps/routes/{api,health,ui}.py.
 El HTML vive en apps/ui_html.py.
 """
 
@@ -20,6 +20,7 @@ from triade.core.life_pulse import LIFE_PULSE
 from triade.federation.node_live_registry import NODE_LIVE_REGISTRY
 
 from apps.routes.api import router as api_router
+from apps.routes.health import router as health_router
 from apps.routes.ui import router as ui_router
 
 _ALWAYS_ON_RESULT: dict[str, Any] = {}
@@ -55,6 +56,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Tríade Ω Single Port", version="0.9.0", lifespan=lifespan)
+app.include_router(health_router)
 app.include_router(api_router)
 app.include_router(ui_router)
 
