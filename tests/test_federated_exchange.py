@@ -121,7 +121,14 @@ def test_expired_future_and_excessive_ttl_are_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="expirado"):
         store.accept(
-            authenticator.sign(envelope(message_id="expired", nonce="n-exp", expires_at=NOW - 1))
+            authenticator.sign(
+                envelope(
+                    message_id="expired",
+                    nonce="n-exp",
+                    issued_at=NOW - 60,
+                    expires_at=NOW - 1,
+                )
+            )
         )
 
     with pytest.raises(ValueError, match="emitido en el futuro"):
