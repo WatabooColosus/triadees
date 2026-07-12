@@ -42,15 +42,27 @@ class CapabilityRegistry:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
-            conn.execute(
-                """CREATE TABLE IF NOT EXISTS capability_registry (
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS capability_registry (
                     capability_id TEXT NOT NULL,
                     version TEXT NOT NULL,
                     payload_json TEXT NOT NULL,
                     state TEXT NOT NULL,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (capability_id, version)
-                )"""
+                );
+                CREATE TABLE IF NOT EXISTS capability_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    capability_id TEXT NOT NULL,
+                    version TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_capability_history_lookup
+                    ON capability_history(capability_id, version, id);
+                """
             )
 
     def _connect(self) -> sqlite3.Connection:
@@ -63,6 +75,8 @@ class CapabilityRegistry:
         missing = [dep for dep in definition.dependencies if self.get(dep) is None]
         if missing:
             raise ValueError(f"dependencias inexistentes: {', '.join(sorted(missing))}")
+        if self._would_create_cycle(definition.capability_id, definition.dependencies):
+            raise ValueError("ciclo de dependencias detectado")
         payload = asdict(definition)
         with self._connect() as conn:
             try:
@@ -72,6 +86,7 @@ class CapabilityRegistry:
                 )
             except sqlite3.IntegrityError as exc:
                 raise ValueError("capacidad ya registrada") from exc
+            self._append_history(conn, definition.capability_id, definition.version, "registered", payload)
         return payload
 
     def get(self, capability_id: str, version: str | None = None) -> dict[str, Any] | None:
@@ -101,10 +116,63 @@ class CapabilityRegistry:
         item = self.get(capability_id, version)
         if item is None:
             raise KeyError(f"capacidad no registrada: {capability_id}@{version}")
+        previous_state = item["state"]
         item["state"] = state
         with self._connect() as conn:
             conn.execute(
                 "UPDATE capability_registry SET payload_json = ?, state = ? WHERE capability_id = ? AND version = ?",
                 (json.dumps(item, sort_keys=True), state, capability_id, version),
             )
+            self._append_history(
+                conn,
+                capability_id,
+                version,
+                "state_changed",
+                {"from": previous_state, "to": state, "snapshot": item},
+            )
         return item
+
+    def history(self, capability_id: str, version: str | None = None) -> list[dict[str, Any]]:
+        sql = "SELECT action, payload_json, created_at FROM capability_history WHERE capability_id = ?"
+        params: list[Any] = [capability_id]
+        if version:
+            sql += " AND version = ?"
+            params.append(version)
+        sql += " ORDER BY id ASC"
+        with self._connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [
+            {
+                "action": row["action"],
+                "payload": json.loads(row["payload_json"]),
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
+    def _would_create_cycle(self, capability_id: str, dependencies: tuple[str, ...]) -> bool:
+        def reaches_target(node: str, visited: set[str]) -> bool:
+            if node == capability_id:
+                return True
+            if node in visited:
+                return False
+            visited.add(node)
+            current = self.get(node)
+            if current is None:
+                return False
+            return any(reaches_target(dep, visited.copy()) for dep in current.get("dependencies", []))
+
+        return any(reaches_target(dependency, set()) for dependency in dependencies)
+
+    @staticmethod
+    def _append_history(
+        conn: sqlite3.Connection,
+        capability_id: str,
+        version: str,
+        action: str,
+        payload: dict[str, Any],
+    ) -> None:
+        conn.execute(
+            "INSERT INTO capability_history(capability_id, version, action, payload_json) VALUES (?, ?, ?, ?)",
+            (capability_id, version, action, json.dumps(payload, sort_keys=True)),
+        )
