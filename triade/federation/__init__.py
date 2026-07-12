@@ -4,6 +4,7 @@ from .dispatch import FederatedDispatcher, FederatedWorkBudget
 from .evidence_gate import FederatedEvidenceGate
 from .exchange import FederatedEnvelope, FederatedExchangeStore, HMACEnvelopeAuthenticator
 from .federation import Federation
+from .observability import FederatedObservability
 from .registry import FederatedNodeIdentity, FederatedNodeRegistry, VALID_PERMISSIONS, VALID_STATES
 
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "FederatedExchangeStore",
     "FederatedNodeIdentity",
     "FederatedNodeRegistry",
+    "FederatedObservability",
     "FederatedWorkBudget",
     "HMACEnvelopeAuthenticator",
     "VALID_PERMISSIONS",
