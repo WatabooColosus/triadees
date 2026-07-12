@@ -12,6 +12,7 @@ from .bodega import Bodega
 from .error_bus import query_internal_errors, record_internal_error
 from .neuron_identity_view import NeuronIdentityView
 from .repo_info import repo_info
+from triade.capabilities.observability import CapabilityObservability
 from triade.federation.federation import Federation
 from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_store import SemanticMemoryStore
@@ -63,6 +64,11 @@ class TriadeObservabilityView:
             lambda: RegressionObservability(self.db_path).snapshot(),
             self._empty_regression(),
         )
+        capabilities = collect(
+            "capability_registry",
+            lambda: CapabilityObservability(self.db_path).snapshot(),
+            self._empty_capabilities(),
+        )
         neurons = collect("neurons", lambda: NeuronIdentityView(self.db_path, self.runs_dir).list(limit=limit), self._empty_neurons())
         qualia = collect("qualia", lambda: self._qualia(limit), self._empty_qualia())
         federation = collect("federation", lambda: self._federation(limit), self._empty_federation())
@@ -78,6 +84,9 @@ class TriadeObservabilityView:
         if regression.get("status") == "attention":
             status = "degraded"
             warnings.append("Regression Gate requiere atención: existen fallos, evidencia inválida o cuarentenas activas.")
+        if capabilities.get("status") == "attention":
+            status = "degraded"
+            warnings.append("Capability Registry requiere atención: existen capacidades bloqueadas.")
 
         last_run_data = last_run or {"message": "No hay runs registrados todavía."}
         if memory_trace and memory_trace.get("run_id"):
@@ -102,6 +111,7 @@ class TriadeObservabilityView:
             "workers": workers,
             "learning": learning,
             "regression_gate": regression,
+            "capability_registry": capabilities,
             "neurons": neurons,
             "qualia": qualia,
             "federation": federation,
@@ -122,6 +132,7 @@ class TriadeObservabilityView:
                 "workers": "No hay workers activos.",
                 "learning": "No hay candidatos de aprendizaje pendientes.",
                 "regression_gate": "Regression Gate todavía no ha sido inicializado." if regression.get("status") == "not_initialized" else None,
+                "capability_registry": "No hay capacidades registradas todavía." if capabilities.get("status") == "empty" else None,
             },
         }
 
@@ -281,6 +292,19 @@ class TriadeObservabilityView:
             "protections": {"active": 0, "immutable": 0},
             "rollbacks": {"total": 0, "by_status": {}},
             "stable_capabilities": 0,
+        }
+
+    @staticmethod
+    def _empty_capabilities() -> dict[str, Any]:
+        return {
+            "status": "empty",
+            "total": 0,
+            "critical": 0,
+            "blocked": 0,
+            "deprecated": 0,
+            "by_state": {},
+            "by_domain": {},
+            "capabilities": [],
         }
 
     @staticmethod
