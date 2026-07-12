@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 import uuid
 from pathlib import Path
@@ -41,8 +42,13 @@ class NeuronEvaluationCoordinator:
         manifest = self._require_executed(candidate_id)
         if baseline.subject_id != candidate.subject_id:
             raise ValueError("baseline y candidate deben medir el mismo subject_id")
+        if baseline.subject_id != candidate_id:
+            raise ValueError("las evaluaciones deben pertenecer al candidato evaluado")
+        if artifact_ref != manifest.get("execution_id"):
+            raise ValueError("artifact_ref no corresponde a la ejecución del candidato")
         if not policies:
             raise ValueError("se requiere al menos una política de no-regresión")
+        self._validate_comparison(baseline, candidate, comparison)
 
         self.evidence.declare_hypothesis(
             candidate_id,
@@ -121,6 +127,29 @@ class NeuronEvaluationCoordinator:
             "reason": reason.strip(),
             "specification": quarantined,
         }
+
+    @staticmethod
+    def _validate_comparison(
+        baseline: EvaluationRun,
+        candidate: EvaluationRun,
+        comparison: EvaluationComparison,
+    ) -> None:
+        if comparison.baseline_evaluation_id != baseline.evaluation_id:
+            raise ValueError("baseline_evaluation_id inconsistente")
+        if comparison.candidate_evaluation_id != candidate.evaluation_id:
+            raise ValueError("candidate_evaluation_id inconsistente")
+        if not math.isclose(comparison.baseline_score, baseline.aggregate_score, abs_tol=1e-9):
+            raise ValueError("baseline_score no coincide con la evaluación")
+        if not math.isclose(comparison.candidate_score, candidate.aggregate_score, abs_tol=1e-9):
+            raise ValueError("candidate_score no coincide con la evaluación")
+        expected_delta = candidate.aggregate_score - baseline.aggregate_score
+        if not math.isclose(comparison.absolute_delta, expected_delta, abs_tol=1e-9):
+            raise ValueError("absolute_delta inconsistente")
+        expected_decision = "improved" if expected_delta > 0 else "regressed" if expected_delta < 0 else "neutral"
+        if comparison.decision != expected_decision:
+            raise ValueError(
+                f"decisión de comparación inconsistente: esperada={expected_decision}, recibida={comparison.decision}"
+            )
 
     def _require_executed(self, candidate_id: str) -> dict[str, Any]:
         manifest = self.candidates.get(candidate_id)
