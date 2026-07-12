@@ -3,6 +3,7 @@
 from .candidate import NeuronCandidate, NeuronCandidateFactory
 from .evaluation import NeuronEvaluationCoordinator
 from .execution import SandboxExecutionEngine
+from .lifecycle import NeuronLifecycleManager
 from .specification import (
     VALID_NEURON_STATES,
     VALID_TRANSITIONS,
@@ -16,6 +17,7 @@ __all__ = [
     "NeuronCandidate",
     "NeuronCandidateFactory",
     "NeuronEvaluationCoordinator",
+    "NeuronLifecycleManager",
     "NeuronSpecification",
     "NeuronSpecificationStore",
     "ResourceBudget",
