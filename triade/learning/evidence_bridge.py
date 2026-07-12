@@ -7,6 +7,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from triade.capabilities import CapabilityPolicyGuard, CapabilityRegistry
 from triade.core.contracts import utc_now
 from triade.evaluation import EvaluationComparison, EvaluationRun
 from triade.regression import RegressionGate, RegressionReport
@@ -22,6 +23,8 @@ class LearningEvidenceBridge:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
         self.regression_gate = RegressionGate(db_path=self.db_path)
+        self.capability_registry = CapabilityRegistry(self.db_path)
+        self.capability_policy = CapabilityPolicyGuard(self.db_path)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -185,6 +188,17 @@ class LearningEvidenceBridge:
             if report.report_id != report_id:
                 raise ValueError("El reporte vigente de Regression Gate no coincide con la evidencia")
             evidence["regression_report"] = report.to_dict()
+
+        capability_id = str(evidence.get("capability") or "").strip()
+        registered = self.capability_registry.get(capability_id)
+        if registered is not None:
+            capability = self.capability_policy.require(capability_id, "promote")
+            evidence["capability_policy"] = {
+                "allowed": True,
+                "capability_id": capability_id,
+                "version": capability.get("version"),
+                "state": capability.get("state"),
+            }
         return evidence
 
     def get(self, candidate_id: str) -> dict[str, Any] | None:
