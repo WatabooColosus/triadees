@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 VALID_STATES = {"experimental", "active", "deprecated", "blocked"}
+VALID_PERMISSIONS = {"read", "write", "execute", "promote"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +25,9 @@ class CapabilityDefinition:
     dependencies: tuple[str, ...] = ()
     evaluation_suites: tuple[str, ...] = ()
     rollback_policy: str | None = None
+    input_contract: dict[str, Any] | None = None
+    output_contract: dict[str, Any] | None = None
+    permissions: tuple[str, ...] = ("read",)
 
     def validate(self) -> None:
         required = (self.capability_id, self.name, self.domain, self.version, self.owner, self.component)
@@ -35,6 +39,11 @@ class CapabilityDefinition:
             raise ValueError("dependencia circular directa")
         if self.critical and (not self.evaluation_suites or not self.rollback_policy):
             raise ValueError("capacidad crítica requiere suite y rollback")
+        invalid_permissions = sorted(set(self.permissions) - VALID_PERMISSIONS)
+        if invalid_permissions:
+            raise ValueError(f"permisos inválidos: {', '.join(invalid_permissions)}")
+        if "execute" in self.permissions and (not self.input_contract or not self.output_contract):
+            raise ValueError("una capacidad ejecutable requiere contratos de entrada y salida")
 
 
 class CapabilityRegistry:
@@ -142,11 +151,7 @@ class CapabilityRegistry:
         with self._connect() as conn:
             rows = conn.execute(sql, params).fetchall()
         return [
-            {
-                "action": row["action"],
-                "payload": json.loads(row["payload_json"]),
-                "created_at": row["created_at"],
-            }
+            {"action": row["action"], "payload": json.loads(row["payload_json"]), "created_at": row["created_at"]}
             for row in rows
         ]
 
