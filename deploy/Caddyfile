@@ -2,7 +2,7 @@
     encode zstd gzip
 
     reverse_proxy triade-api:8010 {
-        health_uri /api/health
+        health_uri /health/live
         health_interval 30s
         health_timeout 5s
     }
