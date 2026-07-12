@@ -1,6 +1,7 @@
 """Fábrica controlada de neuronas de Tríade Ω."""
 
 from .candidate import NeuronCandidate, NeuronCandidateFactory
+from .evaluation import NeuronEvaluationCoordinator
 from .execution import SandboxExecutionEngine
 from .specification import (
     VALID_NEURON_STATES,
@@ -14,6 +15,7 @@ from .store import NeuronSpecificationStore
 __all__ = [
     "NeuronCandidate",
     "NeuronCandidateFactory",
+    "NeuronEvaluationCoordinator",
     "NeuronSpecification",
     "NeuronSpecificationStore",
     "ResourceBudget",
