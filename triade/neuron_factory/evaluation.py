@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import uuid
 from pathlib import Path
@@ -137,5 +138,5 @@ class NeuronEvaluationCoordinator:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 "UPDATE neuron_candidates SET status = ?, manifest_json = ? WHERE candidate_id = ?",
-                (__import__("json").dumps(updated, sort_keys=True), status, candidate_id),
+                (status, json.dumps(updated, sort_keys=True), candidate_id),
             )
