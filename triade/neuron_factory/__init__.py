@@ -1,5 +1,6 @@
 """Fábrica controlada de neuronas de Tríade Ω."""
 
+from .candidate import NeuronCandidate, NeuronCandidateFactory
 from .specification import (
     VALID_NEURON_STATES,
     VALID_TRANSITIONS,
@@ -10,6 +11,8 @@ from .specification import (
 from .store import NeuronSpecificationStore
 
 __all__ = [
+    "NeuronCandidate",
+    "NeuronCandidateFactory",
     "NeuronSpecification",
     "NeuronSpecificationStore",
     "ResourceBudget",
