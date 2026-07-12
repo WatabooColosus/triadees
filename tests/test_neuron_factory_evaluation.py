@@ -35,9 +35,12 @@ def prepare_executed_candidate(db_path: Path) -> dict:
     )
     store.register(specification)
     store.transition(specification.neuron_id, specification.version, "specified")
-    candidate = NeuronCandidateFactory(db_path).create(specification.neuron_id, specification.version)
+    factory = NeuronCandidateFactory(db_path)
+    candidate = factory.create(specification.neuron_id, specification.version)
     SandboxExecutionEngine(db_path).execute_configuration(candidate["candidate_id"], {"mode": "safe"})
-    return candidate
+    persisted = factory.get(candidate["candidate_id"])
+    assert persisted is not None
+    return persisted
 
 
 def evaluation(evaluation_id: str, subject_id: str, score: float) -> EvaluationRun:
