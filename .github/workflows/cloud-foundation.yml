@@ -1,0 +1,52 @@
+name: Cloud Foundation
+
+on:
+  pull_request:
+    paths:
+      - "Dockerfile.cloud"
+      - "compose.cloud.yml"
+      - ".env.cloud.example"
+      - "deploy/**"
+      - ".github/workflows/cloud-foundation.yml"
+      - "requirements.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare environment
+        run: cp .env.cloud.example .env.cloud
+
+      - name: Validate Compose
+        run: docker compose -f compose.cloud.yml config
+
+      - name: Build cloud runtime
+        run: docker build -f Dockerfile.cloud -t triade-omega/cloud:ci .
+
+      - name: Start dependencies
+        run: docker compose -f compose.cloud.yml up -d postgres valkey
+
+      - name: Inspect dependency health
+        run: |
+          for attempt in $(seq 1 30); do
+            postgres_status=$(docker inspect --format='{{.State.Health.Status}}' "$(docker compose -f compose.cloud.yml ps -q postgres)" 2>/dev/null || true)
+            valkey_status=$(docker inspect --format='{{.State.Health.Status}}' "$(docker compose -f compose.cloud.yml ps -q valkey)" 2>/dev/null || true)
+            if [ "$postgres_status" = healthy ] && [ "$valkey_status" = healthy ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f compose.cloud.yml ps
+          exit 1
+
+      - name: Shutdown
+        if: always()
+        run: docker compose -f compose.cloud.yml down -v
