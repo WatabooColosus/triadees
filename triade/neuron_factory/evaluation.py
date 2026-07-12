@@ -99,6 +99,9 @@ class NeuronEvaluationCoordinator:
             manifest["neuron_id"], manifest["version"], "promoted"
         )
         self._set_candidate_status(candidate_id, "promoted")
+        from .lifecycle import NeuronLifecycleManager
+
+        capabilities = NeuronLifecycleManager(self.db_path).register_demonstrated_capabilities(candidate_id)
         return {
             "candidate_id": candidate_id,
             "neuron_id": manifest["neuron_id"],
@@ -106,6 +109,7 @@ class NeuronEvaluationCoordinator:
             "status": "promoted",
             "evidence": evidence,
             "specification": promoted,
+            "registered_capabilities": capabilities,
         }
 
     def quarantine(self, candidate_id: str, reason: str) -> dict[str, Any]:
