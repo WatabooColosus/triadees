@@ -15,14 +15,14 @@ from triade.neuron_factory import NeuronCandidateFactory, NeuronSpecificationSto
 class ImprovementBudget:
     max_active_candidates: int = 2
     max_memory_mb: int = 4096
-    max_duration_seconds: int = 1800
+    max_runtime_seconds: int = 1800
     max_storage_mb: int = 512
 
     def validate(self) -> None:
         values = (
             self.max_active_candidates,
             self.max_memory_mb,
-            self.max_duration_seconds,
+            self.max_runtime_seconds,
             self.max_storage_mb,
         )
         if any(value < 1 for value in values):
@@ -99,7 +99,7 @@ class ImprovementNeuronFactoryBridge:
         version: str,
     ) -> dict[str, Any]:
         proposal = self._proposal(proposal_id)
-        if proposal["status"] != "approved":
+        if proposal["status"] not in {"approved", "candidate_created"}:
             raise ValueError("la propuesta debe estar aprobada antes de crear candidatos")
         specification = self.specifications.get(neuron_id, version)
         if specification is None:
@@ -116,7 +116,7 @@ class ImprovementNeuronFactoryBridge:
         projected = {
             "active_candidates": usage["active_candidates"] + 1,
             "memory_mb": usage["memory_mb"] + int(resource["max_memory_mb"]),
-            "duration_seconds": usage["duration_seconds"] + int(resource["max_duration_seconds"]),
+            "runtime_seconds": usage["runtime_seconds"] + int(resource["max_runtime_seconds"]),
             "storage_mb": usage["storage_mb"] + int(resource["max_storage_mb"]),
         }
         self._require_within_budget(projected)
@@ -167,11 +167,22 @@ class ImprovementNeuronFactoryBridge:
                 "UPDATE improvement_candidate_links SET status = ? WHERE candidate_id = ?",
                 (outcome, candidate_id),
             )
+            remaining = conn.execute(
+                """SELECT COUNT(*) AS total FROM improvement_candidate_links
+                WHERE proposal_id = ? AND status = 'active'""",
+                (row["proposal_id"],),
+            ).fetchone()["total"]
+            proposal_status = "candidate_created" if remaining else outcome
             conn.execute(
                 "UPDATE improvement_proposals SET status = ? WHERE proposal_id = ?",
-                (outcome, row["proposal_id"]),
+                (proposal_status, row["proposal_id"]),
             )
-        return {"candidate_id": candidate_id, "proposal_id": row["proposal_id"], "status": outcome}
+        return {
+            "candidate_id": candidate_id,
+            "proposal_id": row["proposal_id"],
+            "status": outcome,
+            "proposal_status": proposal_status,
+        }
 
     def resource_usage(self) -> dict[str, int]:
         with self._connect() as conn:
@@ -182,7 +193,7 @@ class ImprovementNeuronFactoryBridge:
         return {
             "active_candidates": len(resources),
             "memory_mb": sum(int(item["max_memory_mb"]) for item in resources),
-            "duration_seconds": sum(int(item["max_duration_seconds"]) for item in resources),
+            "runtime_seconds": sum(int(item["max_runtime_seconds"]) for item in resources),
             "storage_mb": sum(int(item["max_storage_mb"]) for item in resources),
         }
 
@@ -207,7 +218,7 @@ class ImprovementNeuronFactoryBridge:
         limits = {
             "active_candidates": self.budget.max_active_candidates,
             "memory_mb": self.budget.max_memory_mb,
-            "duration_seconds": self.budget.max_duration_seconds,
+            "runtime_seconds": self.budget.max_runtime_seconds,
             "storage_mb": self.budget.max_storage_mb,
         }
         exceeded = [name for name, value in projected.items() if value > limits[name]]
