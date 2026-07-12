@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -52,9 +53,7 @@ def test_signal_is_persisted_with_history(tmp_path: Path) -> None:
 def test_duplicate_open_signal_is_rejected(tmp_path: Path) -> None:
     store = ImprovementStore(tmp_path / "triade.db")
     store.register_signal(signal())
-    duplicate = ImprovementSignal(
-        **{**signal().to_dict(), "signal_id": "signal-quality-2", "source_ref": None}
-    )
+    duplicate = replace(signal(), signal_id="signal-quality-2")
 
     with pytest.raises(ValueError, match="ya existe una señal abierta"):
         store.register_signal(duplicate)
