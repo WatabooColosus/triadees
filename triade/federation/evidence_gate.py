@@ -21,11 +21,25 @@ class FederatedEvidenceGate:
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.registry = FederatedNodeRegistry(self.db_path)
         self.regression = RegressionGate(self.db_path)
         with self._connect() as conn:
             conn.executescript(
                 """
+                CREATE TABLE IF NOT EXISTS federated_jobs (
+                    job_id TEXT PRIMARY KEY,
+                    remote_node_id TEXT NOT NULL,
+                    capability TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    request_sha256 TEXT NOT NULL,
+                    result_sha256 TEXT,
+                    payload_json TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_federated_jobs_status
+                    ON federated_jobs(status, remote_node_id);
                 CREATE TABLE IF NOT EXISTS federated_evidence_assessments (
                     assessment_id TEXT PRIMARY KEY,
                     job_id TEXT NOT NULL UNIQUE,
