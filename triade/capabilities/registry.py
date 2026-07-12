@@ -87,16 +87,24 @@ class CapabilityRegistry:
         if self._would_create_cycle(definition.capability_id, definition.dependencies):
             raise ValueError("ciclo de dependencias detectado")
         payload = asdict(definition)
+        payload_json = json.dumps(payload, sort_keys=True)
+        normalized_payload = json.loads(payload_json)
         with self._connect() as conn:
             try:
                 conn.execute(
                     "INSERT INTO capability_registry VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
-                    (definition.capability_id, definition.version, json.dumps(payload, sort_keys=True), definition.state),
+                    (definition.capability_id, definition.version, payload_json, definition.state),
                 )
             except sqlite3.IntegrityError as exc:
                 raise ValueError("capacidad ya registrada") from exc
-            self._append_history(conn, definition.capability_id, definition.version, "registered", payload)
-        return payload
+            self._append_history(
+                conn,
+                definition.capability_id,
+                definition.version,
+                "registered",
+                normalized_payload,
+            )
+        return normalized_payload
 
     def get(self, capability_id: str, version: str | None = None) -> dict[str, Any] | None:
         sql = "SELECT payload_json FROM capability_registry WHERE capability_id = ?"
