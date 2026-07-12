@@ -73,21 +73,19 @@ class NeuronCandidateFactory:
         if not specification.get("sandbox_required", False):
             raise ValueError("la especificación no exige sandbox")
 
-        missing = [
-            capability_id
-            for capability_id in specification.get("requires_capabilities", [])
-            if self.capabilities.get(capability_id) is None
-        ]
-        if missing:
-            raise ValueError(f"capacidades requeridas inexistentes: {', '.join(sorted(missing))}")
-
-        blocked = []
+        missing: list[str] = []
+        unavailable: list[str] = []
         for capability_id in specification.get("requires_capabilities", []):
             capability = self.capabilities.get(capability_id)
-            if capability and capability.get("state") == "blocked":
-                blocked.append(capability_id)
-        if blocked:
-            raise ValueError(f"capacidades requeridas bloqueadas: {', '.join(sorted(blocked))}")
+            if capability is None:
+                missing.append(capability_id)
+                continue
+            if capability.get("state") in {"blocked", "deprecated"}:
+                unavailable.append(capability_id)
+        if missing:
+            raise ValueError(f"capacidades requeridas inexistentes: {', '.join(sorted(missing))}")
+        if unavailable:
+            raise ValueError(f"capacidades requeridas no disponibles: {', '.join(sorted(unavailable))}")
 
         exported = self.specifications.export(neuron_id, version)
         candidate = NeuronCandidate(
