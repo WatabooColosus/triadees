@@ -7,6 +7,8 @@ on:
       - "compose.cloud.yml"
       - ".env.cloud.example"
       - "deploy/**"
+      - "apps/routes/health.py"
+      - "apps/single_port_app.py"
       - ".github/workflows/cloud-foundation.yml"
       - "requirements.txt"
   workflow_dispatch:
@@ -31,21 +33,34 @@ jobs:
       - name: Build cloud runtime
         run: docker build -f Dockerfile.cloud -t triade-omega/cloud:ci .
 
-      - name: Start dependencies
-        run: docker compose -f compose.cloud.yml up -d postgres valkey
+      - name: Start and wait for dependencies
+        run: docker compose -f compose.cloud.yml up -d --wait --wait-timeout 120 postgres valkey
 
-      - name: Inspect dependency health
+      - name: Show dependency state
+        run: docker compose -f compose.cloud.yml ps
+
+      - name: Start API
+        run: docker compose -f compose.cloud.yml up -d --wait --wait-timeout 180 triade-api
+
+      - name: Verify health endpoints
         run: |
-          for attempt in $(seq 1 30); do
-            postgres_status=$(docker inspect --format='{{.State.Health.Status}}' "$(docker compose -f compose.cloud.yml ps -q postgres)" 2>/dev/null || true)
-            valkey_status=$(docker inspect --format='{{.State.Health.Status}}' "$(docker compose -f compose.cloud.yml ps -q valkey)" 2>/dev/null || true)
-            if [ "$postgres_status" = healthy ] && [ "$valkey_status" = healthy ]; then
-              exit 0
-            fi
-            sleep 2
-          done
-          docker compose -f compose.cloud.yml ps
-          exit 1
+          docker compose -f compose.cloud.yml exec -T triade-api python - <<'PY'
+          import json
+          import urllib.request
+
+          for path in ("/health/live", "/health/ready", "/health/deep"):
+              with urllib.request.urlopen(f"http://127.0.0.1:8010{path}", timeout=15) as response:
+                  payload = json.load(response)
+                  assert response.status == 200, (path, response.status, payload)
+                  assert payload.get("status") in {"alive", "ready", "healthy", "degraded"}, (path, payload)
+                  print(path, payload.get("status"))
+          PY
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          docker compose -f compose.cloud.yml ps || true
+          docker compose -f compose.cloud.yml logs --no-color --tail=200 postgres valkey triade-api || true
 
       - name: Shutdown
         if: always()
