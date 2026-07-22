@@ -35,3 +35,7 @@ def test_record_internal_error_is_queryable(tmp_path: Path) -> None:
     assert len(errors) == 1
     assert errors[0]["run_ref"] == "run-observability-test"
     assert errors[0]["payload"]["context"]["operation"] == "controlled_raise"
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE worker_events SET status = 'resolved' WHERE id = ?", (event_id,))
+    assert query_internal_errors(scope="tests.controlled", db_path=db_path) == []

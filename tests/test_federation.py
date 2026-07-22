@@ -129,3 +129,27 @@ def test_federation_tracks_capable_compute_nodes(tmp_path: Path) -> None:
     doctor = federation.doctor()
     assert doctor["nodes_by_capability"]["high"] == 1
     assert doctor["compute_ready_nodes"] == 1
+
+
+def test_two_authorized_nodes_exchange_without_stable_write(tmp_path: Path) -> None:
+    """Real DB-backed two-node flow: send, receive, audit, no auto-consolidation."""
+    federation = fed(tmp_path)
+    federation.register_node("node-a", "Nodo A", trust_level="high", permissions=["send_knowledge"])
+    federation.register_node("node-b", "Nodo B", trust_level="high", permissions=["receive_knowledge"])
+
+    outbound = federation.send_exchange("node-a", "knowledge", "Patrón federado trazable de prueba.")
+    inbound = federation.receive_exchange(
+        "node-b",
+        "knowledge",
+        "Patrón federado trazable de prueba.",
+        risk_level="low",
+        domain="federation_test",
+    )
+
+    assert outbound["decision"] == "sent"
+    assert inbound["decision"] == "accepted_as_learning_candidate"
+    assert inbound["consolidated"] is False
+    doctor = federation.doctor()
+    assert doctor["nodes_by_status"]["active"] == 2
+    candidate = LearningPipeline(db_path=tmp_path / "triade.db").get_candidate(inbound["learning_candidate_id"])
+    assert candidate is not None and candidate["status"] == "candidate"

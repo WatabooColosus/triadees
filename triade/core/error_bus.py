@@ -98,7 +98,7 @@ def query_internal_errors(
                 rows = conn.execute(
                     """SELECT id, run_ref, task_id, task_type, status, message, payload_json, created_at
                     FROM worker_events
-                    WHERE event_type = 'internal_error' AND task_type = ?
+                    WHERE event_type = 'internal_error' AND status = 'error' AND task_type = ?
                     ORDER BY id DESC LIMIT ?""",
                     (scope, limit),
                 ).fetchall()
@@ -106,7 +106,7 @@ def query_internal_errors(
                 rows = conn.execute(
                     """SELECT id, run_ref, task_id, task_type, status, message, payload_json, created_at
                     FROM worker_events
-                    WHERE event_type = 'internal_error' AND run_ref = ?
+                    WHERE event_type = 'internal_error' AND status = 'error' AND run_ref = ?
                     ORDER BY id DESC LIMIT ?""",
                     (run_id, limit),
                 ).fetchall()
@@ -114,7 +114,7 @@ def query_internal_errors(
                 rows = conn.execute(
                     """SELECT id, run_ref, task_id, task_type, status, message, payload_json, created_at
                     FROM worker_events
-                    WHERE event_type = 'internal_error'
+                    WHERE event_type = 'internal_error' AND status = 'error'
                     ORDER BY id DESC LIMIT ?""",
                     (limit,),
                 ).fetchall()

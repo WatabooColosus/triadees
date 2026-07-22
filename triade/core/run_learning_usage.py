@@ -178,18 +178,21 @@ def record_learning_usage_from_output(
                     "outcome_score": outcome_score,
                 })
             except Exception as exc:
+                expected_gate = isinstance(exc, ValueError) and "Measurement Core" in str(exc)
                 result["trace"].append({
                     "candidate_id": candidate_id_str,
                     "match_source": match_source,
+                    "status": "awaiting_measurement_evidence" if expected_gate else "error",
                     "error": str(exc),
                 })
-                record_internal_error(
-                    "learning_usage.mark_used",
-                    exc,
-                    run_id=run_id,
-                    payload={"candidate_id": candidate_id_str, "match_source": match_source},
-                    db_path=db_path,
-                )
+                if not expected_gate:
+                    record_internal_error(
+                        "learning_usage.mark_used",
+                        exc,
+                        run_id=run_id,
+                        payload={"candidate_id": candidate_id_str, "match_source": match_source},
+                        db_path=db_path,
+                    )
 
         result["outcome_score"] = outcome_score
         result["matched_domains"] = list({str(c["domain"]) for c in unique_matched})

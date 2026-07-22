@@ -34,7 +34,9 @@ def get_internal_runtime_supervisor(
 ) -> InternalRuntimeSupervisor:
     global _SUPERVISOR
     with _LOCK:
-        if _SUPERVISOR is None or Path(db_path) != _SUPERVISOR.db_path or Path(runs_dir) != _SUPERVISOR.runs_dir:
+        req_db = Path(db_path).resolve()
+        req_runs = Path(runs_dir).resolve()
+        if _SUPERVISOR is None or req_db != Path(_SUPERVISOR.db_path).resolve() or req_runs != Path(_SUPERVISOR.runs_dir).resolve():
             _SUPERVISOR = InternalRuntimeSupervisor(db_path=db_path, runs_dir=runs_dir)
         return _SUPERVISOR
 
@@ -121,11 +123,18 @@ def get_internal_runtime_state(
 ) -> dict[str, Any]:
     supervisor = get_internal_runtime_supervisor(db_path=db_path, runs_dir=runs_dir)
     snapshot = supervisor.snapshot()
+    background_thread_alive = bool(_BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive())
+    # The process-local background thread is the canonical operational truth.
+    # Persisted events describe history; they must not make a stopped runtime
+    # appear active or a live thread appear disabled.
+    runtime_enabled = background_thread_alive
     return {
         "runtime_id": snapshot.get("runtime_id"),
         "started_at": snapshot.get("started_at"),
         "mode": snapshot.get("mode"),
-        "enabled": snapshot.get("enabled"),
+        "enabled": runtime_enabled,
+        "runtime_enabled": runtime_enabled,
+        "background_thread_alive": background_thread_alive,
         "services": snapshot.get("services", {}),
         "counters": snapshot.get("counters", {}),
         "last_events": snapshot.get("last_events", []),
@@ -244,8 +253,8 @@ def build_runtime_heartbeat(
     fallback_message = "Tríade respira en fallback, pero no tiene sangre cognitiva activa."
     cycles_last_hour = _count_recent(recent_events, RUNTIME_CYCLE_EVENTS, hours=1)
     cycles_last_24h = _count_recent(recent_events, RUNTIME_CYCLE_EVENTS, hours=24)
-    runtime_enabled = bool(runtime_state.get("enabled"))
-    bg_alive = bool(_BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive())
+    runtime_enabled = bool(runtime_state.get("runtime_enabled"))
+    bg_alive = bool(runtime_state.get("background_thread_alive"))
     workers_active = bool(worker_status.get("running") or workers_always_on_status.get("active"))
     ollama_degraded = ollama_blood.get("status") == "degraded_no_ollama"
 
@@ -329,7 +338,7 @@ def build_runtime_heartbeat(
             if ollama_blood.get("status") == "degraded_no_ollama"
             else (latest_event or {}).get("event_type") or _first_event_type(runtime_state.get("last_events"))
         ),
-        "latest_error": latest_error.get("message") or latest_error.get("error") or _first_event_message(runtime_state.get("last_events")),
+        "latest_error": latest_error.get("message") or latest_error.get("error") or None,
         "active_workers": bool(worker_status.get("running")),
         "active_missions": active_missions,
         "ollama_health": ollama_health,

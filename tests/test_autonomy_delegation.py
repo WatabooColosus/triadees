@@ -343,7 +343,7 @@ def test_status_current_mentions_autonomy_delegation():
     """Verifica que STATUS_CURRENT.md mencione autonomía delegada."""
     status_path = REPO_ROOT / "docs" / "STATUS_CURRENT.md"
     assert status_path.exists()
-    content = status_path.read_text()
+    content = status_path.read_text(encoding="utf-8")
     assert "Autonomía Delegada" in content or "autonomía delegada" in content.lower()
 
 

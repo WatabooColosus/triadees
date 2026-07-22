@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -36,6 +37,18 @@ from triade.qualia.contracts import NeuronExperience
 from triade.qualia.store import QualiaStore
 from triade.services.event_bus import list_recent_events
 from triade.workers.background_service import WorkerBackgroundService
+
+
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def validate_api_binding(host: str) -> None:
+    """Prevent exposing mutation endpoints without an API credential."""
+    if str(host).strip().lower() not in LOOPBACK_HOSTS and not os.getenv("TRIADE_API_KEY"):
+        raise SystemExit(
+            "Refusing non-loopback API binding without TRIADE_API_KEY. "
+            "Set a strong key or bind to 127.0.0.1."
+        )
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -1028,6 +1041,7 @@ def main() -> None:
     if args.command == "api":
         import uvicorn
 
+        validate_api_binding(args.host)
         uvicorn.run("apps.single_port_app:app", host=args.host, port=args.port, reload=args.reload)
         return
 

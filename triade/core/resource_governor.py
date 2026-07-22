@@ -20,11 +20,19 @@ def decide_work_mode(
     resource_probe: dict[str, Any],
     ollama_blood: dict[str, Any],
     requested_mode: str | None = None,
+    *,
+    force_mode: str | None = None,
 ) -> dict[str, Any]:
     """Evalúa recursos y decide el modo de trabajo máximo permitido.
 
+    `force_mode` fija el modo solicitado, pero nunca evita los límites de
+    recursos ni las compuertas de seguridad.
+
     Returns dict con allowed_mode, effective_mode, reason y capacidades.
     """
+    if force_mode and force_mode in WORK_MODE_RANK:
+        requested_mode = force_mode
+
     limits = resource_probe.get("limits", {})
     ram_gb = limits.get("ram_available_gb", 0.0)
     disk_gb = limits.get("disk_free_gb", 0.0)

@@ -49,6 +49,8 @@ def test_supervisor_creates_internal_events(tmp_path):
     assert result["status"] == "ok"
     assert any(event.get("event_type") == "runtime_cycle_start" for event in events)
     assert any(event.get("event_type") == "runtime_cycle_complete" for event in events)
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
 
 
 def test_mission_service_plans_active_missions(tmp_path):
@@ -63,4 +65,3 @@ def test_mission_service_plans_active_missions(tmp_path):
     assert result["services"]["mission_service"]["status"] == "ok"
     assert result["counters"]["tasks_planned"] > 0
     assert result["counters"]["tasks_executed"] > 0
-

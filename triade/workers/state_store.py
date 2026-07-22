@@ -66,6 +66,21 @@ class WorkerStateStore:
             )
             conn.execute("UPDATE runs SET status = ?, closed_at = ? WHERE run_id = ?", (status, utc_now(), run_ref))
 
+    def reconcile_stale_runs(self, *, reason: str) -> int:
+        """Close persisted running rows after their process lock is proven stale."""
+        finished_at = utc_now()
+        with self._connect() as conn:
+            rows = conn.execute("SELECT run_ref FROM worker_runs WHERE status = 'running'").fetchall()
+            for row in rows:
+                run_ref = str(row["run_ref"])
+                summary = {"reconciled": True, "reason": reason}
+                conn.execute(
+                    "UPDATE worker_runs SET status = 'interrupted', finished_at = ?, summary_json = ?, error = ? WHERE run_ref = ?",
+                    (finished_at, json.dumps(summary), f"stale_worker_lock:{reason}", run_ref),
+                )
+                conn.execute("UPDATE runs SET status = 'interrupted', closed_at = ? WHERE run_id = ?", (finished_at, run_ref))
+        return len(rows)
+
     def get_worker_run(self, run_ref: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute("SELECT * FROM worker_runs WHERE run_ref = ?", (run_ref,)).fetchone()

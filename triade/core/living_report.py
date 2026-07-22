@@ -120,7 +120,7 @@ def build_living_report(
         stable_needs_review=bgc_needs_review,
         qualia_state=qualia,
     )
-    runtime_enabled = bool(runtime.get("enabled"))
+    runtime_enabled = bool(runtime.get("runtime_enabled"))
     from triade.core.ollama_blood import check_ollama_blood
     _ollama_degraded = check_ollama_blood().get("status") == "degraded_no_ollama"
     if not runtime_enabled:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "triade-omega"
-version = "2.1.0"
+version = "2.2.0"
 description = "Tríade Ω — Arquitectura triádica de inteligencia viva, relacional y verificable."
 readme = "README.md"
 license = {text = "Propietario"}
@@ -23,6 +23,7 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
+    "pytest-xdist>=3.8.0",
 ]
 
 [project.scripts]

@@ -37,7 +37,9 @@ def classify_path(path: str) -> dict[str, Any]:
             "requires_human_approval": False,
         }
 
-    rel = str(norm.relative_to(REPO_ROOT))
+    # Policy prefixes are POSIX-style; normalise Windows separators before
+    # comparing so the same zones apply on every supported platform.
+    rel = norm.relative_to(REPO_ROOT).as_posix()
 
     # Forbidden
     for fb in FORBIDDEN_PATHS:

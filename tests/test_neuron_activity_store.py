@@ -106,6 +106,36 @@ def test_neuron_activity_store_record_run_activity_alias(tmp_path: Path) -> None
     assert rows[0]["diagnosis_count"] == 1
 
 
+def test_background_activity_creates_auditable_parent_run(tmp_path: Path) -> None:
+    """Pulse/worker activity must preserve the run foreign-key invariant."""
+    import sqlite3
+
+    db_path = tmp_path / "triade.db"
+    store = NeuronActivityStore(db_path=db_path)
+    activity = {
+        "active": True,
+        "activations": [{
+            "neuron_id": None,
+            "name": "neurona-background",
+            "status": "experimental",
+            "active": True,
+            "output": {"diagnosis": ["d1"], "test_plan": ["t1"]},
+        }],
+    }
+
+    ids = store.store_activity(run_id="pulse-regression-001", activity=activity)
+
+    assert len(ids) == 1
+    with sqlite3.connect(db_path) as conn:
+        parent = conn.execute(
+            "SELECT source, status FROM runs WHERE run_id = ?",
+            ("pulse-regression-001",),
+        ).fetchone()
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+    assert parent == ("neuron_activity", "ok")
+    assert violations == []
+
+
 def test_neuron_activity_store_ignores_inactive_payload(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     store = NeuronActivityStore(db_path=db_path)

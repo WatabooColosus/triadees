@@ -32,7 +32,7 @@ from triade.workers.state_store import WorkerStateStore
 from .event_bus import build_context_from_events, list_recent_events, publish_event
 
 
-AUTONOMY_LEVELS = ("observe_only", "learn_candidates", "execute_missions", "full_local")
+AUTONOMY_LEVELS = ("observe_only", "learn_candidates", "execute_missions", "full_local", "full_local_guarded")
 AUTONOMY_RANK = {name: index for index, name in enumerate(AUTONOMY_LEVELS)}
 
 
@@ -135,6 +135,8 @@ class InternalRuntimeSupervisor:
         # ── Resource Governor ──────────────────────────────────────────
         governor = self._run_governor(current_mode)
         effective_mode = governor.get("effective_mode", current_mode)
+        if effective_mode != self.mode:
+            self.mode = effective_mode
         perm = governor.get("permissions", {})
         results["governor"] = governor
 
@@ -228,13 +230,16 @@ class InternalRuntimeSupervisor:
     def _run_governor(self, mode: str) -> dict[str, Any]:
         """Ejecuta Resource Governor + Permission Governor."""
         from triade.core.resource_probe import build_resource_probe
-        from triade.core.resource_governor import decide_work_mode
+        from triade.core.resource_governor import decide_work_mode, WORK_MODE_RANK
         from triade.core.permission_governor import build_permission_profile
         from triade.core.ollama_blood import check_ollama_blood
+        from triade.core.always_on import load_always_on_config
 
         probe = build_resource_probe()
         blood = check_ollama_blood()
-        decision = decide_work_mode(probe, blood, mode)
+        cfg = load_always_on_config()
+        force_mode = str(cfg.get("force_mode", "")).strip()
+        decision = decide_work_mode(probe, blood, mode, force_mode=force_mode if force_mode in WORK_MODE_RANK else None)
         permissions = build_permission_profile(decision.get("effective_mode", mode))
 
         publish_event(
@@ -515,6 +520,18 @@ class InternalRuntimeSupervisor:
             primary = {}
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
+            conn.execute(
+                """INSERT OR IGNORE INTO runs
+                (run_id, source, user_input, status, created_at)
+                VALUES (?, ?, ?, ?, ?)""",
+                (
+                    self.runtime_id,
+                    "internal_runtime",
+                    "Internal runtime model-service cycle.",
+                    "running",
+                    utc_now(),
+                ),
+            )
             conn.execute(
                 """INSERT INTO model_events (run_id, role, provider, model_name, ok, error, quality_score, latency_ms, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",

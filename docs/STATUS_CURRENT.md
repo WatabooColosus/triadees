@@ -2,6 +2,14 @@
 
 Este documento es la fuente vigente del estado real del repositorio. Los reportes de auditoria antiguos son historicos si contradicen este archivo.
 
+## Autonomía Delegada
+
+La autonomía delegada está gobernada por zonas de sistema, presupuesto por
+nivel, dry-run, verificación de integridad y papelera reversible. `.git`,
+`.env`, secretos e `identity_core` son zonas prohibidas. Las rutas desconocidas
+son de solo lectura hasta aprobación humana; ninguna configuración puede
+desactivar estas restricciones ni el Resource Governor.
+
 ## Implementado
 
 - Autonomía Delegada Gobernada: capa completa para que Tríade Ω pueda crear, mover, organizar y limpiar archivos de forma segura, con límites porcentuales, zonas de riesgo, verificador de integridad, papelera reversible, dry-run y auditoría.

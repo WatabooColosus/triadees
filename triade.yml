@@ -10,6 +10,7 @@ models:
 runtime:
   always_on: true
   mode: full_local_guarded
+  force_mode: full_local_guarded
   interval_seconds: 60
   start_delay_seconds: 3
   max_cycles: 0
@@ -21,3 +22,5 @@ runtime:
   workers_autostart: true
   workers_watchdog: true
   worker_mode: full_local_guarded
+  continuous_interval_seconds: 10
+  continuous_max_cycles: 0

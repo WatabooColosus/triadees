@@ -36,6 +36,7 @@ ENV_KEYS = {
     "workers_autostart": "TRIADE_WORKERS_AUTOSTART",
     "workers_watchdog": "TRIADE_WORKERS_WATCHDOG",
     "worker_mode": "TRIADE_WORKER_MODE",
+    "force_mode": "TRIADE_FORCE_MODE",
 }
 
 YML_DEFAULTS = {
@@ -52,6 +53,7 @@ YML_DEFAULTS = {
     "workers_autostart": True,
     "workers_watchdog": True,
     "worker_mode": "full_local_guarded",
+    "force_mode": "",
 }
 
 _ALWAYS_ON_STATE: dict[str, Any] = {
@@ -222,13 +224,17 @@ def start_always_on_if_enabled(
     degradation_reason = None
     require_ollama = bool(cfg.get("require_ollama", False))
     safe_only = bool(cfg.get("safe_only", True))
+    force_mode = str(cfg.get("force_mode", "")).strip()
 
     if not ollama_ok and require_ollama:
         effective_mode = "observe_only"
         preflight_errors.append("ollama_required_but_unavailable")
 
+    if force_mode and force_mode in WORK_MODE_RANK:
+        requested_mode = force_mode
+        effective_mode = force_mode
     try:
-        decision = decide_work_mode(probe, blood, requested_mode)
+        decision = decide_work_mode(probe, blood, requested_mode, force_mode=force_mode or None)
         allowed = decision.get("effective_mode", "observe_only")
         if WORK_MODE_RANK.get(effective_mode, 0) > WORK_MODE_RANK.get(allowed, 0):
             effective_mode = allowed

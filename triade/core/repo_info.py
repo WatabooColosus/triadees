@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -28,9 +29,16 @@ def repo_info(cwd: str | Path = ".") -> dict[str, Any]:
 
 
 def _git(args: list[str], cwd: Path) -> str:
+    executable = shutil.which("git")
+    if not executable and os.name == "nt":
+        candidate = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git" / "cmd" / "git.exe"
+        if candidate.exists():
+            executable = str(candidate)
+    if not executable:
+        return ""
     try:
         result = subprocess.run(
-            ["git", *args],
+            [executable, *args],
             cwd=cwd,
             capture_output=True,
             text=True,

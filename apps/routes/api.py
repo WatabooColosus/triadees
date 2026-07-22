@@ -369,7 +369,7 @@ def qualia_publish_test(body: dict[str, Any] | None = None) -> dict[str, Any]:
 @router.get("/api/health")
 def health() -> dict[str, Any]:
     LIFE_PULSE.record_action("health")
-    runner = TriadeRunner(use_ollama=False)
+    runner = TriadeRunner(use_ollama=True)
     hardware, ollama = system_payload()
     return {
         "status": "ok",
@@ -1089,7 +1089,12 @@ def runtime_learning_journal(since_hours: int = 24, limit: int = 50) -> dict[str
 @router.get("/api/runtime/neuron-nutrition")
 def runtime_neuron_nutrition(mode: str = "observe_only", limit: int = 5) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_neuron_nutrition")
-    return run_neuron_nutrition_cycle(mode=mode, limit=limit)
+    from triade.core.resource_governor import WORK_MODE_RANK
+    from triade.core.always_on import load_always_on_config
+    cfg = load_always_on_config()
+    force_mode = str(cfg.get("force_mode", "")).strip()
+    effective_mode = force_mode if force_mode in WORK_MODE_RANK else mode
+    return run_neuron_nutrition_cycle(mode=effective_mode, limit=limit)
 
 
 @router.get("/api/runtime/context")
@@ -1319,11 +1324,15 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
 def _build_governor_block(query: str, limit: int) -> dict[str, Any]:
     """Construye bloque governor para el dashboard React."""
     from triade.core.resource_probe import build_resource_probe
-    from triade.core.resource_governor import decide_work_mode
+    from triade.core.resource_governor import decide_work_mode, WORK_MODE_RANK
     from triade.core.ollama_blood import check_ollama_blood
+    from triade.core.always_on import load_always_on_config
     probe = build_resource_probe()
     blood = check_ollama_blood()
-    decision = decide_work_mode(probe, blood, query or "observe_only")
+    cfg = load_always_on_config()
+    force_mode = str(cfg.get("force_mode", "")).strip()
+    requested = force_mode if force_mode in WORK_MODE_RANK else (query or "observe_only")
+    decision = decide_work_mode(probe, blood, requested, force_mode=force_mode if force_mode in WORK_MODE_RANK else None)
     return {
         "resource_probe": {
             "cpu": probe.get("cpu", {}),
@@ -1387,11 +1396,15 @@ def system_work_mode(requested: str = "observe_only") -> dict[str, Any]:
     """Modo de trabajo decidido por resource governor."""
     LIFE_PULSE.record_action("system_work_mode")
     from triade.core.resource_probe import build_resource_probe
-    from triade.core.resource_governor import decide_work_mode
+    from triade.core.resource_governor import decide_work_mode, WORK_MODE_RANK
     from triade.core.ollama_blood import check_ollama_blood
+    from triade.core.always_on import load_always_on_config
+    cfg = load_always_on_config()
+    force_mode = str(cfg.get("force_mode", "")).strip()
+    effective_requested = force_mode if force_mode in WORK_MODE_RANK else requested
     probe = build_resource_probe()
     blood = check_ollama_blood()
-    return decide_work_mode(probe, blood, requested)
+    return decide_work_mode(probe, blood, effective_requested, force_mode=force_mode if force_mode in WORK_MODE_RANK else None)
 
 
 @router.get("/api/system/permissions")
@@ -1399,13 +1412,17 @@ def system_permissions(requested: str = "observe_only") -> dict[str, Any]:
     """Perfil de permisos para el modo solicitado."""
     LIFE_PULSE.record_action("system_permissions")
     from triade.core.resource_probe import build_resource_probe
-    from triade.core.resource_governor import decide_work_mode
+    from triade.core.resource_governor import decide_work_mode, WORK_MODE_RANK
     from triade.core.permission_governor import build_permission_profile
     from triade.core.ollama_blood import check_ollama_blood
+    from triade.core.always_on import load_always_on_config
+    cfg = load_always_on_config()
+    force_mode = str(cfg.get("force_mode", "")).strip()
+    effective_requested = force_mode if force_mode in WORK_MODE_RANK else requested
     probe = build_resource_probe()
     blood = check_ollama_blood()
-    decision = decide_work_mode(probe, blood, requested)
-    mode = decision.get("effective_mode", requested)
+    decision = decide_work_mode(probe, blood, effective_requested, force_mode=force_mode if force_mode in WORK_MODE_RANK else None)
+    mode = decision.get("effective_mode", effective_requested)
     return build_permission_profile(mode)
 
 
@@ -1439,10 +1456,20 @@ def system_safe_shell_run(body: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 @router.get("/api/autonomy/budget")
-def autonomy_budget(level: str = "observe_only") -> dict[str, Any]:
+def autonomy_budget(level: str = "") -> dict[str, Any]:
     """Presupuesto de autonomía para el nivel solicitado."""
     LIFE_PULSE.record_action("autonomy_budget")
     from triade.core.autonomy_budget import build_autonomy_budget
+    from triade.core.always_on import _ALWAYS_ON_STATE
+    from triade.core.config import load_config
+    if not level:
+        level = _ALWAYS_ON_STATE.get("effective_mode", "")
+    if not level:
+        try:
+            yml = load_config("triade.yml")
+            level = str((yml.get("runtime") or {}).get("force_mode") or (yml.get("runtime") or {}).get("mode") or "observe_only")
+        except Exception:
+            level = "observe_only"
     return build_autonomy_budget(level)
 
 

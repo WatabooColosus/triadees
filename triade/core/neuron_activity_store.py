@@ -61,8 +61,27 @@ class NeuronActivityStore:
         if not activity.get("active"):
             return []
 
+        normalized_run_id = str(run_id or "").strip()
+        if not normalized_run_id:
+            raise ValueError("run_id is required for neuron activity")
+
         inserted: list[int] = []
         with self._connect() as conn:
+            # Background workers and the continuous pulse also produce auditable
+            # activity.  They do not pass through TriadeRunner, so guarantee the
+            # parent row here instead of disabling the foreign-key invariant.
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO runs (run_id, source, user_input, status)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    normalized_run_id,
+                    "neuron_activity",
+                    "Background experimental-neuron activation.",
+                    "ok",
+                ),
+            )
             for activation in activity.get("activations") or []:
                 if not isinstance(activation, dict):
                     continue
@@ -83,7 +102,7 @@ class NeuronActivityStore:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        run_id,
+                        normalized_run_id,
                         activation.get("neuron_id"),
                         str(activation.get("name") or "unknown"),
                         activation.get("domain"),

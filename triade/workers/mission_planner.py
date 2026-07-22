@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from triade.core.contracts import utc_now
 from triade.core.error_bus import record_internal_error
@@ -47,10 +48,19 @@ class MissionPlanner:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
-        return conn
+        conn.execute("PRAGMA busy_timeout = 30000")
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def plan_cycle(self, run_ref: str | None = None) -> list[PlannedTask]:
         """Produce una lista priorizada de tareas para el próximo ciclo."""

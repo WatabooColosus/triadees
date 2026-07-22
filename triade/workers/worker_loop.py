@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import sqlite3
 import time
 from pathlib import Path
@@ -30,6 +31,40 @@ from .neuron_mission_executor import NeuronMissionExecutor
 from .scheduler import WorkerScheduler
 from .state_store import WorkerStateStore
 from .task_queue import WorkerTaskQueue
+
+
+def lock_owner_status(lock_file: str | Path) -> dict[str, Any]:
+    """Return whether a worker lock is owned by a live local process."""
+    path = Path(lock_file)
+    if not path.exists():
+        return {"exists": False, "active": False, "pid": None, "reason": "missing"}
+    try:
+        pid = int(path.read_text(encoding="utf-8").strip())
+        if pid <= 0:
+            raise ValueError
+    except (OSError, ValueError):
+        return {"exists": True, "active": False, "pid": None, "reason": "invalid_pid"}
+    try:
+        if sys.platform == "win32":
+            import ctypes
+            handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+            if not handle:
+                raise ProcessLookupError(pid)
+            try:
+                exit_code = ctypes.c_ulong()
+                if not ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)) or exit_code.value != 259:
+                    raise ProcessLookupError(pid)
+            finally:
+                ctypes.windll.kernel32.CloseHandle(handle)
+        else:
+            os.kill(pid, 0)
+    except ProcessLookupError:
+        return {"exists": True, "active": False, "pid": pid, "reason": "process_not_found"}
+    except PermissionError:
+        return {"exists": True, "active": True, "pid": pid, "reason": "permission_denied_assumed_alive"}
+    except OSError:
+        return {"exists": True, "active": False, "pid": pid, "reason": "process_not_found"}
+    return {"exists": True, "active": True, "pid": pid, "reason": "process_alive"}
 
 
 class WorkerSandbox:
@@ -96,8 +131,12 @@ class WorkerLoop:
         self.runs_dir.mkdir(parents=True, exist_ok=True)
         self.lock_file.parent.mkdir(parents=True, exist_ok=True)
         self.stop_file.parent.mkdir(parents=True, exist_ok=True)
-        if self.lock_file.exists():
-            return {"status": "locked", "lock_file": str(self.lock_file), "message": "Worker ya está en ejecución."}
+        lock_status = lock_owner_status(self.lock_file)
+        if lock_status["active"]:
+            return {"status": "locked", "lock_file": str(self.lock_file), "lock": lock_status, "message": "Worker ya está en ejecución."}
+        if lock_status["exists"]:
+            self.lock_file.unlink(missing_ok=True)
+            self.store.reconcile_stale_runs(reason=str(lock_status["reason"]))
         if self.stop_file.exists():
             return {"status": "stopped", "stop_file": str(self.stop_file), "message": "Stop file presente antes de iniciar."}
 

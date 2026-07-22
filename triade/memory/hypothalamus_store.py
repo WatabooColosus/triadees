@@ -191,7 +191,7 @@ class HypothalamusStateStore:
         clamped = cap(new_fatigue)
         with self._connect() as conn:
             conn.execute(
-                "UPDATE hypothalamus_state SET fatigue = ? ORDER BY id DESC LIMIT 1",
+                "UPDATE hypothalamus_state SET fatigue = ? WHERE id = (SELECT id FROM hypothalamus_state ORDER BY id DESC LIMIT 1)",
                 (clamped,),
             )
         return True

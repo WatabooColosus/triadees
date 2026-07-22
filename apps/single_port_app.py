@@ -31,6 +31,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     LIFE_PULSE.start()
     NODE_LIVE_REGISTRY.start()
 
+    # Activar continuous runner si force_mode esta configurado
+    try:
+        from triade.core.config import load_config
+        from triade.core.life_pulse import _MODE_TO_AUTONOMY
+        yml = load_config("triade.yml")
+        rtc = yml.get("runtime") or {}
+        force_mode = str(rtc.get("force_mode") or rtc.get("mode") or "").strip()
+        if force_mode in _MODE_TO_AUTONOMY:
+            result_cr = LIFE_PULSE.configure_continuous_runner(
+                enabled=True,
+                autonomy_level=_MODE_TO_AUTONOMY[force_mode],
+                interval_seconds=int(rtc.get("continuous_interval_seconds", 10) or 10),
+                max_cycles=int(rtc.get("continuous_max_cycles", 0) or 0),
+            )
+            import logging
+            logging.getLogger("triade").warning(f"Continuous runner configured: {result_cr}")
+    except Exception as exc:
+        import logging
+        logging.getLogger("triade").error(f"Failed to configure continuous runner: {exc}")
+
     global _ALWAYS_ON_RESULT
     try:
         from triade.core.always_on import load_always_on_config, start_always_on_if_enabled
@@ -54,7 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         LIFE_PULSE.stop()
 
 
-app = FastAPI(title="Tríade Ω Single Port", version="0.9.0", lifespan=lifespan)
+app = FastAPI(title="Tríade Ω Single Port", version="2.2.0", lifespan=lifespan)
 app.include_router(api_router)
 app.include_router(ui_router)
 

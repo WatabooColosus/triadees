@@ -48,6 +48,14 @@ AUTONOMY_LEVELS: list[str] = [
 
 DEFAULT_AUTONOMY_LEVEL = "observe_only"
 
+_MODE_TO_AUTONOMY: dict[str, str] = {
+    "full_local_guarded": "promote_stable",
+    "full_local": "promote_experimental",
+    "balanced_background": "train_candidates",
+    "light_background": "form_candidates",
+    "observe_only": "observe_only",
+}
+
 _MIN_CONTINUOUS_INTERVAL = 10
 _DEFAULT_CONTINUOUS_INTERVAL = 10
 _BACKOFF_BASE_SECONDS = 5
@@ -105,6 +113,19 @@ class LifePulseEngine:
         if payload:
             context.update(payload)
         record_internal_error(scope, error, payload=context, db_path=self.db_path)
+
+    @staticmethod
+    def _resolve_autonomy_from_config() -> str | None:
+        try:
+            from triade.core.config import load_config
+            yml = load_config("triade.yml")
+            rtc = yml.get("runtime") or {}
+            force_mode = str(rtc.get("force_mode") or rtc.get("mode") or "").strip()
+            if force_mode in _MODE_TO_AUTONOMY:
+                return _MODE_TO_AUTONOMY[force_mode]
+        except Exception:
+            pass
+        return None
 
     @classmethod
     def from_env(cls) -> "LifePulseEngine":
@@ -223,7 +244,7 @@ class LifePulseEngine:
             self._recompute_trust()
             self._generate_thought()
             integrity = self._check_integrity()
-            reflection = SelfReflectionEngine(db_path=self.db_path).reflect(limit=self.reflection_limit)
+            reflection = SelfReflectionEngine(db_path=self.db_path).reflect(limit=self.reflection_limit, register_neuron_candidates=True)
             elapsed_ms = int((time.time() - started) * 1000)
             with self._lock:
                 self._counters["cycles"] += 1

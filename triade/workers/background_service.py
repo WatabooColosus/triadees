@@ -10,7 +10,7 @@ from triade.core.ollama_blood import check_ollama_blood
 from .contracts import WorkerRunConfig
 from .state_store import WorkerStateStore
 from .task_queue import WorkerTaskQueue
-from .worker_loop import WorkerLoop
+from .worker_loop import WorkerLoop, lock_owner_status
 
 
 class WorkerBackgroundService:
@@ -41,7 +41,9 @@ class WorkerBackgroundService:
         blood = check_ollama_blood()
         payload["lock_file"] = str(self.lock_file)
         payload["stop_file"] = str(self.stop_file)
-        payload["running"] = self.lock_file.exists()
+        lock_status = lock_owner_status(self.lock_file)
+        payload["running"] = bool(lock_status["active"])
+        payload["lock_status"] = lock_status
         payload["stop_requested"] = self.stop_file.exists()
         payload["ollama_blood_status"] = blood.get("status")
         payload["model_used"] = blood.get("reasoning_model")

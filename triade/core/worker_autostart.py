@@ -174,11 +174,18 @@ def build_workers_always_on_status(
 
 
 def _decide_worker_mode(mode_configured: str) -> tuple[str, bool, str | None]:
+    import os
+    force_mode = os.environ.get("TRIADE_FORCE_MODE", "").strip()
+    if force_mode and force_mode in WORK_MODE_RANK:
+        return force_mode, False, None
     try:
         from triade.core.ollama_blood import check_ollama_blood
         from triade.core.resource_probe import build_resource_probe
+        from triade.core.always_on import load_always_on_config
 
-        decision = decide_work_mode(build_resource_probe(), check_ollama_blood(), mode_configured)
+        cfg = load_always_on_config()
+        force_mode_cfg = str(cfg.get("force_mode", "")).strip()
+        decision = decide_work_mode(build_resource_probe(), check_ollama_blood(), mode_configured, force_mode=force_mode_cfg if force_mode_cfg in WORK_MODE_RANK else None)
         effective = str(decision.get("effective_mode") or "observe_only")
         degraded = WORK_MODE_RANK.get(effective, 0) < WORK_MODE_RANK.get(mode_configured, 0)
         return effective, degraded, decision.get("reason") if degraded else None
