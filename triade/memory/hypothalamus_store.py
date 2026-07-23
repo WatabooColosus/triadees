@@ -290,6 +290,68 @@ class HypothalamusStateStore:
             },
         }
 
+    def learn_pattern(self, text: str, intent: str, tone: str, risk: str, urgency: str, confidence: float = 0.8) -> int:
+        """Aprende un patrón de análisis para uso futuro."""
+        now = new_utc()
+        text_hash = self._hash_text(text)
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT id, confidence, hit_count FROM hypothalamus_patterns WHERE text_hash = ?",
+                (text_hash,),
+            ).fetchone()
+            if existing:
+                new_conf = min(1.0, float(existing["confidence"]) + 0.05)
+                new_hits = int(existing["hit_count"]) + 1
+                conn.execute(
+                    "UPDATE hypothalamus_patterns SET confidence = ?, hit_count = ?, last_used_at = ? WHERE id = ?",
+                    (new_conf, new_hits, now, existing["id"]),
+                )
+                return int(existing["id"])
+            cursor = conn.execute(
+                """INSERT INTO hypothalamus_patterns
+                (text_hash, text_preview, intent, tone, risk, urgency, confidence, hit_count, created_at, last_used_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (text_hash, text[:200], intent, tone, risk, urgency, confidence, 1, now, now),
+            )
+            return int(cursor.lastrowid)
+
+    def recall_pattern(self, text: str) -> dict[str, Any] | None:
+        """Recupera un patrón aprendido para el texto dado."""
+        text_hash = self._hash_text(text)
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM hypothalamus_patterns WHERE text_hash = ? AND confidence >= 0.5",
+                (text_hash,),
+            ).fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+    def top_patterns(self, limit: int = 20) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hypothalamus_patterns ORDER BY confidence DESC, hit_count DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def decay_patterns(self, decay_rate: float = 0.01) -> int:
+        """Decae confianza de patrones no usados recientemente."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """UPDATE hypothalamus_patterns
+                SET confidence = MAX(0.0, confidence - ?)
+                WHERE last_used_at < datetime('now', '-7 days')""",
+                (decay_rate,),
+            )
+            return cursor.rowcount
+
+    @staticmethod
+    def _hash_text(text: str) -> str:
+        import hashlib
+        normalized = text.lower().strip()[:100]
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:32]
+
     @staticmethod
     def _row_to_state(row: sqlite3.Row) -> EmotionalState:
         def r(key: str, default: object = "") -> object:

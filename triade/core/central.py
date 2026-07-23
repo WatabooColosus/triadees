@@ -61,6 +61,82 @@ class Central:
         self.model_client = model_client
         self.central_model = central_model
 
+    def _chain_of_thought(
+        self,
+        input_packet: InputPacket,
+        signals: SignalPacket,
+        memory: MemoryPacket,
+        crystal: CrystalPacket,
+    ) -> list[str]:
+        """Genera razonamiento en cadena antes de crear el plan."""
+        if self.model_client is None:
+            return self._chain_of_thought_rules(input_packet, signals, memory, crystal)
+        try:
+            context = json.dumps({
+                "user_input": input_packet.user_input[:500],
+                "intent": signals.intent,
+                "risk": signals.risk,
+                "urgency": signals.urgency,
+                "crystal_q": crystal.q_crystal,
+                "crystal_stability": crystal.stability,
+                "temporal_status": crystal.temporal_status,
+            }, ensure_ascii=False)
+            system = (
+                "Eres Central de Tríade. Genera una cadena de razonamiento en 3-5 pasos concisos "
+                "para procesar esta entrada. Cada paso debe ser una acción concreta y verificable. "
+                "Formato: lista de strings, uno por paso. No incluyas explicaciones."
+            )
+            result = self.model_client.generate(
+                self.central_model,
+                prompt=f"Entrada y contexto:\n{context}\n\nGenera cadena de razonamiento:",
+                system=system,
+            )
+            if result.ok and result.text:
+                steps = self._parse_reasoning_steps(result.text)
+                if steps:
+                    return steps[:7]
+        except Exception:
+            pass
+        return self._chain_of_thought_rules(input_packet, signals, memory, crystal)
+
+    def _chain_of_thought_rules(
+        self,
+        input_packet: InputPacket,
+        signals: SignalPacket,
+        memory: MemoryPacket,
+        crystal: CrystalPacket,
+    ) -> list[str]:
+        """Fallback rule-based chain of thought."""
+        steps = []
+        text = input_packet.user_input.lower()
+        if signals.risk in {"high", "critical"}:
+            steps.append("Evaluar riesgo elevado: requiere verificación adicional antes de actuar.")
+        if crystal.q_crystal < 0.50:
+            steps.append("Cristal en estado bajo: operar con máxima prudencia.")
+        if signals.urgency == "high":
+            steps.append("Urgencia alta: priorizar respuesta directa sin pasos innecesarios.")
+        if any(w in text for w in ["crea", "construye", "código", "archivo"]):
+            steps.append("Detectada intención de creación: preparar contexto de código y estructura.")
+        if memory.semantic_matches:
+            steps.append(f"Memoria semántica disponible: {len(memory.semantic_matches)} coincidencia(s) autorizada(s).")
+        if not steps:
+            steps.append("Analizar entrada y generar respuesta basada en contexto disponible.")
+        return steps
+
+    @staticmethod
+    def _parse_reasoning_steps(text: str) -> list[str]:
+        """Parse LLM output into list of reasoning steps."""
+        lines = text.strip().split("\n")
+        steps = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            cleaned = re.sub(r"^[\d\.\-\*]+\s*", "", line).strip()
+            if cleaned:
+                steps.append(cleaned)
+        return steps
+
     def plan(
         self,
         input_packet: InputPacket,
@@ -68,7 +144,8 @@ class Central:
         memory: MemoryPacket,
         crystal: CrystalPacket,
     ) -> PlanPacket:
-        steps = [
+        cot_steps = self._chain_of_thought(input_packet, signals, memory, crystal)
+        steps = cot_steps + [
             "Leer entrada del usuario.",
             "Usar señales del Hipotálamo.",
             "Consultar memoria disponible y respetar su gobierno de confianza.",

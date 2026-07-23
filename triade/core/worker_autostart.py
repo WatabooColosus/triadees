@@ -160,7 +160,9 @@ def build_workers_always_on_status(
     with _WORKER_LOCK:
         state = dict(_WORKER_STATE)
         thread_alive = bool(_WORKER_THREAD and _WORKER_THREAD.is_alive())
-    active = bool(thread_alive or service_status.get("running"))
+    raw_active = bool(thread_alive or service_status.get("running"))
+    stop_requested = bool(service_status.get("stop_requested")) or state.get("status") == "stop_requested"
+    active = raw_active and not stop_requested
     state["active"] = active
     if state.get("configured") and active:
         state["status"] = "running"

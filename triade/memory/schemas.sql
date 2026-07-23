@@ -464,6 +464,22 @@ CREATE TABLE IF NOT EXISTS hypothalamus_state (
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 
+CREATE TABLE IF NOT EXISTS hypothalamus_patterns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    text_hash TEXT NOT NULL,
+    text_preview TEXT DEFAULT '',
+    intent TEXT NOT NULL DEFAULT 'conversation',
+    tone TEXT NOT NULL DEFAULT 'constructive',
+    risk TEXT NOT NULL DEFAULT 'low',
+    urgency TEXT NOT NULL DEFAULT 'medium',
+    confidence REAL DEFAULT 0.8,
+    hit_count INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_hypothalamus_patterns_hash ON hypothalamus_patterns(text_hash);
+
 CREATE INDEX IF NOT EXISTS idx_crystal_states_run_id ON crystal_states(run_id);
 -- Índices sobre columnas migrables del Cristal se crean en Bodega tras asegurar columnas.
 

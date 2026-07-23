@@ -74,7 +74,7 @@ class Hypothalamus:
                 "ok": False,
                 "error": None,
             }
-            return self._save_and_return(packet.run_id, fallback, current_mood)
+            return self._save_and_return(packet.run_id, fallback, current_mood, packet.user_input)
 
         system = (
             "Eres el Hipotálamo Emocional de Tríade. "
@@ -97,7 +97,7 @@ class Hypothalamus:
                 "error": result.error,
             }
             fallback.notes.append("Hipotálamo usó fallback por reglas porque Ollama no generó señales.")
-            return self._save_and_return(packet.run_id, fallback, current_mood)
+            return self._save_and_return(packet.run_id, fallback, current_mood, packet.user_input)
 
         parsed = self._parse_model_json(result.text)
         if parsed is None:
@@ -108,7 +108,7 @@ class Hypothalamus:
                 "error": "Respuesta del modelo no fue JSON válido para señales.",
             }
             fallback.notes.append("Hipotálamo usó fallback por reglas porque el JSON del modelo no fue válido.")
-            return self._save_and_return(packet.run_id, fallback, current_mood)
+            return self._save_and_return(packet.run_id, fallback, current_mood, packet.user_input)
 
         self.last_model_result = {
             "provider": "ollama",
@@ -126,7 +126,7 @@ class Hypothalamus:
             pv7=self._safe_pv7(parsed.get("pv7"), fallback.pv7),
             notes=self._safe_notes(parsed.get("notes")) + ["Señales generadas por Hipotálamo con modelo local Ollama."],
         )
-        return self._save_and_return(packet.run_id, signals, current_mood)
+        return self._save_and_return(packet.run_id, signals, current_mood, packet.user_input)
 
 
     def apply_qualia_signals(self, signals: SignalPacket, qualia_signals: list[dict[str, Any]], threshold: float = 0.65) -> SignalPacket:
@@ -166,28 +166,51 @@ class Hypothalamus:
             timestamp=signals.timestamp,
         )
 
-    def _save_and_return(self, run_id: str, signals: SignalPacket, previous_mood: EmotionalState | None) -> SignalPacket:
+    def _save_and_return(self, run_id: str, signals: SignalPacket, previous_mood: EmotionalState | None, user_input: str = "") -> SignalPacket:
         if self.state_store is not None:
             self.state_store.save(run_id, signals, previous=previous_mood)
             self._cached_mood = self.state_store.load_latest()
+            try:
+                self.state_store.learn_pattern(
+                    text=user_input,
+                    intent=signals.intent,
+                    tone=signals.tone,
+                    risk=signals.risk,
+                    urgency=signals.urgency,
+                )
+            except Exception:
+                pass
         return signals
 
     def _analyze_rules(self, packet: InputPacket, mood: EmotionalState | None = None) -> SignalPacket:
         text = packet.user_input.lower().strip()
 
-        urgency = "high" if any(word in text for word in ["urgente", "ya", "rápido", "error", "falló"]) else "medium"
-        risk = "medium" if any(word in text for word in ["borrar", "eliminar", "credencial", "token", "contraseña"]) else "low"
+        pattern = None
+        if self.state_store is not None:
+            try:
+                pattern = self.state_store.recall_pattern(packet.user_input)
+            except Exception:
+                pattern = None
 
-        if any(word in text for word in ["crea", "crear", "construye", "avanza", "actualiza"]):
-            intent = "build_or_update"
-        elif any(word in text for word in ["analiza", "revisa", "audita"]):
-            intent = "analyze"
-        elif any(word in text for word in ["recuerda", "guarda", "memoria"]):
-            intent = "memory"
+        if pattern and float(pattern.get("confidence", 0)) >= 0.7:
+            intent = str(pattern.get("intent", "conversation"))
+            urgency = str(pattern.get("urgency", "medium"))
+            risk = str(pattern.get("risk", "low"))
+            tone = str(pattern.get("tone", "constructive"))
         else:
-            intent = "conversation"
+            urgency = "high" if any(word in text for word in ["urgente", "ya", "rápido", "error", "falló"]) else "medium"
+            risk = "medium" if any(word in text for word in ["borrar", "eliminar", "credencial", "token", "contraseña"]) else "low"
 
-        tone = self._mood_modulate_tone(mood)
+            if any(word in text for word in ["crea", "crear", "construye", "avanza", "actualiza"]):
+                intent = "build_or_update"
+            elif any(word in text for word in ["analiza", "revisa", "audita"]):
+                intent = "analyze"
+            elif any(word in text for word in ["recuerda", "guarda", "memoria"]):
+                intent = "memory"
+            else:
+                intent = "conversation"
+
+            tone = self._mood_modulate_tone(mood)
 
         pv7 = {
             "humildad": 0.7,
@@ -204,6 +227,8 @@ class Hypothalamus:
             "Señales generadas por reglas MVP.",
             "PV-7 inclinado hacia virtudes operativas.",
         ]
+        if pattern and float(pattern.get("confidence", 0)) >= 0.7:
+            notes.append(f"Patrón aprendido utilizado (confianza={float(pattern.get('confidence', 0)):.2f}).")
         if mood:
             notes.append(f"Mood activo: {mood.primary_emotion} (fatiga={mood.fatigue:.2f})")
 
