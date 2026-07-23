@@ -31,6 +31,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     LIFE_PULSE.start()
     NODE_LIVE_REGISTRY.start()
 
+    # Clean up expired coordination locks from prior runs.
+    try:
+        from triade.core.orchestrator_coord import OrchestratorCoordinator
+        coord = OrchestratorCoordinator()
+        cleaned = coord.cleanup()
+        if cleaned:
+            import logging
+            logging.getLogger("single_port_app").info("Cleaned %d expired orchestrator locks", cleaned)
+    except Exception:
+        pass
+
     global _ALWAYS_ON_RESULT
     try:
         from triade.core.always_on import load_always_on_config, start_always_on_if_enabled

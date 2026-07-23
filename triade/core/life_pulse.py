@@ -414,8 +414,14 @@ class LifePulseEngine:
                 runner_pool_cycle += 1
                 level = self.autonomy_level
 
+                # Coordination: if Worker is active, skip overlapping operations
+                # (candidate formation, training, promotion, experimental activation)
+                # to avoid race conditions on shared SQLite state.
+                worker_lock = Path(str(self.runs_dir)).parent / ".triade_workers.lock"
+                worker_active = worker_lock.exists()
+
                 # 1. Generar candidatos desde deuda del sistema (requiere form_candidates+)
-                if AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("form_candidates"):
+                if not worker_active and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("form_candidates"):
                     run_path = Path(str(self.runs_dir)) / f"pulse-{int(time.time())}"
                     try:
                         pulse_summary = self._build_system_dict()
@@ -475,7 +481,7 @@ class LifePulseEngine:
                             registry.store_training(neuron_id, tr)
 
                 # 2b. Entrenar toda candidata existente sin training (requiere train_candidates+)
-                if AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("train_candidates"):
+                if not worker_active and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("train_candidates"):
                     from .neuron_creator import NeuronSpec
                     from .neuron_trainer import NeuronTrainer, NeuronTrainingResult
                     for n in registry.list_neurons(limit=200):
@@ -520,7 +526,7 @@ class LifePulseEngine:
                             )
 
                 # 3. Autopromoción (requiere promote_experimental+)
-                if AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("promote_experimental"):
+                if not worker_active and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("promote_experimental"):
                     autopromoter = NeuronAutopromoter(db_path=self.db_path)
                     promotion_events = autopromoter.promote()
                     for ev in promotion_events:
@@ -530,7 +536,7 @@ class LifePulseEngine:
                                 self._last_promotion_name = (ev.get("payload") or {}).get("name")
 
                 # 4. Activar neuronas experimental periódicamente (requiere promote_experimental+)
-                if AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("promote_experimental"):
+                if not worker_active and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("promote_experimental"):
                     if tick_counter % 3 == 0:
                         try:
                             self._activate_experimental_light()
@@ -556,7 +562,7 @@ class LifePulseEngine:
                         )
 
                 # 6. Cada ~20 ciclos, un ciclo cognitivo completo para reflexión profunda
-                if runner_pool_cycle >= 20:
+                if not worker_active and runner_pool_cycle >= 20:
                     try:
                         runner_pool_cycle = 0
                         system_pulse = self._build_system_pulse_text()

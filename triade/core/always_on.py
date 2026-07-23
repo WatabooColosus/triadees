@@ -320,7 +320,7 @@ def stop_always_on(
         _ALWAYS_ON_STATE["error"] = str(exc)
         return {"status": "error", "message": f"Error al detener: {exc}"}
 
-    _ALWAYS_ON_STATE["enabled"] = True
+    _ALWAYS_ON_STATE["enabled"] = False
     _ALWAYS_ON_STATE["background_thread_alive"] = False
     _ALWAYS_ON_STATE["status"] = "stopped"
     return {"status": "stopped", "message": "ALWAYS-ON runtime detenido.", "runtime_result": result}

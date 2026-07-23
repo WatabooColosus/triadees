@@ -172,10 +172,22 @@ class InternalRuntimeSupervisor:
             results["services"]["qualia_service"] = self._qualia_service(current_mode)
             results["services"]["model_service"] = self._model_service(current_mode)
             results["services"]["observability_service"] = self._observability_service(current_mode)
+
+            # Coordination: skip missions/learning if Worker is already handling them.
+            worker_lock = self.runs_dir / ".triade_workers.lock"
+            worker_active = worker_lock.exists()
+            if worker_active:
+                results["coordination"] = {"worker_active": True, "skipped": ["missions", "learning"]}
             if AUTONOMY_RANK[current_mode] >= AUTONOMY_RANK["learn_candidates"]:
-                results["services"]["mission_service"] = self._governed_mission_service(current_mode, governor)
+                if worker_active:
+                    results["services"]["mission_service"] = {"status": "delegated", "reason": "Worker activo — misiones delegadas."}
+                else:
+                    results["services"]["mission_service"] = self._governed_mission_service(current_mode, governor)
             if AUTONOMY_RANK[current_mode] >= AUTONOMY_RANK["full_local"]:
-                results["services"]["learning_service"] = self._governed_learning_service(current_mode, governor)
+                if worker_active:
+                    results["services"]["learning_service"] = {"status": "delegated", "reason": "Worker activo — learning delegado."}
+                else:
+                    results["services"]["learning_service"] = self._governed_learning_service(current_mode, governor)
             self.self_test_cycle_count += 1
             if self.self_test_cycle_count % self.self_test_every_cycles == 0:
                 try:

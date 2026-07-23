@@ -96,12 +96,16 @@ class WorkerLoop:
         self.runs_dir.mkdir(parents=True, exist_ok=True)
         self.lock_file.parent.mkdir(parents=True, exist_ok=True)
         self.stop_file.parent.mkdir(parents=True, exist_ok=True)
-        if self.lock_file.exists():
-            return {"status": "locked", "lock_file": str(self.lock_file), "message": "Worker ya está en ejecución."}
         if self.stop_file.exists():
             return {"status": "stopped", "stop_file": str(self.stop_file), "message": "Stop file presente antes de iniciar."}
 
-        self.lock_file.write_text(str(os.getpid()), encoding="utf-8")
+        # Atomic lock: O_CREAT|O_EXCL evita carrera TOCTOU entre múltiples instancias.
+        try:
+            fd = os.open(str(self.lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            os.write(fd, str(os.getpid()).encode("utf-8"))
+            os.close(fd)
+        except FileExistsError:
+            return {"status": "locked", "lock_file": str(self.lock_file), "message": "Worker ya está en ejecución."}
         run_ref = new_worker_run_id()
         artifact_dir = self._artifact_dir(run_ref)
         artifact_dir.mkdir(parents=True, exist_ok=True)
