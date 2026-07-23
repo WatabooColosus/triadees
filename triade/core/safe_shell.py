@@ -37,7 +37,6 @@ AUTONOMOUS_SAFE_EXTENSIONS: dict[str, list[str]] = {
     "date": ["date"],
     "df": ["df", "-h"],
     "du": ["du", "-sh", "."],
-    "env_keys": ["env"],
     "python_version": ["python", "--version"],
     "pip_list": ["pip", "list"],
     "node_version": ["node", "--version"],
@@ -262,7 +261,17 @@ def run_autonomous(
         dict con status, command_key, stdout, stderr, returncode, duration_ms, audit_id.
     """
     timeout = min(timeout, 300)
-    cwd = str(working_dir or PROJECT_ROOT)
+    requested_cwd = Path(working_dir or PROJECT_ROOT).resolve()
+    project_root = PROJECT_ROOT.resolve()
+    if requested_cwd != project_root and project_root not in requested_cwd.parents:
+        _audit(command_key, "???", None, None, "", "working_dir outside project",
+               autonomy_level, source, blocked=True, block_reason="working_dir_not_allowed", db_path=db_path)
+        return {
+            "status": "blocked",
+            "command_key": command_key,
+            "error": "El directorio de trabajo debe estar dentro del proyecto.",
+        }
+    cwd = str(requested_cwd)
 
     # Buscar comando en registros
     cmd = WHITELIST.get(command_key) or AUTONOMOUS_SAFE_EXTENSIONS.get(command_key)

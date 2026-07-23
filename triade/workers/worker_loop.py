@@ -71,7 +71,7 @@ class WorkerSandbox:
 
 
 class WorkerLoop:
-    READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset({"pulse_check", "pending_learning_review", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review", "shell_execute"})
+    READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset({"pulse_check", "pending_learning_review", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review"})
 
     def __init__(
         self,
@@ -100,6 +100,8 @@ class WorkerLoop:
             return {"status": "stopped", "stop_file": str(self.stop_file), "message": "Stop file presente antes de iniciar."}
 
         # Atomic lock: O_CREAT|O_EXCL evita carrera TOCTOU entre múltiples instancias.
+        # Un PID numérico muerto identifica un lock huérfano recuperable.
+        self._recover_stale_lock()
         try:
             fd = os.open(str(self.lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
             os.write(fd, str(os.getpid()).encode("utf-8"))
@@ -141,9 +143,11 @@ class WorkerLoop:
         }
         self.store.create_worker_run(run_ref, config, artifact_dir)
         self.store.set_state("workers", {"status": "running", "run_ref": run_ref, "started_at": utc_now(), "config": config.to_dict()})
+        self.store.heartbeat_execution(run_ref, ttl_seconds=max(30.0, float(config.sleep_seconds) * 2.5))
 
         try:
             for iteration in range(max(1, int(config.max_iterations))):
+                self.store.heartbeat_execution(run_ref, ttl_seconds=max(30.0, float(config.sleep_seconds) * 2.5))
                 if self.stop_file.exists():
                     summary["stop_requested"] = True
                     break
@@ -169,6 +173,7 @@ class WorkerLoop:
                     time.sleep(max(0.0, float(config.sleep_seconds)))
             status = "completed" if not summary.get("errors") else "completed_with_errors"
             self.store.finish_worker_run(run_ref, status, summary)
+            self.store.heartbeat_execution(run_ref, status=status)
             self.store.set_state("workers", {"status": status, "last_run_ref": run_ref, "finished_at": utc_now(), "summary": summary})
             (artifact_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
             return {"status": status, "run_ref": run_ref, "artifact_dir": str(artifact_dir), **summary}
@@ -182,6 +187,7 @@ class WorkerLoop:
             )
             summary["errors"].append(str(exc))
             self.store.finish_worker_run(run_ref, "failed", summary, error=str(exc))
+            self.store.heartbeat_execution(run_ref, status="failed")
             self.store.set_state("workers", {"status": "failed", "last_run_ref": run_ref, "error": str(exc), "finished_at": utc_now()})
             return {"status": "failed", "run_ref": run_ref, "artifact_dir": str(artifact_dir), "error": str(exc), **summary}
         finally:
@@ -194,6 +200,30 @@ class WorkerLoop:
         self.stop_file.write_text(utc_now(), encoding="utf-8")
         self.store.set_state("workers", {"status": "stop_requested", "stop_file": str(self.stop_file), "at": utc_now()})
         return {"status": "stop_requested", "stop_file": str(self.stop_file)}
+
+    def _recover_stale_lock(self) -> bool:
+        if not self.lock_file.exists():
+            return False
+        try:
+            owner_pid = int(self.lock_file.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            return False
+        try:
+            os.kill(owner_pid, 0)
+            return False
+        except ProcessLookupError:
+            try:
+                self.lock_file.unlink()
+                self.store.record_event(
+                    "stale_worker_lock_recovered",
+                    "Lock huérfano eliminado después de comprobar su PID.",
+                    payload={"lock_file": str(self.lock_file), "owner_pid": owner_pid},
+                )
+                return True
+            except FileNotFoundError:
+                return False
+        except PermissionError:
+            return False
 
     def clear_stop(self) -> None:
         try:
@@ -245,7 +275,6 @@ class WorkerLoop:
                     "stable_consolidation_review": self._stable_consolidation_review,
                     "system_debt_scan": self._system_debt_scan,
                     "bodega_global_review": self._bodega_global_review,
-                    "shell_execute": self._shell_execute,
                 }
                 result = handlers[task.task_type](task, run_ref, task_dir, config)
                 if time.monotonic() - started > config.task_timeout:

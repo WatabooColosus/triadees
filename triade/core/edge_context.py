@@ -119,6 +119,44 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
     accepted = accepted or probe_result.accepted_for_context
     node_id = probe_result.node_id or node_id
 
+    # Sin nodo elegible, el comportamiento correcto es análisis local
+    # determinista. No registrar una respuesta vacía de una llamada que nunca
+    # se realizó como degradación del edge federado.
+    raw_probe = probe_result.to_dict().get("raw") or {}
+    if not probe_result.used_edge and raw_probe.get("status") == "skipped":
+        local_intent = compact_intent_probe(heuristic_intent(user_text, raw=""))
+        try:
+            from triade.core.edge_observations import record_edge_observation
+            record_edge_observation(
+                parser_name="local_edge_signal",
+                observation_type="local_heuristic",
+                signal_quality="medium",
+                fallback_used=False,
+                raw_preview="",
+                user_text_preview=user_text,
+            )
+        except Exception:
+            pass
+        return EdgeContext(
+            enabled=True,
+            used_edge=False,
+            accepted=True,
+            node_id=None,
+            elapsed_ms=int((time.time() - started) * 1000),
+            intent_probe=local_intent,
+            keywords=heuristic_keywords(user_text),
+            summary="",
+            evidence=evidence,
+            edge_signal_quality="local_heuristic",
+            edge_observations=[],
+            fallback_used=False,
+            edge_confidence_score=0.55,
+            truth=(
+                "Sin nodo federado elegible se usó señal local determinista. "
+                "El contexto federado global vive en Bodega Global y conserva procedencia por nodo."
+            ),
+        ).to_dict()
+
     probe = parse_context_probe(probe_result.response, fallback_text=user_text)
     edge_observations.extend(_extract_edge_observations(probe, "context_probe"))
     intent_data = probe["intent_probe"]

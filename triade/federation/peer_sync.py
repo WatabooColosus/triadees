@@ -16,6 +16,8 @@ from typing import Any
 import urllib.request
 import urllib.error
 
+from triade.core.guarded_web import MAX_RESPONSE_BYTES, _assert_public_url
+
 _PEER_TABLE = """
 CREATE TABLE IF NOT EXISTS peer_nodes (
     peer_id TEXT PRIMARY KEY,
@@ -76,13 +78,14 @@ class PeerSync:
         version: str = "",
     ) -> None:
         """Registra un peer descubierto."""
+        _assert_public_url(url)
         now = time.time()
         with self._connect() as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO peer_nodes
-                   (peer_id, url, name, last_seen_at, status, capabilities, version, updated_at)
-                   VALUES (?, ?, ?, ?, 'discovered', ?, ?, ?)""",
-                (peer_id, url, name, now, json.dumps(capabilities or []), version, now),
+                   (peer_id, url, name, last_seen_at, status, capabilities, version)
+                   VALUES (?, ?, ?, ?, 'discovered', ?, ?)""",
+                (peer_id, url, name, now, json.dumps(capabilities or []), version),
             )
 
     def discover_peers(self, urls: list[str]) -> list[dict[str, Any]]:
@@ -104,12 +107,14 @@ class PeerSync:
     def _ping_peer(self, url: str) -> dict[str, Any] | None:
         """Hace ping a un peer para verificar que está activo."""
         try:
+            _assert_public_url(url)
             req = urllib.request.Request(
                 f"{url.rstrip('/')}/api/health",
                 headers={"Accept": "application/json"},
             )
             with urllib.request.urlopen(req, timeout=self.DISCOVERY_TIMEOUT) as resp:
-                data = json.loads(resp.read().decode())
+                _assert_public_url(resp.geturl())
+                data = json.loads(resp.read(MAX_RESPONSE_BYTES + 1)[:MAX_RESPONSE_BYTES].decode())
                 return {
                     "peer_id": data.get("peer_id", url),
                     "url": url,
@@ -160,16 +165,19 @@ class PeerSync:
                 results[sync_type] = {"status": "error", "error": str(exc)}
 
         elapsed = time.time() - started
-        self._log_sync(peer_id, "full", total_synced, started, "ok")
+        failures = [name for name, result in results.items() if result.get("status") != "ok"]
+        overall_status = "error" if failures else "ok"
+        self._log_sync(peer_id, "full", total_synced, started, overall_status,
+                       ", ".join(failures) if failures else None)
 
         with self._connect() as conn:
             conn.execute(
-                "UPDATE peer_nodes SET last_sync_at = ?, status = 'synced' WHERE peer_id = ?",
-                (time.time(), peer_id),
+                "UPDATE peer_nodes SET last_sync_at = ?, status = ? WHERE peer_id = ?",
+                (time.time(), "sync_error" if failures else "synced", peer_id),
             )
 
         return {
-            "status": "ok",
+            "status": overall_status,
             "peer_id": peer_id,
             "sync_types": sync_types,
             "results": results,
@@ -196,6 +204,7 @@ class PeerSync:
 
         try:
             url = f"{peer['url'].rstrip('/')}/api/peer/receive"
+            _assert_public_url(url)
             payload = json.dumps({
                 "state_type": state_type,
                 "data": data,
@@ -209,7 +218,8 @@ class PeerSync:
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=self.SYNC_TIMEOUT) as resp:
-                result = json.loads(resp.read().decode())
+                _assert_public_url(resp.geturl())
+                result = json.loads(resp.read(MAX_RESPONSE_BYTES + 1)[:MAX_RESPONSE_BYTES].decode())
                 return {"status": "ok", "peer_id": peer_id, "result": result}
         except Exception as exc:
             return {"status": "error", "peer_id": peer_id, "error": str(exc)}
@@ -227,12 +237,14 @@ class PeerSync:
     def _sync_type(self, url: str, sync_type: str) -> dict[str, Any]:
         """Sincroniza un tipo específico de datos con un peer."""
         try:
+            _assert_public_url(url)
             req = urllib.request.Request(
                 f"{url.rstrip('/')}/api/peer/export?type={sync_type}",
                 headers={"Accept": "application/json"},
             )
             with urllib.request.urlopen(req, timeout=self.SYNC_TIMEOUT) as resp:
-                remote_data = json.loads(resp.read().decode())
+                _assert_public_url(resp.geturl())
+                remote_data = json.loads(resp.read(MAX_RESPONSE_BYTES + 1)[:MAX_RESPONSE_BYTES].decode())
                 count = self._merge_remote_data(sync_type, remote_data)
                 return {"status": "ok", "count": count, "type": sync_type}
         except Exception as exc:

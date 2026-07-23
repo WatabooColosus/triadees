@@ -1,0 +1,13 @@
+{
+  "benchmark_id": "triade-level5-core",
+  "version": "1.0.0",
+  "license": "CC0-1.0",
+  "provenance": "Wataboo acceptance contract; evaluated by an independent harness",
+  "cases": [
+    {"id": "memory-isolation", "metric": "cross_user_leaks", "target": 0},
+    {"id": "restart-recall", "metric": "recall_after_restart", "target": 1},
+    {"id": "durable-goals", "metric": "goal_resume_after_restart", "target": 1},
+    {"id": "model-selection", "metric": "external_score_selected", "target": 1},
+    {"id": "rollback", "metric": "failed_patch_restored", "target": 1}
+  ]
+}

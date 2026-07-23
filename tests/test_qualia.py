@@ -77,3 +77,7 @@ def test_qualia_aligns_semantic_memory_with_life_pulse(tmp_path: Path) -> None:
     assert "Toda alma cuenta" in payload["identity"]["ethics"]
     assert "qualia_bus" in payload
     assert payload["qualia_bus"]["status"] in {"ok", "empty", "missing_tables"}
+    assert payload["morphological_crystal"]["status"] == "ok"
+    assert payload["morphological_crystal"]["latest"]["q_crystal"] == 0.62
+    assert payload["qualia_crystal_connection"]["status"] == "connected"
+    assert payload["qualia_crystal_connection"]["same_organ"] is False

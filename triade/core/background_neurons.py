@@ -73,8 +73,11 @@ def candidates_from_system_debt(
             {"pulse_status": pulse_status, "summary": pulse_summary_text},
         ))
 
+    # Ausencia de telemetría federada no equivale a una deuda Android. Solo se
+    # crean estas candidatas cuando el pulso declara explícitamente ese ámbito.
+    federation_declared = isinstance(pulse.get("federation"), dict) and bool(pulse.get("federation"))
     federation = _as_dict(pulse.get("federation"))
-    if int(federation.get("android_native_online") or 0) <= 0:
+    if federation_declared and int(federation.get("android_native_online") or 0) <= 0:
         add(_candidate(
             "Arquitecta de Nodos Android",
             "Detectar ausencia de nodos Android nativos online y proponer pasos de emparejamiento, heartbeat y validación de runtime.",
@@ -82,7 +85,7 @@ def candidates_from_system_debt(
             "medium",
             federation,
         ))
-    if int(federation.get("android_llm_hosts") or 0) <= 0:
+    if federation_declared and int(federation.get("android_llm_hosts") or 0) <= 0:
         add(_candidate(
             "Formadora de Hosts LLM Android",
             "Guiar la preparación de hosts LLM Android reales, validar recursos autorizados y reportar bloqueos de runtime.",

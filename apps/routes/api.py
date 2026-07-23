@@ -59,6 +59,7 @@ from triade.workers.background_service import WorkerBackgroundService
 from triade.workers.neuron_mission_backfill import backfill_neuron_missions, neuron_missions_doctor
 from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
 from triade.services.event_bus import list_recent_events
+from triade.core.assurance import build_assurance_status
 
 from apps import services
 from apps.gates.safety import safety_gate
@@ -101,6 +102,12 @@ from apps.services import (
 )
 
 router = APIRouter()
+
+
+@router.get("/api/assurance/status")
+def assurance_status() -> dict[str, Any]:
+    """Evidencia consolidada de aislamiento, aprendizaje y autonomía reversible."""
+    return build_assurance_status()
 
 
 def _legacy_ollama_status(payload: dict[str, Any]) -> dict[str, Any]:
@@ -376,7 +383,10 @@ def health() -> dict[str, Any]:
         "entity": "Tríade Ω",
         "mode": "single-port",
         "port": 8010,
-        "security": {"api_key_required": bool(os.getenv("TRIADE_API_KEY"))},
+        "security": {
+            "api_key_required": bool(os.getenv("TRIADE_API_KEY")),
+            "public_guarded": os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower() in {"1", "true", "yes", "on"},
+        },
         "repo": repo_info(),
         "hardware": hardware.to_dict(),
         "ollama": ollama,
@@ -473,6 +483,36 @@ def system_neurons(limit: int = 100) -> dict[str, Any]:
         "neurons": identity.get("neurons", []),
         "dashboard_neurons": dashboard.get("neurons", []),
     }
+
+
+@router.get("/api/triade/foundation")
+def triade_foundation() -> dict[str, Any]:
+    """Núcleo de control fundacional, visible y verificable."""
+    from triade.core.foundational_neurons import ensure_foundational_neurons
+
+    LIFE_PULSE.record_action("triade_foundation_read")
+    return ensure_foundational_neurons()
+
+
+@router.get("/api/triade/os")
+def triade_os_control_plane() -> dict[str, Any]:
+    from triade.core.triade_os import triade_os_status
+    LIFE_PULSE.record_action("triade_os_status")
+    return triade_os_status()
+
+
+@router.get("/api/triade/refutation")
+def triade_refutation_report() -> dict[str, Any]:
+    from triade.core.refutation_engine import run_system_refutation
+    LIFE_PULSE.record_action("triade_refutation_report")
+    return run_system_refutation()
+
+
+@router.get("/api/models/acquisition")
+def models_acquisition_status() -> dict[str, Any]:
+    from triade.core.model_acquisition import model_acquisition_status
+    LIFE_PULSE.record_action("model_acquisition_status")
+    return model_acquisition_status()
 
 
 @router.get("/api/system/neurons/full")
@@ -906,7 +946,9 @@ def system_activity() -> dict[str, Any]:
         status_counts[s] = status_counts.get(s, 0) + 1
     promoted_recently = [
         {"name": n.get("name"), "status": n.get("status"), "progress": n.get("progress")}
-        for n in neurons if n.get("progress", {}).get("progress", 0) >= 1.0
+        for n in neurons
+        if n.get("status") in {"experimental", "stable"}
+        and n.get("progress", {}).get("progress", 0) >= 1.0
     ][-5:]
     return {
         "continuous_runner": life.get("continuous_runner", {}),
@@ -1031,6 +1073,7 @@ def always_on_status() -> dict[str, Any]:
         "status": runtime_status.get("status", "disabled"),
         "background_thread_alive": runtime_status.get("background_thread_alive", False),
         "degraded_by_governor": runtime_status.get("degraded_by_governor", False),
+        "degraded": runtime_status.get("degraded", False),
         "degradation_reason": runtime_status.get("degradation_reason"),
         "last_start_at": runtime_status.get("last_start_at"),
         "last_start_result": runtime_status.get("last_start_result"),
@@ -1299,7 +1342,14 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         },
         "runtime_events": events[:20] if isinstance(events, list) else [],
         "governor": _safe(
-            lambda: _build_governor_block(query, limit),
+            lambda: _build_governor_block(
+                str(
+                    heartbeat.get("always_on_effective_mode")
+                    or heartbeat.get("effective_mode")
+                    or "observe_only"
+                ),
+                limit,
+            ),
             "governor",
             {"status": "unavailable"},
         ),
@@ -1311,19 +1361,19 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         "policy": {
             "read_only": True,
             "identity_core_protected": True,
-            "no_shell_execution": False,
+            "no_shell_execution": True,
         },
     }
 
 
-def _build_governor_block(query: str, limit: int) -> dict[str, Any]:
+def _build_governor_block(requested_mode: str, limit: int) -> dict[str, Any]:
     """Construye bloque governor para el dashboard React."""
     from triade.core.resource_probe import build_resource_probe
     from triade.core.resource_governor import decide_work_mode
     from triade.core.ollama_blood import check_ollama_blood
     probe = build_resource_probe()
     blood = check_ollama_blood()
-    decision = decide_work_mode(probe, blood, query or "observe_only")
+    decision = decide_work_mode(probe, blood, requested_mode or "observe_only")
     return {
         "resource_probe": {
             "cpu": probe.get("cpu", {}),
@@ -1350,6 +1400,7 @@ def _build_governor_block(query: str, limit: int) -> dict[str, Any]:
             "can_run_shell": decision.get("can_run_shell"),
             "can_run_tests": decision.get("can_run_tests"),
             "can_run_build": decision.get("can_run_build"),
+            "can_research_web": decision.get("can_research_web"),
         },
     }
 
@@ -1421,6 +1472,8 @@ def system_safe_shell_commands() -> dict[str, Any]:
             "shell_enabled": True,
             "whitelist_only": True,
             "no_free_input": True,
+            "autonomous_in_full_local_guarded": True,
+            "repo_write_requires_human_approval": True,
         },
     }
 
@@ -2354,6 +2407,12 @@ def run_triade(
     require_key(x_triade_api_key)
     try:
         ctx = run_context_with_living_awareness(request.context)
+        # El almacenamiento nunca recibe un contexto sin principal. Los clientes
+        # web modernos envían los tres valores; este fallback conserva contratos
+        # antiguos dentro de un principal explícito y auditable.
+        ctx["tenant_id"] = request.tenant_id or ctx.get("tenant_id") or "local"
+        ctx["user_id"] = request.user_id or ctx.get("user_id") or f"anonymous:{request.source}"
+        ctx["session_id"] = request.session_id or ctx.get("session_id") or f"default:{ctx['user_id']}"
         if request.conversation_history:
             ctx["conversation_history"] = request.conversation_history[-20:]
         runner = TriadeRunner(

@@ -1,11 +1,27 @@
 # Tríade Ω  
-### Arquitectura Triádica de Inteligencia Viva, Relacional y Verificable ""
+### Arquitectura Triádica de Inteligencia Viva, Relacional y Verificable
 
 **Tríade Ω** es una arquitectura conceptual, operativa y técnica de inteligencia artificial basada en una **estructura triádica viva**, diseñada para aprender, crear, recordar, verificar y relacionarse de forma ética, evolutiva y trazable.
 
 No es solo un modelo ni un prompt: es un **núcleo cognitivo expandible**, pensado para convivir con humanos, sistemas, repositorios, herramientas, modelos locales y otras IAs como un **acompañante funcional tipo Digimon**.
 
 La Tríade no piensa porque alguien escribe; el chat solo consulta y expresa el estado de un sistema interno que observa, trabaja y aprende bajo reglas.
+
+## Estado verificable · 2026-07-23
+
+Este README separa tres niveles:
+
+- **Implementado:** código ejecutable y cubierto por pruebas o evidencia runtime.
+- **Experimental/parcial:** existe, pero depende del entorno, evidencia o integración pendiente.
+- **Visión:** propósito teórico; no debe presentarse como capacidad actual.
+
+Tríade es actualmente un **prototipo integrado avanzado de agente local gobernado**,
+no una AGI, una conciencia, un modelo fundacional propio ni un sistema operativo que
+reemplace Linux. La medición estática del núcleo es `0.96/1.0`; el Hipotálamo sigue
+sin estado emocional longitudinal propio por sesión. La fuente operativa vigente es
+[`docs/STATUS_CURRENT.md`](docs/STATUS_CURRENT.md) y la deuda abierta está en
+[`TECHNICAL_DEBT.md`](TECHNICAL_DEBT.md). Los documentos `STATUS_*` anteriores son
+históricos salvo indicación expresa.
 
 ## Pulso Vivo 24/7 verificable
 
@@ -119,7 +135,9 @@ El Hipotálamo integra un eje ético-emocional inspirado en los 7 pecados capita
 - Envidia ↔ Caridad
 - Pereza ↔ Diligencia
 
-Cada eje puede representarse en un rango `[-1, 1]`, donde la respuesta debe tender hacia la virtud, la claridad y el cuidado relacional.
+En la implementación actual cada virtud se representa en `[0, 1]`. La polaridad
+pecado ↔ virtud pertenece al marco conceptual; el contrato ejecutable conserva
+solo los siete valores orientados a virtud.
 
 El Hipotálamo es el **regulador ético, emocional y expresivo** del sistema.
 
@@ -136,13 +154,23 @@ Encargada de:
 
 La Bodega es la **memoria viva y verificable** del sistema.
 
+**Límite actual:** SQLite conserva los datos entre reinicios, pero persistencia no
+garantiza recuperación pertinente. El sistema combina búsqueda por términos,
+embeddings y gobierno semántico; todavía debe mejorar la extracción de hechos,
+preferencias y continuidad personal. Sin backups externos verificados, la memoria
+tampoco puede describirse como permanente o “eterna”.
+
 La auditoría estable no asume que `stable` sea sinónimo de listo: `neuron audit-stable` y `/api/neurons/stable-audit` sirven para revisar neuronas estables con evidencia insuficiente sin borrar datos ni tocar `identity_core`.
 
 ---
 
 ### 🔹 Bodega Global Context
 
-La Bodega Global es la **base obligatoria de contexto** de toda la Tríade. No es solo un contenedor pasivo de recuerdos: es el suelo común desde el cual Central piensa, Hipotálamo siente, Cristal regula, Workers revisan y Qualia emerge.
+La Bodega Global es la base preferente de contexto de la Tríade. Si una sonda falla,
+el Runner continúa en modo degradado y registra el error; por eso no se afirma que
+siempre esté disponible. No es solo un contenedor pasivo: es el contexto compartido
+desde el cual Central planifica, Hipotálamo modula, Cristal regula, Workers revisan
+y Qualia construye hipótesis.
 
 **Qué incluye:**
 - Identidad operativa (`identity_context`)
@@ -270,12 +298,13 @@ Paquetes mínimos del ciclo:
 Archivos esperados por run:
 
 ```text
-runs/YYYYMMDD-HHMMSS/
+runs/run-YYYYMMDD-HHMMSS-xxxxxxxx/
 ├── input.json
 ├── signals.json
 ├── memory.json
 ├── crystal.json
 ├── plan.json
+├── safety.json
 ├── output.json
 ├── memory_diff.json
 ├── report.json
@@ -333,16 +362,17 @@ Tipos de riesgo:
 
 ## 📚 Aprendizaje Controlado
 
-Tríade puede aprender desde:
+Tríade puede **ingerir candidatos de aprendizaje** desde:
 
-- Web.
+- Web solicitada explícitamente y con fuentes.
 - Documentos.
 - Modelos locales.
 - Repositorios.
 - Nodos autorizados.
 - Interacciones del usuario.
 
-Pero ningún aprendizaje pasa directamente a memoria estable.
+Pero ingestión no equivale a aprendizaje consolidado. Ningún candidato pasa
+directamente a memoria estable.
 
 Pipeline obligatorio:
 
@@ -362,7 +392,10 @@ Reglas:
 
 ## 🌐 Federación entre Nodos
 
-Tríade contempla una red privada federada de nodos autorizados.
+Tríade implementa contratos, registro, transporte y contexto para una red privada
+federada de nodos autorizados. En la instalación auditada no hay nodos remotos
+activos; por tanto la federación sostenida es **experimental**, no una capacidad
+de producción demostrada.
 
 Principios:
 
@@ -533,9 +566,10 @@ triadees/
 └── Manifiesto/ · Inicio/ · IngeniaInversa1/
 ```
 
-Estado real del proyecto (frontera técnica ≈ v2.0):
+Estado real del proyecto (corte operativo 2026-07-23; el versionado histórico no
+representa por sí solo madurez):
 
-- Repositorio: `WatabooColosus/triadees` · rama principal `main`.
+- Repositorio: `WatabooColosus/triadees` · rama base `main`; los cambios se publican mediante PR.
 - MVP local **operativo y auditable**: el ciclo cognitivo corre de extremo a
   extremo y persiste evidencia por run en SQLite.
 - Núcleo triádico funcional (Central + Hipotálamo + Bodega + Cristal + Safety +
@@ -544,7 +578,8 @@ Estado real del proyecto (frontera técnica ≈ v2.0):
   storage_packets. Integrado con runner, hypothalamus, learning pipeline.
 - **Living Workers** implementados: background service con scheduler,
   task queue, state store, sandbox, 9 task types. Publican NeuronExperience a QualiaBus.
-- Learning Pipeline y Federation operativos (no solo visión documentada).
+- Learning Pipeline operativo y gobernado. Federation tiene infraestructura
+  operativa, pero depende de nodos reales y no se declara producción distribuida.
 - Diagnóstico vigente: ver `AUDIT_REPORT.md`, mapa en `ARCHITECTURE_MAP.md` y
   ruta priorizada en `ROADMAP.md`.
 
@@ -553,7 +588,9 @@ Estado real del proyecto (frontera técnica ≈ v2.0):
 ## 🧭 Propósito
 
 - Ser un **acompañante tipo Digimon** para tareas cognitivas, creativas, técnicas y comerciales.
-- Mantener **todas las neuronas activas en cada sesión**.
+- Activar en cada sesión las neuronas fundacionales y solo las neuronas
+  especializadas relevantes y autorizadas; no ejecutar indiscriminadamente todos
+  los candidatos.
 - Ejecutar procesos verificables de aprendizaje, evaluación y memoria.
 - Priorizar una inteligencia ética, relacional y consciente del impacto.
 - Convertirse en un framework técnico, publicable y auditable.
@@ -576,18 +613,16 @@ Formalizar Tríade como marco técnico y filosófico para inteligencia relaciona
 
 ---
 
-## 🛠️ Próximos Pasos Recomendados
+## 🛠️ Próximos pasos reales
 
-1. Crear carpeta `docs/` con documentación técnica por fase.
-2. Crear `ARCHITECTURE.md` con diagrama textual de módulos.
-3. Crear `ROADMAP.md` con fases, entregables y criterios de validación.
-4. Crear `SAFETY.md` con reglas de seguridad, sandbox y límites.
-5. Crear `LEARNING.md` con el pipeline de aprendizaje controlado.
-6. Crear `FEDERATION.md` para nodos autorizados.
-7. Crear `schemas.sql` inicial para memoria SQLite.
-8. Crear MVP ejecutable con `triade_digimon.py`.
-9. Crear tests mínimos para contratos, memoria, safety y verificación.
-10. Mantener cada avance documentado mediante commits claros.
+1. Convertir conversaciones en memoria contextual útil mediante extracción general,
+   evaluación y recuperación medible, sin reglas especiales por pregunta.
+2. Persistir estado emocional longitudinal del Hipotálamo por sesión autorizada.
+3. Implementar despacho dinámico real entre modelos y medir calidad/latencia por rol.
+4. Añadir scheduler adaptativo para separar salud, aprendizaje y tests profundos.
+5. Probar federación sostenida con nodos firmados, reputación, expiración y cuarentena.
+6. Añadir backups cifrados, restauración probada y despliegue público persistente.
+7. Reducir responsabilidades de Runner, Bodega, CLI y API single-port.
 
 ---
 
@@ -638,9 +673,9 @@ Autor conceptual: **Santiago & Tríade**
 
 ## 🚀 Estado del Proyecto
 
-🔸 Fase actual: **Conceptual + Fundacional + Ruta Operativa Verificable**  
+🔸 Fase actual: **Prototipo integrado avanzado, local gobernado y preproducción**
 🔸 En evolución hacia:
-- Implementación local.
+- Mejora de implementación local.
 - Modelos especializados por neurona.
 - Demos públicas.
 - Integración con otros sistemas e IAs.

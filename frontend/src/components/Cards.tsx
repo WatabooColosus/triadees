@@ -598,6 +598,7 @@ export function WorkModeCard({ data }: { data: any }) {
         {caps.can_run_workers ? <span style={{ color: '#22c55e' }}>✓ Workers</span> : <span style={{ color: '#6b7280' }}>✗ Workers</span>}
         {caps.can_run_tests ? <span style={{ color: '#22c55e' }}>✓ Tests</span> : <span style={{ color: '#6b7280' }}>✗ Tests</span>}
         {caps.can_run_build ? <span style={{ color: '#22c55e' }}>✓ Build</span> : <span style={{ color: '#6b7280' }}>✗ Build</span>}
+        {caps.can_research_web ? <span style={{ color: '#22c55e' }}>✓ Internet con fuentes</span> : <span style={{ color: '#6b7280' }}>✗ Internet</span>}
         {caps.can_run_shell ? <span style={{ color: '#22c55e' }}>✓ Shell whitelist</span> : <span style={{ color: '#6b7280' }}>✗ Shell</span>}
       </div>
     </Card>

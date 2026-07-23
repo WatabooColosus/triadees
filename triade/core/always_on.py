@@ -36,6 +36,11 @@ ENV_KEYS = {
     "workers_autostart": "TRIADE_WORKERS_AUTOSTART",
     "workers_watchdog": "TRIADE_WORKERS_WATCHDOG",
     "worker_mode": "TRIADE_WORKER_MODE",
+    "worker_learning_tasks_enabled": "TRIADE_WORKER_LEARNING_TASKS",
+    "continuous_runner_enabled": "TRIADE_CONTINUOUS_RUNNER",
+    "continuous_runner_autonomy_level": "TRIADE_AUTONOMY_LEVEL",
+    "continuous_runner_interval_seconds": "TRIADE_CONTINUOUS_INTERVAL_SECONDS",
+    "continuous_runner_max_cycles": "TRIADE_CONTINUOUS_MAX_CYCLES",
 }
 
 YML_DEFAULTS = {
@@ -52,6 +57,12 @@ YML_DEFAULTS = {
     "workers_autostart": True,
     "workers_watchdog": True,
     "worker_mode": "full_local_guarded",
+    "worker_learning_tasks_enabled": True,
+    "worker_enabled_tasks": [],
+    "continuous_runner_enabled": False,
+    "continuous_runner_autonomy_level": "observe_only",
+    "continuous_runner_interval_seconds": 60,
+    "continuous_runner_max_cycles": 0,
 }
 
 _ALWAYS_ON_STATE: dict[str, Any] = {
@@ -111,9 +122,14 @@ def load_always_on_config(yml_path: str | Path = "triade.yml") -> dict[str, Any]
                 "workers_always_on",
                 "workers_autostart",
                 "workers_watchdog",
+                "worker_learning_tasks_enabled",
+                "continuous_runner_enabled",
             ):
                 cfg[key] = _str_to_bool(raw)
-            elif key in ("interval_seconds", "start_delay_seconds", "max_cycles", "self_test_every_cycles"):
+            elif key in (
+                "interval_seconds", "start_delay_seconds", "max_cycles", "self_test_every_cycles",
+                "continuous_runner_interval_seconds", "continuous_runner_max_cycles",
+            ):
                 try:
                     cfg[key] = int(raw)
                 except ValueError:
@@ -146,11 +162,24 @@ def build_always_on_status() -> dict[str, Any]:
     _ALWAYS_ON_STATE["background_thread_alive"] = bg_alive
     if _ALWAYS_ON_STATE["enabled"] and not bg_alive:
         _ALWAYS_ON_STATE["status"] = "background_dead"
+        _ALWAYS_ON_STATE["runtime_degraded"] = True
+        _ALWAYS_ON_STATE["runtime_degradation_reason"] = (
+            "ALWAYS-ON está habilitado, pero el hilo del runtime no está vivo. "
+            "Se requiere reinicio o recuperación por watchdog."
+        )
     elif _ALWAYS_ON_STATE["enabled"] and bg_alive:
         _ALWAYS_ON_STATE["status"] = "running"
+        _ALWAYS_ON_STATE["runtime_degraded"] = False
+        _ALWAYS_ON_STATE["runtime_degradation_reason"] = None
     else:
         _ALWAYS_ON_STATE["status"] = "disabled"
+        _ALWAYS_ON_STATE["runtime_degraded"] = False
+        _ALWAYS_ON_STATE["runtime_degradation_reason"] = None
     state = dict(_ALWAYS_ON_STATE)
+    state["degraded"] = bool(state.get("degraded_by_governor") or state.get("runtime_degraded"))
+    state["degradation_reason"] = (
+        state.get("degradation_reason") or state.get("runtime_degradation_reason")
+    )
     state["always_on_enabled"] = bool(state.get("enabled", False))
     return state
 
@@ -182,6 +211,8 @@ def start_always_on_if_enabled(
     _ALWAYS_ON_STATE["configured_mode"] = str(cfg.get("mode", "observe_only"))
     _ALWAYS_ON_STATE["interval_seconds"] = int(cfg.get("interval_seconds", 60))
     _ALWAYS_ON_STATE["max_cycles"] = int(cfg.get("max_cycles", 0))
+    _ALWAYS_ON_STATE["self_test_on_start"] = bool(cfg.get("self_test_on_start", True))
+    _ALWAYS_ON_STATE["self_test_every_cycles"] = int(cfg.get("self_test_every_cycles", 5))
     _ALWAYS_ON_STATE["config_source"] = cfg.get("_config_source", "default")
     _ALWAYS_ON_STATE["status"] = "starting"
 
@@ -265,6 +296,8 @@ def start_always_on_if_enabled(
     _ALWAYS_ON_STATE["last_cycle_at"] = now_utc
     _ALWAYS_ON_STATE["started_at"] = now_utc
     _ALWAYS_ON_STATE["status"] = "running"
+    _ALWAYS_ON_STATE["runtime_degraded"] = False
+    _ALWAYS_ON_STATE["runtime_degradation_reason"] = None
     _ALWAYS_ON_STATE["error"] = None
 
     # ── Self-test on start ──

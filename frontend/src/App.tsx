@@ -241,8 +241,18 @@ function ChatTab({ apiKey }: { apiKey: string }) {
       .filter(m => !m.meta?.pending && !m.meta?.rejected)
       .slice(-10)
       .map(m => ({ role: m.role, content: m.content }))
+    const persistentId = (storage: Storage, key: string) => {
+      const current = storage.getItem(key)
+      if (current) return current
+      const created = crypto.randomUUID()
+      storage.setItem(key, created)
+      return created
+    }
     const payload = {
       text: userMsg, source: 'react-ui', use_ollama: useOllama,
+      tenant_id: 'public-web',
+      user_id: persistentId(localStorage, 'triade_user_id'),
+      session_id: persistentId(sessionStorage, 'triade_session_id'),
       hypothalamus_model: hypModel || null, central_model: cenModel || null,
       auto_select_models: !hypModel && !cenModel,
       conversation_history: history,
@@ -567,7 +577,7 @@ function ObservabilityTab() {
       api('/api/observability?limit=20'),
       api('/api/runtime/heartbeat?since_hours=24&limit=20'),
       api('/api/runtime/learning-journal?since_hours=24&limit=20'),
-      api('/api/runtime/neuron-nutrition?mode=observe_only&limit=5'),
+      api('/api/runtime/neuron-nutrition?mode=balanced_background&limit=5'),
       api('/api/models/ollama/cognitive-health'),
       api('/api/models/ollama/blood'),
     ]).then((results) => {

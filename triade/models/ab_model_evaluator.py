@@ -71,6 +71,43 @@ class ABModelEvaluator:
         with self._connect() as conn:
             conn.execute(_EVAL_TABLE)
             conn.execute(_RECOMMENDATION_TABLE)
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(ab_recommendations)")}
+            if "evidence_method" not in columns:
+                conn.execute("ALTER TABLE ab_recommendations ADD COLUMN evidence_method TEXT NOT NULL DEFAULT 'internal_heuristic'")
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS ab_external_evaluations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, task_type TEXT NOT NULL,
+                model_a TEXT NOT NULL, model_b TEXT NOT NULL,
+                benchmark_run_a TEXT NOT NULL, benchmark_run_b TEXT NOT NULL,
+                score_a REAL NOT NULL, score_b REAL NOT NULL, winner TEXT NOT NULL,
+                created_at REAL NOT NULL)"""
+            )
+
+    def record_external_pair(self, *, task_type: str, model_a: str, benchmark_run_a: str,
+                             model_b: str, benchmark_run_b: str) -> dict[str, Any]:
+        """Selecciona modelo únicamente desde dos resultados externos congelados."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT run_id,subject_id,score FROM external_benchmark_runs
+                WHERE run_id IN (?,?)""", (benchmark_run_a, benchmark_run_b)
+            ).fetchall()
+            found = {row["run_id"]: row for row in rows}
+            if benchmark_run_a not in found or benchmark_run_b not in found:
+                raise KeyError("ambos benchmark runs externos son obligatorios")
+            if found[benchmark_run_a]["subject_id"] != model_a or found[benchmark_run_b]["subject_id"] != model_b:
+                raise ValueError("el subject del benchmark no coincide con el modelo")
+            score_a, score_b = float(found[benchmark_run_a]["score"]), float(found[benchmark_run_b]["score"])
+            winner_key = "tie" if score_a == score_b else "model_a" if score_a > score_b else "model_b"
+            winner = "tie" if winner_key == "tie" else model_a if winner_key == "model_a" else model_b
+            conn.execute(
+                """INSERT INTO ab_external_evaluations
+                (task_type,model_a,model_b,benchmark_run_a,benchmark_run_b,score_a,score_b,winner,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?)""",
+                (task_type, model_a, model_b, benchmark_run_a, benchmark_run_b, score_a, score_b, winner, time.time()),
+            )
+        self._update_recommendation(task_type, model_a, model_b, winner_key, evidence_method="external_frozen_benchmark")
+        return {"task_type": task_type, "winner": winner, "model_a_score": score_a, "model_b_score": score_b,
+                "evaluation_method": "external_frozen_benchmark", "counts_as_external_evidence": True}
 
     def evaluate_pair(
         self,
@@ -89,7 +126,8 @@ class ABModelEvaluator:
         score_a = self._score_output(result_a, prompt)
         score_b = self._score_output(result_b, prompt)
 
-        winner = self._determine_winner(score_a, score_b, result_a, result_b)
+        winner_key = self._determine_winner(score_a, score_b, result_a, result_b)
+        winner = model_a if winner_key == "model_a" else model_b if winner_key == "model_b" else "tie"
 
         evaluation = {
             "task_type": task_type,
@@ -101,10 +139,12 @@ class ABModelEvaluator:
             "model_b_score": score_b,
             "winner": winner,
             "prompt": prompt,
+            "evaluation_method": "internal_heuristic",
+            "counts_as_external_evidence": False,
         }
 
         self._store_evaluation(evaluation)
-        self._update_recommendation(task_type, model_a, model_b, winner)
+        self._update_recommendation(task_type, model_a, model_b, winner_key)
 
         return evaluation
 
@@ -182,17 +222,22 @@ class ABModelEvaluator:
         """Ejecuta un modelo Ollama y captura resultado."""
         try:
             from triade.models.ollama_client import OllamaClient
-            client = OllamaClient()
+            client = OllamaClient(timeout=timeout)
             started = time.perf_counter()
-            response = client.generate(model=model, prompt=prompt, timeout=timeout)
+            response = client.generate(model=model, prompt=prompt)
             duration_ms = round((time.perf_counter() - started) * 1000, 2)
-
-            output = response.get("response", "") if isinstance(response, dict) else str(response)
+            if not response.ok:
+                return {
+                    "status": "error",
+                    "error": response.error or "Ollama no produjo una respuesta.",
+                    "duration_ms": duration_ms,
+                    "output": "",
+                }
             return {
                 "status": "ok",
-                "output": output[:2000],
+                "output": response.text[:2000],
                 "duration_ms": duration_ms,
-                "tokens_eval": response.get("eval_count", 0) if isinstance(response, dict) else 0,
+                "tokens_eval": 0,
             }
         except Exception as exc:
             return {
@@ -283,6 +328,7 @@ class ABModelEvaluator:
         model_a: str,
         model_b: str,
         winner: str,
+        evidence_method: str = "internal_heuristic",
     ) -> None:
         """Actualiza la recomendación para un tipo de tarea."""
         now = time.time()
@@ -292,7 +338,7 @@ class ABModelEvaluator:
             ).fetchone()
 
             if row is None:
-                recommended = model_a if winner == "model_a" else model_b
+                recommended = model_a if winner in {"model_a", "tie"} else model_b
                 conn.execute(
                     """INSERT INTO ab_recommendations
                        (task_type, recommended_model, confidence, total_evals,
@@ -308,6 +354,7 @@ class ABModelEvaluator:
                         now,
                     ),
                 )
+                conn.execute("UPDATE ab_recommendations SET evidence_method=? WHERE task_type=?", (evidence_method, task_type))
             else:
                 total = row["total_evals"] + 1
                 a_wins = row["model_a_wins"] + (1 if winner == "model_a" else 0)
@@ -323,3 +370,5 @@ class ABModelEvaluator:
                        WHERE task_type = ?""",
                     (recommended, confidence, total, a_wins, b_wins, ties, now, task_type),
                 )
+                if evidence_method == "external_frozen_benchmark":
+                    conn.execute("UPDATE ab_recommendations SET evidence_method=? WHERE task_type=?", (evidence_method, task_type))

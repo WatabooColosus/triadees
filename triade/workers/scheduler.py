@@ -25,6 +25,9 @@ class WorkerScheduler:
             planner = MissionPlanner(db_path=self.db_path)
             planned = planner.plan_cycle(run_ref=run_ref)
             if planned:
+                if config.enabled_task_types:
+                    enabled = set(config.enabled_task_types)
+                    planned = [item for item in planned if item.task_type in enabled]
                 return self._enqueue_planned(planned, run_ref=run_ref)
         except Exception as exc:
             from triade.core.error_bus import record_internal_error

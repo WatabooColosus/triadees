@@ -51,6 +51,17 @@ def test_supervisor_creates_internal_events(tmp_path):
     assert any(event.get("event_type") == "runtime_cycle_complete" for event in events)
 
 
+def test_supervisor_maps_governed_work_modes_to_runtime_levels(tmp_path):
+    supervisor = get_internal_runtime_supervisor(
+        db_path=tmp_path / "triade.db",
+        runs_dir=tmp_path / "runs",
+    )
+
+    assert supervisor._normalize_mode("light_background") == "learn_candidates"
+    assert supervisor._normalize_mode("balanced_background") == "execute_missions"
+    assert supervisor._normalize_mode("full_local_guarded") == "full_local"
+
+
 def test_mission_service_plans_active_missions(tmp_path):
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
@@ -63,4 +74,3 @@ def test_mission_service_plans_active_missions(tmp_path):
     assert result["services"]["mission_service"]["status"] == "ok"
     assert result["counters"]["tasks_planned"] > 0
     assert result["counters"]["tasks_executed"] > 0
-

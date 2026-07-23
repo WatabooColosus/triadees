@@ -22,56 +22,43 @@ descubrimiento → extracción → normalización → evaluación → sandbox �
 
 ## 2. Fuentes de Aprendizaje
 
-Tríade puede aprender desde:
+Tríade puede ingerir candidatos desde:
 
 - Conversaciones autorizadas.
 - Documentos cargados.
 - Repositorios.
-- Web pública.
+- Web pública solicitada explícitamente y con fuentes.
 - Modelos locales.
 - Nodos federados autorizados.
 - Resultados de herramientas.
 - Experimentos del sandbox.
 
-Cada fuente debe registrarse con fecha, tipo, confianza y estado.
+Cada fuente debe registrarse con fecha, tipo, confianza y estado. Ingerir o guardar
+un candidato no demuestra que el sistema haya aprendido.
 
 ---
 
 ## 3. Estados del Aprendizaje
 
+Estados ejecutables de `LearningPipeline`:
+
 ```text
-candidate
-extracted
-normalized
-evaluated
-sandboxed
-tested
-verified
-consolidated
-rejected
-archived
+candidate → evaluated → verified → validated_in_runs → consolidated
+         ↘ rejected                                      ↘ archived
 ```
 
 ### candidate
 Idea, patrón o dato detectado pero aún no procesado.
 
-### extracted
-Contenido separado de su fuente original.
-
-### normalized
-Contenido convertido a estructura clara.
-
 ### evaluated
 Contenido evaluado por utilidad, riesgo y coherencia.
 
-### sandboxed
-Contenido probado sin afectar memoria estable.
-
-### tested
-Contenido sometido a pruebas funcionales o comparativas.
-
 ### verified
 Contenido aprobado por verificación.
+
+### validated_in_runs
+Contenido usado en runs suficientes con resultado medido contra baseline y sin
+regresiones críticas.
 
 ### consolidated
 Contenido guardado como memoria estable o patrón reutilizable.
@@ -81,6 +68,9 @@ Contenido descartado por baja calidad, riesgo o falsedad.
 
 ### archived
 Contenido conservado como histórico, no activo.
+
+Extracción, normalización, sandbox y tests siguen siendo pasos/evidencias del
+proceso, pero no se presentan como estados persistidos si el código no los usa así.
 
 ---
 
@@ -136,9 +126,20 @@ Un aprendizaje puede consolidarse si cumple:
 2. Tiene utilidad demostrable.
 3. No contradice identidad núcleo.
 4. No introduce riesgo alto sin control.
-5. Pasó por sandbox o prueba equivalente.
-6. Tiene reporte de verificación.
-7. Tiene estado `verified` antes de `consolidated`.
+5. Pasó por sandbox o prueba equivalente cuando corresponde.
+6. Tiene reporte de verificación y Measurement Core compatible.
+7. Acumuló usos mínimos, outcome promedio suficiente y cero regresiones críticas.
+8. Tiene estado `verified` o `validated_in_runs` antes de consolidarse.
+
+## Estado operativo actual
+
+- El Runner crea candidatos post-run y continuidad semántica.
+- Always-On evalúa y verifica candidatos en segundo plano.
+- La consolidación puede ser automática solo si supera los gates de evidencia,
+  confianza, riesgo, uso y modelo; de lo contrario queda pendiente.
+- Las correcciones conversacionales y preferencias todavía no se convierten de
+  forma general y fiable en memoria recuperable: es deuda P0.
+- No existe aprendizaje continuo de pesos del modelo base durante el chat.
 
 ---
 

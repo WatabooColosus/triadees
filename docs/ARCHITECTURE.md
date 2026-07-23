@@ -2,7 +2,10 @@
 
 ## 1. Propósito
 
-Este documento convierte la visión de Tríade Ω en una arquitectura técnica inicial, modular, verificable y preparada para implementación local.
+Este documento describe la arquitectura implementada y sus límites. Tríade Ω es
+un prototipo local gobernado ejecutado sobre Linux; no es un kernel, AGI o
+conciencia. Para estado y deuda vigentes ver `STATUS_CURRENT.md` y
+`../TECHNICAL_DEBT.md`.
 
 Tríade Ω se entiende como un sistema cognitivo modular compuesto por tres núcleos principales:
 
@@ -36,8 +39,8 @@ Funciones:
 
 - Interpretar señales procesadas.
 - Diseñar planes.
-- Crear neuronas nuevas.
-- Asignar misiones.
+- Proponer/registrar neuronas nuevas mediante Creadora y gates.
+- Asignar misiones mediante Formativa y gobierno de estados.
 - Coordinar herramientas.
 - Solicitar verificación.
 - Decidir si un aprendizaje puede avanzar de estado.
@@ -64,6 +67,9 @@ Funciones:
 - Generar `SignalPacket`.
 - Modular salida hacia virtud usando PV-7.
 
+Implementación: PV-7 usa siete valores `[0,1]`. Falta persistir un estado
+emocional longitudinal propio por sesión.
+
 Submódulo:
 
 - `hypothalamus.py`
@@ -78,7 +84,7 @@ Funciones:
 
 - Guardar episodios.
 - Recuperar contexto.
-- Consolidar conocimiento.
+- Participar en consolidación gobernada; guardar no equivale a consolidar.
 - Separar memoria estable de candidatos.
 - Producir `MemoryPacket`.
 
@@ -87,6 +93,10 @@ Submódulos:
 - `bodega.py`
 - `memory/schemas.sql`
 - `memory/triade.db`
+
+Límite: hay persistencia SQLite, búsqueda keyword/vectorial y gobernanza, pero la
+recuperación contextual/personal todavía debe mejorar y no existen backups externos
+verificados por defecto.
 
 ---
 
@@ -150,12 +160,14 @@ Submódulo:
 
 ---
 
-## 4. Estructura Recomendada de Proyecto Local
+## 4. Mapa conceptual del proyecto
 
 ```text
-triade_omega/
+triadees/
 ├── apps/
-│   └── console_app.py
+│   ├── routes/
+│   ├── services.py
+│   └── single_port_app.py
 ├── triade/
 │   ├── core/
 │   │   ├── central.py
@@ -175,7 +187,8 @@ triade_omega/
 │   ├── learning/
 │   ├── federation/
 │   ├── signals/
-│   └── runs/
+│   ├── qualia/
+│   └── workers/
 ├── docs/
 ├── tests/
 ├── n8n/

@@ -215,7 +215,7 @@ def build_runtime_heartbeat(
     recent_events = list_recent_runtime_events(limit=max(limit * 2, 100), db_path=db_path)
     last_cycle_at = _last_timestamp(recent_events, RUNTIME_CYCLE_EVENTS)
     latest_event = recent_events[0] if recent_events else None
-    latest_error = _latest_noncritical_filtered_error(query_internal_errors(limit=20, db_path=db_path))
+    latest_error = _latest_noncritical_filtered_error(query_internal_errors(limit=20, db_path=db_path), db_path=db_path)
     edge_context_health = build_edge_context_health(since_hours=since_hours, limit=max(limit * 4, 200), db_path=db_path)
     active_missions = int((living_context.get("mission_context") or {}).get("active_missions", 0))
     ollama_blood = check_ollama_blood()
@@ -244,8 +244,8 @@ def build_runtime_heartbeat(
     fallback_message = "Tríade respira en fallback, pero no tiene sangre cognitiva activa."
     cycles_last_hour = _count_recent(recent_events, RUNTIME_CYCLE_EVENTS, hours=1)
     cycles_last_24h = _count_recent(recent_events, RUNTIME_CYCLE_EVENTS, hours=24)
-    runtime_enabled = bool(runtime_state.get("enabled"))
     bg_alive = bool(_BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive())
+    runtime_enabled = bool(runtime_state.get("enabled") or bg_alive)
     workers_active = bool(worker_status.get("running") or workers_always_on_status.get("active"))
     ollama_degraded = ollama_blood.get("status") == "degraded_no_ollama"
 
@@ -307,7 +307,11 @@ def build_runtime_heartbeat(
         "background_thread_alive": bg_alive,
         "workers_active": workers_active,
         "runtime_enabled": runtime_enabled,
-        "mode": runtime_state.get("mode"),
+        "mode": (
+            runtime_state.get("mode")
+            if runtime_state.get("enabled")
+            else (always_on_status.get("effective_mode") if bg_alive else runtime_state.get("mode"))
+        ),
         "last_cycle_at": last_cycle_at,
         "cycles_last_hour": cycles_last_hour,
         "cycles_last_24h": max(cycles_last_24h, int(learning_journal.get("cycles_last_24h", 0) or 0)),
@@ -329,7 +333,9 @@ def build_runtime_heartbeat(
             if ollama_blood.get("status") == "degraded_no_ollama"
             else (latest_event or {}).get("event_type") or _first_event_type(runtime_state.get("last_events"))
         ),
-        "latest_error": latest_error.get("message") or latest_error.get("error") or _first_event_message(runtime_state.get("last_events")),
+        # Los eventos informativos recientes pertenecen a ``latest_action``;
+        # no deben aparecer como errores cuando Error Bus está vacío.
+        "latest_error": latest_error.get("message") or latest_error.get("error") or None,
         "active_workers": bool(worker_status.get("running")),
         "active_missions": active_missions,
         "ollama_health": ollama_health,
@@ -414,11 +420,40 @@ def list_recent_runtime_events(limit: int = 100, db_path: str | Path = "triade/m
     return build_context_from_events(limit=limit, db_path=db_path).get("recent_events", [])
 
 
-def _latest_noncritical_filtered_error(errors: list[dict[str, Any]]) -> dict[str, Any]:
+def _latest_noncritical_filtered_error(
+    errors: list[dict[str, Any]],
+    *,
+    db_path: str | Path = "triade/memory/triade.db",
+) -> dict[str, Any]:
     for err in errors or []:
-        if not _is_expected_edge_parse_signal(err):
+        if (
+            not _is_expected_edge_parse_signal(err)
+            and not _is_expected_measurement_gate_signal(err)
+            and not _is_resolved_foreign_key_signal(err, db_path=db_path)
+        ):
             return err
     return {}
+
+
+def _is_resolved_foreign_key_signal(err: dict[str, Any], *, db_path: str | Path) -> bool:
+    import sqlite3
+
+    text = " ".join(
+        str(part or "")
+        for part in (
+            err.get("task_type"),
+            err.get("message"),
+            (err.get("payload") or {}).get("error_message"),
+            ((err.get("payload") or {}).get("context") or {}).get("operation"),
+        )
+    ).lower()
+    if "experimental_activation" not in text or "foreign key" not in text:
+        return False
+    try:
+        with sqlite3.connect(db_path) as conn:
+            return conn.execute("PRAGMA foreign_key_check('neuron_activity')").fetchone() is None
+    except sqlite3.Error:
+        return False
 
 
 def _is_expected_edge_parse_signal(err: dict[str, Any]) -> bool:
@@ -438,6 +473,20 @@ def _is_expected_edge_parse_signal(err: dict[str, Any]) -> bool:
             or "jsondecodeerror" in text
             or "parse_model_json" in text
         )
+    )
+
+
+def _is_expected_measurement_gate_signal(err: dict[str, Any]) -> bool:
+    """Oculta errores históricos que hoy son un bloqueo de gobierno esperado."""
+    text = " ".join(
+        str(part or "")
+        for part in (
+            err.get("task_type"), err.get("message"),
+            (err.get("payload") or {}).get("error_message"),
+        )
+    ).lower()
+    return "learning_usage.mark_used" in text and (
+        "evidencia measurement core" in text or "evidencia no demuestra mejora" in text
     )
 
 

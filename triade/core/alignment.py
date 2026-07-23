@@ -218,11 +218,16 @@ class CoreAlignment:
     def evaluate_runner(self) -> OrganAlignment:
         run_src = self._runner_run_source()
         init_src = self._runner_init_source()
-        writes_all_artifacts = all(name in run_src for name in self.EXPECTED_ARTIFACTS)
+        artifact_src = self._run_artifact_source()
+        # Los artefactos se construyen y cierran en run_artifacts.py. Revisar
+        # solo el cuerpo de Runner.run producía un falso negativo después de
+        # extraer esa responsabilidad a un módulo dedicado.
+        artifact_contract = run_src + artifact_src
+        writes_all_artifacts = all(name in artifact_contract for name in self.EXPECTED_ARTIFACTS)
         checks = [
             ("Ejecuta el ciclo cognitivo completo (run).", bool(run_src)),
             ("Escribe los 11 artefactos auditables por run.", writes_all_artifacts),
-            ("Cierra el run con integrity.json y CLOSED.", "integrity.json" in run_src and "CLOSED" in run_src),
+            ("Cierra el run con integrity.json y CLOSED.", "integrity.json" in artifact_contract and "CLOSED" in artifact_contract),
             ("Selección automática de modelos (Model Router).", "ModelRouter" in init_src or "_select_models" in init_src),
             ("Registra eventos y calidad de modelo por run.", "store_model_event" in run_src),
             ("Ejecuta aprendizaje controlado post-run.", "learning" in run_src.lower()),
@@ -252,6 +257,15 @@ class CoreAlignment:
             from .runner import TriadeRunner
 
             return _source(TriadeRunner.__init__) + _source(getattr(TriadeRunner, "_select_models", None))
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _run_artifact_source() -> str:
+        try:
+            from . import run_artifacts
+
+            return _source(run_artifacts)
         except Exception:
             return ""
 

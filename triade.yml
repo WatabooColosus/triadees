@@ -4,8 +4,8 @@ models:
   timeout: 60
   fallback_enabled: true
   roles:
-    hypothalamus: qwen2.5:3b-instruct
-    central: qwen2.5:3b-instruct
+    hypothalamus: triade-omega:latest
+    central: triade-omega:latest
 
 runtime:
   always_on: true
@@ -21,3 +21,10 @@ runtime:
   workers_autostart: true
   workers_watchdog: true
   worker_mode: full_local_guarded
+  worker_learning_tasks_enabled: true
+  worker_enabled_tasks: [pulse_check, pending_learning_review, semantic_memory_governance, neuron_candidate_formation, experimental_neuron_activity, neuron_autopromotion, memory_consolidation_review, stable_consolidation_review, system_debt_scan, bodega_global_review, federation_inbox_review]
+  # Creadora -> Formadora -> Educadora -> evidencia -> promoción gobernada.
+  continuous_runner_enabled: true
+  continuous_runner_autonomy_level: promote_stable
+  continuous_runner_interval_seconds: 60
+  continuous_runner_max_cycles: 0

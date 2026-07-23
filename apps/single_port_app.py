@@ -10,11 +10,13 @@ El HTML vive en apps/ui_html.py.
 
 from __future__ import annotations
 
+import os
 import threading
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from triade.core.life_pulse import LIFE_PULSE
 from triade.federation.node_live_registry import NODE_LIVE_REGISTRY
@@ -45,16 +47,32 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     global _ALWAYS_ON_RESULT
     try:
+        from triade.core.foundational_neurons import ensure_foundational_neurons
+        from triade.core.model_acquisition import start_model_acquisition_background
         from triade.core.always_on import load_always_on_config, start_always_on_if_enabled
         from triade.core.worker_autostart import start_workers_if_configured
         from triade.core.internal_runtime import record_internal_runtime_event
+        foundational_result = ensure_foundational_neurons()
+        model_acquisition_result = start_model_acquisition_background()
         cfg = load_always_on_config()
+        continuous_result = LIFE_PULSE.configure_continuous_runner(
+            enabled=bool(cfg.get("continuous_runner_enabled", False)),
+            autonomy_level=str(cfg.get("continuous_runner_autonomy_level", "observe_only")),
+            interval_seconds=int(cfg.get("continuous_runner_interval_seconds", 60)),
+            max_cycles=int(cfg.get("continuous_runner_max_cycles", 0)),
+        )
         record_internal_runtime_event("always_on_startup_checked", "single_port_app", {"enabled": cfg.get("enabled")})
         result = start_always_on_if_enabled()
         workers_result = start_workers_if_configured(cfg)
         record_internal_runtime_event("workers_autostart_checked", "single_port_app", workers_result)
         with _ALWAYS_ON_LOCK:
-            _ALWAYS_ON_RESULT = {**result, "workers_always_on": workers_result}
+            _ALWAYS_ON_RESULT = {
+                **result,
+                "workers_always_on": workers_result,
+                "neuron_lifecycle_background": continuous_result,
+                "foundational_neurons": foundational_result,
+                "model_acquisition": model_acquisition_result,
+            }
     except Exception as exc:
         with _ALWAYS_ON_LOCK:
             _ALWAYS_ON_RESULT = {"status": "error", "message": f"always_on_start_failed: {exc}"}
@@ -67,6 +85,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Tríade Ω Single Port", version="0.9.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def public_guarded_mode(request: Request, call_next):
+    """Keep a keyless public UI usable while blocking administrative writes."""
+    guarded = os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower() in {"1", "true", "yes", "on"}
+    safe_public_posts = {"/api/run", "/triade/run", "/api/router/doctor"}
+    if guarded and request.method not in {"GET", "HEAD", "OPTIONS"} and request.url.path not in safe_public_posts:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "status": "blocked",
+                "detail": "Operación administrativa bloqueada en modo público sin API key.",
+                "public_guarded": True,
+            },
+        )
+    return await call_next(request)
+
 app.include_router(health_router)
 app.include_router(api_router)
 app.include_router(ui_router)

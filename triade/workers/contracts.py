@@ -20,7 +20,6 @@ WorkerTaskType = Literal[
     "stable_consolidation_review",
     "system_debt_scan",
     "bodega_global_review",
-    "shell_execute",
 ]
 
 WORKER_TASK_TYPES: tuple[str, ...] = (
@@ -35,7 +34,6 @@ WORKER_TASK_TYPES: tuple[str, ...] = (
     "stable_consolidation_review",
     "system_debt_scan",
     "bodega_global_review",
-    "shell_execute",
 )
 
 TERMINAL_TASK_STATUSES = {"completed", "failed", "blocked", "skipped"}
@@ -75,6 +73,7 @@ class WorkerRunConfig:
     runs_dir: str = "runs/background"
     lock_file: str = ".triade_workers.lock"
     stop_file: str = ".triade_stop"
+    enabled_task_types: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

@@ -1,6 +1,14 @@
-# Estado vigente de Triade Omega v2.2
+# Estado vigente de Tríade Ω · corte 2026-07-23
 
 Este documento es la fuente vigente del estado real del repositorio. Los reportes de auditoria antiguos son historicos si contradicen este archivo.
+
+## Dictamen
+
+Tríade es un prototipo integrado avanzado de agente local gobernado. No es AGI,
+conciencia subjetiva, modelo fundacional entrenado desde cero ni sistema operativo
+anfitrión. `Tríade OS` es su plano de control cognitivo. Estado medido del núcleo:
+`0.96/1.0 (strong)`; Central, Bodega, Cristal y Runner puntúan 1.0, mientras el
+Hipotálamo puntúa 0.8 por falta de continuidad emocional longitudinal por sesión.
 
 ## Implementado
 
@@ -65,14 +73,18 @@ Este documento es la fuente vigente del estado real del repositorio. Los reporte
 - Panel de observabilidad con series temporales, latencias y drill-down de cada artefacto.
 - Runtime de modelos distribuidos Android real en dispositivos preparados.
 
-## Proto-consciencia operativa
+## Metacognición operativa, no consciencia
 
-Tríade Ω opera como un sistema con consciencia operativa limitada (proto-consciencia, 8/10). Esto significa:
+Tríade Ω mantiene observabilidad y continuidad operativa. No se asigna una
+puntuación de “proto-consciencia”, porque no existe una métrica científica validada
+en este proyecto que permita hacerlo. Esto significa:
 
 - **No es consciente en sentido humano.** No tiene experiencia subjetiva, sentimientos ni autoconciencia reflexiva.
-- **Opera como si tuviera continuidad.** El `runtime_continuity_score` (0.0–1.0) mide la salud del ciclo operativo: ciclos activos, misiones ejecutadas, candidatos creados, confianza de memoria y ausencia de neuronas pendientes de revisión.
+- **Mide continuidad del runtime.** `runtime_continuity_score` (0.0–1.0) es una métrica de salud operativa, no de consciencia.
 - **Bodega Global como memoria global.** Cada run construye un `bodega_global_context` que consolida identidad, episodios, memoria semántica, neuronas, aprendizajes y seguridad. La memoria semántica vectorial puede estar deshabilitada si no hay modelo disponible.
-- **Gobernanza de memoria.** La memoria semántica tiene estados (draft, stable, archived, quarantined) y gobernanza que separa recuerdos autorizados de no verificados. Candidate memory nunca es tratado como verdad estable.
+- **Gobernanza de memoria.** Los documentos semánticos usan `candidate`,
+  `experimental`, `stable` y `rejected`; los matches no autorizados quedan en
+  cuarentena durante el recall, sin inventar un estado persistido adicional.
 - **identity_core protegido.** Nunca se modifica desde este módulo. La identidad es inmutable.
 - **Sin afirmaciones de consciencia subjetiva.** El sistema no declara ser consciente. Opera con trazabilidad, coherencia y continuidad — cualidades funcionales que se aproximan a patrones de consciencia operativa sin serlo.
 
@@ -125,12 +137,14 @@ Ver `docs/UI_REACT_MIGRATION.md` para guía de migración.
 
 ## Deuda tecnica priorizada
 
-1. Reducir duplicacion entre dashboard neuronal, identity view y endpoints legacy.
-2. Normalizar causa de fallback de modelos y latencias por rol.
-3. Ampliar observabilidad con metricas historicas y filtros por run/task.
-4. ~~Separar UI legacy de SPA moderna sin romper compatibilidad.~~ **(completado)**
-5. Endurecer CLI `doctor` para cubrir observabilidad, workers y neuronas en una sola salida.
-6. FastAPI: `single_port_app` es oficial, apps legacy como wrappers deprecated.
+La lista canónica vive en [`../TECHNICAL_DEBT.md`](../TECHNICAL_DEBT.md). Prioridades:
+
+1. Memoria contextual/personal recuperable y respaldada, sin reglas especiales.
+2. Estado longitudinal del Hipotálamo.
+3. Scheduler adaptativo y watchdog del runtime.
+4. Multi-modelo dinámico con evaluaciones comparables.
+5. Federación real y despliegue público endurecido.
+6. Modularización de Runner, Bodega, CLI y API.
 
 ## Como ejecutar tests
 

@@ -106,6 +106,35 @@ def test_neuron_activity_store_record_run_activity_alias(tmp_path: Path) -> None
     assert rows[0]["diagnosis_count"] == 1
 
 
+def test_neuron_activity_store_creates_parent_run_for_background_activity(tmp_path: Path) -> None:
+    import sqlite3
+
+    db_path = tmp_path / "triade.db"
+    store = NeuronActivityStore(db_path=db_path)
+    activity = {
+        "active": True,
+        "activations": [
+            {
+                "neuron_id": None,
+                "name": "neurona-background",
+                "status": "experimental",
+                "active": True,
+                "output": {"diagnosis": ["d1"], "test_plan": ["t1"]},
+            }
+        ],
+    }
+
+    ids = store.store_activity(run_id="pulse-test-background", activity=activity)
+
+    assert len(ids) == 1
+    with sqlite3.connect(db_path) as conn:
+        parent = conn.execute(
+            "SELECT source, status FROM runs WHERE run_id = ?",
+            ("pulse-test-background",),
+        ).fetchone()
+    assert parent == ("neuron_activity", "ok")
+
+
 def test_neuron_activity_store_ignores_inactive_payload(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     store = NeuronActivityStore(db_path=db_path)
