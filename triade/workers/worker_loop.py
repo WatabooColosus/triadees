@@ -71,7 +71,7 @@ class WorkerSandbox:
 
 
 class WorkerLoop:
-    READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset({"pulse_check", "pending_learning_review", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review", "shell_execute"})
+    READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset({"pulse_check", "pending_learning_review", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review"})
 
     def __init__(
         self,
@@ -245,7 +245,6 @@ class WorkerLoop:
                     "stable_consolidation_review": self._stable_consolidation_review,
                     "system_debt_scan": self._system_debt_scan,
                     "bodega_global_review": self._bodega_global_review,
-                    "shell_execute": self._shell_execute,
                 }
                 result = handlers[task.task_type](task, run_ref, task_dir, config)
                 if time.monotonic() - started > config.task_timeout:

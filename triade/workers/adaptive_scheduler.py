@@ -55,7 +55,6 @@ class AdaptiveScheduler:
         "stable_consolidation_review": 600.0,
         "system_debt_scan": 600.0,
         "bodega_global_review": 180.0,
-        "shell_execute": 60.0,
     }
 
     EMA_ALPHA = 0.3

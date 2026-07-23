@@ -63,6 +63,16 @@ class NeuronActivityStore:
 
         inserted: list[int] = []
         with self._connect() as conn:
+            # Background pulses use synthetic run identifiers.  Ensure the
+            # parent exists before writing neuron_activity so foreign-key
+            # enforcement remains enabled instead of failing the whole pulse.
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO runs (run_id, source, user_input, status)
+                VALUES (?, ?, ?, ?)
+                """,
+                (run_id, "neuron_activity", "Experimental neuron activity", "ok"),
+            )
             for activation in activity.get("activations") or []:
                 if not isinstance(activation, dict):
                     continue

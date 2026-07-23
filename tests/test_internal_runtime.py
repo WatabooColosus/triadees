@@ -119,4 +119,3 @@ def test_runtime_full_local_does_not_touch_identity_core(tmp_path):
     assert before == after
     assert report["status"] == "ok"
     assert "learning_doctor" in report["summary"]
-

@@ -10,6 +10,7 @@ from triade.models.ollama_client import OllamaClient
 
 
 REASONING_PREFERENCES = [
+    "triade-omega:latest",
     "qwen2.5:3b-instruct",
     "qwen3:4b",
     "llama3:latest",

@@ -31,17 +31,18 @@ class ModelRouter:
     """Recomienda modelos por rol según disponibilidad, intención y hardware."""
 
     DEFAULTS = {
-        "hypothalamus": ["qwen2.5:3b-instruct", "qwen3:1.7b", "qwen3:4b"],
-        "central": ["qwen2.5:3b-instruct", "llama3:latest", "llama3.1:8b", "qwen3:4b"],
-        "creator": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
-        "trainer": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
+        "hypothalamus": ["triade-omega:latest", "qwen2.5:3b-instruct", "qwen3:1.7b", "qwen3:4b"],
+        "central": ["triade-omega:latest", "qwen2.5:3b-instruct", "llama3:latest", "llama3.1:8b", "qwen3:4b"],
+        "creator": ["triade-omega:latest", "qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
+        "trainer": ["triade-omega:latest", "qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
         "coder": ["qwen2.5-coder:3b", "qwen2.5-coder:1.5b-base", "qwen2.5:3b-instruct"],
         "embedding": ["nomic-embed-text:latest", "qwen3-embedding:0.6b"],
-        "fast": ["qwen3:1.7b", "qwen2.5:3b-instruct", "qwen3:4b"],
-        "deep": ["llama3.1:8b", "llama3:latest", "qwen3:4b", "qwen2.5:3b-instruct"],
+        "fast": ["triade-omega:latest", "qwen3:1.7b", "qwen2.5:3b-instruct", "qwen3:4b"],
+        "deep": ["triade-omega:latest", "llama3.1:8b", "llama3:latest", "qwen3:4b", "qwen2.5:3b-instruct"],
     }
 
     MODEL_RAM_GB = {
+        "triade-omega:latest": 4.0,
         "qwen3:1.7b": 2.5,
         "qwen2.5-coder:1.5b-base": 2.5,
         "qwen2.5:3b-instruct": 4.0,

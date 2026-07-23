@@ -177,6 +177,31 @@ def record_learning_usage_from_output(
                     "reason": reason,
                     "outcome_score": outcome_score,
                 })
+            except ValueError as exc:
+                # A verified candidate may accumulate real-use observations before
+                # Measurement Core has produced promotable evidence.  That is an
+                # expected governance block, not an internal runtime failure.
+                message = str(exc)
+                if "evidencia Measurement Core" in message or "evidencia no demuestra mejora" in message:
+                    result["trace"].append({
+                        "candidate_id": candidate_id_str,
+                        "match_source": match_source,
+                        "status": "blocked_by_measurement_gate",
+                        "reason": message,
+                    })
+                    continue
+                result["trace"].append({
+                    "candidate_id": candidate_id_str,
+                    "match_source": match_source,
+                    "error": message,
+                })
+                record_internal_error(
+                    "learning_usage.mark_used",
+                    exc,
+                    run_id=run_id,
+                    payload={"candidate_id": candidate_id_str, "match_source": match_source},
+                    db_path=db_path,
+                )
             except Exception as exc:
                 result["trace"].append({
                     "candidate_id": candidate_id_str,

@@ -567,7 +567,7 @@ function ObservabilityTab() {
       api('/api/observability?limit=20'),
       api('/api/runtime/heartbeat?since_hours=24&limit=20'),
       api('/api/runtime/learning-journal?since_hours=24&limit=20'),
-      api('/api/runtime/neuron-nutrition?mode=observe_only&limit=5'),
+      api('/api/runtime/neuron-nutrition?mode=balanced_background&limit=5'),
       api('/api/models/ollama/cognitive-health'),
       api('/api/models/ollama/blood'),
     ]).then((results) => {

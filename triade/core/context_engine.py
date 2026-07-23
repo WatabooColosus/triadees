@@ -149,6 +149,7 @@ def build_living_context_for_chat(
             "ollama": ollama_health,
             "routes": [route.to_dict() for route in routes] if isinstance(routes, list) else routes,
         },
+        "federated_global_edge_context": bodega_global.get("federated_global_edge_context", {}),
     }
     trust_policy = {
         "identity_core_protected": True,
@@ -156,7 +157,7 @@ def build_living_context_for_chat(
         "candidate_is_not_stable_memory": True,
         "runtime_default_off": True,
         "no_shell_by_default": True,
-        "no_network_by_default": True,
+        "network_only_by_explicit_guarded_capability": True,
     }
     global_used = bodega_global.get("status") == "ok"
     return {

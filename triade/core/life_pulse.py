@@ -445,27 +445,46 @@ class LifePulseEngine:
                 registry = NeuronRegistry(db_path=self.db_path)
                 if formed and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("form_candidates"):
                     from .neuron_creator import NeuronSpec
+                    from .neuron_missions import NeuronMission, NeuronMissionStore
                     from .neuron_trainer import NeuronTrainingResult, NeuronTrainer
+                    mission_store = NeuronMissionStore(db_path=self.db_path)
                     for candidate in formed:
                         name = candidate.get("name", "?")
                         existing = registry.get_neuron(name)
                         if existing and existing.get("status") in ("experimental", "stable"):
                             continue
+                        creator_spec = candidate.get("creator_spec") or {}
+                        contracts = candidate.get("contracts") or {}
                         spec = NeuronSpec(
-                            name=name,
-                            mission=candidate.get("mission", "Auto-generada por pulso continuo."),
-                            domain=candidate.get("domain", "general"),
-                            rules=candidate.get("rules", []),
-                            triggers=candidate.get("triggers", []),
-                            inputs_allowed=candidate.get("inputs_allowed", []),
-                            outputs_allowed=candidate.get("outputs_allowed", []),
-                            forbidden_actions=candidate.get("forbidden_actions", []),
-                            success_metrics=candidate.get("success_metrics", []),
-                            evidence_required=candidate.get("evidence_required", []),
+                            name=str(creator_spec.get("name") or name),
+                            mission=str(creator_spec.get("mission") or candidate.get("mission") or "Auto-generada por pulso continuo."),
+                            domain=str(creator_spec.get("domain") or candidate.get("domain") or "general"),
+                            rules=creator_spec.get("rules") or candidate.get("rules", []),
+                            triggers=creator_spec.get("triggers") or candidate.get("triggers", []),
+                            inputs_allowed=creator_spec.get("inputs_allowed") or contracts.get("inputs_allowed", []),
+                            outputs_allowed=creator_spec.get("outputs_allowed") or contracts.get("outputs_allowed", []),
+                            forbidden_actions=creator_spec.get("forbidden_actions") or contracts.get("forbidden_actions", []),
+                            success_metrics=creator_spec.get("success_metrics") or candidate.get("success_metrics", []),
+                            evidence_required=creator_spec.get("evidence_required") or candidate.get("evidence_required", []),
                             status="candidate",
                             created_by="life_pulse_continuous",
                         )
                         neuron_id = registry.register(spec, contract_payload=candidate)
+                        # La misión es el puente entre la Formadora (contrato) y
+                        # la Educadora (ciclos, scores y evidencia observables).
+                        if not mission_store.get_missions_by_neuron(neuron_id):
+                            mission_store.create_mission(NeuronMission(
+                                neuron_id=neuron_id,
+                                title=f"Educación autónoma · {name}",
+                                mission=spec.mission,
+                                domain=spec.domain,
+                                status="candidate",
+                                metrics={
+                                    "origin": "life_pulse_continuous",
+                                    "formed_by": "neuron_trainer",
+                                    "educated_by": "neuron_mission_executor",
+                                },
+                            ))
                         training_dict = candidate.get("training_result") or {}
                         if training_dict:
                             tr = NeuronTrainingResult(

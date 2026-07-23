@@ -230,7 +230,10 @@ def test_runtime_once_records_cycle_event():
         assert data.get("cycle_id")
         assert data.get("mode") == "observe_only"
         # Verificar que se publicaron eventos de ciclo
-        events_resp = client.get("/api/runtime/events?limit=10")
+        # A full cycle emits multiple service events and an active background
+        # runtime may interleave more; retain enough history for both boundary
+        # events instead of assuming they fit in the latest ten records.
+        events_resp = client.get("/api/runtime/events?limit=100")
         ev = events_resp.json()
         types = {e.get("event_type") for e in ev.get("events", [])}
         assert types & {"runtime_cycle_start", "runtime_cycle_started"}, "Falta runtime_cycle_start/started"

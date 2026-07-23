@@ -74,7 +74,10 @@ class RunRequest(BaseModel):
     auto_select_models: bool = True
     context: dict[str, Any] = Field(default_factory=dict)
     conversation_history: list[dict[str, str]] = Field(default_factory=list)
-    semantic_recall_enabled: bool = False
+    # El chat usa por defecto el ciclo semántico general: recuperar por
+    # similitud, aplicar gobernanza y permitir influencia solo a recuerdos
+    # verificados. No contiene reglas especiales por pregunta o dato.
+    semantic_recall_enabled: bool = True
     semantic_model: str | None = None
     semantic_limit: int = Field(default=3, ge=1, le=20)
     semantic_min_similarity: float = Field(default=0.55, ge=-1.0, le=1.0)

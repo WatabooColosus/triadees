@@ -89,7 +89,8 @@ class ABModelEvaluator:
         score_a = self._score_output(result_a, prompt)
         score_b = self._score_output(result_b, prompt)
 
-        winner = self._determine_winner(score_a, score_b, result_a, result_b)
+        winner_key = self._determine_winner(score_a, score_b, result_a, result_b)
+        winner = model_a if winner_key == "model_a" else model_b if winner_key == "model_b" else "tie"
 
         evaluation = {
             "task_type": task_type,
@@ -101,10 +102,12 @@ class ABModelEvaluator:
             "model_b_score": score_b,
             "winner": winner,
             "prompt": prompt,
+            "evaluation_method": "internal_heuristic",
+            "counts_as_external_evidence": False,
         }
 
         self._store_evaluation(evaluation)
-        self._update_recommendation(task_type, model_a, model_b, winner)
+        self._update_recommendation(task_type, model_a, model_b, winner_key)
 
         return evaluation
 
@@ -182,17 +185,22 @@ class ABModelEvaluator:
         """Ejecuta un modelo Ollama y captura resultado."""
         try:
             from triade.models.ollama_client import OllamaClient
-            client = OllamaClient()
+            client = OllamaClient(timeout=timeout)
             started = time.perf_counter()
-            response = client.generate(model=model, prompt=prompt, timeout=timeout)
+            response = client.generate(model=model, prompt=prompt)
             duration_ms = round((time.perf_counter() - started) * 1000, 2)
-
-            output = response.get("response", "") if isinstance(response, dict) else str(response)
+            if not response.ok:
+                return {
+                    "status": "error",
+                    "error": response.error or "Ollama no produjo una respuesta.",
+                    "duration_ms": duration_ms,
+                    "output": "",
+                }
             return {
                 "status": "ok",
-                "output": output[:2000],
+                "output": response.text[:2000],
                 "duration_ms": duration_ms,
-                "tokens_eval": response.get("eval_count", 0) if isinstance(response, dict) else 0,
+                "tokens_eval": 0,
             }
         except Exception as exc:
             return {

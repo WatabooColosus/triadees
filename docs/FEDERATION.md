@@ -2,9 +2,14 @@
 
 ## Propósito
 
-Este documento define la visión y las reglas mínimas para una red privada federada de nodos Tríade autorizados.
+Este documento define el contrato y las reglas de la federación. El repositorio
+implementa registro, permisos, transporte firmado, logs, Edge y contexto federado;
+la operación sostenida con nodos remotos reales continúa experimental. En el corte
+2026-07-23 no había nodos remotos activos.
 
-La federación no significa acceso total entre sistemas. Significa intercambio limitado, autenticado, trazable y verificable de conocimiento, patrones o especificaciones.
+La federación no significa sumar RAM/GPU como una sola máquina ni acceso total entre
+sistemas. Significa intercambio limitado, autenticado, trazable y verificable de
+evidencia, patrones, trabajos o especificaciones.
 
 ---
 
@@ -87,7 +92,8 @@ access_credentials
 ## 5. Tipos de Intercambio Permitidos
 
 ### Conocimiento consolidado
-Resumen o dato previamente verificado.
+Resumen o dato previamente verificado. El receptor vuelve a gobernarlo y no lo
+acepta automáticamente como verdad.
 
 ### Patrón operativo
 Método, plantilla, estrategia o flujo reutilizable.
@@ -136,6 +142,9 @@ paquete recibido
 ```
 
 Regla: nada recibido por federación se consolida automáticamente.
+
+Si no hay nodos online, Edge produce contexto local de recuperación y conserva la
+ausencia de federación como evidencia; no simula nodos remotos.
 
 ---
 

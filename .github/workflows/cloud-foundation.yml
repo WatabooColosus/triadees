@@ -20,6 +20,11 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Compose interpolation reads the job environment, not env_file. These
+      # values are ephemeral test credentials and are never deployment secrets.
+      POSTGRES_PASSWORD: triade-ci-ephemeral-password
+      TRIADE_DOMAIN: triade-ci.invalid
     steps:
       - name: Checkout
         uses: actions/checkout@v4

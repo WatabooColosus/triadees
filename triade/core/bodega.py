@@ -183,6 +183,16 @@ class Bodega:
         latency_ms: int | None = None,
     ) -> int:
         with self._connect() as conn:
+            # Diagnostics and background probes may emit model events outside
+            # a full runner cycle. Preserve referential integrity by creating
+            # an idempotent synthetic parent when needed.
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO runs (run_id, source, user_input, status)
+                VALUES (?, ?, ?, ?)
+                """,
+                (run_id, "model_event", "Model event diagnostic", "ok"),
+            )
             cursor = conn.execute(
                 """INSERT INTO model_events
                 (run_id, role, provider, model_name, ok, error, quality_score, latency_ms)

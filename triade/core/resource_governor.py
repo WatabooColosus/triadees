@@ -126,9 +126,12 @@ def _build_decision(
     can_workers = effective_mode in ("light_background", "balanced_background", "full_local", "full_local_guarded", "execute_missions")
     can_write = effective_mode in ("balanced_background", "full_local", "full_local_guarded")
     can_write_repo = False
-    can_shell = effective_mode == "full_local_guarded"  # shell autónomo solo en modo más alto
-    can_test = effective_mode == "full_local"
-    can_build = effective_mode == "full_local"
+    # Shell libre permanece deshabilitado. Safe Shell es una capacidad aparte
+    # y solo ejecuta entradas fijas, confinadas y auditadas.
+    can_shell = False
+    can_safe_shell = effective_mode == "full_local_guarded"
+    can_test = effective_mode in ("full_local", "full_local_guarded")
+    can_build = effective_mode in ("full_local", "full_local_guarded")
 
     blocked: list[str] = []
     allowed_actions: list[str] = ["read_project", "publish_events", "record_heartbeat"]
@@ -146,8 +149,8 @@ def _build_decision(
         allowed_actions.append("consolidate_stable")
         allowed_actions.append("run_tests")
         allowed_actions.append("run_build")
-    if effective_mode == "full_local_guarded":
-        allowed_actions.append("run_shell")
+    if can_safe_shell:
+        allowed_actions.append("run_safe_shell")
     if can_embed:
         allowed_actions.append("semantic_embedding")
     else:
@@ -166,6 +169,8 @@ def _build_decision(
         blocked.append("write_repo")
     if not can_shell:
         blocked.append("run_shell")
+    if not can_safe_shell:
+        blocked.append("run_safe_shell")
     if not can_test:
         blocked.append("run_tests")
     if not can_build:
@@ -187,13 +192,18 @@ def _build_decision(
         "can_write_artifacts": can_write,
         "can_write_repo": can_write_repo,
         "can_run_shell": can_shell,
+        "can_run_safe_shell": can_safe_shell,
         "can_run_tests": can_test,
         "can_run_build": can_build,
+        "can_research_web": effective_mode == "full_local_guarded",
         "blocked_actions": blocked,
         "allowed_actions": allowed_actions,
         "safety": {
             "identity_core_protected": True,
             "requires_human_approval_for_repo_write": True,
             "shell_whitelist_only": True,
+            "safe_shell_without_human_approval": can_safe_shell,
+            "web_research_explicit_only": True,
+            "web_findings_are_evidence_not_stable_memory": True,
         },
     }
