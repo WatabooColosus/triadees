@@ -158,11 +158,24 @@ def build_always_on_status() -> dict[str, Any]:
     _ALWAYS_ON_STATE["background_thread_alive"] = bg_alive
     if _ALWAYS_ON_STATE["enabled"] and not bg_alive:
         _ALWAYS_ON_STATE["status"] = "background_dead"
+        _ALWAYS_ON_STATE["runtime_degraded"] = True
+        _ALWAYS_ON_STATE["runtime_degradation_reason"] = (
+            "ALWAYS-ON está habilitado, pero el hilo del runtime no está vivo. "
+            "Se requiere reinicio o recuperación por watchdog."
+        )
     elif _ALWAYS_ON_STATE["enabled"] and bg_alive:
         _ALWAYS_ON_STATE["status"] = "running"
+        _ALWAYS_ON_STATE["runtime_degraded"] = False
+        _ALWAYS_ON_STATE["runtime_degradation_reason"] = None
     else:
         _ALWAYS_ON_STATE["status"] = "disabled"
+        _ALWAYS_ON_STATE["runtime_degraded"] = False
+        _ALWAYS_ON_STATE["runtime_degradation_reason"] = None
     state = dict(_ALWAYS_ON_STATE)
+    state["degraded"] = bool(state.get("degraded_by_governor") or state.get("runtime_degraded"))
+    state["degradation_reason"] = (
+        state.get("degradation_reason") or state.get("runtime_degradation_reason")
+    )
     state["always_on_enabled"] = bool(state.get("enabled", False))
     return state
 
@@ -194,6 +207,8 @@ def start_always_on_if_enabled(
     _ALWAYS_ON_STATE["configured_mode"] = str(cfg.get("mode", "observe_only"))
     _ALWAYS_ON_STATE["interval_seconds"] = int(cfg.get("interval_seconds", 60))
     _ALWAYS_ON_STATE["max_cycles"] = int(cfg.get("max_cycles", 0))
+    _ALWAYS_ON_STATE["self_test_on_start"] = bool(cfg.get("self_test_on_start", True))
+    _ALWAYS_ON_STATE["self_test_every_cycles"] = int(cfg.get("self_test_every_cycles", 5))
     _ALWAYS_ON_STATE["config_source"] = cfg.get("_config_source", "default")
     _ALWAYS_ON_STATE["status"] = "starting"
 
@@ -277,6 +292,8 @@ def start_always_on_if_enabled(
     _ALWAYS_ON_STATE["last_cycle_at"] = now_utc
     _ALWAYS_ON_STATE["started_at"] = now_utc
     _ALWAYS_ON_STATE["status"] = "running"
+    _ALWAYS_ON_STATE["runtime_degraded"] = False
+    _ALWAYS_ON_STATE["runtime_degradation_reason"] = None
     _ALWAYS_ON_STATE["error"] = None
 
     # ── Self-test on start ──

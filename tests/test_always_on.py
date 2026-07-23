@@ -173,6 +173,9 @@ class TestBuildAlwaysOnStatus:
         assert status.get('enabled') is True
         assert status.get('background_thread_alive') is False
         assert status.get('always_on_enabled') is True
+        assert status.get('degraded') is True
+        assert status.get('degradation_reason')
+        assert 'hilo' in status['degradation_reason'].lower()
 
 
 class TestAlwaysOnStartup:

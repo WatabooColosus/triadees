@@ -1066,6 +1066,7 @@ def always_on_status() -> dict[str, Any]:
         "status": runtime_status.get("status", "disabled"),
         "background_thread_alive": runtime_status.get("background_thread_alive", False),
         "degraded_by_governor": runtime_status.get("degraded_by_governor", False),
+        "degraded": runtime_status.get("degraded", False),
         "degradation_reason": runtime_status.get("degradation_reason"),
         "last_start_at": runtime_status.get("last_start_at"),
         "last_start_result": runtime_status.get("last_start_result"),
