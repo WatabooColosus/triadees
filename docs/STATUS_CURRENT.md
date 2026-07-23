@@ -53,6 +53,26 @@ Hipotálamo puntúa 0.8 por falta de continuidad emocional longitudinal por sesi
 - Creación neuronal con misión ejecutable: `_propose_neuron_candidate` crea `NeuronMission` con `mission_id` asociado a la neurona candidate. Misión incluye allowed_sources, allowed_actions y schedule_hint. Si la creación falla, el run no falla.
 - Selección de misiones por relevancia: `select_relevant_missions()` filtra misiones por dominio, keywords, estado activo, score y recencia. Solo selecciona misiones con status candidate/experimental/stable, y su resultado se expone en modo read-only por API/UI.
 
+- Aislamiento multi-usuario: `UserSessionStore` gestiona sesiones con user_id, session_id, permisos y metadata. Cada usuario tiene su propio scope de memoria episódica. Runs se asocian a user_id. Consultas tenant-aware filtran por usuario. (`triade/core/user_session.py`)
+
+- Grafo de planificación persistente: `PlanningGraph` mantiene un árbol de objetivos con dependencias, prioridades y decomposición. Goals se crean, actualizan y completan con trazabilidad SQLite. Detecta goals listos (todas las dependencias completadas) y bloqueados. (`triade/core/planning_graph.py`)
+
+- Merge federado autenticado: `FederatedMerge` usa HMAC-SHA256 para firmar requests entre nodos. Procesamiento idempotente (previene duplicados). Merge de neuronas, learning candidates y memoria semántica con detección de conflictos por nombre/key. (`triade/federation/merge.py`)
+
+- Sandbox autónomo con rollback demostrado: `AutonomousSandbox` toma snapshots SHA-256 de archivos antes de ejecutar código, detecta cambios, y permite rollback a estado previo. Verificación post-rollback confirma integridad. Historial completo de ejecuciones y rollbacks en SQLite. (`triade/core/autonomous_sandbox.py`)
+
+- Datasets gobernados y adaptadores entrenables: `GovernedDatasets` gestiona datasets con reglas de gobernanza (usos permitidos, retención, consentimiento, anonimización) y adaptadores con estado de entrenamiento. Validación de gobernanza antes de uso. (`triade/core/governed_datasets.py`)
+
+- Benchmarks por evaluadores externos: `ExternalEvaluator` ejecuta tareas benchmark a través de modelos, mantiene leaderboard, compara modelos lado a lado, y registra resultados con scores heurísticos. 8 benchmarks default incluidos (reasoning, code, safety). (`triade/core/external_evaluator.py`)
+
+- Meta orquestador de modelos: `MetaModelOrchestrator` descubre modelos en Ollama, evalúa candidatos con benchmarks, decide adoptar/rechazar basado en mejora >15%, monitorea adopción post-deploy con rollback automático si degrada, y limpia modelos no utilizados. Catálogo de 9 modelos conocidos. (`triade/models/meta_orchestrator.py`)
+
+- Central reasoning chains: `_chain_of_thought()` genera 3-7 pasos de razonamiento intermedio antes de crear el plan. Usa LLM si disponible, fallback a reglas. Integrado al `plan()` de Central.
+
+- Hipotálamo con aprendizaje de patrones: `learn_pattern()` almacena intent/tone/risk/urgency por interacción, incrementa confianza en hits repetidos. `recall_pattern()` alimenta `_analyze_rules()` cuando confianza ≥ 0.7. `decay_patterns()` decae patrones no usados en 7+ días.
+
+- Inconsistencia de telemetría corregida: `build_workers_always_on_status()` respeta `stop_requested` — no reporta `active: True` durante apagado graceful cuando stop fue llamado explícitamente.
+
 ## Parcial
 
 - Federation real depende de nodos autorizados disponibles; el codigo existe pero el entorno puede no tener nodos vivos.
