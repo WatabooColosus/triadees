@@ -68,7 +68,7 @@ class GovernedDatasets:
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
-        self.schema_path = Path("triade/memory/schemas.sql")
+        self.schema_path = Path(__file__).resolve().parents[2] / "memory" / "schemas.sql"
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 

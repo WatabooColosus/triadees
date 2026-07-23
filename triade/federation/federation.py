@@ -70,7 +70,7 @@ class Federation:
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db", local_node_id: str = "local") -> None:
         self.db_path = Path(db_path)
-        self.schema_path = Path("triade/memory/schemas.sql")
+        self.schema_path = Path(__file__).resolve().parents[2] / "memory" / "schemas.sql"
         self.local_node_id = local_node_id
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()

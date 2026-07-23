@@ -69,6 +69,7 @@ class ExternalEvaluator:
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db", model_client: Any | None = None) -> None:
         self.db_path = Path(db_path)
+        self.schema_path = Path(__file__).resolve().parents[2] / "memory" / "schemas.sql"
         self.model_client = model_client
         self._init_db()
 
@@ -79,10 +80,9 @@ class ExternalEvaluator:
         return conn
 
     def _init_db(self) -> None:
-        schema_path = Path("triade/memory/schemas.sql")
-        if schema_path.exists():
+        if self.schema_path.exists():
             with self._connect() as conn:
-                conn.executescript(schema_path.read_text(encoding="utf-8"))
+                conn.executescript(self.schema_path.read_text(encoding="utf-8"))
 
     def add_benchmark_task(
         self, task_type: str, input_text: str, expected_output: str = "",

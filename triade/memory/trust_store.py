@@ -45,7 +45,7 @@ class TrustLevelStore:
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
-        self.schema_path = Path("triade/memory/schemas.sql")
+        self.schema_path = Path(__file__).resolve().parent / "schemas.sql"
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
