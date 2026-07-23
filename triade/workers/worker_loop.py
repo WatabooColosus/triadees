@@ -100,6 +100,8 @@ class WorkerLoop:
             return {"status": "stopped", "stop_file": str(self.stop_file), "message": "Stop file presente antes de iniciar."}
 
         # Atomic lock: O_CREAT|O_EXCL evita carrera TOCTOU entre múltiples instancias.
+        # Un PID numérico muerto identifica un lock huérfano recuperable.
+        self._recover_stale_lock()
         try:
             fd = os.open(str(self.lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
             os.write(fd, str(os.getpid()).encode("utf-8"))
@@ -198,6 +200,30 @@ class WorkerLoop:
         self.stop_file.write_text(utc_now(), encoding="utf-8")
         self.store.set_state("workers", {"status": "stop_requested", "stop_file": str(self.stop_file), "at": utc_now()})
         return {"status": "stop_requested", "stop_file": str(self.stop_file)}
+
+    def _recover_stale_lock(self) -> bool:
+        if not self.lock_file.exists():
+            return False
+        try:
+            owner_pid = int(self.lock_file.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            return False
+        try:
+            os.kill(owner_pid, 0)
+            return False
+        except ProcessLookupError:
+            try:
+                self.lock_file.unlink()
+                self.store.record_event(
+                    "stale_worker_lock_recovered",
+                    "Lock huérfano eliminado después de comprobar su PID.",
+                    payload={"lock_file": str(self.lock_file), "owner_pid": owner_pid},
+                )
+                return True
+            except FileNotFoundError:
+                return False
+        except PermissionError:
+            return False
 
     def clear_stop(self) -> None:
         try:
