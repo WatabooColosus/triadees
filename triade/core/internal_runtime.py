@@ -333,7 +333,9 @@ def build_runtime_heartbeat(
             if ollama_blood.get("status") == "degraded_no_ollama"
             else (latest_event or {}).get("event_type") or _first_event_type(runtime_state.get("last_events"))
         ),
-        "latest_error": latest_error.get("message") or latest_error.get("error") or _first_event_message(runtime_state.get("last_events")),
+        # Los eventos informativos recientes pertenecen a ``latest_action``;
+        # no deben aparecer como errores cuando Error Bus está vacío.
+        "latest_error": latest_error.get("message") or latest_error.get("error") or None,
         "active_workers": bool(worker_status.get("running")),
         "active_missions": active_missions,
         "ollama_health": ollama_health,
