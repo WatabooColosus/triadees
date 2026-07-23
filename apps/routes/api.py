@@ -1311,7 +1311,7 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         "policy": {
             "read_only": True,
             "identity_core_protected": True,
-            "no_shell_execution": True,
+            "no_shell_execution": False,
         },
     }
 
