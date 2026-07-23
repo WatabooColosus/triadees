@@ -74,6 +74,7 @@ def _grants_for(mode: str) -> dict[str, tuple[bool, str]]:
         "can_run_git_status": (False, ""),
         "can_run_tests": (False, ""),
         "can_run_build": (False, ""),
+        "can_research_web": (False, ""),
         "can_call_ollama": (False, ""),
         "can_consolidate_stable": (False, ""),
         "can_promote_neuron_stable": (False, ""),
@@ -97,6 +98,8 @@ def _grants_for(mode: str) -> dict[str, tuple[bool, str]]:
         base["can_run_build"] = (True, "Build permitido (whitelist).")
         base["can_consolidate_stable"] = (True, "Consolidación estable permitida con gates.")
         base["can_promote_neuron_stable"] = (True, "Promoción de neuronas estables permitida con gates.")
+    if mode == "full_local_guarded":
+        base["can_research_web"] = (True, "Investigación web explícita permitida con fuentes, límites y bloqueo SSRF.")
 
     for k in list(base.keys()):
         if not base[k][0]:

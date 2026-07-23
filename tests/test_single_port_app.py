@@ -166,6 +166,23 @@ def test_single_port_qualia_endpoint_aligns_semantic_memory_and_pulse() -> None:
     assert payload["senses"]["mode"] == "internal_senses"
     assert "Pulso vivo" in {item["name"] for item in payload["organs"]}
     assert "sentidos internos" in payload["semantic_alignment"]["live_state_relation"]
+    assert payload["morphological_crystal"]["status"] in {"ok", "empty"}
+    assert payload["qualia_crystal_connection"]["flow"] == [
+        "qualia_bus",
+        "hypothalamus_modulation",
+        "crystal_regulation",
+        "central_plan",
+    ]
+
+
+def test_public_guarded_mode_blocks_admin_writes_without_api_key(monkeypatch) -> None:
+    monkeypatch.delenv("TRIADE_API_KEY", raising=False)
+    monkeypatch.setenv("TRIADE_PUBLIC_GUARDED", "1")
+
+    response = client.post("/api/runtime/stop")
+
+    assert response.status_code == 403
+    assert response.json()["public_guarded"] is True
 
 
 def test_single_port_chat_sees_operational_awareness_from_life_pulse() -> None:

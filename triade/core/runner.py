@@ -232,6 +232,13 @@ class TriadeRunner:
     ) -> dict[str, Any]:
         input_packet = InputPacket(user_input=user_input, source=source, context=context or {})
         try:
+            from .guarded_web import guarded_web_research, requests_web_research
+            if requests_web_research(user_input):
+                input_packet.context["guarded_web_research"] = guarded_web_research(user_input)
+        except Exception as exc:
+            from .error_bus import record_internal_error
+            record_internal_error("runner.guarded_web_research", exc, run_id=input_packet.run_id, db_path=self.db_path)
+        try:
             from .context_engine import build_living_context_for_chat
 
             living_context = build_living_context_for_chat(
@@ -258,6 +265,18 @@ class TriadeRunner:
         try:
             recent_qualia_signals = QualiaStore(db_path=self.db_path).list_signals(limit=10)
             signals = self.hypothalamus.apply_qualia_signals(signals, recent_qualia_signals)
+            # Qualia puede aumentar prudencia, pero una señal histórica no debe
+            # convertir una consulta explícita de solo lectura en acción crítica.
+            from .guarded_web import requests_web_research
+            read_only_capability_question = self.central._is_identity_or_capability_question(user_input)
+            dangerous_terms = ("contraseña", "credencial", "token", "malware", "exploit", "descarga y ejecuta")
+            if (
+                (requests_web_research(user_input) or read_only_capability_question)
+                and not any(term in user_input.lower() for term in dangerous_terms)
+                and signals.risk == "critical"
+            ):
+                signals.risk = "medium"
+                signals.notes.append("Qualia crítica acotada a medium: consulta explícita de solo lectura sin indicador peligroso.")
         except Exception as exc:
             from .error_bus import record_internal_error
             record_internal_error("runner.qualia_modulation", exc, run_id=input_packet.run_id, db_path=self.db_path)
@@ -384,6 +403,17 @@ class TriadeRunner:
             output.status = "pending_approval"
         else:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
+        web_research = input_packet.context.get("guarded_web_research") if isinstance(input_packet.context, dict) else None
+        if isinstance(web_research, dict) and web_research.get("sources") and output.status not in {"blocked", "pending_approval"}:
+            source_lines = []
+            for source_item in (web_research.get("sources") or [])[:3]:
+                url = str(source_item.get("url") or "")
+                title = str(source_item.get("title") or url)
+                if url and url not in output.response:
+                    source_lines.append(f"- {title}: {url}")
+            if source_lines:
+                output.response = output.response.rstrip() + "\n\nFuentes consultadas:\n" + "\n".join(source_lines)
+            output.actions_taken.append("guarded_web_sources_attached")
         output_gate = sanitize_user_response(output.response, input_packet.user_input, signals.intent)
         output.response = output_gate["response"]
         conversation_history = input_packet.context.get("conversation_history") if isinstance(input_packet.context, dict) else None

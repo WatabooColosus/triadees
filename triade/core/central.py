@@ -52,7 +52,8 @@ class Central:
         "Bodega de Almacenamiento, que conserva memoria, evidencias, runs y conocimiento autorizado; "
         "Cristal Morfológico, que regula ética, profundidad, creatividad, relación, estabilidad y continuidad; "
         "Federación/Nodos, que conecta dispositivos o sistemas autorizados; y Aprendizaje en segundo plano, "
-        "que registra candidatos post-run y propuestas sin consolidarlas como verdad estable hasta revisión humana. "
+            "que registra candidatos post-run y propuestas sin consolidarlas como verdad estable hasta revisión humana. "
+            "En full_local_guarded puede investigar la web cuando el usuario lo pide explícitamente, conservar URLs como evidencia y ejecutar únicamente tests/build/comandos de una lista segura. "
         "El pulso vivo resume el estado operativo de PC, modelos, router, memoria semántica, Docker, relay, nodos Android, hosts LLM y eventos pendientes. "
         "Cuando el usuario pregunte por neuronas, identidad, propósito, pulso vivo o aprendizaje en segundo plano, responde desde esta arquitectura."
     )
@@ -132,6 +133,17 @@ class Central:
             "pero no consolidar aprendizaje profundo. "
         )
         temporal_action = "crystal_temporal_regulation_applied"
+        if self._is_identity_or_capability_question(input_packet.user_input):
+            return OutputPacket(
+                run_id=input_packet.run_id,
+                response=self._identity_capability_response(identity),
+                actions_taken=["capability_truth_response", "crystal_regulation_applied", temporal_action],
+                memory_diff={"pending_persistence": True},
+                status="ok",
+                model_provider="policy",
+                model_name="capability-truth",
+                model_ok=True,
+            )
         if self.model_client is None:
             return OutputPacket(
                 run_id=input_packet.run_id,
@@ -152,6 +164,15 @@ class Central:
             "Aprende del contexto autorizado y responde naturalmente según la pregunta."
         )
         result = self.model_client.generate(self.central_model, prompt=prompt, system=system)
+        if result.ok and result.text and self._response_ignores_current_question(input_packet.user_input, result.text):
+            retry_prompt = (
+                "Responde únicamente la pregunta actual, sin retomar respuestas anteriores ni describir "
+                "tu arquitectura salvo que el usuario lo solicite. Corrige errores ortográficos mentalmente.\n\n"
+                f"Pregunta actual: {input_packet.user_input}\n\nRespuesta directa:"
+            )
+            retry = self.model_client.generate(self.central_model, prompt=retry_prompt, system=system)
+            if retry.ok and retry.text:
+                result = retry
         if not result.ok or not result.text:
             return OutputPacket(
                 run_id=input_packet.run_id,
@@ -227,6 +248,10 @@ class Central:
             r"\bque es triade\b",
             r"\bque es triade omega\b",
             r"\bque eres y como trabajas\b",
+            r"\bpuedes aprender\b",
+            r"\bpuedes usar (?:la )?internet\b",
+            r"\bpuedes (?:descargar|configurar)\b",
+            r"\bpuedes crear imagenes\b",
         ]
         return any(re.search(pattern, normalized) for pattern in patterns)
 
@@ -240,6 +265,10 @@ class Central:
             "y la Bodega de Almacenamiento, que conserva memoria, runs, evidencia e identidad operativa.\n\n"
             "Cada interacción puede convertirse en un run auditable con señales, memoria, cristal, plan, safety, salida, verificación e integridad. "
             "También puedo gestionar neuronas candidatas, aprendizaje controlado y federación de nodos autorizados como capacidad en construcción. "
+            "En modo full_local_guarded puedo investigar Internet cuando me lo pides expresamente y acompañar la respuesta con fuentes; "
+            "también puedo ejecutar pruebas y builds mediante comandos preautorizados. No dispongo de shell libre, no instalo software por iniciativa propia "
+            "y la generación local de imágenes todavía requiere un motor específico instalado. "
+            "Aprendo registrando candidatos, evaluándolos con evidencia y consolidándolos solo después de superar controles. "
             "No soy conciencia humana: soy una arquitectura técnica evolutiva diseñada para trabajar con trazabilidad, prudencia y mejora continua."
         )
 
@@ -257,6 +286,22 @@ class Central:
     def _wants_internal_audit(cls, user_input: str) -> bool:
         text = user_input.lower()
         return any(term in text for term in cls.INTERNAL_AUDIT_TERMS)
+
+    @staticmethod
+    def _response_ignores_current_question(user_input: str, response: str) -> bool:
+        """Detecta deriva a autoestado ante una pregunta factual ajena a Tríade."""
+        user = user_input.lower()
+        answer = response.lower()
+        if "?" not in user or Central._is_identity_or_capability_question(user) or "como estas" in user or "cómo estás" in user:
+            return False
+        self_state_markers = (
+            "no siento como una persona",
+            "mi central coordina",
+            "el hipotálamo interpreta",
+            "la bodega se encarga",
+            "cabina viva",
+        )
+        return sum(marker in answer for marker in self_state_markers) >= 2
 
     @staticmethod
     def _operational_awareness_response(identity: str, input_packet: InputPacket) -> str:
@@ -384,6 +429,11 @@ class Central:
                         lines.append(f"{role}: {content}")
                 if lines:
                     history_context = "\nHistorial del chat (mensajes recientes):\n" + "\n".join(lines[-20:])
+            web_research = input_packet.context.get("guarded_web_research") if isinstance(input_packet.context, dict) else None
+            web_context = ""
+            if isinstance(web_research, dict):
+                from .guarded_web import web_context_for_prompt
+                web_context = "\nInvestigación web solicitada explícitamente. Cita las URLs usadas y aclara límites:\n" + web_context_for_prompt(web_research)
             return (
                 "MODO RESPUESTA FINAL.\n"
                 "Responde solo al usuario, de forma natural.\n"
@@ -398,7 +448,9 @@ class Central:
                 f"Intención orientativa: {signals.intent}\n"
                 f"Tono orientativo: {signals.tone}\n"
                 f"Riesgo orientativo: {signals.risk}\n"
-                f"{pulse_context}{semantic_context}{qualia_context}{bodega_global_context_str}{history_context}\n\n"
+                f"{pulse_context}{semantic_context}{qualia_context}{bodega_global_context_str}{history_context}{web_context}\n\n"
+                f"PREGUNTA ACTUAL PRIORITARIA: {input_packet.user_input}\n"
+                "Responde esa pregunta directamente. El historial solo aporta contexto y nunca sustituye el turno actual.\n"
                 "Respuesta final:"
             )
 

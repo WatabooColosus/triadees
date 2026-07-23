@@ -57,3 +57,16 @@ def test_thanks_and_acknowledgement_are_short() -> None:
     assert ack["detected_input_type"] == "acknowledgement"
     assert "Colombia se encuentra" not in (thanks["final_response"] or "")
     assert "Colombia se encuentra" not in (ack["final_response"] or "")
+
+
+def test_central_detects_self_state_drift_for_unrelated_factual_question() -> None:
+    from triade.core.central import Central
+
+    assert Central._response_ignores_current_question(
+        "entiendo, de que coilor es el sol?",
+        "No siento como una persona. Mi Central coordina, el Hipotálamo interpreta y la evidencia queda en Cabina Viva.",
+    ) is True
+    assert Central._response_ignores_current_question(
+        "¿cómo estás?",
+        "No siento como una persona, pero estoy operando.",
+    ) is False

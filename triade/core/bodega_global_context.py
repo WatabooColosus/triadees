@@ -286,6 +286,8 @@ def build_bodega_global_context(
             stable_audit_summary = {"status": "unavailable"}
 
         qualia_context = _get_qualia_snapshot()
+        from triade.core.federated_global_edge import build_federated_global_edge_context
+        federated_global_edge_context = build_federated_global_edge_context(db_path=db_path, limit=limit)
 
         continuity_summary = _compute_continuity_summary(recent_episodes, semantic_matches)
         if not ollama_blood.get("ollama_ok"):
@@ -334,6 +336,7 @@ def build_bodega_global_context(
             "learning_context": learning_context,
             "safety_context": safety_context,
             "qualia_context": qualia_context,
+            "federated_global_edge_context": federated_global_edge_context,
             "stable_audit_summary": stable_audit_summary,
             "continuity_summary": continuity_summary,
             "contradictions": contradictions,
@@ -393,6 +396,7 @@ def build_bodega_global_context(
                 "candidate_is_not_stable_memory": True,
             },
             "qualia_context": {},
+            "federated_global_edge_context": {"status": "unavailable", "nodes": []},
             "stable_audit_summary": {"status": "unavailable"},
             "continuity_summary": "error al construir contexto",
             "contradictions": ["Error al construir Bodega Global Context."],

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from .neuron_registry import NeuronRegistry
+from .neuron_missions import NeuronMissionStore
 from .stable_promotion_readiness import evaluate_stable_readiness, SYNTHETIC_POLICIES
 
 
@@ -29,6 +30,15 @@ class NeuronAutopromoter:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
         self.registry = NeuronRegistry(db_path=str(self.db_path))
+        self.mission_store = NeuronMissionStore(db_path=str(self.db_path))
+
+    def _sync_mission_status(self, neuron_id: int, status: str) -> int:
+        """Mantiene el ciclo de vida de misiones alineado con su neurona."""
+        updated = 0
+        for mission in self.mission_store.get_missions_by_neuron(neuron_id):
+            if mission.id is not None and mission.status not in {"paused", "rejected"}:
+                updated += int(self.mission_store.update_mission_status(mission.id, status))
+        return updated
 
     def promote(self) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
@@ -101,6 +111,7 @@ class NeuronAutopromoter:
             }
         try:
             self.registry.update_status(name, "experimental")
+            missions_updated = self._sync_mission_status(int(n["id"]), "experimental")
         except KeyError:
             return {
                 "type": "autopromotion_skipped",
@@ -116,7 +127,13 @@ class NeuronAutopromoter:
             "status": "promoted",
             "message": f"Neurona '{name}' promovida automáticamente de candidate → experimental (score={score:.2f})",
             "action_required": "review_experimental_behavior",
-            "payload": {"name": name, "from": "candidate_reviewable", "to": "experimental", "score": score},
+            "payload": {
+                "name": name,
+                "from": "candidate_reviewable",
+                "to": "experimental",
+                "score": score,
+                "missions_updated": missions_updated,
+            },
         }
 
     def _promote_experimental_to_stable(self, n: dict[str, Any]) -> dict[str, Any] | None:
@@ -190,6 +207,7 @@ class NeuronAutopromoter:
 
         try:
             self.registry.update_status(name, "stable")
+            missions_updated = self._sync_mission_status(int(n["id"]), "stable")
         except KeyError:
             return {
                 "type": "autopromotion_skipped",
@@ -212,6 +230,7 @@ class NeuronAutopromoter:
                 "readiness": neuron_report,
                 "non_synthetic_activations": non_synth,
                 "external_verifications": ext_verif,
+                "missions_updated": missions_updated,
             },
         }
 

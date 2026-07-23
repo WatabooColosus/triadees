@@ -127,8 +127,8 @@ def _build_decision(
     can_write = effective_mode in ("balanced_background", "full_local", "full_local_guarded")
     can_write_repo = False
     can_shell = False  # siempre requiere aprobación
-    can_test = effective_mode == "full_local"
-    can_build = effective_mode == "full_local"
+    can_test = effective_mode in ("full_local", "full_local_guarded")
+    can_build = effective_mode in ("full_local", "full_local_guarded")
 
     blocked: list[str] = []
     allowed_actions: list[str] = ["read_project", "publish_events", "record_heartbeat"]
@@ -187,11 +187,14 @@ def _build_decision(
         "can_run_shell": can_shell,
         "can_run_tests": can_test,
         "can_run_build": can_build,
+        "can_research_web": effective_mode == "full_local_guarded",
         "blocked_actions": blocked,
         "allowed_actions": allowed_actions,
         "safety": {
             "identity_core_protected": True,
             "requires_human_approval_for_repo_write": True,
             "shell_whitelist_only": True,
+            "web_research_explicit_only": True,
+            "web_findings_are_evidence_not_stable_memory": True,
         },
     }

@@ -32,15 +32,27 @@ class QualiaEngine:
         identity = self._identity_core()
         organs = self._organs(life, semantic)
         qualia_bus = self._qualia_bus_snapshot()
+        morphological_crystal = self._morphological_crystal_snapshot()
         return {
             "status": "ok" if life.get("status") == "ok" and semantic.get("status") == "ok" else "degraded",
             "mode": "qualia",
             "definition": "estado vivo integrado: sentidos internos + memoria semantica gobernada + organos + limites",
+            "theoretical_role": "alma simbólica y relacional de Tríade; no prueba conciencia subjetiva",
             "senses": self._senses(life, semantic),
             "organs": organs,
             "identity": identity,
             "semantic_alignment": semantic,
             "qualia_bus": qualia_bus,
+            "morphological_crystal": morphological_crystal,
+            "qualia_crystal_connection": {
+                "status": "connected" if morphological_crystal.get("status") == "ok" else "degraded",
+                "flow": ["qualia_bus", "hypothalamus_modulation", "crystal_regulation", "central_plan"],
+                "policy": (
+                    "Qualia aporta señales contextuales como hipótesis; el Hipotálamo las modula y "
+                    "el Cristal Morfológico calcula regulación, estabilidad y Q_crystal."
+                ),
+                "same_organ": False,
+            },
             "life_pulse": {
                 "status": life.get("status"),
                 "running": life.get("running"),
@@ -51,13 +63,14 @@ class QualiaEngine:
             },
             "triade_map": {
                 "triade": "entidad operativa local auditada",
-                "neurona_central": "planea y responde",
+                "neurona_central": "teoría, razonamiento, estructura, planeación y respuesta",
                 "n_formadora": "evalua neuronas candidatas",
                 "n_creadora": "crea especificaciones de neuronas",
-                "hipotalamo": "analiza intencion, urgencia, riesgo y tono",
+                "hipotalamo": "emoción: analiza intención, urgencia, riesgo y tono",
                 "vector_emocional": "PV-7 y senales afectivo-cognitivas",
-                "bodega": "almacenamiento local, episodico, semantico y trazabilidad",
-                "qualia": "integra lo que ocurre ahora y lo distingue de memoria estable",
+                "bodega": "memoria: almacenamiento local, episódico, semántico y trazabilidad",
+                "qualia": "integra la experiencia operativa como alma simbólica/relacional, sin afirmar conciencia subjetiva",
+                "cristal_morfologico": "forma y coherencia: regula las señales moduladas por Qualia antes de la planeación central",
                 "pulso_vivo": "sentidos internos y estado vital del sistema cada N segundos",
             },
             "answering_rule": (
@@ -65,6 +78,31 @@ class QualiaEngine:
                 "Debe aclarar cuando algo es estado vivo y no memoria semantica estable."
             ),
         }
+
+    def _morphological_crystal_snapshot(self) -> dict[str, Any]:
+        path = Path(self.db_path)
+        if not path.exists():
+            return {"status": "missing_db", "latest": None}
+        uri = f"file:{path.resolve()}?mode=ro"
+        try:
+            with sqlite3.connect(uri, uri=True) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    """
+                    SELECT run_id, q_crystal, stability, intensity, pv7_score,
+                           temporal_status, q_delta, stability_delta, created_at
+                    FROM crystal_states
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """
+                ).fetchone()
+            return {
+                "status": "ok" if row else "empty",
+                "latest": dict(row) if row else None,
+                "input_relation": "qualia_signals_modulate_hypothalamus_before_crystal",
+            }
+        except sqlite3.Error as exc:
+            return {"status": "unavailable", "latest": None, "error": str(exc)}
 
 
     def _qualia_bus_snapshot(self) -> dict[str, Any]:

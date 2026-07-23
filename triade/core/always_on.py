@@ -36,6 +36,10 @@ ENV_KEYS = {
     "workers_autostart": "TRIADE_WORKERS_AUTOSTART",
     "workers_watchdog": "TRIADE_WORKERS_WATCHDOG",
     "worker_mode": "TRIADE_WORKER_MODE",
+    "continuous_runner_enabled": "TRIADE_CONTINUOUS_RUNNER",
+    "continuous_runner_autonomy_level": "TRIADE_AUTONOMY_LEVEL",
+    "continuous_runner_interval_seconds": "TRIADE_CONTINUOUS_INTERVAL_SECONDS",
+    "continuous_runner_max_cycles": "TRIADE_CONTINUOUS_MAX_CYCLES",
 }
 
 YML_DEFAULTS = {
@@ -52,6 +56,10 @@ YML_DEFAULTS = {
     "workers_autostart": True,
     "workers_watchdog": True,
     "worker_mode": "full_local_guarded",
+    "continuous_runner_enabled": False,
+    "continuous_runner_autonomy_level": "observe_only",
+    "continuous_runner_interval_seconds": 60,
+    "continuous_runner_max_cycles": 0,
 }
 
 _ALWAYS_ON_STATE: dict[str, Any] = {
@@ -111,9 +119,13 @@ def load_always_on_config(yml_path: str | Path = "triade.yml") -> dict[str, Any]
                 "workers_always_on",
                 "workers_autostart",
                 "workers_watchdog",
+                "continuous_runner_enabled",
             ):
                 cfg[key] = _str_to_bool(raw)
-            elif key in ("interval_seconds", "start_delay_seconds", "max_cycles", "self_test_every_cycles"):
+            elif key in (
+                "interval_seconds", "start_delay_seconds", "max_cycles", "self_test_every_cycles",
+                "continuous_runner_interval_seconds", "continuous_runner_max_cycles",
+            ):
                 try:
                     cfg[key] = int(raw)
                 except ValueError:

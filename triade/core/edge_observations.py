@@ -31,7 +31,7 @@ def record_edge_observation(
     *,
     db_path: str | Path = "triade/memory/triade.db",
 ) -> dict[str, Any]:
-    severity = "info" if observation_type == "valid_json" else "warning"
+    severity = "info" if observation_type in {"valid_json", "local_heuristic"} else "warning"
     payload = {
         "parser_name": parser_name,
         "observation_type": observation_type,
@@ -78,7 +78,11 @@ def build_edge_context_health(
     degraded_count = empty_count + malformed_count + non_json_count
     last = observations[0] if observations else {}
 
-    if empty_count >= REPEATED_EDGE_SIGNAL_THRESHOLD:
+    latest_is_healthy = last.get("observation_type") in {"valid_json", "local_heuristic"}
+    if latest_is_healthy and degraded_count:
+        status = "recovered_local" if last.get("observation_type") == "local_heuristic" else "recovered"
+        recommendation = "Recuperado; conservar fallas históricas para auditoría y vigilar nuevos nodos federados."
+    elif empty_count >= REPEATED_EDGE_SIGNAL_THRESHOLD:
         status = "empty_response_repeated"
         recommendation = "Reforzar prompt JSON del edge_context o cambiar modelo/nodo."
     elif malformed_count + non_json_count >= REPEATED_EDGE_SIGNAL_THRESHOLD:

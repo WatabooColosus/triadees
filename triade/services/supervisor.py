@@ -34,6 +34,11 @@ from .event_bus import build_context_from_events, list_recent_events, publish_ev
 
 AUTONOMY_LEVELS = ("observe_only", "learn_candidates", "execute_missions", "full_local")
 AUTONOMY_RANK = {name: index for index, name in enumerate(AUTONOMY_LEVELS)}
+WORK_MODE_ALIASES = {
+    "light_background": "learn_candidates",
+    "balanced_background": "execute_missions",
+    "full_local_guarded": "full_local",
+}
 
 
 class InternalRuntimeSupervisor:
@@ -86,6 +91,7 @@ class InternalRuntimeSupervisor:
     @staticmethod
     def _normalize_mode(mode: str) -> str:
         clean = str(mode or "observe_only").strip().lower()
+        clean = WORK_MODE_ALIASES.get(clean, clean)
         return clean if clean in AUTONOMY_RANK else "observe_only"
 
     def configure(
