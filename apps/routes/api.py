@@ -1465,6 +1465,8 @@ def system_safe_shell_commands() -> dict[str, Any]:
             "shell_enabled": True,
             "whitelist_only": True,
             "no_free_input": True,
+            "autonomous_in_full_local_guarded": True,
+            "repo_write_requires_human_approval": True,
         },
     }
 

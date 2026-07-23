@@ -31,3 +31,4 @@ def test_full_local_guarded_capabilities_are_consistent():
     permissions = build_permission_profile("full_local_guarded")
     assert permissions["permissions"]["can_research_web"] is True
     assert permissions["permissions"]["can_run_shell"] is False
+    assert permissions["permissions"]["can_run_safe_shell"] is True

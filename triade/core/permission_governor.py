@@ -21,7 +21,7 @@ def build_permission_profile(
     full_local/full_local_guarded:
       todo lo anterior + tests/build whitelist.
       repo write solo con human approval.
-      shell solo whitelist.
+      Safe Shell autónomo solo con comandos fijos; shell libre nunca.
       identity_core nunca.
     """
     p = {
@@ -51,8 +51,16 @@ def build_permission_profile(
         p["permissions"]["can_write_repo"] = False
         p["explanations"]["can_write_repo"] = "Repo write requiere aprobación humana."
 
-    # Shell nunca es una capacidad autónoma. Una ejecución manual puede usar
-    # la whitelist únicamente con aprobación humana explícita.
+    # Shell libre nunca es autónomo. Safe Shell es una capacidad diferente:
+    # únicamente claves predefinidas, shell=False, timeout, confinamiento y audit.
+    p["permissions"]["can_run_safe_shell"] = mode == "full_local_guarded"
+    p["explanations"]["can_run_safe_shell"] = (
+        "Safe Shell autónomo permitido para diagnóstico, tests y build con whitelist y auditoría."
+        if mode == "full_local_guarded"
+        else "Safe Shell autónomo requiere full_local_guarded."
+    )
+    if p["permissions"]["can_run_safe_shell"] and "can_run_safe_shell" in p["blocked"]:
+        p["blocked"].remove("can_run_safe_shell")
     if mode in ("balanced_background", "full_local", "full_local_guarded") and human_approved:
         p["permissions"]["can_run_shell"] = True
         p["explanations"]["can_run_shell"] = "Shell permitido solo whitelist con aprobación."
@@ -72,6 +80,7 @@ def _grants_for(mode: str) -> dict[str, tuple[bool, str]]:
         "can_write_repo": (False, ""),
         "can_create_files": (False, ""),
         "can_run_shell": (False, ""),
+        "can_run_safe_shell": (False, ""),
         "can_run_git_status": (False, ""),
         "can_run_tests": (False, ""),
         "can_run_build": (False, ""),

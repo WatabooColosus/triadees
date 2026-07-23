@@ -5,6 +5,8 @@ import sqlite3
 import pytest
 
 from triade.core.orchestrator_coord import CoordinationLock
+from triade.core.permission_governor import build_permission_profile
+from triade.core.resource_governor import decide_work_mode
 from triade.core.safe_shell import AUTONOMOUS_SAFE_EXTENSIONS, run_autonomous
 from triade.federation.peer_sync import PeerSync
 from triade.models.ab_model_evaluator import ABModelEvaluator
@@ -17,6 +19,27 @@ def test_safe_shell_never_exposes_environment_and_confines_workdir(tmp_path):
     result = run_autonomous("pwd", working_dir=tmp_path)
     assert result["status"] == "blocked"
     assert "dentro del proyecto" in result["error"]
+
+
+def test_guarded_mode_allows_safe_shell_but_never_free_shell():
+    permissions = build_permission_profile("full_local_guarded")
+    assert permissions["permissions"]["can_run_safe_shell"] is True
+    assert permissions["permissions"]["can_run_shell"] is False
+
+    probe = {
+        "limits": {"ram_available_gb": 16, "disk_free_gb": 100, "tier": "high", "cpu_count": 8},
+        "cpu": {"load_1min": 1.0},
+        "power": {"ac_connected": True, "battery_percent": 100},
+        "thermal": {"thermal_status": "ok"},
+        "warnings": [],
+    }
+    decision = decide_work_mode(
+        probe,
+        {"status": "ok", "can_reason": True, "can_embed": True},
+        "full_local_guarded",
+    )
+    assert decision["can_run_safe_shell"] is True
+    assert decision["can_run_shell"] is False
 
 
 def test_peer_registration_rejects_private_urls_and_schema_works(tmp_path):
