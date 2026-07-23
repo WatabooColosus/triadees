@@ -15,7 +15,10 @@ Puede evolucionar sobre la base actual. La prioridad no debe ser producir más a
 - Auto-test seguro: aprobado sin errores; deuda técnica medida en 77/100.
 - Recursos observados: 8 CPU, 25.99 GiB RAM y Ollama con los seis modelos requeridos.
 - Web pública y endpoints de diagnóstico: respondiendo HTTP 200.
-- Estado global expuesto como `degraded`: hay ciclos persistidos recientes y workers activos, pero el observador HTTP no ve vivo el hilo de background dentro de su proceso. Es una incoherencia de supervisión que debe resolverse antes de producción.
+- Durante la auditoría apareció `background_dead` porque pruebas operativas
+  compartieron las rutas del runtime vivo. Fue corregido y reiniciado: el endpoint
+  reporta `running`, background/workers vivos, sin degradación ni último error.
+  Sigue pendiente un watchdog explícito y aislar completamente pruebas/runtime.
 
 ## Mapa operativo
 
