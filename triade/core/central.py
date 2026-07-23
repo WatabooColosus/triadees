@@ -126,18 +126,6 @@ class Central:
         plan: PlanPacket,
     ) -> OutputPacket:
         identity = next((item["value"] for item in memory.identity_matches if item.get("key") == "entity_name"), "Tríade Ω")
-        remembered_name = self._remembered_user_name(input_packet)
-        if remembered_name and self._asks_user_name(input_packet.user_input):
-            return OutputPacket(
-                run_id=input_packet.run_id,
-                response=f"Te llamas {remembered_name}.",
-                actions_taken=["scoped_user_profile_recalled", "crystal_regulation_applied"],
-                memory_diff={"pending_persistence": True, "user_profile_fact_used": "preferred_name"},
-                status="ok",
-                model_provider="policy",
-                model_name="scoped-profile-recall",
-                model_ok=True,
-            )
         wants_internal_audit = self._wants_internal_audit(input_packet.user_input)
         fallback_response = self._fallback_response(identity, input_packet, signals, crystal, wants_internal_audit)
         degraded_notice = (
@@ -175,7 +163,6 @@ class Central:
             "La arquitectura interna regula tu respuesta, pero no muestres plan, JSON, señales ni métricas salvo auditoría explícita. "
             "Aprende del contexto autorizado y responde naturalmente según la pregunta."
         )
-
         result = self.model_client.generate(self.central_model, prompt=prompt, system=system)
         if result.ok and result.text and self._response_ignores_current_question(input_packet.user_input, result.text):
             retry_prompt = (
@@ -208,20 +195,6 @@ class Central:
             model_name=self.central_model,
             model_ok=True,
         )
-
-    @staticmethod
-    def _remembered_user_name(input_packet: InputPacket) -> str | None:
-        profile = input_packet.context.get("user_profile_memory") if isinstance(input_packet.context, dict) else None
-        value = profile.get("preferred_name") if isinstance(profile, dict) else None
-        clean = str(value or "").strip()
-        return clean or None
-
-    @staticmethod
-    def _asks_user_name(text: str) -> bool:
-        import unicodedata
-
-        plain = unicodedata.normalize("NFKD", str(text or "").lower()).encode("ascii", "ignore").decode("ascii")
-        return any(phrase in plain for phrase in ("como me llamo", "cual es mi nombre", "recuerdas mi nombre"))
 
     @staticmethod
     def _fallback_response(

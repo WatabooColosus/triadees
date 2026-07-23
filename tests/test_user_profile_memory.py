@@ -1,8 +1,6 @@
 from pathlib import Path
 
 from triade.memory.user_profile_store import UserProfileStore
-from triade.core.central import Central
-from triade.core.contracts import InputPacket
 
 
 def test_explicit_name_persists_and_is_scoped(tmp_path: Path) -> None:
@@ -33,13 +31,3 @@ def test_unscoped_or_implicit_text_is_not_stored(tmp_path: Path) -> None:
 
     assert store.capture(None, "me llamo Santiago", "run-1")["stored"] is False
     assert store.capture("browser:session-a", "Santiago es una ciudad", "run-2")["stored"] is False
-
-
-def test_user_name_question_is_distinguished_from_triade_identity() -> None:
-    packet = InputPacket(
-        user_input="¿Cómo me llamo?",
-        context={"user_profile_memory": {"preferred_name": "Santiago"}},
-    )
-
-    assert Central._asks_user_name(packet.user_input) is True
-    assert Central._remembered_user_name(packet) == "Santiago"
