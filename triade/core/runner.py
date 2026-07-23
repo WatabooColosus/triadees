@@ -259,12 +259,6 @@ class TriadeRunner:
 
             record_internal_error("runner.living_context", exc, run_id=input_packet.run_id, db_path=self.db_path)
         self.bodega.create_run(input_packet)
-        from triade.memory.user_profile_store import UserProfileStore
-
-        profile_store = UserProfileStore(db_path=self.db_path)
-        principal_id = input_packet.context.get("principal_id")
-        profile_capture = profile_store.capture(principal_id, user_input, input_packet.run_id)
-        input_packet.context["user_profile_memory"] = profile_store.load(principal_id)
         run_path = self.runs_dir / input_packet.run_id
         run_path.mkdir(parents=True, exist_ok=True)
         signals = self.hypothalamus.analyze(input_packet)
@@ -630,7 +624,6 @@ class TriadeRunner:
 
         output.memory_diff = {
             **memory_diff, "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id,
-            "user_profile_memory": {"capture": profile_capture, "facts": input_packet.context.get("user_profile_memory", {})},
             "neuron_proposal": neuron_proposal,
             "feedback_reinforcement": feedback_reinforcement_result,
             "edge_usage": edge_usage,

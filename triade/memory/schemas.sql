@@ -15,20 +15,6 @@ CREATE TABLE IF NOT EXISTS identity_core (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS user_profile_memory (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    principal_id TEXT NOT NULL,
-    fact_key TEXT NOT NULL,
-    fact_value TEXT NOT NULL,
-    confidence REAL NOT NULL DEFAULT 1.0,
-    evidence_count INTEGER NOT NULL DEFAULT 1,
-    source_run TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    UNIQUE(principal_id, fact_key)
-);
-CREATE INDEX IF NOT EXISTS idx_user_profile_principal ON user_profile_memory(principal_id);
-
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL UNIQUE,

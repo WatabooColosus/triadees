@@ -434,14 +434,6 @@ class Central:
             if isinstance(web_research, dict):
                 from .guarded_web import web_context_for_prompt
                 web_context = "\nInvestigación web solicitada explícitamente. Cita las URLs usadas y aclara límites:\n" + web_context_for_prompt(web_research)
-            user_profile = input_packet.context.get("user_profile_memory") if isinstance(input_packet.context, dict) else None
-            profile_context = ""
-            if isinstance(user_profile, dict) and user_profile:
-                profile_context = (
-                    "\nMemoria personal explícita y autorizada para esta sesión:\n"
-                    + json.dumps(user_profile, ensure_ascii=False)
-                    + "\nUsa estos hechos cuando sean pertinentes; si preferred_name existe, recuerda ese nombre."
-                )
             return (
                 "MODO RESPUESTA FINAL.\n"
                 "Responde solo al usuario, de forma natural.\n"
@@ -456,7 +448,7 @@ class Central:
                 f"Intención orientativa: {signals.intent}\n"
                 f"Tono orientativo: {signals.tone}\n"
                 f"Riesgo orientativo: {signals.risk}\n"
-                f"{pulse_context}{semantic_context}{qualia_context}{bodega_global_context_str}{profile_context}{history_context}{web_context}\n\n"
+                f"{pulse_context}{semantic_context}{qualia_context}{bodega_global_context_str}{history_context}{web_context}\n\n"
                 f"PREGUNTA ACTUAL PRIORITARIA: {input_packet.user_input}\n"
                 "Responde esa pregunta directamente. El historial solo aporta contexto y nunca sustituye el turno actual.\n"
                 "Respuesta final:"

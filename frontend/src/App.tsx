@@ -5,18 +5,6 @@ import ErrorBoundary from './components/ErrorBoundary'
 
 const BASE = ''
 
-function persistentPrincipalId(): string {
-  const key = 'triade_principal_id'
-  const existing = window.localStorage.getItem(key)
-  if (existing) return existing
-  const suffix = typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(16).slice(2)}`
-  const created = `browser:${suffix}`
-  window.localStorage.setItem(key, created)
-  return created
-}
-
 async function api(path: string, opts?: RequestInit) {
   const res = await fetch(BASE + path, {
     headers: { 'Content-Type': 'application/json' },
@@ -258,7 +246,6 @@ function ChatTab({ apiKey }: { apiKey: string }) {
       hypothalamus_model: hypModel || null, central_model: cenModel || null,
       auto_select_models: !hypModel && !cenModel,
       conversation_history: history,
-      context: { principal_id: persistentPrincipalId() },
     }
     try {
       const res = await api('/api/run', {
