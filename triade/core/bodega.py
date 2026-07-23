@@ -21,6 +21,7 @@ from .contracts import (
     SignalPacket,
     VerificationReport,
 )
+from .principal_scope import PrincipalScope
 
 
 class Bodega:
@@ -69,6 +70,21 @@ class Bodega:
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
             self._migrate_crystal_v2(conn)
+            self._migrate_principal_scope(conn)
+
+    @staticmethod
+    def _migrate_principal_scope(conn: sqlite3.Connection) -> None:
+        for table in ("runs", "episodic_memory"):
+            columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+            for column in ("tenant_id", "user_id", "session_id"):
+                if column not in columns:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT NOT NULL DEFAULT 'legacy'")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_runs_principal_scope ON runs(tenant_id, user_id, session_id, id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_episodes_principal_scope ON episodic_memory(tenant_id, user_id, session_id, id)"
+        )
 
     def _migrate_crystal_v2(self, conn: sqlite3.Connection) -> None:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(crystal_states)").fetchall()}
@@ -94,7 +110,8 @@ class Bodega:
             {**match, "retrieval_type": "legacy_keyword"}
             for match in self._search_semantic(packet.user_input)
         ]
-        episodic = self._search_episodic(packet.user_input)
+        scope = PrincipalScope.from_context(packet.context, source=packet.source)
+        episodic = self._search_episodic(packet.user_input, scope=scope)
         vector_semantic: list[dict[str, Any]] = []
         semantic_recall: dict[str, Any] = {
             "enabled": semantic_recall_enabled,
@@ -105,6 +122,7 @@ class Bodega:
             "domain": semantic_domain,
             "status": "disabled" if not semantic_recall_enabled else "pending",
             "matches_count": 0,
+            "principal_scope": scope.to_dict(),
         }
 
         if semantic_recall_enabled:
@@ -158,10 +176,15 @@ class Bodega:
         )
 
     def create_run(self, packet: InputPacket) -> None:
+        scope = PrincipalScope.from_context(packet.context, source=packet.source)
+        packet.context.update(scope.to_dict())
         with self._connect() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO runs (run_id, source, user_input, status, created_at) VALUES (?, ?, ?, ?, ?)",
-                (packet.run_id, packet.source, packet.user_input, "created", packet.timestamp),
+                """INSERT OR IGNORE INTO runs
+                (run_id, source, user_input, status, created_at, tenant_id, user_id, session_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (packet.run_id, packet.source, packet.user_input, "created", packet.timestamp,
+                 scope.tenant_id, scope.user_id, scope.session_id),
             )
 
     def update_run_models(self, run_id: str, model_hypothalamus: str, model_central: str) -> None:
@@ -327,6 +350,7 @@ class Bodega:
             return int(cursor.lastrowid)
 
     def store_episode(self, input_packet: InputPacket, output: OutputPacket) -> dict[str, Any]:
+        scope = PrincipalScope.from_context(input_packet.context, source=input_packet.source)
         title = self._make_title(input_packet.user_input)
         content = f"Usuario: {input_packet.user_input}\nRespuesta: {output.response}"
         summary = output.response[:280]
@@ -337,9 +361,11 @@ class Bodega:
                 (output.status, output.timestamp, input_packet.run_id),
             )
             cursor = conn.execute(
-                """INSERT INTO episodic_memory (run_id, title, content, summary, tags, importance, confidence)
-                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (input_packet.run_id, title, content, summary, tags, 0.5, 0.75),
+                """INSERT INTO episodic_memory
+                (run_id, title, content, summary, tags, importance, confidence, tenant_id, user_id, session_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (input_packet.run_id, title, content, summary, tags, 0.5, 0.75,
+                 scope.tenant_id, scope.user_id, scope.session_id),
             )
             episode_id = cursor.lastrowid
         return {"run_id": output.run_id, "stored": True, "episode_id": episode_id, "db_path": str(self.db_path)}
@@ -347,13 +373,21 @@ class Bodega:
     def diff_from_output(self, output: OutputPacket) -> dict[str, object]:
         return {"run_id": output.run_id, "stored": False, "reason": "Usar store_episode(input_packet, output) para persistencia real."}
 
-    def list_recent_episodes(self, limit: int = 10) -> list[dict[str, Any]]:
+    def list_recent_episodes(self, limit: int = 10, scope: PrincipalScope | None = None) -> list[dict[str, Any]]:
         with self._connect() as conn:
-            rows = conn.execute(
+            if scope is None:
+                rows = conn.execute(
                 """SELECT id, run_id, title, summary, tags, confidence, created_at
                 FROM episodic_memory ORDER BY id DESC LIMIT ?""",
                 (limit,),
-            ).fetchall()
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT id, run_id, title, summary, tags, confidence, created_at
+                    FROM episodic_memory WHERE tenant_id=? AND user_id=? AND session_id=?
+                    ORDER BY id DESC LIMIT ?""",
+                    (scope.tenant_id, scope.user_id, scope.session_id, limit),
+                ).fetchall()
         return [dict(row) for row in rows]
 
     def doctor(self, runs_dir: str | Path = "runs") -> dict[str, Any]:
@@ -478,7 +512,7 @@ class Bodega:
             rows = conn.execute(sql, params).fetchall()
         return [dict(row) for row in rows]
 
-    def _search_episodic(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+    def _search_episodic(self, query: str, limit: int = 5, scope: PrincipalScope | None = None) -> list[dict[str, Any]]:
         terms = self._terms(query)
         if not terms:
             return []
@@ -487,8 +521,12 @@ class Bodega:
         for term in terms:
             pattern = f"%{term}%"
             params.extend([pattern, pattern, pattern, pattern])
+        scope_clause = ""
+        if scope is not None:
+            scope_clause = "tenant_id = ? AND user_id = ? AND session_id = ? AND "
+            params = [scope.tenant_id, scope.user_id, scope.session_id, *params]
         sql = f"""SELECT id, run_id, title, summary, tags, confidence, created_at
-            FROM episodic_memory WHERE {like_clauses} ORDER BY id DESC LIMIT ?"""
+            FROM episodic_memory WHERE {scope_clause}({like_clauses}) ORDER BY id DESC LIMIT ?"""
         params.append(str(limit))
         with self._connect() as conn:
             rows = conn.execute(sql, params).fetchall()

@@ -131,6 +131,24 @@ class NeuronMissionExecutor:
             components=work["score_components"],
         )
         score_id = self.store.record_score(score)
+        if mission.neuron_id is not None:
+            try:
+                from triade.core.neuron_evaluator import NeuronEvaluator
+                NeuronEvaluator(self.db_path).record_activation(
+                    neuron_id=int(mission.neuron_id),
+                    neuron_name=mission.title,
+                    score=float(work["composite_score"]),
+                    success=True,
+                    response_ms=float(elapsed_ms),
+                    source="neuron_mission_executor",
+                    context=f"mission:{mission.id or mission_id}:run:{run_ref}",
+                    domain=mission.domain,
+                    status=mission.status,
+                )
+            except Exception:
+                # La misión ya queda registrada; una falla de telemetría no debe
+                # duplicar el trabajo ni convertirlo en éxito ficticio.
+                pass
 
         learning_candidate = None
         decision = "observed_scored"

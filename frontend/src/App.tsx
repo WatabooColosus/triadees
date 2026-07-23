@@ -241,8 +241,18 @@ function ChatTab({ apiKey }: { apiKey: string }) {
       .filter(m => !m.meta?.pending && !m.meta?.rejected)
       .slice(-10)
       .map(m => ({ role: m.role, content: m.content }))
+    const persistentId = (storage: Storage, key: string) => {
+      const current = storage.getItem(key)
+      if (current) return current
+      const created = crypto.randomUUID()
+      storage.setItem(key, created)
+      return created
+    }
     const payload = {
       text: userMsg, source: 'react-ui', use_ollama: useOllama,
+      tenant_id: 'public-web',
+      user_id: persistentId(localStorage, 'triade_user_id'),
+      session_id: persistentId(sessionStorage, 'triade_session_id'),
       hypothalamus_model: hypModel || null, central_model: cenModel || null,
       auto_select_models: !hypModel && !cenModel,
       conversation_history: history,

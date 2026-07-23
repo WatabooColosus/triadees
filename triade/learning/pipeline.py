@@ -39,6 +39,7 @@ from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.memory.trust_store import TrustLevelStore
 from triade.learning.evidence_bridge import LearningEvidenceBridge
+from triade.learning.novelty import LearningNoveltyGate
 
 RISK_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 VALID_SOURCE_TYPES = {"conversation", "document", "web", "repo", "model", "node", "tool", "federated_node", "qualia_bus"}
@@ -99,6 +100,7 @@ class LearningPipeline:
         self.semantic_store = SemanticMemoryStore(db_path=self.db_path)
         self.governance = SemanticMemoryGovernance(db_path=self.db_path)
         self.evidence_bridge = LearningEvidenceBridge(db_path=self.db_path)
+        self.novelty_gate = LearningNoveltyGate(db_path=self.db_path)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -148,6 +150,11 @@ class LearningPipeline:
         if clean_risk not in RISK_RANK:
             raise ValueError(f"risk_level inválido: {clean_risk}")
 
+        novelty = self.novelty_gate.assess(normalized, domain.strip() or "general")
+        if not novelty["novel"] and novelty.get("matched_candidate_id"):
+            existing = self.get_candidate(str(novelty["matched_candidate_id"])) or {}
+            return {**existing, "novelty": novelty, "deduplicated": True}
+
         candidate_id = f"learn-{uuid4().hex[:16]}"
         clean_title = (title or normalized[:80]).strip()
         summary = normalized[:280]
@@ -164,7 +171,8 @@ class LearningPipeline:
                     utc_now(), utc_now(),
                 ),
             )
-        return self.get_candidate(candidate_id) or {}
+        self.novelty_gate.register(candidate_id, normalized, domain.strip() or "general")
+        return {**(self.get_candidate(candidate_id) or {}), "novelty": novelty, "deduplicated": False}
 
     # ------------------------------------------------------------------
     # 2. Evaluación (utilidad, confianza, riesgo)

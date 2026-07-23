@@ -13,6 +13,7 @@ from triade.memory.hypothalamus_store import HypothalamusStateStore, EmotionalSt
 from triade.models.ollama_client import OllamaClient
 
 from .contracts import InputPacket, RiskLevel, SignalPacket, Urgency
+from .principal_scope import PrincipalScope
 
 
 MOOD_PV7_MODULATION: dict[str, dict[str, float]] = {
@@ -56,15 +57,16 @@ class Hypothalamus:
             self._cached_mood = self.state_store.load_latest()
         return self._cached_mood
 
-    def load_mood(self) -> EmotionalState | None:
+    def load_mood(self, scope: PrincipalScope | None = None) -> EmotionalState | None:
         loaded = None
         if self.state_store is not None:
-            loaded = self.state_store.load_latest()
+            loaded = self.state_store.load_latest(scope=scope)
         self._cached_mood = loaded
         return loaded
 
     def analyze(self, packet: InputPacket) -> SignalPacket:
-        current_mood = self.load_mood()
+        scope = PrincipalScope.from_context(packet.context, source=packet.source)
+        current_mood = self.load_mood(scope)
         fallback = self._analyze_rules(packet, mood=current_mood)
 
         if self.model_client is None:
@@ -74,7 +76,7 @@ class Hypothalamus:
                 "ok": False,
                 "error": None,
             }
-            return self._save_and_return(packet.run_id, fallback, current_mood, packet.user_input)
+            return self._save_and_return(packet.run_id, fallback, current_mood, packet.user_input, scope)
 
         system = (
             "Eres el Hipotálamo Emocional de Tríade. "
@@ -97,7 +99,7 @@ class Hypothalamus:
                 "error": result.error,
             }
             fallback.notes.append("Hipotálamo usó fallback por reglas porque Ollama no generó señales.")
-            return self._save_and_return(packet.run_id, fallback, current_mood, packet.user_input)
+            return self._save_and_return(packet.run_id, fallback, current_mood, packet.user_input, scope)
 
         parsed = self._parse_model_json(result.text)
         if parsed is None:
@@ -108,7 +110,7 @@ class Hypothalamus:
                 "error": "Respuesta del modelo no fue JSON válido para señales.",
             }
             fallback.notes.append("Hipotálamo usó fallback por reglas porque el JSON del modelo no fue válido.")
-            return self._save_and_return(packet.run_id, fallback, current_mood, packet.user_input)
+            return self._save_and_return(packet.run_id, fallback, current_mood, packet.user_input, scope)
 
         self.last_model_result = {
             "provider": "ollama",
@@ -126,7 +128,7 @@ class Hypothalamus:
             pv7=self._safe_pv7(parsed.get("pv7"), fallback.pv7),
             notes=self._safe_notes(parsed.get("notes")) + ["Señales generadas por Hipotálamo con modelo local Ollama."],
         )
-        return self._save_and_return(packet.run_id, signals, current_mood, packet.user_input)
+        return self._save_and_return(packet.run_id, signals, current_mood, packet.user_input, scope)
 
 
     def apply_qualia_signals(self, signals: SignalPacket, qualia_signals: list[dict[str, Any]], threshold: float = 0.65) -> SignalPacket:
@@ -166,10 +168,12 @@ class Hypothalamus:
             timestamp=signals.timestamp,
         )
 
-    def _save_and_return(self, run_id: str, signals: SignalPacket, previous_mood: EmotionalState | None, user_input: str = "") -> SignalPacket:
+    def _save_and_return(self, run_id: str, signals: SignalPacket, previous_mood: EmotionalState | None,
+                         user_input: str = "", scope: PrincipalScope | None = None) -> SignalPacket:
+        scope = scope or PrincipalScope("legacy", "legacy", "legacy")
         if self.state_store is not None:
-            self.state_store.save(run_id, signals, previous=previous_mood)
-            self._cached_mood = self.state_store.load_latest()
+            self.state_store.save(run_id, signals, previous=previous_mood, scope=scope)
+            self._cached_mood = self.state_store.load_latest(scope=scope)
             try:
                 self.state_store.learn_pattern(
                     text=user_input,
@@ -177,6 +181,7 @@ class Hypothalamus:
                     tone=signals.tone,
                     risk=signals.risk,
                     urgency=signals.urgency,
+                    scope=scope,
                 )
             except Exception:
                 pass
@@ -188,7 +193,10 @@ class Hypothalamus:
         pattern = None
         if self.state_store is not None:
             try:
-                pattern = self.state_store.recall_pattern(packet.user_input)
+                pattern = self.state_store.recall_pattern(
+                    packet.user_input,
+                    scope=PrincipalScope.from_context(packet.context, source=packet.source),
+                )
             except Exception:
                 pattern = None
 

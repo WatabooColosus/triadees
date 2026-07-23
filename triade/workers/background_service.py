@@ -27,10 +27,14 @@ class WorkerBackgroundService:
         config = WorkerRunConfig(max_iterations=1, sleep_seconds=0.0, task_timeout=task_timeout, dry_run=dry_run, once=True, daemon=False, runs_dir=str(self.runs_dir), lock_file=str(self.lock_file), stop_file=str(self.stop_file))
         return loop.run(config)
 
-    def start(self, *, max_iterations: int = 5, sleep_seconds: float = 2.0, dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
+    def start(self, *, max_iterations: int = 5, sleep_seconds: float = 2.0, dry_run: bool = False,
+              task_timeout: float = 30.0, enabled_task_types: list[str] | None = None) -> dict[str, Any]:
         loop = WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir, lock_file=self.lock_file, stop_file=self.stop_file)
         loop.clear_stop()
-        config = WorkerRunConfig(max_iterations=max_iterations, sleep_seconds=sleep_seconds, task_timeout=task_timeout, dry_run=dry_run, once=False, daemon=True, runs_dir=str(self.runs_dir), lock_file=str(self.lock_file), stop_file=str(self.stop_file))
+        config = WorkerRunConfig(max_iterations=max_iterations, sleep_seconds=sleep_seconds, task_timeout=task_timeout,
+                                 dry_run=dry_run, once=False, daemon=True, runs_dir=str(self.runs_dir),
+                                 lock_file=str(self.lock_file), stop_file=str(self.stop_file),
+                                 enabled_task_types=list(enabled_task_types or []))
         return loop.run(config)
 
     def stop(self) -> dict[str, Any]:
@@ -41,7 +45,8 @@ class WorkerBackgroundService:
         blood = check_ollama_blood()
         payload["lock_file"] = str(self.lock_file)
         payload["stop_file"] = str(self.stop_file)
-        payload["running"] = self.lock_file.exists()
+        payload["lock_file_active"] = self.lock_file.exists()
+        payload["running"] = bool((payload.get("execution") or {}).get("alive"))
         payload["stop_requested"] = self.stop_file.exists()
         payload["ollama_blood_status"] = blood.get("status")
         payload["model_used"] = blood.get("reasoning_model")

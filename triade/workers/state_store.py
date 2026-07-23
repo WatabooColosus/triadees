@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -153,6 +155,22 @@ class WorkerStateStore:
         with self._connect() as conn:
             task_counts = {row["status"]: int(row["c"]) for row in conn.execute("SELECT status, COUNT(*) AS c FROM worker_tasks GROUP BY status").fetchall()}
             run_counts = {row["status"]: int(row["c"]) for row in conn.execute("SELECT status, COUNT(*) AS c FROM worker_runs GROUP BY status").fetchall()}
+        lease = self.get_state("worker_execution") or {}
+        heartbeat_at = str(lease.get("heartbeat_at") or "")
+        heartbeat_age_seconds: float | None = None
+        if heartbeat_at:
+            try:
+                heartbeat_age_seconds = max(
+                    0.0,
+                    (datetime.now(timezone.utc) - datetime.fromisoformat(heartbeat_at.replace("Z", "+00:00"))).total_seconds(),
+                )
+            except ValueError:
+                heartbeat_age_seconds = None
+        lease_alive = bool(
+            lease.get("status") == "running"
+            and heartbeat_age_seconds is not None
+            and heartbeat_age_seconds <= float(lease.get("ttl_seconds") or 150.0)
+        )
         return {
             "status": "ok",
             "mode": "triade-living-workers",
@@ -160,7 +178,26 @@ class WorkerStateStore:
             "run_counts": run_counts,
             "last_run": (self.list_worker_runs(limit=1) or [None])[0],
             "state": self.get_state("workers") or {},
+            "execution": {
+                **lease,
+                "alive": lease_alive,
+                "heartbeat_age_seconds": heartbeat_age_seconds,
+                "source": "shared_sqlite_lease",
+            },
         }
+
+    def heartbeat_execution(self, run_ref: str, *, ttl_seconds: float = 150.0, status: str = "running") -> None:
+        """Publica una única verdad de ejecución visible entre procesos."""
+        self.set_state(
+            "worker_execution",
+            {
+                "status": status,
+                "run_ref": run_ref,
+                "owner_pid": os.getpid(),
+                "heartbeat_at": utc_now(),
+                "ttl_seconds": float(ttl_seconds),
+            },
+        )
 
     def doctor(self) -> dict[str, Any]:
         status = self.status()

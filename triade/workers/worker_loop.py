@@ -141,9 +141,11 @@ class WorkerLoop:
         }
         self.store.create_worker_run(run_ref, config, artifact_dir)
         self.store.set_state("workers", {"status": "running", "run_ref": run_ref, "started_at": utc_now(), "config": config.to_dict()})
+        self.store.heartbeat_execution(run_ref, ttl_seconds=max(30.0, float(config.sleep_seconds) * 2.5))
 
         try:
             for iteration in range(max(1, int(config.max_iterations))):
+                self.store.heartbeat_execution(run_ref, ttl_seconds=max(30.0, float(config.sleep_seconds) * 2.5))
                 if self.stop_file.exists():
                     summary["stop_requested"] = True
                     break
@@ -169,6 +171,7 @@ class WorkerLoop:
                     time.sleep(max(0.0, float(config.sleep_seconds)))
             status = "completed" if not summary.get("errors") else "completed_with_errors"
             self.store.finish_worker_run(run_ref, status, summary)
+            self.store.heartbeat_execution(run_ref, status=status)
             self.store.set_state("workers", {"status": status, "last_run_ref": run_ref, "finished_at": utc_now(), "summary": summary})
             (artifact_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
             return {"status": status, "run_ref": run_ref, "artifact_dir": str(artifact_dir), **summary}
@@ -182,6 +185,7 @@ class WorkerLoop:
             )
             summary["errors"].append(str(exc))
             self.store.finish_worker_run(run_ref, "failed", summary, error=str(exc))
+            self.store.heartbeat_execution(run_ref, status="failed")
             self.store.set_state("workers", {"status": "failed", "last_run_ref": run_ref, "error": str(exc), "finished_at": utc_now()})
             return {"status": "failed", "run_ref": run_ref, "artifact_dir": str(artifact_dir), "error": str(exc), **summary}
         finally:

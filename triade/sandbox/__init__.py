@@ -11,3 +11,6 @@ from .executor import run_in_sandbox
 from .policy import ALLOWED_TASKS, BLOCKED_TASKS, SANDBOX_POLICY, is_task_allowed
 
 __all__ = ["run_in_sandbox", "ALLOWED_TASKS", "BLOCKED_TASKS", "SANDBOX_POLICY", "is_task_allowed"]
+from .code_worktree import CodeWorktreeSandbox
+
+__all__ = ["CodeWorktreeSandbox"]

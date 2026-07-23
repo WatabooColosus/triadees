@@ -59,6 +59,7 @@ from triade.workers.background_service import WorkerBackgroundService
 from triade.workers.neuron_mission_backfill import backfill_neuron_missions, neuron_missions_doctor
 from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
 from triade.services.event_bus import list_recent_events
+from triade.core.assurance import build_assurance_status
 
 from apps import services
 from apps.gates.safety import safety_gate
@@ -101,6 +102,12 @@ from apps.services import (
 )
 
 router = APIRouter()
+
+
+@router.get("/api/assurance/status")
+def assurance_status() -> dict[str, Any]:
+    """Evidencia consolidada de aislamiento, aprendizaje y autonomía reversible."""
+    return build_assurance_status()
 
 
 def _legacy_ollama_status(payload: dict[str, Any]) -> dict[str, Any]:
@@ -2400,6 +2407,12 @@ def run_triade(
     require_key(x_triade_api_key)
     try:
         ctx = run_context_with_living_awareness(request.context)
+        # El almacenamiento nunca recibe un contexto sin principal. Los clientes
+        # web modernos envían los tres valores; este fallback conserva contratos
+        # antiguos dentro de un principal explícito y auditable.
+        ctx["tenant_id"] = request.tenant_id or ctx.get("tenant_id") or "local"
+        ctx["user_id"] = request.user_id or ctx.get("user_id") or f"anonymous:{request.source}"
+        ctx["session_id"] = request.session_id or ctx.get("session_id") or f"default:{ctx['user_id']}"
         if request.conversation_history:
             ctx["conversation_history"] = request.conversation_history[-20:]
         runner = TriadeRunner(

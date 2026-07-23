@@ -36,6 +36,7 @@ ENV_KEYS = {
     "workers_autostart": "TRIADE_WORKERS_AUTOSTART",
     "workers_watchdog": "TRIADE_WORKERS_WATCHDOG",
     "worker_mode": "TRIADE_WORKER_MODE",
+    "worker_learning_tasks_enabled": "TRIADE_WORKER_LEARNING_TASKS",
     "continuous_runner_enabled": "TRIADE_CONTINUOUS_RUNNER",
     "continuous_runner_autonomy_level": "TRIADE_AUTONOMY_LEVEL",
     "continuous_runner_interval_seconds": "TRIADE_CONTINUOUS_INTERVAL_SECONDS",
@@ -56,6 +57,8 @@ YML_DEFAULTS = {
     "workers_autostart": True,
     "workers_watchdog": True,
     "worker_mode": "full_local_guarded",
+    "worker_learning_tasks_enabled": True,
+    "worker_enabled_tasks": [],
     "continuous_runner_enabled": False,
     "continuous_runner_autonomy_level": "observe_only",
     "continuous_runner_interval_seconds": 60,
@@ -119,6 +122,7 @@ def load_always_on_config(yml_path: str | Path = "triade.yml") -> dict[str, Any]
                 "workers_always_on",
                 "workers_autostart",
                 "workers_watchdog",
+                "worker_learning_tasks_enabled",
                 "continuous_runner_enabled",
             ):
                 cfg[key] = _str_to_bool(raw)

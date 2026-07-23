@@ -62,16 +62,16 @@ class Central:
         self.model_client = model_client
         self.central_model = central_model
 
-    def _chain_of_thought(
+    def _decision_trace_steps(
         self,
         input_packet: InputPacket,
         signals: SignalPacket,
         memory: MemoryPacket,
         crystal: CrystalPacket,
     ) -> list[str]:
-        """Genera razonamiento en cadena antes de crear el plan."""
+        """Genera una traza de decisiones observable, sin razonamiento privado."""
         if self.model_client is None:
-            return self._chain_of_thought_rules(input_packet, signals, memory, crystal)
+            return self._decision_trace_rules(input_packet, signals, memory, crystal)
         try:
             context = json.dumps({
                 "user_input": input_packet.user_input[:500],
@@ -83,13 +83,13 @@ class Central:
                 "temporal_status": crystal.temporal_status,
             }, ensure_ascii=False)
             system = (
-                "Eres Central de Tríade. Genera una cadena de razonamiento en 3-5 pasos concisos "
-                "para procesar esta entrada. Cada paso debe ser una acción concreta y verificable. "
-                "Formato: lista de strings, uno por paso. No incluyas explicaciones."
+                "Eres Central de Tríade. Genera una traza de decisión en 3-5 acciones concisas. "
+                "Incluye solo acciones, controles y evidencia verificables; no reveles razonamiento privado. "
+                "Formato: lista de strings."
             )
             result = self.model_client.generate(
                 self.central_model,
-                prompt=f"Entrada y contexto:\n{context}\n\nGenera cadena de razonamiento:",
+                prompt=f"Entrada y contexto:\n{context}\n\nGenera traza verificable:",
                 system=system,
             )
             if result.ok and result.text:
@@ -98,16 +98,16 @@ class Central:
                     return steps[:7]
         except Exception:
             pass
-        return self._chain_of_thought_rules(input_packet, signals, memory, crystal)
+        return self._decision_trace_rules(input_packet, signals, memory, crystal)
 
-    def _chain_of_thought_rules(
+    def _decision_trace_rules(
         self,
         input_packet: InputPacket,
         signals: SignalPacket,
         memory: MemoryPacket,
         crystal: CrystalPacket,
     ) -> list[str]:
-        """Fallback rule-based chain of thought."""
+        """Fallback determinista de acciones y controles auditables."""
         steps = []
         text = input_packet.user_input.lower()
         if signals.risk in {"high", "critical"}:
@@ -145,8 +145,8 @@ class Central:
         memory: MemoryPacket,
         crystal: CrystalPacket,
     ) -> PlanPacket:
-        cot_steps = self._chain_of_thought(input_packet, signals, memory, crystal)
-        steps = cot_steps + [
+        decision_steps = self._decision_trace_steps(input_packet, signals, memory, crystal)
+        steps = decision_steps + [
             "Leer entrada del usuario.",
             "Usar señales del Hipotálamo.",
             "Consultar memoria disponible y respetar su gobierno de confianza.",

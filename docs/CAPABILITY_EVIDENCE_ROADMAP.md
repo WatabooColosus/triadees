@@ -5,14 +5,22 @@ se considera completa por una autoevaluación del propio modelo.
 
 | Capacidad | Estado actual | Evidencia presente | Criterio para considerarla cumplida |
 |---|---|---|---|
-| Memoria contextual multiusuario | Parcial | memoria semántica persistente, sesiones y gobierno de recuerdos | aislamiento por tenant probado, recuperación tras reinicio, pruebas de contaminación cruzada y retención configurable |
-| Aprendizaje acumulativo | Parcial | candidatos, consolidación y métricas por neurona | benchmark congelado ejecutado antes/después, mejora estadística reproducible y ausencia de regresión |
-| Planificación de largo plazo | Deuda abierta | misiones persistentes y workers | objetivos, dependencias, replanificación tras reinicio, presupuestos y criterios de cierre durables |
-| Múltiples modelos y herramientas | Experimental | router, Ollama, Safe Shell y comparación A/B | selección por tarea contra benchmark externo, fallos controlados y trazas de herramienta completas |
+| Memoria contextual multiusuario | Implementada en almacenamiento; autenticación externa pendiente | `tenant_id/user_id/session_id` obligatorios en runs, episodios e Hipotálamo; navegador con identidad persistente | integrar proveedor de identidad para producción y política de retención |
+| Aprendizaje acumulativo | Medible, aún sin resultado externo suficiente | gate de novedad, métricas neuronales por activación y manifiesto de benchmark congelado | acumular ejecuciones de evaluador independiente y demostrar delta positivo sin regresión |
+| Planificación de largo plazo | Implementada como núcleo | grafo SQLite con dependencias, leases, criterios, evidencia y replanificación tras reinicio | conectar el grafo a más decisiones autónomas del runtime |
+| Múltiples modelos y herramientas | Experimental gobernada | A/B externo puede cambiar rutas Central/Hipotálamo solo con benchmark congelado | producir evaluaciones externas reales por cada tarea y ampliar cobertura de herramientas |
 | Federación entre nodos | Experimental, no “real” todavía | transporte federado firmado previo y `PeerSync` con persistencia/defensa SSRF | autenticación mutua, merge idempotente real, resolución de conflictos y prueba entre dos hosts independientes |
 | Mejora autónoma de código | Parcial y restringida | zonas, integridad, papelera, Safe Shell y tests | workspace aislado, parche autónomo, regresión obligatoria, rollback probado y promoción con aprobación definida |
 | Entrenamiento propio | Deuda abierta | adquisición de modelos y registros de aprendizaje | datasets versionados con licencia/procedencia/PII, split congelado, adaptadores reproducibles y model card |
-| Métricas externas | Deuda abierta | telemetría interna y heurísticas A/B | resultados importados de un evaluador independiente con artefacto, versión, hash y entorno reproducible |
+| Métricas externas | Contrato implementado; evidencia real pendiente | registro inmutable con evaluador independiente, hashes de manifiesto/artefacto y comparación acumulativa | ejecutar el benchmark desde un evaluador externo real; los tests simulados no cuentan como prueba externa de producción |
+
+La prueba de regresión `tests/test_level5_assurance.py` cubre aislamiento tras
+reinicio, grafo durable y replanificación, A/B con evidencia congelada, métricas
+neuronales observadas, dos almacenes de nodo independientes con sobre firmado e
+idempotente, worktree real con regresión/rollback, lease de workers entre
+procesos y deduplicación persistente. El endpoint `GET /api/assurance/status`
+publica únicamente contadores y controles comprobables; un contador cero no se
+presenta como capacidad demostrada.
 
 ## Hallazgos de la integración 2026-07-23
 

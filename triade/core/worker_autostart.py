@@ -110,7 +110,11 @@ def ensure_workers_alive(
     def _run() -> None:
         try:
             service = WorkerBackgroundService(db_path=db_path, runs_dir=runs_dir)
-            service.start(max_iterations=1_000_000, sleep_seconds=60.0, dry_run=False, task_timeout=30.0)
+            enabled_tasks = list(config.get("worker_enabled_tasks") or [])
+            if not bool(config.get("worker_learning_tasks_enabled", True)):
+                enabled_tasks = ["pulse_check"]
+            service.start(max_iterations=1_000_000, sleep_seconds=60.0, dry_run=False, task_timeout=30.0,
+                          enabled_task_types=enabled_tasks)
             with _WORKER_LOCK:
                 if _WORKER_STATE.get("status") != "stop_requested":
                     _WORKER_STATE.update({"active": False, "status": "completed"})
@@ -160,7 +164,8 @@ def build_workers_always_on_status(
     with _WORKER_LOCK:
         state = dict(_WORKER_STATE)
         thread_alive = bool(_WORKER_THREAD and _WORKER_THREAD.is_alive())
-    raw_active = bool(thread_alive or service_status.get("running"))
+    shared_execution_alive = bool(service_status.get("running"))
+    raw_active = bool(thread_alive or shared_execution_alive)
     stop_requested = bool(service_status.get("stop_requested")) or state.get("status") == "stop_requested"
     active = raw_active and not stop_requested
     state["active"] = active
@@ -169,7 +174,10 @@ def build_workers_always_on_status(
     elif state.get("configured") and not active and state.get("status") not in ("starting", "failed", "stop_requested"):
         state["status"] = "inactive"
     state["thread_alive"] = thread_alive
-    state["lock_file_active"] = bool(service_status.get("running"))
+    state["thread_alive_local_process"] = thread_alive
+    state["execution_alive"] = shared_execution_alive
+    state["telemetry_source"] = "shared_sqlite_lease"
+    state["lock_file_active"] = bool(service_status.get("lock_file_active"))
     state["service_status"] = service_status.get("status")
     state["stop_requested"] = bool(service_status.get("stop_requested"))
     return state

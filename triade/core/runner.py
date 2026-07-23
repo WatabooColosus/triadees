@@ -200,6 +200,21 @@ class TriadeRunner:
         router = ModelRouter(available_models=health.get("models", []), hardware=hardware)
         hyp = router.route("hypothalamus")
         cen = router.route("central")
+        try:
+            from triade.models.ab_model_evaluator import ABModelEvaluator
+            evaluator = ABModelEvaluator(self.db_path)
+            hyp_rec = evaluator.get_recommendation("hypothalamus")
+            cen_rec = evaluator.get_recommendation("central")
+            if hyp_rec.get("evidence_method") == "external_frozen_benchmark" and hyp_rec.get("recommended_model") in health.get("models", []):
+                hyp = router.route("hypothalamus")
+                hyp.selected_model = str(hyp_rec["recommended_model"])
+                hyp.reason = "Seleccionado por benchmark externo congelado."
+            if cen_rec.get("evidence_method") == "external_frozen_benchmark" and cen_rec.get("recommended_model") in health.get("models", []):
+                cen = router.route("central")
+                cen.selected_model = str(cen_rec["recommended_model"])
+                cen.reason = "Seleccionado por benchmark externo congelado."
+        except Exception:
+            pass
         self.model_selection = {"enabled": True, "reason": "auto_selected_by_hardware_router", "hardware": hardware.to_dict(), "ollama": health, "hypothalamus": hyp.to_dict(), "central": cen.to_dict()}
         return {"hypothalamus": hyp.selected_model, "central": cen.selected_model}
 

@@ -24,7 +24,10 @@ CREATE TABLE IF NOT EXISTS runs (
     model_hypothalamus TEXT,
     model_central TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    closed_at TEXT
+    closed_at TEXT,
+    tenant_id TEXT NOT NULL DEFAULT 'legacy',
+    user_id TEXT NOT NULL DEFAULT 'legacy',
+    session_id TEXT NOT NULL DEFAULT 'legacy'
 );
 
 CREATE TABLE IF NOT EXISTS episodic_memory (
@@ -36,6 +39,9 @@ CREATE TABLE IF NOT EXISTS episodic_memory (
     tags TEXT,
     importance REAL DEFAULT 0.5,
     confidence REAL DEFAULT 0.8,
+    tenant_id TEXT NOT NULL DEFAULT 'legacy',
+    user_id TEXT NOT NULL DEFAULT 'legacy',
+    session_id TEXT NOT NULL DEFAULT 'legacy',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
@@ -461,6 +467,9 @@ CREATE TABLE IF NOT EXISTS hypothalamus_state (
     run_count INTEGER DEFAULT 0,
     last_active_at TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    tenant_id TEXT NOT NULL DEFAULT 'legacy',
+    user_id TEXT NOT NULL DEFAULT 'legacy',
+    session_id TEXT NOT NULL DEFAULT 'legacy',
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 
@@ -475,7 +484,10 @@ CREATE TABLE IF NOT EXISTS hypothalamus_patterns (
     confidence REAL DEFAULT 0.8,
     hit_count INTEGER DEFAULT 1,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    last_used_at TEXT DEFAULT CURRENT_TIMESTAMP
+    last_used_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    tenant_id TEXT NOT NULL DEFAULT 'legacy',
+    user_id TEXT NOT NULL DEFAULT 'legacy',
+    session_id TEXT NOT NULL DEFAULT 'legacy'
 );
 
 CREATE INDEX IF NOT EXISTS idx_hypothalamus_patterns_hash ON hypothalamus_patterns(text_hash);

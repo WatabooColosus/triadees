@@ -73,6 +73,9 @@ class RunRequest(BaseModel):
     central_model: str | None = None
     auto_select_models: bool = True
     context: dict[str, Any] = Field(default_factory=dict)
+    tenant_id: str | None = Field(default=None, min_length=1, max_length=128)
+    user_id: str | None = Field(default=None, min_length=1, max_length=128)
+    session_id: str | None = Field(default=None, min_length=1, max_length=128)
     conversation_history: list[dict[str, str]] = Field(default_factory=list)
     # El chat usa por defecto el ciclo semántico general: recuperar por
     # similitud, aplicar gobernanza y permitir influencia solo a recuerdos

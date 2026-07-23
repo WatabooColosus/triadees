@@ -69,6 +69,8 @@ def _parse_simple_yaml(text: str) -> dict[str, Any]:
 
 
 def _coerce_value(value: str) -> Any:
+    if value.startswith("[") and value.endswith("]"):
+        return [item.strip().strip("\"'") for item in value[1:-1].split(",") if item.strip()]
     lower = value.lower()
     if lower == "true":
         return True

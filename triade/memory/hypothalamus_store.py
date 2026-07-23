@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import SignalPacket
+from triade.core.principal_scope import PrincipalScope
 
 
 @dataclass
@@ -128,24 +129,35 @@ class HypothalamusStateStore:
             raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
+            for table in ("hypothalamus_state", "hypothalamus_patterns"):
+                columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+                for column in ("tenant_id", "user_id", "session_id"):
+                    if column not in columns:
+                        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT NOT NULL DEFAULT 'legacy'")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hyp_state_scope ON hypothalamus_state(tenant_id,user_id,session_id,id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hyp_pattern_scope ON hypothalamus_patterns(tenant_id,user_id,session_id,text_hash)")
 
-    def save(self, run_id: str, signals: SignalPacket, previous: EmotionalState | None = None) -> int:
+    def save(self, run_id: str, signals: SignalPacket, previous: EmotionalState | None = None,
+             scope: PrincipalScope | None = None) -> int:
+        scope = scope or PrincipalScope("legacy", "legacy", "legacy")
         if previous is None:
-            previous = self.load_latest()
+            previous = self.load_latest(scope=scope)
         mood = mood_from_signals(signals, previous)
         now = new_utc()
         with self._connect() as conn:
             cursor = conn.execute(
                 """INSERT INTO hypothalamus_state
                 (run_id, mood_valence, mood_arousal, mood_dominance, primary_emotion,
-                 fatigue, pv7_baseline, run_count, last_active_at, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                 fatigue, pv7_baseline, run_count, last_active_at, created_at,
+                 tenant_id, user_id, session_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     run_id,
                     mood.valence, mood.arousal, mood.dominance,
                     mood.primary_emotion, mood.fatigue,
                     json.dumps(mood.pv7_baseline, ensure_ascii=False),
                     mood.run_count, mood.last_active_at, now,
+                    scope.tenant_id, scope.user_id, scope.session_id,
                 ),
             )
             return int(cursor.lastrowid)
@@ -167,11 +179,16 @@ class HypothalamusStateStore:
             )
             return int(cursor.lastrowid)
 
-    def load_latest(self) -> EmotionalState | None:
+    def load_latest(self, scope: PrincipalScope | None = None) -> EmotionalState | None:
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM hypothalamus_state ORDER BY id DESC LIMIT 1"
-            ).fetchone()
+            if scope is None:
+                row = conn.execute("SELECT * FROM hypothalamus_state ORDER BY id DESC LIMIT 1").fetchone()
+            else:
+                row = conn.execute(
+                    """SELECT * FROM hypothalamus_state
+                    WHERE tenant_id=? AND user_id=? AND session_id=? ORDER BY id DESC LIMIT 1""",
+                    (scope.tenant_id, scope.user_id, scope.session_id),
+                ).fetchone()
         if row is None:
             return None
         return self._row_to_state(row)
@@ -292,14 +309,17 @@ class HypothalamusStateStore:
             },
         }
 
-    def learn_pattern(self, text: str, intent: str, tone: str, risk: str, urgency: str, confidence: float = 0.8) -> int:
+    def learn_pattern(self, text: str, intent: str, tone: str, risk: str, urgency: str,
+                      confidence: float = 0.8, scope: PrincipalScope | None = None) -> int:
         """Aprende un patrón de análisis para uso futuro."""
+        scope = scope or PrincipalScope("legacy", "legacy", "legacy")
         now = new_utc()
         text_hash = self._hash_text(text)
         with self._connect() as conn:
             existing = conn.execute(
-                "SELECT id, confidence, hit_count FROM hypothalamus_patterns WHERE text_hash = ?",
-                (text_hash,),
+                """SELECT id, confidence, hit_count FROM hypothalamus_patterns
+                WHERE tenant_id=? AND user_id=? AND session_id=? AND text_hash=?""",
+                (scope.tenant_id, scope.user_id, scope.session_id, text_hash),
             ).fetchone()
             if existing:
                 new_conf = min(1.0, float(existing["confidence"]) + 0.05)
@@ -311,19 +331,23 @@ class HypothalamusStateStore:
                 return int(existing["id"])
             cursor = conn.execute(
                 """INSERT INTO hypothalamus_patterns
-                (text_hash, text_preview, intent, tone, risk, urgency, confidence, hit_count, created_at, last_used_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (text_hash, text[:200], intent, tone, risk, urgency, confidence, 1, now, now),
+                (text_hash, text_preview, intent, tone, risk, urgency, confidence, hit_count,
+                 created_at, last_used_at, tenant_id, user_id, session_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (text_hash, "", intent, tone, risk, urgency, confidence, 1, now, now,
+                 scope.tenant_id, scope.user_id, scope.session_id),
             )
             return int(cursor.lastrowid)
 
-    def recall_pattern(self, text: str) -> dict[str, Any] | None:
+    def recall_pattern(self, text: str, scope: PrincipalScope | None = None) -> dict[str, Any] | None:
         """Recupera un patrón aprendido para el texto dado."""
+        scope = scope or PrincipalScope("legacy", "legacy", "legacy")
         text_hash = self._hash_text(text)
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT * FROM hypothalamus_patterns WHERE text_hash = ? AND confidence >= 0.5",
-                (text_hash,),
+                """SELECT * FROM hypothalamus_patterns
+                WHERE tenant_id=? AND user_id=? AND session_id=? AND text_hash=? AND confidence >= 0.5""",
+                (scope.tenant_id, scope.user_id, scope.session_id, text_hash),
             ).fetchone()
         if row is None:
             return None
