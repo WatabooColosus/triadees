@@ -1,0 +1,98 @@
+services:
+  triade-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.cloud
+    image: triade-omega/cloud:local
+    restart: unless-stopped
+    env_file:
+      - .env.cloud
+    environment:
+      TRIADE_CLOUD_MODE: "1"
+      REDIS_URL: redis://valkey:6379/0
+      DATABASE_URL: postgresql://triade:${POSTGRES_PASSWORD}@postgres:5432/triade
+    depends_on:
+      valkey:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - triade_memory:/app/memory
+      - triade_runs:/app/runs
+      - triade_data:/app/data
+      - triade_logs:/app/logs
+    expose:
+      - "8010"
+    networks:
+      - triade_private
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on:
+      triade-api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      TRIADE_DOMAIN: ${TRIADE_DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - triade_private
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - triade_private
+    security_opt:
+      - no-new-privileges:true
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: triade
+      POSTGRES_USER: triade
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U triade -d triade"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - triade_private
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  triade_private:
+    driver: bridge
+
+volumes:
+  triade_memory:
+  triade_runs:
+  triade_data:
+  triade_logs:
+  postgres_data:
+  valkey_data:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,61 @@
+services:
+  triade-free:
+    build:
+      context: .
+      dockerfile: Dockerfile.cloud
+    image: triade-omega/free-tier:local
+    restart: unless-stopped
+    env_file:
+      - .env.free
+    environment:
+      TRIADE_CLOUD_MODE: "1"
+      TRIADE_MEMORY_DIR: /app/memory
+      TRIADE_RUNS_DIR: /app/runs
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - triade_memory:/app/memory
+      - triade_runs:/app/runs
+      - triade_data:/app/data
+      - triade_logs:/app/logs
+    expose:
+      - "8010"
+    networks:
+      - triade_free_private
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1400m
+    cpus: 1.5
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on:
+      triade-free:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      TRIADE_DOMAIN: ${TRIADE_DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile.free:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - triade_free_private
+    mem_limit: 160m
+    cpus: 0.25
+
+networks:
+  triade_free_private:
+    driver: bridge
+
+volumes:
+  triade_memory:
+  triade_runs:
+  triade_data:
+  triade_logs:
+  caddy_data:
+  caddy_config:

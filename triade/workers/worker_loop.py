@@ -96,12 +96,16 @@ class WorkerLoop:
         self.runs_dir.mkdir(parents=True, exist_ok=True)
         self.lock_file.parent.mkdir(parents=True, exist_ok=True)
         self.stop_file.parent.mkdir(parents=True, exist_ok=True)
-        if self.lock_file.exists():
-            return {"status": "locked", "lock_file": str(self.lock_file), "message": "Worker ya está en ejecución."}
         if self.stop_file.exists():
             return {"status": "stopped", "stop_file": str(self.stop_file), "message": "Stop file presente antes de iniciar."}
 
-        self.lock_file.write_text(str(os.getpid()), encoding="utf-8")
+        # Atomic lock: O_CREAT|O_EXCL evita carrera TOCTOU entre múltiples instancias.
+        try:
+            fd = os.open(str(self.lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            os.write(fd, str(os.getpid()).encode("utf-8"))
+            os.close(fd)
+        except FileExistsError:
+            return {"status": "locked", "lock_file": str(self.lock_file), "message": "Worker ya está en ejecución."}
         run_ref = new_worker_run_id()
         artifact_dir = self._artifact_dir(run_ref)
         artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -702,6 +706,52 @@ class WorkerLoop:
             "identity_core_modified": False,
             "qualia": qualia,
         }
+
+    def _shell_execute(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        """Ejecuta un comando shell autónomo con gating de autonomía y audit.
+
+        Payload esperado: {command_key, autonomy_level?, timeout?, working_dir?}
+        El resultado se registra como evidencia para neuronas.
+        """
+        from triade.core.safe_shell import run_autonomous
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+        command_key = str(payload.get("command_key", ""))
+        if not command_key:
+            return {"status": "error", "error": "command_key requerido en payload."}
+
+        autonomy_level = str(payload.get("autonomy_level", "observe_only"))
+        timeout = int(payload.get("timeout", 60))
+        working_dir = payload.get("working_dir")
+
+        result = run_autonomous(
+            command_key=command_key,
+            timeout=timeout,
+            autonomy_level=autonomy_level,
+            source="worker",
+            working_dir=working_dir,
+        )
+
+        # Registrar como evidencia si fue exitoso.
+        if result.get("status") == "ok":
+            try:
+                from triade.services.event_bus import publish_event
+                publish_event(
+                    "shell_command_executed",
+                    "worker_shell",
+                    {
+                        "command_key": command_key,
+                        "returncode": result.get("returncode"),
+                        "duration_ms": result.get("duration_ms"),
+                        "stdout_preview": (result.get("stdout") or "")[:200],
+                    },
+                    db_path=self.db_path,
+                    run_ref=run_ref,
+                )
+            except Exception:
+                pass
+
+        return result
 
     def _artifact_dir(self, run_ref: str) -> Path:
         stamp = time.strftime("%Y%m%d-%H%M%S")

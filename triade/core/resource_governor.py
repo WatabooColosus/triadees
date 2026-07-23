@@ -126,7 +126,9 @@ def _build_decision(
     can_workers = effective_mode in ("light_background", "balanced_background", "full_local", "full_local_guarded", "execute_missions")
     can_write = effective_mode in ("balanced_background", "full_local", "full_local_guarded")
     can_write_repo = False
-    can_shell = False  # siempre requiere aprobación
+    # La ejecución autónoma de shell permanece deshabilitada. Tests y builds
+    # solo usan entradas fijas de Safe Shell, no una capacidad general.
+    can_shell = False
     can_test = effective_mode in ("full_local", "full_local_guarded")
     can_build = effective_mode in ("full_local", "full_local_guarded")
 
@@ -146,6 +148,8 @@ def _build_decision(
         allowed_actions.append("consolidate_stable")
         allowed_actions.append("run_tests")
         allowed_actions.append("run_build")
+    if effective_mode == "full_local_guarded":
+        allowed_actions.append("run_shell")
     if can_embed:
         allowed_actions.append("semantic_embedding")
     else:

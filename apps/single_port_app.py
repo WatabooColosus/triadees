@@ -4,7 +4,7 @@ Puerto único 8010 para UI, health, router, compatibilidad,
 memoria semántica y runs locales.
 
 La lógica de negocio vive en apps/services.py.
-Las rutas viven en apps/routes/{api,ui}.py.
+Las rutas viven en apps/routes/{api,health,ui}.py.
 El HTML vive en apps/ui_html.py.
 """
 
@@ -22,6 +22,7 @@ from triade.core.life_pulse import LIFE_PULSE
 from triade.federation.node_live_registry import NODE_LIVE_REGISTRY
 
 from apps.routes.api import router as api_router
+from apps.routes.health import router as health_router
 from apps.routes.ui import router as ui_router
 
 _ALWAYS_ON_RESULT: dict[str, Any] = {}
@@ -32,6 +33,17 @@ _ALWAYS_ON_LOCK = threading.Lock()
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     LIFE_PULSE.start()
     NODE_LIVE_REGISTRY.start()
+
+    # Clean up expired coordination locks from prior runs.
+    try:
+        from triade.core.orchestrator_coord import OrchestratorCoordinator
+        coord = OrchestratorCoordinator()
+        cleaned = coord.cleanup()
+        if cleaned:
+            import logging
+            logging.getLogger("single_port_app").info("Cleaned %d expired orchestrator locks", cleaned)
+    except Exception:
+        pass
 
     global _ALWAYS_ON_RESULT
     try:
@@ -91,7 +103,7 @@ async def public_guarded_mode(request: Request, call_next):
         )
     return await call_next(request)
 
-
+app.include_router(health_router)
 app.include_router(api_router)
 app.include_router(ui_router)
 

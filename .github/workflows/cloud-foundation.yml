@@ -1,0 +1,67 @@
+name: Cloud Foundation
+
+on:
+  pull_request:
+    paths:
+      - "Dockerfile.cloud"
+      - "compose.cloud.yml"
+      - ".env.cloud.example"
+      - "deploy/**"
+      - "apps/routes/health.py"
+      - "apps/single_port_app.py"
+      - ".github/workflows/cloud-foundation.yml"
+      - "requirements.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare environment
+        run: cp .env.cloud.example .env.cloud
+
+      - name: Validate Compose
+        run: docker compose -f compose.cloud.yml config
+
+      - name: Build cloud runtime
+        run: docker build -f Dockerfile.cloud -t triade-omega/cloud:ci .
+
+      - name: Start and wait for dependencies
+        run: docker compose -f compose.cloud.yml up -d --wait --wait-timeout 120 postgres valkey
+
+      - name: Show dependency state
+        run: docker compose -f compose.cloud.yml ps
+
+      - name: Start API
+        run: docker compose -f compose.cloud.yml up -d --wait --wait-timeout 180 triade-api
+
+      - name: Verify health endpoints
+        run: |
+          docker compose -f compose.cloud.yml exec -T triade-api python - <<'PY'
+          import json
+          import urllib.request
+
+          for path in ("/health/live", "/health/ready", "/health/deep"):
+              with urllib.request.urlopen(f"http://127.0.0.1:8010{path}", timeout=15) as response:
+                  payload = json.load(response)
+                  assert response.status == 200, (path, response.status, payload)
+                  assert payload.get("status") in {"alive", "ready", "healthy", "degraded"}, (path, payload)
+                  print(path, payload.get("status"))
+          PY
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          docker compose -f compose.cloud.yml ps || true
+          docker compose -f compose.cloud.yml logs --no-color --tail=200 postgres valkey triade-api || true
+
+      - name: Shutdown
+        if: always()
+        run: docker compose -f compose.cloud.yml down -v

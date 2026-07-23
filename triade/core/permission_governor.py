@@ -51,13 +51,14 @@ def build_permission_profile(
         p["permissions"]["can_write_repo"] = False
         p["explanations"]["can_write_repo"] = "Repo write requiere aprobación humana."
 
-    # shell solo whitelist
+    # Shell nunca es una capacidad autónoma. Una ejecución manual puede usar
+    # la whitelist únicamente con aprobación humana explícita.
     if mode in ("balanced_background", "full_local", "full_local_guarded") and human_approved:
         p["permissions"]["can_run_shell"] = True
         p["explanations"]["can_run_shell"] = "Shell permitido solo whitelist con aprobación."
     else:
         p["permissions"]["can_run_shell"] = False
-        p["explanations"]["can_run_shell"] = "Shell solo whitelist con aprobación humana."
+        p["explanations"]["can_run_shell"] = "Shell requiere aprobación humana explícita."
 
     return p
 

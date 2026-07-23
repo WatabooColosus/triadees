@@ -1479,6 +1479,44 @@ def system_safe_shell_run(body: dict[str, Any] | None = None) -> dict[str, Any]:
     return run_safe_command(command_key)
 
 
+# ── Shell Autónomo (extensión de safe_shell) ────────────────────────────
+
+
+@router.get("/api/shell/commands")
+def shell_autonomous_commands() -> dict[str, Any]:
+    """Lista de comandos disponibles en modo autónomo."""
+    LIFE_PULSE.record_action("shell_autonomous_commands")
+    from triade.core.safe_shell import list_autonomous_commands
+    return {"status": "ok", "commands": list_autonomous_commands()}
+
+
+@router.post("/api/shell/run")
+def shell_autonomous_run(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Ejecuta un comando en modo autónomo con gating de autonomía y audit.
+
+    Body: {command_key, autonomy_level?, source?, timeout?, working_dir?}
+    """
+    LIFE_PULSE.record_action("shell_autonomous_run")
+    payload = body or {}
+    command_key = payload.get("command_key", "")
+    from triade.core.safe_shell import run_autonomous
+    return run_autonomous(
+        command_key=command_key,
+        timeout=payload.get("timeout", 60),
+        autonomy_level=payload.get("autonomy_level", "observe_only"),
+        source=payload.get("source", "api"),
+        working_dir=payload.get("working_dir"),
+    )
+
+
+@router.get("/api/shell/audit")
+def shell_audit_log(limit: int = 50, source: str | None = None) -> dict[str, Any]:
+    """Devuelve el audit log de ejecuciones shell."""
+    LIFE_PULSE.record_action("shell_audit_log")
+    from triade.core.safe_shell import get_audit_log
+    return {"status": "ok", "entries": get_audit_log(limit=limit, source=source)}
+
+
 # ── Autonomía Delegada (FASE 8) ─────────────────────────────────────
 
 
@@ -2541,3 +2579,185 @@ def triade_neuron_show_legacy(name: str, limit: int = 10) -> dict[str, Any]:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Neurona no encontrada.")
     training = registry.list_training(neuron_id=int(neuron["id"]), limit=limit)
     return {"status": "ok", "neuron": neuron, "training": training}
+
+
+# ── Scheduler Adaptivo ──────────────────────────────────────────────────
+
+
+@router.get("/api/scheduler/metrics")
+def scheduler_metrics() -> dict[str, Any]:
+    """Métricas del scheduler adaptivo por tipo de tarea."""
+    LIFE_PULSE.record_action("scheduler_metrics")
+    from triade.workers.adaptive_scheduler import AdaptiveScheduler
+    scheduler = AdaptiveScheduler()
+    return {"status": "ok", "metrics": scheduler.get_all_metrics()}
+
+
+@router.get("/api/scheduler/interval")
+def scheduler_interval(task_type: str) -> dict[str, Any]:
+    """Intervalo recomendado para un tipo de tarea."""
+    LIFE_PULSE.record_action("scheduler_interval")
+    from triade.workers.adaptive_scheduler import AdaptiveScheduler
+    scheduler = AdaptiveScheduler()
+    return {
+        "status": "ok",
+        "task_type": task_type,
+        "interval_seconds": scheduler.get_recommended_interval(task_type),
+        "priority": scheduler.get_task_priority(task_type),
+    }
+
+
+# ── A/B Model Evaluation ───────────────────────────────────────────────
+
+
+@router.get("/api/models/ab/recommendations")
+def ab_recommendations() -> dict[str, Any]:
+    """Recomendaciones de modelos por tipo de tarea."""
+    LIFE_PULSE.record_action("ab_recommendations")
+    from triade.models.ab_model_evaluator import ABModelEvaluator
+    evaluator = ABModelEvaluator()
+    return {"status": "ok", "recommendations": evaluator.get_all_recommendations()}
+
+
+@router.post("/api/models/ab/evaluate")
+def ab_evaluate(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Evalúa dos modelos para un tipo de tarea."""
+    LIFE_PULSE.record_action("ab_evaluate")
+    payload = body or {}
+    from triade.models.ab_model_evaluator import ABModelEvaluator
+    evaluator = ABModelEvaluator()
+    return evaluator.evaluate_pair(
+        task_type=payload.get("task_type", "pulse_check"),
+        model_a=payload.get("model_a", "qwen2.5:3b-instruct"),
+        model_b=payload.get("model_b", "qwen3:4b"),
+        prompt=payload.get("prompt"),
+        timeout=payload.get("timeout", 60),
+    )
+
+
+@router.post("/api/models/ab/compare")
+def ab_compare(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Comparación amplia de dos modelos."""
+    LIFE_PULSE.record_action("ab_compare")
+    payload = body or {}
+    from triade.models.ab_model_evaluator import ABModelEvaluator
+    evaluator = ABModelEvaluator()
+    return evaluator.compare_models(
+        model_a=payload.get("model_a", "qwen2.5:3b-instruct"),
+        model_b=payload.get("model_b", "qwen3:4b"),
+        task_types=payload.get("task_types"),
+        timeout=payload.get("timeout", 60),
+    )
+
+
+@router.get("/api/models/ab/history")
+def ab_history(task_type: str | None = None, limit: int = 50) -> dict[str, Any]:
+    """Historial de evaluaciones A/B."""
+    LIFE_PULSE.record_action("ab_history")
+    from triade.models.ab_model_evaluator import ABModelEvaluator
+    evaluator = ABModelEvaluator()
+    return {"status": "ok", "evaluations": evaluator.get_evaluation_history(task_type=task_type, limit=limit)}
+
+
+# ── Neuron Evaluator (per-neuron) ──────────────────────────────────────
+
+
+@router.get("/api/neurons/eval/ranking")
+def neuron_ranking(limit: int = 20) -> dict[str, Any]:
+    """Ranking de neuronas por score compuesto."""
+    LIFE_PULSE.record_action("neuron_ranking")
+    from triade.core.neuron_evaluator import NeuronEvaluator
+    evaluator = NeuronEvaluator()
+    return {"status": "ok", "ranking": evaluator.get_ranking(limit=limit)}
+
+
+@router.get("/api/neurons/eval/{neuron_id}")
+def neuron_eval_detail(neuron_id: int) -> dict[str, Any]:
+    """Métricas detalladas de una neurona."""
+    LIFE_PULSE.record_action("neuron_eval_detail")
+    from triade.core.neuron_evaluator import NeuronEvaluator
+    evaluator = NeuronEvaluator()
+    metrics = evaluator.get_neuron_metrics(neuron_id)
+    if not metrics:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Neurona sin métricas.")
+    history = evaluator.get_neuron_history(neuron_id, limit=20)
+    return {"status": "ok", "metrics": metrics, "history": history}
+
+
+@router.get("/api/neurons/eval/domain/{domain}")
+def neuron_domain_stats(domain: str) -> dict[str, Any]:
+    """Estadísticas de neuronas por dominio."""
+    LIFE_PULSE.record_action("neuron_domain_stats")
+    from triade.core.neuron_evaluator import NeuronEvaluator
+    evaluator = NeuronEvaluator()
+    return {"status": "ok", "domain": domain, "stats": evaluator.get_domain_stats(domain)}
+
+
+@router.get("/api/neurons/eval/trending")
+def neuron_trending(direction: str = "up", limit: int = 10) -> dict[str, Any]:
+    """Neuronas con tendencia ascendente o descendente."""
+    LIFE_PULSE.record_action("neuron_trending")
+    from triade.core.neuron_evaluator import NeuronEvaluator
+    evaluator = NeuronEvaluator()
+    return {"status": "ok", "trending": evaluator.get_trending(direction=direction, limit=limit)}
+
+
+# ── Peer Sync (instance-to-instance) ──────────────────────────────────
+
+
+@router.get("/api/peers")
+def peer_list() -> dict[str, Any]:
+    """Lista de peers conectados."""
+    LIFE_PULSE.record_action("peer_list")
+    from triade.federation.peer_sync import PeerSync
+    sync = PeerSync()
+    return {"status": "ok", **sync.get_network_view()}
+
+
+@router.post("/api/peers/discover")
+def peer_discover(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Descubre peers en URLs conocidas."""
+    LIFE_PULSE.record_action("peer_discover")
+    payload = body or {}
+    urls = payload.get("urls", [])
+    from triade.federation.peer_sync import PeerSync
+    sync = PeerSync()
+    discovered = sync.discover_peers(urls)
+    return {"status": "ok", "discovered": discovered, "count": len(discovered)}
+
+
+@router.post("/api/peers/sync")
+def peer_sync(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Sincroniza con un peer específico o todos."""
+    LIFE_PULSE.record_action("peer_sync")
+    payload = body or {}
+    peer_id = payload.get("peer_id")
+    sync_types = payload.get("sync_types")
+    from triade.federation.peer_sync import PeerSync
+    sync = PeerSync()
+    if peer_id:
+        return sync.sync_with_peer(peer_id, sync_types)
+    return {"status": "ok", "results": sync.sync_all(sync_types)}
+
+
+@router.post("/api/peers/push")
+def peer_push(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Empuja estado a un peer."""
+    LIFE_PULSE.record_action("peer_push")
+    payload = body or {}
+    from triade.federation.peer_sync import PeerSync
+    sync = PeerSync()
+    return sync.push_state(
+        peer_id=payload.get("peer_id", ""),
+        state_type=payload.get("state_type", "neurons"),
+        data=payload.get("data", {}),
+    )
+
+
+@router.get("/api/peers/sync-log")
+def peer_sync_log(peer_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+    """Historial de sincronización entre peers."""
+    LIFE_PULSE.record_action("peer_sync_log")
+    from triade.federation.peer_sync import PeerSync
+    sync = PeerSync()
+    return {"status": "ok", "entries": sync.get_sync_log(peer_id=peer_id, limit=limit)}

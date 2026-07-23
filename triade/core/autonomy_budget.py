@@ -102,6 +102,7 @@ def _allowed_actions(level: str) -> list[str]:
         base.append("run_tests")
         base.append("run_build")
         base.append("run_safe_shell")
+        base.append("run_shell")
     return base
 
 
