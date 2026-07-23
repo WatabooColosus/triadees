@@ -71,7 +71,7 @@ class WorkerSandbox:
 
 
 class WorkerLoop:
-    READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset({"pulse_check", "pending_learning_review", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review"})
+    READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset({"pulse_check", "pending_learning_review", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review", "shell_execute"})
 
     def __init__(
         self,
@@ -245,6 +245,7 @@ class WorkerLoop:
                     "stable_consolidation_review": self._stable_consolidation_review,
                     "system_debt_scan": self._system_debt_scan,
                     "bodega_global_review": self._bodega_global_review,
+                    "shell_execute": self._shell_execute,
                 }
                 result = handlers[task.task_type](task, run_ref, task_dir, config)
                 if time.monotonic() - started > config.task_timeout:
@@ -706,6 +707,52 @@ class WorkerLoop:
             "identity_core_modified": False,
             "qualia": qualia,
         }
+
+    def _shell_execute(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        """Ejecuta un comando shell autónomo con gating de autonomía y audit.
+
+        Payload esperado: {command_key, autonomy_level?, timeout?, working_dir?}
+        El resultado se registra como evidencia para neuronas.
+        """
+        from triade.core.safe_shell import run_autonomous
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+        command_key = str(payload.get("command_key", ""))
+        if not command_key:
+            return {"status": "error", "error": "command_key requerido en payload."}
+
+        autonomy_level = str(payload.get("autonomy_level", "observe_only"))
+        timeout = int(payload.get("timeout", 60))
+        working_dir = payload.get("working_dir")
+
+        result = run_autonomous(
+            command_key=command_key,
+            timeout=timeout,
+            autonomy_level=autonomy_level,
+            source="worker",
+            working_dir=working_dir,
+        )
+
+        # Registrar como evidencia si fue exitoso.
+        if result.get("status") == "ok":
+            try:
+                from triade.services.event_bus import publish_event
+                publish_event(
+                    "shell_command_executed",
+                    "worker_shell",
+                    {
+                        "command_key": command_key,
+                        "returncode": result.get("returncode"),
+                        "duration_ms": result.get("duration_ms"),
+                        "stdout_preview": (result.get("stdout") or "")[:200],
+                    },
+                    db_path=self.db_path,
+                    run_ref=run_ref,
+                )
+            except Exception:
+                pass
+
+        return result
 
     def _artifact_dir(self, run_ref: str) -> Path:
         stamp = time.strftime("%Y%m%d-%H%M%S")

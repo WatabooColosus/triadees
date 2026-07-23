@@ -1435,6 +1435,44 @@ def system_safe_shell_run(body: dict[str, Any] | None = None) -> dict[str, Any]:
     return run_safe_command(command_key)
 
 
+# ── Shell Autónomo (extensión de safe_shell) ────────────────────────────
+
+
+@router.get("/api/shell/commands")
+def shell_autonomous_commands() -> dict[str, Any]:
+    """Lista de comandos disponibles en modo autónomo."""
+    LIFE_PULSE.record_action("shell_autonomous_commands")
+    from triade.core.safe_shell import list_autonomous_commands
+    return {"status": "ok", "commands": list_autonomous_commands()}
+
+
+@router.post("/api/shell/run")
+def shell_autonomous_run(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Ejecuta un comando en modo autónomo con gating de autonomía y audit.
+
+    Body: {command_key, autonomy_level?, source?, timeout?, working_dir?}
+    """
+    LIFE_PULSE.record_action("shell_autonomous_run")
+    payload = body or {}
+    command_key = payload.get("command_key", "")
+    from triade.core.safe_shell import run_autonomous
+    return run_autonomous(
+        command_key=command_key,
+        timeout=payload.get("timeout", 60),
+        autonomy_level=payload.get("autonomy_level", "observe_only"),
+        source=payload.get("source", "api"),
+        working_dir=payload.get("working_dir"),
+    )
+
+
+@router.get("/api/shell/audit")
+def shell_audit_log(limit: int = 50, source: str | None = None) -> dict[str, Any]:
+    """Devuelve el audit log de ejecuciones shell."""
+    LIFE_PULSE.record_action("shell_audit_log")
+    from triade.core.safe_shell import get_audit_log
+    return {"status": "ok", "entries": get_audit_log(limit=limit, source=source)}
+
+
 # ── Autonomía Delegada (FASE 8) ─────────────────────────────────────
 
 
