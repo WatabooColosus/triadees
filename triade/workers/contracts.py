@@ -20,6 +20,7 @@ WorkerTaskType = Literal[
     "stable_consolidation_review",
     "system_debt_scan",
     "bodega_global_review",
+    "shell_execute",
 ]
 
 WORKER_TASK_TYPES: tuple[str, ...] = (
@@ -34,6 +35,7 @@ WORKER_TASK_TYPES: tuple[str, ...] = (
     "stable_consolidation_review",
     "system_debt_scan",
     "bodega_global_review",
+    "shell_execute",
 )
 
 TERMINAL_TASK_STATUSES = {"completed", "failed", "blocked", "skipped"}
