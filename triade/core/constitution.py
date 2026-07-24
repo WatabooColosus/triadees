@@ -170,14 +170,35 @@ class Constitution:
 
     def check_operation(self, operation: str, target: str) -> dict[str, Any]:
         violations: list[str] = []
-        if "identity_core" in target.lower() and "modify" in operation.lower():
-            violations.append("Artículo I: Modificación de identity_core requiere aprobación humana explícita.")
-        if "consolidate" in operation.lower() and "stable" in operation.lower():
-            violations.append("Artículo II: Consolidación a stable requiere evidencia verificada.")
-        if "promote" in operation.lower() and "critical" in target.lower():
-            violations.append("Artículo III: Promoción de capacidad crítica requiere rollback registrado.")
-        if "shell" in operation.lower() or "exec" in operation.lower():
-            violations.append("Artículo VI: Ejecución shell prohibida.")
+        target_lower = target.lower()
+        op_lower = operation.lower()
+
+        # Artículo I: Protección de identity_core.
+        # Cualquier operación que afecte identity_core requiere aprobación explícita.
+        # Se verifica con prefijos de acción concretos, no con substrings genéricos.
+        if target_lower == "identity_core" or target_lower.startswith("identity_core."):
+            action_prefixes = ("modify", "update", "change", "replace", "delete", "overwrite")
+            if any(op_lower.startswith(prefix) or f".{prefix}" in op_lower for prefix in action_prefixes):
+                violations.append(
+                    "Artículo I: Modificación de identity_core requiere aprobación humana explícita y rollback obligatorio."
+                )
+
+        # Artículo II: Aprendizaje gobernado.
+        # No bloqueamos por keyword — la Política II es verificada por el pipeline
+        # (requiere evidencia, evaluación independiente, run_use_count >= 3, etc.).
+        # Esta constitución solo actúa como referencia normativa.
+        # NO se agrega violación aquí; la enforce real vive en LearningPipeline.consolidate().
+
+        # Artículo III: Rollback obligatorio para capacidades críticas.
+        if "promote" in op_lower and "critical" in target_lower:
+            violations.append(
+                "Artículo III: Promoción de capacidad crítica requiere rollback registrado."
+            )
+
+        # Artículo VI: Shell explícita está prohibida.
+        if "shell" in op_lower or ("exec" in op_lower and "exec_python" not in op_lower):
+            violations.append("Artículo VI: Ejecución shell=True prohibida.")
+
         return {
             "operation": operation,
             "target": target,

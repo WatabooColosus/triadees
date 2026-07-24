@@ -129,7 +129,7 @@ class SelfModificationPipeline:
             proposal_id=proposal_id, target_file=target_file,
             description=description, risk_level=risk_level,
             test_required=True, ci_required=True,
-            canary_required=risk_level in {"medium", "high"},
+            canary_required=risk_level in {"medium", "high", "critical"},
             rollback_required=True, created_at=utc_now(),
         )
         with self._connect() as conn:

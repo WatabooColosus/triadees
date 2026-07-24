@@ -77,3 +77,25 @@ class EmbeddingEvaluationIsolator:
             "invariants": [b.invariant for b in self._boundaries],
             "rule": "Los embeddings son servicio de soporte. La evaluación es el árbitro de calidad. Nunca se cruzan directamente.",
         }
+
+    def validate_consolidation(self, candidate_id: str, measurement_source: str) -> dict[str, Any]:
+        """Valida que la evidencia de medición no provenga de módulos de embeddings.
+
+        Llamar desde LearningPipeline.consolidate() antes de promover a stable.
+        Si measurement_source es un módulo de embeddings, la consolidación se bloquea.
+        """
+        embedding_modules = {"semantic_embedding_engine", "semantic_search", "semantic_store", "embedding_isolation"}
+        if measurement_source in embedding_modules:
+            return {
+                "allowed": False,
+                "reason": (
+                    f"Consolidación bloqueada: la evidencia de medición del candidato '{candidate_id}' "
+                    f"provino del módulo de embeddings '{measurement_source}', lo cual viola el Artículo IV "
+                    f"de la Constitución (Medición Independiente)."
+                ),
+                "violation": "EMBEDDING_EVALUATION_ISOLATION",
+            }
+        return {"allowed": True, "reason": "Fuente de medición compatible con aislamiento.", "violation": None}
+
+
+GLOBAL_ISOLATOR = EmbeddingEvaluationIsolator()

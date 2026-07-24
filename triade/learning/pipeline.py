@@ -370,6 +370,7 @@ class LearningPipeline:
         from triade.regression.mandatory_rollback import MandatoryRollbackEnforcer
         enforcer = MandatoryRollbackEnforcer(db_path=self.db_path)
         capability_id = str(row.get("domain", "general")).strip()
+        registered_handlers: set[str] = set()
         try:
             from triade.regression.rollback import RollbackExecutor
             rollback_executor = RollbackExecutor(db_path=self.db_path)
@@ -410,6 +411,15 @@ class LearningPipeline:
                 f"BLOQUEADO por Constitución: {'; '.join(const_check['violations'])}"
             )
 
+        # Verificación de Aislamiento Embedding↔Evaluación (Artículo IV)
+        from triade.evaluation.embedding_isolation import GLOBAL_ISOLATOR
+        isolation_check = GLOBAL_ISOLATOR.validate_consolidation(
+            candidate_id,
+            measurement_source=measurement_evidence.get("comparison", {}).get("source_module", "unknown"),
+        )
+        if not isolation_check["allowed"]:
+            raise ValueError(f"BLOQUEADO por Aislamiento: {isolation_check['reason']}")
+
         # Consejo Autónomo de Verificación (Artículo V)
         from triade.verification.council import VerificationCouncil
         council = VerificationCouncil(db_path=self.db_path)
@@ -422,7 +432,7 @@ class LearningPipeline:
             target_candidate=candidate_id,
             context={
                 "has_baseline": True,
-                "has_rollback": capability_id in registered_handlers if 'registered_handlers' in dir() else False,
+                "has_rollback": capability_id in registered_handlers,
                 "regression_pass": not measurement_evidence.get("missing_measurement_core", False),
                 "critical_issues": [],
             },
