@@ -262,8 +262,41 @@ class SystemMonitor:
         self._conn.commit()
         return {"metric": metric_name, "warning": warning, "critical": critical}
 
+    def get_models_status(self) -> dict:
+        """Check Ollama models status."""
+        try:
+            import urllib.request, json as _json
+            req = urllib.request.Request("http://127.0.0.1:11434/api/tags", method="GET")
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = _json.loads(resp.read())
+                models = [m.get("name", "unknown") for m in data.get("models", [])]
+                return {"models_available": models, "count": len(models), "status": "healthy"}
+        except Exception:
+            return {"models_available": [], "count": 0, "status": "unreachable"}
+
+    def get_scheduler_status(self) -> dict:
+        """Check scheduler status."""
+        try:
+            from triade.workers.advanced_scheduler import AdvancedScheduler
+            sch = AdvancedScheduler()
+            return sch.doctor()
+        except Exception:
+            return {"status": "unreachable"}
+
+    def get_workers_status(self) -> dict:
+        """Check workers status."""
+        try:
+            from triade.workers.worker_supervisor import WorkerSupervisor
+            ws = WorkerSupervisor()
+            return ws.doctor()
+        except Exception:
+            return {"status": "unreachable"}
+
     def doctor(self) -> dict:
         snaps = self._conn.execute("SELECT COUNT(*) as c FROM monitor_snapshots").fetchone()["c"]
         signals = self._conn.execute("SELECT COUNT(*) as c FROM monitor_signals").fetchone()["c"]
         pending = self._conn.execute("SELECT COUNT(*) as c FROM monitor_signals WHERE delivered=0").fetchone()["c"]
-        return {"snapshots": snaps, "total_signals": signals, "pending_signals": pending}
+        return {"snapshots": snaps, "total_signals": signals, "pending_signals": pending,
+                "models": self.get_models_status(),
+                "scheduler": self.get_scheduler_status(),
+                "workers": self.get_workers_status()}

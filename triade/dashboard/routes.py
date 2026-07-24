@@ -119,6 +119,89 @@ def constitution_status():
         return {"error": str(e)}
 
 
+@router.get("/pulse")
+def pulse_status():
+    """Pulso del sistema: heartbeat y métricas en tiempo real."""
+    try:
+        from triade.core.system_monitor import SystemMonitor
+        mon = SystemMonitor()
+        snap = mon.latest_snapshot()
+        return {"pulse": "active", "last_snapshot": snap, "timestamp": utc_now()}
+    except Exception as e:
+        return {"pulse": "error", "error": str(e)}
+
+
+@router.get("/hypothalamus")
+def hypothalamus_status():
+    """Hipotálamo: regulación emocional y prioridades."""
+    try:
+        from triade.hypothalamus.vice_virtue import ViceVirtueState
+        vvs = ViceVirtueState()
+        virtue_name, virtue_score = vvs.dominant_virtue
+        sin_name, sin_score = vvs.dominant_sin
+        return {"subsystem": "hypothalamus", "status": "active",
+                "dominant_virtue": virtue_name, "virtue_score": virtue_score,
+                "dominant_sin": sin_name, "sin_score": sin_score}
+    except Exception as e:
+        return {"subsystem": "hypothalamus", "status": "error", "error": str(e)}
+
+
+@router.get("/crystal")
+def crystal_status():
+    """Cristal: identidad y continuidad."""
+    try:
+        from triade.qualia.continuity import ContinuityEngine
+        ce = ContinuityEngine()
+        return {"subsystem": "crystal", "status": "active", "doctor": ce.doctor()}
+    except Exception as e:
+        return {"subsystem": "crystal", "status": "error", "error": str(e)}
+
+
+@router.get("/bodega")
+def bodega_status():
+    """Bodega: memoria y conocimiento."""
+    try:
+        from triade.memory.semantic_store import SemanticMemoryStore
+        ss = SemanticMemoryStore()
+        return {"subsystem": "bodega", "status": "active", "doctor": ss.doctor()}
+    except Exception as e:
+        return {"subsystem": "bodega", "status": "error", "error": str(e)}
+
+
+@router.get("/workers")
+def workers_status():
+    """Workers: procesamiento paralelo."""
+    try:
+        from triade.workers.worker_supervisor import WorkerSupervisor
+        ws = WorkerSupervisor()
+        return {"subsystem": "workers", "status": "active", "doctor": ws.doctor()}
+    except Exception as e:
+        return {"subsystem": "workers", "status": "error", "error": str(e)}
+
+
+@router.get("/recursos")
+def recursos_status():
+    """Recursos: compartidos entre nodos."""
+    try:
+        from triade.federation.federation_advanced import FederationAdvanced
+        fed = FederationAdvanced()
+        return {"subsystem": "recursos", "status": "active",
+                "resources": fed.available_resources()}
+    except Exception as e:
+        return {"subsystem": "recursos", "status": "error", "error": str(e)}
+
+
+@router.get("/learning")
+def learning_status():
+    """Aprendizaje: pipeline de aprendizaje continuo."""
+    try:
+        from triade.learning.causal_learning import CausalLearningEngine
+        cle = CausalLearningEngine()
+        return {"subsystem": "learning", "status": "active", "doctor": cle.doctor()}
+    except Exception as e:
+        return {"subsystem": "learning", "status": "error", "error": str(e)}
+
+
 @router.get("/health")
 def health_check():
     """Health check rápido."""

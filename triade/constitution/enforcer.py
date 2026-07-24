@@ -103,9 +103,10 @@ ARTICLES = {
 # Componentes del sistema que deben ser chequeados
 SYSTEM_COMPONENTS = [
     "central", "hypothalamus", "crystal", "qualia_bus",
-    "semantic_store", "learning_pipeline", "neuron_factory",
+    "semantic_store", "bodega", "learning_pipeline", "neuron_factory",
     "scheduler", "workers", "tool_registry", "secure_executor",
     "federation", "triadeos", "constitution",
+    "creadora", "formadora", "monitor",
 ]
 
 

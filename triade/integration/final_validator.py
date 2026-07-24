@@ -72,6 +72,12 @@ class IntegrationValidator:
             ("quality_composite", "evaluation", self._test_quality),
             ("triadeos_cycle", "triadeos", self._test_triadeos),
             ("autonomous_routine", "autonomous", self._test_autonomous),
+            ("central_planning", "central", self._test_central_planning),
+            ("hypothalamus_regula", "hypothalamus", self._test_hypothalamus),
+            ("crystal_qualia", "crystal", self._test_crystal_qualia),
+            ("bodega_preserva", "bodega", self._test_bodega),
+            ("creadora_disena", "creadora", self._test_creadora),
+            ("formadora_entrena", "formadora", self._test_formadora),
         ]
 
         results = []
@@ -152,11 +158,15 @@ class IntegrationValidator:
     # ─── individual tests ───
 
     def _test_constitution(self) -> dict:
-        from triade.constitution.enforcer import ConstitutionEnforcer
+        from triade.constitution.enforcer import ConstitutionEnforcer, SYSTEM_COMPONENTS
         ce = ConstitutionEnforcer()
         result = ce.check_article("central", 1, {"modifies_identity": False})
         assert result["status"] == "pass", f"Constitution check failed: {result}"
-        return {"article_1": "pass"}
+        assert "bodega" in SYSTEM_COMPONENTS
+        assert "creadora" in SYSTEM_COMPONENTS
+        assert "formadora" in SYSTEM_COMPONENTS
+        assert "monitor" in SYSTEM_COMPONENTS
+        return {"article_1": "pass", "components_count": len(SYSTEM_COMPONENTS)}
 
     def _test_monitor(self) -> dict:
         from triade.core.system_monitor import SystemMonitor
@@ -238,3 +248,52 @@ class IntegrationValidator:
         result = ar.execute_routine(routine["routine_id"])
         assert result["status"] == "completed"
         return {"routine_completed": True}
+
+    def _test_central_planning(self) -> dict:
+        from triade.core.central import Central
+        c = Central()
+        assert hasattr(c, 'plan')
+        assert hasattr(c, 'respond')
+        assert hasattr(c, 'replan')
+        return {"central_active": True, "has_plan": True,
+                "has_respond": True, "has_replan": True}
+
+    def _test_hypothalamus(self) -> dict:
+        from triade.hypothalamus.vice_virtue import ViceVirtueState
+        vvs = ViceVirtueState()
+        virtue_name, virtue_score = vvs.dominant_virtue
+        sin_name, sin_score = vvs.dominant_sin
+        assert virtue_name is not None
+        return {"dominant_virtue": virtue_name, "virtue_score": virtue_score,
+                "dominant_sin": sin_name, "sin_score": sin_score}
+
+    def _test_crystal_qualia(self) -> dict:
+        from triade.qualia.continuity import ContinuityEngine
+        ce = ContinuityEngine()
+        history = ce.get_history(limit=5)
+        assert isinstance(history, list)
+        return {"crystal_active": True, "history_count": len(history)}
+
+    def _test_bodega(self) -> dict:
+        from triade.memory.semantic_store import SemanticMemoryStore
+        ss = SemanticMemoryStore()
+        result = ss.doctor()
+        assert result is not None
+        return {"bodega_active": True, "doctor": result}
+
+    def _test_creadora(self) -> dict:
+        from triade.neuron_factory.design import DesignEngine
+        de = DesignEngine()
+        spec = de.design("test_neuron", "general", "Integration test neuron")
+        assert spec is not None
+        return {"creadora_active": True, "spec_created": bool(spec)}
+
+    def _test_formadora(self) -> dict:
+        from triade.neuron_factory.training import TrainingPipeline
+        tp = TrainingPipeline()
+        ds = tp.create_dataset("formadora_test", "test", "ft-ds", [
+            {"input": {"x": 1}, "expected": {"x": 1}},
+        ])
+        run = tp.run_episodes(ds["dataset_id"], "formadora_test")
+        assert run["avg_score"] >= 0.0
+        return {"formadora_active": True, "avg_score": run["avg_score"]}

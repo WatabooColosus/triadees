@@ -44,6 +44,7 @@ SUBSYSTEMS = [
     "semantic_store", "learning_pipeline", "neuron_factory",
     "scheduler", "workers", "tool_registry", "secure_executor",
     "federation", "constitution", "monitor", "models",
+    "supervisor", "creadora", "formadora", "pulse",
 ]
 
 
@@ -149,6 +150,22 @@ class TriadeOSComplete:
         elif subsystem == "neuron_factory":
             from triade.neuron_factory.training import TrainingPipeline
             TrainingPipeline()
+        elif subsystem == "supervisor":
+            from triade.workers.worker_supervisor import WorkerSupervisor
+            WorkerSupervisor()
+        elif subsystem == "creadora":
+            from triade.neuron_factory.design import DesignEngine
+            DesignEngine()
+        elif subsystem == "formadora":
+            from triade.neuron_factory.training import TrainingPipeline
+            TrainingPipeline()
+        elif subsystem == "learning_pipeline":
+            from triade.learning.causal_learning import CausalLearningEngine
+            CausalLearningEngine()
+        elif subsystem == "pulse":
+            from triade.core.system_monitor import SystemMonitor
+            mon = SystemMonitor()
+            mon.snapshot()
         else:
             pass  # subsystem not directly instantiable, mark as healthy
 

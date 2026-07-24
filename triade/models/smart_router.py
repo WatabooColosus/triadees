@@ -73,6 +73,7 @@ class SmartModelRouter:
         "llama3:latest": 7.0, "llama3.1:8b": 8.5,
         "llama3.2:3b": 4.0, "llama3.2:1b": 2.0,
         "nomic-embed-text:latest": 1.0, "qwen3-embedding:0.6b": 1.0,
+        "llava:latest": 6.0, "bakllava:latest": 6.0, "moondream:latest": 4.0,
     }
 
     ROLE_MODELS = {
@@ -84,6 +85,7 @@ class SmartModelRouter:
         "embedding": ["nomic-embed-text:latest", "qwen3-embedding:0.6b"],
         "fast": ["qwen3:1.7b", "qwen2.5:3b-instruct"],
         "deep": ["llama3.1:8b", "llama3:latest", "qwen3:4b"],
+        "vision": ["llava:latest", "bakllava:latest", "moondream:latest"],
     }
 
     DIFFICULTY_MAP = {
