@@ -369,7 +369,7 @@ def qualia_publish_test(body: dict[str, Any] | None = None) -> dict[str, Any]:
 @router.get("/api/health")
 def health() -> dict[str, Any]:
     LIFE_PULSE.record_action("health")
-    runner = TriadeRunner(use_ollama=False)
+    runner = TriadeRunner(use_ollama=True)
     hardware, ollama = system_payload()
     return {
         "status": "ok",

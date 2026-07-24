@@ -1,8 +1,7 @@
-"""Búsqueda por similitud semántica · Tríade Ω 1.9C/1.9F.
+"""Búsqueda por similitud semántica · Tríade Ω 1.9C/2.0.
 
 Vectoriza una consulta con el mismo modelo usado para documentos persistidos y
-calcula similitud coseno. 1.9F: añade filtro SQL por modelo/dimensión para 
-evitar cargar todos los embeddings en memoria.
+calcula similitud coseno. 2.0: soporte para embeddings locales con sentence-transformers.
 """
 
 from __future__ import annotations
@@ -46,6 +45,28 @@ class SemanticSearchEngine:
         self.client = client or OllamaClient()
         self.embedding_engine = embedding_engine or SemanticEmbeddingEngine(store=self.store, client=self.client)
 
+    def _vectorize_query(self, query: str, model: str | None = None) -> tuple[list[float] | None, str | None, str | None]:
+        selection = self.embedding_engine.select_model(requested_model=model)
+        selected_model = selection.get("selected_model")
+        provider = selection.get("provider", "ollama")
+        if not selection.get("ok") or not selected_model:
+            return None, None, selection.get("error")
+
+        if provider == "local":
+            local = self.embedding_engine._get_local_provider()
+            if not local:
+                return None, None, "Proveedor local no disponible"
+            try:
+                vector = local.embed(query)
+                return vector, selected_model, None
+            except Exception as exc:
+                return None, None, str(exc)
+        else:
+            query_result = self.client.embed(str(selected_model), query)
+            if not query_result.ok or not query_result.embeddings:
+                return None, None, query_result.error or "No se pudo vectorizar la consulta."
+            return query_result.embeddings[0], selected_model, None
+
     def search(
         self,
         query: str,
@@ -62,28 +83,16 @@ class SemanticSearchEngine:
         if min_similarity < -1.0 or min_similarity > 1.0:
             return {"status": "failed", "error": "min_similarity debe estar entre -1 y 1.", "results": []}
 
-        selection = self.embedding_engine.select_model(requested_model=model)
-        selected_model = selection.get("selected_model")
-        if not selection.get("ok") or not selected_model:
+        query_vector, selected_model, error = self._vectorize_query(normalized_query, model)
+        if query_vector is None:
             return {
                 "status": "failed",
-                "error": selection.get("error"),
-                "model_selection": selection,
+                "error": error,
                 "results": [],
             }
 
-        query_result = self.client.embed(str(selected_model), normalized_query)
-        if not query_result.ok or not query_result.embeddings:
-            return {
-                "status": "failed",
-                "error": query_result.error or "No se pudo vectorizar la consulta.",
-                "model": selected_model,
-                "results": [],
-            }
-        query_vector = query_result.embeddings[0]
         query_dimensions = len(query_vector)
         all_embeddings = self.store.list_embeddings()
-        # Filtro rápido por modelo antes de cargar vectores completos
         candidates = [e for e in all_embeddings if e.get("embedding_model") == selected_model]
         skipped_model = len(all_embeddings) - len(candidates)
         matches: list[SemanticMatch] = []
@@ -122,7 +131,7 @@ class SemanticSearchEngine:
         ranked = matches[:limit]
         return {
             "status": "ok",
-            "mode": "semantic-similarity-search-1.9C",
+            "mode": "semantic-similarity-search-2.0",
             "query": normalized_query,
             "model": selected_model,
             "query_dimensions": len(query_vector),
@@ -135,7 +144,7 @@ class SemanticSearchEngine:
             "min_similarity": min_similarity,
             "domain": domain,
             "results": [item.to_dict() for item in ranked],
-            "runner_integration": "active_1.9F",
+            "runner_integration": "active_2.0",
         }
 
     @staticmethod

@@ -208,7 +208,7 @@ class TriadeRunner:
             return self.semantic_search_engine
         store = SemanticMemoryStore(db_path=self.db_path)
         client = OllamaClient(base_url=self.ollama_base_url, timeout=self.ollama_timeout)
-        embedding = SemanticEmbeddingEngine(store=store, client=client)
+        embedding = SemanticEmbeddingEngine(store=store, client=client, use_local_fallback=True)
         self.semantic_search_engine = SemanticSearchEngine(store=store, client=client, embedding_engine=embedding)
         return self.semantic_search_engine
 

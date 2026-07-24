@@ -135,7 +135,7 @@ def _build_semantic_search_engine(
     base_url: str | None = None,
     timeout: int = 60,
 ) -> Any:
-    """Construye un SemanticSearchEngine completo con Ollama embeddings.
+    """Construye un SemanticSearchEngine con soporte para embeddings locales.
 
     Returns the engine if all dependencies are available, None otherwise.
     Does not raise.
@@ -145,7 +145,7 @@ def _build_semantic_search_engine(
     try:
         store = SemanticMemoryStore(db_path=db_path)
         client = OllamaClient(base_url=base_url or "http://127.0.0.1:11434", timeout=timeout)
-        embedding = SemanticEmbeddingEngine(store=store, client=client)
+        embedding = SemanticEmbeddingEngine(store=store, client=client, use_local_fallback=True)
         engine = SemanticSearchEngine(store=store, client=client, embedding_engine=embedding)
         return engine
     except Exception:
@@ -188,11 +188,21 @@ def build_bodega_global_context(
 
         if semantic_recall_enabled:
             semantic_ready = bool(ollama_blood.get("can_embed"))
-            if semantic_ready:
+            # También verificar si hay embeddings locales disponibles
+            local_embeddings_available = False
+            try:
+                from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
+                test_engine = SemanticEmbeddingEngine(use_local_fallback=True)
+                selection = test_engine.select_model()
+                local_embeddings_available = selection.get("ok") and selection.get("provider") == "local"
+            except Exception:
+                pass
+            
+            if semantic_ready or local_embeddings_available:
                 semantic_engine = _build_semantic_search_engine(db_path)
-            if semantic_engine is not None and semantic_ready:
+            if semantic_engine is not None and (semantic_ready or local_embeddings_available):
                 semantic_engine_status = "available"
-                embedding_model_used = ollama_blood.get("embedding_model")
+                embedding_model_used = ollama_blood.get("embedding_model") or "local-sentence-transformers"
                 semantic_learning_allowed = True
             else:
                 semantic_engine_status = "unavailable"

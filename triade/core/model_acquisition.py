@@ -124,7 +124,7 @@ def assign_models_to_neurons(db_path: str | Path = "triade/memory/triade.db") ->
         elif domain in {"cognitive_coordination", "system_governance"} and "qwen3:4b" in installed:
             model, role = "qwen3:4b", "deep_reasoning"
         else:
-            model, role = "triade-omega:latest", "innate_default"
+            model, role = "qwen2.5:3b-instruct", "innate_default"
         assignments.append({"neuron": str(row["name"]), "domain": domain, "model": model, "role": role})
     return assignments
 

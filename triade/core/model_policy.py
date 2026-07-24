@@ -22,16 +22,16 @@ FALLBACK_RESPONSE_ROLES = {
 ALL_ROLES = CRITICAL_ROLES | FALLBACK_RESPONSE_ROLES | {"federation_probe", "safety_review"}
 
 DEFAULT_MODELS = {
-    "chat_response": "triade-omega:latest",
-    "hypothalamus_analysis": "triade-omega:latest",
-    "central_reasoning": "triade-omega:latest",
+    "chat_response": "qwen2.5:3b-instruct",
+    "hypothalamus_analysis": "qwen2.5:3b-instruct",
+    "central_reasoning": "qwen2.5:3b-instruct",
     "semantic_embedding": "nomic-embed-text:latest",
-    "neuron_nutrition": "triade-omega:latest",
-    "learning_evaluation": "triade-omega:latest",
-    "memory_diagnosis": "triade-omega:latest",
-    "stable_consolidation": "triade-omega:latest",
-    "federation_probe": "triade-omega:latest",
-    "safety_review": "triade-omega:latest",
+    "neuron_nutrition": "qwen2.5:3b-instruct",
+    "learning_evaluation": "qwen2.5:3b-instruct",
+    "memory_diagnosis": "qwen2.5:3b-instruct",
+    "stable_consolidation": "qwen2.5:3b-instruct",
+    "federation_probe": "qwen2.5:3b-instruct",
+    "safety_review": "qwen2.5:3b-instruct",
 }
 
 

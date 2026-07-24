@@ -4,8 +4,8 @@ models:
   timeout: 60
   fallback_enabled: true
   roles:
-    hypothalamus: triade-omega:latest
-    central: triade-omega:latest
+    hypothalamus: qwen2.5:3b-instruct
+    central: qwen2.5:3b-instruct
 
 runtime:
   always_on: true
