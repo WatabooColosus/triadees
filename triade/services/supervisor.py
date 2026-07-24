@@ -28,6 +28,7 @@ from triade.workers.background_service import WorkerBackgroundService
 from triade.workers.mission_planner import MissionPlanner
 from triade.workers.neuron_mission_executor import NeuronMissionExecutor
 from triade.workers.state_store import WorkerStateStore
+from triade.os import get_triadeos
 
 from .event_bus import build_context_from_events, list_recent_events, publish_event
 
@@ -194,6 +195,22 @@ class InternalRuntimeSupervisor:
                     results["services"]["learning_service"] = {"status": "delegated", "reason": "Worker activo — learning delegado."}
                 else:
                     results["services"]["learning_service"] = self._governed_learning_service(current_mode, governor)
+            # ── TriadeOS cycle ────────────────────────────────────────
+            try:
+                triadeos = get_triadeos(db_path=self.db_path)
+                triadeos_result = triadeos.cycle()
+                results["services"]["triadeos_service"] = triadeos_result
+                self.counters["triadeos_cycles"] += 1
+                publish_event(
+                    "triadeos_cycle_complete",
+                    "triadeos_service",
+                    {"summary": triadeos_result.get("summary", ""), "actions": len(triadeos_result.get("actions", []))},
+                    db_path=self.db_path,
+                    run_ref=self.runtime_id,
+                )
+            except Exception as triadeos_exc:
+                results["services"]["triadeos_service"] = {"status": "error", "error": str(triadeos_exc)}
+
             self.self_test_cycle_count += 1
             if self.self_test_cycle_count % self.self_test_every_cycles == 0:
                 try:

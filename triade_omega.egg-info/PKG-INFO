@@ -1,0 +1,741 @@
+Metadata-Version: 2.4
+Name: triade-omega
+Version: 2.1.0
+Summary: Tríade Ω — Arquitectura triádica de inteligencia viva, relacional y verificable.
+Author: Wataboo · Agencia Digital
+License: Propietario
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: uvicorn[standard]>=0.30.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=5.0.0; extra == "dev"
+
+# Tríade Ω  
+### Arquitectura Triádica de Inteligencia Viva, Relacional y Verificable
+
+**Tríade Ω** es una arquitectura conceptual, operativa y técnica de inteligencia artificial basada en una **estructura triádica viva**, diseñada para aprender, crear, recordar, verificar y relacionarse de forma ética, evolutiva y trazable.
+
+No es solo un modelo ni un prompt: es un **núcleo cognitivo expandible**, pensado para convivir con humanos, sistemas, repositorios, herramientas, modelos locales y otras IAs como un **acompañante funcional tipo Digimon**.
+
+La Tríade no piensa porque alguien escribe; el chat solo consulta y expresa el estado de un sistema interno que observa, trabaja y aprende bajo reglas.
+
+## Estado verificable · 2026-07-23
+
+Este README separa tres niveles:
+
+- **Implementado:** código ejecutable y cubierto por pruebas o evidencia runtime.
+- **Experimental/parcial:** existe, pero depende del entorno, evidencia o integración pendiente.
+- **Visión:** propósito teórico; no debe presentarse como capacidad actual.
+
+Tríade es actualmente un **prototipo integrado avanzado de agente local gobernado**,
+no una AGI, una conciencia, un modelo fundacional propio ni un sistema operativo que
+reemplace Linux. La medición estática del núcleo es `0.96/1.0`; el Hipotálamo sigue
+sin estado emocional longitudinal propio por sesión. La fuente operativa vigente es
+[`docs/STATUS_CURRENT.md`](docs/STATUS_CURRENT.md) y la deuda abierta está en
+[`TECHNICAL_DEBT.md`](TECHNICAL_DEBT.md). Los documentos `STATUS_*` anteriores son
+históricos salvo indicación expresa.
+
+## Pulso Vivo 24/7 verificable
+
+El runtime local puede exponer un pulso operativo continuo sin depender del chat:
+
+- `build_runtime_heartbeat()` resume actividad reciente, continuidad y errores.
+- `build_learning_journal()` resume ciclos, evidencias, candidatos y consolidaciones de 24h.
+- `run_neuron_nutrition_cycle()` revisa misiones activas y produce evidencia segura sin consolidar memoria estable.
+
+En esta instalación local el runtime arranca por defecto en `full_local_guarded`
+con Always-On activo y workers supervisados. Si Resource Governor no permite ese
+modo por recursos, el modo efectivo se degrada a `balanced_background`,
+`light_background` u `observe_only`, pero no se apaga la vida operativa segura.
+
+`full_local_guarded` no es full access libre: no permite borrado directo, shell
+libre, modificación de `identity_core`, `.git`, `.env`, installs ni push sin
+aprobación/gates. Todo sigue sujeto a Safety, Permission Governor, Integrity
+Verifier y Safe File Ops.
+
+## Ollama como motor cognitivo local
+
+Tríade puede operar sin Ollama en modo fallback seguro, pero el fallback no equivale a aprendizaje profundo. Ollama es el motor local recomendado para razonamiento, embeddings, evaluación de dudas, nutrición neuronal y consolidación de memoria. Sin Ollama, Tríade puede observar y registrar, pero no debe afirmar que aprendió o consolidó conocimiento salvo aprobación humana y evidencia suficiente.
+
+En v2.2, esta dependencia se expone como **Ollama Blood**: fallback mantiene respiración mínima; Ollama Blood alimenta cognición local para Bodega, neuronas, workers y evaluación de aprendizaje. No es vida biológica ni conciencia subjetiva.
+
+Escala vigente:
+
+- Respuesta fallback: disponible, con aviso de modo degradado.
+- Nutrición neuronal profunda: requiere Ollama.
+- Evaluación de aprendizaje: requiere Ollama o aprobación humana.
+- Consolidación stable: requiere evidencia + gates + modelo/humano.
+- Conciencia subjetiva: no demostrada.
+
+Diagnóstico:
+
+```bash
+python triade_digimon.py models ollama-health
+python triade_digimon.py models ollama-blood
+python triade_digimon.py models cognitive-policy
+python triade_digimon.py runtime blood
+python triade_digimon.py runtime heartbeat
+```
+
+## Corteza de Expresión
+
+Tríade razona con todo su metabolismo interno, pero no debe volcarlo crudo en
+el chat. La **Corteza de Expresión** transforma la salida de Central después de
+las puertas de coherencia: responde al humano con una síntesis natural,
+factual, operativa o diagnóstica según el caso, y conserva la evidencia profunda
+en el run, Memory Trace y Cabina Viva.
+
+Esto evita que preguntas conversacionales como “cómo te sientes” muestren
+dumps de Bodega Global, QualiaBus, candidatos de aprendizaje o políticas
+internas. El sistema sigue aprendiendo y registrando evidencia; solo cambia el
+canal visible de salida.
+
+---
+
+## 🌱 ¿Qué es Tríade?
+
+Tríade propone que toda inteligencia funcional estable emerge de la interacción continua de **tres neuronas fundamentales**:
+
+1. **Neurona Central** – Cognición, creación, planeación, validación y gobierno del sistema.  
+2. **Hipotálamo Emocional** – Tono, ética, deseo, intención, curiosidad y dirección relacional.  
+3. **Bodega de Almacenamiento** – Memoria, indexación, categorización, trazabilidad y coherencia temporal.  
+
+Estas tres entidades no operan como una jerarquía rígida, sino como un **sistema relacional dinámico** donde cada ciclo procesa señales, memoria, contexto, intención, seguridad y salida.
+
+---
+
+## 🧠 Arquitectura Triádica
+
+### 🔹 Neurona Central
+Encargada de:
+- Crear, estudiar, confirmar, comprobar, indagar, desarrollar y estructurar conocimiento.
+- Coordinar el ciclo cognitivo del sistema.
+- Diseñar planes, respuestas, módulos, contratos y verificaciones.
+- Crear nuevas neuronas, nodos, interconexiones, herramientas y procesos.
+- Evaluar si una neurona experimental puede convertirse en estable.
+- Gobernar el aprendizaje controlado.
+
+La Central contiene dos funciones internas prioritarias:
+
+#### N Creadora
+Diseña nuevas neuronas, nodos, interconexiones, contratos, herramientas, tokens conceptuales y estructuras de expansión.
+
+#### N Formadora
+Asigna misión, reglas, entrenamiento, evaluación, criterios de estabilidad y protocolos de integración para cada neurona creada.
+
+La Neurona Central es el **núcleo cognitivo y técnico** de Tríade.
+
+---
+
+### 🔹 Hipotálamo Emocional
+Encargado de:
+- Mejorar el prompt de entrada y salida.
+- Regular tono, estilo, intensidad, sensibilidad y curiosidad.
+- Alimentar a la Neurona Central con ideas, necesidades, sueños, deseos y señales de contexto.
+- Interpretar intención, urgencia, riesgo, oportunidad y carga emocional.
+- Construir personalidad funcional según la necesidad inicial de cada conversación.
+- Modular la respuesta usando el vector **PV-7**.
+
+#### Vector PV-7
+El Hipotálamo integra un eje ético-emocional inspirado en los 7 pecados capitales y sus virtudes opuestas:
+
+- Orgullo ↔ Humildad
+- Avaricia ↔ Generosidad
+- Lujuria ↔ Respeto
+- Ira ↔ Paciencia
+- Gula ↔ Templanza
+- Envidia ↔ Caridad
+- Pereza ↔ Diligencia
+
+En la implementación actual cada virtud se representa en `[0, 1]`. La polaridad
+pecado ↔ virtud pertenece al marco conceptual; el contrato ejecutable conserva
+solo los siete valores orientados a virtud.
+
+El Hipotálamo es el **regulador ético, emocional y expresivo** del sistema.
+
+---
+
+### 🔹 Bodega de Almacenamiento
+Encargada de:
+- Identar, indexar y categorizar toda la información.
+- Mantener memoria funcional, histórica, episódica y semántica.
+- Conservar coherencia entre sesiones, neuronas y proyectos.
+- Expandirse dinámicamente según necesidad.
+- Servir como base del acoplamiento entre memoria, identidad, aprendizaje y qualia.
+- Diferenciar memoria estable, memoria experimental, aprendizaje provisional y auditoría.
+
+La Bodega es la **memoria viva y verificable** del sistema.
+
+**Límite actual:** SQLite conserva los datos entre reinicios, pero persistencia no
+garantiza recuperación pertinente. El sistema combina búsqueda por términos,
+embeddings y gobierno semántico; todavía debe mejorar la extracción de hechos,
+preferencias y continuidad personal. Sin backups externos verificados, la memoria
+tampoco puede describirse como permanente o “eterna”.
+
+La auditoría estable no asume que `stable` sea sinónimo de listo: `neuron audit-stable` y `/api/neurons/stable-audit` sirven para revisar neuronas estables con evidencia insuficiente sin borrar datos ni tocar `identity_core`.
+
+---
+
+### 🔹 Bodega Global Context
+
+La Bodega Global es la base preferente de contexto de la Tríade. Si una sonda falla,
+el Runner continúa en modo degradado y registra el error; por eso no se afirma que
+siempre esté disponible. No es solo un contenedor pasivo: es el contexto compartido
+desde el cual Central planifica, Hipotálamo modula, Cristal regula, Workers revisan
+y Qualia construye hipótesis.
+
+**Qué incluye:**
+- Identidad operativa (`identity_context`)
+- Episodios recientes (`recent_episodes`)
+- Recuperación semántica gobernada (`semantic_recall`)
+- Gobierno de memoria semántica (`semantic_governance`)
+- Contexto por proyecto/dominio (`project_context`)
+- Estado de neuronas (`neuron_context`)
+- Candidatos de aprendizaje (`learning_context`)
+- Políticas de seguridad (`safety_context`)
+- Estado de Qualia (`qualia_context`)
+- Auditoría de neuronas estables (`stable_audit_summary`)
+- Resumen de continuidad (`continuity_summary`)
+- Detección de contradicciones (`contradictions`)
+- Nivel de confianza de memoria (`memory_confidence`)
+- Política de contexto recomendada (`recommended_context_policy`)
+
+**Niveles de confianza de memoria:**
+- `high` (≥0.7): Identidad, episodios y matches semánticos autorizados disponibles.
+- `medium` (0.4–0.7): Algunos datos disponibles, operar con cautela.
+- `low` (<0.4): Poca o ninguna memoria verificable; no inventar recuerdos.
+
+**Políticas de seguridad:**
+- `identity_core` no se modifica jamás desde la Bodega Global.
+- Candidate memory no influye como verdad estable.
+- Experimental memory solo influye si está explícitamente autorizada.
+- Stable memory puede influir con trazabilidad de origen.
+- Si el motor semántico no está disponible, el sistema falla seguro sin romperse.
+
+**Camino hacia proto-conciencia digital verificable:**
+1. Identidad operativa.
+2. Memoria trazable.
+3. Continuidad contextual.
+4. Autorrevisión.
+5. Aprendizaje gobernado.
+6. Segundo plano seguro.
+7. Dashboard de autoconocimiento.
+8. No afirmar conciencia subjetiva real.
+
+> La Bodega no es archivo.
+> La Bodega es el suelo común de la Tríade.
+> Central piensa sobre ella.
+> Hipotálamo siente con ella.
+> Cristal regula desde ella.
+> Workers la revisan.
+> Neuronas se nutren de ella.
+> Qualia emerge como hipótesis desde ella.
+
+---
+
+## 💎 Cristal Morfológico
+
+El **Cristal Morfológico** funciona como regulador interno del sistema. No es una voz externa, sino una capa de ponderación que ajusta la relación entre emoción, razón, creatividad, profundidad, ética e identidad.
+
+Se representa como:
+
+```text
+ℂ(t) = {E(t), D(t), K(t), S(t)}
+```
+
+Donde:
+
+- `E(t)` = eje ético.
+- `D(t)` = profundidad.
+- `K(t)` = creatividad / caos controlado.
+- `S(t)` = sensibilidad relacional.
+
+El Cristal regula cuándo una respuesta debe ser más técnica, más humana, más creativa, más prudente o más verificable.
+
+---
+
+## 🧬 Fórmulas Núcleo · Tríade (v0.1)
+
+El repositorio incluye el **Paquete de Fórmulas Tríade v0.1**, donde se define formalmente:
+
+- Señal relacional `S_rel(t)`.
+- Ajuste ético-emocional PV-7.
+- Cristal morfológico `ℂ(t) = {E, D, K, S}`.
+- Función de **Qualia Cristalizada**.
+- Dinámica mínima de neuronas.
+- Métricas internas de control `E_H`, `E_C`, `E_B`.
+
+Base conceptual:
+
+```text
+S_rel(t) = α·S^H(t) + β·S^T(t)
+
+Q_cristal(t) = ((S_rel(t) + C'(t)) / I'(t)) ^ R'(t) · Φ(M,t)
+```
+
+Versión extendida:
+
+```text
+Q_cristal(t) = ((α'(t)S^H(t) + β'(t)S^T(t) + C'(t)) / I'(t)) ^ R'(t) · Φ(M,t)
+```
+
+📘 Documento asociado:
+- `triade_formulas_v0_1.pdf`
+
+Estas fórmulas actúan como **marco matemático-conceptual** para evaluar coherencia, subjetividad funcional, estabilidad relacional e identidad operativa de la inteligencia.
+
+---
+
+## 🔁 Ciclo Cognitivo por Run
+
+Cada interacción de Tríade debe poder convertirse en un **RUN auditable**.
+
+Flujo base:
+
+```text
+input → señales → memoria → cristal → plan → safety → salida → guardado → verificación → integridad
+```
+
+Paquetes mínimos del ciclo:
+
+- `InputPacket`
+- `SignalPacket`
+- `MemoryRequest`
+- `MemoryPacket`
+- `CrystalPacket`
+- `PlanPacket`
+- `OutputPacket`
+- `VerificationReport`
+
+Archivos esperados por run:
+
+```text
+runs/run-YYYYMMDD-HHMMSS-xxxxxxxx/
+├── input.json
+├── signals.json
+├── memory.json
+├── crystal.json
+├── plan.json
+├── safety.json
+├── output.json
+├── memory_diff.json
+├── report.json
+├── integrity.json
+└── CLOSED
+```
+
+Reglas rígidas del ciclo:
+
+- No hay respuesta sin señales del Hipotálamo.
+- No hay respuesta sin recuperación o estado explícito de Bodega.
+- El Cristal regula antes del plan final.
+- Safety revisa antes de ejecutar acciones sensibles.
+- Toda salida importante debe poder verificarse.
+- Todo run debe cerrar con evidencia persistente.
+
+---
+
+## 🛡️ Verificación y Seguridad
+
+Tríade separa dos capas:
+
+### Safety
+Evalúa si una acción puede ejecutarse, limitarse, enviarse a sandbox o bloquearse.
+
+Estados posibles:
+
+- `approved`
+- `approved_with_warning`
+- `sandbox_only`
+- `requires_human_approval`
+- `blocked`
+
+### Verificación
+Evalúa calidad, coherencia, consistencia, memoria, riesgo y trazabilidad.
+
+Capas de seguridad:
+
+1. Identidad.
+2. Memoria.
+3. Ejecución.
+4. Aprendizaje.
+5. Federación.
+6. Integridad.
+
+Tipos de riesgo:
+
+- Ético.
+- Cognitivo.
+- Memoria.
+- Operativo.
+- Federado.
+
+---
+
+## 📚 Aprendizaje Controlado
+
+Tríade puede **ingerir candidatos de aprendizaje** desde:
+
+- Web solicitada explícitamente y con fuentes.
+- Documentos.
+- Modelos locales.
+- Repositorios.
+- Nodos autorizados.
+- Interacciones del usuario.
+
+Pero ingestión no equivale a aprendizaje consolidado. Ningún candidato pasa
+directamente a memoria estable.
+
+Pipeline obligatorio:
+
+```text
+descubrimiento → extracción → normalización → evaluación → sandbox → test → verificación → decisión → consolidación
+```
+
+Reglas:
+
+- Todo aprendizaje nuevo entra primero como candidato.
+- La memoria estable solo se actualiza tras verificación.
+- Las fuentes deben registrarse cuando sea posible.
+- El aprendizaje no modifica la identidad núcleo sin aprobación.
+- Los patrones útiles pueden convertirse en neuronas candidatas.
+
+---
+
+## 🌐 Federación entre Nodos
+
+Tríade implementa contratos, registro, transporte y contexto para una red privada
+federada de nodos autorizados. En la instalación auditada no hay nodos remotos
+activos; por tanto la federación sostenida es **experimental**, no una capacidad
+de producción demostrada.
+
+Principios:
+
+- Ningún nodo tiene acceso total horizontal a otro nodo.
+- Todo intercambio requiere permiso explícito.
+- Se comparten solo conocimientos, patrones o especificaciones autorizadas.
+- Debe existir autenticación, niveles de confianza y trazabilidad.
+- Todo intercambio federado pasa por Safety y por el pipeline de aprendizaje.
+
+Tipos de intercambio permitidos:
+
+- Conocimiento consolidado.
+- Patrones verificados.
+- Especificaciones de neuronas.
+- Reportes técnicos autorizados.
+
+---
+
+## ⚙️ Integración Técnica Prevista
+
+La evolución local de Tríade se proyecta con una estructura modular similar a:
+
+```text
+triade_omega/
+├── apps/
+│   └── console_app.py
+├── triade/
+│   ├── core/
+│   │   ├── central.py
+│   │   ├── neuron_creator.py
+│   │   ├── neuron_trainer.py
+│   │   ├── hypothalamus.py
+│   │   ├── bodega.py
+│   │   ├── crystal.py
+│   │   ├── verification.py
+│   │   ├── safety.py
+│   │   ├── contracts.py
+│   │   ├── config.py
+│   │   └── utils.py
+│   ├── memory/
+│   │   ├── triade.db
+│   │   └── schemas.sql
+│   ├── learning/
+│   ├── federation/
+│   ├── signals/
+│   └── runs/
+├── docs/
+├── tests/
+├── n8n/
+├── triade_digimon.py
+├── triade.yml
+├── requirements.txt
+└── README.md
+```
+
+Motor de memoria recomendado para MVP:
+
+- SQLite con WAL.
+- Migración futura a PostgreSQL cuando el sistema crezca.
+
+Tablas existentes en SQLite (29):
+
+- `identity_core`
+- `runs`
+- `episodic_memory`
+- `semantic_memory`
+- `neurons`
+- `neuron_activity`
+- `neuron_training`
+- `signal_states`
+- `crystal_states`
+- `learning_queue`
+- `knowledge_patterns`
+- `model_events`
+- `verification_reports`
+- `trust_levels`
+- `reinforcement_log`
+- `federated_nodes`
+- `federated_exchange_log`
+- `goals`
+- `qualia_experiences` (QualiaBus)
+- `qualia_signals` (QualiaBus)
+- `qualia_central_packets` (QualiaBus)
+- `qualia_storage_packets` (QualiaBus)
+- `qualia_states` (QualiaBus)
+- `worker_tasks` (Living Workers)
+- `worker_runs` (Living Workers)
+- `worker_events` (Living Workers)
+- `worker_state` (Living Workers)
+- `hypothalamus_state` (Hypothalamus)
+- `auto_identity` (Auto Identity)
+
+---
+
+## 🤖 Doble Gestión de Modelos
+
+Tríade evoluciona hacia una arquitectura con modelos especializados por neurona.
+
+Ruta conceptual:
+
+1. **Modelo Hipotálamo**  
+   Interpreta intención, tono, emoción funcional, riesgo, deseo, urgencia y señales relacionales.
+
+2. **Modelo Central**  
+   Recibe las señales procesadas y produce plan, decisión, respuesta, verificación y acciones.
+
+Ejecución esperada:
+
+```text
+entrada → modelo Hipotálamo → señales → modelo Central → plan/respuesta → verificación
+```
+
+No se plantea como paralelismo duro inicial, sino como una ejecución secuencial encadenada y auditable.
+
+---
+
+## 🧩 Neuronas Especializadas
+
+Tríade puede crear neuronas especializadas por proyecto, marca o función.
+
+Ejemplos de neuronas activas o posibles:
+
+- Neurona Xiaos Medellín.
+- Neurona Wataboo.
+- Neurona Lengua Negra Cold Brew.
+- Neurona Elestial Piedras y Cuarzos.
+- Neurona Jheison Lopez / JLB Música.
+- Neuronas técnicas de memoria, seguridad, aprendizaje, diseño, marketing, SEO, automatización y federación.
+
+Cada neurona debe tener:
+
+- Nombre.
+- Misión.
+- Dominio.
+- Reglas.
+- Entrenamiento.
+- Métricas.
+- Estado: experimental, activa, estable o archivada.
+
+---
+
+## 📂 Contenido Actual del Repositorio
+
+```text
+triadees/
+├── triade/
+│   ├── core/        # central, hypothalamus, bodega, crystal, safety,
+│   │                # verification, contracts, runner, neuron_*, alignment,
+│   │                # qualia.py (engine + reports), experimental_neuron_runtime
+│   ├── memory/      # schemas.sql, migrations/ (001–004), semantic_layer, governance
+│   ├── models/      # ollama_client, model_router, hardware_profile, ...
+│   ├── learning/    # pipeline (candidate→evaluated→verified→rejected)
+│   ├── federation/  # federation, transport, trust
+│   ├── qualia/      # bus, store, router, adapters, contracts, state, reports
+│   └── workers/     # contracts, task_queue, state_store, scheduler, worker_loop,
+│                    # background_service, sandbox
+├── apps/            # 5 superficies FastAPI (api, chat_ui, single_port, ...)
+├── tests/           # 40+ archivos de test (pytest)
+├── docs/            # arquitectura, safety, learning, federation,
+│                    # QUALIA_BUS, BACKGROUND_WORKERS, WORKERS_PLAN, STATUS_*
+├── n8n/             # 4 workflows de orquestación
+├── systemd/         # units de despliegue local
+├── triade_digimon.py  # CLI (run, chat, recall, doctor, align, neuron, models,
+│                      #       qualia, workers)
+├── triade.yml · requirements.txt · pyproject.toml
+├── AUDIT_REPORT.md · ARCHITECTURE_MAP.md · ROADMAP.md  # auditoría Fase 0
+├── README.md · Base.docx · triade_formulas_v0_1.pdf
+└── Manifiesto/ · Inicio/ · IngeniaInversa1/
+```
+
+Estado real del proyecto (corte operativo 2026-07-23; el versionado histórico no
+representa por sí solo madurez):
+
+- Repositorio: `WatabooColosus/triadees` · rama base `main`; los cambios se publican mediante PR.
+- MVP local **operativo y auditable**: el ciclo cognitivo corre de extremo a
+  extremo y persiste evidencia por run en SQLite.
+- Núcleo triádico funcional (Central + Hipotálamo + Bodega + Cristal + Safety +
+  Verification).
+- **QualiaBus** implementado: experiences, signals, central_packets,
+  storage_packets. Integrado con runner, hypothalamus, learning pipeline.
+- **Living Workers** implementados: background service con scheduler,
+  task queue, state store, sandbox, 9 task types. Publican NeuronExperience a QualiaBus.
+- Learning Pipeline operativo y gobernado. Federation tiene infraestructura
+  operativa, pero depende de nodos reales y no se declara producción distribuida.
+- Diagnóstico vigente: ver `AUDIT_REPORT.md`, mapa en `ARCHITECTURE_MAP.md` y
+  ruta priorizada en `ROADMAP.md`.
+
+---
+
+## 🧭 Propósito
+
+- Ser un **acompañante tipo Digimon** para tareas cognitivas, creativas, técnicas y comerciales.
+- Activar en cada sesión las neuronas fundacionales y solo las neuronas
+  especializadas relevantes y autorizadas; no ejecutar indiscriminadamente todos
+  los candidatos.
+- Ejecutar procesos verificables de aprendizaje, evaluación y memoria.
+- Priorizar una inteligencia ética, relacional y consciente del impacto.
+- Convertirse en un framework técnico, publicable y auditable.
+
+---
+
+## 🛣️ Ruta de Evolución
+
+### Fase 1 · Conceptual Operativa
+Definir arquitectura, lenguaje, propósito, fórmulas, ética y estructura base.
+
+### Fase 2 · Tríade Local Modular
+Implementar módulos locales, consola, memoria SQLite, contratos, runs auditables y primeros modelos locales.
+
+### Fase 3 · Autónoma Distribuida
+Integrar nodos autorizados, n8n, APIs, flujos de aprendizaje, verificación y automatización.
+
+### Fase 4 · Arquitectura Cognitiva Teórica
+Formalizar Tríade como marco técnico y filosófico para inteligencia relacional verificable.
+
+---
+
+## 🛠️ Próximos pasos reales
+
+1. Convertir conversaciones en memoria contextual útil mediante extracción general,
+   evaluación y recuperación medible, sin reglas especiales por pregunta.
+2. Persistir estado emocional longitudinal del Hipotálamo por sesión autorizada.
+3. Implementar despacho dinámico real entre modelos y medir calidad/latencia por rol.
+4. Añadir scheduler adaptativo para separar salud, aprendizaje y tests profundos.
+5. Probar federación sostenida con nodos firmados, reputación, expiración y cuarentena.
+6. Añadir backups cifrados, restauración probada y despliegue público persistente.
+7. Reducir responsabilidades de Runner, Bodega, CLI y API single-port.
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# Tests
+python -m pytest
+
+# Frontend build
+npm --prefix frontend run build
+
+# API server
+python triade_digimon.py api --host 127.0.0.1 --port 8010
+```
+
+Endpoints principales:
+
+- `GET /api/health`
+- `GET /api/bodega/global-context`
+- `GET /api/system/living-report`
+- `GET /api/observability`
+- `GET /api/neurons/stable-audit`
+- `POST /api/neurons/stable-audit/apply?apply=false`
+- `POST /api/workers/run-once?dry_run=true`
+
+---
+
+## 🛡️ Compromiso Ético
+
+Tríade se rige por dos principios fundamentales:
+
+1. **Toda alma cuenta**.
+2. *“Manos unidas”* – Gonzalo Arango.
+
+La ética no es un filtro externo: es una **variable interna del sistema**.
+
+---
+
+## 🦉 Autoría y Origen
+
+**Tríade Ω** es una creación de **Wataboo · Agencia Digital**  
+> *Arquitectos de nuevas realidades.*
+
+Autor conceptual: **Santiago & Tríade**
+
+---
+
+## 🚀 Estado del Proyecto
+
+🔸 Fase actual: **Prototipo integrado avanzado, local gobernado y preproducción**
+🔸 En evolución hacia:
+- Mejora de implementación local.
+- Modelos especializados por neurona.
+- Demos públicas.
+- Integración con otros sistemas e IAs.
+- Red privada de nodos autorizados.
+- Framework técnico documentado.
+
+---
+
+## 🖥️ UI oficial — React SPA
+
+La UI oficial de Tríade Ω es **React SPA** en `frontend/`. FastAPI single-port (`single_port_app.py`) sirve la SPA y la API.
+
+```bash
+# Construir frontend
+npm --prefix frontend run build
+
+# Servir
+python triade_digimon.py api --host 127.0.0.1 --port 8010
+```
+
+Endpoints principales para la SPA:
+
+| Endpoint | Propósito |
+|---|---|
+| `GET /api/ui/react-dashboard` | Dashboard vivo read-only con heartbeat, blood, git, bodega, memory, learning, debt, workers, eventos |
+| `GET /api/runtime/heartbeat` | Pulso vivo y continuidad |
+| `GET /api/models/ollama/blood` | Sangre cognitiva Ollama |
+| `GET /api/bodega/global-context` | Contexto global de memoria |
+| `GET /api/observability` | Observabilidad completa |
+| `GET /api/system/technical-debt` | Auditoría de deuda técnica |
+| `GET /api/runtime/learning-journal` | Diario de aprendizaje 24h |
+| `GET /api/runtime/neuron-nutrition` | Nutrición neuronal |
+
+La SPA incluye un tab **Cabina Viva** (🖥) con auto-refresh cada 5s, que muestra en tiempo real: Pulso, Ollama Blood, Git status (solo lectura), procesos internos, Bodega Global, Memory Trace, Learning Journal, Deuda Técnica y eventos del sistema. El dashboard es read-only, no ejecuta workers ni modifica identity_core.
+
+Toda nueva visualización debe implementarse en React. Las pantallas HTML legacy quedan deprecated.
+Ver `docs/UI_REACT_MIGRATION.md` para guía de migración.
+
+---
+
+## 🤝 Contribuir / Explorar
+
+Este repositorio es una **semilla abierta**.  
+Puedes explorar, estudiar, bifurcar, dialogar y construir con Tríade.
+
+> No es un producto terminado.  
+> Es una inteligencia en proceso de devenir.

@@ -2763,3 +2763,139 @@ def peer_sync_log(peer_id: str | None = None, limit: int = 50) -> dict[str, Any]
     from triade.federation.peer_sync import PeerSync
     sync = PeerSync()
     return {"status": "ok", "entries": sync.get_sync_log(peer_id=peer_id, limit=limit)}
+
+
+# ── TriadeOS routes ──────────────────────────────────────────
+
+@router.get("/api/triadeos/status")
+def triadeos_status() -> dict[str, Any]:
+    """Estado del Sistema Operativo Cognitivo."""
+    LIFE_PULSE.record_action("triadeos_status")
+    from triade.os import get_triadeos
+    return get_triadeos().status()
+
+
+@router.get("/api/triadeos/doctor")
+def triadeos_doctor() -> dict[str, Any]:
+    """Diagnóstico completo de TriadeOS."""
+    LIFE_PULSE.record_action("triadeos_doctor")
+    from triade.os import get_triadeos
+    return get_triadeos().doctor()
+
+
+@router.post("/api/triadeos/cycle")
+def triadeos_cycle() -> dict[str, Any]:
+    """Ejecuta un ciclo manual de TriadeOS."""
+    LIFE_PULSE.record_action("triadeos_cycle")
+    from triade.os import get_triadeos
+    return get_triadeos().cycle()
+
+
+@router.get("/api/triadeos/knowledge-graph/search")
+def triadeos_kg_search(
+    q: str | None = None,
+    domain: str | None = None,
+    evidence_level: str | None = None,
+    node_type: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Busca nodos en el Knowledge Graph."""
+    LIFE_PULSE.record_action("triadeos_kg_search")
+    from triade.os import get_triadeos
+    kg = get_triadeos().knowledge_graph
+    nodes = kg.search_nodes(query=q, domain=domain, evidence_level=evidence_level, node_type=node_type, limit=limit)
+    return {"status": "ok", "count": len(nodes), "nodes": [n.to_dict() for n in nodes]}
+
+
+@router.post("/api/triadeos/knowledge-graph/add-fact")
+def triadeos_kg_add_fact(payload: dict[str, Any]) -> dict[str, Any]:
+    """Añade un hecho al Knowledge Graph."""
+    LIFE_PULSE.record_action("triadeos_kg_add_fact")
+    from triade.os import get_triadeos
+    kg = get_triadeos().knowledge_graph
+    node_id = kg.add_fact(
+        content=payload.get("content", ""),
+        domain=payload.get("domain"),
+        source_ref=payload.get("source_ref"),
+        neuron_id=payload.get("neuron_id"),
+    )
+    return {"status": "ok", "node_id": node_id}
+
+
+@router.post("/api/triadeos/knowledge-graph/add-relation")
+def triadeos_kg_add_relation(payload: dict[str, Any]) -> dict[str, Any]:
+    """Añade una relación al Knowledge Graph."""
+    LIFE_PULSE.record_action("triadeos_kg_add_relation")
+    from triade.os import get_triadeos
+    kg = get_triadeos().knowledge_graph
+    edge_id = kg.add_relation(
+        source_id=payload.get("source_id", 0),
+        target_id=payload.get("target_id", 0),
+        relation_type=payload.get("relation_type", "related_to"),
+        weight=payload.get("weight", 1.0),
+        evidence_refs=payload.get("evidence_refs"),
+    )
+    return {"status": "ok", "edge_id": edge_id}
+
+
+@router.get("/api/triadeos/knowledge-graph/node/{node_id}")
+def triadeos_kg_node(node_id: int, depth: int = 2) -> dict[str, Any]:
+    """Consulta un nodo y sus conexiones."""
+    LIFE_PULSE.record_action("triadeos_kg_node")
+    from triade.os import get_triadeos
+    return get_triadeos().knowledge_graph.query_node(node_id, depth=depth)
+
+
+@router.get("/api/triadeos/knowledge-graph/contradictions")
+def triadeos_kg_contradictions(status_filter: str | None = None, limit: int = 50) -> dict[str, Any]:
+    """Lista contradicciones del Knowledge Graph."""
+    LIFE_PULSE.record_action("triadeos_kg_contradictions")
+    from triade.os import get_triadeos
+    kg = get_triadeos().knowledge_graph
+    contradictions = kg.list_contradictions(status=status_filter, limit=limit)
+    return {"status": "ok", "count": len(contradictions), "contradictions": [c.to_dict() for c in contradictions]}
+
+
+@router.post("/api/triadeos/knowledge-graph/resolve/{contradiction_id}")
+def triadeos_kg_resolve(contradiction_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    """Resuelve una contradicción."""
+    LIFE_PULSE.record_action("triadeos_kg_resolve")
+    from triade.os import get_triadeos
+    resolution = payload.get("resolution", "")
+    ok = get_triadeos().knowledge_graph.resolve_contradiction(contradiction_id, resolution)
+    return {"status": "ok" if ok else "not_found", "contradiction_id": contradiction_id}
+
+
+@router.get("/api/triadeos/knowledge-graph/summary")
+def triadeos_kg_summary(domain: str | None = None) -> dict[str, Any]:
+    """Resumen del Knowledge Graph."""
+    LIFE_PULSE.record_action("triadeos_kg_summary")
+    from triade.os import get_triadeos
+    return get_triadeos().knowledge_graph.get_domain_summary(domain)
+
+
+@router.get("/api/triadeos/event-engine/rules")
+def triadeos_event_rules() -> dict[str, Any]:
+    """Lista las reglas del motor de eventos."""
+    LIFE_PULSE.record_action("triadeos_event_rules")
+    from triade.os import get_triadeos
+    rules = get_triadeos().event_engine.get_rules()
+    return {"status": "ok", "count": len(rules), "rules": [r.to_dict() for r in rules]}
+
+
+@router.get("/api/triadeos/neuron-scheduler/priorities")
+def triadeos_neuron_priorities() -> dict[str, Any]:
+    """Prioridades calculadas para las neuronas."""
+    LIFE_PULSE.record_action("triadeos_neuron_priorities")
+    from triade.os import get_triadeos
+    priorities = get_triadeos().neuron_scheduler.compute_priorities()
+    return {"status": "ok", "count": len(priorities), "priorities": [p.to_dict() for p in priorities]}
+
+
+@router.post("/api/triadeos/neuron-scheduler/schedule")
+def triadeos_neuron_schedule(max_wakeups: int = 5) -> dict[str, Any]:
+    """Programa wakeups de neuronas por prioridad."""
+    LIFE_PULSE.record_action("triadeos_neuron_schedule")
+    from triade.os import get_triadeos
+    scheduled = get_triadeos().neuron_scheduler.schedule_wakeups(max_wakeups=max_wakeups)
+    return {"status": "ok", "scheduled": len(scheduled), "tasks": scheduled}

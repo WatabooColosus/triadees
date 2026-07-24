@@ -26,3 +26,17 @@ runtime:
   continuous_runner_autonomy_level: promote_stable
   continuous_runner_interval_seconds: 60
   continuous_runner_max_cycles: 0
+
+triadeos:
+  enabled: true
+  knowledge_graph:
+    enabled: true
+  event_engine:
+    enabled: true
+    scan_interval_seconds: 60
+  scheduler:
+    enabled: true
+    max_wakeups_per_cycle: 5
+  conservative:
+    min_confidence_to_consolidate: 0.70
+    max_consolidations_per_cycle: 3

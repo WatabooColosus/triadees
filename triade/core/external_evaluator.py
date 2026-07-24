@@ -69,7 +69,7 @@ class ExternalEvaluator:
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db", model_client: Any | None = None) -> None:
         self.db_path = Path(db_path)
-        self.schema_path = Path(__file__).resolve().parents[2] / "memory" / "schemas.sql"
+        self.schema_path = Path(__file__).resolve().parents[1] / "memory" / "schemas.sql"
         self.model_client = model_client
         self._init_db()
 

@@ -61,7 +61,7 @@ class UserSessionStore:
         return conn
 
     def _init_db(self) -> None:
-        schema_path = Path(__file__).resolve().parents[2] / "memory" / "schemas.sql"
+        schema_path = Path(__file__).resolve().parents[1] / "memory" / "schemas.sql"
         if schema_path.exists():
             with self._connect() as conn:
                 conn.executescript(schema_path.read_text(encoding="utf-8"))
