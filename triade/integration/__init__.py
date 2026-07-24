@@ -1,0 +1,1 @@
+from triade.integration.final_validator import IntegrationValidator
