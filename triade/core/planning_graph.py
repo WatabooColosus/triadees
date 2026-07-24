@@ -221,6 +221,36 @@ class PlanningGraph:
             )
             return cursor.rowcount
 
+    def connect_to_run(self, run_id: str, goal_id: str) -> bool:
+        """Vincula un goal a un run_id para trazabilidad."""
+        now = _utc_now()
+        with self._connect() as conn:
+            try:
+                conn.execute(
+                    "UPDATE planning_graph SET metadata = json_set(COALESCE(metadata, '{}'), '$.run_id', ?) WHERE goal_id = ?",
+                    (run_id, goal_id),
+                )
+                return True
+            except Exception:
+                return False
+
+    def get_goals_for_run(self, run_id: str) -> list[GoalNode]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM planning_graph WHERE json_extract(metadata, '$.run_id') = ? ORDER BY priority ASC",
+                (run_id,),
+            ).fetchall()
+        return [self._row_to_goal(r) for r in rows]
+
+    def steps_summary(self) -> dict[str, Any]:
+        """Resumen del grafo para uso por Central."""
+        summary = self.get_plan_summary()
+        ready = self.get_ready_goals()
+        blocked = self.get_blocked_goals()
+        summary["ready_titles"] = [g.title for g in ready[:10]]
+        summary["blocked_titles"] = [g.title for g in blocked[:10]]
+        return summary
+
     @staticmethod
     def _row_to_goal(row: sqlite3.Row) -> GoalNode:
         def r(key: str, default: object = "") -> object:

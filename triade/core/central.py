@@ -9,6 +9,10 @@ import unicodedata
 from triade.models.ollama_client import OllamaClient
 
 from .contracts import CrystalPacket, InputPacket, MemoryPacket, OutputPacket, PlanPacket, SignalPacket
+from .plan_step import PlanStep
+from .plan_budget import PlanBudget
+from .plan_rollback import PlanRollback
+from .replanification import Replanner, FailureAnalysis, ReplanificationStrategy
 
 
 class Central:
@@ -22,6 +26,8 @@ class Central:
     filtrar razonamiento operativo.
     Desde 1.9J, conserva un núcleo semántico de identidad Tríade para evitar
     respuestas genéricas de asistente o negación de sus neuronas operativas.
+    Desde T-003, genera planes con PlanStep estructurado, presupuestos,
+    rollback y replanificación.
     """
 
     INTERNAL_AUDIT_TERMS = {
@@ -186,13 +192,157 @@ class Central:
         tools: list[str] = []
         if signals.intent == "build_or_update":
             tools.append("repository_or_file_update")
+
+        structured = self._build_structured_steps(steps, signals, crystal)
+
+        budget = PlanBudget.for_intent(signals.intent, crystal.q_crystal)
+        rollback = PlanRollback(plan_id=input_packet.run_id)
+
         return PlanPacket(
             run_id=input_packet.run_id,
             goal=f"Atender intención: {signals.intent} | q_crystal={crystal.q_crystal} | temporal={crystal.temporal_status}",
             steps=steps,
+            structured_steps=structured,
             tools=tools,
             safety_required=True,
+            budget=budget,
+            rollback=rollback,
         )
+
+    def _build_structured_steps(
+        self,
+        text_steps: list[str],
+        signals: SignalPacket,
+        crystal: CrystalPacket,
+    ) -> list[PlanStep]:
+        """Convierte text steps en PlanStep estructurados."""
+        structured: list[PlanStep] = []
+        for idx, text in enumerate(text_steps):
+            step_type = self._classify_step_type(text)
+            priority = 2 if idx < 3 else 3
+            deps: list[str] = []
+            if idx > 0 and step_type != "observation":
+                deps.append(f"step-{idx - 1}")
+
+            assigned_to = "central"
+            if step_type == "delegation":
+                assigned_to = "neurona_creadora"
+
+            step = PlanStep(
+                id=f"step-{idx}",
+                description=text,
+                step_type=step_type,
+                priority=priority,
+                dependencies=deps,
+                assigned_to=assigned_to,
+                timeout_seconds=15.0 if step_type == "action" else 10.0,
+            )
+            structured.append(step)
+        return structured
+
+    @staticmethod
+    def _classify_step_type(text: str) -> str:
+        lower = text.lower()
+        if any(w in lower for w in ["delega", "neurona", "candidata"]):
+            return "delegation"
+        if any(w in lower for w in ["verif", "valid", "chequea"]):
+            return "verification"
+        if any(w in lower for w in ["analiza", "evalúa", "evaluar", "lee"]):
+            return "analysis"
+        if any(w in lower for w in ["observa", "mira", "revisa"]):
+            return "observation"
+        return "action"
+
+    def execute_plan_steps(
+        self,
+        plan: PlanPacket,
+        *,
+        max_steps: int = 5,
+    ) -> dict[str, Any]:
+        """Ejecuta los primeros pasos pendientes del plan.
+
+        Returns dict con pasos ejecutados, presupuesto restante y estado.
+        """
+        structured = plan.structured_steps
+        if not structured:
+            return {"executed": [], "budget": None, "status": "no_structured_steps"}
+
+        budget = plan.budget
+        completed_ids: set[str] = set()
+        executed: list[dict[str, Any]] = []
+
+        for step in structured:
+            if step.status == "completed":
+                completed_ids.add(step.id)
+                continue
+
+        for step in structured:
+            if len(executed) >= max_steps:
+                break
+            if step.status != "pending":
+                continue
+            if not step.is_ready(completed_ids):
+                continue
+            if budget and not budget.can_proceed():
+                break
+
+            step.start()
+            result = self._simulate_step(step, plan)
+            if result.get("ok"):
+                step.complete(result)
+                completed_ids.add(step.id)
+                if budget:
+                    budget.consume_step(seconds=result.get("seconds", 1.0), tokens=result.get("tokens", 100))
+            else:
+                step.fail(result.get("error", "unknown"))
+                if budget and budget.consume_retry():
+                    step.retry()
+
+            executed.append({
+                "step_id": step.id,
+                "description": step.description,
+                "status": step.status,
+                "step_type": step.step_type,
+                "assigned_to": step.assigned_to,
+            })
+
+        return {
+            "executed": executed,
+            "budget": budget.to_dict() if budget else None,
+            "status": "ok",
+        }
+
+    @staticmethod
+    def _simulate_step(step: PlanStep, plan: PlanPacket) -> dict[str, Any]:
+        """Simula la ejecución de un paso. En runtime real esto delega."""
+        return {"ok": True, "seconds": 0.5, "tokens": 50, "message": f"Paso {step.id} completado."}
+
+    def replan(
+        self,
+        plan: PlanPacket,
+        *,
+        failed_step: PlanStep,
+        error: str,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Replanifica ante un fallo. Returns estrategia + plan actualizado."""
+        replanner = Replanner(max_retries=2)
+        analysis = replanner.analyze_failure(step=failed_step, error=error, context=context)
+        remaining = [s for s in (plan.structured_steps or []) if s.id != failed_step.id]
+
+        budget_dict = plan.budget.to_dict() if plan.budget else None
+        strategy = replanner.build_strategy(
+            analysis=analysis,
+            remaining_steps=remaining,
+            budget_remaining=budget_dict,
+        )
+
+        return {
+            "analysis": analysis.to_dict(),
+            "strategy": strategy.to_dict(),
+            "original_steps": len(plan.structured_steps or []),
+            "remaining_steps": len(remaining),
+        }
 
     def respond(
         self,

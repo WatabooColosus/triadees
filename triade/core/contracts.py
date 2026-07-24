@@ -151,12 +151,25 @@ class PlanPacket:
     run_id: str
     goal: str
     steps: list[str] = field(default_factory=list)
+    structured_steps: list[Any] = field(default_factory=list)
     tools: list[str] = field(default_factory=list)
     safety_required: bool = True
+    budget: Any = None
+    rollback: Any = None
     timestamp: str = field(default_factory=utc_now)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        if self.structured_steps:
+            d["structured_steps"] = [
+                s.to_dict() if hasattr(s, "to_dict") else s
+                for s in self.structured_steps
+            ]
+        if self.budget and hasattr(self.budget, "to_dict"):
+            d["budget"] = self.budget.to_dict()
+        if self.rollback and hasattr(self.rollback, "to_dict"):
+            d["rollback"] = self.rollback.to_dict()
+        return d
 
 
 @dataclass(slots=True)
