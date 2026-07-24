@@ -369,7 +369,7 @@ class LearningPipeline:
         # Rollback Obligatorio (Artículo III de la Constitución)
         from triade.regression.mandatory_rollback import MandatoryRollbackEnforcer
         enforcer = MandatoryRollbackEnforcer(db_path=self.db_path)
-        capability_id = str(row.get("domain", "general")).strip()
+        capability_id = str(dict(row).get("domain", "general")).strip()
         registered_handlers: set[str] = set()
         try:
             from triade.regression.rollback import RollbackExecutor

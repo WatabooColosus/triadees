@@ -754,11 +754,25 @@ class TriadeRunner:
             output_gate=output_gate,
         )
         qualia_publish_results: list[dict[str, Any]] = []
+        qualia_packets_data: list[dict[str, Any]] = []
         qualia_state: dict[str, Any] = {}
         try:
             qualia_bus = QualiaBus(db_path=self.db_path)
-            for experience in qualia_experiences:
+            parent_packet_id = ""
+            parent_run_id = ""
+            for idx, experience in enumerate(qualia_experiences):
                 qualia_publish_results.append(qualia_bus.publish_experience(experience))
+                try:
+                    packet = qualia_bus.publish_qualia_packet(
+                        experience,
+                        parent_packet_id=parent_packet_id,
+                        parent_run_id=parent_run_id,
+                    )
+                    qualia_packets_data.append(packet.to_dict())
+                    parent_packet_id = packet.id
+                    parent_run_id = experience.run_id
+                except Exception:
+                    pass
             qualia_state_obj = qualia_bus.compute_state(input_packet.run_id)
             qualia_state = qualia_state_obj.to_dict()
         except Exception as exc:
@@ -795,6 +809,7 @@ class TriadeRunner:
         artifacts["qualia_central_packets.json"] = qualia_central_artifacts
         artifacts["qualia_storage_packets.json"] = qualia_storage_artifacts
         artifacts["qualia_state.json"] = qualia_state
+        artifacts["qualia_packets.json"] = qualia_packets_data
         written_artifacts = write_run_artifacts(run_path, artifacts)
         integrity = {
             "run_id": input_packet.run_id, "status": report.status, "artifacts": written_artifacts, "database": memory_diff.get("db_path"), "episode_id": memory_diff.get("episode_id"), "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id, "verification_report_id": verification_id,
@@ -814,6 +829,7 @@ class TriadeRunner:
             "qualia_signals_count": len(qualia_signal_artifacts),
             "qualia_central_packets_count": len(qualia_central_artifacts),
             "qualia_storage_packets_count": len(qualia_storage_artifacts),
+            "qualia_packets_count": len(qualia_packets_data),
             "qualia_state": qualia_state,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
             "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_quality_score": central_quality, "central_model_event_id": central_event_id, "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_selection": self.model_selection, "closed": True,

@@ -15,6 +15,63 @@ class Crystal:
     estado presente únicamente contra una ventana histórica contextualizada.
     """
 
+    def regulate_from_packet(
+        self,
+        packet: Any,
+        history: list[dict[str, Any]] | None = None,
+        comparison_basis: dict[str, Any] | None = None,
+    ) -> CrystalPacket:
+        """Regula directamente desde un QualiaPacket (T-002)."""
+        signal = packet.signal
+        state = packet.state
+        meaning = packet.meaning
+        continuity = packet.continuity
+        fragmentation = packet.fragmentation
+
+        from .contracts import MemoryPacket as _MP, SignalPacket as _SP
+
+        pv7_raw: dict[str, float] = {}
+        if signal:
+            pv7_raw = {
+                "intensity": float(signal.intensity or 0),
+                "valence": float(signal.valence or 0),
+                "urgency": float(signal.urgency or 0),
+                "curiosity": float(signal.curiosity or 0),
+                "risk": float(signal.risk or 0),
+                "confidence": float(signal.confidence or 0),
+            }
+        if state:
+            pv7_raw.setdefault("curiosity", float(getattr(state, "curiosity", 0) or 0))
+            pv7_raw.setdefault("novelty", float(getattr(state, "novelty", 0) or 0))
+
+        sig = _SP(
+            run_id=packet.run_id,
+            pv7=pv7_raw,
+            urgency="high" if float(signal.urgency or 0) > 0.7 else "medium" if float(signal.urgency or 0) > 0.4 else "low",
+            risk="high" if float(signal.risk or 0) > 0.7 else "medium" if float(signal.risk or 0) > 0.4 else "low",
+            intent=signal.signal_type if signal else "observe",
+            tone=signal.tone_hint if signal and hasattr(signal, "tone_hint") else "",
+        )
+
+        mem = _MP(
+            run_id=packet.run_id,
+            confidence=float(signal.confidence or 0.5) if signal else 0.5,
+        )
+
+        result = self.regulate(sig, mem, history=history, comparison_basis=comparison_basis)
+
+        if meaning and hasattr(meaning, "composite"):
+            result.ethics_vector["meaning_composite"] = float(meaning.composite)
+            if float(meaning.composite or 0) > 0.75:
+                result.regulation_notes.append("Experiencia de alto significado detectada.")
+        if continuity and hasattr(continuity, "depth") and continuity.depth > 0:
+            result.ethics_vector["chain_depth"] = continuity.depth
+            result.regulation_notes.append(f"Cadena de continuidad profundidad={continuity.depth}.")
+        if fragmentation and hasattr(fragmentation, "drift_detected") and fragmentation.drift_detected:
+            result.regulation_notes.append("Fragmentación detectada: coherencia reducida.")
+
+        return result
+
     def regulate(
         self,
         signals: SignalPacket,
