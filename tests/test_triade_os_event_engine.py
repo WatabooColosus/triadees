@@ -43,6 +43,7 @@ def _insert_event(conn: sqlite3.Connection, event_type: str, severity: str = "ok
         VALUES (?, ?, ?, datetime('now'))""",
         (event_type, severity, message),
     )
+    conn.commit()
     return int(cursor.lastrowid)
 
 

@@ -75,18 +75,18 @@ CREATE TABLE IF NOT EXISTS neurons (
 
 CREATE TABLE IF NOT EXISTS neuron_activity (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL,
+    run_id TEXT NOT NULL DEFAULT '',
     neuron_id INTEGER,
-    name TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
     domain TEXT,
     status TEXT,
+    activation_type TEXT,
     activated INTEGER DEFAULT 1,
     diagnosis_count INTEGER DEFAULT 0,
     test_plan_count INTEGER DEFAULT 0,
     policy TEXT,
     activity_json TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (run_id) REFERENCES runs(run_id),
     FOREIGN KEY (neuron_id) REFERENCES neurons(id)
 );
 

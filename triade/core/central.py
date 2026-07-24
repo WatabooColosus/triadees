@@ -194,6 +194,34 @@ class PlanGraph:
     def has_failures(self) -> bool:
         return any(s.state == "failed" for s in self.steps)
 
+    def extract_subgraph(self, max_steps: int) -> list[PlanStep]:
+        if len(self.steps) <= max_steps:
+            return list(self.steps)
+        step_by_id = {s.id: s for s in self.steps}
+        selected_ids: set[str] = set()
+        by_priority = sorted(self.steps, key=lambda s: s.priority)
+        for step in by_priority:
+            if len(selected_ids) >= max_steps:
+                break
+            deps_needed = set()
+            queue = [step]
+            visited: set[str] = set()
+            while queue:
+                current = queue.pop(0)
+                if current.id in visited:
+                    continue
+                visited.add(current.id)
+                if current.id not in selected_ids:
+                    deps_needed.add(current.id)
+                for dep_id in current.dependencies:
+                    if dep_id in step_by_id and dep_id not in visited:
+                        queue.append(step_by_id[dep_id])
+            if len(selected_ids) + len(deps_needed) <= max_steps:
+                selected_ids.update(deps_needed)
+        result = [s for s in self.steps if s.id in selected_ids]
+        result.sort(key=lambda s: s.priority)
+        return result
+
     def compute_metrics(self) -> dict[str, Any]:
         total = len(self.steps)
         completed = len(self.completed_steps)
@@ -531,6 +559,23 @@ class Central:
             if len(executed) >= max_steps:
                 break
             if not step.is_ready(completed_ids):
+                continue
+            if not step.budget.can_proceed():
+                step.block("budget_exhausted")
+                executed.append({
+                    "step_id": step.id, "description": step.description,
+                    "status": "blocked", "step_type": step.step_type,
+                    "assigned_to": step.assigned_to, "error": "budget_exhausted",
+                })
+                continue
+            missing_deps = [d for d in step.dependencies if d not in completed_ids]
+            if missing_deps:
+                step.block(f"missing_dependencies: {missing_deps}")
+                executed.append({
+                    "step_id": step.id, "description": step.description,
+                    "status": "blocked", "step_type": step.step_type,
+                    "assigned_to": step.assigned_to, "error": f"missing_deps: {missing_deps}",
+                })
                 continue
             step.start()
             result = self._simulate_step(step, plan)

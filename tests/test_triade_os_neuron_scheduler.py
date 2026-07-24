@@ -38,6 +38,7 @@ def _insert_neuron(conn: sqlite3.Connection, name: str, status: str = "experimen
         VALUES (?, ?, ?, ?, '[]', '[]', '[]', '[]', '[]', '[]', '[]', '{}', '{}', datetime('now'))""",
         (name, f"Mision de {name}", domain, status),
     )
+    conn.commit()
     return int(cursor.lastrowid)
 
 
@@ -47,6 +48,7 @@ def _insert_activity(conn: sqlite3.Connection, neuron_id: int, activation_type: 
         VALUES (?, ?, datetime('now'))""",
         (neuron_id, activation_type),
     )
+    conn.commit()
 
 
 def _insert_work_cycle(conn: sqlite3.Connection, neuron_id: int, status: str = "completed") -> None:
@@ -55,6 +57,7 @@ def _insert_work_cycle(conn: sqlite3.Connection, neuron_id: int, status: str = "
         VALUES (?, ?, ?)""",
         (1, neuron_id, status),
     )
+    conn.commit()
 
 
 @pytest.fixture()

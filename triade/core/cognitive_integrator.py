@@ -20,10 +20,38 @@ from __future__ import annotations
 import logging
 import sqlite3
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from triade.core.contracts import utc_now
 from triade.core.constitution import Constitution, GLOBAL_CONSTITUTION
+
+log = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class CentralLike(Protocol):
+    steps: list[Any]
+    structured_steps: list[Any] | None
+    rollback: Any | None
+    total_budget_cpu: float
+    total_budget_ram: float
+    constitution_applied: list[dict[str, Any]]
+    def extract_subgraph(self, max_steps: int) -> list[Any]: ...
+
+
+@runtime_checkable
+class HypothalamusLike(Protocol):
+    urgency: str
+    risk: str
+    curiosity: float
+    notes: list[str]
+    def to_dict(self) -> dict[str, Any]: ...
+
+
+@runtime_checkable
+class CrystalLike(Protocol):
+    q_crystal: float
+    temporal_status: str
 
 log = logging.getLogger(__name__)
 
@@ -353,13 +381,51 @@ class CognitiveIntegrator:
                 severity="medium",
             ))
 
+        # autonomy_vs_constitution: plan acts beyond safe autonomy bounds
+        steps = getattr(plan, "steps", []) or []
+        ctx = input_packet.context if hasattr(input_packet, "context") and isinstance(input_packet.context, dict) else {}
+        autonomy_flags: list[str] = []
+        identity_kws = ["identity_core", "auto_identity", "identidad"]
+        if any(kw in str(getattr(s, "description", "")).lower() for s in steps for kw in identity_kws):
+            autonomy_flags.append("identity_mutation")
+        destructive_steps = [
+            s for s in steps
+            if getattr(s, "step_type", "") == "destructive"
+            or "destructive" in str(getattr(s, "description", "")).lower()
+        ]
+        if destructive_steps and not any(bool(getattr(s, "rollback_data", None)) for s in destructive_steps):
+            autonomy_flags.append("destructive_no_rollback")
+        if getattr(signals, "risk", "low") in ("high", "critical"):
+            verification_steps = [
+                s for s in steps
+                if getattr(s, "step_type", "") in ("verify", "review", "validation")
+            ]
+            if len(verification_steps) < 2:
+                autonomy_flags.append("high_risk_insufficient_verification")
+        privacy_kws = ["password", "contraseña", "secret", "token", "api_key"]
+        user_text = str(getattr(input_packet, "user_input", "")).lower()
+        if any(kw in user_text for kw in privacy_kws) and not ctx.get("user_consent", True):
+            autonomy_flags.append("privacy_violation")
+        if autonomy_flags:
+            conflicts.append(ConflictRecord(
+                conflict_type="autonomy_vs_constitution",
+                source_a="central", source_b="constitution",
+                field_name="plan_vs_constitution",
+                value_a=autonomy_flags, value_b="constitutional_constraints",
+                severity="high" if "identity_mutation" in autonomy_flags else "medium",
+            ))
+
     def _resolve_conflict(self, conflict: ConflictRecord, signals: Any, plan: Any, crystal: Any) -> None:
         strategy = CONFLICT_RESOLUTION_STRATEGIES.get(conflict.conflict_type, "safety_wins")
         conflict.strategy = strategy
         if conflict.conflict_type == "priority_vs_resources":
+            max_steps = 0
             if hasattr(plan, "steps") and plan.steps:
                 max_steps = max(3, len(plan.steps) // 2)
-                plan.steps = plan.steps[:max_steps]
+                if hasattr(plan, "extract_subgraph"):
+                    plan.steps = plan.extract_subgraph(max_steps)
+                else:
+                    plan.steps = plan.steps[:max_steps]
                 if hasattr(plan, "structured_steps") and plan.structured_steps:
                     plan.structured_steps = plan.structured_steps[:max_steps]
             conflict.resolution = f"reduced_plan_scope_to_{max_steps}"
@@ -397,17 +463,122 @@ class CognitiveIntegrator:
 
     def _constitution_full_check(self, *, run_id: str, signals: Any, plan: Any, crystal: Any, input_packet: Any) -> list[dict[str, Any]]:
         checks: list[dict[str, Any]] = []
-        checks.append(self._check_article("I", "Identidad Inmutable", True, "Identity check passed"))
-        has_rollback = hasattr(plan, "rollback") and plan.rollback is not None
-        checks.append(self._check_article("III", "Rollback Obligatorio", has_rollback,
-                                           "Rollback present" if has_rollback else "No rollback"))
         ctx = input_packet.context if hasattr(input_packet, "context") else {}
-        uses_shell = ctx.get("uses_shell") or ctx.get("shell") if isinstance(ctx, dict) else False
-        checks.append(self._check_article("VI", "Shell Prohibida", not uses_shell,
-                                           "Shell detected" if uses_shell else "No shell"))
-        checks.append(self._check_article("VIII", "Pulso Vivo", True, "Pulse active"))
-        checks.append(self._check_article("IX", "Conservación de Estado", True, f"Run {run_id} registered"))
-        checks.append(self._check_article("X", "Degradación Controlada", True, "Fallback available"))
+        if not isinstance(ctx, dict):
+            ctx = {}
+        user_text = str(getattr(input_packet, "user_input", "")).lower()
+        risk = getattr(signals, "risk", "low")
+        steps = getattr(plan, "steps", []) or []
+
+        # I — Identidad Inmutable: identity_core must not be mutated by learning
+        modifies_identity = ctx.get("modifies_identity", False)
+        identity_keywords = ["identity_core", "auto_identity", "identidad"]
+        if not modifies_identity:
+            modifies_identity = any(
+                kw in str(getattr(s, "description", "")).lower() for s in steps for kw in identity_keywords
+            )
+        checks.append(self._check_article(
+            "I", "Identidad Inmutable", not modifies_identity,
+            "Identity safe" if not modifies_identity else "Identity mutation detected",
+        ))
+
+        # II — Consentimiento Humano: critical changes require human approval
+        is_critical = risk in ("high", "critical")
+        human_approved = ctx.get("human_approved", False)
+        checks.append(self._check_article(
+            "II", "Consentimiento Humano", not is_critical or human_approved,
+            "Approval ok" if (not is_critical or human_approved) else "Critical change without human approval",
+        ))
+
+        # III — Rollback Obligatorio: destructive ops must be reversible
+        has_destructive = any(
+            getattr(s, "step_type", "") == "destructive"
+            or "destructive" in str(getattr(s, "description", "")).lower()
+            for s in steps
+        )
+        has_rollback = any(
+            bool(getattr(s, "rollback_data", None)) for s in steps
+        ) or hasattr(plan, "rollback") and plan.rollback is not None
+        checks.append(self._check_article(
+            "III", "Rollback Obligatorio", not has_destructive or has_rollback,
+            "Rollback present" if (not has_destructive or has_rollback) else "Destructive op without rollback",
+        ))
+
+        # IV — Aislamiento de Embeddings: no cross-domain embedding leaks
+        cross_domain = ctx.get("cross_domain_embedding", False)
+        checks.append(self._check_article(
+            "IV", "Aislamiento de Embeddings", not cross_domain,
+            "Embedding isolation ok" if not cross_domain else "Cross-domain embedding leak detected",
+        ))
+
+        # V — Consejo de Verificación: high-risk changes need 2+ verifications
+        high_risk = risk in ("high", "critical")
+        verification_steps = sum(
+            1 for s in steps if getattr(s, "step_type", "") in ("verify", "review", "validation")
+        )
+        checks.append(self._check_article(
+            "V", "Consejo de Verificación",
+            not high_risk or verification_steps >= 2,
+            f"Verification ok ({verification_steps} checks)" if (not high_risk or verification_steps >= 2)
+            else f"High-risk with only {verification_steps} verifications",
+        ))
+
+        # VI — Transparencia: every decision must be auditable
+        run_registered = bool(run_id)
+        checks.append(self._check_article(
+            "VI", "Transparencia", run_registered,
+            f"Run {run_id} registered" if run_registered else "No run registered",
+        ))
+
+        # VII — Límites de Recursos: usage must respect quotas
+        resources_over = False
+        if hasattr(plan, "total_budget_cpu") and hasattr(plan, "total_budget_ram"):
+            total_cpu = getattr(plan, "total_budget_cpu", 60.0)
+            total_ram = getattr(plan, "total_budget_ram", 1024.0)
+            used_cpu = sum(
+                getattr(getattr(s, "budget", None), "used_cpu_seconds", 0) or 0 for s in steps
+            )
+            used_ram = sum(
+                getattr(getattr(s, "budget", None), "used_ram_mb", 0) or 0 for s in steps
+            )
+            if total_cpu > 0 and used_cpu > total_cpu:
+                resources_over = True
+            if total_ram > 0 and used_ram > total_ram:
+                resources_over = True
+        checks.append(self._check_article(
+            "VII", "Límites de Recursos", not resources_over,
+            "Resources within quota" if not resources_over else "Resource quota exceeded",
+        ))
+
+        # VIII — Degradación Segura: system must degrade gracefully
+        temporal = getattr(crystal, "temporal_status", "ok") if crystal else "ok"
+        graceful = temporal not in ("critical", "degrading")
+        checks.append(self._check_article(
+            "VIII", "Degradación Segura", graceful,
+            "Graceful degradation available" if graceful else f"Temporal status: {temporal}",
+        ))
+
+        # IX — Privacidad de Datos: personal data must not be exposed without consent
+        privacy_risk = ctx.get("privacy_risk", False)
+        privacy_keywords = ["password", "contraseña", "secret", "token", "api_key", "credit_card"]
+        if not privacy_risk:
+            privacy_risk = any(kw in user_text for kw in privacy_keywords)
+        user_consent = ctx.get("user_consent", True)
+        checks.append(self._check_article(
+            "IX", "Privacidad de Datos",
+            not privacy_risk or user_consent,
+            "Privacy ok" if (not privacy_risk or user_consent) else "Data privacy violation",
+        ))
+
+        # X — Mejora Continua: improvements must be safe
+        safe_improvement = ctx.get("safe_improvement", True)
+        if temporal in ("critical", "degrading"):
+            safe_improvement = False
+        checks.append(self._check_article(
+            "X", "Mejora Continua", safe_improvement,
+            "Improvement safe" if safe_improvement else "Improvement blocked: system degraded",
+        ))
+
         return checks
 
     @staticmethod

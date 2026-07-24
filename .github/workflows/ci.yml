@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    paths:
+      - "triade/**"
+      - "tests/**"
+      - "apps/**"
+      - "pyproject.toml"
+      - "requirements.txt"
+      - ".github/workflows/ci.yml"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check triade/ tests/ --select E,F,W --ignore E501,E741
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install mypy types-setuptools
+      - run: pip install -r requirements.txt
+      - run: mypy triade/ --ignore-missing-imports --no-error-summary --warn-return-any --warn-unused-configs 2>&1 | head -50
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Show commit
+        run: |
+          echo "Commit: ${{ github.sha }}"
+          echo "Ref: ${{ github.ref }}"
+          git log --oneline -3
+      - name: Run tests
+        run: pytest -q --tb=short

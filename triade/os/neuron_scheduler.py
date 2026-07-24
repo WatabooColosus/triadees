@@ -35,6 +35,16 @@ class NeuronScheduler:
         if migration.exists():
             with self._connect() as conn:
                 conn.executescript(migration.read_text(encoding="utf-8"))
+        self._ensure_neuron_activity_column()
+
+    def _ensure_neuron_activity_column(self) -> None:
+        with self._connect() as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(neuron_activity)").fetchall()}
+            if "activation_type" not in cols:
+                try:
+                    conn.execute("ALTER TABLE neuron_activity ADD COLUMN activation_type TEXT")
+                except Exception:
+                    pass
 
     # ── Priority computation ─────────────────────────────────
 

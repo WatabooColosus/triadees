@@ -31,9 +31,9 @@ class UnavailableClient:
         return {"ok": False, "models": [], "error": "offline"}
 
 
-def make_engine(tmp_path, client) -> SemanticEmbeddingEngine:
+def make_engine(tmp_path, client, use_local_fallback: bool = True) -> SemanticEmbeddingEngine:
     store = SemanticMemoryStore(db_path=tmp_path / "semantic.db", migration_path=MIGRATION)
-    return SemanticEmbeddingEngine(store=store, client=client)
+    return SemanticEmbeddingEngine(store=store, client=client, use_local_fallback=use_local_fallback)
 
 
 def test_selects_preferred_installed_embedding_model(tmp_path) -> None:
@@ -99,10 +99,10 @@ def test_embed_pending_only_processes_documents_without_vector(tmp_path) -> None
 
 
 def test_doctor_reports_missing_ollama_or_embedding_model(tmp_path) -> None:
-    unavailable = make_engine(tmp_path, UnavailableClient()).doctor()
-    no_model = make_engine(tmp_path, FakeEmbeddingClient(models=["llama3:latest"])).doctor()
+    unavailable = make_engine(tmp_path, UnavailableClient(), use_local_fallback=False).doctor()
+    no_model = make_engine(tmp_path, FakeEmbeddingClient(models=["llama3:latest"]), use_local_fallback=False).doctor()
 
     assert unavailable["status"] == "warning"
     assert unavailable["selection"]["reason"] == "ollama_unavailable"
     assert no_model["selection"]["reason"] == "no_embedding_model_installed"
-    assert no_model["semantic_search"] == "active_1.9F"
+    assert no_model["semantic_search"] == "active_2.0"
