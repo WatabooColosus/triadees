@@ -206,3 +206,44 @@ def learning_status():
 def health_check():
     """Health check rápido."""
     return {"status": "healthy", "timestamp": utc_now(), "version": "1.0.0"}
+
+
+@router.get("/events")
+def events_status():
+    """Eventos del sistema: event engine y reglas activas."""
+    try:
+        from triade.os.event_engine import EventEngine
+        ee = EventEngine()
+        rules = ee.get_rules() if hasattr(ee, 'get_rules') else []
+        return {"subsystem": "events", "status": "active",
+                "rules_count": len(rules), "doctor": ee.doctor()}
+    except Exception as e:
+        return {"subsystem": "events", "status": "error", "error": str(e)}
+
+
+@router.get("/audit")
+def audit_status():
+    """Auditoría: trails de todas las operaciones."""
+    try:
+        audit_data = {}
+        try:
+            from triade.constitution.enforcer import ConstitutionEnforcer
+            ce = ConstitutionEnforcer()
+            audit_data["constitution"] = ce.doctor()
+        except Exception:
+            pass
+        try:
+            from triade.sandbox.enhanced_tool_registry import EnhancedToolRegistry
+            etr = EnhancedToolRegistry()
+            audit_data["tool_audit"] = etr.audit_log(limit=20)
+        except Exception:
+            pass
+        try:
+            from triade.memory.replacement_tracker import ReplacementTracker
+            rt = ReplacementTracker()
+            audit_data["replacements"] = rt.rollback_history(limit=20)
+        except Exception:
+            pass
+        return {"subsystem": "audit", "status": "active", "audit_data": audit_data}
+    except Exception as e:
+        return {"subsystem": "audit", "status": "error", "error": str(e)}

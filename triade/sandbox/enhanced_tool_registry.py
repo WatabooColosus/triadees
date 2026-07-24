@@ -262,9 +262,13 @@ class EnhancedToolRegistry:
         now = utc_now()
         exec_id = _gen_id("texe")
         import time
+        import concurrent.futures
         t0 = time.time()
+        timeout = contract.timeout_seconds if hasattr(contract, 'timeout_seconds') else 30
         try:
-            result = handler(payload)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(handler, payload)
+                result = future.result(timeout=timeout)
             dur = (time.time() - t0) * 1000
             self._conn.execute(
                 """INSERT INTO tool_executions_ext
