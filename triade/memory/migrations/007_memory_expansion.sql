@@ -66,3 +66,17 @@ CREATE TABLE IF NOT EXISTS working_memory_persistent (
     timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
     access_count INTEGER DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS memory_replacements (
+    record_id TEXT PRIMARY KEY,
+    replaced_id TEXT NOT NULL,
+    replacement_id TEXT NOT NULL,
+    reason TEXT DEFAULT '',
+    domain TEXT DEFAULT '',
+    confidence_before REAL DEFAULT 0.0,
+    confidence_after REAL DEFAULT 0.0,
+    reversible INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_memory_replacements_replaced ON memory_replacements(replaced_id);
+CREATE INDEX IF NOT EXISTS idx_memory_replacements_replacement ON memory_replacements(replacement_id);
