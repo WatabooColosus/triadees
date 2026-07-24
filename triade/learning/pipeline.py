@@ -358,11 +358,27 @@ class LearningPipeline:
         try:
             measurement_evidence = self.evidence_bridge.require_improvement(candidate_id)
         except ValueError as e:
-            # Si la evidencia de medición no está disponible, continuar con evidencia mínima
             if "No existe Measurement Core" in str(e) or "require_improvement" in str(e):
-                measurement_evidence = {"comparison": {"note": "Evidencia de medición no disponible; consolidación con aprobación humana."}}
+                measurement_evidence = {
+                    "comparison": {"note": "Evidencia de medición no disponible; consolidación con aprobación humana."},
+                    "missing_measurement_core": True,
+                }
             else:
                 raise
+
+        # Rollback Obligatorio (Artículo III de la Constitución)
+        from triade.regression.mandatory_rollback import MandatoryRollbackEnforcer
+        enforcer = MandatoryRollbackEnforcer(db_path=self.db_path)
+        capability_id = str(row.get("domain", "general")).strip()
+        try:
+            from triade.regression.rollback import RollbackExecutor
+            rollback_executor = RollbackExecutor(db_path=self.db_path)
+            registered_handlers = set(rollback_executor._handlers.keys())
+        except Exception:
+            registered_handlers = set()
+        enforcer.enforce_before_promotion(
+            capability_id, registered_handlers=registered_handlers,
+        )
 
         explicit_approver = (approved_by or "").strip()
         if explicit_approver:
@@ -385,6 +401,36 @@ class LearningPipeline:
             used_auto = True
         else:
             raise ValueError("La consolidación requiere agente aprobador explícito (approved_by) cuando auto_consolidate=False.")
+
+        # Verificación Constitucional (Artículo II)
+        from triade.core.constitution import GLOBAL_CONSTITUTION
+        const_check = GLOBAL_CONSTITUTION.check_operation("consolidate_stable", capability_id)
+        if not const_check["allowed"]:
+            raise ValueError(
+                f"BLOQUEADO por Constitución: {'; '.join(const_check['violations'])}"
+            )
+
+        # Consejo Autónomo de Verificación (Artículo V)
+        from triade.verification.council import VerificationCouncil
+        council = VerificationCouncil(db_path=self.db_path)
+        council.register_verifier("safety-verifier")
+        council.register_verifier("regression-verifier")
+        council.register_verifier("evidence-verifier")
+        council_decision = council.convene(
+            decision_id=f"council-{candidate_id}",
+            target_capability=capability_id,
+            target_candidate=candidate_id,
+            context={
+                "has_baseline": True,
+                "has_rollback": capability_id in registered_handlers if 'registered_handlers' in dir() else False,
+                "regression_pass": not measurement_evidence.get("missing_measurement_core", False),
+                "critical_issues": [],
+            },
+        )
+        if council_decision.final_verdict == "rejected":
+            raise ValueError(
+                f"Consejo de Verificación rechazó la consolidación: {council_decision.reasoning_summary}"
+            )
 
         document = self.semantic_store.upsert_document(
             content=str(row["content"]),
