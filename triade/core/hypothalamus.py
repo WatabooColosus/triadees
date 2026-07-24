@@ -1,7 +1,9 @@
-"""Hipotálamo Emocional · MVP with optional model signals.
+"""Hipotálamo Emocional · PV-14 with hardware senses, cognitive load, and ViceVirtueState.
 
 Desde Fase F incluye estado emocional persistente: mood (VAD),
 fatiga y línea base de PV-7 cargada desde hypothalamus_state.
+PV-14 agrega: señales de hardware, carga cognitiva, curiosidad,
+incertidumbre, tensiones entre virtudes, y ViceVirtueState wrapper.
 """
 
 from __future__ import annotations
@@ -11,6 +13,9 @@ from typing import Any
 
 from triade.memory.hypothalamus_store import HypothalamusStateStore, EmotionalState, mood_from_signals
 from triade.models.ollama_client import OllamaClient
+from triade.hypothalamus.vice_virtue import ViceVirtueState
+from triade.hypothalamus.senses import SystemSenses, SystemSnapshot
+from triade.hypothalamus.cognitive_load import CognitiveLoad, CognitiveSnapshot
 
 from .contracts import InputPacket, RiskLevel, SignalPacket, Urgency
 
@@ -31,6 +36,7 @@ class Hypothalamus:
 
     Usa modelo local si está disponible y conserva fallback por reglas.
     Desde Fase F mantiene estado emocional persistente.
+    PV-14: Integra señales de hardware, carga cognitiva, y ViceVirtueState.
     """
 
     def __init__(
@@ -38,6 +44,7 @@ class Hypothalamus:
         model_client: OllamaClient | None = None,
         model_name: str = "qwen2.5:3b-instruct",
         state_store: HypothalamusStateStore | None = None,
+        db_path: str | None = None,
     ) -> None:
         self.model_client = model_client
         self.model_name = model_name
@@ -49,6 +56,15 @@ class Hypothalamus:
             "ok": False,
             "error": None,
         }
+        # PV-14: SystemSenses y CognitiveLoad
+        resolved_db = db_path or "triade/memory/triade.db"
+        self._senses = SystemSenses(db_path=resolved_db)
+        self._last_snapshot: SystemSnapshot | None = None
+        self._last_cognitive: CognitiveSnapshot | None = None
+        self._vice_virtue: ViceVirtueState | None = None
+        # Auto-crear state_store si db_path fue proveído pero state_store no
+        if self.state_store is None and db_path:
+            self.state_store = HypothalamusStateStore(db_path=resolved_db)
 
     @property
     def mood(self) -> EmotionalState | None:
@@ -63,9 +79,97 @@ class Hypothalamus:
         self._cached_mood = loaded
         return loaded
 
+    # --- PV-14: Propiedades de hardware y carga cognitiva ---
+
+    @property
+    def last_snapshot(self) -> SystemSnapshot | None:
+        """Último snapshot de hardware capturado."""
+        return self._last_snapshot
+
+    @property
+    def last_cognitive(self) -> CognitiveSnapshot | None:
+        """Último cálculo de carga cognitiva."""
+        return self._last_cognitive
+
+    @property
+    def vice_virtue(self) -> ViceVirtueState:
+        """Estado de virtudes/pecados, cargado desde el mood actual."""
+        if self._vice_virtue is None:
+            current = self.mood
+            if current is not None:
+                self._vice_virtue = ViceVirtueState.from_dict(current.pv7_baseline)
+            else:
+                self._vice_virtue = ViceVirtueState.default()
+        return self._vice_virtue
+
+    def capture_system_senses(self) -> SystemSnapshot:
+        """Captura el estado actual del hardware y sistema."""
+        snapshot = self._senses.snapshot()
+        self._last_snapshot = snapshot
+        try:
+            self._senses.save_snapshot(snapshot)
+        except Exception:
+            pass
+        return snapshot
+
+    def compute_cognitive_load(
+        self,
+        query_novelty: float = 0.5,
+        recent_confidence: float = 0.7,
+    ) -> CognitiveSnapshot:
+        """Calcula la carga cognitiva del sistema."""
+        if self._last_snapshot is None:
+            self.capture_system_senses()
+        snapshot = self._last_snapshot or SystemSnapshot()
+        cognitive = CognitiveLoad.compute_with_context(
+            snapshot, query_novelty=query_novelty, recent_confidence=recent_confidence,
+        )
+        self._last_cognitive = cognitive
+        return cognitive
+
+    def get_tensions(self) -> dict[str, float]:
+        """Calcula las tensiones actuales entre virtudes."""
+        return self.vice_virtue.all_tensions(threshold=0.1)
+
     def analyze(self, packet: InputPacket) -> SignalPacket:
+        # PV-14: Capturar senses del sistema y calcular carga cognitiva
+        try:
+            snapshot = self.capture_system_senses()
+            cognitive = self.compute_cognitive_load()
+        except Exception:
+            snapshot = None
+            cognitive = None
+
         current_mood = self.load_mood()
         fallback = self._analyze_rules(packet, mood=current_mood)
+
+        # PV-14: Inyectar señales de carga cognitiva en las notes
+        if cognitive:
+            fallback.notes.append(
+                f"Carga cognitiva: {cognitive.overall_load:.2f} "
+                f"(CPU={cognitive.cpu_pressure:.2f}, RAM={cognitive.ram_pressure:.2f}, "
+                f"GPU={cognitive.gpu_pressure:.2f})"
+            )
+            if cognitive.curiosity > 0.5:
+                fallback.notes.append(f"Curiosidad alta: {cognitive.curiosity:.2f}")
+            if cognitive.uncertainty > 0.5:
+                fallback.notes.append(f"Incertidumbre alta: {cognitive.uncertainty:.2f}")
+
+        # PV-14: Actualizar ViceVirtueState con decaimiento temporal
+        if current_mood and current_mood.last_active_at:
+            try:
+                from datetime import datetime, timezone
+                last = datetime.fromisoformat(current_mood.last_active_at)
+                now = datetime.now(timezone.utc)
+                elapsed = (now - last).total_seconds()
+                if elapsed > 0:
+                    self.vice_virtue.decay(rate=0.005, seconds=elapsed)
+            except (ValueError, TypeError):
+                pass
+
+        # PV-14: Ajustar urgencia si carga cognitiva es alta
+        if cognitive and cognitive.overall_load > 0.85 and fallback.urgency == "high":
+            fallback.notes.append("Carga cognitiva crítica: urgencia regulada por Hipotálamo.")
 
         if self.model_client is None:
             self.last_model_result = {
@@ -168,7 +272,14 @@ class Hypothalamus:
 
     def _save_and_return(self, run_id: str, signals: SignalPacket, previous_mood: EmotionalState | None, user_input: str = "") -> SignalPacket:
         if self.state_store is not None:
-            self.state_store.save(run_id, signals, previous=previous_mood)
+            # PV-14: Preparar cognitive snapshot para persistencia
+            cognitive_data = {}
+            if self._last_cognitive:
+                cognitive_data = self._last_cognitive.to_dict()
+            elif self._last_snapshot:
+                cognitive_data = self._last_snapshot.to_dict()
+
+            self.state_store.save(run_id, signals, previous=previous_mood, cognitive_snapshot=cognitive_data or None)
             self._cached_mood = self.state_store.load_latest()
             try:
                 self.state_store.learn_pattern(

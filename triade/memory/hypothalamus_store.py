@@ -29,6 +29,17 @@ class EmotionalState:
     })
     run_count: int = 0
     last_active_at: str | None = None
+    # PV-14: Señales de hardware y carga cognitiva
+    cpu_load: float = 0.0
+    ram_usage: float = 0.0
+    gpu_utilization: float = 0.0
+    gpu_memory_used: float = 0.0
+    gpu_temperature: int = 0
+    cognitive_load: float = 0.0
+    curiosity: float = 0.0
+    uncertainty: float = 0.0
+    tensions: dict[str, float] = field(default_factory=dict)
+    cognitive_snapshot: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -40,6 +51,16 @@ class EmotionalState:
             "pv7_baseline": dict(self.pv7_baseline),
             "run_count": self.run_count,
             "last_active_at": self.last_active_at,
+            "cpu_load": self.cpu_load,
+            "ram_usage": self.ram_usage,
+            "gpu_utilization": self.gpu_utilization,
+            "gpu_memory_used": self.gpu_memory_used,
+            "gpu_temperature": self.gpu_temperature,
+            "cognitive_load": self.cognitive_load,
+            "curiosity": self.curiosity,
+            "uncertainty": self.uncertainty,
+            "tensions": dict(self.tensions),
+            "cognitive_snapshot": dict(self.cognitive_snapshot),
         }
 
 
@@ -128,27 +149,97 @@ class HypothalamusStateStore:
             raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
+            self._run_migration(conn)
 
-    def save(self, run_id: str, signals: SignalPacket, previous: EmotionalState | None = None) -> int:
+    def _run_migration(self, conn: sqlite3.Connection) -> None:
+        """Ejecuta migración 006 de forma segura (ignora columnas ya existentes)."""
+        migration_path = Path(__file__).resolve().parent / "migrations" / "006_hypothalamus_pv14.sql"
+        if migration_path.exists():
+            try:
+                conn.executescript(migration_path.read_text(encoding="utf-8"))
+            except sqlite3.OperationalError:
+                pass  # Columnas ya existen
+
+    def save(self, run_id: str, signals: SignalPacket, previous: EmotionalState | None = None,
+             cognitive_snapshot: dict[str, Any] | None = None) -> int:
         if previous is None:
             previous = self.load_latest()
         mood = mood_from_signals(signals, previous)
         now = new_utc()
+        # Merge hardware/cognitive data from previous state or snapshot
+        if cognitive_snapshot:
+            mood.cpu_load = cognitive_snapshot.get("cpu_load", 0.0)
+            mood.ram_usage = cognitive_snapshot.get("ram_usage", 0.0)
+            mood.gpu_utilization = cognitive_snapshot.get("gpu_utilization", 0.0)
+            mood.gpu_memory_used = cognitive_snapshot.get("gpu_memory_used", 0.0)
+            mood.gpu_temperature = cognitive_snapshot.get("gpu_temperature", 0)
+            mood.cognitive_load = cognitive_snapshot.get("cognitive_load", 0.0)
+            mood.curiosity = cognitive_snapshot.get("curiosity", 0.0)
+            mood.uncertainty = cognitive_snapshot.get("uncertainty", 0.0)
+            mood.cognitive_snapshot = cognitive_snapshot
+        elif previous:
+            mood.cpu_load = previous.cpu_load
+            mood.ram_usage = previous.ram_usage
+            mood.gpu_utilization = previous.gpu_utilization
+            mood.gpu_memory_used = previous.gpu_memory_used
+            mood.gpu_temperature = previous.gpu_temperature
+            mood.cognitive_load = previous.cognitive_load
+            mood.curiosity = previous.curiosity
+            mood.uncertainty = previous.uncertainty
+            mood.cognitive_snapshot = previous.cognitive_snapshot
         with self._connect() as conn:
-            cursor = conn.execute(
-                """INSERT INTO hypothalamus_state
-                (run_id, mood_valence, mood_arousal, mood_dominance, primary_emotion,
-                 fatigue, pv7_baseline, run_count, last_active_at, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    run_id,
-                    mood.valence, mood.arousal, mood.dominance,
-                    mood.primary_emotion, mood.fatigue,
-                    json.dumps(mood.pv7_baseline, ensure_ascii=False),
-                    mood.run_count, mood.last_active_at, now,
-                ),
-            )
-            return int(cursor.lastrowid)
+            try:
+                cursor = conn.execute(
+                    """INSERT INTO hypothalamus_state
+                    (run_id, mood_valence, mood_arousal, mood_dominance, primary_emotion,
+                     fatigue, pv7_baseline, run_count, last_active_at, created_at,
+                     cpu_load, ram_usage, gpu_utilization, gpu_memory_used, gpu_temperature,
+                     cognitive_load, curiosity, uncertainty, tensions_json, cognitive_snapshot_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        run_id,
+                        mood.valence, mood.arousal, mood.dominance,
+                        mood.primary_emotion, mood.fatigue,
+                        json.dumps(mood.pv7_baseline, ensure_ascii=False),
+                        mood.run_count, mood.last_active_at, now,
+                        mood.cpu_load, mood.ram_usage, mood.gpu_utilization,
+                        mood.gpu_memory_used, mood.gpu_temperature,
+                        mood.cognitive_load, mood.curiosity, mood.uncertainty,
+                        json.dumps(mood.tensions, ensure_ascii=False),
+                        json.dumps(mood.cognitive_snapshot, ensure_ascii=False),
+                    ),
+                )
+                return int(cursor.lastrowid)
+            except sqlite3.IntegrityError:
+                # FK constraint: run_id no existe en tabla runs. Insertar registro mínimo.
+                try:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO runs (run_id, user_input, created_at) VALUES (?, '', ?)",
+                        (run_id, now),
+                    )
+                    cursor = conn.execute(
+                        """INSERT INTO hypothalamus_state
+                        (run_id, mood_valence, mood_arousal, mood_dominance, primary_emotion,
+                         fatigue, pv7_baseline, run_count, last_active_at, created_at,
+                         cpu_load, ram_usage, gpu_utilization, gpu_memory_used, gpu_temperature,
+                         cognitive_load, curiosity, uncertainty, tensions_json, cognitive_snapshot_json)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            run_id,
+                            mood.valence, mood.arousal, mood.dominance,
+                            mood.primary_emotion, mood.fatigue,
+                            json.dumps(mood.pv7_baseline, ensure_ascii=False),
+                            mood.run_count, mood.last_active_at, now,
+                            mood.cpu_load, mood.ram_usage, mood.gpu_utilization,
+                            mood.gpu_memory_used, mood.gpu_temperature,
+                            mood.cognitive_load, mood.curiosity, mood.uncertainty,
+                            json.dumps(mood.tensions, ensure_ascii=False),
+                            json.dumps(mood.cognitive_snapshot, ensure_ascii=False),
+                        ),
+                    )
+                    return int(cursor.lastrowid)
+                except Exception:
+                    return -1
 
     def save_raw(self, run_id: str, state: EmotionalState) -> int:
         now = new_utc()
@@ -156,13 +247,20 @@ class HypothalamusStateStore:
             cursor = conn.execute(
                 """INSERT INTO hypothalamus_state
                 (run_id, mood_valence, mood_arousal, mood_dominance, primary_emotion,
-                 fatigue, pv7_baseline, run_count, last_active_at, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                 fatigue, pv7_baseline, run_count, last_active_at, created_at,
+                 cpu_load, ram_usage, gpu_utilization, gpu_memory_used, gpu_temperature,
+                 cognitive_load, curiosity, uncertainty, tensions_json, cognitive_snapshot_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     run_id, state.valence, state.arousal, state.dominance,
                     state.primary_emotion, state.fatigue,
                     json.dumps(state.pv7_baseline, ensure_ascii=False),
                     state.run_count, state.last_active_at, now,
+                    state.cpu_load, state.ram_usage, state.gpu_utilization,
+                    state.gpu_memory_used, state.gpu_temperature,
+                    state.cognitive_load, state.curiosity, state.uncertainty,
+                    json.dumps(state.tensions, ensure_ascii=False),
+                    json.dumps(state.cognitive_snapshot, ensure_ascii=False),
                 ),
             )
             return int(cursor.lastrowid)
@@ -367,6 +465,19 @@ class HypothalamusStateStore:
             pv7 = json.loads(str(pv7_raw)) if isinstance(pv7_raw, str) else {}
         except (json.JSONDecodeError, TypeError):
             pv7 = {}
+
+        tensions_raw = r("tensions_json", "{}")
+        try:
+            tensions = json.loads(str(tensions_raw)) if isinstance(tensions_raw, str) else {}
+        except (json.JSONDecodeError, TypeError):
+            tensions = {}
+
+        cog_raw = r("cognitive_snapshot_json", "{}")
+        try:
+            cognitive_snapshot = json.loads(str(cog_raw)) if isinstance(cog_raw, str) else {}
+        except (json.JSONDecodeError, TypeError):
+            cognitive_snapshot = {}
+
         return EmotionalState(
             valence=float(r("mood_valence", 0.0)),
             arousal=float(r("mood_arousal", 0.0)),
@@ -376,4 +487,14 @@ class HypothalamusStateStore:
             pv7_baseline=pv7,
             run_count=int(r("run_count", 0)),
             last_active_at=str(r("last_active_at") or r("created_at", "")),
+            cpu_load=float(r("cpu_load", 0.0)),
+            ram_usage=float(r("ram_usage", 0.0)),
+            gpu_utilization=float(r("gpu_utilization", 0.0)),
+            gpu_memory_used=float(r("gpu_memory_used", 0.0)),
+            gpu_temperature=int(r("gpu_temperature", 0)),
+            cognitive_load=float(r("cognitive_load", 0.0)),
+            curiosity=float(r("curiosity", 0.0)),
+            uncertainty=float(r("uncertainty", 0.0)),
+            tensions=tensions,
+            cognitive_snapshot=cognitive_snapshot,
         )

@@ -181,7 +181,7 @@ class TriadeRunner:
         self.central_model = selected["central"]
         self.semantic_search_engine = semantic_search_engine
         self.semantic_governance = semantic_governance
-        self.hypothalamus = Hypothalamus(model_client=self.model_client, model_name=self.hypothalamus_model)
+        self.hypothalamus = Hypothalamus(model_client=self.model_client, model_name=self.hypothalamus_model, db_path=self.db_path)
         self.bodega = Bodega(db_path=self.db_path, semantic_search_engine=semantic_search_engine)
         self.crystal = Crystal()
         self.central = Central(model_client=self.model_client, central_model=self.central_model)
