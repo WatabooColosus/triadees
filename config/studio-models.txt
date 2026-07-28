@@ -1,0 +1,10 @@
+# Modelo general y roles Central/Hipotálamo
+qwen2.5:3b-instruct
+# Respuesta rápida para CPU
+qwen3:1.7b
+# Rol de programación
+qwen2.5-coder:3b
+# Memoria semántica
+nomic-embed-text:latest
+# Análisis de profundidad moderada
+qwen3:4b
