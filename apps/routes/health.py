@@ -56,6 +56,16 @@ def _writable_path(path_value: str) -> dict[str, Any]:
         return {"path": str(path), "ok": False, "reason": type(exc).__name__}
 
 
+def _runtime_path(env_name: str, directory: str) -> str:
+    """Resolve storage inside the active checkout unless explicitly configured.
+
+    Cloud containers use ``/app`` as their working directory, so this preserves
+    the existing cloud paths while allowing Studio and other local checkouts to
+    report readiness against directories they can actually create.
+    """
+    return os.getenv(env_name, str(Path.cwd() / directory))
+
+
 @router.get("/live")
 def live() -> dict[str, Any]:
     return {
@@ -68,8 +78,8 @@ def live() -> dict[str, Any]:
 @router.get("/ready")
 def ready() -> JSONResponse:
     checks = {
-        "memory": _writable_path(os.getenv("TRIADE_MEMORY_DIR", "/app/memory")),
-        "runs": _writable_path(os.getenv("TRIADE_RUNS_DIR", "/app/runs")),
+        "memory": _writable_path(_runtime_path("TRIADE_MEMORY_DIR", "memory")),
+        "runs": _writable_path(_runtime_path("TRIADE_RUNS_DIR", "runs")),
         "postgres": _tcp_check(os.getenv("DATABASE_URL"), 5432),
         "valkey": _tcp_check(os.getenv("REDIS_URL"), 6379),
     }

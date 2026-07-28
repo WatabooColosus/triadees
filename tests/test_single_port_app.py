@@ -37,6 +37,20 @@ def test_single_port_health() -> None:
     assert "doctor" in payload
 
 
+def test_cloud_readiness_defaults_to_writable_checkout_paths(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("TRIADE_MEMORY_DIR", raising=False)
+    monkeypatch.delenv("TRIADE_RUNS_DIR", raising=False)
+
+    response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ready"
+    assert payload["checks"]["memory"]["path"] == str(tmp_path / "memory")
+    assert payload["checks"]["runs"]["path"] == str(tmp_path / "runs")
+
+
 def test_single_port_router_doctor() -> None:
     response = client.post("/api/router/doctor", json={"intent": "analyze", "urgency": "medium"})
 
