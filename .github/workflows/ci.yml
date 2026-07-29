@@ -34,7 +34,7 @@ jobs:
           python-version: "3.12"
       - run: pip install mypy types-setuptools
       - run: pip install -r requirements.txt
-      - run: mypy triade/ --ignore-missing-imports --no-error-summary --warn-return-any --warn-unused-configs 2>&1 | head -50
+      - run: mypy triade/ --ignore-missing-imports --no-error-summary --warn-return-any --warn-unused-configs
 
   test:
     name: Tests
