@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from triade.core.contracts import CrystalPacket, InputPacket, OutputPacket, VerificationReport
+from triade.core.contracts import (
+    CrystalPacket,
+    InputPacket,
+    OutputPacket,
+    VerificationReport,
+)
 from triade.core.run_learning import RunLearningService
 from triade.memory.semantic_continuity import LOCAL_HASH_MODEL
 
@@ -53,3 +58,25 @@ def test_run_learning_service_creates_semantic_continuity_candidate(tmp_path: Pa
     assert result["embedding_event"]["ok"] is True
     assert result["embedding_event"]["model"] == LOCAL_HASH_MODEL
     assert result["policy"]["auto_consolidation"] is False
+
+
+def test_synthetic_runtime_run_is_not_learning_or_memory(tmp_path: Path) -> None:
+    packet = InputPacket(user_input="pulso interno", source="system_pulse_continuous")
+    output = OutputPacket(
+        run_id=packet.run_id, response="estado", model_provider="none",
+        model_name="none", model_ok=False,
+    )
+    report = VerificationReport(run_id=packet.run_id, status="ok")
+    service = RunLearningService(db_path=tmp_path / "triade.db")
+
+    learning = service.post_run_learning_candidate(
+        input_packet=packet, output=output, report=report, intent="analyze",
+    )
+    memory = service.semantic_continuity(
+        input_packet=packet, output=output, intent="analyze",
+        crystal=CrystalPacket(run_id=packet.run_id, q_crystal=0.5, stability=0.5),
+        model_selection={},
+    )
+
+    assert learning["status"] == "skipped"
+    assert memory["status"] == "skipped"

@@ -26,6 +26,7 @@ runtime:
   continuous_runner_autonomy_level: train_candidates
   continuous_runner_interval_seconds: 60
   continuous_runner_max_cycles: 0
+  synthetic_canary_enabled: false
   live_runtime:
     heartbeat_interval_seconds: 5
     health_check_interval_seconds: 15

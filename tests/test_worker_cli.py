@@ -32,7 +32,8 @@ def test_workers_cli_start_is_bounded(tmp_path: Path) -> None:
 
     assert result["status"] == "completed"
     assert result["iterations"] == 2
-    assert result["tasks_completed"] >= 2
+    assert result["tasks_completed"] == 1
+    assert result["live_scheduler"]["jobs"]["dispatch"]["run_count"] == 2
 
 
 def test_workers_cli_queue_events_doctor_and_stop(tmp_path: Path) -> None:

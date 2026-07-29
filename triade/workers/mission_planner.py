@@ -72,6 +72,20 @@ class MissionPlanner:
                                      source="backup_retention_policy", planner_score=0.4))
 
         tasks.sort(key=lambda t: t.priority)
+        deduplicated: list[PlannedTask] = []
+        seen: set[tuple[str, int | None, int | None, str]] = set()
+        for task in tasks:
+            key = (
+                task.task_type,
+                task.related_neuron_id,
+                task.related_candidate_id,
+                str(task.payload.get("goal_id") or ""),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            deduplicated.append(task)
+        tasks = deduplicated
 
         if len(tasks) > 15:
             tasks = tasks[:15]
@@ -141,14 +155,14 @@ class MissionPlanner:
                 # pending_learning_review: solo si hay work que hacer
                 lr = conn.execute(
                     """SELECT COUNT(*) as cnt FROM learning_queue
-                    WHERE status IN ('candidate', 'evaluated', 'internally_checked')"""
+                    WHERE status IN ('candidate', 'evaluated')"""
                 ).fetchone()
                 lr_cnt = int(lr["cnt"] or 0) if lr else 0
                 if lr_cnt > 0:
                     tasks.append(PlannedTask(
                         task_type="pending_learning_review",
                         priority=12,
-                        reason=f"{lr_cnt} candidatos en pipeline de aprendizaje (candidate/evaluated/verified)",
+                        reason=f"{lr_cnt} candidatos con transición ejecutable (candidate/evaluated)",
                         source="mission_planner_baseline",
                         planner_score=min(1.0, 0.5 + lr_cnt / 20),
                     ))
@@ -176,7 +190,9 @@ class MissionPlanner:
                     LEFT JOIN neuron_training nt ON nt.neuron_id = n.id
                     LEFT JOIN neuron_activity na ON na.neuron_id = n.id
                     WHERE n.status IN ('experimental', 'candidate', 'candidate_reviewable')
-                    AND (nt.score >= 0.65 OR na.id IS NOT NULL)"""
+                    AND nt.score >= 0.65
+                    AND na.id IS NOT NULL
+                    AND COALESCE(na.policy, '') != 'experimental_light_pulse'"""
                 ).fetchone()
                 ns_cnt = int(ns["cnt"] or 0) if ns else 0
                 if ns_cnt > 0:
@@ -265,20 +281,20 @@ class MissionPlanner:
         return tasks
 
     def _plan_memory_consolidation(self) -> list[PlannedTask]:
-        """Programa consolidación de memoria verificada pendiente."""
+        """Programa consolidación solo tras validación real en runs."""
         tasks: list[PlannedTask] = []
         try:
             with self._connect() as conn:
                 row = conn.execute(
                     """SELECT COUNT(*) as cnt FROM learning_queue
-                    WHERE status = 'internally_checked'"""
+                    WHERE status = 'validated_in_runs'"""
                 ).fetchone()
                 cnt = int(row["cnt"] or 0) if row else 0
             if cnt > 0:
                 tasks.append(PlannedTask(
-                    task_type="memory_consolidation_review",
+                    task_type="stable_consolidation_review",
                     priority=35,
-                    reason=f"{cnt} candidatos verified pendientes de consolidar",
+                    reason=f"{cnt} candidatos validados en runs pendientes de consolidar",
                     source="mission_planner",
                     planner_score=min(1.0, 0.5 + cnt / 10),
                     payload={"pending_count": cnt},
@@ -293,13 +309,25 @@ class MissionPlanner:
         return tasks
 
     def _plan_active_missions(self) -> list[PlannedTask]:
-        """Programa ciclos de trabajo para misiones neuronales activas."""
+        """Programa misiones solo cuando existe evidencia externa nueva."""
         tasks: list[PlannedTask] = []
         try:
             store = NeuronMissionStore(db_path=self.db_path)
             missions = store.list_missions(status="experimental", limit=5)
             missions.extend(store.list_missions(status="stable", limit=5))
             for m in missions:
+                with self._connect() as conn:
+                    evidence = conn.execute(
+                        """SELECT id,source,refs_json FROM neuron_evidence
+                        WHERE mission_id=? AND source NOT IN ('worker','experimental_light_pulse')
+                        AND created_at > COALESCE(
+                            (SELECT MAX(created_at) FROM neuron_work_cycles WHERE mission_id=?),
+                            '1970-01-01'
+                        ) ORDER BY id DESC LIMIT 1""",
+                        (m.id, m.id),
+                    ).fetchone()
+                if evidence is None:
+                    continue
                 tasks.append(PlannedTask(
                     task_type="experimental_neuron_activity",
                     priority=25,
@@ -313,6 +341,8 @@ class MissionPlanner:
                         "domain": m.domain,
                         "allowed_sources": m.allowed_sources,
                         "allowed_actions": m.allowed_actions,
+                        "evidence_refs": json.loads(evidence["refs_json"] or "[]"),
+                        "evidence_origin": str(evidence["source"]),
                     },
                 ))
         except Exception as exc:
@@ -358,9 +388,18 @@ class MissionPlanner:
         tasks: list[PlannedTask] = []
         try:
             with self._connect() as conn:
-                row = conn.execute("SELECT COUNT(*) as cnt FROM runs WHERE status = 'ok'").fetchone()
+                row = conn.execute(
+                    """SELECT COUNT(*) as cnt FROM runs WHERE status = 'ok'
+                    AND source NOT LIKE 'system_pulse%'
+                    AND source NOT IN ('worker','neuron_activity','test','api-test-context')"""
+                ).fetchone()
                 runs_ok = int(row["cnt"] or 0) if row else 0
-                row2 = conn.execute("SELECT COUNT(*) as cnt FROM episodic_memory").fetchone()
+                row2 = conn.execute(
+                    """SELECT COUNT(*) as cnt FROM episodic_memory e
+                    JOIN runs r ON r.run_id=e.run_id
+                    WHERE r.source NOT LIKE 'system_pulse%'
+                    AND r.source NOT IN ('worker','neuron_activity','test','api-test-context')"""
+                ).fetchone()
                 episodes = int(row2["cnt"] or 0) if row2 else 0
             if runs_ok > 5 and episodes < runs_ok * 2:
                 tasks.append(PlannedTask(

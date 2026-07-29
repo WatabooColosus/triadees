@@ -83,7 +83,7 @@ def test_worker_qualia_experience_handles_error_gracefully(tmp_path: Path) -> No
         assert "error" in qualia
 
 
-def test_worker_run_once_publishes_qualia(tmp_path: Path) -> None:
+def test_idle_worker_run_does_not_fabricate_qualia(tmp_path: Path) -> None:
     db = tmp_path / "triade.db"
     from triade.workers.background_service import WorkerBackgroundService
     service = WorkerBackgroundService(db_path=db, runs_dir=str(tmp_path / "runs"))
@@ -92,4 +92,4 @@ def test_worker_run_once_publishes_qualia(tmp_path: Path) -> None:
     store = QualiaStore(db_path=db)
     total = store.counts()
     qualia_total = sum(total.get(f"qualia_{t}", 0) for t in ["experiences", "signals", "central_packets", "storage_packets"])
-    assert qualia_total > 0
+    assert qualia_total == 0

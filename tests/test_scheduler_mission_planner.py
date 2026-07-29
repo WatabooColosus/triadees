@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 
-import pytest
-
-from triade.workers.scheduler import WorkerScheduler
+from triade.core.neuron_missions import (
+    NeuronEvidence,
+    NeuronMission,
+    NeuronMissionStore,
+)
 from triade.workers.contracts import WorkerRunConfig
-from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
+from triade.workers.mission_planner import MissionPlanner
+from triade.workers.scheduler import WorkerScheduler
 
 
 def make_db(tmp_path: Path) -> Path:
@@ -68,17 +70,52 @@ def test_scheduler_includes_planner_metadata(tmp_path: Path) -> None:
 def test_scheduler_with_active_missions(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
     store = NeuronMissionStore(db_path=db_path)
-    store.create_mission(NeuronMission(
+    mission_id = store.create_mission(NeuronMission(
         neuron_id=1,
         title="Active",
         mission="Test",
         status="experimental",
+    ))
+    store.record_evidence(NeuronEvidence(
+        mission_id=mission_id, neuron_id=1, evidence_type="user_run",
+        source="user_run", content="Resultado externo reproducible",
+        refs=["run:user-1"], score=0.8,
     ))
     scheduler = WorkerScheduler(db_path=db_path)
     config = WorkerRunConfig()
     tasks = scheduler.schedule_cycle(run_ref="test-run-004", config=config)
     mission_tasks = [t for t in tasks if t.get("task_type") == "experimental_neuron_activity"]
     assert len(mission_tasks) >= 1
+
+
+def test_scheduler_rejects_self_referential_mission_evidence(tmp_path: Path) -> None:
+    db_path = make_db(tmp_path)
+    store = NeuronMissionStore(db_path=db_path)
+    mission_id = store.create_mission(NeuronMission(
+        neuron_id=1, title="No self feed", mission="Test", status="experimental",
+    ))
+    store.record_evidence(NeuronEvidence(
+        mission_id=mission_id, neuron_id=1, evidence_type="mission_cycle",
+        source="worker", content="Autorreferencia", refs=["worker:self"], score=0.9,
+    ))
+
+    tasks = WorkerScheduler(db_path=db_path).schedule_cycle("test-no-self", WorkerRunConfig())
+    assert not any(task["task_type"] == "experimental_neuron_activity" for task in tasks)
+
+
+def test_planner_deduplicates_task_types_without_distinct_targets(tmp_path: Path) -> None:
+    db_path = make_db(tmp_path)
+    store = NeuronMissionStore(db_path=db_path)
+    store.create_mission(NeuronMission(
+        neuron_id=1, title="Gap A", mission="Research A", status="experimental",
+    ))
+    store.create_mission(NeuronMission(
+        neuron_id=2, title="Gap B", mission="Research B", status="experimental",
+    ))
+
+    planned = MissionPlanner(db_path=db_path).plan_cycle("dedup")
+    generic = [task.task_type for task in planned if task.related_neuron_id is None]
+    assert len(generic) == len(set(generic))
 
 
 def test_scheduler_task_types_include_governed_education() -> None:

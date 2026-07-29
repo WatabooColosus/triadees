@@ -6,6 +6,7 @@ import sqlite3
 from pathlib import Path
 
 from triade.core.neuron_creator import NeuronSpec
+from triade.core.neuron_missions import NeuronEvidence, NeuronMissionStore
 from triade.core.neuron_registry import NeuronRegistry
 from triade.workers.contracts import WorkerRunConfig, WorkerTask
 from triade.workers.mission_planner import MissionPlanner
@@ -50,6 +51,11 @@ def test_operational_neuron_mission_flow(tmp_path: Path) -> None:
 
     backfill = backfill_neuron_missions(db_path=db_path, runs_dir=tmp_path / "runs", limit=20)
     assert backfill["created_count"] == 1
+    mission_id = int(backfill["created"][0]["id"])
+    NeuronMissionStore(db_path=db_path).record_evidence(NeuronEvidence(
+        mission_id=mission_id, neuron_id=int(neuron["id"]), evidence_type="user_run",
+        source="user_run", content="Evidencia E2E", refs=["run:user-e2e"], score=0.8,
+    ))
 
     planner = MissionPlanner(db_path=db_path)
     planned = planner.plan_cycle()

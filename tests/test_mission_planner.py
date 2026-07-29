@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from triade.workers.mission_planner import MissionPlanner, PlannedTask
-from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
+from triade.core.neuron_missions import NeuronEvidence, NeuronMission, NeuronMissionStore
 from triade.core.error_bus import query_internal_errors
 
 
@@ -87,12 +87,16 @@ def test_plan_priority_ordering(tmp_path: Path) -> None:
 def test_plan_active_missions(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
     store = NeuronMissionStore(db_path=db_path)
-    store.create_mission(NeuronMission(
+    mission_id = store.create_mission(NeuronMission(
         neuron_id=1,
         title="Active mission",
         mission="Test",
         domain="test",
         status="experimental",
+    ))
+    store.record_evidence(NeuronEvidence(
+        mission_id=mission_id, neuron_id=1, evidence_type="user_run",
+        source="user_run", content="Evidencia nueva", refs=["run:user"], score=0.8,
     ))
     planner = MissionPlanner(db_path=db_path)
     tasks = planner.plan_cycle()
@@ -107,7 +111,7 @@ def test_plan_system_debt(tmp_path: Path) -> None:
         for i in range(10):
             conn.execute(
                 "INSERT INTO runs (run_id, source, user_input, status, created_at) VALUES (?, ?, ?, ?, ?)",
-                (f"run-{i:03d}", "test", "input", "ok", "2026-01-01"),
+                (f"run-{i:03d}", "react-ui", "input", "ok", "2026-01-01"),
             )
     planner = MissionPlanner(db_path=db_path)
     tasks = planner.plan_cycle()

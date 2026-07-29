@@ -46,6 +46,15 @@ Por tanto, Tríade aún no satisface el criterio final completo. Esta fase estab
 - Pytest completo y frontend build pasan; npm conserva una vulnerabilidad alta preexistente.
 - Despliegue pendiente: systemd rechazó el reinicio por permisos, y el proceso activo aún ejecuta el código anterior.
 
+## Auditoría de actividad real
+
+La auditoría posterior detectó actividad autorreferencial histórica: 300 evidencias
+de misión creadas por workers, cero evidencias externas de misión, 125 activaciones
+sintéticas y 523 candidatos detenidos en `internally_checked`. Se corrigió el
+planificador para no despachar esos ciclos como trabajo útil. Los pulsos sintéticos
+ya no crean memoria, aprendizaje o Qualia, y el canary sintético queda desactivado
+por defecto. Véase `SYSTEM_TRUTH_AUDIT_2026_07_29.md`.
+
 ## Plan de ejecución por PR
 
 1. Baseline, perfil de hardware y métricas (incluido en esta rama).

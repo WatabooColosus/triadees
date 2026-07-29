@@ -7,8 +7,8 @@ Si MissionPlanner falla, cae a enqueue_defaults() como fallback.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
+from .adaptive_scheduler import AdaptiveScheduler
 from .contracts import WORKER_TASK_TYPES, WorkerRunConfig
 from .task_queue import WorkerTaskQueue
 
@@ -17,6 +17,7 @@ class WorkerScheduler:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
         self.queue = WorkerTaskQueue(db_path=db_path)
+        self.adaptive = AdaptiveScheduler(db_path=db_path)
 
     def schedule_cycle(self, run_ref: str, config: WorkerRunConfig) -> list[dict]:
         """Planifica un ciclo de tareas. Intenta MissionPlanner; fallback a defaults."""
@@ -35,6 +36,8 @@ class WorkerScheduler:
         """Encola tareas planificadas con metadata de razón y fuente."""
         tasks = []
         for item in planned:
+            if not item.payload.get("goal_id") and self.adaptive.should_skip_task(item.task_type):
+                continue
             payload = {
                 "reason": item.reason,
                 "source": item.source,

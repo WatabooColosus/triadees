@@ -17,6 +17,11 @@ class RunLearningService:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
 
+    @staticmethod
+    def _synthetic_source(source: str) -> bool:
+        clean = str(source or "").strip().lower()
+        return clean.startswith(("system_pulse", "experimental_light_pulse", "worker", "internal_runtime"))
+
     def semantic_continuity(
         self,
         *,
@@ -26,6 +31,14 @@ class RunLearningService:
         crystal: Any,
         model_selection: dict[str, Any],
     ) -> dict[str, Any]:
+        if self._synthetic_source(input_packet.source):
+            return {
+                "status": "skipped",
+                "mode": "semantic-continuity",
+                "reason": "synthetic_runtime_activity_is_not_memory",
+                "source": input_packet.source,
+                "policy": {"auto_consolidation": False, "identity_core_modified": False},
+            }
         try:
             return SemanticContinuity(db_path=self.db_path, auto_ollama_embed=False).ingest_run(
                 run_id=input_packet.run_id,
@@ -60,6 +73,14 @@ class RunLearningService:
         report: Any,
         intent: str,
     ) -> dict[str, Any]:
+        if self._synthetic_source(input_packet.source):
+            return {
+                "enabled": False,
+                "mode": "candidate_only",
+                "status": "skipped",
+                "reason": "synthetic_runtime_activity_is_not_learning",
+                "source_ref": f"run:{input_packet.run_id}",
+            }
         context = input_packet.context or {}
         domain = str(context.get("domain", "")).strip() or str(intent or "general")
         content = "\n".join(

@@ -11,7 +11,7 @@ from apps.single_port_app import app
 import apps.routes.api as routes_api
 from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.core.neuron_creator import NeuronSpec
-from triade.core.neuron_missions import NeuronMissionStore
+from triade.core.neuron_missions import NeuronEvidence, NeuronMissionStore
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.neuron_trainer import NeuronTrainingResult
 from triade.workers.mission_planner import MissionPlanner
@@ -133,6 +133,12 @@ def test_mission_planner_agendas_mission_id_for_active_missions(tmp_path: Path) 
     db_path = make_db(tmp_path)
     neuron = register_neuron(db_path, name="planner-neuron", status="experimental")
     backfill_neuron_missions(db_path=db_path, runs_dir=tmp_path / "runs", limit=20)
+    store = NeuronMissionStore(db_path=db_path)
+    mission = store.get_missions_by_neuron(int(neuron["id"]))[0]
+    store.record_evidence(NeuronEvidence(
+        mission_id=int(mission.id), neuron_id=int(neuron["id"]), evidence_type="user_run",
+        source="user_run", content="Evidencia nueva", refs=["run:user"], score=0.8,
+    ))
 
     planner = MissionPlanner(db_path=db_path)
     tasks = planner.plan_cycle()

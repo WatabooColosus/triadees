@@ -313,7 +313,7 @@ class LifePulseEngine:
         }
 
     def _activate_experimental_light(self) -> None:
-        """Ejecuta ciclo ligero para neuronas experimentales — activación forzada para acumular evidencia."""
+        """Canary sintético explícito; nunca es evidencia de aprendizaje."""
         import json, time
         from pathlib import Path
         from .neuron_registry import NeuronRegistry
@@ -331,7 +331,7 @@ class LifePulseEngine:
                 "diagnosis": [
                     f"Neurona '{name}' activada por pulso continuo ciclo {self._continuous_cycle_count}.",
                     f"Dominio: {domain} — observación sin acción externa.",
-                    "Evidencia acumulada para promoción a stable.",
+                    "Canary sintético excluido de promoción y aprendizaje.",
                 ],
                 "test_plan": [
                     "Registrar activación en ledger de evidencia.",
@@ -552,18 +552,26 @@ class LifePulseEngine:
                                 self._last_promotion_at = time.time()
                                 self._last_promotion_name = (ev.get("payload") or {}).get("name")
 
-                # 4. Activar neuronas experimental periódicamente (requiere promote_experimental+)
-                if not worker_active and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("promote_experimental"):
-                    if tick_counter % 3 == 0:
-                        try:
-                            self._activate_experimental_light()
-                        except Exception as exc:
-                            self._record_error(
-                                "life_pulse.continuous.experimental_activation",
-                                exc,
-                                function="_continuous_loop",
-                                operation="activate_experimental_light",
-                            )
+                # 4. Canary sintético solo por opt-in explícito. Nunca debe
+                # aparentar aprendizaje ni acumular evidencia de promoción.
+                synthetic_canary = str(os.environ.get("TRIADE_SYNTHETIC_CANARY", "0")).lower() in {
+                    "1", "true", "yes", "on",
+                }
+                if (
+                    synthetic_canary
+                    and not worker_active
+                    and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("promote_experimental")
+                    and tick_counter % 3 == 0
+                ):
+                    try:
+                        self._activate_experimental_light()
+                    except Exception as exc:
+                        self._record_error(
+                            "life_pulse.continuous.experimental_activation",
+                            exc,
+                            function="_continuous_loop",
+                            operation="activate_experimental_light",
+                        )
 
                 # 5. Recomputar trust cada 10 ciclos
                 if tick_counter % 10 == 0:

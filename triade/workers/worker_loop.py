@@ -471,14 +471,12 @@ class WorkerLoop:
     def _pulse_check(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         from apps.services import build_system_pulse
         pulse = build_system_pulse(sync_relay=False)
-        qualia = self._publish_qualia_experience(
-            run_ref,
-            "pulse_check",
-            "worker_pulse",
-            "Worker ejecutó verificación de pulso local.",
-            extracted_pattern=str({"status": pulse.get("status"), "mode": pulse.get("mode")})[:1000],
-        )
-        return {"status": "completed", "pulse": pulse, "policy": "local_only_no_external_relay_sync", "qualia": qualia}
+        return {
+            "status": "completed",
+            "pulse": pulse,
+            "policy": "local_only_no_external_relay_sync",
+            "qualia": {"published": False, "reason": "heartbeat_is_telemetry_not_experience"},
+        }
 
     def _pending_learning_review(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         pipe = LearningPipeline(db_path=self.db_path)
@@ -493,10 +491,15 @@ class WorkerLoop:
         for candidate in pipe.list_candidates(status="evaluated", limit=5):
             verified = pipe.verify(candidate["candidate_id"])
             processed.append(verified)
-        qualia = self._publish_qualia_experience(
-            run_ref, "pending_learning_review", "worker_learning",
-            f"Worker revisó {len(processed)} candidatos de aprendizaje.",
-            proposed_learning="Mantener ciclo de aprendizaje controlado: candidate→evaluated→verified.",
+        qualia = (
+            self._publish_qualia_experience(
+                run_ref, "pending_learning_review", "worker_learning",
+                f"Worker realizó {len(processed)} transiciones de aprendizaje.",
+                proposed_learning="Transiciones candidate→evaluated→internally_checked registradas.",
+                ingest_learning=False,
+            )
+            if processed
+            else {"published": False, "reason": "no_state_transition"}
         )
         return {"status": "completed", "processed_count": len(processed), "processed": processed, "stable_memory_written": False, "qualia": qualia}
 
@@ -688,10 +691,14 @@ class WorkerLoop:
 
     def _neuron_autopromotion(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         events = NeuronAutopromoter(db_path=self.db_path).promote()
-        qualia = self._publish_qualia_experience(
-            run_ref, "neuron_autopromotion", "worker_autopromotion",
-            f"Auto-promoción ejecutada: {len(events)} eventos.",
-            extracted_pattern=str(events[:3]),
+        qualia = (
+            self._publish_qualia_experience(
+                run_ref, "neuron_autopromotion", "worker_autopromotion",
+                f"Promoción gobernada produjo {len(events)} transiciones.",
+                extracted_pattern=str(events[:3]), ingest_learning=False,
+            )
+            if events
+            else {"published": False, "reason": "no_state_transition"}
         )
         return {"status": "completed", "events": events, "stable_promotion_requires_readiness": True, "qualia": qualia}
 
