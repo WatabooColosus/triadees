@@ -59,6 +59,13 @@ Acción ejecutada:
 No se borraron snapshots. El código incorpora además un cooldown persistido para
 impedir una nueva tormenta de snapshots aunque el proceso watchdog se reinicie.
 
+Una segunda comprobación descubrió que `ServiceHealth` seguía leyendo el
+heartbeat legacy de `worker_state`, aunque `live_runtime_heartbeat` avanzaba. La
+duración del daemon también se confundía con la duración de un ciclo. Se cambió
+la prioridad a la tabla canónica y el run largo solo se considera colgado cuando
+el heartbeat de progreso también está vencido. Una prueba reproduce exactamente
+el caso: daemon antiguo, estado legacy vencido y heartbeat canónico reciente.
+
 ## Actividad autónoma real en la base
 
 `autonomous_tasks` contenía 375 filas en la muestra:

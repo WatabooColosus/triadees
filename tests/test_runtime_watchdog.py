@@ -63,6 +63,42 @@ def test_health_detects_frozen_heartbeat(tmp_path, monkeypatch):
     assert "heartbeat_stale" in status.reasons
 
 
+def test_health_prefers_progress_heartbeat_over_daemon_start_time(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "health.db"
+    _healthy_db(path)
+    stale = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+    fresh = datetime.now(UTC).isoformat()
+    with sqlite3.connect(path) as conn:
+        conn.execute("UPDATE worker_state SET updated_at=?", (stale,))
+        conn.execute(
+            "INSERT INTO worker_runs(status,started_at,finished_at) VALUES('running',?,NULL)",
+            (stale,),
+        )
+        conn.execute(
+            """CREATE TABLE live_runtime_heartbeat(
+            singleton INTEGER PRIMARY KEY, updated_at TEXT NOT NULL)"""
+        )
+        conn.execute("INSERT INTO live_runtime_heartbeat VALUES(1,?)", (fresh,))
+    monkeypatch.setattr(
+        "triade.runtime.service_health.build_resource_probe",
+        lambda: {
+            "disk": {"free_gb": 10},
+            "memory": {"available_gb": 10},
+            "thermal": {"thermal_status": "ok"},
+        },
+    )
+
+    status = ServiceHealth(path, cycle_stale_seconds=10).inspect(
+        process_running=True, ollama_probe={"ok": True}
+    )
+
+    assert status.state == "healthy"
+    assert status.metrics["heartbeat_source"] == "live_runtime_heartbeat"
+    assert "worker_cycle_stalled" not in status.reasons
+
+
 def test_recovery_snapshots_recovers_lease_and_checks_heartbeat(tmp_path):
     path = tmp_path / "health.db"
     store = AutonomousTaskStore(path)

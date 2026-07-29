@@ -91,32 +91,42 @@ class ServiceHealth:
                     ):
                         reasons.append("queue_not_progressing")
                         stalled = True
+                run = None
                 if "worker_runs" in tables:
                     run = conn.execute(
                         "SELECT status,started_at,finished_at FROM worker_runs ORDER BY id DESC LIMIT 1"
                     ).fetchone()
                     metrics["last_worker_run"] = dict(run) if run else None
-                    if (
-                        run
-                        and run["status"] == "running"
-                        and self._age_seconds(run["started_at"], now)
-                        > self.cycle_stale_seconds
-                    ):
-                        reasons.append("worker_cycle_stalled")
-                        stalled = True
-                if "worker_state" in tables:
+                heartbeat = None
+                heartbeat_source = None
+                if "live_runtime_heartbeat" in tables:
                     heartbeat = conn.execute(
-                        "SELECT updated_at,value_json FROM worker_state WHERE key IN ('workers','scheduler_heartbeat') ORDER BY updated_at DESC LIMIT 1"
+                        "SELECT updated_at FROM live_runtime_heartbeat ORDER BY updated_at DESC LIMIT 1"
                     ).fetchone()
+                    heartbeat_source = "live_runtime_heartbeat"
+                if heartbeat is None and "worker_state" in tables:
+                    heartbeat = conn.execute(
+                        "SELECT updated_at FROM worker_state WHERE key IN ('workers','scheduler_heartbeat') ORDER BY updated_at DESC LIMIT 1"
+                    ).fetchone()
+                    heartbeat_source = "worker_state"
+                if heartbeat_source is not None:
                     age = (
                         self._age_seconds(heartbeat["updated_at"], now)
                         if heartbeat
                         else None
                     )
+                    metrics["heartbeat_source"] = heartbeat_source
                     metrics["heartbeat_age_seconds"] = age
                     if age is None or age > self.heartbeat_stale_seconds:
                         reasons.append("heartbeat_stale")
                         stalled = True
+                        if (
+                            run
+                            and run["status"] == "running"
+                            and self._age_seconds(run["started_at"], now)
+                            > self.cycle_stale_seconds
+                        ):
+                            reasons.append("worker_cycle_stalled")
                 if "worker_events" in tables:
                     repeated = conn.execute(
                         "SELECT COUNT(*) FROM worker_events WHERE status IN ('error','failed') AND created_at>=datetime('now','-15 minutes')"
