@@ -1,0 +1,121 @@
+{
+  "phase": 6,
+  "generated_at": "2026-07-29T22:41:37.849026+00:00",
+  "state_type": "relational modulation state",
+  "checks": {
+    "event_changed_state": true,
+    "extreme_input_bounded": true,
+    "user_isolation": true,
+    "restart_retention": true,
+    "decay_toward_baseline": true,
+    "rollback_restored_previous": true,
+    "restore_verified": true,
+    "no_subjective_claim": true
+  },
+  "event": {
+    "event_id": "rme-0531a453833e47bf8b509daa2433935f",
+    "event_type": "conflict_signal",
+    "before": {
+      "humildad": 0.7,
+      "generosidad": 0.7,
+      "respeto": 0.8,
+      "paciencia": 0.7,
+      "templanza": 0.7,
+      "caridad": 0.7,
+      "diligencia": 0.8
+    },
+    "requested_delta": {
+      "humildad": 0.0,
+      "generosidad": 0.0,
+      "respeto": 0.0,
+      "paciencia": 9.0,
+      "templanza": -9.0,
+      "caridad": 0.0,
+      "diligencia": 0.0
+    },
+    "applied_delta": {
+      "humildad": 0.0,
+      "generosidad": 0.0,
+      "respeto": 0.0,
+      "paciencia": 0.12,
+      "templanza": -0.12,
+      "caridad": 0.0,
+      "diligencia": 0.0
+    },
+    "after": {
+      "humildad": 0.7,
+      "generosidad": 0.7,
+      "respeto": 0.8,
+      "paciencia": 0.82,
+      "templanza": 0.58,
+      "caridad": 0.7,
+      "diligencia": 0.8
+    },
+    "explanation": "Bounded conflict modulation exercise.",
+    "source_ref": "runtime:event:1",
+    "limits_applied": true
+  },
+  "decay": {
+    "event_id": "rme-745d400a55e547298b3900da260c2d54",
+    "event_type": "time_decay",
+    "before": {
+      "humildad": 0.7,
+      "generosidad": 0.7,
+      "respeto": 0.8,
+      "paciencia": 0.82,
+      "templanza": 0.58,
+      "caridad": 0.7,
+      "diligencia": 0.8
+    },
+    "requested_delta": {
+      "humildad": 0.0,
+      "generosidad": 0.0,
+      "respeto": 0.0,
+      "paciencia": -0.06,
+      "templanza": 0.06,
+      "caridad": 0.0,
+      "diligencia": 0.0
+    },
+    "applied_delta": {
+      "humildad": 0.0,
+      "generosidad": 0.0,
+      "respeto": 0.0,
+      "paciencia": -0.06,
+      "templanza": 0.06,
+      "caridad": 0.0,
+      "diligencia": 0.0
+    },
+    "after": {
+      "humildad": 0.7,
+      "generosidad": 0.7,
+      "respeto": 0.8,
+      "paciencia": 0.76,
+      "templanza": 0.64,
+      "caridad": 0.7,
+      "diligencia": 0.8
+    },
+    "explanation": "Time decay moved relational modulation toward session baseline.",
+    "source_ref": "decay:3600:3600",
+    "limits_applied": true
+  },
+  "rollback": {
+    "event_id": "rme-745d400a55e547298b3900da260c2d54",
+    "status": "rolled_back",
+    "restored": {
+      "humildad": 0.7,
+      "generosidad": 0.7,
+      "respeto": 0.8,
+      "paciencia": 0.82,
+      "templanza": 0.58,
+      "caridad": 0.7,
+      "diligencia": 0.8
+    }
+  },
+  "restore": {
+    "status": "verified",
+    "sqlite_integrity": "ok",
+    "fingerprint": "d1e5858c375e04c2e6010f0dedcdac9acd693faaa9ef513af3d9ec8425ed710d",
+    "production_overwritten": false
+  },
+  "passed": true
+}

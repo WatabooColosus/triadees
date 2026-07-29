@@ -16,6 +16,7 @@ from triade.hypothalamus.cognitive_load import CognitiveLoad, CognitiveSnapshot
 from triade.hypothalamus.senses import SystemSenses, SystemSnapshot
 from triade.hypothalamus.vice_virtue import ViceVirtueState
 from triade.memory.hypothalamus_store import EmotionalState, HypothalamusStateStore
+from triade.memory.relational_modulation import RelationalModulationStore
 from triade.models.ollama_client import OllamaClient
 
 from .contracts import InputPacket, RiskLevel, SignalPacket, Urgency
@@ -58,6 +59,7 @@ class Hypothalamus:
         }
         # PV-14: SystemSenses y CognitiveLoad
         resolved_db = db_path or "triade/memory/triade.db"
+        self._relational_store = RelationalModulationStore(resolved_db)
         self._senses = SystemSenses(db_path=resolved_db)
         self._last_snapshot: SystemSnapshot | None = None
         self._last_cognitive: CognitiveSnapshot | None = None
@@ -141,8 +143,23 @@ class Hypothalamus:
         except Exception:
             cognitive = None
 
-        current_mood = self.load_mood()
+        scoped_relational = bool(
+            str(packet.context.get("user_id") or "").strip()
+            and str(packet.context.get("session_id") or "").strip()
+        )
+        current_mood = None if scoped_relational else self.load_mood()
         fallback = self._analyze_rules(packet, mood=current_mood)
+        if scoped_relational:
+            user_id = str(packet.context["user_id"])
+            session_id = str(packet.context["session_id"])
+            relational = self._relational_store.get(user_id, session_id)
+            fallback.pv7 = {
+                key: round(0.75 * fallback.pv7[key] + 0.25 * relational["pv7"][key], 4)
+                for key in fallback.pv7
+            }
+            fallback.notes.append(
+                "PV-7 modulated by session-scoped relational modulation state; no subjective emotion claim."
+            )
 
         # PV-14: Inyectar señales de carga cognitiva en las notes
         if cognitive:
