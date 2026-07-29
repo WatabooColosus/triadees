@@ -1,0 +1,35 @@
+{
+  "phase": 7,
+  "generated_at": "2026-07-29T22:52:40.657064+00:00",
+  "calibration": {
+    "status": "measured",
+    "sample_size": 12,
+    "brier_score": 0.13375,
+    "expected_calibration_error": 0.008333333333333333,
+    "success_prediction_accuracy": 0.8333333333333334,
+    "false_confidence_rate": 0.0,
+    "unknown_detection_rate": 1.0
+  },
+  "eighty_percent_bucket": {
+    "predicted": 0.8,
+    "observed": 0.8,
+    "sample_size": 10,
+    "tolerance": 0.05
+  },
+  "gaps": [
+    {
+      "capability_id": "missing_dependency",
+      "availability": "unavailable",
+      "reason": "dependency probe failed",
+      "learning_priority": 0.7200000000000001
+    }
+  ],
+  "checks": {
+    "eighty_percent_bucket_within_tolerance": true,
+    "brier_measured": true,
+    "ece_measured": true,
+    "unknown_detection": true,
+    "false_confidence_zero": true
+  },
+  "passed": true
+}
