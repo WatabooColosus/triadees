@@ -23,8 +23,9 @@ def _run_git(args: list[str], timeout: float = 3.0) -> str | None:
             cwd=str(REPO_ROOT),
             timeout=timeout,
             shell=False,
+            check=False,
         ).stdout.strip()
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         return None
 
 

@@ -13,6 +13,14 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+ENGINEERING_ERRORS = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    sqlite3.Error,
+    subprocess.SubprocessError,
+)
+
 PROTECTED = (
     ".git/",
     ".env",
@@ -142,7 +150,7 @@ class EngineeringEvolutionWorker:
                 "review": review,
                 "worktree": str(worktree),
             }
-        except Exception as exc:
+        except ENGINEERING_ERRORS as exc:
             self._event(eid, "failed", "reject", {"error": str(exc)})
             self._status(eid, "failed")
             return {
@@ -168,7 +176,7 @@ class EngineeringEvolutionWorker:
                 wt,
                 60,
             )
-        except Exception as exc:
+        except ENGINEERING_ERRORS as exc:
             return {
                 "status": "blocked",
                 "reason": "signed_commit_required",
@@ -263,6 +271,7 @@ class EngineeringEvolutionWorker:
                 capture_output=True,
                 text=True,
                 timeout=max(60, budget.max_minutes * 60),
+                check=False,
                 env={
                     **os.environ,
                     "TRIADE_RUNTIME_SCOPE": "test",
@@ -321,7 +330,12 @@ class EngineeringEvolutionWorker:
     @staticmethod
     def _run(cmd: list[str], cwd: Path, timeout: int) -> None:
         p = subprocess.run(
-            cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout
+            cmd,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
         )
         if p.returncode:
             raise RuntimeError((p.stderr or p.stdout)[-2000:])
@@ -329,7 +343,12 @@ class EngineeringEvolutionWorker:
     @staticmethod
     def _git(args: list[str], cwd: Path) -> str:
         return subprocess.run(
-            ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=60,
         ).stdout
 
     def _cleanup(self, wt: Path) -> None:
@@ -338,6 +357,8 @@ class EngineeringEvolutionWorker:
                 ["git", "worktree", "remove", "--force", str(wt)],
                 cwd=self.repo,
                 capture_output=True,
+                timeout=60,
+                check=False,
             )
 
     def _event(self, eid, event, decision, payload):

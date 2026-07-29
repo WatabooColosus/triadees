@@ -192,7 +192,17 @@ class AutonomousTaskStore:
     def mark_observed(self, task_id: str, worker_id: str, reason: str) -> bool:
         return self._terminal_transition(task_id, worker_id, "observed", reason=reason)
 
-    def mark_timeout(self, task_id: str, worker_id: str, reason: str) -> bool:
+    def mark_timeout(
+        self,
+        task_id: str,
+        worker_id: str,
+        reason: str,
+        *,
+        retryable: bool = True,
+    ) -> bool:
+        if retryable:
+            outcome = self.fail(task_id, worker_id, f"timeout:{reason}")
+            return outcome.get("status") in {"retry_wait", "dead_letter"}
         return self._terminal_transition(task_id, worker_id, "timeout", reason=reason)
 
     def mark_lease_lost(self, task_id: str, worker_id: str, reason: str) -> bool:

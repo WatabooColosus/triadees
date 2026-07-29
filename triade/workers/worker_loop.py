@@ -33,6 +33,7 @@ from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
 from triade.runtime.event_scheduler import EventDrivenScheduler
 from triade.runtime.execution_result import ExecutionResult
+from triade.runtime.governed_task_executor import GovernedTaskExecutor
 from triade.runtime.live_heartbeat import LiveHeartbeat
 from triade.runtime.resource_ledger import ResourceLedger
 from triade.runtime.task_leases import AutonomousTaskStore
@@ -156,6 +157,9 @@ class WorkerLoop:
         self.adaptive_scheduler = AdaptiveScheduler(db_path=self.db_path)
         self.resource_ledger = ResourceLedger(db_path=self.db_path)
         self.autonomous_tasks = AutonomousTaskStore(db_path=self.db_path)
+        self.task_executor = GovernedTaskExecutor(
+            quarantine_root=self.runs_dir / "quarantine" / "timeouts"
+        )
         self.live_heartbeat = LiveHeartbeat(db_path=self.db_path)
 
     def run(self, config: WorkerRunConfig | None = None) -> dict[str, Any]:
@@ -165,6 +169,9 @@ class WorkerLoop:
             stop_file=str(self.stop_file),
         )
         self.runs_dir = Path(config.runs_dir)
+        self.task_executor = GovernedTaskExecutor(
+            quarantine_root=self.runs_dir / "quarantine" / "timeouts"
+        )
         self.lock_file = Path(config.lock_file)
         self.stop_file = Path(config.stop_file)
         self.runs_dir.mkdir(parents=True, exist_ok=True)
@@ -550,7 +557,9 @@ class WorkerLoop:
         if execution.status == "deferred":
             return self.autonomous_tasks.defer(task_id, worker_id, reason)
         if execution.status == "timeout":
-            return self.autonomous_tasks.mark_timeout(task_id, worker_id, reason)
+            return self.autonomous_tasks.mark_timeout(
+                task_id, worker_id, reason, retryable=execution.retryable
+            )
         if execution.status == "lease_lost":
             return self.autonomous_tasks.mark_lease_lost(task_id, worker_id, reason)
         if execution.status in {"failed", "dead_letter"}:
@@ -688,9 +697,32 @@ class WorkerLoop:
                     "encrypted_backup": self._encrypted_backup,
                     "neuron_education_cycle": self._neuron_education_cycle,
                 }
-                result = handlers[task.task_type](task, run_ref, task_dir, config)
-                if time.monotonic() - started > config.task_timeout:
-                    raise TimeoutError(f"worker task timeout: {task.task_type}")
+                outcome = self.task_executor.execute_callable(
+                    handlers[task.task_type],
+                    args=(task, run_ref, task_dir, config),
+                    timeout_seconds=config.task_timeout,
+                    artifact_dir=task_dir,
+                )
+                if outcome.status == "timeout":
+                    result = {
+                        "status": "timeout",
+                        "error": outcome.error,
+                        "timeout": config.task_timeout,
+                        "termination_signal": outcome.termination_signal,
+                        "quarantine_ref": outcome.quarantine_ref,
+                        "stdout_ref": outcome.stdout_ref,
+                        "stderr_ref": outcome.stderr_ref,
+                    }
+                elif outcome.status == "failed":
+                    result = {
+                        "status": "error",
+                        "error": outcome.error or "governed_child_failed",
+                        "exit_code": outcome.exit_code,
+                        "stdout_ref": outcome.stdout_ref,
+                        "stderr_ref": outcome.stderr_ref,
+                    }
+                else:
+                    result = outcome.result
                 result_status = str(result.get("status") or "completed")
                 if result_status in {
                     "ok",
@@ -804,6 +836,7 @@ class WorkerLoop:
             success=str(result.get("status")) not in {"error", "failed", "blocked"},
             task_class=self.adaptive_scheduler.task_class(task.task_type),
         )
+        task_dir.mkdir(parents=True, exist_ok=True)
         (task_dir / "result.json").write_text(
             json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
         )
