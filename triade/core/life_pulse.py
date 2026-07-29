@@ -316,8 +316,8 @@ class LifePulseEngine:
         """Canary sintético explícito; nunca es evidencia de aprendizaje."""
         import json, time
         from pathlib import Path
-        from .neuron_registry import NeuronRegistry
         from .neuron_activity_store import NeuronActivityStore
+        from .neuron_registry import NeuronRegistry
         registry = NeuronRegistry(db_path=self.db_path)
         store = NeuronActivityStore(db_path=self.db_path)
         neurons = registry.list_neurons(limit=50)
@@ -390,7 +390,6 @@ class LifePulseEngine:
         from .neuron_formation_pipeline import form_candidates
         from .neuron_autopromoter import NeuronAutopromoter
         from .neuron_registry import NeuronRegistry
-        from .neuron_activity_store import NeuronActivityStore
 
         tick_counter = 0
         runner_pool_cycle = 0

@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
-
-import pytest
 
 from triade.workers.mission_planner import MissionPlanner, PlannedTask
 from triade.core.neuron_missions import NeuronEvidence, NeuronMission, NeuronMissionStore
