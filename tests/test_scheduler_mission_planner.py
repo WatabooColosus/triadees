@@ -172,9 +172,10 @@ def test_planner_deduplicates_task_types_without_distinct_targets(
 def test_scheduler_task_types_include_governed_education() -> None:
     scheduler = WorkerScheduler(db_path=":memory:")
     types = scheduler.task_types()
-    assert len(types) == 18
+    assert len(types) == 19
     assert "pulse_check" in types
     assert "neuron_candidate_formation" in types
     assert "research_curriculum" in types
     assert "encrypted_backup" in types
     assert "neuron_education_cycle" in types
+    assert "write_governed_text_artifact" in types

@@ -16,6 +16,8 @@ from typing import Any
 from triade.core.error_bus import record_internal_error
 from triade.core.neuron_missions import NeuronMissionStore
 
+MISSION_PLANNER_ERRORS = (sqlite3.Error, OSError, RuntimeError, ValueError, TypeError, KeyError)
+
 
 @dataclass(slots=True)
 class PlannedTask:
@@ -115,7 +117,7 @@ class MissionPlanner:
                         planner_score=0.65,
                     )
                 ]
-        except Exception as exc:
+        except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.research_curriculum", exc, db_path=self.db_path
             )
@@ -149,7 +151,7 @@ class MissionPlanner:
                         planner_score=0.7,
                     )
                 ]
-        except Exception as exc:
+        except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.neuron_education", exc, db_path=self.db_path
             )
@@ -188,7 +190,7 @@ class MissionPlanner:
                     tasks.append(
                         PlannedTask(
                             task_type="pending_learning_review",
-                            priority=12,
+                            priority=5,
                             reason=f"{lr_cnt} candidatos con transición ejecutable (candidate/evaluated)",
                             source="mission_planner_baseline",
                             planner_score=min(1.0, 0.5 + lr_cnt / 20),
@@ -235,7 +237,7 @@ class MissionPlanner:
                             planner_score=min(1.0, 0.55 + ns_cnt / 20),
                         )
                     )
-        except Exception as exc:
+        except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.baseline",
                 exc,
@@ -263,7 +265,7 @@ class MissionPlanner:
                 ).fetchall()
             for row in rows:
                 confidence = float(row["confidence"] or 0)
-                priority = 20 if confidence >= 0.7 else 30
+                priority = 6 if confidence >= 0.7 else 7
                 tasks.append(
                     PlannedTask(
                         task_type="pending_learning_review",
@@ -279,7 +281,7 @@ class MissionPlanner:
                         },
                     )
                 )
-        except Exception as exc:
+        except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.pending_learning",
                 exc,
@@ -322,7 +324,7 @@ class MissionPlanner:
                         },
                     )
                 )
-        except Exception as exc:
+        except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.failed_recent",
                 exc,
@@ -356,7 +358,7 @@ class MissionPlanner:
                         payload={"pending_count": cnt},
                     )
                 )
-        except Exception as exc:
+        except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.memory_consolidation",
                 exc,
@@ -408,7 +410,7 @@ class MissionPlanner:
                         },
                     )
                 )
-        except Exception as exc:
+        except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.active_missions",
                 exc,
@@ -443,7 +445,7 @@ class MissionPlanner:
                         payload={"pending_count": cnt},
                     )
                 )
-        except Exception as exc:
+        except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.federation_inbox",
                 exc,
@@ -485,7 +487,7 @@ class MissionPlanner:
                         payload={"runs_ok": runs_ok, "episodes": episodes},
                     )
                 )
-        except Exception as exc:
+        except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.system_debt",
                 exc,
@@ -519,7 +521,7 @@ class MissionPlanner:
                         payload={"pending_candidates": cnt},
                     )
                 )
-        except Exception as exc:
+        except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.neuron_formation",
                 exc,
