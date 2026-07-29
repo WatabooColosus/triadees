@@ -286,9 +286,10 @@ def _detect_input_type(text: str, previous_user: str = "") -> str:
         return "correction"
     if any(phrase == text or phrase in text for phrase in THANKS_PHRASES):
         return "thanks"
-    if any(phrase == text or phrase in text for phrase in ACKNOWLEDGEMENT_PHRASES):
-        if len(text.split()) <= 3 or plain.startswith(("ok ", "vale ", "listo ")):
-            return "acknowledgement"
+    if any(phrase == text or phrase in text for phrase in ACKNOWLEDGEMENT_PHRASES) and (
+        len(text.split()) <= 3 or plain.startswith(("ok ", "vale ", "listo "))
+    ):
+        return "acknowledgement"
     if plain.startswith(("ok ", "vale ", "listo ")) and any(
         phrase in text for phrase in POSITIVE_FEEDBACK_PHRASES
     ):

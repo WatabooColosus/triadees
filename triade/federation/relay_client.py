@@ -65,9 +65,11 @@ class PublicRelayClient:
         deadline = time.time() + timeout
         while time.time() < deadline:
             for job in self.list_jobs():
-                if job.get("job_id") == job_id:
-                    if job.get("status") in {"completed", "failed"}:
-                        return job
+                if job.get("job_id") == job_id and job.get("status") in {
+                    "completed",
+                    "failed",
+                }:
+                    return job
             time.sleep(interval)
         return {
             "job_id": job_id,

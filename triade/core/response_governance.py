@@ -220,14 +220,15 @@ class ResponseCoherenceGate:
                 "Memoria insuficiente o sin matches autorizados para afirmar hechos estables."
             )
 
-        if qualia_hypothesis and qualia_hypothesis.get("status") == "available":
-            if (
-                "qualia" in response.lower()
-                and "hipótesis" not in response.lower()
-                and "hipotesis" not in response.lower()
-            ):
-                response = f"{response}\n\nLo de Qualia se trata como hipótesis, no como memoria estable."
-                corrections.append("qualia_marked_hypothesis")
+        if (
+            qualia_hypothesis
+            and qualia_hypothesis.get("status") == "available"
+            and "qualia" in response.lower()
+            and "hipótesis" not in response.lower()
+            and "hipotesis" not in response.lower()
+        ):
+            response = f"{response}\n\nLo de Qualia se trata como hipótesis, no como memoria estable."
+            corrections.append("qualia_marked_hypothesis")
 
         if neuron_contribution_summary:
             if neuron_contribution_summary.get("blocked"):
@@ -237,10 +238,14 @@ class ResponseCoherenceGate:
                     "Hubo contribuciones neuronales ignoradas por riesgo, confianza o safety."
                 )
 
-        if continuity and continuity.is_follow_up and continuity.next_step:
-            if _normalize(continuity.next_step) not in _normalize(response):
-                response = f"{response}\n\n{continuity.next_step}"
-                corrections.append("continuity_next_step_added")
+        if (
+            continuity
+            and continuity.is_follow_up
+            and continuity.next_step
+            and _normalize(continuity.next_step) not in _normalize(response)
+        ):
+            response = f"{response}\n\n{continuity.next_step}"
+            corrections.append("continuity_next_step_added")
 
         if verification_report is not None:
             trace["verification_warnings"] = getattr(

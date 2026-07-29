@@ -165,14 +165,13 @@ def verify_integrity_change(
                 trashed.append(rel)
             else:
                 missing_unexpected.append(rel)
-        elif b_exists and a_exists:
-            if b_info.get("sha256") != a_info.get("sha256"):
-                if rel in planned_rel and planned_action in ("patch", "move", "create"):
-                    modified.append(rel)
-                else:
-                    hash_changed_unexpected.append(
-                        {"rel": rel, "reason": "Hash cambiado no planeado."}
-                    )
+        elif b_exists and a_exists and b_info.get("sha256") != a_info.get("sha256"):
+            if rel in planned_rel and planned_action in ("patch", "move", "create"):
+                modified.append(rel)
+            else:
+                hash_changed_unexpected.append(
+                    {"rel": rel, "reason": "Hash cambiado no planeado."}
+                )
 
     bytes_delta = after.get("total_bytes", 0) - before.get("total_bytes", 0)
     max_budget = plan.get("max_bytes_per_cycle", 0)

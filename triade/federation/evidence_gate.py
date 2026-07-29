@@ -199,16 +199,15 @@ class FederatedEvidenceGate:
         before = float(node["trust_score"])
         after = min(1.0, max(0.0, before + self.TRUST_DELTAS[decision]))
         state = str(node["state"])
-        if decision in {"fail", "invalid"} or after < 0.5:
-            if state == "trusted":
-                node = self.registry.transition(
-                    node_id,
-                    "quarantined",
-                    actor="federated-evidence-gate",
-                    reason=f"evidencia remota bloqueada por {report_id}: {decision}",
-                    trust_score=after,
-                )
-                return before, after, str(node["state"])
+        if (decision in {"fail", "invalid"} or after < 0.5) and state == "trusted":
+            node = self.registry.transition(
+                node_id,
+                "quarantined",
+                actor="federated-evidence-gate",
+                reason=f"evidencia remota bloqueada por {report_id}: {decision}",
+                trust_score=after,
+            )
+            return before, after, str(node["state"])
         self._update_trust(node_id, after, decision=decision, report_id=report_id)
         return before, after, state
 

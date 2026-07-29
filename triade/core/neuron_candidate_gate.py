@@ -214,9 +214,10 @@ def _detect_type(text: str) -> str:
         return "correction"
     if any(phrase in plain for phrase in THANKS):
         return "thanks"
-    if any(phrase in plain for phrase in ACKNOWLEDGEMENT):
-        if len(plain.split()) <= 3 or plain.startswith(("ok ", "vale ", "listo ")):
-            return "acknowledgement"
+    if any(phrase in plain for phrase in ACKNOWLEDGEMENT) and (
+        len(plain.split()) <= 3 or plain.startswith(("ok ", "vale ", "listo "))
+    ):
+        return "acknowledgement"
     if any(phrase in plain for phrase in POSITIVE_FEEDBACK):
         return "positive_feedback"
     if _looks_like_question(plain):

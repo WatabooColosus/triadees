@@ -448,33 +448,38 @@ class CognitiveIntegrator:
                     severity="medium",
                 )
             )
-        if hasattr(plan, "steps") and plan.steps and len(plan.steps) > 10:
-            if crystal.q_crystal < 0.5:
-                conflicts.append(
-                    ConflictRecord(
-                        conflict_type="learning_vs_stability",
-                        source_a="central",
-                        source_b="crystal",
-                        field_name="plan_complexity_vs_stability",
-                        value_a=len(plan.steps),
-                        value_b=crystal.q_crystal,
-                        severity="medium",
-                    )
+        if (
+            hasattr(plan, "steps")
+            and plan.steps
+            and len(plan.steps) > 10
+            and crystal.q_crystal < 0.5
+        ):
+            conflicts.append(
+                ConflictRecord(
+                    conflict_type="learning_vs_stability",
+                    source_a="central",
+                    source_b="crystal",
+                    field_name="plan_complexity_vs_stability",
+                    value_a=len(plan.steps),
+                    value_b=crystal.q_crystal,
+                    severity="medium",
                 )
+            )
         user_text = str(getattr(input_packet, "user_input", "")).lower()
-        if any(w in user_text for w in ["aprende", "recuerda", "consolida"]):
-            if getattr(signals, "risk", "low") in {"high", "critical"}:
-                conflicts.append(
-                    ConflictRecord(
-                        conflict_type="purpose_vs_request",
-                        source_a="user",
-                        source_b="hypothalamus",
-                        field_name="user_request_vs_risk",
-                        value_a="learning_request",
-                        value_b=getattr(signals, "risk", "low"),
-                        severity="medium",
-                    )
+        if any(
+            w in user_text for w in ["aprende", "recuerda", "consolida"]
+        ) and getattr(signals, "risk", "low") in {"high", "critical"}:
+            conflicts.append(
+                ConflictRecord(
+                    conflict_type="purpose_vs_request",
+                    source_a="user",
+                    source_b="hypothalamus",
+                    field_name="user_request_vs_risk",
+                    value_a="learning_request",
+                    value_b=getattr(signals, "risk", "low"),
+                    severity="medium",
                 )
+            )
         if hasattr(crystal, "temporal_status") and crystal.temporal_status in {
             "critical",
             "degrading",
