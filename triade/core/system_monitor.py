@@ -168,6 +168,7 @@ class SystemMonitor:
                     "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu",
                     "--format=csv,noheader,nounits",
                 ],
+                check=False,
                 capture_output=True,
                 text=True,
                 timeout=5,

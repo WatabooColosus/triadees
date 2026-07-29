@@ -139,6 +139,7 @@ def reconcile_model_catalog(
                 attempt_id = int(cursor.lastrowid)
             completed_process = subprocess.run(
                 [binary, "pull", model],
+                check=False,
                 shell=False,
                 capture_output=True,
                 text=True,

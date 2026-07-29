@@ -185,6 +185,7 @@ class SecureExecutor:
 
             result = subprocess.run(
                 command,
+                check=False,
                 shell=False,
                 capture_output=True,
                 text=True,

@@ -62,6 +62,7 @@ class IsolatedInstaller:
                     "--disable-pip-version-check",
                     package,
                 ],
+                check=False,
                 capture_output=True,
                 text=True,
                 timeout=600,

@@ -198,6 +198,7 @@ def run_safe_command(command_key: str, timeout: int = 60) -> dict[str, Any]:
         started = time.perf_counter()
         result = subprocess.run(
             cmd,
+            check=False,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -358,6 +359,7 @@ def run_autonomous(
         started = time.perf_counter()
         result = subprocess.run(
             cmd,
+            check=False,
             capture_output=True,
             text=True,
             timeout=timeout,

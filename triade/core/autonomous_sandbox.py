@@ -133,6 +133,7 @@ class AutonomousSandbox:
             code_path.write_text(code, encoding="utf-8")
             proc = subprocess.run(
                 ["python", str(code_path)],
+                check=False,
                 cwd=str(workdir),
                 capture_output=True,
                 text=True,

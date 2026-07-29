@@ -11,6 +11,7 @@ from pathlib import Path
 def run_cli(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "triade_digimon.py", *args],
+        check=False,
         capture_output=True,
         text=True,
         timeout=30,
