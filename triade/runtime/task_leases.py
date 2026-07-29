@@ -5,18 +5,21 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-ACTIVE = {"pending", "leased", "running", "retry_wait", "recovered"}
-TERMINAL = {"completed", "failed", "dead_letter", "cancelled"}
+ACTIVE = {"pending", "queued", "leased", "running", "retry_wait", "recovered", "deferred"}
+TERMINAL_SUCCESS = {"completed"}
+TERMINAL_NON_SUCCESS = {"blocked", "skipped", "dry_run", "observed", "cancelled"}
+TERMINAL_FAILURE = {"failed", "dead_letter", "timeout", "lease_lost"}
+TERMINAL = TERMINAL_SUCCESS | TERMINAL_NON_SUCCESS | TERMINAL_FAILURE
 ALL_STATES = ACTIVE | TERMINAL
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _iso(value: datetime | None = None) -> str:
@@ -29,12 +32,15 @@ class AutonomousTaskStore:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        migration = (
+        migrations = [
             Path(__file__).resolve().parents[1]
-            / "memory/migrations/009_runtime_resilience.sql"
-        )
+            / "memory/migrations/009_runtime_resilience.sql",
+            Path(__file__).resolve().parents[1]
+            / "memory/migrations/012_truthful_task_states.sql",
+        ]
         with self._connect() as conn:
-            conn.executescript(migration.read_text(encoding="utf-8"))
+            for migration in migrations:
+                conn.executescript(migration.read_text(encoding="utf-8"))
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, timeout=5, isolation_level=None)
@@ -102,7 +108,8 @@ class AutonomousTaskStore:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 """SELECT task_id FROM autonomous_tasks
-                WHERE (status IN ('pending','recovered') OR (status='retry_wait' AND retry_after<=?))
+                WHERE (status IN ('pending','queued','recovered')
+                    OR (status IN ('retry_wait','deferred') AND retry_after<=?))
                 AND attempt < max_attempts
                 ORDER BY priority ASC, created_at ASC LIMIT 1""",
                 (_iso(now),),
@@ -113,7 +120,7 @@ class AutonomousTaskStore:
             changed = conn.execute(
                 """UPDATE autonomous_tasks SET status='leased',worker_id=?,lease_acquired_at=?,
                 lease_expires_at=?,heartbeat_at=?,attempt=attempt+1,updated_at=?
-                WHERE task_id=? AND status IN ('pending','recovered','retry_wait')""",
+                WHERE task_id=? AND status IN ('pending','queued','recovered','retry_wait','deferred')""",
                 (worker_id, _iso(now), expires, _iso(now), _iso(now), row["task_id"]),
             ).rowcount
             conn.commit()
@@ -142,7 +149,8 @@ class AutonomousTaskStore:
                 """UPDATE autonomous_tasks SET status='leased',worker_id=?,lease_acquired_at=?,
                 lease_expires_at=?,heartbeat_at=?,attempt=attempt+1,updated_at=?
                 WHERE task_id=?
-                  AND (status IN ('pending','recovered') OR (status='retry_wait' AND retry_after<=?))
+                  AND (status IN ('pending','queued','recovered')
+                    OR (status IN ('retry_wait','deferred') AND retry_after<=?))
                   AND attempt < max_attempts""",
                 (worker_id, now_iso, expires, now_iso, now_iso, task_id, now_iso),
             ).rowcount
@@ -163,11 +171,43 @@ class AutonomousTaskStore:
         )
 
     def complete(self, task_id: str, worker_id: str, result_ref: str) -> bool:
-        return self._owned_update(
+        if not result_ref.strip():
+            raise ValueError("completed_requires_result_ref")
+        return self._terminal_transition(
+            task_id, worker_id, "completed", result_ref=result_ref
+        )
+
+    def block(self, task_id: str, worker_id: str, reason: str) -> bool:
+        return self._terminal_transition(task_id, worker_id, "blocked", reason=reason)
+
+    def skip(self, task_id: str, worker_id: str, reason: str) -> bool:
+        return self._terminal_transition(task_id, worker_id, "skipped", reason=reason)
+
+    def mark_dry_run(self, task_id: str, worker_id: str, reason: str) -> bool:
+        return self._terminal_transition(task_id, worker_id, "dry_run", reason=reason)
+
+    def cancel(self, task_id: str, worker_id: str, reason: str) -> bool:
+        return self._terminal_transition(task_id, worker_id, "cancelled", reason=reason)
+
+    def mark_observed(self, task_id: str, worker_id: str, reason: str) -> bool:
+        return self._terminal_transition(task_id, worker_id, "observed", reason=reason)
+
+    def mark_timeout(self, task_id: str, worker_id: str, reason: str) -> bool:
+        return self._terminal_transition(task_id, worker_id, "timeout", reason=reason)
+
+    def mark_lease_lost(self, task_id: str, worker_id: str, reason: str) -> bool:
+        return self._terminal_transition(task_id, worker_id, "lease_lost", reason=reason)
+
+    def defer(
+        self, task_id: str, worker_id: str, reason: str, *, delay_seconds: int = 30
+    ) -> bool:
+        retry_after = _iso(_now() + timedelta(seconds=max(0, delay_seconds)))
+        return self._transition(
             task_id,
             worker_id,
-            "status='completed',result_ref=?,lease_expires_at=NULL,updated_at=?",
-            (result_ref, _iso()),
+            "deferred",
+            reason=reason,
+            retry_after=retry_after,
         )
 
     def fail(
@@ -188,13 +228,72 @@ class AutonomousTaskStore:
                 )
             )
         )
-        self._owned_update(
+        self._transition(
             task_id,
             worker_id,
-            "status=?,retry_after=?,last_error=?,lease_expires_at=NULL,updated_at=?",
-            (status, retry, error[:2000], _iso()),
+            status,
+            reason=error[:2000],
+            retry_after=retry,
         )
         return self.get(task_id) or {}
+
+    def _terminal_transition(
+        self,
+        task_id: str,
+        worker_id: str,
+        status: str,
+        *,
+        reason: str | None = None,
+        result_ref: str | None = None,
+    ) -> bool:
+        if status not in TERMINAL:
+            raise ValueError(f"unknown_terminal_status:{status}")
+        return self._transition(
+            task_id,
+            worker_id,
+            status,
+            reason=reason,
+            result_ref=result_ref,
+        )
+
+    def _transition(
+        self,
+        task_id: str,
+        worker_id: str,
+        status: str,
+        *,
+        reason: str | None = None,
+        result_ref: str | None = None,
+        retry_after: str | None = None,
+    ) -> bool:
+        if status not in ALL_STATES:
+            raise ValueError(f"unknown_status:{status}")
+        now = _iso()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            current = conn.execute(
+                "SELECT status FROM autonomous_tasks WHERE task_id=? AND worker_id=?",
+                (task_id, worker_id),
+            ).fetchone()
+            if current is None or str(current["status"]) not in {"leased", "running"}:
+                conn.commit()
+                return False
+            previous = str(current["status"])
+            changed = conn.execute(
+                """UPDATE autonomous_tasks SET status=?,retry_after=?,last_error=?,result_ref=?,
+                lease_expires_at=NULL,updated_at=? WHERE task_id=? AND worker_id=?
+                AND status IN ('leased','running')""",
+                (status, retry_after, reason, result_ref, now, task_id, worker_id),
+            ).rowcount
+            if changed == 1:
+                conn.execute(
+                    """INSERT INTO autonomous_task_transitions
+                    (task_id,worker_id,from_status,to_status,reason,result_ref,created_at)
+                    VALUES(?,?,?,?,?,?,?)""",
+                    (task_id, worker_id, previous, status, reason, result_ref, now),
+                )
+            conn.commit()
+        return changed == 1
 
     def recover_expired(self) -> list[str]:
         now = _iso()

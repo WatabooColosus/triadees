@@ -8,7 +8,7 @@ import sqlite3
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from triade.core.background_neurons import candidates_from_system_debt
 from triade.core.contracts import (
@@ -32,6 +32,7 @@ from triade.memory.semantic_store import SemanticMemoryStore
 from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
 from triade.runtime.event_scheduler import EventDrivenScheduler
+from triade.runtime.execution_result import ExecutionResult
 from triade.runtime.live_heartbeat import LiveHeartbeat
 from triade.runtime.resource_ledger import ResourceLedger
 from triade.runtime.task_leases import AutonomousTaskStore
@@ -44,11 +45,21 @@ from .scheduler import WorkerScheduler
 from .state_store import WorkerStateStore
 from .task_queue import WorkerTaskQueue
 
+WORKER_OPERATION_ERRORS = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    KeyError,
+    TimeoutError,
+    sqlite3.Error,
+)
+
 
 class WorkerSandbox:
     """Sandbox local: tareas internas conocidas, sin shell ni red."""
 
-    ALLOWED_TASKS = {
+    ALLOWED_TASKS: ClassVar[set[str]] = {
         "validate_learning_candidate",
         "analyze_memory_candidate",
         "json_validation",
@@ -105,7 +116,7 @@ class WorkerSandbox:
                 result["valid_json"] = True
             else:
                 result["diagnostic"] = "completed"
-        except Exception as exc:
+        except (TypeError, ValueError) as exc:
             result = {"status": "error", "task": task, "error": str(exc)}
         result["elapsed"] = round(time.monotonic() - started, 4)
         if result["elapsed"] > timeout:
@@ -355,7 +366,7 @@ class WorkerLoop:
                 "artifact_dir": str(artifact_dir),
                 **summary,
             }
-        except Exception as exc:
+        except WORKER_OPERATION_ERRORS as exc:
             record_internal_error(
                 "worker_loop.run",
                 exc,
@@ -414,27 +425,138 @@ class WorkerLoop:
         else:
             result = self._execute_task(task, run_ref, artifact_dir, config)
 
-        if result.get("status") == "blocked":
-            summary["tasks_blocked"] += 1
-        elif result.get("status") in {"error", "failed"}:
-            summary["errors"].append(result.get("error") or "task_failed")
-        else:
-            summary["tasks_completed"] += 1
-
         result_ref = str(
             artifact_dir
             / f"task-{legacy_id or autonomous_task_id}-{task.task_type}"
             / "result.json"
         )
-        if result.get("status") in {"error", "failed"}:
-            self.autonomous_tasks.fail(
-                autonomous_task_id,
-                run_ref,
-                str(result.get("error") or "task_failed"),
+        try:
+            execution = self._canonical_execution_result(result, result_ref)
+        except ValueError as exc:
+            execution = ExecutionResult(
+                status="failed",
+                executed=True,
+                retryable=False,
+                error_code="unknown_handler_status",
+                message=str(exc),
+                artifacts=[result_ref] if Path(result_ref).exists() else [],
+                evidence=[result_ref] if Path(result_ref).exists() else [],
             )
-        else:
-            self.autonomous_tasks.complete(autonomous_task_id, run_ref, result_ref)
+            result = {
+                **result,
+                "status": "error",
+                "error": str(exc),
+                "error_code": "unknown_handler_status",
+            }
+
+        transitioned = self._persist_execution_result(
+            autonomous_task_id, run_ref, execution, result_ref
+        )
+        if not transitioned:
+            execution = ExecutionResult(
+                status="lease_lost",
+                executed=True,
+                retryable=True,
+                error_code="terminal_transition_rejected",
+                message="El lease dejó de pertenecer al worker antes del cierre",
+                artifacts=[result_ref] if Path(result_ref).exists() else [],
+                evidence=[],
+            )
+            result = {
+                **result,
+                "status": "lease_lost",
+                "error": execution.message,
+            }
+
+        if execution.status == "blocked":
+            summary["tasks_blocked"] += 1
+        elif execution.status in {"failed", "dead_letter", "timeout", "lease_lost"}:
+            summary["errors"].append(result.get("error") or "task_failed")
+        elif execution.status == "completed":
+            summary["tasks_completed"] += 1
+        result["execution_result"] = execution.model_dump(mode="json")
         return result
+
+    @staticmethod
+    def _canonical_execution_result(
+        result: dict[str, Any], result_ref: str
+    ) -> ExecutionResult:
+        raw_status = str(result.get("status") or "").strip()
+        evidence = [result_ref] if Path(result_ref).exists() else []
+        message = str(result.get("reason") or result.get("message") or "")
+        if raw_status in {"blocked"}:
+            return ExecutionResult(status="blocked", executed=False, message=message)
+        if raw_status == "skipped":
+            return ExecutionResult(status="skipped", executed=False, message=message)
+        if raw_status == "dry_run":
+            return ExecutionResult(status="dry_run", executed=False, message=message)
+        if raw_status in {"observed", "no_target", "no_evidence", "needs_research"}:
+            return ExecutionResult(status="observed", executed=False, message=message)
+        if raw_status in {"error", "failed"}:
+            return ExecutionResult(
+                status="failed",
+                executed=True,
+                retryable=True,
+                error_code=str(result.get("error_code") or "handler_failed"),
+                message=str(result.get("error") or message),
+                artifacts=evidence,
+                evidence=evidence,
+            )
+        if raw_status == "timeout":
+            return ExecutionResult(
+                status="timeout",
+                executed=True,
+                retryable=True,
+                error_code="task_timeout",
+                message=message,
+                artifacts=evidence,
+                evidence=evidence,
+            )
+        success = {"ok", "completed", "candidate_created", "consolidated", "lesson_prepared"}
+        if raw_status not in success:
+            raise ValueError(f"unknown_handler_status:{raw_status or '<empty>'}")
+        effect_applied = raw_status in {"candidate_created", "consolidated", "lesson_prepared"}
+        return ExecutionResult(
+            status="completed",
+            executed=True,
+            effect_applied=effect_applied,
+            artifacts=evidence,
+            evidence=evidence,
+            observation_justification=None if evidence else "pure_observation_without_artifact",
+            postconditions={"effect_expected": effect_applied},
+            message=message,
+        )
+
+    def _persist_execution_result(
+        self,
+        task_id: str,
+        worker_id: str,
+        execution: ExecutionResult,
+        result_ref: str,
+    ) -> bool:
+        reason = execution.message or execution.error_code or execution.status
+        if execution.status == "completed":
+            return self.autonomous_tasks.complete(task_id, worker_id, result_ref)
+        if execution.status == "blocked":
+            return self.autonomous_tasks.block(task_id, worker_id, reason)
+        if execution.status == "skipped":
+            return self.autonomous_tasks.skip(task_id, worker_id, reason)
+        if execution.status == "dry_run":
+            return self.autonomous_tasks.mark_dry_run(task_id, worker_id, reason)
+        if execution.status == "observed":
+            return self.autonomous_tasks.mark_observed(task_id, worker_id, reason)
+        if execution.status == "cancelled":
+            return self.autonomous_tasks.cancel(task_id, worker_id, reason)
+        if execution.status == "deferred":
+            return self.autonomous_tasks.defer(task_id, worker_id, reason)
+        if execution.status == "timeout":
+            return self.autonomous_tasks.mark_timeout(task_id, worker_id, reason)
+        if execution.status == "lease_lost":
+            return self.autonomous_tasks.mark_lease_lost(task_id, worker_id, reason)
+        if execution.status in {"failed", "dead_letter"}:
+            failed = self.autonomous_tasks.fail(task_id, worker_id, reason)
+            return failed.get("status") != "not_owner"
+        raise ValueError(f"unknown_execution_status:{execution.status}")
 
     def request_stop(self) -> dict[str, Any]:
         self.stop_file.write_text(utc_now(), encoding="utf-8")
@@ -570,14 +692,36 @@ class WorkerLoop:
                 if time.monotonic() - started > config.task_timeout:
                     raise TimeoutError(f"worker task timeout: {task.task_type}")
                 result_status = str(result.get("status") or "completed")
-                persisted_status = (
-                    "completed"
-                    if result_status
-                    in {"ok", "completed", "candidate_created", "no_evidence"}
-                    else "failed"
-                    if result_status == "error"
-                    else result_status
-                )
+                if result_status in {
+                    "ok",
+                    "completed",
+                    "candidate_created",
+                    "consolidated",
+                    "lesson_prepared",
+                }:
+                    persisted_status = "completed"
+                elif result_status in {
+                    "observed",
+                    "no_target",
+                    "no_evidence",
+                    "needs_research",
+                }:
+                    persisted_status = "observed"
+                elif result_status in {
+                    "blocked",
+                    "skipped",
+                    "dry_run",
+                    "cancelled",
+                    "failed",
+                    "timeout",
+                }:
+                    persisted_status = (
+                        "failed" if result_status == "error" else result_status
+                    )
+                elif result_status == "error":
+                    persisted_status = "failed"
+                else:
+                    raise ValueError(f"unknown_handler_status:{result_status}")
                 self.store.finish_task(
                     task.id or 0,
                     persisted_status,
@@ -586,8 +730,8 @@ class WorkerLoop:
                     run_ref=run_ref,
                 )
                 self.store.record_event(
-                    "task_completed",
-                    f"{task.task_type} completada",
+                    f"task_{persisted_status}",
+                    f"{task.task_type}: {persisted_status}",
                     run_ref=run_ref,
                     task_id=task.id,
                     task_type=task.task_type,
@@ -599,7 +743,7 @@ class WorkerLoop:
                     GoalOrchestrator(self.db_path).record_task_result(
                         task.payload, result
                     )
-            except Exception as exc:
+            except WORKER_OPERATION_ERRORS as exc:
                 record_internal_error(
                     "worker_loop.execute_task",
                     exc,
@@ -813,7 +957,7 @@ class WorkerLoop:
                 if hasattr(result.get("state"), "to_dict")
                 else result.get("state"),
             }
-        except Exception as exc:
+        except WORKER_OPERATION_ERRORS as exc:
             record_internal_error(
                 "worker_loop.qualia_publish",
                 exc,
@@ -1386,8 +1530,19 @@ class WorkerLoop:
                     db_path=self.db_path,
                     run_ref=run_ref,
                 )
-            except Exception:
-                pass
+            except WORKER_OPERATION_ERRORS as exc:
+                record_internal_error(
+                    "worker_loop.shell_event",
+                    exc,
+                    run_id=run_ref,
+                    task_id=task.id,
+                    payload={
+                        "module": __name__,
+                        "function": "_shell_execute",
+                        "operation": "publish_shell_execution_event",
+                    },
+                    db_path=self.db_path,
+                )
 
         return result
 
