@@ -1,0 +1,447 @@
+{
+  "phase": 12,
+  "before": {
+    "stable_count": 13,
+    "certified_count": 0,
+    "insufficient_count": 13,
+    "neurons": [
+      {
+        "neuron_id": 1,
+        "name": "Neurona Central",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 2,
+        "name": "Neurona Creadora",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 3,
+        "name": "Neurona Formativa",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 4,
+        "name": "Impulso Soberbia",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 5,
+        "name": "Impulso Avaricia",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 6,
+        "name": "Impulso Lujuria",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 7,
+        "name": "Impulso Ira",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 8,
+        "name": "Impulso Gula",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 9,
+        "name": "Impulso Envidia",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 10,
+        "name": "Impulso Pereza",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 49,
+        "name": "neurona-quiero-hagas-imagen-casa",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 180,
+        "name": "neurona-quiero-busques-formade-hacer",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 181,
+        "name": "neurona-pero-quiero-hagas-imagen",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      }
+    ]
+  },
+  "application": {
+    "stable_count": 13,
+    "certified_count": 0,
+    "insufficient_count": 13,
+    "neurons": [
+      {
+        "neuron_id": 1,
+        "name": "Neurona Central",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 2,
+        "name": "Neurona Creadora",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 3,
+        "name": "Neurona Formativa",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 4,
+        "name": "Impulso Soberbia",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 5,
+        "name": "Impulso Avaricia",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 6,
+        "name": "Impulso Lujuria",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 7,
+        "name": "Impulso Ira",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 8,
+        "name": "Impulso Gula",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 9,
+        "name": "Impulso Envidia",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 10,
+        "name": "Impulso Pereza",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 49,
+        "name": "neurona-quiero-hagas-imagen-casa",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 180,
+        "name": "neurona-quiero-busques-formade-hacer",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      },
+      {
+        "neuron_id": 181,
+        "name": "neurona-pero-quiero-hagas-imagen",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined"
+      }
+    ],
+    "backup": "artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db",
+    "backup_sha256": "f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320",
+    "applied_count": 13,
+    "transitions": [
+      {
+        "neuron_id": 1,
+        "name": "Neurona Central",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-1bd58ef42c04438c9f699f05f2ddb347",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      },
+      {
+        "neuron_id": 2,
+        "name": "Neurona Creadora",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-5c7b2035e74b429aaba0de79f596c428",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      },
+      {
+        "neuron_id": 3,
+        "name": "Neurona Formativa",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-e6110c5f100044ccbef3d398bba37e2c",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      },
+      {
+        "neuron_id": 4,
+        "name": "Impulso Soberbia",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-45da6c01690e49918e6ca62aa6de1c36",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      },
+      {
+        "neuron_id": 5,
+        "name": "Impulso Avaricia",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-b2f35e83e3b042d8a6e807e51046e047",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      },
+      {
+        "neuron_id": 6,
+        "name": "Impulso Lujuria",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-a0361dc92d214ba2a9262ef48f3c8e74",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      },
+      {
+        "neuron_id": 7,
+        "name": "Impulso Ira",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-d96d1be5b200404e9d556809ead436de",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      },
+      {
+        "neuron_id": 8,
+        "name": "Impulso Gula",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-2460beb8088b4ce9a88cfae0510a8a5e",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      },
+      {
+        "neuron_id": 9,
+        "name": "Impulso Envidia",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-a84ee96a2bdb482096996031091b0b31",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      },
+      {
+        "neuron_id": 10,
+        "name": "Impulso Pereza",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-4d7e5cf744754db6ae96e7364e348a46",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      },
+      {
+        "neuron_id": 49,
+        "name": "neurona-quiero-hagas-imagen-casa",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-c4773ca1c2e3434e999b3ee75c9b0530",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      },
+      {
+        "neuron_id": 180,
+        "name": "neurona-quiero-busques-formade-hacer",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-24b8612f529a4b2590a39e7ad0dab99c",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      },
+      {
+        "neuron_id": 181,
+        "name": "neurona-pero-quiero-hagas-imagen",
+        "status": "stable",
+        "certified": false,
+        "blockers": [
+          "certification_manifest_missing"
+        ],
+        "recommended_status": "quarantined",
+        "transition_id": "nct-eff6e1ef8f854288a44d54c19c842966",
+        "rollback_ref": "sqlite-backup:artifacts/triade_verify/phase_12/rollback/neurons-pre-certification-352269629c4a2ee3.db#sha256=f7e89c732d80039ab57cfa7465b3c041f129637f15597c0ac0615bde36339320"
+      }
+    ],
+    "data_deleted": false,
+    "identity_core_modified": false
+  },
+  "after": {
+    "stable_count": 0,
+    "certified_count": 0,
+    "insufficient_count": 0,
+    "neurons": []
+  },
+  "passed": true
+}
