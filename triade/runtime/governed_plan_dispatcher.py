@@ -46,12 +46,14 @@ class GovernedPlanDispatcher:
     def dispatch(self, graph: PlanGraph, step: PlanStep) -> DispatchReceipt:
         resolution = self.resolver.resolve(step.description)
         capability_id = resolution.capability
+        dispatch_payload = dict(step.result.get("dispatch_payload") or {})
         payload = {
             "plan_id": graph.plan_id,
             "plan_step_id": step.id,
             "request": step.description,
             "capability": capability_id,
             "command_key": resolution.command_key,
+            **dispatch_payload,
         }
         payload_hash = self.tasks.payload_hash(payload)
         if (
@@ -89,7 +91,10 @@ class GovernedPlanDispatcher:
         )
         step.state = "queued"
         step.assigned_to = "governed_runtime"
-        step.result = {"autonomous_task_id": task["task_id"]}
+        step.result = {
+            "autonomous_task_id": task["task_id"],
+            "dispatch_payload": dispatch_payload,
+        }
         graph.status = "queued"
         receipt = self._receipt(
             graph, step, str(task["task_id"]), capability_id, decision_id,

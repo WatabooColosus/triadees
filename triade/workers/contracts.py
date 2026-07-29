@@ -27,6 +27,7 @@ WorkerTaskType = Literal[
     "goal_lora_train",
     "encrypted_backup",
     "neuron_education_cycle",
+    "write_governed_text_artifact",
 ]
 
 WORKER_TASK_TYPES: tuple[str, ...] = (
@@ -48,6 +49,7 @@ WORKER_TASK_TYPES: tuple[str, ...] = (
     "goal_lora_train",
     "encrypted_backup",
     "neuron_education_cycle",
+    "write_governed_text_artifact",
 )
 
 TERMINAL_TASK_STATUSES = {"completed", "failed", "blocked", "skipped"}

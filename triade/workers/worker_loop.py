@@ -147,6 +147,9 @@ class WorkerLoop:
             "encrypted_backup",
         }
     )
+    TASKS_WITHOUT_BLOOD = READ_ONLY_TASKS_WITHOUT_BLOOD | {
+        "write_governed_text_artifact"
+    }
 
     def __init__(
         self,
@@ -490,6 +493,9 @@ class WorkerLoop:
                 task_artifact_dir=staging_path,
             )
         provisional_ref = str(staging_path / "result.json")
+        result = self._remap_artifact_paths(
+            result, str(staging_path), str(canonical_artifacts.path)
+        )
         try:
             execution = self._canonical_execution_result(result, provisional_ref)
         except ValueError as exc:
@@ -634,8 +640,10 @@ class WorkerLoop:
         success = {"ok", "completed", "candidate_created", "consolidated", "lesson_prepared"}
         if raw_status not in success:
             raise ValueError(f"unknown_handler_status:{raw_status or '<empty>'}")
-        effect_applied = raw_status in {"candidate_created", "consolidated", "lesson_prepared"}
         raw_receipt = result.get("effect_receipt")
+        effect_applied = raw_status in {
+            "candidate_created", "consolidated", "lesson_prepared"
+        } or bool(raw_receipt and str(raw_receipt.get("action") or "") != "observe")
         if raw_receipt:
             receipt = EffectReceipt.model_validate(raw_receipt)
         elif not effect_applied and evidence:
@@ -782,7 +790,7 @@ class WorkerLoop:
 
         if (
             blood_policy.get("degraded")
-            and task.task_type not in self.READ_ONLY_TASKS_WITHOUT_BLOOD
+            and task.task_type not in self.TASKS_WITHOUT_BLOOD
         ):
             result = {
                 "status": "blocked",
@@ -855,6 +863,7 @@ class WorkerLoop:
                     "goal_lora_train": self._goal_lora_train,
                     "encrypted_backup": self._encrypted_backup,
                     "neuron_education_cycle": self._neuron_education_cycle,
+                    "write_governed_text_artifact": self._write_governed_text_artifact,
                 }
                 outcome = self.task_executor.execute_callable(
                     handlers[task.task_type],
@@ -1018,6 +1027,21 @@ class WorkerLoop:
         AtomicArtifactWriter.write_json(task_dir / "result.json", result)
         return result
 
+    @classmethod
+    def _remap_artifact_paths(
+        cls, value: Any, old_prefix: str, new_prefix: str
+    ) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: cls._remap_artifact_paths(item, old_prefix, new_prefix)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [cls._remap_artifact_paths(item, old_prefix, new_prefix) for item in value]
+        if isinstance(value, str) and value.startswith(old_prefix):
+            return f"{new_prefix}{value[len(old_prefix):]}"
+        return value
+
     def _research_curriculum(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
@@ -1103,6 +1127,36 @@ class WorkerLoop:
         result["stable_memory_written"] = False
         result["stable_neuron_promotion"] = False
         return result
+
+    def _write_governed_text_artifact(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        from triade.runtime.governed_capability import GovernedFileWriteCapability
+
+        target = str(task.payload.get("target") or "")
+        content = str(task.payload.get("content") or "")
+        authorized_root = str(task.payload.get("authorized_root") or "")
+        if not target or not authorized_root:
+            return {"status": "blocked", "reason": "target_and_authorized_root_required"}
+        capability = GovernedFileWriteCapability(
+            target, content, task_dir / "rollback", authorized_root=authorized_root
+        )
+        prepared = capability.prepare()
+        execution = capability.execute()
+        receipt = capability.verify()
+        if not receipt.verified:
+            capability.rollback()
+            rollback = capability.verify_rollback()
+            return {
+                "status": "error", "error": "file_postcondition_failed",
+                "rollback": rollback.model_dump(mode="json"),
+            }
+        return {
+            "status": "completed", "task_type": task.task_type,
+            "prepared": prepared, "execution": execution,
+            "effect_receipt": receipt.model_dump(mode="json"),
+            "rollback_spec": capability.rollback_spec(), "run_ref": run_ref,
+        }
 
     def _safety_for_task(self, task: WorkerTask, run_ref: str):
         signals = SignalPacket(

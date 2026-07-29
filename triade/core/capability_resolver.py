@@ -29,7 +29,7 @@ class CapabilityResolver:
         r"\b(haz|haga|crea|crear|construye|construir|repara|reparar|corrige|corregir|"
         r"instala|instalar|descarga|descargar|prueba|probar|ejecuta|ejecutar|"
         r"investiga|investigar|busca|buscar|diagnostica|diagnosticar|audita|auditar|compila|compilar)\b",
-        re.I,
+        re.IGNORECASE,
     )
 
     def resolve(self, request: str) -> CapabilityResolution:
@@ -37,6 +37,13 @@ class CapabilityResolver:
         low = text.lower()
         if not text or not self.ACTION.search(text):
             return self._none("No es una orden operativa explícita.")
+
+        if "write_governed_text_artifact" in low:
+            return CapabilityResolution(
+                True, "write_governed_text_artifact", True, "worker",
+                "write_governed_text_artifact", None, False, "low",
+                "Escritura de texto limitada a una raíz autorizada y con rollback.",
+            )
 
         if re.search(
             r"\b(instala|instalar|descarga|descargar|pip|npm|apt|paquete|dependencia|driver)\b",

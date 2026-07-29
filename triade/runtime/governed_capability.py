@@ -71,21 +71,61 @@ class CapabilityLifecycle:
 
 
 class GovernedFileWriteCapability(GovernedCapability):
-    def __init__(self, target: str | Path, content: str, workspace: str | Path) -> None:
+    def __init__(
+        self, target: str | Path, content: str, workspace: str | Path,
+        authorized_root: str | Path | None = None,
+    ) -> None:
         self.target = Path(target)
         self.content = content
         self.workspace = Path(workspace)
         self.backup_ref: Path | None = None
         self.rollback_target: Path | None = None
         self.existed = False
+        self.authorized_root = Path(authorized_root).resolve() if authorized_root else None
 
     def prepare(self) -> dict[str, Any]:
+        if self.authorized_root and not self.target.resolve().is_relative_to(self.authorized_root):
+            raise PermissionError("target_outside_authorized_root")
         self.workspace.mkdir(parents=True, exist_ok=True)
         self.existed = self.target.is_file()
         if self.existed:
             self.backup_ref = self.workspace / f"backup-{uuid4().hex}.bin"
             AtomicArtifactWriter.write_bytes(self.backup_ref, self.target.read_bytes())
         return {"existed": self.existed, "backup_ref": str(self.backup_ref or "")}
+
+    def rollback_spec(self) -> dict[str, Any]:
+        return {
+            "target": str(self.target), "existed": self.existed,
+            "backup_ref": str(self.backup_ref or ""), "workspace": str(self.workspace),
+        }
+
+    @staticmethod
+    def rollback_from_spec(spec: dict[str, Any]) -> EffectReceipt:
+        target = Path(str(spec["target"]))
+        workspace = Path(str(spec["workspace"]))
+        existed = bool(spec.get("existed"))
+        backup = Path(str(spec.get("backup_ref") or ""))
+        if existed and backup.is_file():
+            AtomicArtifactWriter.write_bytes(target, backup.read_bytes())
+            passed = target.is_file() and target.read_bytes() == backup.read_bytes()
+            refs = [str(target), str(backup)] if passed else []
+            rollback_ref = str(backup)
+        elif not existed and target.exists():
+            trash = workspace / "trash"
+            trash.mkdir(parents=True, exist_ok=True)
+            moved = trash / f"{target.name}-{uuid4().hex}"
+            shutil.move(str(target), moved)
+            passed = not target.exists() and moved.is_file()
+            refs = [str(moved)] if passed else []
+            rollback_ref = str(moved)
+        else:
+            passed, refs, rollback_ref = not existed and not target.exists(), [], ""
+        return EffectReceipt(
+            action="rollback_file", target=str(target),
+            postcondition={"passed": passed}, verified=passed,
+            verifier="serialized_file_rollback_verifier", evidence_refs=refs,
+            rollback_ref=rollback_ref or None,
+        )
 
     def execute(self) -> dict[str, Any]:
         AtomicArtifactWriter.write_bytes(self.target, self.content.encode())
