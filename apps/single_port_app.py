@@ -32,10 +32,25 @@ _ALWAYS_ON_LOCK = threading.Lock()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    from triade.core.identity_continuity import IdentityContinuity
     from triade.core.runtime_scope import is_test_runtime
 
-    if is_test_runtime() or os.getenv("TRIADE_DISABLE_BACKGROUND") == "1":
+    identity = IdentityContinuity(
+        os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
+    ).verify(run_id="single-port-startup")
+    app.state.identity_verification = identity
+    if identity["integrity"] != "verified":
         global _ALWAYS_ON_RESULT
+        with _ALWAYS_ON_LOCK:
+            _ALWAYS_ON_RESULT = {
+                "status": "degraded_safe_identity_mismatch",
+                "background_started": False,
+                "identity": identity,
+            }
+        yield
+        return
+
+    if is_test_runtime() or os.getenv("TRIADE_DISABLE_BACKGROUND") == "1":
         with _ALWAYS_ON_LOCK:
             _ALWAYS_ON_RESULT = {
                 "status": "isolated_test_runtime",

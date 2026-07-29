@@ -1,0 +1,41 @@
+{
+  "phase": 3,
+  "generated_at": "2026-07-29T22:04:24.904551+00:00",
+  "checks": {
+    "initial_integrity_verified": true,
+    "restart_continuity_verified": true,
+    "tamper_detected": true,
+    "tamper_enters_degraded_safe": true,
+    "restore_sqlite_integrity": true,
+    "restore_identity_verified": true,
+    "restore_hash_matches": true,
+    "restore_did_not_overwrite_production": true
+  },
+  "passed": true,
+  "manifest": {
+    "identity": "Triade Omega",
+    "identity_version": "1.0.0",
+    "constitution_hash": "615464515baab3e0b97749aa1a41ffc1cda048d521f93958f7172ab7c300803c",
+    "identity_core_hash": "8bfc6baaa5ed7b81a5c50ff25931d157c82c2c2993c0a86b82af11af86a8c2f7",
+    "schema_version": "020",
+    "policy_version": "TRIADE-IDENTITY-POLICY-v1",
+    "manifest_hash": "c8d7b457ff40aa233cb6dc7d4481ca8c41b2196bd1f06de164cb366caacfc9ca"
+  },
+  "restart": {
+    "integrity": "verified",
+    "continuity_from_previous_run": true
+  },
+  "tamper_probe": {
+    "integrity": "degraded_safe",
+    "tamper_detected": true,
+    "mismatches": [
+      "identity_core_hash",
+      "manifest_hash"
+    ]
+  },
+  "restore_probe": {
+    "status": "verified",
+    "sqlite_integrity": "ok",
+    "production_overwritten": false
+  }
+}

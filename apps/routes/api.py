@@ -106,6 +106,14 @@ from triade.workers.neuron_mission_backfill import (
 router = APIRouter()
 
 
+@router.get("/api/identity/verify")
+def identity_verify(db_path: str = "triade/memory/triade.db") -> dict[str, Any]:
+    """Verifica la identidad sin permitir mutaciones del manifiesto."""
+    from triade.core.identity_continuity import IdentityContinuity
+
+    return IdentityContinuity(db_path).verify()
+
+
 def _legacy_ollama_status(payload: dict[str, Any]) -> dict[str, Any]:
     result = dict(payload)
     internal_status = str(result.get("status") or "unavailable")

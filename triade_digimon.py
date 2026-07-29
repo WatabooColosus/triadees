@@ -16,6 +16,7 @@ from triade.core.conversation_analyzer import (
     ConversationAnalyzer,
     add_analyze_conversations_args,
 )
+from triade.core.identity_continuity import IdentityContinuity
 from triade.core.internal_runtime import (
     build_runtime_heartbeat,
     get_internal_runtime_state,
@@ -941,6 +942,15 @@ def main() -> None:
     align_parser = subparsers.add_parser(
         "align", help="Audita alineación teórica de órganos internos"
     )
+
+    identity_parser = subparsers.add_parser(
+        "identity", help="Verifica continuidad e integridad identitaria"
+    )
+    identity_parser.add_argument(
+        "--db", default="triade/memory/triade.db", help="Ruta de base SQLite"
+    )
+    identity_sub = identity_parser.add_subparsers(dest="identity_command")
+    identity_sub.add_parser("verify", help="Verificación read-only de la identidad")
     align_parser.add_argument(
         "--artifacts",
         nargs="*",
@@ -1604,6 +1614,13 @@ def main() -> None:
         if args.artifacts is not None:
             payload["artifacts"] = alignment.evaluate_run_artifacts(args.artifacts)
         print_json(payload)
+        return
+
+    if args.command == "identity":
+        if args.identity_command == "verify":
+            print_json(IdentityContinuity(args.db).verify())
+            return
+        identity_parser.print_help()
         return
 
     if args.command == "api":

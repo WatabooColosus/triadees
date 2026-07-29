@@ -19,6 +19,17 @@ def test_health_endpoint() -> None:
     assert "security" in payload
 
 
+def test_identity_verify_endpoint(tmp_path) -> None:
+    response = client.get(
+        "/api/identity/verify", params={"db_path": str(tmp_path / "identity.db")}
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["identity"] == "Triade Omega"
+    assert payload["integrity"] == "verified"
+    assert payload["tamper_detected"] is False
+
+
 def test_triade_run_endpoint(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("TRIADE_API_KEY", raising=False)
     response = client.post(
