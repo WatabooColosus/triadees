@@ -92,7 +92,7 @@ def test_watchdog_honors_recovery_budget(tmp_path, monkeypatch):
             "thermal": {"thermal_status": "ok"},
         },
     )
-    watchdog = RuntimeWatchdog(path, max_recoveries=1)
+    watchdog = RuntimeWatchdog(path, max_recoveries=1, recovery_cooldown_seconds=0)
     first = watchdog.tick(
         process_running=False, ollama_probe={"ok": True}, verify_heartbeat=lambda: True
     )
@@ -101,3 +101,37 @@ def test_watchdog_honors_recovery_budget(tmp_path, monkeypatch):
     )
     assert first["recovery"]["state"] == "runtime_recovered"
     assert second["recovery"]["reason"] == "recovery_budget_exhausted"
+
+
+def test_watchdog_recovery_cooldown_survives_process_restart(tmp_path, monkeypatch):
+    path = tmp_path / "health.db"
+    _healthy_db(path)
+    monkeypatch.setattr(
+        "triade.runtime.service_health.build_resource_probe",
+        lambda: {
+            "disk": {"free_gb": 10},
+            "memory": {"available_gb": 10},
+            "thermal": {"thermal_status": "ok"},
+        },
+    )
+    snapshot_dir = tmp_path / "snapshots"
+    first = RuntimeWatchdog(path, recovery_cooldown_seconds=300)
+    first.recovery = RuntimeRecovery(path, snapshot_dir)
+    recovered = first.tick(
+        process_running=False,
+        ollama_probe={"ok": True},
+        verify_heartbeat=lambda: True,
+    )
+
+    restarted = RuntimeWatchdog(path, recovery_cooldown_seconds=300)
+    restarted.recovery = RuntimeRecovery(path, snapshot_dir)
+    deferred = restarted.tick(
+        process_running=False,
+        ollama_probe={"ok": True},
+        verify_heartbeat=lambda: True,
+    )
+
+    assert recovered["recovery"]["state"] == "runtime_recovered"
+    assert deferred["recovery"]["state"] == "deferred"
+    assert deferred["recovery"]["reason"] == "recovery_cooldown_active"
+    assert len(list(snapshot_dir.glob("*.db"))) == 1

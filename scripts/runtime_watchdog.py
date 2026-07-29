@@ -10,7 +10,10 @@ from triade.runtime.watchdog import RuntimeWatchdog
 if __name__ == "__main__":
     interval = max(10, int(os.getenv("TRIADE_WATCHDOG_INTERVAL", "60")))
     watchdog = RuntimeWatchdog(
-        max_recoveries=int(os.getenv("TRIADE_WATCHDOG_MAX_RECOVERIES", "3"))
+        max_recoveries=int(os.getenv("TRIADE_WATCHDOG_MAX_RECOVERIES", "3")),
+        recovery_cooldown_seconds=int(
+            os.getenv("TRIADE_WATCHDOG_RECOVERY_COOLDOWN_SECONDS", "300")
+        ),
     )
     while True:
         result = watchdog.tick(process_running=True)
