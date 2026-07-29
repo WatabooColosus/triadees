@@ -1,0 +1,39 @@
+{
+  "phase": 10,
+  "pulse_utility_blocked": true,
+  "backup_utility_recorded": true,
+  "receipt": {
+    "receipt_id": "ur-8e825e582a6e4a48982b48c447c9619a",
+    "goal": "prove restore utility",
+    "classification": "utility",
+    "baseline": {
+      "recoverable": false
+    },
+    "outcome": {
+      "kind": "verified_backup",
+      "restored": true
+    },
+    "improvement": 1.0,
+    "quality_score": 1.0,
+    "human_intervention": 0.0,
+    "time_cost": 1.0,
+    "cpu_cost": 0.1,
+    "gpu_cost": 0.0,
+    "memory_cost": 1.0,
+    "storage_cost": 2.0,
+    "network_cost": 0.0,
+    "risk": "low",
+    "regressions": [],
+    "verified": true,
+    "evidence_ref": "artifact:restore-report",
+    "effect_receipt_ref": "effect:backup-restored",
+    "created_at": "2026-07-29T23:25:38.075752+00:00"
+  },
+  "summary": {
+    "counts": {
+      "utility": 1
+    },
+    "verified_improvement": 1.0
+  },
+  "passed": true
+}
