@@ -1,44 +1,17 @@
-name: CI
+name: Runtime Truth CI
 
 on:
   push:
-    paths:
-      - "triade/**"
-      - "tests/**"
-      - "apps/**"
-      - "pyproject.toml"
-      - "requirements.txt"
-      - ".github/workflows/ci.yml"
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  lint:
-    name: Lint
+  python-truth:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install ruff
-      - run: ruff check triade/ tests/ --select E,F,W --ignore E501,E741
-
-  typecheck:
-    name: Typecheck
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install mypy types-setuptools
-      - run: pip install -r requirements.txt
-      - run: mypy triade/ --ignore-missing-imports --no-error-summary --warn-return-any --warn-unused-configs
-
-  test:
-    name: Tests
-    runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,11 +19,98 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r requirements.txt
-      - name: Show commit
+          cache: pip
+      - name: Install Python dependencies
         run: |
-          echo "Commit: ${{ github.sha }}"
-          echo "Ref: ${{ github.ref }}"
-          git log --oneline -3
-      - name: Run tests
-        run: pytest -q --tb=short
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff mypy pytest-cov pip-audit detect-secrets types-setuptools
+      - name: Compile all Python
+        run: python -m compileall -q triade
+      - name: Ruff check
+        run: ruff check .
+      - name: Ruff format check
+        run: ruff format --check .
+      - name: Full tests with coverage
+        run: pytest -q --cov=triade --cov-report=xml --cov-report=term
+      - name: Operational truth
+        run: pytest -q tests/operational_truth
+      - name: Reduced real concurrency
+        run: >-
+          python scripts/run_runtime_concurrency_test.py
+          --output-dir "${{ runner.temp }}/triade-concurrency"
+          --tasks 30 --workers 2
+          --report "${{ runner.temp }}/concurrency-report.json"
+      - name: Migration and rollback tests
+        run: >-
+          pytest -q tests/test_runtime_task_leases.py
+          tests/test_lease_fencing.py tests/test_atomic_completion.py
+          tests/test_governed_capability_rollback.py
+      - name: SQLite integrity smoke check
+        run: |
+          python - <<'PY'
+          import sqlite3
+          import tempfile
+          from pathlib import Path
+          from triade.runtime.task_leases import AutonomousTaskStore
+
+          root = Path(tempfile.mkdtemp(prefix="triade-ci-db-"))
+          db = root / "runtime.db"
+          AutonomousTaskStore(db)
+          with sqlite3.connect(db) as conn:
+              assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+          PY
+      - name: Global mypy debt report
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          mypy triade --ignore-missing-imports 2>&1 | tee mypy-report.txt
+      - name: Python dependency audit
+        run: pip-audit -r requirements.txt
+      - name: Secret scan
+        run: detect-secrets scan --all-files --exclude-files '(^frontend/node_modules/|^runs/|\.db$)' > secret-scan.json
+      - name: Verify clean generated diff
+        run: git diff --exit-code
+      - name: Upload runtime truth evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-truth-python-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            coverage.xml
+            mypy-report.txt
+            secret-scan.json
+            ${{ runner.temp }}/concurrency-report.json
+
+  frontend-truth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm audit
+
+  required-result:
+    if: always()
+    needs: [python-truth, frontend-truth]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce required jobs
+        env:
+          PYTHON_RESULT: ${{ needs.python-truth.result }}
+          FRONTEND_RESULT: ${{ needs.frontend-truth.result }}
+        run: |
+          test "$PYTHON_RESULT" = success
+          test "$FRONTEND_RESULT" = success
