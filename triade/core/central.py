@@ -14,7 +14,7 @@ import re
 import sqlite3
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 from triade.core.contracts import utc_now
 from triade.models.ollama_client import OllamaClient
@@ -23,12 +23,15 @@ log = logging.getLogger(__name__)
 
 VALID_STATES = (
     "pending",
+    "queued",
+    "leased",
     "ready",
     "running",
     "completed",
     "failed",
     "rolled_back",
     "blocked",
+    "cancelled",
 )
 
 
@@ -309,7 +312,7 @@ CREATE INDEX IF NOT EXISTS pg_created ON plan_graphs(created_at);
 class Central:
     """Planeador y generador de salida con PlanGraph estructurado."""
 
-    INTERNAL_AUDIT_TERMS = {
+    INTERNAL_AUDIT_TERMS: ClassVar[set[str]] = {
         "audita",
         "auditoría",
         "auditoria",
@@ -549,7 +552,7 @@ class Central:
                 steps = self._parse_reasoning_steps(result.text)
                 if steps:
                     return steps[:7]
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, TypeError, KeyError) as exc:
             log.warning("Central CoT failed, using rules: %s", exc)
         return self._chain_of_thought_rules(input_packet, signals, memory, crystal)
 
