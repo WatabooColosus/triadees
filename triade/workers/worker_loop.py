@@ -31,6 +31,7 @@ from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
+from triade.runtime.effect_receipt import EffectReceipt
 from triade.runtime.event_scheduler import EventDrivenScheduler
 from triade.runtime.execution_result import ExecutionResult
 from triade.runtime.governed_task_executor import GovernedTaskExecutor
@@ -587,6 +588,29 @@ class WorkerLoop:
         if raw_status not in success:
             raise ValueError(f"unknown_handler_status:{raw_status or '<empty>'}")
         effect_applied = raw_status in {"candidate_created", "consolidated", "lesson_prepared"}
+        raw_receipt = result.get("effect_receipt")
+        if raw_receipt:
+            receipt = EffectReceipt.model_validate(raw_receipt)
+        elif not effect_applied and evidence:
+            receipt = EffectReceipt(
+                action="observe",
+                target=str(result.get("task_type") or "governed_handler"),
+                execution={"handler_status": raw_status},
+                postcondition={"passed": True, "result_artifact_exists": True},
+                verified=True,
+                verifier="result_artifact_verifier",
+                evidence_refs=evidence,
+            )
+        else:
+            return ExecutionResult(
+                status="failed",
+                executed=True,
+                retryable=False,
+                error_code="verified_effect_receipt_missing",
+                message="El handler afirmó un efecto sin recibo verificable",
+                artifacts=evidence,
+                evidence=evidence,
+            )
         return ExecutionResult(
             status="completed",
             executed=True,
@@ -596,6 +620,7 @@ class WorkerLoop:
             observation_justification=None if evidence else "pure_observation_without_artifact",
             postconditions={"effect_expected": effect_applied},
             message=message,
+            effect_receipt=receipt,
         )
 
     def _persist_execution_result(

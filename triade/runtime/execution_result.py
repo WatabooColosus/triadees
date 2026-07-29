@@ -7,6 +7,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from triade.runtime.effect_receipt import EffectReceipt
+
 ExecutionStatus = Literal[
     "completed",
     "blocked",
@@ -38,6 +40,7 @@ class ExecutionResult(BaseModel):
     resource_usage: dict[str, Any] = Field(default_factory=dict)
     postconditions: dict[str, Any] = Field(default_factory=dict)
     rollback: dict[str, Any] = Field(default_factory=dict)
+    effect_receipt: EffectReceipt | None = None
     observation_justification: str | None = None
     started_at: str = Field(default_factory=utc_now)
     finished_at: str = Field(default_factory=utc_now)
@@ -53,6 +56,8 @@ class ExecutionResult(BaseModel):
                 raise ValueError("completed_requires_evidence_or_observation_justification")
             if self.postconditions.get("effect_expected") and not self.effect_applied:
                 raise ValueError("completed_effect_requires_effect_applied_true")
+            if self.effect_receipt is None or not self.effect_receipt.verified:
+                raise ValueError("completed_requires_verified_effect_receipt")
         if self.status in non_executed and self.executed:
             raise ValueError(f"{self.status}_requires_executed_false")
         if self.status in failures and self.postconditions.get("passed") is True:
