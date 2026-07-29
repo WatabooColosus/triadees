@@ -35,6 +35,7 @@ from triade.runtime.event_scheduler import EventDrivenScheduler
 from triade.runtime.execution_result import ExecutionResult
 from triade.runtime.governed_task_executor import GovernedTaskExecutor
 from triade.runtime.lease_heartbeat import LeaseHeartbeat
+from triade.runtime.legacy_task_reconciler import LegacyTaskReconciler
 from triade.runtime.live_heartbeat import LiveHeartbeat
 from triade.runtime.resource_ledger import ResourceLedger
 from triade.runtime.task_leases import AutonomousTaskStore
@@ -162,6 +163,7 @@ class WorkerLoop:
             quarantine_root=self.runs_dir / "quarantine" / "timeouts"
         )
         self.live_heartbeat = LiveHeartbeat(db_path=self.db_path)
+        self.legacy_reconciler = LegacyTaskReconciler(self.db_path)
 
     def run(self, config: WorkerRunConfig | None = None) -> dict[str, Any]:
         config = config or WorkerRunConfig(
@@ -262,6 +264,7 @@ class WorkerLoop:
         )
 
         try:
+            self.legacy_reconciler.reconcile()
             wake_event = runtime_wake_event(self.db_path)
             live_scheduler = EventDrivenScheduler(wake_event=wake_event)
 
@@ -293,12 +296,22 @@ class WorkerLoop:
                         priority=task.priority,
                         max_attempts=3,
                     )
+                    if not self.store.link_delegated_task(
+                        int(task.id or 0), str(governed["task_id"])
+                    ):
+                        self.store.return_delegation_to_pending(
+                            int(task.id or 0), "legacy_v2_link_rejected"
+                        )
+                        continue
                     leased = self.autonomous_tasks.claim_task(
                         str(governed["task_id"]),
                         run_ref,
                         lease_seconds=max(60, int(config.task_timeout * 2)),
                     )
                     if leased is None:
+                        self.store.return_delegation_to_pending(
+                            int(task.id or 0), "v2_lease_conflict"
+                        )
                         self.store.record_event(
                             "task_lease_conflict",
                             "La tarea no pudo obtener lease v2",
@@ -424,7 +437,8 @@ class WorkerLoop:
         payload = dict(leased.get("payload") or {})
         legacy_id = payload.pop("_legacy_task_id", None)
         task = WorkerTask(
-            id=int(legacy_id) if legacy_id is not None else None,
+            # v2 is the only execution identity; legacy_id is mirror metadata.
+            id=None,
             task_type=str(leased["task_type"]),
             payload=payload,
             priority=int(leased.get("priority") or 50),
@@ -495,6 +509,28 @@ class WorkerLoop:
         elif execution.status == "completed":
             summary["tasks_completed"] += 1
         result["execution_result"] = execution.model_dump(mode="json")
+        if legacy_id is not None:
+            canonical = self.autonomous_tasks.get(autonomous_task_id) or {}
+            terminal_status = str(canonical.get("status") or "")
+            if terminal_status in {
+                "completed",
+                "blocked",
+                "skipped",
+                "dry_run",
+                "observed",
+                "cancelled",
+                "failed",
+                "dead_letter",
+                "timeout",
+                "lease_lost",
+            }:
+                self.store.mirror_v2_terminal(
+                    int(legacy_id),
+                    autonomous_task_id,
+                    terminal_status,
+                    result,
+                    run_ref=run_ref,
+                )
         return result
 
     @staticmethod

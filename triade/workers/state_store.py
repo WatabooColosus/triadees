@@ -10,6 +10,7 @@ from typing import Any
 
 from triade.core.contracts import utc_now
 from triade.core.error_bus import prune_worker_events
+
 from .contracts import WorkerRunConfig, WorkerTask
 
 
@@ -18,9 +19,10 @@ class WorkerStateStore:
         self.db_path = Path(db_path)
         repo_root = Path(__file__).resolve().parents[2]
         self.schema_path = repo_root / "triade/memory/schemas.sql"
-        self.migration_path = (
-            repo_root / "triade/memory/migrations/003_living_workers.sql"
-        )
+        self.migration_paths = [
+            repo_root / "triade/memory/migrations/003_living_workers.sql",
+            repo_root / "triade/memory/migrations/014_legacy_v2_bridge.sql",
+        ]
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
@@ -37,8 +39,32 @@ class WorkerStateStore:
             )
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
-            if self.migration_path.exists():
-                conn.executescript(self.migration_path.read_text(encoding="utf-8"))
+            for migration in self.migration_paths:
+                if migration.exists():
+                    self._apply_migration(conn, migration)
+
+    @staticmethod
+    def _apply_migration(conn: sqlite3.Connection, migration: Path) -> None:
+        if migration.name != "014_legacy_v2_bridge.sql":
+            conn.executescript(migration.read_text(encoding="utf-8"))
+            return
+        columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(worker_tasks)")}
+        additions = {
+            "autonomous_task_id": "TEXT",
+            "migration_status": "TEXT NOT NULL DEFAULT 'pending'",
+            "delegated_at": "TEXT",
+            "reconciled_at": "TEXT",
+            "migration_error": "TEXT",
+        }
+        for name, declaration in additions.items():
+            if name not in columns:
+                conn.execute(f"ALTER TABLE worker_tasks ADD COLUMN {name} {declaration}")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_tasks_autonomous_task ON worker_tasks(autonomous_task_id) WHERE autonomous_task_id IS NOT NULL"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_worker_tasks_migration ON worker_tasks(migration_status,status)"
+        )
 
     def create_worker_run(
         self, run_ref: str, config: WorkerRunConfig, artifact_dir: str | Path
@@ -127,6 +153,8 @@ class WorkerStateStore:
                     run_ref,
                 ),
             )
+            if cursor.lastrowid is None:
+                raise sqlite3.DatabaseError("worker_task_insert_without_id")
             task_id = int(cursor.lastrowid)
         return self.get_task(task_id) or WorkerTask(
             id=task_id, task_type=task_type, payload=payload or {}, priority=priority
@@ -134,17 +162,73 @@ class WorkerStateStore:
 
     def claim_next_task(self) -> WorkerTask | None:
         with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT * FROM worker_tasks WHERE status = 'pending' ORDER BY priority ASC, id ASC LIMIT 1"
             ).fetchone()
             if row is None:
                 return None
             conn.execute(
-                "UPDATE worker_tasks SET status = 'running', started_at = ? WHERE id = ?",
+                "UPDATE worker_tasks SET status='claimed',migration_status='delegating',started_at=? WHERE id=? AND status='pending'",
                 (utc_now(), row["id"]),
             )
         task = self.get_task(int(row["id"]))
         return task
+
+    def link_delegated_task(self, legacy_id: int, autonomous_task_id: str) -> bool:
+        with self._connect() as conn:
+            changed = conn.execute(
+                """UPDATE worker_tasks SET autonomous_task_id=?,migration_status='delegated',
+                delegated_at=?,migration_error=NULL WHERE id=? AND migration_status IN ('delegating','delegated')""",
+                (autonomous_task_id, utc_now(), legacy_id),
+            ).rowcount
+        return changed == 1
+
+    def return_delegation_to_pending(self, legacy_id: int, error: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """UPDATE worker_tasks SET status='pending',migration_status='pending',
+                started_at=NULL,migration_error=? WHERE id=? AND migration_status IN ('delegating','delegated')""",
+                (error[:2000], legacy_id),
+            )
+
+    def mirror_v2_terminal(
+        self,
+        legacy_id: int,
+        autonomous_task_id: str,
+        status: str,
+        result: dict[str, Any],
+        *,
+        run_ref: str,
+    ) -> bool:
+        with self._connect() as conn:
+            canonical = conn.execute(
+                "SELECT status FROM autonomous_tasks WHERE task_id=?",
+                (autonomous_task_id,),
+            ).fetchone()
+        if canonical is None or str(canonical["status"]) != status:
+            return False
+        legacy_status = status
+        migration_status = (
+            "mirrored_completed" if status == "completed" else "mirrored_failed"
+        )
+        with self._connect() as conn:
+            changed = conn.execute(
+                """UPDATE worker_tasks SET status=?,result_json=?,finished_at=?,run_ref=?,
+                migration_status=?,reconciled_at=?,migration_error=NULL
+                WHERE id=? AND autonomous_task_id=? AND migration_status='delegated'""",
+                (
+                    legacy_status,
+                    json.dumps(result, ensure_ascii=False),
+                    utc_now(),
+                    run_ref,
+                    migration_status,
+                    utc_now(),
+                    legacy_id,
+                    autonomous_task_id,
+                ),
+            ).rowcount
+        return changed == 1
 
     def get_task(self, task_id: int) -> WorkerTask | None:
         with self._connect() as conn:
@@ -219,6 +303,8 @@ class WorkerStateStore:
                 ),
             )
             prune_worker_events(conn)
+            if cursor.lastrowid is None:
+                raise sqlite3.DatabaseError("worker_event_insert_without_id")
             return int(cursor.lastrowid)
 
     def list_events(
@@ -265,12 +351,14 @@ class WorkerStateStore:
                     "SELECT status, COUNT(*) AS c FROM worker_runs GROUP BY status"
                 ).fetchall()
             }
+        recent_runs = self.list_worker_runs(limit=1)
+        last_run: dict[str, Any] | None = recent_runs[0] if recent_runs else None
         return {
             "status": "ok",
             "mode": "triade-living-workers",
             "task_counts": task_counts,
             "run_counts": run_counts,
-            "last_run": (self.list_worker_runs(limit=1) or [None])[0],
+            "last_run": last_run,
             "state": self.get_state("workers") or {},
         }
 
