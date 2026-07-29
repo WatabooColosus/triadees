@@ -304,8 +304,8 @@ class MemoryConsolidator:
         row_b = conn.execute(f"SELECT * FROM {table_b} WHERE id=?", (id_b,)).fetchone()
         if not row_a or not row_b:
             return {"error": "not_found"}
-        val_a = str(row_a[field_name]) if field_name in row_a.keys() else ""
-        val_b = str(row_b[field_name]) if field_name in row_b.keys() else ""
+        val_a = str(row_a[field_name]) if field_name in row_a else ""
+        val_b = str(row_b[field_name]) if field_name in row_b else ""
         if val_a == val_b:
             return {"contradiction": False}
         now = utc_now()

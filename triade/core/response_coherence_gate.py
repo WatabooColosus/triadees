@@ -259,8 +259,8 @@ def evaluate_response_coherence(
             "intent": intent,
             "previous_user_input": previous_user_input or "",
             "previous_response_present": bool(previous_answer),
-            "memory_context_keys": sorted(list(memory_context.keys()))[:12],
-            "neuron_context_keys": sorted(list(neuron_context.keys()))[:12],
+            "memory_context_keys": sorted(memory_context.keys())[:12],
+            "neuron_context_keys": sorted(neuron_context.keys())[:12],
             "repeated_previous_answer": repeated_previous_answer,
         },
     }

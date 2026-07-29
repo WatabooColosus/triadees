@@ -102,7 +102,7 @@ def build_integrity_snapshot(paths: list[str] | None = None) -> dict[str, Any]:
 
 def _zone_summary(files: dict) -> dict[str, Any]:
     summary: dict[str, Any] = {}
-    for rel, info in files.items():
+    for info in files.values():
         z = info.get("zone", "unknown")
         if z not in summary:
             summary[z] = {"count": 0, "bytes": 0}

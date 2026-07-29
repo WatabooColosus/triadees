@@ -167,7 +167,7 @@ class ServiceHealth:
     def _age_seconds(value: Any, now: datetime) -> float:
         if value is None:
             return float("inf")
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(str(value))
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=UTC)
         return max(0.0, (now - parsed).total_seconds())

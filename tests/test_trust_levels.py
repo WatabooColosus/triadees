@@ -104,7 +104,7 @@ class TestTrustLevelStore:
         store = trust_store(tmp_path)
         for domain in TRUST_DOMAINS:
             perms = store.get_permissions(domain)
-            for perm, thr in PERMISSION_THRESHOLDS[domain].items():
+            for perm in PERMISSION_THRESHOLDS[domain]:
                 assert perms[perm] is False, f"Expected False for {perm} at trust 0.0"
 
     def test_recompute_all_with_no_data_returns_zero(self, tmp_path: Path) -> None:

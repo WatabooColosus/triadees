@@ -62,8 +62,7 @@ def test_q_crystal_payload_exposes_formula_components() -> None:
         risk="low",
     )
     assert 0 <= payload["q_crystal"] <= 1
-    assert set(
-        [
+    assert {
             "s_h",
             "s_t",
             "s_rel",
@@ -73,8 +72,7 @@ def test_q_crystal_payload_exposes_formula_components() -> None:
             "i_prime",
             "r_prime",
             "phi_memory",
-        ]
-    ).issubset(payload)
+        }.issubset(payload)
     assert round(payload["alpha"] + payload["beta"], 3) == 1.0
 
 

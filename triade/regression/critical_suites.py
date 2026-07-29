@@ -106,10 +106,7 @@ class CriticalSuiteRegistry:
         ]
         if not matches:
             raise KeyError(f"suite crítica no registrada: {suite_id}")
-        return sorted(
-            matches,
-            key=lambda suite: tuple(int(part) for part in suite.version.split(".")),
-        )[-1]
+        return max(matches, key=lambda suite: tuple(int(part) for part in suite.version.split(".")))
 
     def list(self, capability: str | None = None) -> list[dict[str, Any]]:
         suites = self._suites.values()

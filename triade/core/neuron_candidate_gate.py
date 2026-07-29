@@ -297,9 +297,7 @@ def _looks_like_factual_simple(text: str) -> bool:
     tokens = [token for token in re.findall(r"[a-z0-9áéíóúüñ]+", plain) if token]
     if len(tokens) <= 10:
         return True
-    if any(token in tokens[:3] for token in QUESTION_WORDS):
-        return True
-    return False
+    return bool(any(token in tokens[:3] for token in QUESTION_WORDS))
 
 
 def _suggest_domain(domain: str | None, intent: str, context: dict[str, Any]) -> str:

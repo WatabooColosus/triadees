@@ -120,7 +120,7 @@ def _query_rows(
 
 def _is_recent(value: Any, cutoff: datetime) -> bool:
     try:
-        ts = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        ts = datetime.fromisoformat(str(value))
     except ValueError:
         return False
     if ts.tzinfo is None:

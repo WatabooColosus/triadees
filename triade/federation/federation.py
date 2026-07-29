@@ -673,7 +673,7 @@ class Federation:
         if not text:
             return None
         try:
-            return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+            return datetime.fromisoformat(text).timestamp()
         except ValueError:
             try:
                 return datetime.fromisoformat(

@@ -168,7 +168,7 @@ class CircuitBreaker:
         if self._state == "open" and self._opened_at:
             from datetime import datetime
 
-            opened = datetime.fromisoformat(self._opened_at.replace("Z", "+00:00"))
+            opened = datetime.fromisoformat(self._opened_at)
             now = datetime.now(UTC)
             if (now - opened).total_seconds() > self.recovery_timeout:
                 self._state = "half_open"
@@ -179,9 +179,7 @@ class CircuitBreaker:
         s = self.state
         if s == "closed":
             return True
-        if s == "half_open":
-            return True
-        return False
+        return s == "half_open"
 
     def record_success(self) -> None:
         if self._state == "half_open":

@@ -139,12 +139,12 @@ def test_same_job_is_idempotent_without_second_transport_call(tmp_path: Path) ->
         transport=transport,
         clock=lambda: NOW,
     )
-    kwargs = dict(
-        remote_node_id="remote-01",
-        capability="research_verified",
-        task={"query": "verify source"},
-        budget=budget(),
-    )
+    kwargs = {
+        "remote_node_id": "remote-01",
+        "capability": "research_verified",
+        "task": {"query": "verify source"},
+        "budget": budget(),
+    }
     dispatcher.dispatch("job-001", **kwargs)
     repeated = dispatcher.dispatch("job-001", **kwargs)
 

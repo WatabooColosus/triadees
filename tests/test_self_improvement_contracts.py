@@ -37,16 +37,16 @@ def test_signal_rejects_non_improving_target() -> None:
 
 
 def test_high_risk_signal_is_penalized() -> None:
-    common = dict(
-        signal_id="signal-1",
-        capability_id="research_verified",
-        metric_id="quality",
-        observed_score=0.60,
-        target_score=0.80,
-        impact=1.0,
-        confidence=1.0,
-        estimated_cost=1.0,
-    )
+    common = {
+        "signal_id": "signal-1",
+        "capability_id": "research_verified",
+        "metric_id": "quality",
+        "observed_score": 0.60,
+        "target_score": 0.80,
+        "impact": 1.0,
+        "confidence": 1.0,
+        "estimated_cost": 1.0,
+    }
     low = ImprovementSignal(**common, risk_level="low")
     high = ImprovementSignal(**common, risk_level="high")
 

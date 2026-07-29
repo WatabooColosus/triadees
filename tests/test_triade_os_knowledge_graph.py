@@ -209,7 +209,7 @@ class TestKGContradictions:
         cid = contradictions[0].id
         ok = kg.resolve_contradiction(cid, "B es correcto")
         assert ok is True
-        c = [x for x in kg.list_contradictions() if x.id == cid][0]
+        c = next(x for x in kg.list_contradictions() if x.id == cid)
         assert c.resolution_status == "resolved"
         assert c.resolution == "B es correcto"
 

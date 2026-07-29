@@ -200,7 +200,7 @@ def _performance_score(duration_ms: float, memory_bytes: int) -> float:
 
 def _security_score(output: dict) -> float:
     score = 1.0
-    for k, v in output.items():
+    for v in output.values():
         vs = str(v).lower()
         if any(w in vs for w in ("password", "secret", "api_key", "token")):
             score *= 0.5

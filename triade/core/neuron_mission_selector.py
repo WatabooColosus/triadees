@@ -152,7 +152,7 @@ def select_relevant_missions(
 def _updated_at_bonus(updated_at: str) -> float:
     """Da más puntuación a misiones recientemente actualizadas."""
     try:
-        ts = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+        ts = datetime.fromisoformat(updated_at)
     except ValueError:
         return 0.0
     if ts.tzinfo is None:

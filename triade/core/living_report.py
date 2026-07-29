@@ -250,7 +250,7 @@ def _count_recent(
             continue
         created = str(event.get("created_at") or "")
         try:
-            ts = datetime.fromisoformat(created.replace("Z", "+00:00"))
+            ts = datetime.fromisoformat(created)
         except ValueError:
             continue
         if ts >= cutoff:
