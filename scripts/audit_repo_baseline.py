@@ -140,7 +140,9 @@ def import_runtime_reports() -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Auditoría baseline del repositorio Tríade Ω.")
+    parser = argparse.ArgumentParser(
+        description="Auditoría baseline del repositorio Tríade Ω."
+    )
     parser.add_argument("--skip-tests", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
@@ -151,13 +153,15 @@ def main() -> int:
     runtime_reports = import_runtime_reports()
     tests = {"ok": True, "skipped": True} if args.skip_tests else run_pytest(CORE_TESTS)
 
-    ok = all([
-        syntax.get("ok"),
-        files.get("ok"),
-        artifacts.get("ok"),
-        runtime_reports.get("ok"),
-        tests.get("ok"),
-    ])
+    ok = all(
+        [
+            syntax.get("ok"),
+            files.get("ok"),
+            artifacts.get("ok"),
+            runtime_reports.get("ok"),
+            tests.get("ok"),
+        ]
+    )
 
     report = {
         "status": "ok" if ok else "warning",

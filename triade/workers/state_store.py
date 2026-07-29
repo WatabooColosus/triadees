@@ -48,7 +48,9 @@ class WorkerStateStore:
         if migration.name != "014_legacy_v2_bridge.sql":
             conn.executescript(migration.read_text(encoding="utf-8"))
             return
-        columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(worker_tasks)")}
+        columns = {
+            str(row[1]) for row in conn.execute("PRAGMA table_info(worker_tasks)")
+        }
         additions = {
             "autonomous_task_id": "TEXT",
             "migration_status": "TEXT NOT NULL DEFAULT 'pending'",
@@ -58,7 +60,9 @@ class WorkerStateStore:
         }
         for name, declaration in additions.items():
             if name not in columns:
-                conn.execute(f"ALTER TABLE worker_tasks ADD COLUMN {name} {declaration}")
+                conn.execute(
+                    f"ALTER TABLE worker_tasks ADD COLUMN {name} {declaration}"
+                )
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_tasks_autonomous_task ON worker_tasks(autonomous_task_id) WHERE autonomous_task_id IS NOT NULL"
         )

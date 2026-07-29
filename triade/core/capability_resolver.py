@@ -40,8 +40,14 @@ class CapabilityResolver:
 
         if "write_governed_text_artifact" in low:
             return CapabilityResolution(
-                True, "write_governed_text_artifact", True, "worker",
-                "write_governed_text_artifact", None, False, "low",
+                True,
+                "write_governed_text_artifact",
+                True,
+                "worker",
+                "write_governed_text_artifact",
+                None,
+                False,
+                "low",
                 "Escritura de texto limitada a una raíz autorizada y con rollback.",
             )
 

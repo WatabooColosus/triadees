@@ -21,16 +21,35 @@ def _print_json(payload: object) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Backfill de misiones neuronales")
-    parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de la base SQLite")
-    parser.add_argument("--runs-dir", default="runs", help="Directorio de runs para evidencia")
-    parser.add_argument("--limit", type=int, default=500, help="Límite de neuronas/misiones a inspeccionar")
-    parser.add_argument("command", choices=["backfill", "doctor"], help="Acción a ejecutar")
+    parser.add_argument(
+        "--db", default="triade/memory/triade.db", help="Ruta de la base SQLite"
+    )
+    parser.add_argument(
+        "--runs-dir", default="runs", help="Directorio de runs para evidencia"
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=500,
+        help="Límite de neuronas/misiones a inspeccionar",
+    )
+    parser.add_argument(
+        "command", choices=["backfill", "doctor"], help="Acción a ejecutar"
+    )
     args = parser.parse_args()
 
     if args.command == "backfill":
-        _print_json(backfill_neuron_missions(db_path=args.db, runs_dir=args.runs_dir, limit=args.limit))
+        _print_json(
+            backfill_neuron_missions(
+                db_path=args.db, runs_dir=args.runs_dir, limit=args.limit
+            )
+        )
         return
-    _print_json(neuron_missions_doctor(db_path=args.db, runs_dir=args.runs_dir, limit=args.limit))
+    _print_json(
+        neuron_missions_doctor(
+            db_path=args.db, runs_dir=args.runs_dir, limit=args.limit
+        )
+    )
 
 
 if __name__ == "__main__":

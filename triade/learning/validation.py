@@ -13,9 +13,16 @@ from uuid import uuid4
 from pydantic import BaseModel, model_validator
 
 LearningState = Literal[
-    "observed", "hypothesis_created", "evaluation_pending", "evaluated",
-    "application_pending", "applied", "regression_check_pending", "validated",
-    "rejected", "rolled_back",
+    "observed",
+    "hypothesis_created",
+    "evaluation_pending",
+    "evaluated",
+    "application_pending",
+    "applied",
+    "regression_check_pending",
+    "validated",
+    "rejected",
+    "rolled_back",
 ]
 
 
@@ -41,8 +48,13 @@ class LearningValidationReceipt(BaseModel):
         if self.status != "validated":
             return self
         required = (
-            self.hypothesis, self.producer_id, self.baseline_ref, self.evaluator_id,
-            self.evaluation_set_ref, self.application_ref, self.rollback_ref,
+            self.hypothesis,
+            self.producer_id,
+            self.baseline_ref,
+            self.evaluator_id,
+            self.evaluation_set_ref,
+            self.application_ref,
+            self.rollback_ref,
         )
         if not all(required):
             raise ValueError("validated_learning_missing_gate")
@@ -62,7 +74,10 @@ class LearningValidationReceipt(BaseModel):
 class LearningValidationService:
     def __init__(self, db_path: str | Path) -> None:
         self.db_path = Path(db_path)
-        migration = Path(__file__).resolve().parents[1] / "memory/migrations/017_learning_validation.sql"
+        migration = (
+            Path(__file__).resolve().parents[1]
+            / "memory/migrations/017_learning_validation.sql"
+        )
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(migration.read_text(encoding="utf-8"))
 
@@ -73,8 +88,12 @@ class LearningValidationService:
     def observe(self) -> LearningValidationReceipt:
         return self._new("observed")
 
-    def hypothesize(self, hypothesis: str, *, producer_id: str) -> LearningValidationReceipt:
-        return self._new("hypothesis_created", hypothesis=hypothesis, producer_id=producer_id)
+    def hypothesize(
+        self, hypothesis: str, *, producer_id: str
+    ) -> LearningValidationReceipt:
+        return self._new(
+            "hypothesis_created", hypothesis=hypothesis, producer_id=producer_id
+        )
 
     def assess(
         self,
@@ -83,12 +102,17 @@ class LearningValidationService:
         rollback: Callable[[], bool] | None = None,
     ) -> LearningValidationReceipt:
         data = receipt.model_dump()
-        if not receipt.baseline_ref or not receipt.evaluation_set_ref or receipt.after_score is None:
+        if (
+            not receipt.baseline_ref
+            or not receipt.evaluation_set_ref
+            or receipt.after_score is None
+        ):
             data["status"] = "evaluation_pending"
         elif not receipt.application_ref:
             data["status"] = "evaluated"
         elif receipt.regression_critical or (
-            receipt.before_score is not None and receipt.after_score <= receipt.before_score
+            receipt.before_score is not None
+            and receipt.after_score <= receipt.before_score
         ):
             rolled_back = bool(rollback and rollback())
             data["status"] = "rolled_back" if rolled_back else "rejected"
@@ -107,17 +131,22 @@ class LearningValidationService:
                 ON CONFLICT(learning_id) DO UPDATE SET status=excluded.status,
                 payload_json=excluded.payload_json,updated_at=excluded.updated_at""",
                 (
-                    receipt.learning_id, receipt.status,
+                    receipt.learning_id,
+                    receipt.status,
                     json.dumps(receipt.model_dump(), ensure_ascii=False),
-                    receipt.created_at, receipt.updated_at,
+                    receipt.created_at,
+                    receipt.updated_at,
                 ),
             )
 
     def _new(self, status: LearningState, **values: str) -> LearningValidationReceipt:
         now = self._now()
         receipt = LearningValidationReceipt(
-            learning_id=f"learning-{uuid4().hex}", status=status,
-            created_at=now, updated_at=now, **values,
+            learning_id=f"learning-{uuid4().hex}",
+            status=status,
+            created_at=now,
+            updated_at=now,
+            **values,
         )
         self.save(receipt)
         return receipt

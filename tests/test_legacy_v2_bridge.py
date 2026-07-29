@@ -8,7 +8,9 @@ from triade.runtime.task_leases import AutonomousTaskStore
 from triade.workers.state_store import WorkerStateStore
 
 
-def _delegated(db_path: Path, key: str = "legacy:1") -> tuple[WorkerStateStore, dict, int]:
+def _delegated(
+    db_path: Path, key: str = "legacy:1"
+) -> tuple[WorkerStateStore, dict, int]:
     legacy = WorkerStateStore(db_path)
     queued = legacy.enqueue_task("pulse_check", {"value": 1})
     claimed = legacy.claim_next_task()
@@ -23,7 +25,9 @@ def _delegated(db_path: Path, key: str = "legacy:1") -> tuple[WorkerStateStore, 
 def _legacy_row(db_path: Path, legacy_id: int) -> sqlite3.Row:
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT * FROM worker_tasks WHERE id=?", (legacy_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM worker_tasks WHERE id=?", (legacy_id,)
+        ).fetchone()
     assert row is not None
     return row
 
@@ -77,7 +81,8 @@ def test_legacy_mirror_never_overrides_v2_truth(tmp_path: Path) -> None:
     tasks = AutonomousTaskStore(db_path)
     with sqlite3.connect(db_path) as conn:
         conn.execute(
-            "UPDATE autonomous_tasks SET max_attempts=1 WHERE task_id=?", (v2["task_id"],)
+            "UPDATE autonomous_tasks SET max_attempts=1 WHERE task_id=?",
+            (v2["task_id"],),
         )
     claimed = tasks.claim_task(v2["task_id"], "worker")
     assert claimed

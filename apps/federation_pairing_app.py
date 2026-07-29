@@ -29,7 +29,12 @@ class PairRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "mode": "federation-pairing", "pairing_enabled": True, "repo": repo_info()}
+    return {
+        "status": "ok",
+        "mode": "federation-pairing",
+        "pairing_enabled": True,
+        "repo": repo_info(),
+    }
 
 
 @app.get("/api/repo")
@@ -46,27 +51,30 @@ def pairing_page(token: str = "") -> str:
 def admin_help(request: Request) -> str:
     central_url = str(request.base_url).rstrip("/")
     install_cmd = f"curl -fsSL {central_url}/downloads/termux-bootstrap.sh | bash"
-    return (
-        ADMIN_HELP_HTML
-        .replace("__INSTALL_CMD__", _escape(install_cmd))
-    )
+    return ADMIN_HELP_HTML.replace("__INSTALL_CMD__", _escape(install_cmd))
 
 
 @app.get("/downloads/termux-bootstrap.sh", response_class=PlainTextResponse)
 def termux_bootstrap(request: Request) -> PlainTextResponse:
     central_url = str(request.base_url).rstrip("/")
-    script = TERMUX_BOOTSTRAP.replace("__CENTRAL_URL__", central_url).replace("__PAIRING_TOKEN__", "")
+    script = TERMUX_BOOTSTRAP.replace("__CENTRAL_URL__", central_url).replace(
+        "__PAIRING_TOKEN__", ""
+    )
     return PlainTextResponse(
         script,
         media_type="text/x-shellscript; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="triade-termux-bootstrap.sh"'},
+        headers={
+            "Content-Disposition": 'attachment; filename="triade-termux-bootstrap.sh"'
+        },
     )
 
 
 @app.post("/api/pair")
 def pair_device(request: PairRequest) -> dict[str, Any]:
     if not PAIRING_TOKEN:
-        raise HTTPException(status_code=503, detail="TRIADE_PAIRING_TOKEN no configurado.")
+        raise HTTPException(
+            status_code=503, detail="TRIADE_PAIRING_TOKEN no configurado."
+        )
     if request.token != PAIRING_TOKEN:
         raise HTTPException(status_code=401, detail="Token de emparejamiento invalido.")
 
@@ -126,7 +134,12 @@ def _normalize_browser_capabilities(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _escape(value: str) -> str:
-    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
 
 
 HTML = """

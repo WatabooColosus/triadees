@@ -36,7 +36,9 @@ def decisions_by_name(run_path: Path) -> dict[str, dict[str, Any]]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Audita neuronas candidatas generadas por Tríade.")
+    parser = argparse.ArgumentParser(
+        description="Audita neuronas candidatas generadas por Tríade."
+    )
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--limit", type=int, default=80)
     parser.add_argument("--json", action="store_true")
@@ -77,12 +79,20 @@ def main() -> int:
                 "training_score": training.get("score"),
                 "required_human_review": training.get("required_human_review"),
                 "policy": item.get("policy"),
-                "decision": decision.get("decision") if isinstance(decision, dict) else None,
-                "next_status": decision.get("next_status") if isinstance(decision, dict) else None,
+                "decision": decision.get("decision")
+                if isinstance(decision, dict)
+                else None,
+                "next_status": decision.get("next_status")
+                if isinstance(decision, dict)
+                else None,
                 "mission": item.get("mission"),
                 "evidence_non_null": has_non_null_evidence(item.get("evidence")),
-                "forbidden_actions_count": len(creator.get("forbidden_actions") or []) if isinstance(creator, dict) else 0,
-                "success_metrics_count": len(creator.get("success_metrics") or []) if isinstance(creator, dict) else 0,
+                "forbidden_actions_count": len(creator.get("forbidden_actions") or [])
+                if isinstance(creator, dict)
+                else 0,
+                "success_metrics_count": len(creator.get("success_metrics") or [])
+                if isinstance(creator, dict)
+                else 0,
             }
 
             if args.only_missing_pipeline and row["pipeline"]:
@@ -95,17 +105,17 @@ def main() -> int:
     by_source = Counter(str(r.get("source")) for r in rows)
     by_name = Counter(str(r.get("name")) for r in rows)
 
-    duplicates = {
-        name: count
-        for name, count in by_name.most_common()
-        if count > 1
-    }
+    duplicates = {name: count for name, count in by_name.most_common() if count > 1}
 
     missing_pipeline = [r for r in rows if not r.get("pipeline")]
-    missing_human_review = [r for r in rows if r.get("required_human_review") is not True]
+    missing_human_review = [
+        r for r in rows if r.get("required_human_review") is not True
+    ]
     auto_stable = [
-        r for r in rows
-        if str(r.get("status")).lower() == "stable" or str(r.get("training_status")).lower() == "stable"
+        r
+        for r in rows
+        if str(r.get("status")).lower() == "stable"
+        or str(r.get("training_status")).lower() == "stable"
     ]
     weak_evidence = [r for r in rows if not r.get("evidence_non_null")]
 
@@ -129,17 +139,23 @@ def main() -> int:
         return 0 if not auto_stable else 2
 
     print("=== NEURON CANDIDATE AUDIT ===")
-    print(json.dumps({
-        "total_candidates": report["total_candidates"],
-        "by_status": report["by_status"],
-        "by_training_status": report["by_training_status"],
-        "by_source": report["by_source"],
-        "duplicates_count": len(duplicates),
-        "missing_pipeline_count": len(missing_pipeline),
-        "missing_human_review_count": len(missing_human_review),
-        "auto_stable_count": len(auto_stable),
-        "weak_evidence_count": len(weak_evidence),
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "total_candidates": report["total_candidates"],
+                "by_status": report["by_status"],
+                "by_training_status": report["by_training_status"],
+                "by_source": report["by_source"],
+                "duplicates_count": len(duplicates),
+                "missing_pipeline_count": len(missing_pipeline),
+                "missing_human_review_count": len(missing_human_review),
+                "auto_stable_count": len(auto_stable),
+                "weak_evidence_count": len(weak_evidence),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
     print("\n=== TOP DUPLICATES ===")
     for name, count in list(duplicates.items())[:20]:
@@ -148,13 +164,13 @@ def main() -> int:
     print("\n=== RECENT CANDIDATES ===")
     for r in rows[:40]:
         print(
-            f'{r["run_id"]} | '
-            f'{r["status"]}/{r["training_status"]} | '
-            f'score={r["training_score"]} | '
-            f'pipeline={r["pipeline"]} | '
-            f'human={r["required_human_review"]} | '
-            f'source={r["source"]} | '
-            f'name={r["name"]}'
+            f"{r['run_id']} | "
+            f"{r['status']}/{r['training_status']} | "
+            f"score={r['training_score']} | "
+            f"pipeline={r['pipeline']} | "
+            f"human={r['required_human_review']} | "
+            f"source={r['source']} | "
+            f"name={r['name']}"
         )
 
     if auto_stable:

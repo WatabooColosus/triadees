@@ -14,14 +14,18 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Audita uso de nodos edge Android en runs de Tríade.")
+    parser = argparse.ArgumentParser(
+        description="Audita uso de nodos edge Android en runs de Tríade."
+    )
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--limit", type=int, default=30)
     parser.add_argument("--only-edge", action="store_true")
     args = parser.parse_args()
 
     runs_dir = Path(args.runs_dir)
-    run_paths = sorted([p for p in runs_dir.iterdir() if p.is_dir()], reverse=True)[: args.limit]
+    run_paths = sorted([p for p in runs_dir.iterdir() if p.is_dir()], reverse=True)[
+        : args.limit
+    ]
 
     rows = []
     nodes_seen = set()
@@ -42,7 +46,9 @@ def main() -> None:
                 "intent": (edge_context.get("intent_probe") or {}).get("intent"),
                 "urgency": (edge_context.get("intent_probe") or {}).get("urgency"),
                 "risk": (edge_context.get("intent_probe") or {}).get("risk"),
-                "needs_tool": (edge_context.get("intent_probe") or {}).get("needs_tool"),
+                "needs_tool": (edge_context.get("intent_probe") or {}).get(
+                    "needs_tool"
+                ),
                 "keywords": edge_context.get("keywords", []),
             }
 
@@ -60,41 +66,51 @@ def main() -> None:
         if node_id:
             nodes_seen.add(str(node_id))
 
-        rows.append({
-            "run_id": run_path.name,
-            "used_edge": used_edge,
-            "accepted": accepted,
-            "node_id": node_id,
-            "intent": edge_usage.get("intent") or "",
-            "urgency": edge_usage.get("urgency") or "",
-            "risk": edge_usage.get("risk") or "",
-            "needs_tool": edge_usage.get("needs_tool"),
-            "keywords": ", ".join(edge_usage.get("keywords", [])[:8]) if isinstance(edge_usage.get("keywords"), list) else "",
-            "plan_has_edge": "edge_context" in plan,
-        })
+        rows.append(
+            {
+                "run_id": run_path.name,
+                "used_edge": used_edge,
+                "accepted": accepted,
+                "node_id": node_id,
+                "intent": edge_usage.get("intent") or "",
+                "urgency": edge_usage.get("urgency") or "",
+                "risk": edge_usage.get("risk") or "",
+                "needs_tool": edge_usage.get("needs_tool"),
+                "keywords": ", ".join(edge_usage.get("keywords", [])[:8])
+                if isinstance(edge_usage.get("keywords"), list)
+                else "",
+                "plan_has_edge": "edge_context" in plan,
+            }
+        )
 
     print("=== EDGE USAGE SUMMARY ===")
-    print(json.dumps({
-        "runs_scanned": len(run_paths),
-        "rows_reported": len(rows),
-        "edge_used_count": edge_used_count,
-        "edge_accepted_count": edge_accepted_count,
-        "nodes_seen": sorted(nodes_seen),
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "runs_scanned": len(run_paths),
+                "rows_reported": len(rows),
+                "edge_used_count": edge_used_count,
+                "edge_accepted_count": edge_accepted_count,
+                "nodes_seen": sorted(nodes_seen),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
     print("\n=== EDGE USAGE ROWS ===")
     for row in rows:
         print(
-            f'{row["run_id"]} | '
-            f'used={row["used_edge"]} | '
-            f'accepted={row["accepted"]} | '
-            f'node={row["node_id"]} | '
-            f'intent={row["intent"]} | '
-            f'urgency={row["urgency"]} | '
-            f'risk={row["risk"]} | '
-            f'needs_tool={row["needs_tool"]} | '
-            f'plan_edge={row["plan_has_edge"]} | '
-            f'kw={row["keywords"]}'
+            f"{row['run_id']} | "
+            f"used={row['used_edge']} | "
+            f"accepted={row['accepted']} | "
+            f"node={row['node_id']} | "
+            f"intent={row['intent']} | "
+            f"urgency={row['urgency']} | "
+            f"risk={row['risk']} | "
+            f"needs_tool={row['needs_tool']} | "
+            f"plan_edge={row['plan_has_edge']} | "
+            f"kw={row['keywords']}"
         )
 
 

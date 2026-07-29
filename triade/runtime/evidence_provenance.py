@@ -11,7 +11,9 @@ from uuid import uuid4
 
 from pydantic import BaseModel, model_validator
 
-OriginClass = Literal["human", "external_system", "trusted_federated", "autonomous", "derived"]
+OriginClass = Literal[
+    "human", "external_system", "trusted_federated", "autonomous", "derived"
+]
 EXTERNAL_ORIGINS = {"human", "external_system", "trusted_federated"}
 
 
@@ -47,7 +49,10 @@ class EvidenceProvenanceStore:
     def __init__(self, db_path: str | Path, *, max_autonomous_depth: int = 8) -> None:
         self.db_path = Path(db_path)
         self.max_autonomous_depth = max_autonomous_depth
-        migration = Path(__file__).resolve().parents[1] / "memory/migrations/016_evidence_provenance.sql"
+        migration = (
+            Path(__file__).resolve().parents[1]
+            / "memory/migrations/016_evidence_provenance.sql"
+        )
         with self._connect() as conn:
             conn.executescript(migration.read_text(encoding="utf-8"))
 
@@ -114,8 +119,13 @@ class EvidenceProvenanceStore:
         return EvidenceRecord.model_validate(dict(row)) if row else None
 
     def consume(
-        self, evidence_id: str, *, consumer_type: str, consumer_id: str,
-        task_id: str | None = None, outcome: str = "accepted",
+        self,
+        evidence_id: str,
+        *,
+        consumer_type: str,
+        consumer_id: str,
+        task_id: str | None = None,
+        outcome: str = "accepted",
     ) -> bool:
         if self.get(evidence_id) is None:
             raise KeyError("evidence_not_found")
@@ -123,8 +133,14 @@ class EvidenceProvenanceStore:
             with self._connect() as conn:
                 conn.execute(
                     "INSERT INTO evidence_consumptions VALUES(?,?,?,?,?,?)",
-                    (evidence_id, consumer_type, consumer_id, task_id,
-                     datetime.now(UTC).isoformat(), outcome),
+                    (
+                        evidence_id,
+                        consumer_type,
+                        consumer_id,
+                        task_id,
+                        datetime.now(UTC).isoformat(),
+                        outcome,
+                    ),
                 )
             return True
         except sqlite3.IntegrityError:
@@ -136,4 +152,7 @@ class EvidenceProvenanceStore:
             return False
         created = datetime.fromisoformat(evidence.created_at)
         last_cycle = datetime.fromisoformat(last_cycle_at)
-        return created > last_cycle and evidence.autonomous_depth <= self.max_autonomous_depth
+        return (
+            created > last_cycle
+            and evidence.autonomous_depth <= self.max_autonomous_depth
+        )

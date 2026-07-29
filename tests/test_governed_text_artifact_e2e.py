@@ -19,18 +19,26 @@ def test_governed_text_artifact_full_lifecycle(tmp_path: Path) -> None:
     CapabilityRegistry(db_path).register(
         CapabilityDefinition(
             capability_id="write_governed_text_artifact",
-            name="Governed text artifact", domain="runtime", version="1",
-            owner="central", component="worker_loop", state="active",
+            name="Governed text artifact",
+            domain="runtime",
+            version="1",
+            owner="central",
+            component="worker_loop",
+            state="active",
             rollback_policy="verified_file_rollback",
-            input_contract={"type": "object"}, output_contract={"type": "object"},
+            input_contract={"type": "object"},
+            output_contract={"type": "object"},
             permissions=("execute",),
         )
     )
     step = PlanStep(
-        id="write", description="ejecuta write_governed_text_artifact", priority=0,
+        id="write",
+        description="ejecuta write_governed_text_artifact",
+        priority=0,
         result={
             "dispatch_payload": {
-                "target": str(target), "content": "contenido gobernado",
+                "target": str(target),
+                "content": "contenido gobernado",
                 "authorized_root": str(target.parent),
             }
         },
@@ -41,22 +49,28 @@ def test_governed_text_artifact_full_lifecycle(tmp_path: Path) -> None:
     assert dispatch.status == "queued" and dispatch.task_id
 
     loop = WorkerLoop(
-        db_path=db_path, runs_dir=tmp_path / "runs",
-        lock_file=tmp_path / "worker.lock", stop_file=tmp_path / "stop",
+        db_path=db_path,
+        runs_dir=tmp_path / "runs",
+        lock_file=tmp_path / "worker.lock",
+        stop_file=tmp_path / "stop",
     )
     loop.run(
         WorkerRunConfig(
-            once=True, max_iterations=1, max_tasks_per_drain=1,
-            runs_dir=str(tmp_path / "runs"), lock_file=str(tmp_path / "worker.lock"),
+            once=True,
+            max_iterations=1,
+            max_tasks_per_drain=1,
+            runs_dir=str(tmp_path / "runs"),
+            lock_file=str(tmp_path / "worker.lock"),
             stop_file=str(tmp_path / "stop"),
         )
     )
     task = dispatcher.tasks.get(dispatch.task_id)
     assert task and task["status"] == "completed"
     assert target.read_text(encoding="utf-8") == "contenido gobernado"
-    assert hashlib.sha256(target.read_bytes()).hexdigest() == hashlib.sha256(
-        b"contenido gobernado"
-    ).hexdigest()
+    assert (
+        hashlib.sha256(target.read_bytes()).hexdigest()
+        == hashlib.sha256(b"contenido gobernado").hexdigest()
+    )
 
     result_ref = Path(str(task["result_ref"]))
     assert result_ref.is_file()

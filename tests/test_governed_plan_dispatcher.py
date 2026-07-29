@@ -24,7 +24,9 @@ def _register(db_path: Path, capability_id: str, *, state: str = "active") -> No
     )
 
 
-def _graph(description: str = "investiga documentación oficial") -> tuple[PlanGraph, PlanStep]:
+def _graph(
+    description: str = "investiga documentación oficial",
+) -> tuple[PlanGraph, PlanStep]:
     step = PlanStep(id="step-1", description=description)
     return PlanGraph(plan_id="plan-1", goal="test", steps=[step]), step
 

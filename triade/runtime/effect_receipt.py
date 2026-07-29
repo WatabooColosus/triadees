@@ -90,7 +90,11 @@ class EffectReceipt(BaseModel):
         return cls(
             action="backup",
             target=backup_ref,
-            postcondition={"passed": passed, "hash_matches": hash_matches, "restore_test": len(refs) == 2},
+            postcondition={
+                "passed": passed,
+                "hash_matches": hash_matches,
+                "restore_test": len(refs) == 2,
+            },
             verified=passed,
             verifier="backup_restore_verifier",
             evidence_refs=refs,
@@ -99,12 +103,20 @@ class EffectReceipt(BaseModel):
 
     @classmethod
     def verify_research(cls, *, question: str, source_refs: list[str]) -> EffectReceipt:
-        valid = [ref for ref in source_refs if ref.startswith(("http://", "https://", "doi:"))]
+        valid = [
+            ref
+            for ref in source_refs
+            if ref.startswith(("http://", "https://", "doi:"))
+        ]
         passed = len(valid) >= 2
         return cls(
             action="research",
             target=question,
-            postcondition={"passed": passed, "source_count": len(valid), "consolidated": False},
+            postcondition={
+                "passed": passed,
+                "source_count": len(valid),
+                "consolidated": False,
+            },
             verified=passed,
             verifier="research_source_reference_verifier",
             evidence_refs=valid,

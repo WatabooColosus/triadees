@@ -121,8 +121,11 @@ def _legacy_heartbeat_truth(payload: dict[str, Any]) -> dict[str, Any]:
     result["internal_heartbeat_truth"] = truth
     light = "Autonomía full_local_guarded configurada · degradada a light_background por gobernador"
     if truth == light:
-        result["heartbeat_truth"] = "Autonomía full_local_guarded configurada · degradada a balanced_background por gobernador"
+        result["heartbeat_truth"] = (
+            "Autonomía full_local_guarded configurada · degradada a balanced_background por gobernador"
+        )
     return result
+
 
 SIGNED_NONCE_TTL_SECONDS = 300
 SIGNED_NONCE_CACHE: dict[str, float] = {}
@@ -132,16 +135,15 @@ def require_key(value: str | None) -> None:
     expected = os.getenv("TRIADE_API_KEY")
     if expected and value != expected:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="API key inválida o ausente."
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key inválida o ausente.",
         )
 
 
 def _prune_signed_nonce_cache(now: float | None = None) -> None:
     current = time.monotonic() if now is None else now
     expired = [
-        key
-        for key, expires_at in SIGNED_NONCE_CACHE.items()
-        if expires_at <= current
+        key for key, expires_at in SIGNED_NONCE_CACHE.items() if expires_at <= current
     ]
     for key in expired:
         SIGNED_NONCE_CACHE.pop(key, None)
@@ -190,8 +192,8 @@ def verify_signed_node_envelope(envelope: SignedEnvelope) -> None:
             )
 
 
-
 # ── Living Workers ─────────────────────────────────────────────────────
+
 
 def _worker_service() -> WorkerBackgroundService:
     return WorkerBackgroundService()
@@ -204,15 +206,27 @@ def workers_status() -> dict[str, Any]:
 
 
 @router.post("/workers/run-once")
-def workers_run_once(dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
+def workers_run_once(
+    dry_run: bool = False, task_timeout: float = 30.0
+) -> dict[str, Any]:
     LIFE_PULSE.record_action("workers_run_once")
     return _worker_service().run_once(dry_run=dry_run, task_timeout=task_timeout)
 
 
 @router.post("/workers/start")
-def workers_start(max_iterations: int = 5, sleep: float = 2.0, dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
+def workers_start(
+    max_iterations: int = 5,
+    sleep: float = 2.0,
+    dry_run: bool = False,
+    task_timeout: float = 30.0,
+) -> dict[str, Any]:
     LIFE_PULSE.record_action("workers_start")
-    return _worker_service().start(max_iterations=max_iterations, sleep_seconds=sleep, dry_run=dry_run, task_timeout=task_timeout)
+    return _worker_service().start(
+        max_iterations=max_iterations,
+        sleep_seconds=sleep,
+        dry_run=dry_run,
+        task_timeout=task_timeout,
+    )
 
 
 @router.post("/workers/stop")
@@ -225,6 +239,7 @@ def workers_stop() -> dict[str, Any]:
 def workers_always_on_status() -> dict[str, Any]:
     LIFE_PULSE.record_action("workers_always_on_status")
     from triade.core.worker_autostart import build_workers_always_on_status
+
     return build_workers_always_on_status()
 
 
@@ -236,6 +251,7 @@ def runtime_workers_start(
     require_key(x_triade_api_key)
     from triade.core.always_on import load_always_on_config
     from triade.core.worker_autostart import start_workers_if_configured
+
     return start_workers_if_configured(load_always_on_config())
 
 
@@ -246,6 +262,7 @@ def runtime_workers_stop(
     LIFE_PULSE.record_action("runtime_workers_stop")
     require_key(x_triade_api_key)
     from triade.core.worker_autostart import stop_workers_always_on
+
     return stop_workers_always_on()
 
 
@@ -260,12 +277,15 @@ def runtime_workers_restart(
         start_workers_if_configured,
         stop_workers_always_on,
     )
+
     stop_workers_always_on()
     return start_workers_if_configured(load_always_on_config())
 
 
 @router.post("/api/runtime/workers/once")
-def runtime_workers_once(dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
+def runtime_workers_once(
+    dry_run: bool = False, task_timeout: float = 30.0
+) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_workers_once")
     return _worker_service().run_once(dry_run=dry_run, task_timeout=task_timeout)
 
@@ -290,22 +310,32 @@ def workers_queue(status: str | None = None, limit: int = 50) -> dict[str, Any]:
 @router.get("/api/goals")
 def goals_summary() -> dict[str, Any]:
     from triade.core.planning_graph import PlanningGraph
+
     graph = PlanningGraph()
-    return {"status": "ok", "summary": graph.get_plan_summary(),
-            "roots": [goal.to_dict() for goal in graph.get_root_goals()[:50]]}
+    return {
+        "status": "ok",
+        "summary": graph.get_plan_summary(),
+        "roots": [goal.to_dict() for goal in graph.get_root_goals()[:50]],
+    }
 
 
 @router.get("/api/goals/{goal_id}")
 def goal_status(goal_id: str) -> dict[str, Any]:
     from triade.core.goal_orchestrator import GoalOrchestrator
+
     return GoalOrchestrator().status(goal_id)
 
 
 @router.post("/api/goals/{goal_id}/approve-install")
-def approve_goal_install(goal_id: str, package: str, approved_by: str,
-                         x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key")) -> dict[str, Any]:
+def approve_goal_install(
+    goal_id: str,
+    package: str,
+    approved_by: str,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
     require_key(x_triade_api_key)
     from triade.core.goal_orchestrator import GoalOrchestrator
+
     return GoalOrchestrator().approve_install(goal_id, package, approved_by=approved_by)
 
 
@@ -327,8 +357,8 @@ def learning_pending(limit: int = 50) -> dict[str, Any]:
     return {"status": "ok", "count": len(pending), "candidates": pending}
 
 
-
 # ── QualiaBus ──────────────────────────────────────────────────────────
+
 
 def _qualia_store() -> QualiaStore:
     return QualiaStore()
@@ -338,7 +368,11 @@ def _qualia_store() -> QualiaStore:
 def qualia_state(run_id: str | None = None, limit: int = 20) -> dict[str, Any]:
     LIFE_PULSE.record_action("qualia_state")
     store = _qualia_store()
-    return {"status": "ok", "latest_state": store.latest_state(run_id=run_id), "states": store.list_states(run_id=run_id, limit=limit)}
+    return {
+        "status": "ok",
+        "latest_state": store.latest_state(run_id=run_id),
+        "states": store.list_states(run_id=run_id, limit=limit),
+    }
 
 
 @router.get("/qualia/experiences")
@@ -356,14 +390,18 @@ def qualia_signals(run_id: str | None = None, limit: int = 50) -> dict[str, Any]
 
 
 @router.get("/qualia/central-packets")
-def qualia_central_packets(run_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+def qualia_central_packets(
+    run_id: str | None = None, limit: int = 50
+) -> dict[str, Any]:
     LIFE_PULSE.record_action("qualia_central_packets")
     rows = _qualia_store().list_central_packets(run_id=run_id, limit=limit)
     return {"status": "ok", "count": len(rows), "central_packets": rows}
 
 
 @router.get("/qualia/storage-packets")
-def qualia_storage_packets(run_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+def qualia_storage_packets(
+    run_id: str | None = None, limit: int = 50
+) -> dict[str, Any]:
     LIFE_PULSE.record_action("qualia_storage_packets")
     rows = _qualia_store().list_storage_packets(run_id=run_id, limit=limit)
     return {"status": "ok", "count": len(rows), "storage_packets": rows}
@@ -377,21 +415,36 @@ def qualia_publish_test(body: dict[str, Any] | None = None) -> dict[str, Any]:
         run_id=str(payload.get("run_id") or "qualia-api-test"),
         neuron_id=str(payload.get("neuron_id") or "qualia_api"),
         neuron_type=str(payload.get("neuron_type") or "api_test"),
-        mission=str(payload.get("mission") or "Validar publicación segura de QualiaBus desde API."),
+        mission=str(
+            payload.get("mission")
+            or "Validar publicación segura de QualiaBus desde API."
+        ),
         source="api.qualia.publish_test",
         source_type="api_test",
-        observation=str(payload.get("observation") or "Experiencia de prueba QualiaBus desde API."),
-        extracted_pattern=str(payload.get("extracted_pattern") or "QualiaBus genera paquetes trazables."),
+        observation=str(
+            payload.get("observation") or "Experiencia de prueba QualiaBus desde API."
+        ),
+        extracted_pattern=str(
+            payload.get("extracted_pattern") or "QualiaBus genera paquetes trazables."
+        ),
         proposed_learning=str(payload.get("proposed_learning") or ""),
         confidence=float(payload.get("confidence") or 0.7),
         risk=str(payload.get("risk") or "low"),
         usefulness=float(payload.get("usefulness") or 0.7),
-        emotional_signal=payload.get("emotional_signal") if isinstance(payload.get("emotional_signal"), dict) else {"valence": 0.2},
-        evidence_refs=payload.get("evidence_refs") if isinstance(payload.get("evidence_refs"), list) else ["api:/qualia/publish-test"],
+        emotional_signal=payload.get("emotional_signal")
+        if isinstance(payload.get("emotional_signal"), dict)
+        else {"valence": 0.2},
+        evidence_refs=payload.get("evidence_refs")
+        if isinstance(payload.get("evidence_refs"), list)
+        else ["api:/qualia/publish-test"],
     )
-    return QualiaBus().publish_experience(exp, ingest_learning=bool(exp.proposed_learning))
+    return QualiaBus().publish_experience(
+        exp, ingest_learning=bool(exp.proposed_learning)
+    )
+
 
 # ── Health ──────────────────────────────────────────────────────────────
+
 
 @router.get("/health")
 @router.get("/api/health")
@@ -406,7 +459,8 @@ def health() -> dict[str, Any]:
         "port": 8010,
         "security": {
             "api_key_required": bool(os.getenv("TRIADE_API_KEY")),
-            "public_guarded": os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower() in {"1", "true", "yes", "on"},
+            "public_guarded": os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower()
+            in {"1", "true", "yes", "on"},
         },
         "repo": repo_info(),
         "hardware": hardware.to_dict(),
@@ -417,8 +471,11 @@ def health() -> dict[str, Any]:
 
 # ── Router ──────────────────────────────────────────────────────────────
 
+
 @router.get("/api/models/doctor")
-def models_doctor_get(intent: str = "conversation", urgency: str = "medium") -> dict[str, Any]:
+def models_doctor_get(
+    intent: str = "conversation", urgency: str = "medium"
+) -> dict[str, Any]:
     LIFE_PULSE.record_action("router_doctor")
     return router_payload(intent=intent, urgency=urgency)
 
@@ -431,6 +488,7 @@ def route_doctor(request: RouterRequest) -> dict[str, Any]:
 
 # ── Modelos ─────────────────────────────────────────────────────────────
 
+
 @router.get("/api/models/compatibility")
 def model_compatibility() -> dict[str, Any]:
     LIFE_PULSE.record_action("model_compatibility")
@@ -438,7 +496,12 @@ def model_compatibility() -> dict[str, Any]:
     matrix = ModelCompatibilityMatrix(
         hardware=hardware, available_models=ollama.get("models", [])
     )
-    return {"status": "ok", "mode": "single-port", "ollama": ollama, "matrix": matrix.build()}
+    return {
+        "status": "ok",
+        "mode": "single-port",
+        "ollama": ollama,
+        "matrix": matrix.build(),
+    }
 
 
 @router.get("/api/models/ollama/cognitive-health")
@@ -464,6 +527,7 @@ def route_model_install_queue(include_allowed: bool = False) -> dict[str, Any]:
 
 
 # ── Sistema ─────────────────────────────────────────────────────────────
+
 
 @router.get("/api/system/model-capacity")
 def system_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
@@ -518,6 +582,7 @@ def triade_foundation() -> dict[str, Any]:
 @router.get("/api/triade/os")
 def triade_os_control_plane() -> dict[str, Any]:
     from triade.core.triade_os import triade_os_status
+
     LIFE_PULSE.record_action("triade_os_status")
     return triade_os_status()
 
@@ -525,6 +590,7 @@ def triade_os_control_plane() -> dict[str, Any]:
 @router.get("/api/triade/refutation")
 def triade_refutation_report() -> dict[str, Any]:
     from triade.core.refutation_engine import run_system_refutation
+
     LIFE_PULSE.record_action("triade_refutation_report")
     return run_system_refutation()
 
@@ -532,6 +598,7 @@ def triade_refutation_report() -> dict[str, Any]:
 @router.get("/api/models/acquisition")
 def models_acquisition_status() -> dict[str, Any]:
     from triade.core.model_acquisition import model_acquisition_status
+
     LIFE_PULSE.record_action("model_acquisition_status")
     return model_acquisition_status()
 
@@ -553,20 +620,23 @@ def system_neurons_full(limit: int = 100, mission_limit: int = 50) -> dict[str, 
         cycles = mission_store.list_cycles(mission_id, limit=5)
         evidence = mission_store.list_evidence(mission_id, limit=5)
         latest_score = mission_store.latest_score(mission_id)
-        missions_payload.append({
-            "mission": mission.to_dict(),
-            "latest_cycles": [cycle.to_dict() for cycle in cycles],
-            "latest_evidence": [item.to_dict() for item in evidence],
-            "latest_score": latest_score.to_dict() if latest_score else None,
-            "last_real_use": {
-                "cycle_id": cycles[0].id if cycles else None,
-                "evidence_id": evidence[0].id if evidence else None,
-                "run_refs": [
-                    ref for ref in ((cycles[0].evidence_refs if cycles else []) or [])
-                    if str(ref).startswith("run:")
-                ][:3],
-            },
-        })
+        missions_payload.append(
+            {
+                "mission": mission.to_dict(),
+                "latest_cycles": [cycle.to_dict() for cycle in cycles],
+                "latest_evidence": [item.to_dict() for item in evidence],
+                "latest_score": latest_score.to_dict() if latest_score else None,
+                "last_real_use": {
+                    "cycle_id": cycles[0].id if cycles else None,
+                    "evidence_id": evidence[0].id if evidence else None,
+                    "run_refs": [
+                        ref
+                        for ref in ((cycles[0].evidence_refs if cycles else []) or [])
+                        if str(ref).startswith("run:")
+                    ][:3],
+                },
+            }
+        )
 
     learning_usage = []
     try:
@@ -611,10 +681,13 @@ def system_neurons_full(limit: int = 100, mission_limit: int = 50) -> dict[str, 
 def system_neuron_detail(name: str, limit: int = 10) -> dict[str, Any]:
     from triade.core.neuron_autopromoter import NeuronAutopromoter
     from triade.core.neuron_registry import NeuronRegistry
+
     registry = NeuronRegistry()
     neuron = registry.get_neuron(name)
     if neuron is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Neurona no encontrada.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Neurona no encontrada."
+        )
     training = registry.list_training(neuron_id=int(neuron["id"]), limit=limit)
     ap = NeuronAutopromoter()
     progress = ap.compute_progress(dict(neuron), training)
@@ -630,16 +703,29 @@ def system_neuron_detail(name: str, limit: int = 10) -> dict[str, Any]:
 
 
 @router.post("/api/system/neurons/{name}/promote")
-def system_neuron_promote(name: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+def system_neuron_promote(
+    name: str, body: dict[str, Any] | None = None
+) -> dict[str, Any]:
     from triade.core.neuron_registry import NeuronRegistry
     from triade.core.stable_promotion_readiness import evaluate_stable_readiness
+
     target = (body or {}).get("status", "experimental")
-    valid = {"candidate_reviewable", "experimental", "stable", "rejected", "needs_changes"}
+    valid = {
+        "candidate_reviewable",
+        "experimental",
+        "stable",
+        "rejected",
+        "needs_changes",
+    }
     if target not in valid:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Status inválido: {target}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Status inválido: {target}"
+        )
     if target == "stable":
         report = evaluate_stable_readiness(limit=200)
-        item = next((n for n in report.get("neurons", []) if n.get("name") == name), None)
+        item = next(
+            (n for n in report.get("neurons", []) if n.get("name") == name), None
+        )
         if not item or not item.get("ready_for_stable_review"):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -651,7 +737,12 @@ def system_neuron_promote(name: str, body: dict[str, Any] | None = None) -> dict
             )
     registry = NeuronRegistry()
     neuron = registry.update_status(name, target)
-    return {"status": "ok", "neuron": NeuronIdentityView().detail(name, limit=20), "raw_neuron": neuron, "promoted_to": target}
+    return {
+        "status": "ok",
+        "neuron": NeuronIdentityView().detail(name, limit=20),
+        "raw_neuron": neuron,
+        "promoted_to": target,
+    }
 
 
 # ── Neuron Missions ─────────────────────────────────────────────────────
@@ -660,6 +751,7 @@ def system_neuron_promote(name: str, body: dict[str, Any] | None = None) -> dict
 @router.get("/api/neurons/missions")
 def list_neuron_missions(status: str | None = None, limit: int = 50) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMissionStore
+
     store = NeuronMissionStore()
     missions = store.list_missions(status=status, limit=limit)
     return {
@@ -670,8 +762,11 @@ def list_neuron_missions(status: str | None = None, limit: int = 50) -> dict[str
 
 
 @router.get("/api/neurons/missions/relevant")
-def relevant_missions(query: str = "", domain: str | None = None, limit: int = 5) -> dict[str, Any]:
+def relevant_missions(
+    query: str = "", domain: str | None = None, limit: int = 5
+) -> dict[str, Any]:
     from triade.core.neuron_mission_selector import select_relevant_missions
+
     LIFE_PULSE.record_action("neuron_missions_relevant")
     return select_relevant_missions(
         user_input=query,
@@ -681,8 +776,11 @@ def relevant_missions(query: str = "", domain: str | None = None, limit: int = 5
 
 
 @router.get("/api/system/neurons/missions/relevant")
-def system_relevant_missions(query: str = "", domain: str | None = None, limit: int = 5) -> dict[str, Any]:
+def system_relevant_missions(
+    query: str = "", domain: str | None = None, limit: int = 5
+) -> dict[str, Any]:
     from triade.core.neuron_mission_selector import select_relevant_missions
+
     LIFE_PULSE.record_action("system_neuron_missions_relevant")
     return select_relevant_missions(
         user_input=query,
@@ -694,20 +792,28 @@ def system_relevant_missions(query: str = "", domain: str | None = None, limit: 
 @router.post("/api/neuron_missions/backfill")
 def backfill_neuron_missions_route(limit: int = 500) -> dict[str, Any]:
     LIFE_PULSE.record_action("neuron_missions_backfill")
-    return backfill_neuron_missions(db_path="triade/memory/triade.db", runs_dir="runs", limit=limit)
+    return backfill_neuron_missions(
+        db_path="triade/memory/triade.db", runs_dir="runs", limit=limit
+    )
 
 
 @router.get("/api/neuron_missions/doctor")
 def neuron_missions_doctor_route(limit: int = 500) -> dict[str, Any]:
     LIFE_PULSE.record_action("neuron_missions_doctor")
-    return neuron_missions_doctor(db_path="triade/memory/triade.db", runs_dir="runs", limit=limit)
+    return neuron_missions_doctor(
+        db_path="triade/memory/triade.db", runs_dir="runs", limit=limit
+    )
 
 
 @router.post("/api/neurons/missions")
 def create_neuron_mission(body: dict[str, Any]) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
+
     if not body.get("title") or not body.get("mission"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="title y mission son requeridos")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="title y mission son requeridos",
+        )
     store = NeuronMissionStore()
     mission = NeuronMission(
         neuron_id=body.get("neuron_id"),
@@ -715,18 +821,25 @@ def create_neuron_mission(body: dict[str, Any]) -> dict[str, Any]:
         mission=str(body["mission"]),
         domain=str(body.get("domain", "general")),
         allowed_sources=body.get("allowed_sources", ["worker", "run", "federation"]),
-        allowed_actions=body.get("allowed_actions", ["observe", "diagnose", "propose_learning"]),
+        allowed_actions=body.get(
+            "allowed_actions", ["observe", "diagnose", "propose_learning"]
+        ),
         schedule_hint=str(body.get("schedule_hint", "every_cycle")),
         status=str(body.get("status", "candidate")),
     )
     mission_id = store.create_mission(mission)
     created = store.get_mission(mission_id)
-    return {"status": "ok", "mission": created.to_dict() if created else None, "mission_id": mission_id}
+    return {
+        "status": "ok",
+        "mission": created.to_dict() if created else None,
+        "mission_id": mission_id,
+    }
 
 
 @router.get("/api/neurons/missions/{mission_or_neuron_id}")
 def get_neuron_missions(mission_or_neuron_id: int) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMissionStore
+
     store = NeuronMissionStore()
     mission = store.get_mission(mission_or_neuron_id)
     if mission:
@@ -747,11 +860,16 @@ def get_neuron_missions(mission_or_neuron_id: int) -> dict[str, Any]:
 
 
 @router.get("/api/neurons/missions/{mission_or_neuron_id}/cycles")
-def get_neuron_mission_cycles(mission_or_neuron_id: int, limit: int = 20) -> dict[str, Any]:
+def get_neuron_mission_cycles(
+    mission_or_neuron_id: int, limit: int = 20
+) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMissionStore
+
     store = NeuronMissionStore()
     mission = store.get_mission(mission_or_neuron_id)
-    missions = [mission] if mission else store.get_missions_by_neuron(mission_or_neuron_id)
+    missions = (
+        [mission] if mission else store.get_missions_by_neuron(mission_or_neuron_id)
+    )
     all_cycles = []
     for m in missions:
         if m is None:
@@ -767,11 +885,16 @@ def get_neuron_mission_cycles(mission_or_neuron_id: int, limit: int = 20) -> dic
 
 
 @router.get("/api/neurons/missions/{mission_or_neuron_id}/evidence")
-def get_neuron_mission_evidence(mission_or_neuron_id: int, limit: int = 20) -> dict[str, Any]:
+def get_neuron_mission_evidence(
+    mission_or_neuron_id: int, limit: int = 20
+) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMissionStore
+
     store = NeuronMissionStore()
     mission = store.get_mission(mission_or_neuron_id)
-    missions = [mission] if mission else store.get_missions_by_neuron(mission_or_neuron_id)
+    missions = (
+        [mission] if mission else store.get_missions_by_neuron(mission_or_neuron_id)
+    )
     all_evidence = []
     for m in missions:
         if m is None:
@@ -787,11 +910,18 @@ def get_neuron_mission_evidence(mission_or_neuron_id: int, limit: int = 20) -> d
 
 
 @router.get("/api/neurons/missions/{mission_or_neuron_id}/scores")
-def get_neuron_mission_scores_compat(mission_or_neuron_id: int, limit: int = 20) -> dict[str, Any]:
+def get_neuron_mission_scores_compat(
+    mission_or_neuron_id: int, limit: int = 20
+) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMissionStore
+
     store = NeuronMissionStore()
     mission = store.get_mission(mission_or_neuron_id)
-    mission_ids = [mission_or_neuron_id] if mission else [m.id for m in store.get_missions_by_neuron(mission_or_neuron_id) if m.id]
+    mission_ids = (
+        [mission_or_neuron_id]
+        if mission
+        else [m.id for m in store.get_missions_by_neuron(mission_or_neuron_id) if m.id]
+    )
     scores = []
     with store._connect() as conn:
         for mission_id in mission_ids:
@@ -811,13 +941,17 @@ def get_neuron_mission_scores_compat(mission_or_neuron_id: int, limit: int = 20)
 @router.get("/api/neurons/stable-audit")
 def stable_neuron_audit(limit: int = 300) -> dict[str, Any]:
     LIFE_PULSE.record_action("stable_neuron_audit")
-    return audit_stable_neurons(db_path="triade/memory/triade.db", runs_dir="runs", limit=limit)
+    return audit_stable_neurons(
+        db_path="triade/memory/triade.db", runs_dir="runs", limit=limit
+    )
 
 
 @router.get("/api/system/neurons/stable-audit")
 def system_stable_neuron_audit(limit: int = 300) -> dict[str, Any]:
     LIFE_PULSE.record_action("system_stable_neuron_audit")
-    return audit_stable_neurons(db_path="triade/memory/triade.db", runs_dir="runs", limit=limit)
+    return audit_stable_neurons(
+        db_path="triade/memory/triade.db", runs_dir="runs", limit=limit
+    )
 
 
 @router.post("/api/neurons/stable-audit/apply")
@@ -850,10 +984,14 @@ def stable_neuron_audit_apply(
 @router.get("/api/neuron_missions/{mission_id}")
 def get_neuron_mission_by_id(mission_id: int) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMissionStore
+
     store = NeuronMissionStore()
     mission = store.get_mission(mission_id)
     if not mission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Misión {mission_id} no encontrada")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Misión {mission_id} no encontrada",
+        )
     score = store.latest_score(mission_id)
     return {
         "status": "ok",
@@ -865,10 +1003,14 @@ def get_neuron_mission_by_id(mission_id: int) -> dict[str, Any]:
 @router.get("/api/neuron_missions/{mission_id}/cycles")
 def get_neuron_mission_cycles_by_id(mission_id: int, limit: int = 30) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMissionStore
+
     store = NeuronMissionStore()
     mission = store.get_mission(mission_id)
     if not mission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Misión {mission_id} no encontrada")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Misión {mission_id} no encontrada",
+        )
     cycles = store.list_cycles(mission_id, limit=limit)
     return {
         "status": "ok",
@@ -879,12 +1021,18 @@ def get_neuron_mission_cycles_by_id(mission_id: int, limit: int = 30) -> dict[st
 
 
 @router.get("/api/neuron_missions/{mission_id}/evidence")
-def get_neuron_mission_evidence_by_id(mission_id: int, limit: int = 30) -> dict[str, Any]:
+def get_neuron_mission_evidence_by_id(
+    mission_id: int, limit: int = 30
+) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMissionStore
+
     store = NeuronMissionStore()
     mission = store.get_mission(mission_id)
     if not mission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Misión {mission_id} no encontrada")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Misión {mission_id} no encontrada",
+        )
     evidence = store.list_evidence(mission_id, limit=limit)
     return {
         "status": "ok",
@@ -897,10 +1045,14 @@ def get_neuron_mission_evidence_by_id(mission_id: int, limit: int = 30) -> dict[
 @router.get("/api/neuron_missions/{mission_id}/scores")
 def get_neuron_mission_scores(mission_id: int, limit: int = 20) -> dict[str, Any]:
     from triade.core.neuron_missions import NeuronMissionStore
+
     store = NeuronMissionStore()
     mission = store.get_mission(mission_id)
     if not mission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Misión {mission_id} no encontrada")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Misión {mission_id} no encontrada",
+        )
     with store._connect() as conn:
         rows = conn.execute(
             "SELECT * FROM neuron_scores WHERE mission_id = ? ORDER BY id DESC LIMIT ?",
@@ -922,6 +1074,7 @@ def list_internal_errors(
     limit: int = 50,
 ) -> dict[str, Any]:
     from triade.core.error_bus import ERROR_SEVERITY_POLICY, query_internal_errors
+
     errors = query_internal_errors(scope=scope, run_id=run_id, limit=limit)
     return {
         "status": "ok",
@@ -959,6 +1112,7 @@ def system_life_continuous_runner(body: dict[str, Any] | None = None) -> dict[st
 def system_activity() -> dict[str, Any]:
     LIFE_PULSE.record_action("system_activity")
     from triade.core.neuron_dashboard import build_neuron_dashboard
+
     dashboard = build_neuron_dashboard(limit=50)
     life = LIFE_PULSE.snapshot()
     neurons = dashboard.get("neurons", [])
@@ -967,7 +1121,11 @@ def system_activity() -> dict[str, Any]:
         s = str(n.get("status") or "unknown")
         status_counts[s] = status_counts.get(s, 0) + 1
     promoted_recently = [
-        {"name": n.get("name"), "status": n.get("status"), "progress": n.get("progress")}
+        {
+            "name": n.get("name"),
+            "status": n.get("status"),
+            "progress": n.get("progress"),
+        }
         for n in neurons
         if n.get("status") in {"experimental", "stable"}
         and n.get("progress", {}).get("progress", 0) >= 1.0
@@ -979,7 +1137,12 @@ def system_activity() -> dict[str, Any]:
         "neurons_by_status": status_counts,
         "promoted": promoted_recently,
         "latest_neurons": [
-            {"name": n.get("name"), "status": n.get("status"), "progress": n.get("progress"), "domain": n.get("domain")}
+            {
+                "name": n.get("name"),
+                "status": n.get("status"),
+                "progress": n.get("progress"),
+                "domain": n.get("domain"),
+            }
             for n in neurons[:10]
         ],
     }
@@ -1007,7 +1170,9 @@ def runtime_status() -> dict[str, Any]:
 @router.get("/api/runtime/heartbeat")
 def runtime_heartbeat(since_hours: int = 24, limit: int = 50) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_heartbeat")
-    return _legacy_heartbeat_truth(build_runtime_heartbeat(since_hours=since_hours, limit=limit))
+    return _legacy_heartbeat_truth(
+        build_runtime_heartbeat(since_hours=since_hours, limit=limit)
+    )
 
 
 @router.post("/api/runtime/once")
@@ -1017,8 +1182,12 @@ def runtime_once(body: dict[str, Any] | None = None) -> dict[str, Any]:
     result = get_internal_runtime_supervisor().run_once(mode=payload.get("mode"))
     event_ids = []
     for e in result.get("snapshot", {}).get("last_events", []):
-        if e.get("event_type", "") in ("runtime_cycle_start", "runtime_cycle_complete",
-                                        "runtime_cycle_started", "runtime_cycle_completed"):
+        if e.get("event_type", "") in (
+            "runtime_cycle_start",
+            "runtime_cycle_complete",
+            "runtime_cycle_started",
+            "runtime_cycle_completed",
+        ):
             event_ids.append(e.get("id"))
     ok = result.get("status") == "ok"
     return {
@@ -1028,10 +1197,19 @@ def runtime_once(body: dict[str, Any] | None = None) -> dict[str, Any]:
         "cycle_recorded": ok,
         "cycle_id": result.get("cycle_id"),
         "event_ids": event_ids,
-        "started_at": next(iter(result.get("snapshot", {}).get("last_events", [])), {}).get("created_at") if ok else None,
+        "started_at": next(
+            iter(result.get("snapshot", {}).get("last_events", [])), {}
+        ).get("created_at")
+        if ok
+        else None,
         "completed_at": (
-            [e.get("created_at") for e in (result.get("snapshot", {}).get("last_events", []) or [])
-             if e.get("event_type") in ("runtime_cycle_complete", "runtime_cycle_completed")] or [None]
+            [
+                e.get("created_at")
+                for e in (result.get("snapshot", {}).get("last_events", []) or [])
+                if e.get("event_type")
+                in ("runtime_cycle_complete", "runtime_cycle_completed")
+            ]
+            or [None]
         )[-1],
         "message": f"Ciclo {result.get('cycle_id', '?')} {'completado' if ok else 'falló'} en modo {result.get('mode', payload.get('mode', 'observe_only'))}.",
         "summary": {
@@ -1055,7 +1233,9 @@ def runtime_start(body: dict[str, Any] | None = None) -> dict[str, Any]:
         "status": result.get("status", "error"),
         "runtime_enabled": result.get("runtime_enabled", False),
         "mode": result.get("mode"),
-        "interval_seconds": result.get("interval_seconds", payload.get("interval_seconds", 30)),
+        "interval_seconds": result.get(
+            "interval_seconds", payload.get("interval_seconds", 30)
+        ),
         "background_thread_alive": result.get("background_thread_alive", False),
         "started_at": result.get("started_at"),
         "message": result.get("message", ""),
@@ -1080,9 +1260,11 @@ def runtime_stop() -> dict[str, Any]:
 
 # ── Always-On ────────────────────────────────────────────────────────────
 
+
 @router.get("/api/runtime/always-on/status")
 def always_on_status() -> dict[str, Any]:
     from triade.core.always_on import build_always_on_status, load_always_on_config
+
     cfg = load_always_on_config()
     runtime_status = build_always_on_status()
     return {
@@ -1117,6 +1299,7 @@ def always_on_start(
     x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
 ) -> dict[str, Any]:
     from triade.core.always_on import start_always_on_if_enabled
+
     require_key(x_triade_api_key)
     return start_always_on_if_enabled()
 
@@ -1126,6 +1309,7 @@ def always_on_stop(
     x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
 ) -> dict[str, Any]:
     from triade.core.always_on import stop_always_on
+
     require_key(x_triade_api_key)
     return stop_always_on()
 
@@ -1134,6 +1318,7 @@ def always_on_stop(
 def runtime_self_test(mode: str = "safe") -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_self_test")
     from triade.core.self_test_cycle import run_self_test_cycle
+
     result = run_self_test_cycle(mode=mode)
     return {"status": "ok", "self_test": result}
 
@@ -1152,7 +1337,9 @@ def runtime_learning_journal(since_hours: int = 24, limit: int = 50) -> dict[str
 
 
 @router.get("/api/runtime/neuron-nutrition")
-def runtime_neuron_nutrition(mode: str = "observe_only", limit: int = 5) -> dict[str, Any]:
+def runtime_neuron_nutrition(
+    mode: str = "observe_only", limit: int = 5
+) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_neuron_nutrition")
     return run_neuron_nutrition_cycle(mode=mode, limit=limit)
 
@@ -1175,17 +1362,24 @@ def system_living_report(limit: int = 20, summary: bool = False) -> dict[str, An
     report = build_living_report(limit=limit)
     if summary:
         from triade.core.schemas import LivingReportResponse
+
         try:
             validated = LivingReportResponse(
                 status=report.get("status", "ok"),
                 runtime_enabled=report.get("runtime_enabled", False),
                 runtime_mode=report.get("runtime_mode"),
                 cycles_last_hour=report.get("cycles_last_hour", 0),
-                missions_executed_last_hour=report.get("missions_executed_last_hour", 0),
-                learning_candidates_created_last_hour=report.get("learning_candidates_created_last_hour", 0),
+                missions_executed_last_hour=report.get(
+                    "missions_executed_last_hour", 0
+                ),
+                learning_candidates_created_last_hour=report.get(
+                    "learning_candidates_created_last_hour", 0
+                ),
                 workers_active=report.get("workers_active", False),
                 runtime_continuity_score=report.get("runtime_continuity_score", 0.0),
-                bodega_global_context_summary=report.get("bodega_global_context_summary", {}),
+                bodega_global_context_summary=report.get(
+                    "bodega_global_context_summary", {}
+                ),
                 stable_neuron_audit=report.get("stable_neuron_audit", {}),
             )
             return validated.model_dump()
@@ -1196,10 +1390,12 @@ def system_living_report(limit: int = 20, summary: bool = False) -> dict[str, An
 
 # ── Bodega Global Context ──────────────────────────────────────────────
 
+
 @router.get("/api/bodega/global-context")
 def bodega_global_context_get(query: str = "", limit: int = 10) -> dict[str, Any]:
     LIFE_PULSE.record_action("bodega_global_context")
     from triade.core.bodega_global_context import build_bodega_global_context
+
     return build_bodega_global_context(
         user_input=query or "contexto global",
         limit=limit,
@@ -1211,6 +1407,7 @@ def bodega_global_context_get(query: str = "", limit: int = 10) -> dict[str, Any
 def system_bodega_global_context(query: str = "", limit: int = 10) -> dict[str, Any]:
     LIFE_PULSE.record_action("system_bodega_global_context")
     from triade.core.bodega_global_context import build_bodega_global_context
+
     return build_bodega_global_context(
         user_input=query or "contexto global",
         limit=limit,
@@ -1247,19 +1444,45 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             return fn()
         except Exception as exc:
             _errors.append({"block": block_name, "error": str(exc)[:200]})
-            return default if default is not None else {"status": "unavailable", "error": str(exc)[:200]}
+            return (
+                default
+                if default is not None
+                else {"status": "unavailable", "error": str(exc)[:200]}
+            )
 
-    heartbeat = _safe(lambda: build_runtime_heartbeat(limit=20), "heartbeat", {"status": "unavailable"})
-    blood = _safe(lambda: check_ollama_blood(), "ollama_blood", {"status": "unavailable", "cognitive_blood_active": False})
+    heartbeat = _safe(
+        lambda: build_runtime_heartbeat(limit=20),
+        "heartbeat",
+        {"status": "unavailable"},
+    )
+    blood = _safe(
+        lambda: check_ollama_blood(),
+        "ollama_blood",
+        {"status": "unavailable", "cognitive_blood_active": False},
+    )
     bodega_ctx = _safe(
-        lambda: build_bodega_global_context(user_input=query or "dashboard", limit=limit, semantic_recall_enabled=True),
+        lambda: build_bodega_global_context(
+            user_input=query or "dashboard", limit=limit, semantic_recall_enabled=True
+        ),
         "bodega_summary",
         {"memory_confidence": "unavailable"},
     )
-    observability = _safe(lambda: TriadeObservabilityView().build(), "observability", {"status": "unavailable"})
-    debt = _safe(lambda: build_technical_debt_audit(), "technical_debt", {"score": 0, "debts": [], "warnings": []})
-    git = _safe(lambda: build_repo_runtime_status(), "git_status", {"status": "unavailable"})
-    workers = _safe(lambda: WorkerBackgroundService().status(), "workers", {"status": "unavailable"})
+    observability = _safe(
+        lambda: TriadeObservabilityView().build(),
+        "observability",
+        {"status": "unavailable"},
+    )
+    debt = _safe(
+        lambda: build_technical_debt_audit(),
+        "technical_debt",
+        {"score": 0, "debts": [], "warnings": []},
+    )
+    git = _safe(
+        lambda: build_repo_runtime_status(), "git_status", {"status": "unavailable"}
+    )
+    workers = _safe(
+        lambda: WorkerBackgroundService().status(), "workers", {"status": "unavailable"}
+    )
     events = _safe(lambda: list_recent_events(limit=50), "runtime_events", [])
 
     return {
@@ -1269,7 +1492,9 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         "errors": _errors,
         "heartbeat": {
             "api_server_alive": heartbeat.get("api_server_alive", True),
-            "heartbeat_truth": heartbeat.get("heartbeat_truth", "API encendida, runtime apagado"),
+            "heartbeat_truth": heartbeat.get(
+                "heartbeat_truth", "API encendida, runtime apagado"
+            ),
             "runtime_enabled": heartbeat.get("runtime_enabled"),
             "mode": heartbeat.get("mode") or heartbeat.get("runtime_mode"),
             "cycles_last_hour": heartbeat.get("cycles_last_hour", 0),
@@ -1277,7 +1502,9 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             "runtime_continuity_score": heartbeat.get("runtime_continuity_score"),
             "latest_action": heartbeat.get("latest_action"),
             "latest_error": heartbeat.get("latest_error"),
-            "missions_executed_last_hour": heartbeat.get("missions_executed_last_hour", 0),
+            "missions_executed_last_hour": heartbeat.get(
+                "missions_executed_last_hour", 0
+            ),
             "workers_active": heartbeat.get("workers_active"),
             "background_thread_alive": heartbeat.get("background_thread_alive"),
         },
@@ -1304,13 +1531,19 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         },
         "observability": {
             "status": observability.get("status"),
-            "memory_trace_summary": observability.get("last_run", {}).get("memory_trace_summary", {}),
+            "memory_trace_summary": observability.get("last_run", {}).get(
+                "memory_trace_summary", {}
+            ),
         },
         "bodega_summary": {
             "memory_confidence": bodega_ctx.get("memory_confidence", "unknown"),
-            "semantic_engine_status": bodega_ctx.get("semantic_engine_status", "unavailable"),
+            "semantic_engine_status": bodega_ctx.get(
+                "semantic_engine_status", "unavailable"
+            ),
             "semantic_recall_mode": bodega_ctx.get("semantic_recall_mode", "unknown"),
-            "semantic_learning_allowed": bodega_ctx.get("semantic_learning_allowed", False),
+            "semantic_learning_allowed": bodega_ctx.get(
+                "semantic_learning_allowed", False
+            ),
             "contradictions_count": len(bodega_ctx.get("contradictions") or []),
             "recommended_context_policy": bodega_ctx.get("recommended_context_policy"),
         },
@@ -1318,7 +1551,9 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
             "cycles_last_24h": heartbeat.get("cycles_last_24h", 0),
             "missions_executed": heartbeat.get("missions_executed_last_hour", 0),
             "evidence_created": heartbeat.get("evidence_created_last_24h", 0),
-            "candidates_created": heartbeat.get("learning_candidates_created_last_hour", 0),
+            "candidates_created": heartbeat.get(
+                "learning_candidates_created_last_hour", 0
+            ),
             "candidates_evaluated": heartbeat.get("candidates_evaluated", 0),
             "candidates_verified": heartbeat.get("candidates_verified", 0),
             "candidates_consolidated": heartbeat.get("candidates_consolidated", 0),
@@ -1392,6 +1627,7 @@ def _build_governor_block(requested_mode: str, limit: int) -> dict[str, Any]:
     from triade.core.ollama_blood import check_ollama_blood
     from triade.core.resource_governor import decide_work_mode
     from triade.core.resource_probe import build_resource_probe
+
     probe = build_resource_probe()
     blood = check_ollama_blood()
     decision = decide_work_mode(probe, blood, requested_mode or "observe_only")
@@ -1430,6 +1666,7 @@ def _build_autonomy_block() -> dict[str, Any]:
     """Construye bloque de autonomía delegada para el dashboard React."""
     from triade.core.autonomy_budget import LEVELS, build_autonomy_budget
     from triade.core.quarantine_trash import list_trash
+
     levels = {}
     for lvl in LEVELS:
         levels[lvl] = build_autonomy_budget(lvl)
@@ -1451,6 +1688,7 @@ def system_resources() -> dict[str, Any]:
     """Perfil de recursos actual (hardware + energía + carga)."""
     LIFE_PULSE.record_action("system_resources")
     from triade.core.resource_probe import build_resource_probe
+
     return build_resource_probe()
 
 
@@ -1461,6 +1699,7 @@ def system_work_mode(requested: str = "observe_only") -> dict[str, Any]:
     from triade.core.ollama_blood import check_ollama_blood
     from triade.core.resource_governor import decide_work_mode
     from triade.core.resource_probe import build_resource_probe
+
     probe = build_resource_probe()
     blood = check_ollama_blood()
     return decide_work_mode(probe, blood, requested)
@@ -1474,6 +1713,7 @@ def system_permissions(requested: str = "observe_only") -> dict[str, Any]:
     from triade.core.permission_governor import build_permission_profile
     from triade.core.resource_governor import decide_work_mode
     from triade.core.resource_probe import build_resource_probe
+
     probe = build_resource_probe()
     blood = check_ollama_blood()
     decision = decide_work_mode(probe, blood, requested)
@@ -1486,6 +1726,7 @@ def system_safe_shell_commands() -> dict[str, Any]:
     """Lista de comandos whitelist disponibles."""
     LIFE_PULSE.record_action("safe_shell_commands")
     from triade.core.safe_shell import list_allowed_commands
+
     return {
         "status": "ok",
         "commands": list_allowed_commands(),
@@ -1506,6 +1747,7 @@ def system_safe_shell_run(body: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = body or {}
     command_key = payload.get("command_key", "")
     from triade.core.safe_shell import run_safe_command
+
     return run_safe_command(command_key)
 
 
@@ -1517,6 +1759,7 @@ def shell_autonomous_commands() -> dict[str, Any]:
     """Lista de comandos disponibles en modo autónomo."""
     LIFE_PULSE.record_action("shell_autonomous_commands")
     from triade.core.safe_shell import list_autonomous_commands
+
     return {"status": "ok", "commands": list_autonomous_commands()}
 
 
@@ -1530,6 +1773,7 @@ def shell_autonomous_run(body: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = body or {}
     command_key = payload.get("command_key", "")
     from triade.core.safe_shell import run_autonomous
+
     return run_autonomous(
         command_key=command_key,
         timeout=payload.get("timeout", 60),
@@ -1544,6 +1788,7 @@ def shell_audit_log(limit: int = 50, source: str | None = None) -> dict[str, Any
     """Devuelve el audit log de ejecuciones shell."""
     LIFE_PULSE.record_action("shell_audit_log")
     from triade.core.safe_shell import get_audit_log
+
     return {"status": "ok", "entries": get_audit_log(limit=limit, source=source)}
 
 
@@ -1555,6 +1800,7 @@ def autonomy_budget(level: str = "observe_only") -> dict[str, Any]:
     """Presupuesto de autonomía para el nivel solicitado."""
     LIFE_PULSE.record_action("autonomy_budget")
     from triade.core.autonomy_budget import build_autonomy_budget
+
     return build_autonomy_budget(level)
 
 
@@ -1563,18 +1809,23 @@ def system_zones(path: str = ".") -> dict[str, Any]:
     """Clasifica una ruta en zona green/yellow/red/forbidden."""
     LIFE_PULSE.record_action("system_zones")
     from triade.core.system_zones import classify_path
+
     return classify_path(path)
 
 
 @router.get("/api/integrity/snapshot")
-def integrity_snapshot(path: str | None = None, paths: str | None = None) -> dict[str, Any]:
+def integrity_snapshot(
+    path: str | None = None, paths: str | None = None
+) -> dict[str, Any]:
     """Snapshot de integridad. paths puede ser JSON array o path simple."""
     LIFE_PULSE.record_action("integrity_snapshot")
     from triade.core.integrity_verifier import build_integrity_snapshot
+
     target_paths: list[str] | None = None
     if paths:
         try:
             import json
+
             target_paths = json.loads(paths)
         except Exception:
             target_paths = [p.strip() for p in paths.split(",") if p.strip()]
@@ -1588,6 +1839,7 @@ def trash_list(limit: int = 100) -> dict[str, Any]:
     """Lista archivos en la papelera reversible."""
     LIFE_PULSE.record_action("trash_list")
     from triade.core.quarantine_trash import list_trash
+
     return list_trash(limit=limit)
 
 
@@ -1598,8 +1850,11 @@ def trash_restore(body: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = body or {}
     manifest_path = payload.get("manifest_path", "")
     if not manifest_path:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="manifest_path requerido")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="manifest_path requerido"
+        )
     from triade.core.quarantine_trash import restore_trash_item
+
     return restore_trash_item(manifest_path)
 
 
@@ -1612,6 +1867,7 @@ def delegated_plan(body: dict[str, Any] | None = None) -> dict[str, Any]:
     paths = payload.get("paths", [])
     level = payload.get("autonomy_level", "observe_only")
     from triade.core.delegated_action_planner import plan_delegated_action
+
     return plan_delegated_action(intent, paths, level)
 
 
@@ -1632,11 +1888,17 @@ def files_create(
         if not payload.get("human_approved"):
             raise HTTPException(
                 status_code=428,
-                detail={"error": "human_approved_required", "message": "dry_run=false requiere human_approved=true"},
+                detail={
+                    "error": "human_approved_required",
+                    "message": "dry_run=false requiere human_approved=true",
+                },
             )
     if not path:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="path requerido")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="path requerido"
+        )
     from triade.core.safe_file_ops import safe_create_file
+
     return safe_create_file(path, content, level, dry_run=dry_run)
 
 
@@ -1657,11 +1919,17 @@ def files_patch(
         if not payload.get("human_approved"):
             raise HTTPException(
                 status_code=428,
-                detail={"error": "human_approved_required", "message": "dry_run=false requiere human_approved=true"},
+                detail={
+                    "error": "human_approved_required",
+                    "message": "dry_run=false requiere human_approved=true",
+                },
             )
     if not path:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="path requerido")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="path requerido"
+        )
     from triade.core.safe_file_ops import safe_patch_file
+
     return safe_patch_file(path, content, level, dry_run=dry_run)
 
 
@@ -1682,11 +1950,17 @@ def files_move(
         if not payload.get("human_approved"):
             raise HTTPException(
                 status_code=428,
-                detail={"error": "human_approved_required", "message": "dry_run=false requiere human_approved=true"},
+                detail={
+                    "error": "human_approved_required",
+                    "message": "dry_run=false requiere human_approved=true",
+                },
             )
     if not src or not dst:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="src y dst requeridos")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="src y dst requeridos"
+        )
     from triade.core.safe_file_ops import safe_move_file
+
     return safe_move_file(src, dst, level, dry_run=dry_run)
 
 
@@ -1707,11 +1981,17 @@ def files_delete_to_trash(
         if not payload.get("human_approved"):
             raise HTTPException(
                 status_code=428,
-                detail={"error": "human_approved_required", "message": "dry_run=false requiere human_approved=true"},
+                detail={
+                    "error": "human_approved_required",
+                    "message": "dry_run=false requiere human_approved=true",
+                },
             )
     if not path:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="path requerido")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="path requerido"
+        )
     from triade.core.safe_file_ops import safe_delete_file
+
     return safe_delete_file(path, level, dry_run=dry_run, reason=reason)
 
 
@@ -1721,6 +2001,7 @@ def files_delete_to_trash(
 @router.get("/api/system/technical-debt")
 def system_technical_debt() -> dict[str, Any]:
     from triade.core.technical_debt_audit import build_technical_debt_audit
+
     LIFE_PULSE.record_action("technical_debt")
     return build_technical_debt_audit()
 
@@ -1728,11 +2009,13 @@ def system_technical_debt() -> dict[str, Any]:
 @router.get("/api/ui/technical-debt")
 def ui_technical_debt_alias() -> dict[str, Any]:
     from triade.core.technical_debt_audit import build_technical_debt_audit
+
     LIFE_PULSE.record_action("technical_debt")
     return build_technical_debt_audit()
 
 
 # ── Federación ──────────────────────────────────────────────────────────
+
 
 @router.get("/api/federation/resource-lease")
 def federation_resource_lease_endpoint(sync_relay: bool = True) -> dict[str, Any]:
@@ -1781,6 +2064,7 @@ def federated_transport_result(envelope: SignedEnvelope) -> dict[str, Any]:
 
 # ── Nodos locales ──────────────────────────────────────────────────────
 
+
 @router.post("/api/register")
 def local_node_register(request: LocalNodeRegisterRequest) -> dict[str, Any]:
     node_id = "local-" + secrets.token_hex(5)
@@ -1788,7 +2072,9 @@ def local_node_register(request: LocalNodeRegisterRequest) -> dict[str, Any]:
     tokens = load_local_node_tokens()
     tokens[node_id] = node_token
     save_local_node_tokens(tokens)
-    node = upsert_local_android_node(node_id, request.display_name, request.capabilities)
+    node = upsert_local_android_node(
+        node_id, request.display_name, request.capabilities
+    )
     return {
         "status": "ok",
         "node_id": node_id,
@@ -1809,7 +2095,9 @@ def local_node_heartbeat(request: LocalNodeHeartbeatRequest) -> dict[str, Any]:
     if not known:
         tokens[request.node_id] = request.node_token or secrets.token_urlsafe(24)
         save_local_node_tokens(tokens)
-    node = upsert_local_android_node(request.node_id, request.node_id, request.capabilities)
+    node = upsert_local_android_node(
+        request.node_id, request.node_id, request.capabilities
+    )
     return {"status": "ok", "node": node}
 
 
@@ -1829,17 +2117,23 @@ def local_node_next_job(node_id: str, node_token: str = "") -> dict[str, Any]:
 
 
 @router.post("/api/jobs/{job_id}/result")
-def local_node_job_result(job_id: str, request: LocalNodeJobResultRequest) -> dict[str, Any]:
+def local_node_job_result(
+    job_id: str, request: LocalNodeJobResultRequest
+) -> dict[str, Any]:
     return local_node_job_result_impl(job_id, request)
 
 
-def local_node_job_result_impl(job_id: str, request: LocalNodeJobResultRequest) -> dict[str, Any]:
+def local_node_job_result_impl(
+    job_id: str, request: LocalNodeJobResultRequest
+) -> dict[str, Any]:
     tokens = load_local_node_tokens()
     if tokens.get(request.node_id) and tokens[request.node_id] != request.node_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de nodo inválido."
         )
-    job = services.LOCAL_JOBS.setdefault(job_id, {"job_id": job_id, "node_id": request.node_id})
+    job = services.LOCAL_JOBS.setdefault(
+        job_id, {"job_id": job_id, "node_id": request.node_id}
+    )
     job["status"] = request.status
     job["result"] = request.result
     job["error"] = request.error
@@ -1918,11 +2212,12 @@ def local_node_job_result_impl(job_id: str, request: LocalNodeJobResultRequest) 
                 if request.result.get("ok"):
                     capabilities["can_run_local_llm"] = True
                     capabilities["local_model_runtime_ready"] = True
-                    capabilities["model_runtime_backend"] = (
-                        request.result.get("backend")
-                        or capabilities.get("model_runtime_backend")
+                    capabilities["model_runtime_backend"] = request.result.get(
+                        "backend"
+                    ) or capabilities.get("model_runtime_backend")
+                    capabilities = local_node_capabilities(
+                        request.node_id, capabilities
                     )
-                    capabilities = local_node_capabilities(request.node_id, capabilities)
             capabilities["compute_status"] = "ready"
             capabilities["distributed_runtime_status"] = "active"
             federation.update_capabilities(request.node_id, capabilities)
@@ -1930,6 +2225,7 @@ def local_node_job_result_impl(job_id: str, request: LocalNodeJobResultRequest) 
 
 
 # ── Federación local ────────────────────────────────────────────────────
+
 
 @router.post("/api/local-federation/benchmark")
 def local_federation_benchmark(
@@ -1954,6 +2250,7 @@ def local_federation_benchmark(
 
 
 # ── Runtime distribuido ────────────────────────────────────────────────
+
 
 @router.get("/api/distributed-runtime/status")
 def distributed_runtime_status() -> dict[str, Any]:
@@ -2112,7 +2409,9 @@ def distributed_runtime_android_model_doctor(
             sync = client.sync_nodes_to_federation(federation)
             for node in sync.get("nodes", []):
                 capabilities = node.get("capabilities") or {}
-                if not capabilities.get("online") or "android_model_doctor" not in capabilities.get(
+                if not capabilities.get(
+                    "online"
+                ) or "android_model_doctor" not in capabilities.get(
                     "allowed_tasks", []
                 ):
                     continue
@@ -2123,7 +2422,9 @@ def distributed_runtime_android_model_doctor(
                     {
                         "job_id": job_id,
                         "node_id": node["node_id"],
-                        "job": client.wait_for_job(job_id, timeout=request.wait_timeout),
+                        "job": client.wait_for_job(
+                            job_id, timeout=request.wait_timeout
+                        ),
                     }
                 )
     completed = [
@@ -2173,9 +2474,7 @@ def distributed_runtime_android_local_generate(
     )
     if request.node_id:
         local_nodes = [
-            node
-            for node in local_nodes
-            if str(node.get("node_id")) == request.node_id
+            node for node in local_nodes if str(node.get("node_id")) == request.node_id
         ]
     if local_nodes:
         node = local_nodes[0]
@@ -2249,23 +2548,27 @@ def distributed_runtime_android_local_generate(
 
 # ── Safety ───────────────────────────────────────────────────────────────
 
+
 @router.get("/api/safety/pending")
 def safety_pending() -> dict[str, Any]:
     """Lista runs pendientes de aprobación humana."""
     from apps.gates.safety import get_pending_approvals
+
     pending = get_pending_approvals()
     items = []
     for run_id, result in pending.items():
         safety = result.get("safety", {})
-        items.append({
-            "run_id": run_id,
-            "status": safety.get("status"),
-            "risk_level": safety.get("risk_level"),
-            "reason": safety.get("reason"),
-            "controls": safety.get("required_controls"),
-            "response": result.get("response", "")[:200],
-            "timestamp": safety.get("timestamp"),
-        })
+        items.append(
+            {
+                "run_id": run_id,
+                "status": safety.get("status"),
+                "risk_level": safety.get("risk_level"),
+                "reason": safety.get("reason"),
+                "controls": safety.get("required_controls"),
+                "response": result.get("response", "")[:200],
+                "timestamp": safety.get("timestamp"),
+            }
+        )
     return {"status": "ok", "count": len(items), "pending": items}
 
 
@@ -2273,6 +2576,7 @@ def safety_pending() -> dict[str, Any]:
 def safety_approve(run_id: str) -> dict[str, Any]:
     """Aprueba un run pendiente y retorna el resultado completo."""
     from apps.gates.safety import remove_pending_approval
+
     result = remove_pending_approval(run_id)
     if result is None:
         raise HTTPException(
@@ -2287,6 +2591,7 @@ def safety_approve(run_id: str) -> dict[str, Any]:
 def safety_reject(run_id: str) -> dict[str, Any]:
     """Rechaza un run pendiente y lo descarta."""
     from apps.gates.safety import remove_pending_approval
+
     result = remove_pending_approval(run_id)
     if result is None:
         raise HTTPException(
@@ -2297,6 +2602,7 @@ def safety_reject(run_id: str) -> dict[str, Any]:
 
 
 # ── Memoria semántica ──────────────────────────────────────────────────
+
 
 @router.get("/api/semantic/doctor")
 def semantic_doctor() -> dict[str, Any]:
@@ -2333,9 +2639,11 @@ def semantic_embed_document(
     x_triade_api_key: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_key(x_triade_api_key)
-    return SemanticEmbeddingEngine().embed_document(
-        document_id, model=clean_model(request.model)
-    ).to_dict()
+    return (
+        SemanticEmbeddingEngine()
+        .embed_document(document_id, model=clean_model(request.model))
+        .to_dict()
+    )
 
 
 @router.post("/api/semantic/documents/{document_id}/transition")
@@ -2375,6 +2683,7 @@ def semantic_search_route(
 
 
 # ── Neuronas ────────────────────────────────────────────────────────────
+
 
 @router.get("/api/neurons/candidates")
 def list_neuron_candidates(
@@ -2417,6 +2726,7 @@ def reject_neuron_candidate(
 
 
 # ── Run ─────────────────────────────────────────────────────────────────
+
 
 @router.post("/api/run")
 @router.post("/triade/run")
@@ -2487,6 +2797,7 @@ def run_triade(
 
 
 # ── Downloads ───────────────────────────────────────────────────────────
+
 
 @router.get("/downloads/triade-android-node.apk")
 def download_android_node_apk() -> FileResponse:
@@ -2584,11 +2895,16 @@ echo "[triade] Este script prepara Termux cuando lo ejecutas manualmente dentro 
 
 # ── Legacy route aliases (D-07) ──────────────────────────────────────────
 
+
 @router.get("/triade/neurons")
-def triade_neuron_list(limit: int = 20, db_path: str = "triade/memory/triade.db") -> dict[str, Any]:
+def triade_neuron_list(
+    limit: int = 20, db_path: str = "triade/memory/triade.db"
+) -> dict[str, Any]:
     from triade.core.neuron_registry import NeuronRegistry
+
     neurons = NeuronRegistry(db_path=db_path).list_neurons(limit=limit)
     return {"status": "ok", "count": len(neurons), "neurons": neurons}
+
 
 @router.get("/triade/recall")
 def triade_recall_legacy(query: str = "", limit: int = 10) -> dict[str, Any]:
@@ -2604,12 +2920,17 @@ def triade_doctor_legacy(use_ollama: bool = True) -> dict[str, Any]:
 
 
 @router.get("/triade/neurons/{name}")
-def triade_neuron_show_legacy(name: str, limit: int = 10, db_path: str = "triade/memory/triade.db") -> dict[str, Any]:
+def triade_neuron_show_legacy(
+    name: str, limit: int = 10, db_path: str = "triade/memory/triade.db"
+) -> dict[str, Any]:
     from triade.core.neuron_registry import NeuronRegistry
+
     registry = NeuronRegistry(db_path=db_path)
     neuron = registry.get_neuron(name)
     if neuron is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Neurona no encontrada.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Neurona no encontrada."
+        )
     training = registry.list_training(neuron_id=int(neuron["id"]), limit=limit)
     return {"status": "ok", "neuron": neuron, "training": training}
 
@@ -2622,6 +2943,7 @@ def scheduler_metrics() -> dict[str, Any]:
     """Métricas del scheduler adaptivo por tipo de tarea."""
     LIFE_PULSE.record_action("scheduler_metrics")
     from triade.workers.adaptive_scheduler import AdaptiveScheduler
+
     scheduler = AdaptiveScheduler()
     return {"status": "ok", "metrics": scheduler.get_all_metrics()}
 
@@ -2631,6 +2953,7 @@ def scheduler_interval(task_type: str) -> dict[str, Any]:
     """Intervalo recomendado para un tipo de tarea."""
     LIFE_PULSE.record_action("scheduler_interval")
     from triade.workers.adaptive_scheduler import AdaptiveScheduler
+
     scheduler = AdaptiveScheduler()
     return {
         "status": "ok",
@@ -2648,6 +2971,7 @@ def ab_recommendations() -> dict[str, Any]:
     """Recomendaciones de modelos por tipo de tarea."""
     LIFE_PULSE.record_action("ab_recommendations")
     from triade.models.ab_model_evaluator import ABModelEvaluator
+
     evaluator = ABModelEvaluator()
     return {"status": "ok", "recommendations": evaluator.get_all_recommendations()}
 
@@ -2658,6 +2982,7 @@ def ab_evaluate(body: dict[str, Any] | None = None) -> dict[str, Any]:
     LIFE_PULSE.record_action("ab_evaluate")
     payload = body or {}
     from triade.models.ab_model_evaluator import ABModelEvaluator
+
     evaluator = ABModelEvaluator()
     return evaluator.evaluate_pair(
         task_type=payload.get("task_type", "pulse_check"),
@@ -2674,6 +2999,7 @@ def ab_compare(body: dict[str, Any] | None = None) -> dict[str, Any]:
     LIFE_PULSE.record_action("ab_compare")
     payload = body or {}
     from triade.models.ab_model_evaluator import ABModelEvaluator
+
     evaluator = ABModelEvaluator()
     return evaluator.compare_models(
         model_a=payload.get("model_a", "qwen2.5:3b-instruct"),
@@ -2688,8 +3014,14 @@ def ab_history(task_type: str | None = None, limit: int = 50) -> dict[str, Any]:
     """Historial de evaluaciones A/B."""
     LIFE_PULSE.record_action("ab_history")
     from triade.models.ab_model_evaluator import ABModelEvaluator
+
     evaluator = ABModelEvaluator()
-    return {"status": "ok", "evaluations": evaluator.get_evaluation_history(task_type=task_type, limit=limit)}
+    return {
+        "status": "ok",
+        "evaluations": evaluator.get_evaluation_history(
+            task_type=task_type, limit=limit
+        ),
+    }
 
 
 # ── Neuron Evaluator (per-neuron) ──────────────────────────────────────
@@ -2700,6 +3032,7 @@ def neuron_ranking(limit: int = 20) -> dict[str, Any]:
     """Ranking de neuronas por score compuesto."""
     LIFE_PULSE.record_action("neuron_ranking")
     from triade.core.neuron_evaluator import NeuronEvaluator
+
     evaluator = NeuronEvaluator()
     return {"status": "ok", "ranking": evaluator.get_ranking(limit=limit)}
 
@@ -2709,10 +3042,13 @@ def neuron_eval_detail(neuron_id: int) -> dict[str, Any]:
     """Métricas detalladas de una neurona."""
     LIFE_PULSE.record_action("neuron_eval_detail")
     from triade.core.neuron_evaluator import NeuronEvaluator
+
     evaluator = NeuronEvaluator()
     metrics = evaluator.get_neuron_metrics(neuron_id)
     if not metrics:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Neurona sin métricas.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Neurona sin métricas."
+        )
     history = evaluator.get_neuron_history(neuron_id, limit=20)
     return {"status": "ok", "metrics": metrics, "history": history}
 
@@ -2722,8 +3058,13 @@ def neuron_domain_stats(domain: str) -> dict[str, Any]:
     """Estadísticas de neuronas por dominio."""
     LIFE_PULSE.record_action("neuron_domain_stats")
     from triade.core.neuron_evaluator import NeuronEvaluator
+
     evaluator = NeuronEvaluator()
-    return {"status": "ok", "domain": domain, "stats": evaluator.get_domain_stats(domain)}
+    return {
+        "status": "ok",
+        "domain": domain,
+        "stats": evaluator.get_domain_stats(domain),
+    }
 
 
 @router.get("/api/neurons/eval/trending")
@@ -2731,8 +3072,12 @@ def neuron_trending(direction: str = "up", limit: int = 10) -> dict[str, Any]:
     """Neuronas con tendencia ascendente o descendente."""
     LIFE_PULSE.record_action("neuron_trending")
     from triade.core.neuron_evaluator import NeuronEvaluator
+
     evaluator = NeuronEvaluator()
-    return {"status": "ok", "trending": evaluator.get_trending(direction=direction, limit=limit)}
+    return {
+        "status": "ok",
+        "trending": evaluator.get_trending(direction=direction, limit=limit),
+    }
 
 
 # ── Peer Sync (instance-to-instance) ──────────────────────────────────
@@ -2743,6 +3088,7 @@ def peer_list() -> dict[str, Any]:
     """Lista de peers conectados."""
     LIFE_PULSE.record_action("peer_list")
     from triade.federation.peer_sync import PeerSync
+
     sync = PeerSync()
     return {"status": "ok", **sync.get_network_view()}
 
@@ -2754,6 +3100,7 @@ def peer_discover(body: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = body or {}
     urls = payload.get("urls", [])
     from triade.federation.peer_sync import PeerSync
+
     sync = PeerSync()
     discovered = sync.discover_peers(urls)
     return {"status": "ok", "discovered": discovered, "count": len(discovered)}
@@ -2767,6 +3114,7 @@ def peer_sync(body: dict[str, Any] | None = None) -> dict[str, Any]:
     peer_id = payload.get("peer_id")
     sync_types = payload.get("sync_types")
     from triade.federation.peer_sync import PeerSync
+
     sync = PeerSync()
     if peer_id:
         return sync.sync_with_peer(peer_id, sync_types)
@@ -2779,6 +3127,7 @@ def peer_push(body: dict[str, Any] | None = None) -> dict[str, Any]:
     LIFE_PULSE.record_action("peer_push")
     payload = body or {}
     from triade.federation.peer_sync import PeerSync
+
     sync = PeerSync()
     return sync.push_state(
         peer_id=payload.get("peer_id", ""),
@@ -2792,17 +3141,20 @@ def peer_sync_log(peer_id: str | None = None, limit: int = 50) -> dict[str, Any]
     """Historial de sincronización entre peers."""
     LIFE_PULSE.record_action("peer_sync_log")
     from triade.federation.peer_sync import PeerSync
+
     sync = PeerSync()
     return {"status": "ok", "entries": sync.get_sync_log(peer_id=peer_id, limit=limit)}
 
 
 # ── TriadeOS routes ──────────────────────────────────────────
 
+
 @router.get("/api/triadeos/status")
 def triadeos_status() -> dict[str, Any]:
     """Estado del Sistema Operativo Cognitivo."""
     LIFE_PULSE.record_action("triadeos_status")
     from triade.os import get_triadeos
+
     return get_triadeos().status()
 
 
@@ -2811,6 +3163,7 @@ def triadeos_doctor() -> dict[str, Any]:
     """Diagnóstico completo de TriadeOS."""
     LIFE_PULSE.record_action("triadeos_doctor")
     from triade.os import get_triadeos
+
     return get_triadeos().doctor()
 
 
@@ -2819,6 +3172,7 @@ def triadeos_cycle() -> dict[str, Any]:
     """Ejecuta un ciclo manual de TriadeOS."""
     LIFE_PULSE.record_action("triadeos_cycle")
     from triade.os import get_triadeos
+
     return get_triadeos().cycle()
 
 
@@ -2833,8 +3187,15 @@ def triadeos_kg_search(
     """Busca nodos en el Knowledge Graph."""
     LIFE_PULSE.record_action("triadeos_kg_search")
     from triade.os import get_triadeos
+
     kg = get_triadeos().knowledge_graph
-    nodes = kg.search_nodes(query=q, domain=domain, evidence_level=evidence_level, node_type=node_type, limit=limit)
+    nodes = kg.search_nodes(
+        query=q,
+        domain=domain,
+        evidence_level=evidence_level,
+        node_type=node_type,
+        limit=limit,
+    )
     return {"status": "ok", "count": len(nodes), "nodes": [n.to_dict() for n in nodes]}
 
 
@@ -2843,6 +3204,7 @@ def triadeos_kg_add_fact(payload: dict[str, Any]) -> dict[str, Any]:
     """Añade un hecho al Knowledge Graph."""
     LIFE_PULSE.record_action("triadeos_kg_add_fact")
     from triade.os import get_triadeos
+
     kg = get_triadeos().knowledge_graph
     node_id = kg.add_fact(
         content=payload.get("content", ""),
@@ -2858,6 +3220,7 @@ def triadeos_kg_add_relation(payload: dict[str, Any]) -> dict[str, Any]:
     """Añade una relación al Knowledge Graph."""
     LIFE_PULSE.record_action("triadeos_kg_add_relation")
     from triade.os import get_triadeos
+
     kg = get_triadeos().knowledge_graph
     edge_id = kg.add_relation(
         source_id=payload.get("source_id", 0),
@@ -2874,26 +3237,39 @@ def triadeos_kg_node(node_id: int, depth: int = 2) -> dict[str, Any]:
     """Consulta un nodo y sus conexiones."""
     LIFE_PULSE.record_action("triadeos_kg_node")
     from triade.os import get_triadeos
+
     return get_triadeos().knowledge_graph.query_node(node_id, depth=depth)
 
 
 @router.get("/api/triadeos/knowledge-graph/contradictions")
-def triadeos_kg_contradictions(status_filter: str | None = None, limit: int = 50) -> dict[str, Any]:
+def triadeos_kg_contradictions(
+    status_filter: str | None = None, limit: int = 50
+) -> dict[str, Any]:
     """Lista contradicciones del Knowledge Graph."""
     LIFE_PULSE.record_action("triadeos_kg_contradictions")
     from triade.os import get_triadeos
+
     kg = get_triadeos().knowledge_graph
     contradictions = kg.list_contradictions(status=status_filter, limit=limit)
-    return {"status": "ok", "count": len(contradictions), "contradictions": [c.to_dict() for c in contradictions]}
+    return {
+        "status": "ok",
+        "count": len(contradictions),
+        "contradictions": [c.to_dict() for c in contradictions],
+    }
 
 
 @router.post("/api/triadeos/knowledge-graph/resolve/{contradiction_id}")
-def triadeos_kg_resolve(contradiction_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+def triadeos_kg_resolve(
+    contradiction_id: int, payload: dict[str, Any]
+) -> dict[str, Any]:
     """Resuelve una contradicción."""
     LIFE_PULSE.record_action("triadeos_kg_resolve")
     from triade.os import get_triadeos
+
     resolution = payload.get("resolution", "")
-    ok = get_triadeos().knowledge_graph.resolve_contradiction(contradiction_id, resolution)
+    ok = get_triadeos().knowledge_graph.resolve_contradiction(
+        contradiction_id, resolution
+    )
     return {"status": "ok" if ok else "not_found", "contradiction_id": contradiction_id}
 
 
@@ -2902,6 +3278,7 @@ def triadeos_kg_summary(domain: str | None = None) -> dict[str, Any]:
     """Resumen del Knowledge Graph."""
     LIFE_PULSE.record_action("triadeos_kg_summary")
     from triade.os import get_triadeos
+
     return get_triadeos().knowledge_graph.get_domain_summary(domain)
 
 
@@ -2910,6 +3287,7 @@ def triadeos_event_rules() -> dict[str, Any]:
     """Lista las reglas del motor de eventos."""
     LIFE_PULSE.record_action("triadeos_event_rules")
     from triade.os import get_triadeos
+
     rules = get_triadeos().event_engine.get_rules()
     return {"status": "ok", "count": len(rules), "rules": [r.to_dict() for r in rules]}
 
@@ -2919,8 +3297,13 @@ def triadeos_neuron_priorities() -> dict[str, Any]:
     """Prioridades calculadas para las neuronas."""
     LIFE_PULSE.record_action("triadeos_neuron_priorities")
     from triade.os import get_triadeos
+
     priorities = get_triadeos().neuron_scheduler.compute_priorities()
-    return {"status": "ok", "count": len(priorities), "priorities": [p.to_dict() for p in priorities]}
+    return {
+        "status": "ok",
+        "count": len(priorities),
+        "priorities": [p.to_dict() for p in priorities],
+    }
 
 
 @router.post("/api/triadeos/neuron-scheduler/schedule")
@@ -2928,5 +3311,8 @@ def triadeos_neuron_schedule(max_wakeups: int = 5) -> dict[str, Any]:
     """Programa wakeups de neuronas por prioridad."""
     LIFE_PULSE.record_action("triadeos_neuron_schedule")
     from triade.os import get_triadeos
-    scheduled = get_triadeos().neuron_scheduler.schedule_wakeups(max_wakeups=max_wakeups)
+
+    scheduled = get_triadeos().neuron_scheduler.schedule_wakeups(
+        max_wakeups=max_wakeups
+    )
     return {"status": "ok", "scheduled": len(scheduled), "tasks": scheduled}

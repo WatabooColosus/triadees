@@ -53,7 +53,9 @@ class ExecutionResult(BaseModel):
             if not self.executed:
                 raise ValueError("completed_requires_executed_true")
             if not self.evidence and not self.observation_justification:
-                raise ValueError("completed_requires_evidence_or_observation_justification")
+                raise ValueError(
+                    "completed_requires_evidence_or_observation_justification"
+                )
             if self.postconditions.get("effect_expected") and not self.effect_applied:
                 raise ValueError("completed_effect_requires_effect_applied_true")
             if self.effect_receipt is None or not self.effect_receipt.verified:

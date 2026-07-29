@@ -15,7 +15,9 @@ def test_resource_measurement_declares_source() -> None:
     collector = ResourceMeasurementCollector()
     time.sleep(0.01)
     usage = collector.finish()
-    wall = next(item for item in usage.measurements if item.resource_name == "wall_time")
+    wall = next(
+        item for item in usage.measurements if item.resource_name == "wall_time"
+    )
     assert wall.measurement_type == "measured"
     assert wall.source == "time.monotonic"
     assert wall.value is not None and wall.value >= 0.01
@@ -35,7 +37,9 @@ def test_estimate_never_claims_measured(tmp_path: Path) -> None:
 
 def test_unavailable_resource_is_explicit() -> None:
     usage = ResourceMeasurementCollector().finish()
-    gpu = next(item for item in usage.measurements if item.resource_name == "gpu_memory_peak")
+    gpu = next(
+        item for item in usage.measurements if item.resource_name == "gpu_memory_peak"
+    )
     assert gpu.measurement_type == "unavailable"
     assert gpu.value is None
 
@@ -49,7 +53,8 @@ def test_task_receipt_contains_resource_usage(tmp_path: Path) -> None:
     )
     with sqlite3.connect(db_path) as conn:
         count = conn.execute(
-            "SELECT COUNT(*) FROM resource_measurements WHERE ledger_entry_id=?", (entry,)
+            "SELECT COUNT(*) FROM resource_measurements WHERE ledger_entry_id=?",
+            (entry,),
         ).fetchone()[0]
     assert count == len(usage.measurements)
 
@@ -65,9 +70,7 @@ def test_no_fixed_fabricated_budget_consumption(tmp_path: Path) -> None:
 
 def test_unavailable_measurement_cannot_contain_value() -> None:
     try:
-        ResourceMeasurement(
-            "gpu", 10, "MiB", "unavailable", "none", "start", "finish"
-        )
+        ResourceMeasurement("gpu", 10, "MiB", "unavailable", "none", "start", "finish")
     except ValueError as exc:
         assert "cannot_have_value" in str(exc)
     else:

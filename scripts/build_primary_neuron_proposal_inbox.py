@@ -38,7 +38,9 @@ def classify(row: dict[str, Any]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Construye bandeja de propuestas primarias de neuronas.")
+    parser = argparse.ArgumentParser(
+        description="Construye bandeja de propuestas primarias de neuronas."
+    )
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--limit", type=int, default=100)
     parser.add_argument("--out", default="runs/primary_neuron_proposal_inbox.json")
@@ -60,50 +62,57 @@ def main() -> int:
             continue
 
         for event in events:
-            if not isinstance(event, dict) or event.get("type") != "neuron_candidate_proposed":
+            if (
+                not isinstance(event, dict)
+                or event.get("type") != "neuron_candidate_proposed"
+            ):
                 continue
 
             payload = event.get("payload") or {}
             assessment = payload.get("assessment") or {}
             name = str(payload.get("name") or "unknown")
 
-            grouped[name].append({
-                "run_id": run_path.name,
-                "name": name,
-                "neuron_id": payload.get("neuron_id"),
-                "domain": payload.get("domain"),
-                "registered_as": payload.get("registered_as"),
-                "activation": payload.get("activation"),
-                "score": assessment.get("score"),
-                "assessed_status": assessment.get("assessed_status"),
-                "strengths": assessment.get("strengths") or [],
-                "warnings": assessment.get("warnings") or [],
-                "recommendations": assessment.get("recommendations") or [],
-                "message": event.get("message"),
-                "action_required": event.get("action_required"),
-            })
+            grouped[name].append(
+                {
+                    "run_id": run_path.name,
+                    "name": name,
+                    "neuron_id": payload.get("neuron_id"),
+                    "domain": payload.get("domain"),
+                    "registered_as": payload.get("registered_as"),
+                    "activation": payload.get("activation"),
+                    "score": assessment.get("score"),
+                    "assessed_status": assessment.get("assessed_status"),
+                    "strengths": assessment.get("strengths") or [],
+                    "warnings": assessment.get("warnings") or [],
+                    "recommendations": assessment.get("recommendations") or [],
+                    "message": event.get("message"),
+                    "action_required": event.get("action_required"),
+                }
+            )
 
     inbox = []
     for name, rows in sorted(grouped.items(), key=lambda kv: len(kv[1]), reverse=True):
         latest = rows[0]
         action = classify(latest)
 
-        inbox.append({
-            "name": name,
-            "count": len(rows),
-            "latest_run_id": latest.get("run_id"),
-            "first_seen_run_id": rows[-1].get("run_id"),
-            "domain": latest.get("domain"),
-            "score": latest.get("score"),
-            "assessed_status": latest.get("assessed_status"),
-            "activation": latest.get("activation"),
-            "recommended_action": action,
-            "human_decision_required": True,
-            "missing_contract_parts": latest.get("warnings") or [],
-            "recommendations": latest.get("recommendations") or [],
-            "runs": [r.get("run_id") for r in rows[:12]],
-            "policy": "system_proposes_human_governs_no_auto_stable",
-        })
+        inbox.append(
+            {
+                "name": name,
+                "count": len(rows),
+                "latest_run_id": latest.get("run_id"),
+                "first_seen_run_id": rows[-1].get("run_id"),
+                "domain": latest.get("domain"),
+                "score": latest.get("score"),
+                "assessed_status": latest.get("assessed_status"),
+                "activation": latest.get("activation"),
+                "recommended_action": action,
+                "human_decision_required": True,
+                "missing_contract_parts": latest.get("warnings") or [],
+                "recommendations": latest.get("recommendations") or [],
+                "runs": [r.get("run_id") for r in rows[:12]],
+                "policy": "system_proposes_human_governs_no_auto_stable",
+            }
+        )
 
     summary: dict[str, Any] = {
         "total_groups": len(inbox),
@@ -131,11 +140,14 @@ def main() -> int:
         print("\n=== PRIMARY PROPOSAL INBOX ===")
         for item in inbox[:25]:
             print(
-                f'{item["count"]:03d} | {item["recommended_action"]} | '
-                f'score={item["score"]} | domain={item["domain"]} | {item["name"]}'
+                f"{item['count']:03d} | {item['recommended_action']} | "
+                f"score={item['score']} | domain={item['domain']} | {item['name']}"
             )
             if item["missing_contract_parts"]:
-                print("   missing:", "; ".join(map(str, item["missing_contract_parts"][:4])))
+                print(
+                    "   missing:",
+                    "; ".join(map(str, item["missing_contract_parts"][:4])),
+                )
         print(f"\nwritten: {out}")
     else:
         print(f"written: {out}")

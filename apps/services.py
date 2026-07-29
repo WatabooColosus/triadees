@@ -45,13 +45,19 @@ from triade.models.ollama_client import OllamaClient
 
 # ── Constantes de ruta ────────────────────────────────────────────────
 
-ANDROID_APK_PATH = Path(os.environ.get("TRIADE_ANDROID_APK", "apps/static/triade-android-node.apk"))
-ANDROID_RUNTIME_DIR = Path(os.environ.get("TRIADE_ANDROID_RUNTIME_DIR", "apps/static/android-runtime"))
+ANDROID_APK_PATH = Path(
+    os.environ.get("TRIADE_ANDROID_APK", "apps/static/triade-android-node.apk")
+)
+ANDROID_RUNTIME_DIR = Path(
+    os.environ.get("TRIADE_ANDROID_RUNTIME_DIR", "apps/static/android-runtime")
+)
 ANDROID_LLAMA_CLI_PATH = Path(
     os.environ.get("TRIADE_ANDROID_LLAMA_CLI", str(ANDROID_RUNTIME_DIR / "llama-cli"))
 )
 ANDROID_BASE_MODEL_PATH = Path(
-    os.environ.get("TRIADE_ANDROID_BASE_MODEL", str(ANDROID_RUNTIME_DIR / "triade-base.gguf"))
+    os.environ.get(
+        "TRIADE_ANDROID_BASE_MODEL", str(ANDROID_RUNTIME_DIR / "triade-base.gguf")
+    )
 )
 
 LOCAL_JOBS: dict[str, dict[str, Any]] = {}
@@ -165,6 +171,7 @@ class NeuronCandidateDecisionRequest(BaseModel):
     decided_by: str = "human"
     notes: str = ""
 
+
 # ── Helpers de negocio ─────────────────────────────────────────────────
 
 
@@ -181,7 +188,9 @@ def system_payload() -> tuple[object, dict[str, Any]]:
     return hardware, ollama
 
 
-def router_payload(intent: str = "conversation", urgency: str = "medium") -> dict[str, Any]:
+def router_payload(
+    intent: str = "conversation", urgency: str = "medium"
+) -> dict[str, Any]:
     hardware, ollama = system_payload()
     router = ModelRouter(available_models=ollama.get("models", []), hardware=hardware)
     return {
@@ -225,7 +234,9 @@ def save_local_node_tokens(tokens: dict[str, str]) -> None:
     path.write_text(json.dumps(tokens, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def local_node_capabilities(node_id: str, capabilities: dict[str, Any]) -> dict[str, Any]:
+def local_node_capabilities(
+    node_id: str, capabilities: dict[str, Any]
+) -> dict[str, Any]:
     return relay_capabilities_for_federation(
         {"node_id": node_id, "online": True, "capabilities": capabilities},
         "http://127.0.0.1:8010",
@@ -271,7 +282,10 @@ def create_local_job(
 
 
 def wait_local_job(
-    job_id: str, timeout: float = 25.0, interval: float = 0.5, sandbox_fallback: bool = True
+    job_id: str,
+    timeout: float = 25.0,
+    interval: float = 0.5,
+    sandbox_fallback: bool = True,
 ) -> dict[str, Any]:
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -292,7 +306,11 @@ def wait_local_job(
             job["result"] = {"score": sb["score"], "ops": sb.get("ops", 0)}
             job["status"] = "completed"
         elif sb.get("word_count") is not None:
-            job["result"] = {"word_count": sb["word_count"], "char_count": sb["char_count"], "approx_tokens": sb["approx_tokens"]}
+            job["result"] = {
+                "word_count": sb["word_count"],
+                "char_count": sb["char_count"],
+                "approx_tokens": sb["approx_tokens"],
+            }
             job["status"] = "completed"
         elif sb.get("ops"):
             job["result"] = {"ops": sb["ops"]}
@@ -312,7 +330,15 @@ def wait_local_job(
     return job
 
 
-SAFE_SANDBOX_TASKS = frozenset({"sha256", "echo", "preprocess_text", "federated_inference_probe", "browser_benchmark"})
+SAFE_SANDBOX_TASKS = frozenset(
+    {
+        "sha256",
+        "echo",
+        "preprocess_text",
+        "federated_inference_probe",
+        "browser_benchmark",
+    }
+)
 
 TASK_PERMISSIONS: dict[str, str] = {
     "browser_benchmark": "request_compute",
@@ -331,7 +357,9 @@ TRUST_THRESHOLDS: dict[str, str] = {
 TRUST_RANK = {"low": 0, "medium": 1, "high": 2}
 
 
-def _node_meets_federation_gate(node: dict[str, Any], task: str | None, fed: Federation) -> bool:
+def _node_meets_federation_gate(
+    node: dict[str, Any], task: str | None, fed: Federation
+) -> bool:
     """Verifica que el nodo tenga el permiso y trust level requeridos por el gate."""
     if task is None:
         return True
@@ -358,7 +386,9 @@ def local_federated_nodes(task: str | None = None) -> list[dict[str, Any]]:
     for node in fed.list_nodes(status="active"):
         caps = node.get("capabilities") or {}
         allowed = (
-            caps.get("allowed_tasks") if isinstance(caps.get("allowed_tasks"), list) else []
+            caps.get("allowed_tasks")
+            if isinstance(caps.get("allowed_tasks"), list)
+            else []
         )
         relay_url = str(caps.get("relay_url") or node.get("endpoint") or "")
         is_direct_local = (
@@ -384,7 +414,9 @@ def android_llm_host_nodes(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         caps = node.get("capabilities") or {}
         support = caps.get("model_support") or {}
         allowed = (
-            caps.get("allowed_tasks") if isinstance(caps.get("allowed_tasks"), list) else []
+            caps.get("allowed_tasks")
+            if isinstance(caps.get("allowed_tasks"), list)
+            else []
         )
         if "android_local_generate" not in allowed:
             continue
@@ -417,7 +449,9 @@ def split_text_for_nodes(text: str, count: int) -> list[str]:
     return [shard for shard in shards if shard]
 
 
-def merge_local_preprocess_results(completed_jobs: list[dict[str, Any]]) -> dict[str, Any]:
+def merge_local_preprocess_results(
+    completed_jobs: list[dict[str, Any]],
+) -> dict[str, Any]:
     keyword_counts: dict[str, int] = {}
     chunks: list[dict[str, Any]] = []
     total_words = 0
@@ -429,19 +463,23 @@ def merge_local_preprocess_results(completed_jobs: list[dict[str, Any]]) -> dict
         for keyword in result.get("keywords") or []:
             term = str(keyword.get("term") or "").strip().lower()
             if term:
-                keyword_counts[term] = (
-                    keyword_counts.get(term, 0) + int(keyword.get("count") or 0)
+                keyword_counts[term] = keyword_counts.get(term, 0) + int(
+                    keyword.get("count") or 0
                 )
         for chunk in result.get("chunks") or []:
             if isinstance(chunk, dict):
                 chunks.append(
-                    {**chunk, "node_id": job.get("node_id"), "source_job_id": job.get("job_id")}
+                    {
+                        **chunk,
+                        "node_id": job.get("node_id"),
+                        "source_job_id": job.get("job_id"),
+                    }
                 )
     keywords = [
         {"term": term, "count": count}
-        for term, count in sorted(keyword_counts.items(), key=lambda pair: (-pair[1], pair[0]))[
-            :24
-        ]
+        for term, count in sorted(
+            keyword_counts.items(), key=lambda pair: (-pair[1], pair[0])
+        )[:24]
     ]
     return {
         "ready_for_local_model": bool(completed_jobs),
@@ -459,7 +497,9 @@ def tool_status(name: str, command: list[str]) -> dict[str, Any]:
     if not path:
         return {"installed": False, "path": None, "ok": False, "version": "not_found"}
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=5, check=False)
+        result = subprocess.run(
+            command, capture_output=True, text=True, timeout=5, check=False
+        )
         text = (result.stdout or result.stderr or "").strip().splitlines()
         return {
             "installed": True,
@@ -484,7 +524,9 @@ def docker_status() -> dict[str, Any]:
         Path(r"C:\Program Files\Docker\Docker\DockerCli.exe"),
     ]
     if not docker_path:
-        docker_path = next((str(candidate) for candidate in candidates if candidate.exists()), None)
+        docker_path = next(
+            (str(candidate) for candidate in candidates if candidate.exists()), None
+        )
     if not docker_path:
         return {
             "installed": False,
@@ -495,7 +537,11 @@ def docker_status() -> dict[str, Any]:
         }
     try:
         version = subprocess.run(
-            [docker_path, "--version"], capture_output=True, text=True, timeout=5, check=False
+            [docker_path, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
         )
         info = subprocess.run(
             [docker_path, "info", "--format", "{{json .ServerVersion}}"],
@@ -512,7 +558,9 @@ def docker_status() -> dict[str, Any]:
             "ok": info.returncode == 0,
             "version": version_text[0] if version_text else "unknown",
             "engine": "running" if info.returncode == 0 else "stopped",
-            "server_version": (info.stdout or "").strip().strip('"') if info.returncode == 0 else None,
+            "server_version": (info.stdout or "").strip().strip('"')
+            if info.returncode == 0
+            else None,
             "error": error_text or None,
         }
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -534,7 +582,9 @@ def node_model_readiness(node: dict[str, Any]) -> dict[str, Any]:
         caps.get("ram_authorized_gb") or support.get("authorized_ram_gb") or 0.0
     )
     cpu = int(caps.get("cpu_count") or 1)
-    authorized_cpu = int(caps.get("cpu_authorized_count") or support.get("authorized_cpu_count") or 0)
+    authorized_cpu = int(
+        caps.get("cpu_authorized_count") or support.get("authorized_cpu_count") or 0
+    )
     native_android = bool(caps.get("native_android"))
     can_host_llm = bool(support.get("can_host_llm"))
     federation_complete = bool(
@@ -577,7 +627,8 @@ def node_model_readiness(node: dict[str, Any]) -> dict[str, Any]:
             or 0
         ),
         "resource_limit_reported": bool(
-            caps.get("resource_limit_reported") or support.get("resource_limit_reported")
+            caps.get("resource_limit_reported")
+            or support.get("resource_limit_reported")
         ),
         "resource_limit_source": caps.get("resource_limit_source")
         or support.get("resource_limit_source")
@@ -587,12 +638,15 @@ def node_model_readiness(node: dict[str, Any]) -> dict[str, Any]:
         "recommended_use": support.get("recommended_use", "unknown"),
         "can_host_llm": can_host_llm,
         "can_feed_local_models": feed_ready,
-        "edge_model_runtime": bool(caps.get("edge_model_runtime") or support.get("edge_model_runtime")),
+        "edge_model_runtime": bool(
+            caps.get("edge_model_runtime") or support.get("edge_model_runtime")
+        ),
         "model_runtime_backend": caps.get("model_runtime_backend")
         or support.get("model_runtime_backend")
         or "none",
         "local_model_runtime_ready": bool(
-            caps.get("local_model_runtime_ready") or support.get("local_model_runtime_ready")
+            caps.get("local_model_runtime_ready")
+            or support.get("local_model_runtime_ready")
         ),
         "runnable_models": runnable,
         "feed_targets": feed_only,
@@ -603,7 +657,9 @@ def node_model_readiness(node: dict[str, Any]) -> dict[str, Any]:
 
 def federated_model_plan(nodes: list[dict[str, Any]]) -> dict[str, Any]:
     feeders = [
-        node for node in nodes if node["can_feed_local_models"] and node["federation_complete"]
+        node
+        for node in nodes
+        if node["can_feed_local_models"] and node["federation_complete"]
     ]
     runtime_ready = [
         node
@@ -611,13 +667,18 @@ def federated_model_plan(nodes: list[dict[str, Any]]) -> dict[str, Any]:
         if "preprocess_text"
         in ((node.get("capabilities") or {}).get("allowed_tasks") or [])
         and (
-            "127.0.0.1:8010" in str((node.get("capabilities") or {}).get("relay_url") or "")
-            or "localhost:8010" in str((node.get("capabilities") or {}).get("relay_url") or "")
-            or "192.168." in str((node.get("capabilities") or {}).get("relay_url") or "")
+            "127.0.0.1:8010"
+            in str((node.get("capabilities") or {}).get("relay_url") or "")
+            or "localhost:8010"
+            in str((node.get("capabilities") or {}).get("relay_url") or "")
+            or "192.168."
+            in str((node.get("capabilities") or {}).get("relay_url") or "")
         )
     ]
     total_cpu = sum(int(node.get("cpu_authorized_count") or 0) for node in feeders)
-    total_ram = round(sum(float(node.get("ram_authorized_gb") or 0.0) for node in feeders), 2)
+    total_ram = round(
+        sum(float(node.get("ram_authorized_gb") or 0.0) for node in feeders), 2
+    )
     total_available_ram = round(
         sum(float(node.get("ram_available_gb") or 0.0) for node in feeders), 2
     )
@@ -626,7 +687,11 @@ def federated_model_plan(nodes: list[dict[str, Any]]) -> dict[str, Any]:
     for node in feeders:
         caps = node.get("capabilities") or {}
         gpus = caps.get("gpus") if isinstance(caps.get("gpus"), list) else []
-        node_vram = sum(float(gpu.get("vram_total_gb") or 0.0) for gpu in gpus if isinstance(gpu, dict))
+        node_vram = sum(
+            float(gpu.get("vram_total_gb") or 0.0)
+            for gpu in gpus
+            if isinstance(gpu, dict)
+        )
         total_vram += node_vram
         if node_vram > 0:
             gpu_nodes += 1
@@ -659,20 +724,26 @@ def federated_model_plan(nodes: list[dict[str, Any]]) -> dict[str, Any]:
         "gpu_node_count": gpu_nodes,
         "can_parallel_feed": bool(feeders),
         "can_run_single_llm_by_sum": False,
-        "runtime": "active_job_runtime" if runtime_ready else "pending_distributed_inference_runtime",
+        "runtime": "active_job_runtime"
+        if runtime_ready
+        else "pending_distributed_inference_runtime",
         "active_job_runtime": bool(runtime_ready),
-        "supported_runtime_tasks": sorted({
-            task
-            for node in runtime_ready
-            for task in ((node.get("capabilities") or {}).get("allowed_tasks") or [])
-            if task
-            in {
-                "preprocess_text",
-                "federated_inference_probe",
-                "android_model_doctor",
-                "android_local_generate",
+        "supported_runtime_tasks": sorted(
+            {
+                task
+                for node in runtime_ready
+                for task in (
+                    (node.get("capabilities") or {}).get("allowed_tasks") or []
+                )
+                if task
+                in {
+                    "preprocess_text",
+                    "federated_inference_probe",
+                    "android_model_doctor",
+                    "android_local_generate",
+                }
             }
-        }),
+        ),
         "runnable_by_aggregate_ram": runnable_by_sum,
         "candidate_models": candidate_models,
         "missing_for_real_distributed_models": missing,
@@ -708,7 +779,11 @@ def federation_resource_lease(nodes: list[dict[str, Any]]) -> dict[str, Any]:
         cpu_authorized = int(node.get("cpu_authorized_count") or 0)
         ram_authorized = round(float(node.get("ram_authorized_gb") or 0.0), 2)
         ram_available = round(float(node.get("ram_available_gb") or 0.0), 2)
-        tasks = caps.get("allowed_tasks") if isinstance(caps.get("allowed_tasks"), list) else []
+        tasks = (
+            caps.get("allowed_tasks")
+            if isinstance(caps.get("allowed_tasks"), list)
+            else []
+        )
         lease = {
             "node_id": node.get("node_id"),
             "name": node.get("name"),
@@ -725,7 +800,9 @@ def federation_resource_lease(nodes: list[dict[str, Any]]) -> dict[str, Any]:
             "memory_class_mb": caps.get("memory_class_mb"),
             "large_memory_class_mb": caps.get("large_memory_class_mb"),
             "java_heap_max_gb": caps.get("java_heap_max_gb"),
-            "native_large_heap_requested": bool(caps.get("native_large_heap_requested")),
+            "native_large_heap_requested": bool(
+                caps.get("native_large_heap_requested")
+            ),
             "edge_model_runtime": node.get("edge_model_runtime"),
             "model_runtime_backend": node.get("model_runtime_backend"),
             "can_host_llm": node.get("can_host_llm"),
@@ -755,7 +832,9 @@ def federation_resource_lease(nodes: list[dict[str, Any]]) -> dict[str, Any]:
 
 def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
     hardware, ollama = system_payload()
-    matrix = ModelCompatibilityMatrix(hardware=hardware, available_models=ollama.get("models", [])).build()
+    matrix = ModelCompatibilityMatrix(
+        hardware=hardware, available_models=ollama.get("models", [])
+    ).build()
     federation = Federation()
     relay = relay_settings()
     relay_sync: dict[str, Any] = {"attempted": False}
@@ -767,9 +846,13 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
             relay_sync["attempted"] = True
         except Exception as exc:
             relay_sync = {"attempted": True, "status": "error", "error": str(exc)}
-    nodes = [node_model_readiness(node) for node in federation.list_nodes(status="active")]
+    nodes = [
+        node_model_readiness(node) for node in federation.list_nodes(status="active")
+    ]
     online_feeders = [
-        node for node in nodes if node["can_feed_local_models"] and node["federation_complete"]
+        node
+        for node in nodes
+        if node["can_feed_local_models"] and node["federation_complete"]
     ]
     federated_authorized = federated_model_plan(nodes)
     resource_lease = federation_resource_lease(nodes)
@@ -821,7 +904,9 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
             "docker": "motor activo"
             if docker["ok"]
             else (
-                "instalado, motor pendiente" if docker["installed"] else "pendiente/no disponible"
+                "instalado, motor pendiente"
+                if docker["installed"]
+                else "pendiente/no disponible"
             ),
             "relay": "public relay Railway",
             "policy": "solo dispositivos nativos/autorizados que invierten CPU/RAM/GPU cuentan como nodos federados",
@@ -839,17 +924,19 @@ def _edge_llm_host_snapshot() -> list[dict]:
     for node in nodes:
         if not node.is_ready:
             continue
-        out.append({
-            "node_id": node.node_id,
-            "name": node.name,
-            "online": node.online,
-            "can_host_llm": node.can_host_llm,
-            "lease_status": node.lease_status,
-            "transport": node.transport,
-            "edge_cpu_threads_available": node.edge_cpu_threads_available,
-            "edge_ram_available_gb": node.edge_ram_available_gb,
-            "model_runtime_backend": node.model_runtime_backend,
-        })
+        out.append(
+            {
+                "node_id": node.node_id,
+                "name": node.name,
+                "online": node.online,
+                "can_host_llm": node.can_host_llm,
+                "lease_status": node.lease_status,
+                "transport": node.transport,
+                "edge_cpu_threads_available": node.edge_cpu_threads_available,
+                "edge_ram_available_gb": node.edge_ram_available_gb,
+                "model_runtime_backend": node.model_runtime_backend,
+            }
+        )
     return out
 
 
@@ -864,10 +951,20 @@ def _edge_llm_host_count(authorized: dict, federation: dict) -> int:
 
 
 def _pulse_item(
-    name: str, ok: bool, summary: str, detail: dict[str, Any] | None = None, level: str | None = None
+    name: str,
+    ok: bool,
+    summary: str,
+    detail: dict[str, Any] | None = None,
+    level: str | None = None,
 ) -> dict[str, Any]:
     clean_level = level or ("ok" if ok else "warn")
-    return {"name": name, "ok": ok, "level": clean_level, "summary": summary, "detail": detail or {}}
+    return {
+        "name": name,
+        "ok": ok,
+        "level": clean_level,
+        "summary": summary,
+        "detail": detail or {},
+    }
 
 
 def _safe_pulse(name: str, fn) -> dict[str, Any]:
@@ -990,7 +1087,9 @@ def build_system_pulse(
 
 def model_install_queue(include_allowed: bool = False) -> dict[str, Any]:
     hardware, ollama = system_payload()
-    queue = ModelInstallQueue(hardware=hardware, available_models=ollama.get("models", []))
+    queue = ModelInstallQueue(
+        hardware=hardware, available_models=ollama.get("models", [])
+    )
     return queue.build(include_allowed=include_allowed)
 
 
@@ -1033,7 +1132,9 @@ def operational_awareness_context() -> dict[str, Any]:
             "hardware_tier": hardware.get("tier"),
             "ram_available_gb": hardware.get("ram_available_gb"),
             "gpu_names": [
-                gpu.get("name") for gpu in hardware.get("gpus", []) if isinstance(gpu, dict)
+                gpu.get("name")
+                for gpu in hardware.get("gpus", [])
+                if isinstance(gpu, dict)
             ],
             "ollama_ok": (local.get("ollama") or {}).get("ok"),
             "ollama_models": (local.get("ollama") or {}).get("models", [])[:10],

@@ -38,8 +38,16 @@ class LegacyTaskReconciler:
                     repaired += 1
                     continue
                 if row["legacy_status"] == "completed" and row["v2_status"] not in {
-                    "completed", "blocked", "skipped", "dry_run", "observed",
-                    "cancelled", "failed", "dead_letter", "timeout", "lease_lost",
+                    "completed",
+                    "blocked",
+                    "skipped",
+                    "dry_run",
+                    "observed",
+                    "cancelled",
+                    "failed",
+                    "dead_letter",
+                    "timeout",
+                    "lease_lost",
                 }:
                     conn.execute(
                         """UPDATE worker_tasks SET status='claimed',migration_status='delegated',
@@ -50,14 +58,26 @@ class LegacyTaskReconciler:
                     repaired += 1
                     continue
                 if row["v2_status"] in {
-                    "completed", "blocked", "skipped", "dry_run", "observed",
-                    "cancelled", "failed", "dead_letter", "timeout", "lease_lost",
+                    "completed",
+                    "blocked",
+                    "skipped",
+                    "dry_run",
+                    "observed",
+                    "cancelled",
+                    "failed",
+                    "dead_letter",
+                    "timeout",
+                    "lease_lost",
                 }:
-                    result: dict[str, Any] = {"autonomous_task_id": row["autonomous_task_id"]}
+                    result: dict[str, Any] = {
+                        "autonomous_task_id": row["autonomous_task_id"]
+                    }
                     ref = row["result_ref"]
                     if ref and Path(str(ref)).is_file():
                         try:
-                            result = json.loads(Path(str(ref)).read_text(encoding="utf-8"))
+                            result = json.loads(
+                                Path(str(ref)).read_text(encoding="utf-8")
+                            )
                         except (OSError, ValueError):
                             errors += 1
                     migration = (

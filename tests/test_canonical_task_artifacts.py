@@ -46,13 +46,17 @@ def test_result_ref_exists_before_completion(tmp_path: Path) -> None:
 
 def test_manifest_hashes_match_files(tmp_path: Path) -> None:
     artifacts = _finalize(tmp_path)
-    manifest = json.loads((artifacts.path / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (artifacts.path / "manifest.json").read_text(encoding="utf-8")
+    )
     for name, expected in manifest["artifact_hashes"].items():
         assert CanonicalTaskArtifacts.sha256(artifacts.path / name) == expected
     artifacts.verify()
 
 
-def test_atomic_write_survives_interruption(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_atomic_write_survives_interruption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     target = tmp_path / "result.json"
     AtomicArtifactWriter.write_bytes(target, b"old")
 

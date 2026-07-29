@@ -17,7 +17,15 @@ def main() -> None:
     print(json.dumps(svc.keywords(sample).to_dict(), ensure_ascii=False, indent=2))
 
     print("\n=== INTENT ===")
-    print(json.dumps(svc.intent_probe("Necesito conectar la APK como nodo real de procesamiento.").to_dict(), ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            svc.intent_probe(
+                "Necesito conectar la APK como nodo real de procesamiento."
+            ).to_dict(),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

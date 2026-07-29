@@ -23,7 +23,10 @@ class PressureSnapshot:
 
 class RuntimeBackpressure:
     def __init__(
-        self, ledger: ResourceLedger, *, disk_path: str | Path = ".",
+        self,
+        ledger: ResourceLedger,
+        *,
+        disk_path: str | Path = ".",
         probe: Callable[[], PressureSnapshot] | None = None,
     ) -> None:
         self.ledger = ledger
@@ -63,7 +66,10 @@ class QueueDrainBudget:
 
     @property
     def exhausted(self) -> bool:
-        return self.total >= self.max_tasks or time.monotonic() - self.started >= self.max_seconds
+        return (
+            self.total >= self.max_tasks
+            or time.monotonic() - self.started >= self.max_seconds
+        )
 
     @property
     def excluded_types(self) -> set[str]:

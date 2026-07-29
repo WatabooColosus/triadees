@@ -64,34 +64,66 @@ class ResourceMeasurementCollector:
         self_after = resource.getrusage(resource.RUSAGE_SELF)
         children_after = resource.getrusage(resource.RUSAGE_CHILDREN)
         measured = {
-            "wall_time": (time.monotonic() - self.started_wall, "seconds", "time.monotonic"),
+            "wall_time": (
+                time.monotonic() - self.started_wall,
+                "seconds",
+                "time.monotonic",
+            ),
             "cpu_user": (
-                self_after.ru_utime - self.self_before.ru_utime
-                + children_after.ru_utime - self.children_before.ru_utime,
-                "seconds", "resource.getrusage",
+                self_after.ru_utime
+                - self.self_before.ru_utime
+                + children_after.ru_utime
+                - self.children_before.ru_utime,
+                "seconds",
+                "resource.getrusage",
             ),
             "cpu_system": (
-                self_after.ru_stime - self.self_before.ru_stime
-                + children_after.ru_stime - self.children_before.ru_stime,
-                "seconds", "resource.getrusage",
+                self_after.ru_stime
+                - self.self_before.ru_stime
+                + children_after.ru_stime
+                - self.children_before.ru_stime,
+                "seconds",
+                "resource.getrusage",
             ),
-            "peak_rss": (float(max(self_after.ru_maxrss, children_after.ru_maxrss)) / 1024, "MiB", "resource.getrusage"),
+            "peak_rss": (
+                float(max(self_after.ru_maxrss, children_after.ru_maxrss)) / 1024,
+                "MiB",
+                "resource.getrusage",
+            ),
         }
         items = [
-            ResourceMeasurement(name, max(0.0, value), unit, "measured", source,
-                                self.started_at, finished_at)
+            ResourceMeasurement(
+                name,
+                max(0.0, value),
+                unit,
+                "measured",
+                source,
+                self.started_at,
+                finished_at,
+            )
             for name, (value, unit, source) in measured.items()
         ]
         for name, unit in (
-            ("disk_bytes_read", "bytes"), ("disk_bytes_written", "bytes"),
-            ("network_sent", "bytes"), ("network_received", "bytes"),
-            ("gpu_memory_peak", "MiB"), ("gpu_utilization", "percent"),
-            ("input_tokens", "tokens"), ("output_tokens", "tokens"),
+            ("disk_bytes_read", "bytes"),
+            ("disk_bytes_written", "bytes"),
+            ("network_sent", "bytes"),
+            ("network_received", "bytes"),
+            ("gpu_memory_peak", "MiB"),
+            ("gpu_utilization", "percent"),
+            ("input_tokens", "tokens"),
+            ("output_tokens", "tokens"),
         ):
-            items.append(ResourceMeasurement(
-                name, None, unit, "unavailable", "not_instrumented",
-                self.started_at, finished_at,
-            ))
+            items.append(
+                ResourceMeasurement(
+                    name,
+                    None,
+                    unit,
+                    "unavailable",
+                    "not_instrumented",
+                    self.started_at,
+                    finished_at,
+                )
+            )
         return ResourceUsageReceipt(tuple(items))
 
 
@@ -116,16 +148,26 @@ class ResourceLedger:
             conn.executescript(measurements.read_text(encoding="utf-8"))
 
     def record_usage(
-        self, *, task_id: str | None, worker_id: str | None,
-        usage: ResourceUsageReceipt, success: bool, neuron_id: str | None = None,
-        model: str | None = None, task_class: str = "general",
+        self,
+        *,
+        task_id: str | None,
+        worker_id: str | None,
+        usage: ResourceUsageReceipt,
+        success: bool,
+        neuron_id: str | None = None,
+        model: str | None = None,
+        task_class: str = "general",
     ) -> int:
         entry_id = self.record(
-            task_id=task_id, worker_id=worker_id, neuron_id=neuron_id,
+            task_id=task_id,
+            worker_id=worker_id,
+            neuron_id=neuron_id,
             cpu_seconds=usage.value("cpu_user") + usage.value("cpu_system"),
             ram_peak_mb=usage.value("peak_rss"),
-            duration_seconds=usage.value("wall_time"), model=model,
-            success=success, task_class=task_class,
+            duration_seconds=usage.value("wall_time"),
+            model=model,
+            success=success,
+            task_class=task_class,
             _persist_caller_measurements=False,
         )
         with sqlite3.connect(self.db_path) as conn:
@@ -213,7 +255,16 @@ class ResourceLedger:
                     (ledger_entry_id,resource_name,value,unit,measurement_type,source,started_at,finished_at)
                     VALUES(?,?,?,?,?,?,?,?)""",
                     [
-                        (entry_id, name, float(value), unit, "estimated", "caller_reported", now.isoformat(), now.isoformat())
+                        (
+                            entry_id,
+                            name,
+                            float(value),
+                            unit,
+                            "estimated",
+                            "caller_reported",
+                            now.isoformat(),
+                            now.isoformat(),
+                        )
                         for name, (value, unit) in caller_values.items()
                         if value is not None
                     ],

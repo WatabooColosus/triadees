@@ -22,14 +22,18 @@ from pydantic import BaseModel, Field
 DB_PATH = Path(os.environ.get("TRIADE_RELAY_DB", "triade/memory/public_relay.db"))
 PAIRING_TOKEN = os.environ.get("TRIADE_RELAY_PAIRING_TOKEN", "")
 ADMIN_TOKEN = os.environ.get("TRIADE_RELAY_ADMIN_TOKEN", "")
-ANDROID_APK_PATH = Path(os.environ.get("TRIADE_ANDROID_APK", "apps/static/triade-android-node.apk"))
+ANDROID_APK_PATH = Path(
+    os.environ.get("TRIADE_ANDROID_APK", "apps/static/triade-android-node.apk")
+)
 
 app = FastAPI(title="Triade Public Relay", version="0.1")
 
 
 class RegisterRequest(BaseModel):
     pairing_token: str = Field(..., min_length=1)
-    display_name: str = Field(default="Dispositivo navegador", min_length=1, max_length=80)
+    display_name: str = Field(
+        default="Dispositivo navegador", min_length=1, max_length=80
+    )
     capabilities: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -41,7 +45,10 @@ class HeartbeatRequest(BaseModel):
 
 class JobRequest(BaseModel):
     node_id: str
-    task: str = Field(..., pattern="^(echo|sha256|browser_benchmark|preprocess_text|federated_inference_probe|android_model_doctor|android_local_generate)$")
+    task: str = Field(
+        ...,
+        pattern="^(echo|sha256|browser_benchmark|preprocess_text|federated_inference_probe|android_model_doctor|android_local_generate)$",
+    )
     payload: dict[str, Any] = Field(default_factory=dict)
     seconds: float = Field(default=2.0, ge=0.1, le=20.0)
 
@@ -101,7 +108,12 @@ def connect() -> sqlite3.Connection:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "mode": "public-relay", "pairing_enabled": bool(PAIRING_TOKEN), "admin_enabled": bool(ADMIN_TOKEN)}
+    return {
+        "status": "ok",
+        "mode": "public-relay",
+        "pairing_enabled": bool(PAIRING_TOKEN),
+        "admin_enabled": bool(ADMIN_TOKEN),
+    }
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -129,21 +141,33 @@ def manifest() -> JSONResponse:
 
 @app.get("/downloads/android-node", response_class=HTMLResponse)
 def android_node_download() -> str:
-    apk_status = "APK disponible." if ANDROID_APK_PATH.exists() else "APK pendiente de compilacion."
+    apk_status = (
+        "APK disponible."
+        if ANDROID_APK_PATH.exists()
+        else "APK pendiente de compilacion."
+    )
     return ANDROID_DOWNLOAD_HTML.replace("__APK_STATUS__", apk_status)
 
 
 @app.get("/downloads/triade-android-node.apk")
 def download_android_apk() -> FileResponse:
     if not ANDROID_APK_PATH.exists():
-        raise HTTPException(status_code=404, detail="APK aun no compilado en este relay.")
-    return FileResponse(ANDROID_APK_PATH, media_type="application/vnd.android.package-archive", filename="triade-android-node.apk")
+        raise HTTPException(
+            status_code=404, detail="APK aun no compilado en este relay."
+        )
+    return FileResponse(
+        ANDROID_APK_PATH,
+        media_type="application/vnd.android.package-archive",
+        filename="triade-android-node.apk",
+    )
 
 
 @app.post("/api/register")
 def register(request: RegisterRequest) -> dict[str, Any]:
     if not PAIRING_TOKEN:
-        raise HTTPException(status_code=503, detail="TRIADE_RELAY_PAIRING_TOKEN no configurado.")
+        raise HTTPException(
+            status_code=503, detail="TRIADE_RELAY_PAIRING_TOKEN no configurado."
+        )
     if request.pairing_token != PAIRING_TOKEN:
         raise HTTPException(status_code=401, detail="Token de emparejamiento invalido.")
     node_id = f"web-{uuid4().hex[:10]}"
@@ -155,19 +179,37 @@ def register(request: RegisterRequest) -> dict[str, Any]:
             """INSERT INTO relay_nodes
             (node_id, node_token, display_name, capabilities, status, created_at, last_seen_at)
             VALUES (?, ?, ?, ?, 'active', ?, ?)""",
-            (node_id, node_token, request.display_name.strip(), json.dumps(capabilities, ensure_ascii=False), now, now),
+            (
+                node_id,
+                node_token,
+                request.display_name.strip(),
+                json.dumps(capabilities, ensure_ascii=False),
+                now,
+                now,
+            ),
         )
-    return {"status": "ok", "node_id": node_id, "node_token": node_token, "capabilities": capabilities}
+    return {
+        "status": "ok",
+        "node_id": node_id,
+        "node_token": node_token,
+        "capabilities": capabilities,
+    }
 
 
 @app.post("/api/heartbeat")
 def heartbeat(request: HeartbeatRequest) -> dict[str, Any]:
     node = _require_node(request.node_id, request.node_token)
-    capabilities = _normalize_capabilities(request.capabilities or json.loads(node["capabilities"]))
+    capabilities = _normalize_capabilities(
+        request.capabilities or json.loads(node["capabilities"])
+    )
     with connect() as conn:
         conn.execute(
             "UPDATE relay_nodes SET capabilities = ?, last_seen_at = ?, status = 'active' WHERE node_id = ?",
-            (json.dumps(capabilities, ensure_ascii=False), time.time(), request.node_id),
+            (
+                json.dumps(capabilities, ensure_ascii=False),
+                time.time(),
+                request.node_id,
+            ),
         )
     return {"status": "ok", "node_id": request.node_id, "server_time": time.time()}
 
@@ -176,15 +218,21 @@ def heartbeat(request: HeartbeatRequest) -> dict[str, Any]:
 def list_nodes(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin(authorization)
     with connect() as conn:
-        rows = conn.execute("SELECT * FROM relay_nodes ORDER BY last_seen_at DESC").fetchall()
+        rows = conn.execute(
+            "SELECT * FROM relay_nodes ORDER BY last_seen_at DESC"
+        ).fetchall()
     return {"status": "ok", "nodes": [_decode_node(row) for row in rows]}
 
 
 @app.post("/api/jobs")
-def create_job(request: JobRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def create_job(
+    request: JobRequest, authorization: str | None = Header(default=None)
+) -> dict[str, Any]:
     require_admin(authorization)
     with connect() as conn:
-        exists = conn.execute("SELECT node_id FROM relay_nodes WHERE node_id = ?", (request.node_id,)).fetchone()
+        exists = conn.execute(
+            "SELECT node_id FROM relay_nodes WHERE node_id = ?", (request.node_id,)
+        ).fetchone()
         if not exists:
             raise HTTPException(status_code=404, detail="Nodo no encontrado.")
         job_id = f"rjob-{uuid4().hex[:12]}"
@@ -193,7 +241,15 @@ def create_job(request: JobRequest, authorization: str | None = Header(default=N
             """INSERT INTO relay_jobs
             (job_id, node_id, task, payload, seconds, status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, 'queued', ?, ?)""",
-            (job_id, request.node_id, request.task, json.dumps(request.payload, ensure_ascii=False), request.seconds, now, now),
+            (
+                job_id,
+                request.node_id,
+                request.task,
+                json.dumps(request.payload, ensure_ascii=False),
+                request.seconds,
+                now,
+                now,
+            ),
         )
         _audit_job(
             conn,
@@ -223,8 +279,18 @@ def next_job(
         if row is None:
             return {"status": "idle"}
         now = time.time()
-        conn.execute("UPDATE relay_jobs SET status = 'running', updated_at = ? WHERE job_id = ?", (now, row["job_id"]))
-        _audit_job(conn, job_id=row["job_id"], node_id=node_id, task=row["task"], status="running", started_at=now)
+        conn.execute(
+            "UPDATE relay_jobs SET status = 'running', updated_at = ? WHERE job_id = ?",
+            (now, row["job_id"]),
+        )
+        _audit_job(
+            conn,
+            job_id=row["job_id"],
+            node_id=node_id,
+            task=row["task"],
+            status="running",
+            started_at=now,
+        )
     payload = dict(row)
     payload["payload"] = json.loads(payload["payload"] or "{}")
     return {"status": "ok", "job": payload}
@@ -234,13 +300,22 @@ def next_job(
 def submit_result(job_id: str, request: JobResultRequest) -> dict[str, Any]:
     _require_node(request.node_id, request.node_token)
     with connect() as conn:
-        row = conn.execute("SELECT * FROM relay_jobs WHERE job_id = ? AND node_id = ?", (job_id, request.node_id)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM relay_jobs WHERE job_id = ? AND node_id = ?",
+            (job_id, request.node_id),
+        ).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="Job no encontrado.")
         now = time.time()
         conn.execute(
             "UPDATE relay_jobs SET status = ?, result = ?, error = ?, updated_at = ? WHERE job_id = ?",
-            (request.status, json.dumps(request.result, ensure_ascii=False), request.error, now, job_id),
+            (
+                request.status,
+                json.dumps(request.result, ensure_ascii=False),
+                request.error,
+                now,
+                job_id,
+            ),
         )
         _audit_job(
             conn,
@@ -259,7 +334,9 @@ def submit_result(job_id: str, request: JobResultRequest) -> dict[str, Any]:
 def list_jobs(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin(authorization)
     with connect() as conn:
-        rows = conn.execute("SELECT * FROM relay_jobs ORDER BY created_at DESC LIMIT 100").fetchall()
+        rows = conn.execute(
+            "SELECT * FROM relay_jobs ORDER BY created_at DESC LIMIT 100"
+        ).fetchall()
     jobs = []
     for row in rows:
         item = dict(row)
@@ -271,24 +348,32 @@ def list_jobs(authorization: str | None = Header(default=None)) -> dict[str, Any
 
 def require_admin(authorization: str | None) -> None:
     if not ADMIN_TOKEN:
-        raise HTTPException(status_code=503, detail="TRIADE_RELAY_ADMIN_TOKEN no configurado.")
+        raise HTTPException(
+            status_code=503, detail="TRIADE_RELAY_ADMIN_TOKEN no configurado."
+        )
     if authorization != f"Bearer {ADMIN_TOKEN}":
         raise HTTPException(status_code=401, detail="Token admin invalido.")
 
 
 def _require_node(node_id: str, node_token: str) -> sqlite3.Row:
     with connect() as conn:
-        row = conn.execute("SELECT * FROM relay_nodes WHERE node_id = ?", (node_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM relay_nodes WHERE node_id = ?", (node_id,)
+        ).fetchone()
     if row is None or row["node_token"] != node_token:
         raise HTTPException(status_code=401, detail="Nodo o token invalido.")
     return row
 
 
-def _node_token_from_auth_or_legacy_query(authorization: str | None, node_token: str | None) -> str:
+def _node_token_from_auth_or_legacy_query(
+    authorization: str | None, node_token: str | None
+) -> str:
     if authorization:
         prefix = "Bearer "
         if not authorization.startswith(prefix):
-            raise HTTPException(status_code=401, detail="Authorization Bearer requerido.")
+            raise HTTPException(
+                status_code=401, detail="Authorization Bearer requerido."
+            )
         token = authorization[len(prefix) :].strip()
         if not token:
             raise HTTPException(status_code=401, detail="Token de nodo requerido.")
@@ -321,7 +406,9 @@ def _audit_job(
     error: str | None = None,
 ) -> None:
     now = time.time()
-    existing = conn.execute("SELECT * FROM relay_job_audit WHERE job_id = ?", (job_id,)).fetchone()
+    existing = conn.execute(
+        "SELECT * FROM relay_job_audit WHERE job_id = ?", (job_id,)
+    ).fetchone()
     if existing is None:
         conn.execute(
             """INSERT INTO relay_job_audit
@@ -368,7 +455,11 @@ def _audit_job(
 def _payload_hash(payload: dict[str, Any] | None) -> str | None:
     if payload is None:
         return None
-    return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return hashlib.sha256(
+        json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def _text_hash(value: str | None) -> str | None:
@@ -379,11 +470,22 @@ def _text_hash(value: str | None) -> str | None:
 
 def _normalize_capabilities(payload: dict[str, Any]) -> dict[str, Any]:
     native_android = bool(payload.get("native_android") or payload.get("app_node"))
-    resource_limit = max(10, min(100, int(payload.get("resource_limit_percent") or 100)))
-    cpu_count = int(payload.get("cpu_count") or payload.get("hardware_concurrency") or 1)
-    ram_available = float(payload.get("ram_available_gb") or payload.get("device_memory_gb") or 0.0)
-    cpu_authorized = int(payload.get("cpu_authorized_count") or max(1, int(cpu_count * (resource_limit / 100.0))))
-    ram_authorized = float(payload.get("ram_authorized_gb") or (ram_available * (resource_limit / 100.0)))
+    resource_limit = max(
+        10, min(100, int(payload.get("resource_limit_percent") or 100))
+    )
+    cpu_count = int(
+        payload.get("cpu_count") or payload.get("hardware_concurrency") or 1
+    )
+    ram_available = float(
+        payload.get("ram_available_gb") or payload.get("device_memory_gb") or 0.0
+    )
+    cpu_authorized = int(
+        payload.get("cpu_authorized_count")
+        or max(1, int(cpu_count * (resource_limit / 100.0)))
+    )
+    ram_authorized = float(
+        payload.get("ram_authorized_gb") or (ram_available * (resource_limit / 100.0))
+    )
     return {
         "tier": "android-native" if native_android else "browser",
         "browser_node": not native_android,
@@ -401,18 +503,37 @@ def _normalize_capabilities(payload: dict[str, Any]) -> dict[str, Any]:
         "device": str(payload.get("device") or "")[:120],
         "app_version": str(payload.get("app_version") or "")[:40],
         "user_agent": str(payload.get("user_agent") or "unknown")[:300],
-        "screen": payload.get("screen") if isinstance(payload.get("screen"), dict) else {},
+        "screen": payload.get("screen")
+        if isinstance(payload.get("screen"), dict)
+        else {},
         "public_relay": True,
         "webgpu_available": bool(payload.get("webgpu_available")),
         "wake_lock_available": bool(payload.get("wake_lock_available")),
         "persistent_browser_identity": bool(payload.get("persistent_browser_identity")),
-        "background_execution": bool(payload.get("background_execution")) if native_android else False,
-        "allowed_tasks": payload.get("allowed_tasks") if isinstance(payload.get("allowed_tasks"), list) else ["echo", "sha256", "browser_benchmark", "preprocess_text", "federated_inference_probe", "android_model_doctor", "android_local_generate"],
+        "background_execution": bool(payload.get("background_execution"))
+        if native_android
+        else False,
+        "allowed_tasks": payload.get("allowed_tasks")
+        if isinstance(payload.get("allowed_tasks"), list)
+        else [
+            "echo",
+            "sha256",
+            "browser_benchmark",
+            "preprocess_text",
+            "federated_inference_probe",
+            "android_model_doctor",
+            "android_local_generate",
+        ],
     }
 
 
 def _escape(value: str) -> str:
-    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
 
 
 HTML = """

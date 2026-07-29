@@ -14,8 +14,13 @@ class AtomicCompletionCoordinator:
         self.store = store
 
     def complete(
-        self, *, task_id: str, worker_id: str, lease_generation: int,
-        artifacts: CanonicalTaskArtifacts, staging_path: Path,
+        self,
+        *,
+        task_id: str,
+        worker_id: str,
+        lease_generation: int,
+        artifacts: CanonicalTaskArtifacts,
+        staging_path: Path,
         event_recorder: Callable[[], None] | None = None,
     ) -> bool:
         staged_result = staging_path / "result.json"

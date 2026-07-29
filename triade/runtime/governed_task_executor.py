@@ -90,7 +90,9 @@ def _callable_child(
 
 
 class GovernedTaskExecutor:
-    def __init__(self, quarantine_root: str | Path = "runs/quarantine/timeouts") -> None:
+    def __init__(
+        self, quarantine_root: str | Path = "runs/quarantine/timeouts"
+    ) -> None:
         self.quarantine_root = Path(quarantine_root)
 
     def execute_callable(
@@ -151,11 +153,18 @@ class GovernedTaskExecutor:
             termination_signal = self.terminate(process)
             quarantine = self.quarantine_partial_artifacts(artifact)
             return GovernedExecutionOutcome(
-                status="cancelled" if cancelled else "lease_lost" if lease_lost else "timeout",
+                status="cancelled"
+                if cancelled
+                else "lease_lost"
+                if lease_lost
+                else "timeout",
                 executed=True,
                 error=(
-                    "cancellation_requested" if cancelled
-                    else "lease_renewal_rejected" if lease_lost else "task_timeout"
+                    "cancellation_requested"
+                    if cancelled
+                    else "lease_renewal_rejected"
+                    if lease_lost
+                    else "task_timeout"
                 ),
                 exit_code=process.exitcode,
                 termination_signal=termination_signal,
@@ -165,11 +174,15 @@ class GovernedTaskExecutor:
                 elapsed_seconds=round(time.monotonic() - started, 6),
             )
 
-        payload = receive.recv() if receive.poll() else {
-            "kind": "error",
-            "error_type": "ChildProcessError",
-            "error": f"child_exited_without_result:{process.exitcode}",
-        }
+        payload = (
+            receive.recv()
+            if receive.poll()
+            else {
+                "kind": "error",
+                "error_type": "ChildProcessError",
+                "error": f"child_exited_without_result:{process.exitcode}",
+            }
+        )
         receive.close()
         elapsed = round(time.monotonic() - started, 6)
         value = payload.get("value")
@@ -249,7 +262,9 @@ class GovernedTaskExecutor:
             status="completed" if process.returncode == 0 else "failed",
             executed=True,
             result={"returncode": process.returncode},
-            error=None if process.returncode == 0 else f"exit_code:{process.returncode}",
+            error=None
+            if process.returncode == 0
+            else f"exit_code:{process.returncode}",
             exit_code=process.returncode,
             stdout_ref=str(stdout_path),
             stderr_ref=str(stderr_path),
@@ -281,7 +296,9 @@ class GovernedTaskExecutor:
         return value or ""
 
     @staticmethod
-    def _terminate_subprocess(process: subprocess.Popen[str], grace_seconds: float = 0.5) -> int:
+    def _terminate_subprocess(
+        process: subprocess.Popen[str], grace_seconds: float = 0.5
+    ) -> int:
         try:
             os.killpg(process.pid, signal.SIGTERM)
         except ProcessLookupError:

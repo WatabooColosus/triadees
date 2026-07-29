@@ -66,4 +66,6 @@ def ui() -> FileResponse:
     spa_index = FRONTEND_DIST / "index.html"
     if spa_index.exists():
         return FileResponse(str(spa_index))
-    return HTMLResponse("<h1>Tríade Ω</h1><p>Frontend no compilado.</p>", status_code=503)
+    return HTMLResponse(
+        "<h1>Tríade Ω</h1><p>Frontend no compilado.</p>", status_code=503
+    )

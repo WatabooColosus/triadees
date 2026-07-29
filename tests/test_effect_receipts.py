@@ -12,7 +12,9 @@ from triade.workers.worker_loop import WorkerLoop
 
 
 def test_completed_requires_effect_receipt() -> None:
-    with pytest.raises(ValidationError, match="completed_requires_verified_effect_receipt"):
+    with pytest.raises(
+        ValidationError, match="completed_requires_verified_effect_receipt"
+    ):
         ExecutionResult(
             status="completed",
             executed=True,
@@ -23,13 +25,21 @@ def test_completed_requires_effect_receipt() -> None:
 
 def test_failed_postcondition_prevents_completion() -> None:
     receipt = EffectReceipt(
-        action="write", target="x", verified=False, verifier="file",
+        action="write",
+        target="x",
+        verified=False,
+        verifier="file",
         postcondition={"passed": False},
     )
-    with pytest.raises(ValidationError, match="completed_requires_verified_effect_receipt"):
+    with pytest.raises(
+        ValidationError, match="completed_requires_verified_effect_receipt"
+    ):
         ExecutionResult(
-            status="completed", executed=True, evidence=["x"],
-            observation_justification="checked", effect_receipt=receipt,
+            status="completed",
+            executed=True,
+            evidence=["x"],
+            observation_justification="checked",
+            effect_receipt=receipt,
         )
 
 
@@ -46,7 +56,9 @@ def test_install_effect_requires_health_check(tmp_path: Path) -> None:
     inventory = tmp_path / "inventory.json"
     inventory.write_text("{}", encoding="utf-8")
     missing = EffectReceipt.verify_install(
-        model="local", inventory_ref=str(inventory), health_ref=str(tmp_path / "missing")
+        model="local",
+        inventory_ref=str(inventory),
+        health_ref=str(tmp_path / "missing"),
     )
     assert not missing.verified
     health = tmp_path / "health.json"
@@ -60,7 +72,8 @@ def test_backup_requires_restore_test(tmp_path: Path) -> None:
     backup = tmp_path / "backup.enc"
     backup.write_bytes(b"encrypted")
     assert not EffectReceipt.verify_backup(
-        backup_ref=str(backup), hash_matches=True,
+        backup_ref=str(backup),
+        hash_matches=True,
         restore_test_ref=str(tmp_path / "missing-restore.json"),
     ).verified
     restore = tmp_path / "restore.json"
@@ -80,7 +93,8 @@ def test_research_completion_requires_sources(tmp_path: Path) -> None:
     assert result.status == "failed"
     assert result.error_code == "verified_effect_receipt_missing"
     receipt = EffectReceipt.verify_research(
-        question="q", source_refs=["https://primary.example/a", "https://other.example/b"]
+        question="q",
+        source_refs=["https://primary.example/a", "https://other.example/b"],
     )
     assert receipt.verified
     assert receipt.postcondition["consolidated"] is False

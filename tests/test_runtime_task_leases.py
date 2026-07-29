@@ -61,7 +61,11 @@ def test_retry_backoff_then_dead_letter(tmp_path):
     claimed = store.claim("w")
     assert claimed
     retry = store.fail(
-        task["task_id"], "w", claimed["lease_generation"], "temporary", base_delay_seconds=0
+        task["task_id"],
+        "w",
+        claimed["lease_generation"],
+        "temporary",
+        base_delay_seconds=0,
     )
     assert retry["status"] == "retry_wait"
     claimed = store.claim("w")
@@ -82,7 +86,10 @@ def test_non_owner_cannot_complete_or_renew(tmp_path):
     assert store.renew(task["task_id"], "intruder", generation) is False
     result_ref = tmp_path / "result.json"
     result_ref.write_text("{}", encoding="utf-8")
-    assert store.complete(task["task_id"], "intruder", generation, str(result_ref)) is False
+    assert (
+        store.complete(task["task_id"], "intruder", generation, str(result_ref))
+        is False
+    )
     assert store.complete(task["task_id"], "owner", generation, str(result_ref)) is True
 
 

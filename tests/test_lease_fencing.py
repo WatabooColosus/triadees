@@ -83,9 +83,7 @@ def test_stale_worker_cannot_renew_new_generation(tmp_path: Path) -> None:
     store.recover_expired()
     new = store.claim("same-worker")
     assert new
-    assert not store.renew(
-        task["task_id"], "same-worker", old["lease_generation"]
-    )
+    assert not store.renew(task["task_id"], "same-worker", old["lease_generation"])
 
 
 def test_recovered_task_rejects_old_result(tmp_path: Path) -> None:

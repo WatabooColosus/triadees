@@ -39,7 +39,10 @@ class GovernedPlanDispatcher:
         self.resolver = CapabilityResolver()
         self.policy = CapabilityPolicyGuard(self.db_path)
         self.tasks = AutonomousTaskStore(self.db_path)
-        migration = Path(__file__).resolve().parents[1] / "memory/migrations/015_plan_dispatch.sql"
+        migration = (
+            Path(__file__).resolve().parents[1]
+            / "memory/migrations/015_plan_dispatch.sql"
+        )
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(migration.read_text(encoding="utf-8"))
 
@@ -56,13 +59,16 @@ class GovernedPlanDispatcher:
             **dispatch_payload,
         }
         payload_hash = self.tasks.payload_hash(payload)
-        if (
-            not resolution.requires_human_approval
-            and (not resolution.available or not resolution.worker_task_type)
+        if not resolution.requires_human_approval and (
+            not resolution.available or not resolution.worker_task_type
         ):
-            return self._blocked(graph, step, capability_id, payload_hash, resolution.reason)
+            return self._blocked(
+                graph, step, capability_id, payload_hash, resolution.reason
+            )
         decision = self.policy.decide(capability_id, "execute")
-        decision_id = self._decision_id(capability_id, decision.allowed, decision.reason)
+        decision_id = self._decision_id(
+            capability_id, decision.allowed, decision.reason
+        )
         rollback_available = bool(
             decision.capability and decision.capability.get("rollback_policy")
         )
@@ -73,14 +79,26 @@ class GovernedPlanDispatcher:
         if resolution.requires_human_approval:
             step.block("human_approval_required")
             receipt = self._receipt(
-                graph, step, None, capability_id, decision_id, payload_hash,
-                "blocked", True, rollback_available,
+                graph,
+                step,
+                None,
+                capability_id,
+                decision_id,
+                payload_hash,
+                "blocked",
+                True,
+                rollback_available,
             )
             self._save(graph)
             return receipt
         if not step.budget.can_proceed():
             return self._blocked(
-                graph, step, capability_id, payload_hash, "step_budget_exhausted", decision_id
+                graph,
+                step,
+                capability_id,
+                payload_hash,
+                "step_budget_exhausted",
+                decision_id,
             )
         task = self.tasks.enqueue(
             resolution.worker_task_type,
@@ -97,8 +115,15 @@ class GovernedPlanDispatcher:
         }
         graph.status = "queued"
         receipt = self._receipt(
-            graph, step, str(task["task_id"]), capability_id, decision_id,
-            payload_hash, "queued", False, rollback_available,
+            graph,
+            step,
+            str(task["task_id"]),
+            capability_id,
+            decision_id,
+            payload_hash,
+            "queued",
+            False,
+            rollback_available,
         )
         self._save(graph)
         return receipt
@@ -114,12 +139,23 @@ class GovernedPlanDispatcher:
                 )
             }
         mapping = {
-            "pending": "queued", "queued": "queued", "recovered": "queued",
-            "retry_wait": "queued", "deferred": "queued", "leased": "leased",
-            "running": "running", "completed": "completed", "failed": "failed",
-            "dead_letter": "failed", "timeout": "failed", "lease_lost": "failed",
-            "blocked": "blocked", "skipped": "cancelled", "dry_run": "cancelled",
-            "observed": "cancelled", "cancelled": "cancelled",
+            "pending": "queued",
+            "queued": "queued",
+            "recovered": "queued",
+            "retry_wait": "queued",
+            "deferred": "queued",
+            "leased": "leased",
+            "running": "running",
+            "completed": "completed",
+            "failed": "failed",
+            "dead_letter": "failed",
+            "timeout": "failed",
+            "lease_lost": "failed",
+            "blocked": "blocked",
+            "skipped": "cancelled",
+            "dry_run": "cancelled",
+            "observed": "cancelled",
+            "cancelled": "cancelled",
         }
         for step in graph.steps:
             task_id = links.get(step.id)
@@ -131,42 +167,77 @@ class GovernedPlanDispatcher:
         if graph.steps and all(step.state in terminal for step in graph.steps):
             graph.completed_at = utc_now()
             graph.status = (
-                "completed" if all(s.state == "completed" for s in graph.steps) else "failed"
+                "completed"
+                if all(s.state == "completed" for s in graph.steps)
+                else "failed"
             )
         self._save(graph)
         return graph
 
     def _blocked(
-        self, graph: PlanGraph, step: PlanStep, capability_id: str,
-        payload_hash: str, reason: str, decision_id: str = "not_evaluated",
+        self,
+        graph: PlanGraph,
+        step: PlanStep,
+        capability_id: str,
+        payload_hash: str,
+        reason: str,
+        decision_id: str = "not_evaluated",
     ) -> DispatchReceipt:
         step.block(reason)
         graph.status = "blocked"
         receipt = self._receipt(
-            graph, step, None, capability_id, decision_id, payload_hash,
-            "blocked", "approval" in reason, False,
+            graph,
+            step,
+            None,
+            capability_id,
+            decision_id,
+            payload_hash,
+            "blocked",
+            "approval" in reason,
+            False,
         )
         self._save(graph)
         return receipt
 
     def _receipt(
-        self, graph: PlanGraph, step: PlanStep, task_id: str | None,
-        capability_id: str, decision_id: str, payload_hash: str, status: str,
-        approval_required: bool, rollback_available: bool,
+        self,
+        graph: PlanGraph,
+        step: PlanStep,
+        task_id: str | None,
+        capability_id: str,
+        decision_id: str,
+        payload_hash: str,
+        status: str,
+        approval_required: bool,
+        rollback_available: bool,
     ) -> DispatchReceipt:
         receipt = DispatchReceipt(
-            graph.plan_id, step.id, task_id, capability_id, decision_id,
-            payload_hash, status, utc_now(), approval_required, rollback_available,
+            graph.plan_id,
+            step.id,
+            task_id,
+            capability_id,
+            decision_id,
+            payload_hash,
+            status,
+            utc_now(),
+            approval_required,
+            rollback_available,
         )
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO governed_plan_dispatches
                 VALUES(?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    receipt.plan_id, receipt.step_id, receipt.task_id,
-                    receipt.capability_id, receipt.policy_decision_id,
-                    receipt.payload_hash, receipt.status, receipt.created_at,
-                    int(receipt.approval_required), int(receipt.rollback_available),
+                    receipt.plan_id,
+                    receipt.step_id,
+                    receipt.task_id,
+                    receipt.capability_id,
+                    receipt.policy_decision_id,
+                    receipt.payload_hash,
+                    receipt.status,
+                    receipt.created_at,
+                    int(receipt.approval_required),
+                    int(receipt.rollback_available),
                 ),
             )
         return receipt

@@ -28,7 +28,11 @@ def fetch_pulse(base_url: str) -> dict[str, Any]:
     try:
         return json.loads(result.stdout)
     except Exception as exc:
-        return {"status": "error", "error": f"invalid_json: {exc}", "raw": result.stdout[:500]}
+        return {
+            "status": "error",
+            "error": f"invalid_json: {exc}",
+            "raw": result.stdout[:500],
+        }
 
 
 def latest_run_path(runs_dir: Path) -> Path | None:
@@ -59,17 +63,27 @@ def summarize_findings(findings: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def add(findings: list[dict[str, Any]], level: str, name: str, message: str, detail: Any = None) -> None:
-    findings.append({
-        "level": level,
-        "name": name,
-        "message": message,
-        "detail": detail,
-    })
+def add(
+    findings: list[dict[str, Any]],
+    level: str,
+    name: str,
+    message: str,
+    detail: Any = None,
+) -> None:
+    findings.append(
+        {
+            "level": level,
+            "name": name,
+            "message": message,
+            "detail": detail,
+        }
+    )
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Audita consistencia entre Pulso Vivo actual y artefactos del run.")
+    parser = argparse.ArgumentParser(
+        description="Audita consistencia entre Pulso Vivo actual y artefactos del run."
+    )
     parser.add_argument("--base-url", default="http://127.0.0.1:8010")
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--run-path", default="")
@@ -83,7 +97,13 @@ def main() -> int:
     pulse = fetch_pulse(args.base_url)
 
     if not run_path or not run_path.exists():
-        add(findings, "error", "run_path", "No se encontró run para auditar.", str(run_path))
+        add(
+            findings,
+            "error",
+            "run_path",
+            "No se encontró run para auditar.",
+            str(run_path),
+        )
         report = {"summary": summarize_findings(findings), "findings": findings}
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return 2
@@ -93,7 +113,9 @@ def main() -> int:
     plan = load_json(run_path / "plan.json")
     memory_diff = load_json(run_path / "memory_diff.json")
     system_events = load_json(run_path / "system_events.json", default=[])
-    background_candidates = load_json(run_path / "background_neuron_candidates.json", default=[])
+    background_candidates = load_json(
+        run_path / "background_neuron_candidates.json", default=[]
+    )
 
     pulse_fed = get_check(pulse, "federation")
     pulse_llm = get_check(pulse, "llm_android_host")
@@ -111,22 +133,64 @@ def main() -> int:
     summary_nodes = int(summary_fed.get("node_count") or 0)
 
     if pulse.get("status") == "ok":
-        add(findings, "ok", "pulse_status", "Pulso actual responde status ok.", pulse.get("summary"))
+        add(
+            findings,
+            "ok",
+            "pulse_status",
+            "Pulso actual responde status ok.",
+            pulse.get("summary"),
+        )
     else:
-        add(findings, "warning", "pulse_status", "Pulso actual no está en ok.", pulse.get("status"))
+        add(
+            findings,
+            "warning",
+            "pulse_status",
+            "Pulso actual no está en ok.",
+            pulse.get("status"),
+        )
 
     if pulse_fed_ok:
-        add(findings, "ok", "pulse_federation", "Pulso actual reporta federación activa.", pulse_fed.get("summary"))
+        add(
+            findings,
+            "ok",
+            "pulse_federation",
+            "Pulso actual reporta federación activa.",
+            pulse_fed.get("summary"),
+        )
     else:
-        add(findings, "warning", "pulse_federation", "Pulso actual no reporta federación activa.", pulse_fed)
+        add(
+            findings,
+            "warning",
+            "pulse_federation",
+            "Pulso actual no reporta federación activa.",
+            pulse_fed,
+        )
 
     if pulse_llm_ok:
-        add(findings, "ok", "pulse_llm_android_host", "Pulso actual reporta host LLM Android real.", pulse_llm.get("summary"))
+        add(
+            findings,
+            "ok",
+            "pulse_llm_android_host",
+            "Pulso actual reporta host LLM Android real.",
+            pulse_llm.get("summary"),
+        )
     else:
-        add(findings, "warning", "pulse_llm_android_host", "Pulso actual no reporta host LLM Android real.", pulse_llm)
+        add(
+            findings,
+            "warning",
+            "pulse_llm_android_host",
+            "Pulso actual no reporta host LLM Android real.",
+            pulse_llm,
+        )
 
     if summary_nodes >= 1 and summary_llm_hosts >= 1:
-        add(findings, "ok", "run_pulse_summary_federation", "input.json conserva datos reales de federación.", summary_fed)
+        add(
+            findings,
+            "ok",
+            "run_pulse_summary_federation",
+            "input.json conserva datos reales de federación.",
+            summary_fed,
+        )
     else:
         level = "error" if pulse_llm_ok or pulse_fed_ok else "warning"
         add(
@@ -137,51 +201,127 @@ def main() -> int:
             summary_fed,
         )
 
-    if edge_context.get("used_edge") and edge_context.get("accepted") and edge_context.get("node_id"):
-        add(findings, "ok", "edge_context", "edge_context.json confirma uso edge aceptado.", {
-            "node_id": edge_context.get("node_id"),
-            "intent": (edge_context.get("intent_probe") or {}).get("intent"),
-        })
+    if (
+        edge_context.get("used_edge")
+        and edge_context.get("accepted")
+        and edge_context.get("node_id")
+    ):
+        add(
+            findings,
+            "ok",
+            "edge_context",
+            "edge_context.json confirma uso edge aceptado.",
+            {
+                "node_id": edge_context.get("node_id"),
+                "intent": (edge_context.get("intent_probe") or {}).get("intent"),
+            },
+        )
     else:
-        add(findings, "warning", "edge_context", "edge_context.json no confirma uso edge aceptado.", edge_context)
+        add(
+            findings,
+            "warning",
+            "edge_context",
+            "edge_context.json no confirma uso edge aceptado.",
+            edge_context,
+        )
 
     plan_edge = plan.get("edge_context") or {}
     if plan_edge.get("used_edge") and plan_edge.get("accepted"):
-        add(findings, "ok", "plan_edge_context", "plan.json incorpora edge_context aceptado.", {
-            "node_id": plan_edge.get("node_id"),
-            "policy": plan_edge.get("policy"),
-        })
+        add(
+            findings,
+            "ok",
+            "plan_edge_context",
+            "plan.json incorpora edge_context aceptado.",
+            {
+                "node_id": plan_edge.get("node_id"),
+                "policy": plan_edge.get("policy"),
+            },
+        )
     else:
-        add(findings, "warning", "plan_edge_context", "plan.json no incorpora edge_context aceptado.", plan_edge)
+        add(
+            findings,
+            "warning",
+            "plan_edge_context",
+            "plan.json no incorpora edge_context aceptado.",
+            plan_edge,
+        )
 
     edge_usage = memory_diff.get("edge_usage") or {}
     if edge_usage.get("used_edge") and edge_usage.get("accepted"):
-        add(findings, "ok", "memory_diff_edge_usage", "memory_diff.json registra edge_usage.", {
-            "node_id": edge_usage.get("node_id"),
-            "intent": edge_usage.get("intent"),
-        })
+        add(
+            findings,
+            "ok",
+            "memory_diff_edge_usage",
+            "memory_diff.json registra edge_usage.",
+            {
+                "node_id": edge_usage.get("node_id"),
+                "intent": edge_usage.get("intent"),
+            },
+        )
     else:
-        add(findings, "warning", "memory_diff_edge_usage", "memory_diff.json no registra edge_usage aceptado.", edge_usage)
+        add(
+            findings,
+            "warning",
+            "memory_diff_edge_usage",
+            "memory_diff.json no registra edge_usage aceptado.",
+            edge_usage,
+        )
 
-    debt_text = json.dumps(system_events, ensure_ascii=False).lower() + " " + json.dumps(background_candidates, ensure_ascii=False).lower()
+    debt_text = (
+        json.dumps(system_events, ensure_ascii=False).lower()
+        + " "
+        + json.dumps(background_candidates, ensure_ascii=False).lower()
+    )
     false_debt_markers = [
         "0 hosts llm android reales",
         "sin nodos android nativos online",
         "llm_android_host",
     ]
     if pulse_llm_ok and any(marker in debt_text for marker in false_debt_markers):
-        add(findings, "error", "obsolete_android_debt", "Hay deuda Android obsoleta aunque el pulso reporta host LLM ok.", {
-            "system_events_count": len(system_events) if isinstance(system_events, list) else None,
-            "background_candidates_count": len(background_candidates) if isinstance(background_candidates, list) else None,
-        })
+        add(
+            findings,
+            "error",
+            "obsolete_android_debt",
+            "Hay deuda Android obsoleta aunque el pulso reporta host LLM ok.",
+            {
+                "system_events_count": len(system_events)
+                if isinstance(system_events, list)
+                else None,
+                "background_candidates_count": len(background_candidates)
+                if isinstance(background_candidates, list)
+                else None,
+            },
+        )
     else:
-        add(findings, "ok", "obsolete_android_debt", "No hay deuda Android obsoleta en system_events/candidates.", None)
+        add(
+            findings,
+            "ok",
+            "obsolete_android_debt",
+            "No hay deuda Android obsoleta en system_events/candidates.",
+            None,
+        )
 
-    for name, check in [("ollama", pulse_ollama), ("docker", pulse_docker), ("router", pulse_router)]:
+    for name, check in [
+        ("ollama", pulse_ollama),
+        ("docker", pulse_docker),
+        ("router", pulse_router),
+    ]:
         if check.get("ok"):
-            add(findings, "ok", f"pulse_{name}", f"{name} aparece activo en pulso actual.", check.get("summary"))
+            add(
+                findings,
+                "ok",
+                f"pulse_{name}",
+                f"{name} aparece activo en pulso actual.",
+                check.get("summary"),
+            )
         else:
-            add(findings, "warning", f"pulse_{name}", f"{name} no aparece activo en pulso actual.", check)
+            add(
+                findings,
+                "warning",
+                f"pulse_{name}",
+                f"{name} no aparece activo en pulso actual.",
+                check,
+            )
 
     report = {
         "mode": "live_pulse_consistency_audit",
@@ -198,12 +338,20 @@ def main() -> int:
         print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
         print(f"run_path: {run_path}")
         for f in findings:
-            icon = "✅" if f["level"] == "ok" else "⚠️" if f["level"] == "warning" else "❌"
-            print(f'{icon} {f["name"]}: {f["message"]}')
+            icon = (
+                "✅" if f["level"] == "ok" else "⚠️" if f["level"] == "warning" else "❌"
+            )
+            print(f"{icon} {f['name']}: {f['message']}")
             if f.get("detail") not in (None, "", [], {}):
-                print(f'   detail: {json.dumps(f["detail"], ensure_ascii=False)[:500]}')
+                print(f"   detail: {json.dumps(f['detail'], ensure_ascii=False)[:500]}")
 
-    return 2 if report["summary"]["error_count"] else 1 if report["summary"]["warning_count"] else 0
+    return (
+        2
+        if report["summary"]["error_count"]
+        else 1
+        if report["summary"]["warning_count"]
+        else 0
+    )
 
 
 if __name__ == "__main__":

@@ -16,8 +16,10 @@ from triade.runtime.governed_capability import (
 class FailingPostconditionFile(GovernedFileWriteCapability):
     def verify(self) -> EffectReceipt:
         return EffectReceipt(
-            action="write_file", target=str(self.target),
-            postcondition={"passed": False}, verified=False,
+            action="write_file",
+            target=str(self.target),
+            postcondition={"passed": False},
+            verified=False,
             verifier="injected_failure",
         )
 
@@ -25,8 +27,10 @@ class FailingPostconditionFile(GovernedFileWriteCapability):
 class FailingRollbackFile(FailingPostconditionFile):
     def verify_rollback(self) -> EffectReceipt:
         return EffectReceipt(
-            action="rollback_file", target=str(self.target),
-            postcondition={"passed": False}, verified=False,
+            action="rollback_file",
+            target=str(self.target),
+            postcondition={"passed": False},
+            verified=False,
             verifier="injected_rollback_failure",
         )
 
@@ -90,6 +94,10 @@ def test_irreversible_action_requires_approval(tmp_path: Path) -> None:
 def test_rollback_claim_requires_test_evidence() -> None:
     with pytest.raises(ValidationError, match="verified_effect_requires_evidence"):
         EffectReceipt(
-            action="rollback", target="x", postcondition={"passed": True},
-            verified=True, verifier="self_claim", evidence_refs=[],
+            action="rollback",
+            target="x",
+            postcondition={"passed": True},
+            verified=True,
+            verifier="self_claim",
+            evidence_refs=[],
         )

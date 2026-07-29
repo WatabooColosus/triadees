@@ -7,7 +7,9 @@ from triade.core.stable_promotion_readiness import write_stable_readiness_report
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Audita si neuronas experimentales están listas para revisión stable.")
+    parser = argparse.ArgumentParser(
+        description="Audita si neuronas experimentales están listas para revisión stable."
+    )
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--out", default="runs/stable_promotion_readiness.json")
     parser.add_argument("--limit", type=int, default=300)
@@ -37,12 +39,12 @@ def main() -> int:
 
     for neuron in report["neurons"]:
         print(
-            f'{neuron["name"]} | status={neuron["status"]} | '
-            f'ready={neuron["ready_for_stable_review"]} | '
-            f'activations={neuron["activation_count"]} | '
-            f'diagnosis={neuron["diagnosis_count"]} | '
-            f'test_plan={neuron["test_plan_count"]} | '
-            f'last_run={neuron["last_run_id"]}'
+            f"{neuron['name']} | status={neuron['status']} | "
+            f"ready={neuron['ready_for_stable_review']} | "
+            f"activations={neuron['activation_count']} | "
+            f"diagnosis={neuron['diagnosis_count']} | "
+            f"test_plan={neuron['test_plan_count']} | "
+            f"last_run={neuron['last_run_id']}"
         )
         if neuron["blockers"]:
             print("  blockers:", "; ".join(neuron["blockers"]))

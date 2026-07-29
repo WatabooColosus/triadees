@@ -33,11 +33,15 @@ DEFAULT_LOG = "triade/logs/daemon.log"
 DEFAULT_PID = "triade/logs/daemon.pid"
 
 
-def setup_logger(name: str, log_file: str | Path | None, verbose: bool) -> logging.Logger:
+def setup_logger(
+    name: str, log_file: str | Path | None, verbose: bool
+) -> logging.Logger:
     logger = logging.getLogger(name)
     level = logging.DEBUG if verbose else logging.INFO
     logger.setLevel(level)
-    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
 
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(level)
@@ -142,7 +146,10 @@ class TriadeDaemon:
         self._auto_run_counter = 0
         try:
             from triade.core.runner import TriadeRunner
-            runner = TriadeRunner(runs_dir=str(self.runs_dir), db_path=str(self.db_path), use_ollama=False)
+
+            runner = TriadeRunner(
+                runs_dir=str(self.runs_dir), db_path=str(self.db_path), use_ollama=False
+            )
             result = runner.run("Auto-reflexión programada del daemon.")
             self.log.info("Auto-run completado: %s", result.get("status", "?"))
         except Exception as exc:
@@ -168,7 +175,12 @@ class TriadeDaemon:
         self.log.info("  DB:           %s", self.db_path)
         self.log.info("  Runs:         %s", self.runs_dir)
         self.log.info("  Pulse cada:   %ss", self.pulse_interval)
-        self.log.info("  Auto-run:     %s", f"cada {self.auto_run_interval}s" if self.auto_run_interval > 0 else "desactivado")
+        self.log.info(
+            "  Auto-run:     %s",
+            f"cada {self.auto_run_interval}s"
+            if self.auto_run_interval > 0
+            else "desactivado",
+        )
         self.log.info("  Log:          %s", self.log_file or "stdout")
         self.log.info("=" * 50)
 
@@ -190,7 +202,9 @@ class TriadeDaemon:
         snapshot = self.life_pulse.snapshot()
         uptime = snapshot.get("uptime_seconds", 0)
         cycles = snapshot.get("counters", {}).get("cycles", 0)
-        self.log.info("Tríade Ω Daemon detenido (uptime=%ss, cycles=%s)", uptime, cycles)
+        self.log.info(
+            "Tríade Ω Daemon detenido (uptime=%ss, cycles=%s)", uptime, cycles
+        )
 
     # ------------------------------------------------------------------
     # Status snapshot
@@ -207,6 +221,7 @@ class TriadeDaemon:
 # ------------------------------------------------------------------
 # CLI
 # ------------------------------------------------------------------
+
 
 def cmd_start(args: argparse.Namespace) -> None:
     pid_file = args.pid_file or DEFAULT_PID
@@ -264,16 +279,34 @@ def cmd_status(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Tríade Ω Daemon")
-    parser.add_argument("command", nargs="?", default="start",
-                        choices=["start", "stop", "status", "restart"],
-                        help="Comando: start (default), stop, status, restart")
+    parser.add_argument(
+        "command",
+        nargs="?",
+        default="start",
+        choices=["start", "stop", "status", "restart"],
+        help="Comando: start (default), stop, status, restart",
+    )
     parser.add_argument("--db", default=DEFAULT_DB, help="Ruta de base SQLite")
-    parser.add_argument("--runs-dir", default=DEFAULT_RUNS_DIR, help="Directorio de runs")
-    parser.add_argument("--pulse-interval", type=int, default=DEFAULT_PULSE_INTERVAL, help="Segundos entre pulsos")
+    parser.add_argument(
+        "--runs-dir", default=DEFAULT_RUNS_DIR, help="Directorio de runs"
+    )
+    parser.add_argument(
+        "--pulse-interval",
+        type=int,
+        default=DEFAULT_PULSE_INTERVAL,
+        help="Segundos entre pulsos",
+    )
     parser.add_argument("--log-file", default=DEFAULT_LOG, help="Archivo de log")
     parser.add_argument("--pid-file", default=DEFAULT_PID, help="Archivo PID")
-    parser.add_argument("--auto-run-interval", type=int, default=0, help="Auto-run cada N segundos (0 = desactivado)")
-    parser.add_argument("--daemon", action="store_true", help="Fork a background process (Unix)")
+    parser.add_argument(
+        "--auto-run-interval",
+        type=int,
+        default=0,
+        help="Auto-run cada N segundos (0 = desactivado)",
+    )
+    parser.add_argument(
+        "--daemon", action="store_true", help="Fork a background process (Unix)"
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Log verbose")
 
     args = parser.parse_args()

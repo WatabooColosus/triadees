@@ -61,18 +61,26 @@ class CapabilityLifecycle:
         rollback = capability.verify_rollback()
         if rollback.verified:
             return CapabilityLifecycleResult(
-                "rolled_back", effect_receipt=receipt, rollback_receipt=rollback,
+                "rolled_back",
+                effect_receipt=receipt,
+                rollback_receipt=rollback,
                 reason="postcondition_failed",
             )
         return CapabilityLifecycleResult(
-            "rollback_failed", effect_receipt=receipt, rollback_receipt=rollback,
-            escalated=True, reason="rollback_verification_failed",
+            "rollback_failed",
+            effect_receipt=receipt,
+            rollback_receipt=rollback,
+            escalated=True,
+            reason="rollback_verification_failed",
         )
 
 
 class GovernedFileWriteCapability(GovernedCapability):
     def __init__(
-        self, target: str | Path, content: str, workspace: str | Path,
+        self,
+        target: str | Path,
+        content: str,
+        workspace: str | Path,
         authorized_root: str | Path | None = None,
     ) -> None:
         self.target = Path(target)
@@ -81,10 +89,14 @@ class GovernedFileWriteCapability(GovernedCapability):
         self.backup_ref: Path | None = None
         self.rollback_target: Path | None = None
         self.existed = False
-        self.authorized_root = Path(authorized_root).resolve() if authorized_root else None
+        self.authorized_root = (
+            Path(authorized_root).resolve() if authorized_root else None
+        )
 
     def prepare(self) -> dict[str, Any]:
-        if self.authorized_root and not self.target.resolve().is_relative_to(self.authorized_root):
+        if self.authorized_root and not self.target.resolve().is_relative_to(
+            self.authorized_root
+        ):
             raise PermissionError("target_outside_authorized_root")
         self.workspace.mkdir(parents=True, exist_ok=True)
         self.existed = self.target.is_file()
@@ -95,8 +107,10 @@ class GovernedFileWriteCapability(GovernedCapability):
 
     def rollback_spec(self) -> dict[str, Any]:
         return {
-            "target": str(self.target), "existed": self.existed,
-            "backup_ref": str(self.backup_ref or ""), "workspace": str(self.workspace),
+            "target": str(self.target),
+            "existed": self.existed,
+            "backup_ref": str(self.backup_ref or ""),
+            "workspace": str(self.workspace),
         }
 
     @staticmethod
@@ -121,9 +135,12 @@ class GovernedFileWriteCapability(GovernedCapability):
         else:
             passed, refs, rollback_ref = not existed and not target.exists(), [], ""
         return EffectReceipt(
-            action="rollback_file", target=str(target),
-            postcondition={"passed": passed}, verified=passed,
-            verifier="serialized_file_rollback_verifier", evidence_refs=refs,
+            action="rollback_file",
+            target=str(target),
+            postcondition={"passed": passed},
+            verified=passed,
+            verifier="serialized_file_rollback_verifier",
+            evidence_refs=refs,
             rollback_ref=rollback_ref or None,
         )
 
@@ -148,23 +165,33 @@ class GovernedFileWriteCapability(GovernedCapability):
 
     def verify_rollback(self) -> EffectReceipt:
         if self.existed and self.backup_ref:
-            passed = self.target.is_file() and self.target.read_bytes() == self.backup_ref.read_bytes()
+            passed = (
+                self.target.is_file()
+                and self.target.read_bytes() == self.backup_ref.read_bytes()
+            )
             refs = [str(self.target), str(self.backup_ref)] if passed else []
         else:
             passed = not self.target.exists() and bool(
                 self.rollback_target and self.rollback_target.is_file()
             )
-            refs = [str(self.rollback_target)] if passed and self.rollback_target else []
+            refs = (
+                [str(self.rollback_target)] if passed and self.rollback_target else []
+            )
         return EffectReceipt(
-            action="rollback_file", target=str(self.target),
-            postcondition={"passed": passed}, verified=passed,
-            verifier="file_rollback_verifier", evidence_refs=refs,
+            action="rollback_file",
+            target=str(self.target),
+            postcondition={"passed": passed},
+            verified=passed,
+            verifier="file_rollback_verifier",
+            evidence_refs=refs,
             rollback_ref=str(self.rollback_target or "") or None,
         )
 
 
 class GovernedSQLiteValueCapability(GovernedCapability):
-    def __init__(self, db_path: str | Path, key: str, value: str, evidence_dir: str | Path) -> None:
+    def __init__(
+        self, db_path: str | Path, key: str, value: str, evidence_dir: str | Path
+    ) -> None:
         self.db_path = Path(db_path)
         self.key = key
         self.value = value
@@ -173,8 +200,12 @@ class GovernedSQLiteValueCapability(GovernedCapability):
 
     def prepare(self) -> dict[str, Any]:
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS governed_kv(key TEXT PRIMARY KEY,value TEXT)")
-            row = conn.execute("SELECT value FROM governed_kv WHERE key=?", (self.key,)).fetchone()
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS governed_kv(key TEXT PRIMARY KEY,value TEXT)"
+            )
+            row = conn.execute(
+                "SELECT value FROM governed_kv WHERE key=?", (self.key,)
+            ).fetchone()
         self.previous = str(row[0]) if row else None
         return {"previous": self.previous}
 
@@ -188,7 +219,9 @@ class GovernedSQLiteValueCapability(GovernedCapability):
 
     def _value(self) -> str | None:
         with sqlite3.connect(self.db_path) as conn:
-            row = conn.execute("SELECT value FROM governed_kv WHERE key=?", (self.key,)).fetchone()
+            row = conn.execute(
+                "SELECT value FROM governed_kv WHERE key=?", (self.key,)
+            ).fetchone()
         return str(row[0]) if row else None
 
     def _evidence(self, name: str, value: Any) -> str:
@@ -201,8 +234,12 @@ class GovernedSQLiteValueCapability(GovernedCapability):
         passed = current == self.value
         ref = self._evidence("db-effect.json", {"key": self.key, "value": current})
         return EffectReceipt(
-            action="sqlite_write", target=self.key, postcondition={"passed": passed},
-            verified=passed, verifier="sqlite_readback_verifier", evidence_refs=[ref] if passed else [],
+            action="sqlite_write",
+            target=self.key,
+            postcondition={"passed": passed},
+            verified=passed,
+            verifier="sqlite_readback_verifier",
+            evidence_refs=[ref] if passed else [],
         )
 
     def rollback(self) -> dict[str, Any]:
@@ -210,7 +247,10 @@ class GovernedSQLiteValueCapability(GovernedCapability):
             if self.previous is None:
                 conn.execute("DELETE FROM governed_kv WHERE key=?", (self.key,))
             else:
-                conn.execute("UPDATE governed_kv SET value=? WHERE key=?", (self.previous, self.key))
+                conn.execute(
+                    "UPDATE governed_kv SET value=? WHERE key=?",
+                    (self.previous, self.key),
+                )
         return {"restored": self.previous}
 
     def verify_rollback(self) -> EffectReceipt:
@@ -218,7 +258,11 @@ class GovernedSQLiteValueCapability(GovernedCapability):
         passed = current == self.previous
         ref = self._evidence("db-rollback.json", {"key": self.key, "value": current})
         return EffectReceipt(
-            action="rollback_sqlite", target=self.key, postcondition={"passed": passed},
-            verified=passed, verifier="sqlite_rollback_readback", evidence_refs=[ref] if passed else [],
+            action="rollback_sqlite",
+            target=self.key,
+            postcondition={"passed": passed},
+            verified=passed,
+            verifier="sqlite_rollback_readback",
+            evidence_refs=[ref] if passed else [],
             rollback_ref=ref if passed else None,
         )

@@ -43,14 +43,21 @@ def require_federation_enabled() -> None:
         raise
     except Exception as exc:
         from triade.core.error_bus import record_internal_error
+
         record_internal_error(
             "federation_gate.config",
             exc,
-            payload={"module": __name__, "function": "require_federation_enabled", "operation": "load_config"},
+            payload={
+                "module": __name__,
+                "function": "require_federation_enabled",
+                "operation": "load_config",
+            },
         )
 
 
-def federation_gate(nodes: list[dict[str, Any]], task: str | None = None) -> list[dict[str, Any]]:
+def federation_gate(
+    nodes: list[dict[str, Any]], task: str | None = None
+) -> list[dict[str, Any]]:
     """Post-selección: filtra nodos por permiso y trust level requeridos.
 
     Args:

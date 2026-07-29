@@ -28,10 +28,14 @@ def _worker(db_path: str, artifacts_dir: str, worker_id: str) -> None:
             continue
         mode = str(task["payload"].get("mode") or "fast")
         if mode == "failed":
-            store.fail(task_id, worker_id, generation, "injected_failure", base_delay_seconds=0)
+            store.fail(
+                task_id, worker_id, generation, "injected_failure", base_delay_seconds=0
+            )
             continue
         if mode == "timeout":
-            store.mark_timeout(task_id, worker_id, generation, "injected_timeout", retryable=True)
+            store.mark_timeout(
+                task_id, worker_id, generation, "injected_timeout", retryable=True
+            )
             continue
         if mode == "slow":
             time.sleep(0.02)
@@ -46,7 +50,8 @@ def _worker(db_path: str, artifacts_dir: str, worker_id: str) -> None:
             )
         result_ref = Path(artifacts_dir) / task_id / "result.json"
         AtomicArtifactWriter.write_json(
-            result_ref, {"task_id": task_id, "worker_id": worker_id, "effect": idempotency_key}
+            result_ref,
+            {"task_id": task_id, "worker_id": worker_id, "effect": idempotency_key},
         )
         store.complete(task_id, worker_id, generation, str(result_ref))
 
@@ -66,29 +71,46 @@ def run_concurrency_validation(
         )
     started = time.monotonic()
     for index in range(task_count):
-        mode = "failed" if index % 17 == 0 else "timeout" if index % 19 == 0 else "slow" if index % 7 == 0 else "fast"
+        mode = (
+            "failed"
+            if index % 17 == 0
+            else "timeout"
+            if index % 19 == 0
+            else "slow"
+            if index % 7 == 0
+            else "fast"
+        )
         store.enqueue(
-            "concurrency_probe", {"index": index, "mode": mode},
-            idempotency_key=f"effect:{index}", priority=index % 10,
+            "concurrency_probe",
+            {"index": index, "mode": mode},
+            idempotency_key=f"effect:{index}",
+            priority=index % 10,
             max_attempts=1 if mode in {"failed", "timeout"} else 3,
         )
         if index % 10 == 0:
             duplicate = store.enqueue(
-                "concurrency_probe", {"index": index, "mode": mode},
-                idempotency_key=f"effect:{index}", priority=99,
+                "concurrency_probe",
+                {"index": index, "mode": mode},
+                idempotency_key=f"effect:{index}",
+                priority=99,
             )
             assert duplicate["idempotency_key"] == f"effect:{index}"
 
     crash_task = store.enqueue(
-        "concurrency_probe", {"mode": "fast", "crash_recovery": True},
-        idempotency_key="effect:crash-recovery", priority=0,
+        "concurrency_probe",
+        {"mode": "fast", "crash_recovery": True},
+        idempotency_key="effect:crash-recovery",
+        priority=0,
     )
     crashed = store.claim_task(crash_task["task_id"], "killed-worker", lease_seconds=1)
     assert crashed
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             "UPDATE autonomous_tasks SET lease_expires_at=? WHERE task_id=?",
-            ((datetime.now(UTC) - timedelta(seconds=1)).isoformat(), crash_task["task_id"]),
+            (
+                (datetime.now(UTC) - timedelta(seconds=1)).isoformat(),
+                crash_task["task_id"],
+            ),
         )
     recovered = store.recover_expired()
 
@@ -119,14 +141,20 @@ def run_concurrency_validation(
             )
         }
         total = int(conn.execute("SELECT COUNT(*) FROM autonomous_tasks").fetchone()[0])
-        effects = int(conn.execute("SELECT COUNT(*) FROM concurrency_effects").fetchone()[0])
-        duplicate_effects = int(conn.execute(
-            "SELECT COUNT(*) FROM (SELECT idempotency_key FROM concurrency_effects GROUP BY idempotency_key HAVING COUNT(*)>1)"
-        ).fetchone()[0])
+        effects = int(
+            conn.execute("SELECT COUNT(*) FROM concurrency_effects").fetchone()[0]
+        )
+        duplicate_effects = int(
+            conn.execute(
+                "SELECT COUNT(*) FROM (SELECT idempotency_key FROM concurrency_effects GROUP BY idempotency_key HAVING COUNT(*)>1)"
+            ).fetchone()[0]
+        )
         integrity = str(conn.execute("PRAGMA integrity_check").fetchone()[0])
-        missing_artifacts = int(conn.execute(
-            "SELECT COUNT(*) FROM autonomous_tasks WHERE status='completed' AND result_ref IS NULL"
-        ).fetchone()[0])
+        missing_artifacts = int(
+            conn.execute(
+                "SELECT COUNT(*) FROM autonomous_tasks WHERE status='completed' AND result_ref IS NULL"
+            ).fetchone()[0]
+        )
     terminal = statuses.get("completed", 0) + statuses.get("dead_letter", 0)
     report = {
         "task_rows": total,
@@ -141,7 +169,12 @@ def run_concurrency_validation(
         "all_accounted": terminal == total,
         "elapsed_seconds": round(time.monotonic() - started, 6),
     }
-    if duplicate_effects or missing_artifacts or integrity != "ok" or not report["all_accounted"]:
+    if (
+        duplicate_effects
+        or missing_artifacts
+        or integrity != "ok"
+        or not report["all_accounted"]
+    ):
         raise AssertionError(json.dumps(report, sort_keys=True))
     return report
 
@@ -154,7 +187,9 @@ def main() -> None:
     parser.add_argument("--report")
     args = parser.parse_args()
     report = run_concurrency_validation(
-        args.output_dir, task_count=max(1, args.tasks), worker_count=max(2, args.workers)
+        args.output_dir,
+        task_count=max(1, args.tasks),
+        worker_count=max(2, args.workers),
     )
     payload = json.dumps(report, ensure_ascii=False, indent=2)
     if args.report:

@@ -4,6 +4,8 @@
 from triade.workers.background_service import WorkerBackgroundService
 
 if __name__ == "__main__":
-    result = WorkerBackgroundService().start(max_iterations=1_000_000, sleep_seconds=60, task_timeout=30)
+    result = WorkerBackgroundService().start(
+        max_iterations=1_000_000, sleep_seconds=60, task_timeout=30
+    )
     if result.get("status") not in {"completed", "completed_with_errors", "stopped"}:
         raise SystemExit(1)

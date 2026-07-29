@@ -17,7 +17,11 @@ def load_json(path: Path, default: Any) -> Any:
 
 
 def has_pipeline(candidate: dict[str, Any]) -> bool:
-    return bool(candidate.get("creator_trainer_pipeline") and candidate.get("creator_spec") and candidate.get("training_review"))
+    return bool(
+        candidate.get("creator_trainer_pipeline")
+        and candidate.get("creator_spec")
+        and candidate.get("training_review")
+    )
 
 
 def has_non_null_evidence(value: Any) -> bool:
@@ -32,12 +36,15 @@ def classify(name: str, items: list[dict[str, Any]]) -> str:
     pipeline = has_pipeline(latest)
     evidence_ok = has_non_null_evidence(latest.get("evidence"))
 
-    obsolete_android = any(x in lower for x in [
-        "nodos-android",
-        "hosts-llm-android",
-        "llm-android-host",
-        "deuda-federation",
-    ])
+    obsolete_android = any(
+        x in lower
+        for x in [
+            "nodos-android",
+            "hosts-llm-android",
+            "llm-android-host",
+            "deuda-federation",
+        ]
+    )
 
     if obsolete_android and not pipeline:
         return "obsolete_legacy_android_debt"
@@ -51,7 +58,9 @@ def classify(name: str, items: list[dict[str, Any]]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Construye bandeja agrupada de formación de neuronas candidatas.")
+    parser = argparse.ArgumentParser(
+        description="Construye bandeja agrupada de formación de neuronas candidatas."
+    )
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--limit", type=int, default=120)
     parser.add_argument("--out", default="runs/neuron_formation_inbox.json")
@@ -74,11 +83,15 @@ def main() -> int:
         for candidate in candidates:
             if not isinstance(candidate, dict):
                 continue
-            name = str(candidate.get("name") or candidate.get("display_name") or "unknown")
-            grouped[name].append({
-                "run_id": run_path.name,
-                "candidate": candidate,
-            })
+            name = str(
+                candidate.get("name") or candidate.get("display_name") or "unknown"
+            )
+            grouped[name].append(
+                {
+                    "run_id": run_path.name,
+                    "candidate": candidate,
+                }
+            )
 
     inbox = []
     for name, items in sorted(grouped.items(), key=lambda kv: len(kv[1]), reverse=True):
@@ -86,28 +99,34 @@ def main() -> int:
         training = latest.get("training_review") or {}
         creator = latest.get("creator_spec") or {}
 
-        inbox.append({
-            "name": name,
-            "display_name": latest.get("display_name") or name,
-            "count": len(items),
-            "latest_run_id": items[0]["run_id"],
-            "first_seen_run_id": items[-1]["run_id"],
-            "source": latest.get("source"),
-            "severity": latest.get("severity"),
-            "status": latest.get("status"),
-            "pipeline": has_pipeline(latest),
-            "training_status": training.get("status"),
-            "training_score": training.get("score"),
-            "required_human_review": training.get("required_human_review"),
-            "evidence_non_null": has_non_null_evidence(latest.get("evidence")),
-            "forbidden_actions_count": len(creator.get("forbidden_actions") or []) if isinstance(creator, dict) else 0,
-            "success_metrics_count": len(creator.get("success_metrics") or []) if isinstance(creator, dict) else 0,
-            "recommended_action": classify(name, items),
-            "mission": latest.get("mission"),
-            "latest_evidence": latest.get("evidence"),
-            "runs": [item["run_id"] for item in items[:12]],
-            "policy": "formation_inbox_grouped_no_auto_activation",
-        })
+        inbox.append(
+            {
+                "name": name,
+                "display_name": latest.get("display_name") or name,
+                "count": len(items),
+                "latest_run_id": items[0]["run_id"],
+                "first_seen_run_id": items[-1]["run_id"],
+                "source": latest.get("source"),
+                "severity": latest.get("severity"),
+                "status": latest.get("status"),
+                "pipeline": has_pipeline(latest),
+                "training_status": training.get("status"),
+                "training_score": training.get("score"),
+                "required_human_review": training.get("required_human_review"),
+                "evidence_non_null": has_non_null_evidence(latest.get("evidence")),
+                "forbidden_actions_count": len(creator.get("forbidden_actions") or [])
+                if isinstance(creator, dict)
+                else 0,
+                "success_metrics_count": len(creator.get("success_metrics") or [])
+                if isinstance(creator, dict)
+                else 0,
+                "recommended_action": classify(name, items),
+                "mission": latest.get("mission"),
+                "latest_evidence": latest.get("evidence"),
+                "runs": [item["run_id"] for item in items[:12]],
+                "policy": "formation_inbox_grouped_no_auto_activation",
+            }
+        )
 
     summary = {
         "total_groups": len(inbox),
@@ -134,8 +153,8 @@ def main() -> int:
         print("\n=== TOP GROUPS ===")
         for item in inbox[:25]:
             print(
-                f'{item["count"]:03d} | {item["recommended_action"]} | '
-                f'pipeline={item["pipeline"]} | evidence={item["evidence_non_null"]} | {item["name"]}'
+                f"{item['count']:03d} | {item['recommended_action']} | "
+                f"pipeline={item['pipeline']} | evidence={item['evidence_non_null']} | {item['name']}"
             )
         print(f"\nwritten: {out}")
     else:

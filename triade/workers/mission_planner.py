@@ -16,7 +16,14 @@ from typing import Any
 from triade.core.error_bus import record_internal_error
 from triade.core.neuron_missions import NeuronMissionStore
 
-MISSION_PLANNER_ERRORS = (sqlite3.Error, OSError, RuntimeError, ValueError, TypeError, KeyError)
+MISSION_PLANNER_ERRORS = (
+    sqlite3.Error,
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    KeyError,
+)
 
 
 @dataclass(slots=True)

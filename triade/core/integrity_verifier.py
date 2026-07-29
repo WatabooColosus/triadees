@@ -35,12 +35,8 @@ def _file_info(p: Path, zone: str) -> dict[str, Any]:
             "relative_path": str(p.relative_to(REPO_ROOT)),
             "sha256": _hash_path(p),
             "size": st.st_size,
-            "created_at": datetime.fromtimestamp(
-                st.st_ctime, tz=UTC
-            ).isoformat(),
-            "modified_at": datetime.fromtimestamp(
-                st.st_mtime, tz=UTC
-            ).isoformat(),
+            "created_at": datetime.fromtimestamp(st.st_ctime, tz=UTC).isoformat(),
+            "modified_at": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat(),
             "exists": True,
             "zone": zone,
         }

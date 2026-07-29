@@ -40,11 +40,15 @@ def find_readiness(report: dict[str, Any], name: str) -> dict[str, Any] | None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Promotion Gate humano para promover neuronas experimentales a stable.")
+    parser = argparse.ArgumentParser(
+        description="Promotion Gate humano para promover neuronas experimentales a stable."
+    )
     parser.add_argument("name", help="Nombre exacto de la neurona.")
     parser.add_argument("--db-path", default="triade/memory/triade.db")
     parser.add_argument("--runs-dir", default="runs")
-    parser.add_argument("--decisions-path", default="runs/stable_promotion_decisions.json")
+    parser.add_argument(
+        "--decisions-path", default="runs/stable_promotion_decisions.json"
+    )
     parser.add_argument("--reason", default="")
     parser.add_argument("--confirm-human", action="store_true")
     parser.add_argument("--limit", type=int, default=300)
@@ -62,7 +66,9 @@ def main() -> int:
         raise SystemExit(f"No existe neurona registrada: {args.name}")
 
     if str(existing.get("status")) != "experimental":
-        raise SystemExit(f"Bloqueado: solo se promueven neuronas experimental. Estado actual: {existing.get('status')}")
+        raise SystemExit(
+            f"Bloqueado: solo se promueven neuronas experimental. Estado actual: {existing.get('status')}"
+        )
 
     report = evaluate_stable_readiness(
         runs_dir=args.runs_dir,
@@ -90,12 +96,18 @@ def main() -> int:
             "policy": "stable_requires_evidence_and_explicit_human_confirmation",
         }
         append_decision(Path(args.decisions_path), decision)
-        print(json.dumps({
-            "ok": False,
-            "blocked": True,
-            "decision": decision,
-            "decisions_path": args.decisions_path,
-        }, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "blocked": True,
+                    "decision": decision,
+                    "decisions_path": args.decisions_path,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 2
 
     updated = registry.update_status(args.name, "stable")
@@ -112,12 +124,18 @@ def main() -> int:
     }
     append_decision(Path(args.decisions_path), decision)
 
-    print(json.dumps({
-        "ok": True,
-        "decision": decision,
-        "updated": updated,
-        "decisions_path": args.decisions_path,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "decision": decision,
+                "updated": updated,
+                "decisions_path": args.decisions_path,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
     return 0
 

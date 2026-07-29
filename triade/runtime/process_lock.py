@@ -21,18 +21,23 @@ class RuntimeProcessLock:
     def payload(pid: int | None = None) -> bytes:
         actual_pid = pid or os.getpid()
         cmdline = RuntimeProcessLock.command_line(actual_pid)
-        return json.dumps({
-            "pid": actual_pid,
-            "command_line": cmdline,
-            "expected_token": "triade",
-            "created_at": datetime.now(UTC).isoformat(),
-        }).encode()
+        return json.dumps(
+            {
+                "pid": actual_pid,
+                "command_line": cmdline,
+                "expected_token": "triade",
+                "created_at": datetime.now(UTC).isoformat(),
+            }
+        ).encode()
 
     @staticmethod
     def command_line(pid: int) -> str:
         try:
-            return Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode(
-                "utf-8", errors="replace"
+            return (
+                Path(f"/proc/{pid}/cmdline")
+                .read_bytes()
+                .replace(b"\0", b" ")
+                .decode("utf-8", errors="replace")
             )
         except OSError:
             return ""
@@ -53,7 +58,8 @@ class RuntimeProcessLock:
             except ValueError:
                 return LockInspection("invalid", None, "unparseable_lock")
             return LockInspection(
-                "live" if cls.pid_alive(pid) else "stale", pid,
+                "live" if cls.pid_alive(pid) else "stale",
+                pid,
                 "legacy_pid_lock" if cls.pid_alive(pid) else "process_missing",
             )
         try:
@@ -65,7 +71,11 @@ class RuntimeProcessLock:
         actual = cls.command_line(pid)
         expected = str(payload.get("expected_token") or "")
         recorded = str(payload.get("command_line") or "")
-        if not actual or (expected and expected not in actual) or (recorded and recorded != actual):
+        if (
+            not actual
+            or (expected and expected not in actual)
+            or (recorded and recorded != actual)
+        ):
             return LockInspection("stale", pid, "process_identity_mismatch")
         return LockInspection("live", pid, "process_identity_verified")
 

@@ -432,8 +432,10 @@ class ExpressionCortex:
         )
 
         response = raw_response
-        if expression_mode == "self_state" or expression_mode in {"natural", "technical_summary"} and (
-            found_dumps or _starts_with_operational_summary(raw_response)
+        if (
+            expression_mode == "self_state"
+            or expression_mode in {"natural", "technical_summary"}
+            and (found_dumps or _starts_with_operational_summary(raw_response))
         ):
             response = _generate_intent_oriented_response(
                 expression_mode=expression_mode,

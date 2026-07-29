@@ -7,7 +7,9 @@ from triade.core.experimental_neuron_evidence import write_experimental_evidence
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Audita evidencia acumulada de neuronas experimentales.")
+    parser = argparse.ArgumentParser(
+        description="Audita evidencia acumulada de neuronas experimentales."
+    )
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--out", default="runs/experimental_neuron_evidence.json")
     parser.add_argument("--limit", type=int, default=200)
@@ -29,10 +31,10 @@ def main() -> int:
 
     for neuron in ledger["neurons"]:
         print(
-            f'{neuron["name"]} | status={neuron["status"]} | '
-            f'domain={neuron["domain"]} | activations={neuron["activation_count"]} | '
-            f'diagnosis={neuron["diagnosis_count"]} | test_plan={neuron["test_plan_count"]} | '
-            f'last_run={neuron["last_run_id"]}'
+            f"{neuron['name']} | status={neuron['status']} | "
+            f"domain={neuron['domain']} | activations={neuron['activation_count']} | "
+            f"diagnosis={neuron['diagnosis_count']} | test_plan={neuron['test_plan_count']} | "
+            f"last_run={neuron['last_run_id']}"
         )
         print("  stable_ready:", neuron["stable_promotion_ready"])
         print("  blockers:", "; ".join(neuron["promotion_blockers"]))

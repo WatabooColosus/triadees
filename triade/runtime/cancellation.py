@@ -20,7 +20,9 @@ class CancellationToken:
 
     @property
     def cancelled(self) -> bool:
-        return self._event.is_set() or bool(self._external_check and self._external_check())
+        return self._event.is_set() or bool(
+            self._external_check and self._external_check()
+        )
 
     def checkpoint(self) -> None:
         if self.cancelled:

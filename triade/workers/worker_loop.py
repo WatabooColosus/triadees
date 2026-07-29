@@ -167,7 +167,9 @@ class WorkerLoop:
         self.scheduler = WorkerScheduler(db_path=self.db_path)
         self.adaptive_scheduler = AdaptiveScheduler(db_path=self.db_path)
         self.resource_ledger = ResourceLedger(db_path=self.db_path)
-        self.backpressure = RuntimeBackpressure(self.resource_ledger, disk_path=self.runs_dir)
+        self.backpressure = RuntimeBackpressure(
+            self.resource_ledger, disk_path=self.runs_dir
+        )
         self.autonomous_tasks = AutonomousTaskStore(db_path=self.db_path)
         self.task_executor = GovernedTaskExecutor(
             quarantine_root=self.runs_dir / "quarantine" / "timeouts"
@@ -298,11 +300,15 @@ class WorkerLoop:
                     drained += 1
                     budget.record(str(leased["task_type"]))
                     if not self.backpressure.allows(
-                        str(leased["task_type"]), effectful=str(leased["task_type"]) not in self.READ_ONLY_TASKS_WITHOUT_BLOOD
+                        str(leased["task_type"]),
+                        effectful=str(leased["task_type"])
+                        not in self.READ_ONLY_TASKS_WITHOUT_BLOOD,
                     ):
                         self.autonomous_tasks.defer(
-                            str(leased["task_id"]), run_ref,
-                            int(leased["lease_generation"]), "resource_backpressure",
+                            str(leased["task_id"]),
+                            run_ref,
+                            int(leased["lease_generation"]),
+                            "resource_backpressure",
                         )
                         continue
                     self._execute_autonomous_task(
@@ -521,15 +527,15 @@ class WorkerLoop:
         if execution.effect_receipt is not None:
             execution.effect_receipt.evidence_refs = [final_result_ref]
         canonical_artifacts.finalize(
-                task=leased,
-                execution=execution.model_dump(mode="json"),
-                result=result,
-                worker_id=run_ref,
-                lease_generation=lease_generation,
-                payload_hash=str(leased["payload_hash"]),
-                status=execution.status,
-                target_path=staging_path,
-            )
+            task=leased,
+            execution=execution.model_dump(mode="json"),
+            result=result,
+            worker_id=run_ref,
+            lease_generation=lease_generation,
+            payload_hash=str(leased["payload_hash"]),
+            status=execution.status,
+            target_path=staging_path,
+        )
         result_ref = final_result_ref
         if execution.status == "completed":
             transitioned = AtomicCompletionCoordinator(self.autonomous_tasks).complete(
@@ -637,12 +643,20 @@ class WorkerLoop:
                 evidence=evidence,
                 resource_usage=resource_usage,
             )
-        success = {"ok", "completed", "candidate_created", "consolidated", "lesson_prepared"}
+        success = {
+            "ok",
+            "completed",
+            "candidate_created",
+            "consolidated",
+            "lesson_prepared",
+        }
         if raw_status not in success:
             raise ValueError(f"unknown_handler_status:{raw_status or '<empty>'}")
         raw_receipt = result.get("effect_receipt")
         effect_applied = raw_status in {
-            "candidate_created", "consolidated", "lesson_prepared"
+            "candidate_created",
+            "consolidated",
+            "lesson_prepared",
         } or bool(raw_receipt and str(raw_receipt.get("action") or "") != "observe")
         if raw_receipt:
             receipt = EffectReceipt.model_validate(raw_receipt)
@@ -674,7 +688,9 @@ class WorkerLoop:
             artifacts=evidence,
             evidence=evidence,
             resource_usage=resource_usage,
-            observation_justification=None if evidence else "pure_observation_without_artifact",
+            observation_justification=None
+            if evidence
+            else "pure_observation_without_artifact",
             postconditions={"effect_expected": effect_applied},
             message=message,
             effect_receipt=receipt,
@@ -694,9 +710,13 @@ class WorkerLoop:
                 task_id, worker_id, lease_generation, result_ref
             )
         if execution.status == "blocked":
-            return self.autonomous_tasks.block(task_id, worker_id, lease_generation, reason)
+            return self.autonomous_tasks.block(
+                task_id, worker_id, lease_generation, reason
+            )
         if execution.status == "skipped":
-            return self.autonomous_tasks.skip(task_id, worker_id, lease_generation, reason)
+            return self.autonomous_tasks.skip(
+                task_id, worker_id, lease_generation, reason
+            )
         if execution.status == "dry_run":
             return self.autonomous_tasks.mark_dry_run(
                 task_id, worker_id, lease_generation, reason
@@ -706,9 +726,13 @@ class WorkerLoop:
                 task_id, worker_id, lease_generation, reason
             )
         if execution.status == "cancelled":
-            return self.autonomous_tasks.cancel(task_id, worker_id, lease_generation, reason)
+            return self.autonomous_tasks.cancel(
+                task_id, worker_id, lease_generation, reason
+            )
         if execution.status == "deferred":
-            return self.autonomous_tasks.defer(task_id, worker_id, lease_generation, reason)
+            return self.autonomous_tasks.defer(
+                task_id, worker_id, lease_generation, reason
+            )
         if execution.status == "timeout":
             return self.autonomous_tasks.mark_timeout(
                 task_id,
@@ -774,7 +798,9 @@ class WorkerLoop:
         blood = check_ollama_blood()
         blood_policy = ollama_blood_policy("worker_cycle", blood)
         safety = self._safety_for_task(task, run_ref)
-        task_dir = task_artifact_dir or artifact_dir / f"task-{task.id}-{task.task_type}"
+        task_dir = (
+            task_artifact_dir or artifact_dir / f"task-{task.id}-{task.task_type}"
+        )
         task_dir.mkdir(parents=True, exist_ok=True)
         if isinstance(task.payload, dict):
             task.payload.setdefault("ollama_blood", blood)
@@ -1028,18 +1054,19 @@ class WorkerLoop:
         return result
 
     @classmethod
-    def _remap_artifact_paths(
-        cls, value: Any, old_prefix: str, new_prefix: str
-    ) -> Any:
+    def _remap_artifact_paths(cls, value: Any, old_prefix: str, new_prefix: str) -> Any:
         if isinstance(value, dict):
             return {
                 key: cls._remap_artifact_paths(item, old_prefix, new_prefix)
                 for key, item in value.items()
             }
         if isinstance(value, list):
-            return [cls._remap_artifact_paths(item, old_prefix, new_prefix) for item in value]
+            return [
+                cls._remap_artifact_paths(item, old_prefix, new_prefix)
+                for item in value
+            ]
         if isinstance(value, str) and value.startswith(old_prefix):
-            return f"{new_prefix}{value[len(old_prefix):]}"
+            return f"{new_prefix}{value[len(old_prefix) :]}"
         return value
 
     def _research_curriculum(
@@ -1137,7 +1164,10 @@ class WorkerLoop:
         content = str(task.payload.get("content") or "")
         authorized_root = str(task.payload.get("authorized_root") or "")
         if not target or not authorized_root:
-            return {"status": "blocked", "reason": "target_and_authorized_root_required"}
+            return {
+                "status": "blocked",
+                "reason": "target_and_authorized_root_required",
+            }
         capability = GovernedFileWriteCapability(
             target, content, task_dir / "rollback", authorized_root=authorized_root
         )
@@ -1148,14 +1178,18 @@ class WorkerLoop:
             capability.rollback()
             rollback = capability.verify_rollback()
             return {
-                "status": "error", "error": "file_postcondition_failed",
+                "status": "error",
+                "error": "file_postcondition_failed",
                 "rollback": rollback.model_dump(mode="json"),
             }
         return {
-            "status": "completed", "task_type": task.task_type,
-            "prepared": prepared, "execution": execution,
+            "status": "completed",
+            "task_type": task.task_type,
+            "prepared": prepared,
+            "execution": execution,
             "effect_receipt": receipt.model_dump(mode="json"),
-            "rollback_spec": capability.rollback_spec(), "run_ref": run_ref,
+            "rollback_spec": capability.rollback_spec(),
+            "run_ref": run_ref,
         }
 
     def _safety_for_task(self, task: WorkerTask, run_ref: str):

@@ -44,7 +44,9 @@ class AtomicArtifactWriter:
     def write_json(cls, path: Path, value: Any) -> None:
         cls.write_bytes(
             path,
-            json.dumps(value, ensure_ascii=False, indent=2, default=str).encode("utf-8"),
+            json.dumps(value, ensure_ascii=False, indent=2, default=str).encode(
+                "utf-8"
+            ),
         )
 
 

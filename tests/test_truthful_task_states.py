@@ -22,7 +22,9 @@ def _running(store: AutonomousTaskStore, key: str) -> dict:
 def test_blocked_task_never_completes(tmp_path: Path) -> None:
     store = AutonomousTaskStore(tmp_path / "tasks.db")
     task = _running(store, "blocked")
-    assert store.block(task["task_id"], "worker", task["lease_generation"], "policy_denied")
+    assert store.block(
+        task["task_id"], "worker", task["lease_generation"], "policy_denied"
+    )
     assert store.get(task["task_id"])["status"] == "blocked"
     assert not store.complete(
         task["task_id"], "worker", task["lease_generation"], "result.json"
@@ -83,8 +85,6 @@ def test_execution_result_invariants() -> None:
             postconditions={"effect_expected": True},
         )
     with pytest.raises(ValidationError, match="failed_result_cannot_claim"):
-        ExecutionResult(
-            status="failed", executed=True, postconditions={"passed": True}
-        )
+        ExecutionResult(status="failed", executed=True, postconditions={"passed": True})
     with pytest.raises(ValidationError, match="dry_run_cannot_apply_effect"):
         ExecutionResult(status="dry_run", executed=False, effect_applied=True)

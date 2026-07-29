@@ -79,16 +79,23 @@ def test_no_stale_lease_completion(tmp_path: Path) -> None:
 def test_no_learning_without_evaluation() -> None:
     with pytest.raises(ValidationError):
         LearningValidationReceipt(
-            learning_id="x", status="validated", hypothesis="h", producer_id="p",
-            created_at="now", updated_at="now",
+            learning_id="x",
+            status="validated",
+            hypothesis="h",
+            producer_id="p",
+            created_at="now",
+            updated_at="now",
         )
 
 
 def test_no_rollback_claim_without_rollback_test() -> None:
     with pytest.raises(ValidationError):
         EffectReceipt(
-            action="rollback", target="x", postcondition={"passed": True},
-            verified=True, verifier="claim",
+            action="rollback",
+            target="x",
+            postcondition={"passed": True},
+            verified=True,
+            verifier="claim",
         )
 
 
@@ -130,7 +137,9 @@ def test_no_autonomous_evidence_presented_as_external(tmp_path: Path) -> None:
 def test_no_timeout_that_leaves_process_running(tmp_path: Path) -> None:
     delayed = tmp_path / "late.txt"
     outcome = GovernedTaskExecutor(tmp_path / "quarantine").execute_callable(
-        _late_effect, args=(str(delayed),), timeout_seconds=0.1,
+        _late_effect,
+        args=(str(delayed),),
+        timeout_seconds=0.1,
         artifact_dir=tmp_path / "task",
     )
     assert outcome.status == "timeout"

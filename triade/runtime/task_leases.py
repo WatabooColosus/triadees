@@ -11,8 +11,14 @@ from typing import Any
 from uuid import uuid4
 
 ACTIVE = {
-    "pending", "queued", "leased", "running", "retry_wait", "recovered",
-    "deferred", "completion_uncertain",
+    "pending",
+    "queued",
+    "leased",
+    "running",
+    "retry_wait",
+    "recovered",
+    "deferred",
+    "completion_uncertain",
 }
 TERMINAL_SUCCESS = {"completed"}
 TERMINAL_NON_SUCCESS = {"blocked", "skipped", "dry_run", "observed", "cancelled"}
@@ -241,8 +247,12 @@ class AutonomousTaskStore:
         self, task_id: str, worker_id: str, lease_generation: int, result_ref: str
     ) -> bool:
         return self._transition(
-            task_id, worker_id, lease_generation, "completion_uncertain",
-            reason="artifact_publication_pending", result_ref=result_ref,
+            task_id,
+            worker_id,
+            lease_generation,
+            "completion_uncertain",
+            reason="artifact_publication_pending",
+            result_ref=result_ref,
         )
 
     def finalize_completion(
@@ -280,10 +290,14 @@ class AutonomousTaskStore:
         for row in rows:
             ref = str(row["result_ref"] or "")
             if ref and Path(ref).is_file():
-                completed += int(self.finalize_completion(
-                    str(row["task_id"]), str(row["worker_id"]),
-                    int(row["lease_generation"]), ref,
-                ))
+                completed += int(
+                    self.finalize_completion(
+                        str(row["task_id"]),
+                        str(row["worker_id"]),
+                        int(row["lease_generation"]),
+                        ref,
+                    )
+                )
             else:
                 failed += 1
         return {"completed": completed, "still_uncertain": failed}

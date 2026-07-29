@@ -58,7 +58,10 @@ def test_stop_cancels_live_child_process(tmp_path: Path) -> None:
         return cancelled
 
     outcome = GovernedTaskExecutor(tmp_path / "quarantine").execute_callable(
-        _slow, args=(10.0,), timeout_seconds=20, artifact_dir=tmp_path / "task",
+        _slow,
+        args=(10.0,),
+        timeout_seconds=20,
+        artifact_dir=tmp_path / "task",
         cancellation_check=stop_requested,
     )
     assert outcome.status == "cancelled"

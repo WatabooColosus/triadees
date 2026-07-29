@@ -27,7 +27,9 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-DEFAULT_STATE_PATH = Path(os.environ.get("TRIADE_MOBILE_STATE", "mobile_node_state.json"))
+DEFAULT_STATE_PATH = Path(
+    os.environ.get("TRIADE_MOBILE_STATE", "mobile_node_state.json")
+)
 
 
 @dataclass
@@ -40,11 +42,13 @@ class AgentConfig:
     battery_min_percent: int = 25
     admin_enabled: bool = False
     admin_root: str = "."
-    allowed_commands: dict[str, list[str]] = field(default_factory=lambda: {
-        "python_version": ["python", "--version"],
-        "whoami": ["whoami"],
-        "pwd": ["pwd"],
-    })
+    allowed_commands: dict[str, list[str]] = field(
+        default_factory=lambda: {
+            "python_version": ["python", "--version"],
+            "whoami": ["whoami"],
+            "pwd": ["pwd"],
+        }
+    )
 
 
 @dataclass
@@ -84,7 +88,11 @@ class MobileNodeAgent:
 
     def start(self) -> None:
         for index in range(self.config.max_workers):
-            worker = threading.Thread(target=self._worker_loop, name=f"triade-mobile-worker-{index}", daemon=True)
+            worker = threading.Thread(
+                target=self._worker_loop,
+                name=f"triade-mobile-worker-{index}",
+                daemon=True,
+            )
             worker.start()
             self.workers.append(worker)
 
@@ -154,18 +162,26 @@ class MobileNodeAgent:
         if not target.is_dir():
             raise NotADirectoryError(str(rel_path))
         entries = []
-        for item in sorted(target.iterdir(), key=lambda path: (not path.is_dir(), path.name.lower())):
+        for item in sorted(
+            target.iterdir(), key=lambda path: (not path.is_dir(), path.name.lower())
+        ):
             try:
                 stat = item.stat()
             except OSError:
                 continue
-            entries.append({
-                "name": item.name,
-                "path": str(item.relative_to(root)),
-                "type": "dir" if item.is_dir() else "file",
-                "size": stat.st_size,
-            })
-        return {"root": str(root), "path": str(target.relative_to(root)), "entries": entries}
+            entries.append(
+                {
+                    "name": item.name,
+                    "path": str(item.relative_to(root)),
+                    "type": "dir" if item.is_dir() else "file",
+                    "size": stat.st_size,
+                }
+            )
+        return {
+            "root": str(root),
+            "path": str(target.relative_to(root)),
+            "entries": entries,
+        }
 
     def read_file(self, rel_path: str, max_bytes: int = 200_000) -> dict[str, Any]:
         target = self._resolve_admin_path(rel_path)
@@ -183,7 +199,14 @@ class MobileNodeAgent:
         command = self.config.allowed_commands.get(name)
         if not command:
             raise PermissionError(f"Comando no permitido: {name}")
-        result = subprocess.run(command, cwd=self._admin_root(), capture_output=True, text=True, timeout=20, check=False)
+        result = subprocess.run(
+            command,
+            cwd=self._admin_root(),
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
         return {
             "command": name,
             "argv": command,
@@ -219,8 +242,13 @@ class MobileNodeAgent:
             if job.task == "echo":
                 result = {"echo": request.get("payload", {})}
             elif job.task == "sha256":
-                text = json.dumps(request.get("payload", {}), sort_keys=True, ensure_ascii=False)
-                result = {"sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(), "bytes": len(text.encode("utf-8"))}
+                text = json.dumps(
+                    request.get("payload", {}), sort_keys=True, ensure_ascii=False
+                )
+                result = {
+                    "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                    "bytes": len(text.encode("utf-8")),
+                }
             else:
                 result = self._benchmark(float(request.get("seconds") or 2.0))
             with self.lock:
@@ -288,7 +316,9 @@ def load_config(path: Path) -> AgentConfig:
 
 
 def save_config(config: AgentConfig, path: Path) -> None:
-    path.write_text(json.dumps(asdict(config), ensure_ascii=False, indent=2), encoding="utf-8")
+    path.write_text(
+        json.dumps(asdict(config), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 config = load_config(DEFAULT_STATE_PATH)
@@ -305,7 +335,11 @@ def require_token(authorization: str | None) -> None:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "node_id": agent.config.node_id, "mode": "mobile-node-agent"}
+    return {
+        "status": "ok",
+        "node_id": agent.config.node_id,
+        "mode": "mobile-node-agent",
+    }
 
 
 @app.get("/capabilities")
@@ -321,13 +355,17 @@ def get_config(authorization: str | None = Header(default=None)) -> dict[str, An
 
 
 @app.post("/config")
-def update_config(request: ConfigRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def update_config(
+    request: ConfigRequest, authorization: str | None = Header(default=None)
+) -> dict[str, Any]:
     require_token(authorization)
     return asdict(agent.update_config(request))
 
 
 @app.post("/jobs")
-def submit_job(request: JobRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def submit_job(
+    request: JobRequest, authorization: str | None = Header(default=None)
+) -> dict[str, Any]:
     require_token(authorization)
     try:
         return asdict(agent.submit(request))
@@ -336,7 +374,9 @@ def submit_job(request: JobRequest, authorization: str | None = Header(default=N
 
 
 @app.get("/jobs/{job_id}")
-def get_job(job_id: str, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def get_job(
+    job_id: str, authorization: str | None = Header(default=None)
+) -> dict[str, Any]:
     require_token(authorization)
     job = agent.get_job(job_id)
     if job is None:
@@ -356,7 +396,9 @@ def admin_page() -> str:
 
 
 @app.get("/admin/files")
-def admin_files(path: str = ".", authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def admin_files(
+    path: str = ".", authorization: str | None = Header(default=None)
+) -> dict[str, Any]:
     require_admin(authorization)
     try:
         return agent.list_files(path)
@@ -365,7 +407,9 @@ def admin_files(path: str = ".", authorization: str | None = Header(default=None
 
 
 @app.get("/admin/files/read")
-def admin_read_file(path: str, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def admin_read_file(
+    path: str, authorization: str | None = Header(default=None)
+) -> dict[str, Any]:
     require_admin(authorization)
     try:
         return agent.read_file(path)
@@ -374,7 +418,9 @@ def admin_read_file(path: str, authorization: str | None = Header(default=None))
 
 
 @app.post("/admin/commands/{name}")
-def admin_run_command(name: str, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def admin_run_command(
+    name: str, authorization: str | None = Header(default=None)
+) -> dict[str, Any]:
     require_admin(authorization)
     try:
         return agent.run_allowed_command(name)
@@ -388,9 +434,18 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8790)
     parser.add_argument("--token", default=None)
     parser.add_argument("--node-id", default=None)
-    parser.add_argument("--usage", type=int, default=None, help="Porcentaje objetivo de uso cooperativo, 5-90")
-    parser.add_argument("--admin-root", default=None, help="Carpeta raiz autorizada para lectura web")
-    parser.add_argument("--admin-off", action="store_true", help="Desactiva endpoints admin")
+    parser.add_argument(
+        "--usage",
+        type=int,
+        default=None,
+        help="Porcentaje objetivo de uso cooperativo, 5-90",
+    )
+    parser.add_argument(
+        "--admin-root", default=None, help="Carpeta raiz autorizada para lectura web"
+    )
+    parser.add_argument(
+        "--admin-off", action="store_true", help="Desactiva endpoints admin"
+    )
     args = parser.parse_args()
 
     if args.token:

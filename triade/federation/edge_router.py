@@ -106,9 +106,7 @@ class EdgeRouter:
             )
         return nodes
 
-    def select_node(
-        self, task: str = "android_local_generate"
-    ) -> EdgeNodeLease | None:
+    def select_node(self, task: str = "android_local_generate") -> EdgeNodeLease | None:
         for node in self.list_edge_llm_nodes():
             if not node.is_ready:
                 continue

@@ -10,12 +10,18 @@ from triade.learning.validation import (
 
 def _candidate(**overrides) -> LearningValidationReceipt:
     values = {
-        "learning_id": "learn-1", "status": "regression_check_pending",
-        "hypothesis": "change improves metric", "producer_id": "trainer",
-        "baseline_ref": "baseline.json", "evaluator_id": "independent-evaluator",
-        "evaluation_set_ref": "held-out.json", "before_score": 0.5,
-        "after_score": 0.7, "application_ref": "run-after.json",
-        "rollback_ref": "rollback.json", "rollback_verified": True,
+        "learning_id": "learn-1",
+        "status": "regression_check_pending",
+        "hypothesis": "change improves metric",
+        "producer_id": "trainer",
+        "baseline_ref": "baseline.json",
+        "evaluator_id": "independent-evaluator",
+        "evaluation_set_ref": "held-out.json",
+        "before_score": 0.5,
+        "after_score": 0.7,
+        "application_ref": "run-after.json",
+        "rollback_ref": "rollback.json",
+        "rollback_verified": True,
         "created_at": "2026-01-01T00:00:00+00:00",
         "updated_at": "2026-01-01T00:00:00+00:00",
     }
@@ -24,7 +30,9 @@ def _candidate(**overrides) -> LearningValidationReceipt:
 
 
 def test_observation_is_not_learning(tmp_path: Path) -> None:
-    assert LearningValidationService(tmp_path / "db.sqlite").observe().status == "observed"
+    assert (
+        LearningValidationService(tmp_path / "db.sqlite").observe().status == "observed"
+    )
 
 
 def test_hypothesis_is_not_learning(tmp_path: Path) -> None:

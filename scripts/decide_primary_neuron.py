@@ -58,19 +58,21 @@ def latest_proposals(runs_dir: Path, limit: int = 100) -> list[dict[str, Any]]:
         if quality.get("contract_complete") is None:
             continue
 
-        rows.append({
-            "run_id": run_path.name,
-            "name": name,
-            "domain": candidate.get("domain"),
-            "registered_as": candidate.get("registered_as"),
-            "activation": candidate.get("activation"),
-            "score": quality.get("score") or assessment.get("score"),
-            "status": quality.get("status") or assessment.get("assessed_status"),
-            "contract_complete": quality.get("contract_complete"),
-            "required_human_review": quality.get("required_human_review"),
-            "warnings": assessment.get("warnings") or [],
-            "policy": candidate.get("policy"),
-        })
+        rows.append(
+            {
+                "run_id": run_path.name,
+                "name": name,
+                "domain": candidate.get("domain"),
+                "registered_as": candidate.get("registered_as"),
+                "activation": candidate.get("activation"),
+                "score": quality.get("score") or assessment.get("score"),
+                "status": quality.get("status") or assessment.get("assessed_status"),
+                "contract_complete": quality.get("contract_complete"),
+                "required_human_review": quality.get("required_human_review"),
+                "warnings": assessment.get("warnings") or [],
+                "policy": candidate.get("policy"),
+            }
+        )
 
     return rows
 
@@ -84,13 +86,19 @@ def append_decision(path: Path, decision: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Decision Gate humano para propuestas primarias de neuronas.")
-    parser.add_argument("action", choices=["list", "approve", "reject", "request-changes"])
+    parser = argparse.ArgumentParser(
+        description="Decision Gate humano para propuestas primarias de neuronas."
+    )
+    parser.add_argument(
+        "action", choices=["list", "approve", "reject", "request-changes"]
+    )
     parser.add_argument("name", nargs="?", default="")
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--db-path", default="triade/memory/triade.db")
     parser.add_argument("--reason", default="")
-    parser.add_argument("--decisions-path", default="runs/primary_neuron_decisions.json")
+    parser.add_argument(
+        "--decisions-path", default="runs/primary_neuron_decisions.json"
+    )
     parser.add_argument("--limit", type=int, default=100)
     args = parser.parse_args()
 
@@ -105,10 +113,10 @@ def main() -> int:
 
         for p in proposals:
             print(
-                f'{p["name"]} | domain={p["domain"]} | '
-                f'score={p["score"]} | status={p["status"]} | '
-                f'contract_complete={p["contract_complete"]} | '
-                f'human={p["required_human_review"]} | run={p["run_id"]}'
+                f"{p['name']} | domain={p['domain']} | "
+                f"score={p['score']} | status={p['status']} | "
+                f"contract_complete={p['contract_complete']} | "
+                f"human={p['required_human_review']} | run={p['run_id']}"
             )
             if p.get("warnings"):
                 print("  warnings:", "; ".join(map(str, p["warnings"][:4])))
@@ -144,12 +152,18 @@ def main() -> int:
     }
     append_decision(Path(args.decisions_path), decision)
 
-    print(json.dumps({
-        "ok": True,
-        "decision": decision,
-        "updated": updated,
-        "decisions_path": args.decisions_path,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "decision": decision,
+                "updated": updated,
+                "decisions_path": args.decisions_path,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
     return 0
 
