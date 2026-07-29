@@ -63,6 +63,7 @@ class AdaptiveScheduler:
         "goal_install": 0.0,
         "goal_lora_train": 0.0,
         "encrypted_backup": 86400.0,
+        "neuron_education_cycle": 900.0,
     }
 
     EMA_ALPHA = 0.3
@@ -171,6 +172,8 @@ class AdaptiveScheduler:
         if task_type in {"pulse_check", "encrypted_backup"}:
             return "maintenance"
         if task_type in {"research_curriculum", "goal_research"}:
+            return "research"
+        if task_type == "neuron_education_cycle":
             return "research"
         if task_type in {"goal_lora_train", "stable_consolidation_review"}:
             return "deep_evaluation"

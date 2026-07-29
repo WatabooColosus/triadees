@@ -121,3 +121,10 @@ def engineering_rollback(evolution_id: str, request: EvolutionApproval,
 def engineering_watchdog() -> dict[str, Any]:
     from triade.evolution.engineering_worker import EngineeringEvolutionWorker
     return EngineeringEvolutionWorker().watchdog()
+
+
+@router.get("/education/status")
+def education_status() -> dict[str, Any]:
+    from triade.neurons import NeuronEducationCycle
+
+    return NeuronEducationCycle().status()

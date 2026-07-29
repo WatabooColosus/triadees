@@ -261,6 +261,7 @@ class WorkerLoop:
                     "goal_install": self._goal_install,
                     "goal_lora_train": self._goal_lora_train,
                     "encrypted_backup": self._encrypted_backup,
+                    "neuron_education_cycle": self._neuron_education_cycle,
                 }
                 result = handlers[task.task_type](task, run_ref, task_dir, config)
                 if time.monotonic() - started > config.task_timeout:
@@ -326,8 +327,16 @@ class WorkerLoop:
             ).fetchone()
         if row is None:
             return {"status": "no_evidence", "reason": "no_neuronal_gap"}
+        domain_value = str(row["domain"] or "general")
+        domain_queries = {
+            "vision_image_understanding": "visión artificial procesamiento de imágenes OpenCV Pillow",
+            "code_repair": "ingeniería de software depuración pruebas reproducibles",
+            "system_governance": "gobernanza de sistemas software auditoría trazabilidad",
+        }
+        clean_domain = domain_queries.get(domain_value, domain_value.replace("_", " "))
+        clean_name = str(row["name"] or "").replace("neurona-", "").replace("-", " ")
         delegated = WorkerTask(task_type="goal_research", payload={
-            "request": f"Fuentes técnicas actuales para cerrar la laguna de {row['name']} en {row['domain']}",
+            "request": f"{clean_domain} {clean_name} documentación técnica fundamentos",
             "related_neuron_id": int(row["id"]), "curriculum": True,
         })
         result = self._goal_research(delegated, run_ref, task_dir, config)
@@ -354,6 +363,15 @@ class WorkerLoop:
             return {"status": "error", "reason": "backup_verification_failed", "verification": verified}
         return {"status": "completed", "backup": created, "verification": verified,
                 "retention": backup.enforce_retention()}
+
+    def _neuron_education_cycle(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        from triade.neurons import NeuronEducationCycle
+
+        result = NeuronEducationCycle(self.db_path).run_once()
+        result["run_ref"] = run_ref
+        result["stable_memory_written"] = False
+        result["stable_neuron_promotion"] = False
+        return result
 
     def _safety_for_task(self, task: WorkerTask, run_ref: str):
         signals = SignalPacket(run_id=run_ref, intent="worker", tone="operational", urgency="low", risk="low", pv7={}, notes=[task.task_type])

@@ -15,6 +15,11 @@ MAX_RESPONSE_BYTES = 350_000
 MAX_SOURCES = 3
 USER_AGENT = "TriadeOmega/1.0 guarded-research"
 
+CURATED_PUBLIC_SOURCES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("vision", "visual", "imagen", "opencv"), "https://docs.opencv.org/4.x/d1/dfb/intro.html"),
+    (("vision", "visual", "imagen", "pillow"), "https://pillow.readthedocs.io/en/stable/handbook/tutorial.html"),
+)
+
 
 def requests_web_research(text: str) -> bool:
     normalized = text.lower()
@@ -45,7 +50,10 @@ def guarded_web_research(query: str, *, timeout: int = 8, max_sources: int = MAX
         search_error = ""
 
     if not urls:
-        sources = _wikipedia_sources(clean_query, timeout=timeout, max_sources=max_sources)
+        sources = _curated_sources(clean_query, timeout=timeout, max_sources=max_sources)
+        remaining = max(0, max_sources - len(sources))
+        if remaining:
+            sources.extend(_wikipedia_sources(clean_query, timeout=timeout, max_sources=remaining))
         return {
             "status": "ok" if sources else "degraded",
             "query": clean_query,
@@ -77,6 +85,25 @@ def guarded_web_research(query: str, *, timeout: int = 8, max_sources: int = MAX
         "policy": "explicit_request_public_http_no_javascript_evidence_only",
         "stable_memory_written": False,
     }
+
+
+def _curated_sources(query: str, *, timeout: int, max_sources: int) -> list[dict[str, str]]:
+    """Documentación primaria autorizada por coincidencia explícita de dominio."""
+    normalized = query.lower()
+    result: list[dict[str, str]] = []
+    for keywords, url in CURATED_PUBLIC_SOURCES:
+        if not any(keyword in normalized for keyword in keywords):
+            continue
+        try:
+            raw = _download(url, timeout=timeout).decode("utf-8", errors="replace")
+            excerpt = _visible_text(raw)[:1800]
+            if len(excerpt) >= 120:
+                result.append({"url": url, "title": _title(raw), "excerpt": excerpt, "source_type": "primary_documentation"})
+        except Exception:
+            continue
+        if len(result) >= max_sources:
+            break
+    return result
 
 
 def _wikipedia_sources(query: str, *, timeout: int, max_sources: int) -> list[dict[str, str]]:

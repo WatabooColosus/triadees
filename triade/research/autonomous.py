@@ -44,22 +44,33 @@ LOCAL_IDENTITY = re.compile(
 class AutonomousResearchEngine:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db", *, policy: AutonomousResearchPolicy | None = None,
                  search_provider: Callable[..., dict[str, Any]] = guarded_web_research) -> None:
-        self.db_path = Path(db_path); self.policy = policy or AutonomousResearchPolicy(); self.search_provider = search_provider
-        with self._connect() as conn: conn.executescript(SCHEMA)
+        self.db_path = Path(db_path)
+        self.policy = policy or AutonomousResearchPolicy()
+        self.search_provider = search_provider
+        with self._connect() as conn:
+            conn.executescript(SCHEMA)
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path); conn.row_factory = sqlite3.Row; return conn
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
 
     def should_research(self, query: str, *, memory_confidence: float, authorized_matches: int,
                         model_uncertain: bool = False) -> tuple[bool, str]:
-        if not self.policy.enabled: return False, "disabled"
-        if SENSITIVE.search(query): return False, "sensitive_query"
-        if requests_web_research(query): return True, "explicit_request"
-        if LOCAL_IDENTITY.search(query): return False, "local_identity_question"
-        if not FACTUAL.search(query): return False, "not_factual"
+        if not self.policy.enabled:
+            return False, "disabled"
+        if SENSITIVE.search(query):
+            return False, "sensitive_query"
+        if requests_web_research(query):
+            return True, "explicit_request"
+        if LOCAL_IDENTITY.search(query):
+            return False, "local_identity_question"
+        if not FACTUAL.search(query):
+            return False, "not_factual"
         if authorized_matches > 0 and memory_confidence >= self.policy.minimum_memory_confidence and not model_uncertain:
             return False, "memory_sufficient"
-        if self._queries_today() >= self.policy.maximum_queries_per_day: return False, "daily_quota"
+        if self._queries_today() >= self.policy.maximum_queries_per_day:
+            return False, "daily_quota"
         return True, "knowledge_gap"
 
     def research(self, query: str, *, trigger: str = "knowledge_gap") -> dict[str, Any]:
@@ -71,10 +82,12 @@ class AutonomousResearchEngine:
         sources = []
         query_terms = self._terms(query)
         for raw in result.get("sources", []):
-            excerpt = str(raw.get("excerpt", "")); title = str(raw.get("title", ""))
+            excerpt = str(raw.get("excerpt", ""))
+            title = str(raw.get("title", ""))
             overlap = query_terms & self._terms(title + " " + excerpt)
             relevance = len(overlap) / max(1, len(query_terms))
-            if len(excerpt) < self.policy.minimum_excerpt_chars or relevance < 0.20:
+            minimum_relevance = 0.10 if raw.get("source_type") == "primary_documentation" else 0.20
+            if len(excerpt) < self.policy.minimum_excerpt_chars or relevance < minimum_relevance:
                 continue
             source = {**raw, "retrieved_at": datetime.now(timezone.utc).isoformat(),
                       "relevance_score": round(relevance, 3),
@@ -89,7 +102,8 @@ class AutonomousResearchEngine:
                 content=str(source.get("excerpt", "")), source_type="web", source_ref=str(source.get("url", "")),
                 title=str(source.get("title", "Fuente web")), domain="web_research", risk_level="low",
             )
-            if payload.get("candidate_id"): candidates.append(payload["candidate_id"])
+            if payload.get("candidate_id"):
+                candidates.append(payload["candidate_id"])
         canonical = json.dumps(sources, ensure_ascii=False, sort_keys=True)
         digest = hashlib.sha256(canonical.encode()).hexdigest()
         rid = f"web-{digest[:16]}-{int(datetime.now(timezone.utc).timestamp())}"
@@ -126,6 +140,7 @@ class AutonomousResearchEngine:
 
     @staticmethod
     def _reputation(url: str) -> str:
-        host=url.lower()
-        if any(x in host for x in (".gov", ".edu", "docs.", "readthedocs", "wikipedia.org")): return "established"
+        host = url.lower()
+        if any(x in host for x in (".gov", ".edu", "docs.", "readthedocs", "wikipedia.org")):
+            return "established"
         return "unrated"

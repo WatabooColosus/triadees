@@ -81,11 +81,12 @@ def test_scheduler_with_active_missions(tmp_path: Path) -> None:
     assert len(mission_tasks) >= 1
 
 
-def test_scheduler_task_types_unchanged() -> None:
+def test_scheduler_task_types_include_governed_education() -> None:
     scheduler = WorkerScheduler(db_path=":memory:")
     types = scheduler.task_types()
-    assert len(types) == 17
+    assert len(types) == 18
     assert "pulse_check" in types
     assert "neuron_candidate_formation" in types
     assert "research_curriculum" in types
     assert "encrypted_backup" in types
+    assert "neuron_education_cycle" in types

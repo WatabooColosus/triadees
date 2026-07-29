@@ -10,6 +10,9 @@
 - Recuperación con snapshot, auditoría y presupuesto.
 - Unit files separados para API, workers, watchdog y backup.
 - Instalador systemd dry-run por defecto; no instala, habilita ni arranca automáticamente.
+- Ciclo continuo de educación neuronal con currículo, competencias, procedencia, independencia mínima y repetición espaciada.
+- Investigación primaria inicial autorizada para visión mediante documentación OpenCV y Pillow.
+- Estado observable en `/api/governance/education/status`.
 
 ## Parcial
 
@@ -22,7 +25,7 @@
 - CuriosityEngine y KnowledgeGapStore.
 - Investigación multifuente completa y extracción de claims.
 - Máquina unificada de conocimiento.
-- Currículo, competencias y repetición espaciada.
+- Evaluación educativa independiente, transferencia y aplicación medida en runs.
 - Benchmark de memoria y olvido completamente reversible.
 - Flujo LoRA completo solicitado.
 - Creación de las diez neuronas funcionales.

@@ -13,9 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from triade.core.contracts import utc_now
 from triade.core.error_bus import record_internal_error
-from triade.core.neuron_missions import NeuronMissionStore, NeuronMission
+from triade.core.neuron_missions import NeuronMissionStore
 
 
 @dataclass(slots=True)
@@ -66,6 +65,7 @@ class MissionPlanner:
         tasks.extend(self._plan_system_debt())
         tasks.extend(self._plan_neuron_formation())
         tasks.extend(self._plan_research_curriculum())
+        tasks.extend(self._plan_neuron_education())
         if os.getenv("TRIADE_BACKUP_KEY"):
             tasks.append(PlannedTask(task_type="encrypted_backup", priority=80,
                                      reason="Backup diario cifrado y restaurable",
@@ -91,6 +91,30 @@ class MissionPlanner:
                                     source="neural_gap_curriculum", planner_score=0.65)]
         except Exception as exc:
             record_internal_error("mission_planner.research_curriculum", exc, db_path=self.db_path)
+        return []
+
+    def _plan_neuron_education(self) -> list[PlannedTask]:
+        """Educa solo neuronas experimentales con revisión vencida o sin competencia."""
+        try:
+            with self._connect() as conn:
+                table = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='neuron_competencies'"
+                ).fetchone()
+                if table:
+                    row = conn.execute(
+                        """SELECT COUNT(*) cnt FROM neurons n
+                        LEFT JOIN neuron_competencies c ON c.neuron_id=n.id AND c.domain=n.domain
+                        WHERE n.status='experimental' AND (c.next_review IS NULL OR c.next_review<=datetime('now'))"""
+                    ).fetchone()
+                else:
+                    row = conn.execute("SELECT COUNT(*) cnt FROM neurons WHERE status='experimental'").fetchone()
+            count = int(row["cnt"] or 0) if row else 0
+            if count:
+                return [PlannedTask(task_type="neuron_education_cycle", priority=42,
+                                    reason=f"{count} neuronas experimentales requieren educación o revisión",
+                                    source="governed_neuron_education", planner_score=0.7)]
+        except Exception as exc:
+            record_internal_error("mission_planner.neuron_education", exc, db_path=self.db_path)
         return []
 
     def _plan_baseline(self) -> list[PlannedTask]:

@@ -1,0 +1,103 @@
+"""Ciclo educativo continuo: diagnostica y prepara aprendizaje verificable."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from .competency_store import CompetencyStore, utc_now
+from .curriculum import relevant_material, source_domain
+from .spaced_repetition import next_review_for
+
+
+class NeuronEducationCycle:
+    def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
+        self.store = CompetencyStore(db_path)
+
+    def run_once(self) -> dict[str, Any]:
+        target = self._target()
+        if target is None:
+            return {"status": "no_target", "learned": False}
+        neuron_id = int(target["id"])
+        domain = str(target["domain"] or "general")
+        objective = str(target["mission"] or target["name"])
+        competency = self.store.ensure_competency(neuron_id, domain, f"competencia:{domain}")
+        curriculum = self.store.ensure_curriculum(neuron_id, target.get("mission_id"), domain, objective)
+        materials = relevant_material(self._candidate_materials(), objective, domain)
+        independent = len({source_domain(str(item["source_ref"])) for item in materials})
+        refs = [str(item["source_ref"]) for item in materials]
+        if independent < 2:
+            result = "insufficient_material"
+            session = self.store.record_session(
+                curriculum_id=str(curriculum["curriculum_id"]), neuron_id=neuron_id,
+                competency_id=str(competency["competency_id"]), state="material_insufficient",
+                material_refs=refs, independent_sources=independent,
+                lesson={"objective": objective, "status": "not_created"}, exercise={},
+                evaluation={"passed": False, "reason": "two_independent_relevant_sources_required"}, result=result,
+            )
+            self._schedule(str(competency["competency_id"]), result, success=False)
+            return {"status": "needs_research", "learned": False, "neuron": target["name"],
+                    "domain": domain, "independent_sources": independent, "material_refs": refs, **session}
+
+        lesson = {"objective": objective, "claims": [str(item["content"])[:280] for item in materials[:3]],
+                  "provenance": refs, "truth_status": "candidate"}
+        exercise = {"type": "retrieval_and_application", "prompt": f"Explica y aplica: {objective}",
+                    "evaluation_role": "independent_required"}
+        session = self.store.record_session(
+            curriculum_id=str(curriculum["curriculum_id"]), neuron_id=neuron_id,
+            competency_id=str(competency["competency_id"]), state="lesson_prepared",
+            material_refs=refs, independent_sources=independent, lesson=lesson, exercise=exercise,
+            evaluation={"passed": False, "reason": "independent_evaluation_and_run_application_pending"},
+            result="uncertain",
+        )
+        self._schedule(str(competency["competency_id"]), "uncertain", success=False)
+        return {"status": "lesson_prepared", "learned": False, "neuron": target["name"], "domain": domain,
+                "independent_sources": independent, "material_refs": refs, **session}
+
+    def status(self) -> dict[str, Any]:
+        with self.store.connect() as conn:
+            counts = {str(row["state"]): int(row["count"]) for row in conn.execute(
+                "SELECT state,COUNT(*) count FROM neuron_education_sessions GROUP BY state"
+            )}
+            recent = [dict(row) for row in conn.execute(
+                """SELECT session_id,neuron_id,state,independent_source_count,result,created_at
+                FROM neuron_education_sessions ORDER BY created_at DESC LIMIT 20"""
+            )]
+            due = int(conn.execute(
+                "SELECT COUNT(*) FROM neuron_competencies WHERE next_review IS NULL OR next_review<=?", (utc_now(),)
+            ).fetchone()[0])
+        return {"status": "ok", "mode": "governed_continuous_education", "session_counts": counts,
+                "due_competencies": due, "recent_sessions": recent,
+                "truth_policy": "learned_requires_independent_evaluation_run_application_and_measured_improvement"}
+
+    def _target(self) -> dict[str, Any] | None:
+        with self.store.connect() as conn:
+            row = conn.execute(
+                """SELECT n.id,n.name,n.domain,n.mission,m.id mission_id,
+                COALESCE(c.retention_score,0) retention_score, c.next_review
+                FROM neurons n LEFT JOIN neuron_missions m ON m.neuron_id=n.id
+                LEFT JOIN neuron_competencies c ON c.neuron_id=n.id AND c.domain=n.domain
+                WHERE n.status='experimental' AND (c.next_review IS NULL OR c.next_review<=?)
+                ORDER BY retention_score ASC,n.id ASC LIMIT 1""",
+                (utc_now(),),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def _candidate_materials(self) -> list[dict[str, Any]]:
+        with self.store.connect() as conn:
+            rows = conn.execute(
+                """SELECT candidate_id,title,content,domain,source_type,source_ref,status
+                FROM learning_queue WHERE status IN ('cross_checked','internally_checked','externally_supported')
+                AND source_type IN ('repo','document','web','node') AND source_ref IS NOT NULL
+                ORDER BY updated_at DESC LIMIT 300"""
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def _schedule(self, competency_id: str, result: str, *, success: bool) -> None:
+        review = next_review_for(result, changing_knowledge=True)
+        with self.store.connect() as conn:
+            conn.execute(
+                """UPDATE neuron_competencies SET last_reviewed=?,next_review=?,
+                success_count=success_count+?,failure_count=failure_count+?,updated_at=? WHERE competency_id=?""",
+                (utc_now(), review, int(success), int(not success), utc_now(), competency_id),
+            )
