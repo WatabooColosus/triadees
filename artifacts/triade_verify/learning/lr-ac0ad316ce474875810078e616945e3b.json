@@ -1,0 +1,172 @@
+{
+  "learning_receipt_id": "lr-ac0ad316ce474875810078e616945e3b",
+  "artifact_id": "la-0be303ccbfef4529b3094ad0ebeb828b",
+  "gap_ref": "gap:unicode-command-failure",
+  "research_ref": "research:unicode-normalization-standard",
+  "baseline": {
+    "score": 0.0,
+    "successes": 0,
+    "total": 1,
+    "observations": [
+      {
+        "input": "ｓｔａｔｕｓ",
+        "expected": "status",
+        "observed": null
+      }
+    ]
+  },
+  "post_measurement": {
+    "score": 1.0,
+    "successes": 1,
+    "total": 1,
+    "observations": [
+      {
+        "input": "ｓｔａｔｕｓ",
+        "expected": "status",
+        "observed": "status"
+      }
+    ]
+  },
+  "repetitions": [
+    {
+      "score": 1.0,
+      "successes": 1,
+      "total": 1,
+      "observations": [
+        {
+          "input": "ｓｔａｔｕｓ",
+          "expected": "status",
+          "observed": "status"
+        }
+      ]
+    },
+    {
+      "score": 1.0,
+      "successes": 1,
+      "total": 1,
+      "observations": [
+        {
+          "input": "ｓｔａｔｕｓ",
+          "expected": "status",
+          "observed": "status"
+        }
+      ]
+    },
+    {
+      "score": 1.0,
+      "successes": 1,
+      "total": 1,
+      "observations": [
+        {
+          "input": "ｓｔａｔｕｓ",
+          "expected": "status",
+          "observed": "status"
+        }
+      ]
+    },
+    {
+      "score": 1.0,
+      "successes": 1,
+      "total": 1,
+      "observations": [
+        {
+          "input": "ｓｔａｔｕｓ",
+          "expected": "status",
+          "observed": "status"
+        }
+      ]
+    },
+    {
+      "score": 1.0,
+      "successes": 1,
+      "total": 1,
+      "observations": [
+        {
+          "input": "ｓｔａｔｕｓ",
+          "expected": "status",
+          "observed": "status"
+        }
+      ]
+    }
+  ],
+  "improvement": 1.0,
+  "transfer": {
+    "score": 1.0,
+    "successes": 1,
+    "total": 1,
+    "observations": [
+      {
+        "input": "ｉｄｅｎｔｉｔｙ　ｖｅｒｉｆｙ",
+        "expected": "identity verify",
+        "observed": "identity verify"
+      }
+    ]
+  },
+  "regression": {
+    "score": 1.0,
+    "successes": 3,
+    "total": 3,
+    "observations": [
+      {
+        "input": "status",
+        "expected": "status",
+        "observed": "status"
+      },
+      {
+        "input": "identity verify",
+        "expected": "identity verify",
+        "observed": "identity verify"
+      },
+      {
+        "input": "unknown command",
+        "expected": null,
+        "observed": null
+      }
+    ]
+  },
+  "rollback": {
+    "rollback_ref": "rollback:la-0be303ccbfef4529b3094ad0ebeb828b:disable",
+    "status": "verified",
+    "measurement": {
+      "score": 0.0,
+      "successes": 0,
+      "total": 1,
+      "observations": [
+        {
+          "input": "ｓｔａｔｕｓ",
+          "expected": "status",
+          "observed": null
+        }
+      ]
+    }
+  },
+  "restart": {
+    "score": 1.0,
+    "successes": 2,
+    "total": 2,
+    "observations": [
+      {
+        "input": "ｓｔａｔｕｓ",
+        "expected": "status",
+        "observed": "status"
+      },
+      {
+        "input": "ｉｄｅｎｔｉｔｙ　ｖｅｒｉｆｙ",
+        "expected": "identity verify",
+        "observed": "identity verify"
+      }
+    ],
+    "verified": true
+  },
+  "decision": "consolidated",
+  "generator": "NormalizationArtifactGenerator",
+  "evaluator": "IndependentCommandEvaluator",
+  "benchmark_separation": {
+    "creation_inputs": [
+      "ｓｔａｔｕｓ"
+    ],
+    "transfer_inputs": [
+      "ｉｄｅｎｔｉｔｙ　ｖｅｒｉｆｙ"
+    ]
+  }
+}
