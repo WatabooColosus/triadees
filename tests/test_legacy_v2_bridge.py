@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from triade.runtime.legacy_compatibility import LegacyCompatibilityController
 from triade.runtime.legacy_task_reconciler import LegacyTaskReconciler
 from triade.runtime.task_leases import AutonomousTaskStore
 from triade.workers.state_store import WorkerStateStore
@@ -12,6 +13,9 @@ def _delegated(
     db_path: Path, key: str = "legacy:1"
 ) -> tuple[WorkerStateStore, dict, int]:
     legacy = WorkerStateStore(db_path)
+    LegacyCompatibilityController(db_path).set_compatibility(
+        enabled=True, actor="test", reason="legacy bridge fixture"
+    )
     queued = legacy.enqueue_task("pulse_check", {"value": 1})
     claimed = legacy.claim_next_task()
     assert claimed and claimed.id == queued.id
@@ -53,6 +57,9 @@ def test_lease_conflict_returns_legacy_to_safe_state(tmp_path: Path) -> None:
 def test_reconciler_repairs_stuck_legacy_task(tmp_path: Path) -> None:
     db_path = tmp_path / "tasks.db"
     legacy = WorkerStateStore(db_path)
+    LegacyCompatibilityController(db_path).set_compatibility(
+        enabled=True, actor="test", reason="legacy bridge fixture"
+    )
     task = legacy.enqueue_task("pulse_check", {})
     legacy.claim_next_task()
     result = LegacyTaskReconciler(db_path).reconcile()

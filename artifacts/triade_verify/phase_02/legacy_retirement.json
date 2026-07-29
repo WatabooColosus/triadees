@@ -1,0 +1,63 @@
+{
+  "phase": 2,
+  "certification": "TRIADE-VERIFY-v1",
+  "executed_at": "2026-07-29T21:51:22.058048+00:00",
+  "checks": {
+    "idempotent_legacy_1": true,
+    "idempotent_legacy_2": true,
+    "idempotent_legacy_3": true,
+    "duplicates_zero": true,
+    "losses_zero": true,
+    "reconciliation_idempotent": true,
+    "legacy_write_blocked": true,
+    "rollback_restores_compatibility": true,
+    "canonical_active_deduplication": true,
+    "stable_priority_order": true
+  },
+  "details": {
+    "links": [
+      [
+        1,
+        "task-e3cdf71c4446411a9a2875b14a2985ba"
+      ],
+      [
+        2,
+        "task-927418a82c214a048d3122add44b0a90"
+      ],
+      [
+        3,
+        "task-13779629e16045468e17f293ffe2b464"
+      ]
+    ],
+    "first_reconcile": {
+      "repaired": 3,
+      "errors": 0
+    },
+    "second_reconcile": {
+      "repaired": 0,
+      "errors": 0
+    },
+    "metrics": {
+      "mode": "v2_canonical",
+      "legacy_total": 3,
+      "legacy_linked": 3,
+      "legacy_pending_reconciliation": 0,
+      "v2_total": 3,
+      "duplicate_links": 0
+    },
+    "priority_probe": {
+      "high": "task-1edfaa9281a74ef09338b56e59e26119",
+      "low": "task-403822e40b174351bc8e86e67d69d807",
+      "claimed": "task-403822e40b174351bc8e86e67d69d807"
+    },
+    "final_compatibility": {
+      "singleton": 1,
+      "mode": "v2_canonical",
+      "legacy_writes_enabled": 0,
+      "updated_at": "2026-07-29T21:51:22.038221+00:00",
+      "updated_by": "phase-02-runner",
+      "rollback_reason": null
+    }
+  },
+  "passed": true
+}

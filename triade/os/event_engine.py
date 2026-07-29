@@ -220,9 +220,12 @@ class EventEngine:
             return False
 
     def _is_duplicate_pending(self, action: str) -> bool:
+        from triade.workers.task_queue import WorkerTaskQueue
+
+        WorkerTaskQueue(self.db_path)
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT COUNT(*) AS c FROM worker_tasks WHERE task_type = ? AND status = 'pending'",
+                "SELECT COUNT(*) AS c FROM autonomous_tasks WHERE task_type = ? AND status IN ('pending','queued','leased','running','retry_wait','recovered','deferred')",
                 (action,),
             ).fetchone()
         return int(row["c"]) > 0
@@ -233,17 +236,14 @@ class EventEngine:
         self, task_type: str, priority: int, payload: dict[str, Any]
     ) -> dict[str, Any] | None:
 
+        from triade.workers.task_queue import WorkerTaskQueue
+
         now = utc_now()
-        payload_json = __import__("json").dumps(payload, ensure_ascii=False)
-        with self._connect() as conn:
-            cursor = conn.execute(
-                """INSERT INTO worker_tasks (task_type, status, priority, payload_json, created_at)
-                VALUES (?, 'pending', ?, ?, ?)""",
-                (task_type, priority, payload_json, now),
-            )
-            task_id = int(cursor.lastrowid)
+        task = WorkerTaskQueue(self.db_path).enqueue(
+            task_type, payload=payload, priority=priority, run_ref="event-engine"
+        )
         return {
-            "task_id": task_id,
+            "task_id": task.id,
             "task_type": task_type,
             "priority": priority,
             "created_at": now,

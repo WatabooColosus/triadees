@@ -65,7 +65,7 @@ class WorkerTask:
     payload: dict[str, Any] = field(default_factory=dict)
     priority: int = 50
     status: str = "pending"
-    id: int | None = None
+    id: int | str | None = None
     safety_status: str | None = None
     run_ref: str | None = None
     created_at: str = field(default_factory=utc_now)

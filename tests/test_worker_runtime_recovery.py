@@ -1,5 +1,6 @@
 import os
 
+from triade.runtime.legacy_compatibility import LegacyCompatibilityController
 from triade.workers.contracts import WorkerRunConfig
 from triade.workers.state_store import WorkerStateStore
 
@@ -9,6 +10,9 @@ def test_stale_lock_and_duplicate_queue_are_recovered(tmp_path):
     lock = tmp_path / "worker.lock"
     lock.write_text("99999999", encoding="utf-8")
     store = WorkerStateStore(db)
+    LegacyCompatibilityController(db).set_compatibility(
+        enabled=True, actor="test", reason="runtime recovery fixture"
+    )
     store.create_worker_run("old-worker", WorkerRunConfig(), tmp_path / "artifacts")
     for _ in range(3):
         store.enqueue_task("experimental_neuron_activity", {"neuron_id": 7})

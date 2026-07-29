@@ -221,16 +221,23 @@ class GoalOrchestrator:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                "SELECT id, task_type, status, result_json, error, created_at, started_at, finished_at FROM worker_tasks "
-                "WHERE json_extract(payload_json, '$.goal_id')=? ORDER BY id",
+                """SELECT task_id AS id,task_type,status,result_ref AS result_json,
+                last_error AS error,created_at,lease_acquired_at AS started_at,
+                updated_at AS finished_at FROM autonomous_tasks
+                WHERE json_extract(payload_json, '$.goal_id')=? ORDER BY created_at""",
                 (goal_id,),
             ).fetchall()
         tasks = []
         for row in rows:
             item = dict(row)
             try:
-                item["result"] = json.loads(item.pop("result_json") or "{}")
-            except (json.JSONDecodeError, TypeError):
+                result_ref = str(item.pop("result_json") or "")
+                item["result"] = (
+                    json.loads(Path(result_ref).read_text(encoding="utf-8"))
+                    if result_ref and Path(result_ref).is_file()
+                    else {}
+                )
+            except (json.JSONDecodeError, TypeError, OSError):
                 item["result"] = {}
             tasks.append(item)
         return {

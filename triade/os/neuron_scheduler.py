@@ -7,7 +7,6 @@ según presupuesto.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -53,8 +52,9 @@ class NeuronScheduler:
                     conn.execute(
                         "ALTER TABLE neuron_activity ADD COLUMN activation_type TEXT"
                     )
-                except Exception:
-                    pass
+                except sqlite3.OperationalError as exc:
+                    if "duplicate column name" not in str(exc).lower():
+                        raise
 
     # ── Priority computation ─────────────────────────────────
 
@@ -220,19 +220,23 @@ class NeuronScheduler:
                 "external_evidence_source": str(external["source"]),
             }
 
+            from triade.workers.task_queue import WorkerTaskQueue
+
+            queue = WorkerTaskQueue(self.db_path)
+
             with self._connect() as conn:
                 existing = conn.execute(
-                    """SELECT id FROM worker_tasks
+                    """SELECT task_id AS id FROM autonomous_tasks
                     WHERE task_type='experimental_neuron_activity'
-                    AND status IN ('pending','running','claimed')
+                    AND status IN ('pending','queued','leased','running','retry_wait','recovered','deferred')
                     AND CAST(json_extract(payload_json, '$.neuron_id') AS INTEGER)=?
-                    ORDER BY id ASC LIMIT 1""",
+                    ORDER BY created_at ASC LIMIT 1""",
                     (p.neuron_id,),
                 ).fetchone()
                 if existing:
                     scheduled.append(
                         {
-                            "task_id": int(existing["id"]),
+                            "task_id": str(existing["id"]),
                             "neuron_id": p.neuron_id,
                             "neuron_name": p.neuron_name,
                             "priority_score": p.priority_score,
@@ -240,16 +244,13 @@ class NeuronScheduler:
                         }
                     )
                     continue
-                cursor = conn.execute(
-                    """INSERT INTO worker_tasks (task_type, status, priority, payload_json, created_at)
-                    VALUES ('experimental_neuron_activity', 'pending', ?, ?, ?)""",
-                    (
-                        int(100 - p.priority_score * 100),
-                        json.dumps(payload, ensure_ascii=False),
-                        now,
-                    ),
-                )
-                task_id = int(cursor.lastrowid)
+            queued = queue.enqueue(
+                "experimental_neuron_activity",
+                payload=payload,
+                priority=int(100 - p.priority_score * 100),
+                run_ref="neuron-scheduler",
+            )
+            task_id = queued.id
 
             self._log_priority(p, now)
             scheduled.append(

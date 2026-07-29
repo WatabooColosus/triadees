@@ -22,6 +22,7 @@ class WorkerStateStore:
         self.migration_paths = [
             repo_root / "triade/memory/migrations/003_living_workers.sql",
             repo_root / "triade/memory/migrations/014_legacy_v2_bridge.sql",
+            repo_root / "triade/memory/migrations/019_legacy_retirement.sql",
         ]
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()

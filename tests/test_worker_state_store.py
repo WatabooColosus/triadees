@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from triade.runtime.legacy_compatibility import LegacyCompatibilityController
 from triade.workers.contracts import WorkerRunConfig
 from triade.workers.state_store import WorkerStateStore
 
 
 def test_worker_state_store_creates_tables_and_records_task(tmp_path: Path) -> None:
     store = WorkerStateStore(db_path=tmp_path / "triade.db")
+    LegacyCompatibilityController(tmp_path / "triade.db").set_compatibility(
+        enabled=True, actor="test", reason="state store compatibility fixture"
+    )
     run = store.create_worker_run("worker-test", WorkerRunConfig(), tmp_path / "bg")
     task = store.enqueue_task(
         "pulse_check", payload={"x": 1}, priority=5, run_ref="worker-test"
