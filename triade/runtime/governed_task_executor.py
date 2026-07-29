@@ -103,6 +103,7 @@ class GovernedTaskExecutor:
         artifact_dir: str | Path,
         heartbeat: Callable[[], bool] | None = None,
         heartbeat_interval_seconds: float = 15.0,
+        cancellation_check: Callable[[], bool] | None = None,
     ) -> GovernedExecutionOutcome:
         artifact = Path(artifact_dir)
         artifact.mkdir(parents=True, exist_ok=True)
@@ -130,8 +131,12 @@ class GovernedTaskExecutor:
         deadline = started + max(0.001, timeout_seconds)
         next_heartbeat = started + max(0.01, heartbeat_interval_seconds)
         lease_lost = False
+        cancelled = False
         while process.is_alive():
             now = time.monotonic()
+            if cancellation_check and cancellation_check():
+                cancelled = True
+                break
             if now >= deadline:
                 break
             wait_until = min(deadline, next_heartbeat) if heartbeat else deadline
@@ -146,9 +151,12 @@ class GovernedTaskExecutor:
             termination_signal = self.terminate(process)
             quarantine = self.quarantine_partial_artifacts(artifact)
             return GovernedExecutionOutcome(
-                status="lease_lost" if lease_lost else "timeout",
+                status="cancelled" if cancelled else "lease_lost" if lease_lost else "timeout",
                 executed=True,
-                error="lease_renewal_rejected" if lease_lost else "task_timeout",
+                error=(
+                    "cancellation_requested" if cancelled
+                    else "lease_renewal_rejected" if lease_lost else "task_timeout"
+                ),
                 exit_code=process.exitcode,
                 termination_signal=termination_signal,
                 stdout_ref=str(quarantine / "stdout.log"),

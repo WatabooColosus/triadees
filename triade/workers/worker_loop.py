@@ -32,6 +32,7 @@ from triade.memory.semantic_store import SemanticMemoryStore
 from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
 from triade.runtime.atomic_completion import AtomicCompletionCoordinator
+from triade.runtime.cancellation import CancellationToken
 from triade.runtime.effect_receipt import EffectReceipt
 from triade.runtime.event_scheduler import EventDrivenScheduler
 from triade.runtime.execution_result import ExecutionResult
@@ -39,6 +40,7 @@ from triade.runtime.governed_task_executor import GovernedTaskExecutor
 from triade.runtime.lease_heartbeat import LeaseHeartbeat
 from triade.runtime.legacy_task_reconciler import LegacyTaskReconciler
 from triade.runtime.live_heartbeat import LiveHeartbeat
+from triade.runtime.process_lock import RuntimeProcessLock
 from triade.runtime.resource_ledger import ResourceLedger, ResourceMeasurementCollector
 from triade.runtime.task_artifacts import CanonicalTaskArtifacts
 from triade.runtime.task_leases import AutonomousTaskStore
@@ -203,7 +205,7 @@ class WorkerLoop:
             fd = os.open(
                 str(self.lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644
             )
-            os.write(fd, str(os.getpid()).encode("utf-8"))
+            os.write(fd, RuntimeProcessLock.payload())
             os.close(fd)
         except FileExistsError:
             return {
@@ -729,6 +731,8 @@ class WorkerLoop:
     ) -> dict[str, Any]:
         started = time.monotonic()
         resource_collector = ResourceMeasurementCollector()
+        cancellation = CancellationToken(lambda: self.stop_file.exists())
+        cancellation.checkpoint()
         goal_task = bool(task.payload.get("goal_id"))
         if not goal_task and self.adaptive_scheduler.should_skip_task(task.task_type):
             result = {
@@ -842,6 +846,7 @@ class WorkerLoop:
                     heartbeat_interval_seconds=(
                         lease_heartbeat.interval_seconds if lease_heartbeat else 15.0
                     ),
+                    cancellation_check=lambda: cancellation.cancelled,
                 )
                 if outcome.status == "timeout":
                     result = {
@@ -853,6 +858,8 @@ class WorkerLoop:
                         "stdout_ref": outcome.stdout_ref,
                         "stderr_ref": outcome.stderr_ref,
                     }
+                elif outcome.status == "cancelled":
+                    result = {"status": "cancelled", "reason": outcome.error}
                 elif outcome.status == "lease_lost":
                     result = {
                         "status": "lease_lost",

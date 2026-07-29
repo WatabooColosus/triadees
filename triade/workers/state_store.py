@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
 from triade.core.error_bus import prune_worker_events
+from triade.runtime.process_lock import RuntimeProcessLock
 
 from .contracts import WorkerRunConfig, WorkerTask
 
@@ -371,11 +371,11 @@ class WorkerStateStore:
         lock = Path(lock_file)
         stale_pid: int | None = None
         if lock.exists():
-            try:
-                stale_pid = int(lock.read_text(encoding="utf-8").strip())
-            except (OSError, ValueError):
+            inspection = RuntimeProcessLock.inspect(lock)
+            stale_pid = inspection.pid
+            if inspection.status == "invalid":
                 return {"status": "invalid_lock", "pid": None, "deduplicated": 0}
-            if stale_pid > 0 and self._pid_alive(stale_pid):
+            if inspection.status == "live":
                 return {"status": "live_owner", "pid": stale_pid, "deduplicated": 0}
             try:
                 lock.unlink()
@@ -451,16 +451,6 @@ class WorkerStateStore:
         }
         # Tareas baseline solo necesitan una instancia activa por tipo.
         return f"{task_type}:{json.dumps(identity, sort_keys=True, default=str)}"
-
-    @staticmethod
-    def _pid_alive(pid: int) -> bool:
-        try:
-            os.kill(pid, 0)
-            return True
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True
 
     def doctor(self) -> dict[str, Any]:
         status = self.status()
