@@ -55,8 +55,10 @@ def test_observed_task_never_claims_execution() -> None:
 def test_only_completed_path_marks_completed(tmp_path: Path) -> None:
     store = AutonomousTaskStore(tmp_path / "tasks.db")
     task = _running(store, "completed")
+    result_ref = tmp_path / "result.json"
+    result_ref.write_text("{}", encoding="utf-8")
     assert store.complete(
-        task["task_id"], "worker", task["lease_generation"], "result.json"
+        task["task_id"], "worker", task["lease_generation"], str(result_ref)
     )
     assert store.get(task["task_id"])["status"] == "completed"
 

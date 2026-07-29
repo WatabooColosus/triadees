@@ -38,6 +38,7 @@ from triade.runtime.lease_heartbeat import LeaseHeartbeat
 from triade.runtime.legacy_task_reconciler import LegacyTaskReconciler
 from triade.runtime.live_heartbeat import LiveHeartbeat
 from triade.runtime.resource_ledger import ResourceLedger
+from triade.runtime.task_artifacts import CanonicalTaskArtifacts
 from triade.runtime.task_leases import AutonomousTaskStore
 from triade.runtime.wake_bus import runtime_wake_event
 
@@ -436,6 +437,7 @@ class WorkerLoop:
         lease_generation = int(leased["lease_generation"])
         payload = dict(leased.get("payload") or {})
         legacy_id = payload.pop("_legacy_task_id", None)
+        canonical_artifacts = CanonicalTaskArtifacts(artifact_dir, autonomous_task_id)
         task = WorkerTask(
             # v2 is the only execution identity; legacy_id is mirror metadata.
             id=None,
@@ -456,16 +458,16 @@ class WorkerLoop:
                 max(60, int(config.task_timeout * 2)),
             )
             result = self._execute_task(
-                task, run_ref, artifact_dir, config, lease_heartbeat=heartbeat
+                task,
+                run_ref,
+                artifact_dir,
+                config,
+                lease_heartbeat=heartbeat,
+                task_artifact_dir=canonical_artifacts.path,
             )
-
-        result_ref = str(
-            artifact_dir
-            / f"task-{legacy_id or autonomous_task_id}-{task.task_type}"
-            / "result.json"
-        )
+        provisional_ref = str(canonical_artifacts.path / "result.json")
         try:
-            execution = self._canonical_execution_result(result, result_ref)
+            execution = self._canonical_execution_result(result, provisional_ref)
         except ValueError as exc:
             execution = ExecutionResult(
                 status="failed",
@@ -473,8 +475,8 @@ class WorkerLoop:
                 retryable=False,
                 error_code="unknown_handler_status",
                 message=str(exc),
-                artifacts=[result_ref] if Path(result_ref).exists() else [],
-                evidence=[result_ref] if Path(result_ref).exists() else [],
+                artifacts=[provisional_ref] if Path(provisional_ref).exists() else [],
+                evidence=[provisional_ref] if Path(provisional_ref).exists() else [],
             )
             result = {
                 **result,
@@ -483,6 +485,19 @@ class WorkerLoop:
                 "error_code": "unknown_handler_status",
             }
 
+        result_ref = str(
+            canonical_artifacts.finalize(
+                task=leased,
+                execution=execution.model_dump(mode="json"),
+                result=result,
+                worker_id=run_ref,
+                lease_generation=lease_generation,
+                payload_hash=str(leased["payload_hash"]),
+                status=execution.status,
+            )
+        )
+        execution.artifacts = [result_ref]
+        execution.evidence = [result_ref]
         transitioned = self._persist_execution_result(
             autonomous_task_id, run_ref, lease_generation, execution, result_ref
         )
@@ -657,6 +672,7 @@ class WorkerLoop:
         config: WorkerRunConfig,
         *,
         lease_heartbeat: LeaseHeartbeat | None = None,
+        task_artifact_dir: Path | None = None,
     ) -> dict[str, Any]:
         started = time.monotonic()
         goal_task = bool(task.payload.get("goal_id"))
@@ -673,7 +689,7 @@ class WorkerLoop:
         blood = check_ollama_blood()
         blood_policy = ollama_blood_policy("worker_cycle", blood)
         safety = self._safety_for_task(task, run_ref)
-        task_dir = artifact_dir / f"task-{task.id}-{task.task_type}"
+        task_dir = task_artifact_dir or artifact_dir / f"task-{task.id}-{task.task_type}"
         task_dir.mkdir(parents=True, exist_ok=True)
         if isinstance(task.payload, dict):
             task.payload.setdefault("ollama_blood", blood)
@@ -915,9 +931,9 @@ class WorkerLoop:
             task_class=self.adaptive_scheduler.task_class(task.task_type),
         )
         task_dir.mkdir(parents=True, exist_ok=True)
-        (task_dir / "result.json").write_text(
-            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        from triade.runtime.task_artifacts import AtomicArtifactWriter
+
+        AtomicArtifactWriter.write_json(task_dir / "result.json", result)
         return result
 
     def _research_curriculum(

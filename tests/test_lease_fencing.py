@@ -131,7 +131,9 @@ def test_only_one_terminal_result_exists(tmp_path: Path) -> None:
     claimed = store.claim("worker-a")
     assert claimed
     generation = claimed["lease_generation"]
-    assert store.complete(task["task_id"], "worker-a", generation, "result.json")
+    result_ref = tmp_path / "result.json"
+    result_ref.write_text("{}", encoding="utf-8")
+    assert store.complete(task["task_id"], "worker-a", generation, str(result_ref))
     assert store.fail(task["task_id"], "worker-a", generation, "late") == {
         "status": "not_owner"
     }

@@ -214,6 +214,8 @@ class AutonomousTaskStore:
     ) -> bool:
         if not result_ref.strip():
             raise ValueError("completed_requires_result_ref")
+        if not Path(result_ref).is_file():
+            return False
         return self._terminal_transition(
             task_id, worker_id, lease_generation, "completed", result_ref=result_ref
         )

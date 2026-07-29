@@ -80,8 +80,10 @@ def test_non_owner_cannot_complete_or_renew(tmp_path):
     assert claimed
     generation = claimed["lease_generation"]
     assert store.renew(task["task_id"], "intruder", generation) is False
-    assert store.complete(task["task_id"], "intruder", generation, "x") is False
-    assert store.complete(task["task_id"], "owner", generation, "artifact:1") is True
+    result_ref = tmp_path / "result.json"
+    result_ref.write_text("{}", encoding="utf-8")
+    assert store.complete(task["task_id"], "intruder", generation, str(result_ref)) is False
+    assert store.complete(task["task_id"], "owner", generation, str(result_ref)) is True
 
 
 def test_claim_specific_task_is_atomic(tmp_path):
