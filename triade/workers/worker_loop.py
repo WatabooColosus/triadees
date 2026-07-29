@@ -24,6 +24,9 @@ from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
+from triade.runtime.event_scheduler import EventDrivenScheduler
+from triade.runtime.live_heartbeat import LiveHeartbeat
+from triade.runtime.wake_bus import runtime_wake_event
 
 from .contracts import WORKER_TASK_TYPES, WorkerRunConfig, WorkerTask, new_worker_run_id
 from .adaptive_scheduler import AdaptiveScheduler
@@ -91,6 +94,7 @@ class WorkerLoop:
         self.scheduler = WorkerScheduler(db_path=self.db_path)
         self.adaptive_scheduler = AdaptiveScheduler(db_path=self.db_path)
         self.resource_ledger = ResourceLedger(db_path=self.db_path)
+        self.live_heartbeat = LiveHeartbeat(db_path=self.db_path)
 
     def run(self, config: WorkerRunConfig | None = None) -> dict[str, Any]:
         config = config or WorkerRunConfig(runs_dir=str(self.runs_dir), lock_file=str(self.lock_file), stop_file=str(self.stop_file))
@@ -151,16 +155,16 @@ class WorkerLoop:
         self.store.set_state("workers", {"status": "running", "run_ref": run_ref, "started_at": utc_now(), "config": config.to_dict()})
 
         try:
-            for iteration in range(max(1, int(config.max_iterations))):
-                if self.stop_file.exists():
-                    summary["stop_requested"] = True
-                    break
-                summary["iterations"] += 1
-                self.scheduler.schedule_cycle(run_ref, config)
+            wake_event = runtime_wake_event(self.db_path)
+            live_scheduler = EventDrivenScheduler(wake_event=wake_event)
+
+            def drain_queue() -> int:
+                drained = 0
                 while True:
                     task = self.queue.claim_next()
                     if task is None:
                         break
+                    drained += 1
                     result = self._execute_task(task, run_ref, artifact_dir, config)
                     if result.get("status") == "blocked":
                         summary["tasks_blocked"] += 1
@@ -168,10 +172,45 @@ class WorkerLoop:
                         summary["errors"].append(result.get("error"))
                     else:
                         summary["tasks_completed"] += 1
+                return drained
+
+            def dispatch_cycle() -> dict[str, Any]:
+                summary["iterations"] += 1
+                scheduled = self.scheduler.schedule_cycle(run_ref, config)
+                return {"scheduled": len(scheduled), "drained": drain_queue()}
+
+            dispatch_interval = max(0.001, float(config.sleep_seconds))
+            live_scheduler.add_job(
+                "heartbeat",
+                self.live_heartbeat.pulse,
+                interval_seconds=5.0,
+                priority=0,
+                jitter_seconds=0.1,
+                run_immediately=True,
+            )
+            live_scheduler.add_job(
+                "dispatch",
+                dispatch_cycle,
+                interval_seconds=dispatch_interval,
+                priority=20,
+                jitter_seconds=min(1.0, dispatch_interval * 0.05),
+                run_immediately=True,
+            )
+
+            target_iterations = max(1, int(config.max_iterations))
+            while summary["iterations"] < target_iterations:
+                if self.stop_file.exists():
+                    summary["stop_requested"] = True
+                    break
+                live_scheduler.execute_due()
                 if config.once:
                     break
-                if iteration < int(config.max_iterations) - 1:
-                    time.sleep(max(0.0, float(config.sleep_seconds)))
+                if summary["iterations"] < target_iterations:
+                    wake_reason = live_scheduler.wait(maximum_seconds=5.0)
+                    if wake_reason == "event":
+                        drain_queue()
+            summary["live_scheduler"] = live_scheduler.snapshot()
+            summary["heartbeat"] = self.live_heartbeat.snapshot()
             status = "completed" if not summary.get("errors") else "completed_with_errors"
             self.store.finish_worker_run(run_ref, status, summary)
             self.store.set_state("workers", {"status": status, "last_run_ref": run_ref, "finished_at": utc_now(), "summary": summary})

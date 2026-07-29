@@ -26,6 +26,70 @@ runtime:
   continuous_runner_autonomy_level: train_candidates
   continuous_runner_interval_seconds: 60
   continuous_runner_max_cycles: 0
+  live_runtime:
+    heartbeat_interval_seconds: 5
+    health_check_interval_seconds: 15
+    scheduler_interval_seconds: 20
+    light_background_interval_seconds: 60
+    neuron_learning_interval_seconds: 180
+    deep_research_interval_seconds: 1200
+    evaluation_interval_seconds: 1800
+    consolidation_interval_seconds: 3600
+    heartbeat_jitter_seconds: 0.1
+    scheduler_jitter_seconds: 1.0
+
+hardware_profiles:
+  target_32ram_24vram:
+    max_parallel_cpu_workers: 4
+    max_parallel_io_workers: 6
+    max_parallel_model_workers: 1
+    max_parallel_embedding_workers: 1
+    reserved_system_ram_gb: 6
+    reserved_interactive_ram_gb: 4
+    reserved_vram_gb: 3
+    soft_vram_limit_percent: 82
+    hard_vram_limit_percent: 92
+    thermal_soft_limit_c: 78
+    thermal_hard_limit_c: 85
+
+workers:
+  runtime: 1
+  scheduler: 1
+  memory: 1
+  research_io: 2
+  neuron_education: 1
+  evaluation: 1
+  model_inference: 1
+  maintenance: 1
+
+semaphores:
+  gpu_heavy: 1
+  gpu_light: 1
+  database_writer: 1
+  deep_research: 2
+  model_install: 1
+  backup: 1
+
+activity_budget:
+  heartbeat:
+    unlimited: true
+  health_checks:
+    max_per_minute: 6
+  light_tasks:
+    max_per_hour: 60
+  model_inferences:
+    max_per_hour: 40
+  research_tasks:
+    max_per_hour: 8
+    max_per_day: 60
+  deep_evaluations:
+    max_per_hour: 2
+    max_per_day: 16
+  neuron_lessons:
+    max_per_hour: 4
+    max_per_day: 30
+  backups:
+    max_per_day: 2
 
 runtime_budget:
   cpu_minutes_daily: 600

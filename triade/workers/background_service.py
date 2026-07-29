@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.ollama_blood import check_ollama_blood
+from triade.runtime.live_heartbeat import LiveHeartbeat
 
 from .contracts import WorkerRunConfig
 from .state_store import WorkerStateStore
@@ -48,6 +49,7 @@ class WorkerBackgroundService:
         payload["model_used"] = blood.get("reasoning_model")
         payload["degraded_mode"] = bool(blood.get("fallback_mode"))
         payload["cognitive_blood_active"] = bool(blood.get("cognitive_blood_active"))
+        payload["live_heartbeat"] = LiveHeartbeat(self.db_path).snapshot()
         return payload
 
     def _lock_owner_alive(self) -> bool:

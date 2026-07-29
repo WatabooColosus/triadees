@@ -33,3 +33,26 @@
 - Cierre de los errores Ruff/mypy y vulnerabilidad npm del baseline.
 
 Por tanto, Tríade aún no satisface el criterio final completo. Esta fase establece las garantías de supervivencia y recursos necesarias para continuar.
+# Actualización 2026-07-29 — núcleo vivo event-driven
+
+- Implementado heartbeat operacional de 5 s, CPU-only y sin LLM.
+- Implementado scheduler monotónico con priority queue, jitter y wake event.
+- La cola legacy despierta el WorkerLoop cuando entra trabajo.
+- El sleep productivo del WorkerLoop baja de 60 s a despacho configurable de 20 s.
+- Añadidos benchmarks reproducibles y simulación acelerada de 24 horas.
+- Añadido perfil declarativo para 31 GiB RAM / NVIDIA L4 23.034 MiB.
+- Pendiente: enforcement de ActivityBudget, backpressure completo, GPUResourceManager y separación de workers.
+- La suite global no se declara verde: Ruff y mypy ya fallaban en el baseline.
+- Pytest completo y frontend build pasan; npm conserva una vulnerabilidad alta preexistente.
+- Despliegue pendiente: systemd rechazó el reinicio por permisos, y el proceso activo aún ejecuta el código anterior.
+
+## Plan de ejecución por PR
+
+1. Baseline, perfil de hardware y métricas (incluido en esta rama).
+2. Heartbeat ligero y scheduler event-driven (incluido en esta rama).
+3. Renovación y recuperación de leases v2.
+4. ActivityBudget, ResourceLedger por ventana y backpressure.
+5. ModelWorker y GPUResourceManager con reserva y preemption.
+6. Separación progresiva de workers especializados.
+7. Pipeline de investigación y fallback gobernado.
+8. Cabina Viva basada únicamente en eventos reales.

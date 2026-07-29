@@ -25,6 +25,12 @@ históricos salvo indicación expresa.
 
 ## Pulso Vivo 24/7 verificable
 
+El núcleo operacional dispone de un heartbeat ligero de 5 segundos sin llamadas
+a modelos y de un scheduler monotónico que despierta cuando entra trabajo. Los
+benchmarks y los límites exactos de esta fase están en
+[`docs/LIVE_RUNTIME_BASELINE.md`](docs/LIVE_RUNTIME_BASELINE.md) y
+[`docs/LIVE_HEARTBEAT_ARCHITECTURE.md`](docs/LIVE_HEARTBEAT_ARCHITECTURE.md).
+
 El runtime local puede exponer un pulso operativo continuo sin depender del chat:
 
 - `build_runtime_heartbeat()` resume actividad reciente, continuidad y errores.

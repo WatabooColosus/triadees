@@ -110,7 +110,7 @@ def ensure_workers_alive(
     def _run() -> None:
         try:
             service = WorkerBackgroundService(db_path=db_path, runs_dir=runs_dir)
-            service.start(max_iterations=1_000_000, sleep_seconds=60.0, dry_run=False, task_timeout=30.0)
+            service.start(max_iterations=1_000_000, sleep_seconds=20.0, dry_run=False, task_timeout=30.0)
             with _WORKER_LOCK:
                 if _WORKER_STATE.get("status") != "stop_requested":
                     _WORKER_STATE.update({"active": False, "status": "completed"})

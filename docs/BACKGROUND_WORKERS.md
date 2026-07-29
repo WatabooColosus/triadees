@@ -68,3 +68,10 @@ El almacenamiento vive en SQLite:
 - `worker_state`
 
 La migración defensiva está en `triade/memory/migrations/003_living_workers.sql` y también queda reflejada en `schemas.sql` para DBs nuevas.
+# Actualización event-driven (2026-07-29)
+
+El WorkerLoop compatible ya no depende de un sleep global productivo de 60 s.
+Un scheduler monotónico ejecuta heartbeat cada 5 s y despacho cada 20 s, y la
+cola emite un wake event cuando recibe una tarea. La separación en Runtime,
+Memory, Research, Education, Evaluation, Model y Maintenance Worker sigue
+pendiente y se realizará progresivamente; no se presenta como implementada.
