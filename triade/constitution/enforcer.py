@@ -5,7 +5,6 @@ import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any
 
 from triade.core.contracts import utc_now
 
@@ -102,11 +101,24 @@ ARTICLES = {
 
 # Componentes del sistema que deben ser chequeados
 SYSTEM_COMPONENTS = [
-    "central", "hypothalamus", "crystal", "qualia_bus",
-    "semantic_store", "bodega", "learning_pipeline", "neuron_factory",
-    "scheduler", "workers", "tool_registry", "secure_executor",
-    "federation", "triadeos", "constitution",
-    "creadora", "formadora", "monitor",
+    "central",
+    "hypothalamus",
+    "crystal",
+    "qualia_bus",
+    "semantic_store",
+    "bodega",
+    "learning_pipeline",
+    "neuron_factory",
+    "scheduler",
+    "workers",
+    "tool_registry",
+    "secure_executor",
+    "federation",
+    "triadeos",
+    "constitution",
+    "creadora",
+    "formadora",
+    "monitor",
 ]
 
 
@@ -114,13 +126,17 @@ class ConstitutionEnforcer:
     """Enforcement automático de los 10 artículos sobre todos los
     componentes del sistema."""
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
 
     def check_article(
-        self, component: str, article_num: int,
+        self,
+        component: str,
+        article_num: int,
         context: dict | None = None,
     ) -> dict:
         if article_num not in ARTICLES:
@@ -136,8 +152,15 @@ class ConstitutionEnforcer:
                (check_id, component, article, article_name,
                 status, details_json, checked_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (check_id, component, article_num, article["name"],
-             status, json.dumps(details, default=str), now),
+            (
+                check_id,
+                component,
+                article_num,
+                article["name"],
+                status,
+                json.dumps(details, default=str),
+                now,
+            ),
         )
 
         if status == "violation":
@@ -145,9 +168,12 @@ class ConstitutionEnforcer:
 
         self._conn.commit()
         return {
-            "check_id": check_id, "component": component,
-            "article": article_num, "article_name": article["name"],
-            "status": status, "details": details,
+            "check_id": check_id,
+            "component": component,
+            "article": article_num,
+            "article_name": article["name"],
+            "status": status,
+            "details": details,
         }
 
     def check_all_articles(self, component: str, context: dict | None = None) -> dict:
@@ -193,16 +219,27 @@ class ConstitutionEnforcer:
         self._conn.commit()
         return {"violation_id": violation_id, "status": "resolved"}
 
-    def enforce(self, component: str, action: str, article: int | None = None,
-                details: dict | None = None) -> dict:
+    def enforce(
+        self,
+        component: str,
+        action: str,
+        article: int | None = None,
+        details: dict | None = None,
+    ) -> dict:
         log_id = _gen_id("cenf")
         now = utc_now()
         self._conn.execute(
             """INSERT INTO constitution_enforcement_log
                (log_id, component, action, article, result, created_at)
                VALUES (?,?,?,?,?,?)""",
-            (log_id, component, action, article,
-             json.dumps(details or {}, default=str), now),
+            (
+                log_id,
+                component,
+                action,
+                article,
+                json.dumps(details or {}, default=str),
+                now,
+            ),
         )
         self._conn.commit()
         return {"log_id": log_id, "component": component, "action": action}
@@ -233,35 +270,55 @@ class ConstitutionEnforcer:
         return summary
 
     def doctor(self) -> dict:
-        checks = self._conn.execute("SELECT COUNT(*) as c FROM constitution_checks").fetchone()["c"]
-        violations = self._conn.execute("SELECT COUNT(*) as c FROM constitution_violations WHERE status='open'").fetchone()["c"]
-        enforcement = self._conn.execute("SELECT COUNT(*) as c FROM constitution_enforcement_log").fetchone()["c"]
-        return {"total_checks": checks, "open_violations": violations,
-                "enforcement_actions": enforcement}
+        checks = self._conn.execute(
+            "SELECT COUNT(*) as c FROM constitution_checks"
+        ).fetchone()["c"]
+        violations = self._conn.execute(
+            "SELECT COUNT(*) as c FROM constitution_violations WHERE status='open'"
+        ).fetchone()["c"]
+        enforcement = self._conn.execute(
+            "SELECT COUNT(*) as c FROM constitution_enforcement_log"
+        ).fetchone()["c"]
+        return {
+            "total_checks": checks,
+            "open_violations": violations,
+            "enforcement_actions": enforcement,
+        }
 
     # ─── internal evaluation ───
 
-    def _evaluate(self, component: str, article_num: int, context: dict) -> tuple[str, dict]:
+    def _evaluate(
+        self, component: str, article_num: int, context: dict
+    ) -> tuple[str, dict]:
         details = {"component": component, "article": article_num}
 
         if article_num == 1:
             identity_modified = context.get("modifies_identity", False)
             if identity_modified:
-                return "violation", {**details, "reason": "identity_core mutation detected"}
+                return "violation", {
+                    **details,
+                    "reason": "identity_core mutation detected",
+                }
             return "pass", {**details, "identity_safe": True}
 
         elif article_num == 2:
             critical = context.get("critical", False)
             approved = context.get("human_approved", False)
             if critical and not approved:
-                return "violation", {**details, "reason": "critical change without human approval"}
+                return "violation", {
+                    **details,
+                    "reason": "critical change without human approval",
+                }
             return "pass", {**details, "approval_ok": True}
 
         elif article_num == 3:
             destructive = context.get("destructive", False)
             reversible = context.get("has_rollback", True)
             if destructive and not reversible:
-                return "violation", {**details, "reason": "destructive op without rollback"}
+                return "violation", {
+                    **details,
+                    "reason": "destructive op without rollback",
+                }
             return "pass", {**details, "rollback_ok": True}
 
         elif article_num == 4:
@@ -274,7 +331,10 @@ class ConstitutionEnforcer:
             high_risk = context.get("risk_level") in ("high", "critical")
             verified = context.get("verification_count", 0)
             if high_risk and verified < 2:
-                return "violation", {**details, "reason": "high-risk change with insufficient verification"}
+                return "violation", {
+                    **details,
+                    "reason": "high-risk change with insufficient verification",
+                }
             return "pass", {**details, "council_ok": True}
 
         elif article_num == 6:
@@ -292,7 +352,10 @@ class ConstitutionEnforcer:
         elif article_num == 8:
             graceful = context.get("graceful_degradation", True)
             if not graceful:
-                return "violation", {**details, "reason": "no graceful degradation path"}
+                return "violation", {
+                    **details,
+                    "reason": "no graceful degradation path",
+                }
             return "pass", {**details, "degradation_ok": True}
 
         elif article_num == 9:
@@ -318,7 +381,13 @@ class ConstitutionEnforcer:
                (violation_id, component, article, severity, description,
                 context_json, detected_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (violation_id, component, article_num, severity,
-             details.get("reason", "Constitution check failed"),
-             json.dumps(details, default=str), utc_now()),
+            (
+                violation_id,
+                component,
+                article_num,
+                severity,
+                details.get("reason", "Constitution check failed"),
+                json.dumps(details, default=str),
+                utc_now(),
+            ),
         )

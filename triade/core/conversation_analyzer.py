@@ -89,13 +89,29 @@ class ConversationAnalyzer:
                 "raw_user_inputs_exposed": False,
             },
             "filters": {"limit": limit, "since": since, "source": source},
-            "summary": self._summary(rows, episodes, signals, crystals, reports, model_events, semantic_counts),
-            "conversation_patterns": self._conversation_patterns(rows, signals, reports),
+            "summary": self._summary(
+                rows,
+                episodes,
+                signals,
+                crystals,
+                reports,
+                model_events,
+                semantic_counts,
+            ),
+            "conversation_patterns": self._conversation_patterns(
+                rows, signals, reports
+            ),
             "crystal_evolution": self._crystal_evolution(crystals),
             "model_usage": self._model_usage(model_events),
-            "traceability": self._traceability(rows, signals, crystals, reports, model_events, episodes),
-            "learning_candidates": self._learning_candidates(rows, signals, reports, crystals),
-            "recommendations": self._recommendations(rows, signals, crystals, reports, model_events),
+            "traceability": self._traceability(
+                rows, signals, crystals, reports, model_events, episodes
+            ),
+            "learning_candidates": self._learning_candidates(
+                rows, signals, reports, crystals
+            ),
+            "recommendations": self._recommendations(
+                rows, signals, crystals, reports, model_events
+            ),
         }
         return payload
 
@@ -129,54 +145,68 @@ class ConversationAnalyzer:
             "",
         ]
         lines.extend(self._bullet_counts(model_usage["by_role_provider_model"]))
-        lines.extend([
-            "",
-            "## Fuentes Principales",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Fuentes Principales",
+                "",
+            ]
+        )
         lines.extend(self._bullet_counts(summary["sources"]))
-        lines.extend([
-            "",
-            "## Intenciones Mas Comunes",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Intenciones Mas Comunes",
+                "",
+            ]
+        )
         lines.extend(self._bullet_counts(patterns["common_intents"]))
-        lines.extend([
-            "",
-            "## Temas Recurrentes",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Temas Recurrentes",
+                "",
+            ]
+        )
         lines.extend(self._bullet_counts(patterns["recurring_themes"]))
-        lines.extend([
-            "",
-            "## Advertencias Recurrentes",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Advertencias Recurrentes",
+                "",
+            ]
+        )
         lines.extend(self._bullet_counts(patterns["recurring_warnings"]))
-        lines.extend([
-            "",
-            "## Evolucion Del Cristal",
-            "",
-            f"- Delta Q promedio: {crystal['avg_q_delta']}",
-            f"- Delta estabilidad promedio: {crystal['avg_stability_delta']}",
-            f"- Mejoras detectadas: {crystal['improvement_count']}",
-            f"- Degradaciones detectadas: {crystal['degradation_count']}",
-            "",
-            "## Recomendaciones Para Mejorar El Nucleo",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Evolucion Del Cristal",
+                "",
+                f"- Delta Q promedio: {crystal['avg_q_delta']}",
+                f"- Delta estabilidad promedio: {crystal['avg_stability_delta']}",
+                f"- Mejoras detectadas: {crystal['improvement_count']}",
+                f"- Degradaciones detectadas: {crystal['degradation_count']}",
+                "",
+                "## Recomendaciones Para Mejorar El Nucleo",
+                "",
+            ]
+        )
         lines.extend(f"- {item}" for item in recommendations)
-        lines.extend([
-            "",
-            "## Aprendizajes Candidatos",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Aprendizajes Candidatos",
+                "",
+            ]
+        )
         lines.extend(f"- {item}" for item in learning["candidate_themes"])
-        lines.extend([
-            "",
-            "## Que NO Debe Consolidarse Aun",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Que NO Debe Consolidarse Aun",
+                "",
+            ]
+        )
         lines.extend(f"- {item}" for item in learning["do_not_consolidate"])
         lines.append("")
         return "\n".join(lines)
@@ -198,7 +228,9 @@ class ConversationAnalyzer:
         return value
 
     @staticmethod
-    def _fetch_runs(conn: sqlite3.Connection, limit: int, since: str | None, source: str | None) -> list[sqlite3.Row]:
+    def _fetch_runs(
+        conn: sqlite3.Connection, limit: int, since: str | None, source: str | None
+    ) -> list[sqlite3.Row]:
         clauses: list[str] = []
         params: list[Any] = []
         if since:
@@ -219,11 +251,15 @@ class ConversationAnalyzer:
         ).fetchall()
 
     @staticmethod
-    def _fetch_by_run_id(conn: sqlite3.Connection, table: str, run_ids: list[str]) -> list[dict[str, Any]]:
+    def _fetch_by_run_id(
+        conn: sqlite3.Connection, table: str, run_ids: list[str]
+    ) -> list[dict[str, Any]]:
         if not run_ids:
             return []
         placeholders = ",".join("?" for _ in run_ids)
-        rows = conn.execute(f"SELECT * FROM {table} WHERE run_id IN ({placeholders})", run_ids).fetchall()
+        rows = conn.execute(
+            f"SELECT * FROM {table} WHERE run_id IN ({placeholders})", run_ids
+        ).fetchall()
         return [dict(row) for row in rows]
 
     @staticmethod
@@ -232,13 +268,17 @@ class ConversationAnalyzer:
         counts: dict[str, int] = {}
         existing = {
             str(row["name"])
-            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
         }
         for table in tables:
             if table not in existing:
                 counts[table] = 0
                 continue
-            counts[table] = int(conn.execute(f"SELECT COUNT(*) AS c FROM {table}").fetchone()["c"])
+            counts[table] = int(
+                conn.execute(f"SELECT COUNT(*) AS c FROM {table}").fetchone()["c"]
+            )
         return counts
 
     def _summary(
@@ -258,7 +298,9 @@ class ConversationAnalyzer:
             "crystals_found": len(crystals),
             "verification_reports_found": len(reports),
             "model_events_found": len(model_events),
-            "sources": dict(Counter(str(row["source"] or "unknown") for row in rows).most_common()),
+            "sources": dict(
+                Counter(str(row["source"] or "unknown") for row in rows).most_common()
+            ),
             "semantic_counts": semantic_counts,
         }
 
@@ -289,30 +331,63 @@ class ConversationAnalyzer:
         q_values = [float(item.get("q_crystal") or 0.0) for item in crystals]
         stability_values = [float(item.get("stability") or 0.0) for item in crystals]
         q_deltas = [float(item.get("q_delta") or 0.0) for item in crystals]
-        stability_deltas = [float(item.get("stability_delta") or 0.0) for item in crystals]
-        temporal = Counter(str(item.get("temporal_status") or "unknown") for item in crystals)
+        stability_deltas = [
+            float(item.get("stability_delta") or 0.0) for item in crystals
+        ]
+        temporal = Counter(
+            str(item.get("temporal_status") or "unknown") for item in crystals
+        )
         return {
             "avg_q_crystal": round(mean(q_values), 3) if q_values else 0.0,
-            "avg_stability": round(mean(stability_values), 3) if stability_values else 0.0,
+            "avg_stability": round(mean(stability_values), 3)
+            if stability_values
+            else 0.0,
             "avg_q_delta": round(mean(q_deltas), 3) if q_deltas else 0.0,
-            "avg_stability_delta": round(mean(stability_deltas), 3) if stability_deltas else 0.0,
+            "avg_stability_delta": round(mean(stability_deltas), 3)
+            if stability_deltas
+            else 0.0,
             "temporal_status": dict(temporal.most_common()),
-            "improvement_count": int(sum(1 for item in crystals if str(item.get("temporal_status")) == "improving" or float(item.get("q_delta") or 0.0) > 0)),
-            "degradation_count": int(sum(1 for item in crystals if str(item.get("temporal_status")) in {"degrading", "critical"} or float(item.get("q_delta") or 0.0) < -0.05)),
+            "improvement_count": int(
+                sum(
+                    1
+                    for item in crystals
+                    if str(item.get("temporal_status")) == "improving"
+                    or float(item.get("q_delta") or 0.0) > 0
+                )
+            ),
+            "degradation_count": int(
+                sum(
+                    1
+                    for item in crystals
+                    if str(item.get("temporal_status")) in {"degrading", "critical"}
+                    or float(item.get("q_delta") or 0.0) < -0.05
+                )
+            ),
         }
 
     @staticmethod
     def _model_usage(model_events: list[dict[str, Any]]) -> dict[str, Any]:
         total = len(model_events)
-        ollama_ok = sum(1 for item in model_events if item.get("provider") == "ollama" and int(item.get("ok") or 0) == 1)
-        fallback = sum(1 for item in model_events if item.get("provider") in {"template", "rules"} or int(item.get("ok") or 0) == 0)
+        ollama_ok = sum(
+            1
+            for item in model_events
+            if item.get("provider") == "ollama" and int(item.get("ok") or 0) == 1
+        )
+        fallback = sum(
+            1
+            for item in model_events
+            if item.get("provider") in {"template", "rules"}
+            or int(item.get("ok") or 0) == 0
+        )
         counts = Counter(
             f"{item.get('role', 'unknown')}:{item.get('provider', 'unknown')}:{item.get('model_name', 'unknown')}:ok={int(item.get('ok') or 0)}"
             for item in model_events
         )
         quality_by_role: dict[str, list[float]] = defaultdict(list)
         for item in model_events:
-            quality_by_role[str(item.get("role") or "unknown")].append(float(item.get("quality_score") or 0.0))
+            quality_by_role[str(item.get("role") or "unknown")].append(
+                float(item.get("quality_score") or 0.0)
+            )
         return {
             "total_events": total,
             "ollama_ok_events": ollama_ok,
@@ -320,7 +395,9 @@ class ConversationAnalyzer:
             "ollama_percent": round((ollama_ok / total) * 100, 2) if total else 0.0,
             "fallback_percent": round((fallback / total) * 100, 2) if total else 0.0,
             "by_role_provider_model": dict(counts.most_common()),
-            "avg_quality_by_role": {role: round(mean(values), 3) for role, values in quality_by_role.items()},
+            "avg_quality_by_role": {
+                role: round(mean(values), 3) for role, values in quality_by_role.items()
+            },
         }
 
     @staticmethod
@@ -344,7 +421,11 @@ class ConversationAnalyzer:
             key: {
                 "present": len(values & run_ids),
                 "missing": sorted(run_ids - values)[:20],
-                "coverage_percent": round((len(values & run_ids) / len(run_ids)) * 100, 2) if run_ids else 0.0,
+                "coverage_percent": round(
+                    (len(values & run_ids) / len(run_ids)) * 100, 2
+                )
+                if run_ids
+                else 0.0,
             }
             for key, values in coverage.items()
         }
@@ -359,14 +440,24 @@ class ConversationAnalyzer:
         themes = Counter()
         for row in rows:
             themes.update(self._keywords(str(row["user_input"] or "")))
-        clean_themes = [f"Patron recurrente: {theme} ({count} apariciones)" for theme, count in themes.most_common(8) if count >= 2]
+        clean_themes = [
+            f"Patron recurrente: {theme} ({count} apariciones)"
+            for theme, count in themes.most_common(8)
+            if count >= 2
+        ]
         warnings = Counter()
         for report in reports:
             warnings.update(self._json_list(report.get("warnings")))
         if warnings:
-            clean_themes.extend([f"Advertencia recurrente candidata: {text}" for text, _ in warnings.most_common(5)])
+            clean_themes.extend(
+                [
+                    f"Advertencia recurrente candidata: {text}"
+                    for text, _ in warnings.most_common(5)
+                ]
+            )
         return {
-            "candidate_themes": clean_themes or ["No hay recurrencia suficiente para proponer candidatos de learning."],
+            "candidate_themes": clean_themes
+            or ["No hay recurrencia suficiente para proponer candidatos de learning."],
             "do_not_consolidate": [
                 "Entradas textuales completas de usuarios sin aprobacion humana.",
                 "Inferencias de identidad, preferencias o datos privados no verificadas.",
@@ -396,15 +487,25 @@ class ConversationAnalyzer:
         if run_count and len(reports) < run_count:
             trace_gaps.append("verificacion")
         if trace_gaps:
-            recommendations.append(f"Completar trazabilidad por run en: {', '.join(trace_gaps)}.")
+            recommendations.append(
+                f"Completar trazabilidad por run en: {', '.join(trace_gaps)}."
+            )
         usage = self._model_usage(model_events)
         if usage["fallback_percent"] > 35:
-            recommendations.append("Investigar fallback recurrente: registrar causa exacta y separar fallback de modelo ausente vs salida invalida.")
+            recommendations.append(
+                "Investigar fallback recurrente: registrar causa exacta y separar fallback de modelo ausente vs salida invalida."
+            )
         crystal = self._crystal_evolution(crystals)
         if crystal["degradation_count"] > crystal["improvement_count"]:
-            recommendations.append("Revisar reglas de regulacion del Cristal para contextos con degradacion repetida.")
-        recommendations.append("Mantener aprendizaje conversacional como candidatos revisables, no como consolidacion automatica.")
-        recommendations.append("Separar progresivamente orquestacion del runner en etapas testeables: senales, memoria, cristal, plan, modelos y verificacion.")
+            recommendations.append(
+                "Revisar reglas de regulacion del Cristal para contextos con degradacion repetida."
+            )
+        recommendations.append(
+            "Mantener aprendizaje conversacional como candidatos revisables, no como consolidacion automatica."
+        )
+        recommendations.append(
+            "Separar progresivamente orquestacion del runner en etapas testeables: senales, memoria, cristal, plan, modelos y verificacion."
+        )
         return recommendations
 
     @staticmethod
@@ -434,9 +535,16 @@ class ConversationAnalyzer:
 
 
 def add_analyze_conversations_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--db", default="triade/memory/triade.db", help="Ruta de base SQLite")
+    parser.add_argument(
+        "--db", default="triade/memory/triade.db", help="Ruta de base SQLite"
+    )
     parser.add_argument("--limit", type=int, default=50, help="Cantidad maxima de runs")
     parser.add_argument("--json", action="store_true", help="Imprime JSON completo")
     parser.add_argument("--since", default=None, help="Fecha minima YYYY-MM-DD")
-    parser.add_argument("--source", choices=["console", "single-port-ui", "test"], default=None, help="Filtra fuente")
+    parser.add_argument(
+        "--source",
+        choices=["console", "single-port-ui", "test"],
+        default=None,
+        help="Filtra fuente",
+    )
     parser.add_argument("--export", default=None, help="Exporta reporte Markdown")

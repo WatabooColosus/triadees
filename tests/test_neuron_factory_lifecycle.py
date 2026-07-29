@@ -88,7 +88,9 @@ def test_promoted_neuron_registers_demonstrated_capability(tmp_path: Path) -> No
     db_path = tmp_path / "triade.db"
     candidate_id = prepare_promoted_candidate(db_path)
 
-    registered = NeuronLifecycleManager(db_path).register_demonstrated_capabilities(candidate_id)
+    registered = NeuronLifecycleManager(db_path).register_demonstrated_capabilities(
+        candidate_id
+    )
 
     assert [item["capability_id"] for item in registered] == ["research_verified"]
     capability = CapabilityRegistry(db_path).get("research_verified", "1.0.0")
@@ -103,7 +105,9 @@ def test_registration_is_idempotent(tmp_path: Path) -> None:
     candidate_id = prepare_promoted_candidate(db_path)
     manager = NeuronLifecycleManager(db_path)
 
-    assert manager.register_demonstrated_capabilities(candidate_id) == manager.register_demonstrated_capabilities(candidate_id)
+    assert manager.register_demonstrated_capabilities(
+        candidate_id
+    ) == manager.register_demonstrated_capabilities(candidate_id)
 
 
 def test_rollback_blocks_capability_and_quarantines_neuron(tmp_path: Path) -> None:
@@ -116,7 +120,10 @@ def test_rollback_blocks_capability_and_quarantines_neuron(tmp_path: Path) -> No
 
     assert result["status"] == "rolled_back"
     assert result["specification"]["state"] == "quarantined"
-    assert CapabilityRegistry(db_path).get("research_verified", "1.0.0")["state"] == "blocked"
+    assert (
+        CapabilityRegistry(db_path).get("research_verified", "1.0.0")["state"]
+        == "blocked"
+    )
     assert manager.candidates.get(candidate_id)["status"] == "rolled_back"
     with pytest.raises(ValueError, match="solo un candidato promovido"):
         manager.rollback(candidate_id, "segunda reversión")

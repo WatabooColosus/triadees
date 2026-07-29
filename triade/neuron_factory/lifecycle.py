@@ -20,13 +20,17 @@ class NeuronLifecycleManager:
         self.specifications = NeuronSpecificationStore(self.db_path)
         self.capabilities = CapabilityRegistry(self.db_path)
 
-    def register_demonstrated_capabilities(self, candidate_id: str) -> list[dict[str, Any]]:
+    def register_demonstrated_capabilities(
+        self, candidate_id: str
+    ) -> list[dict[str, Any]]:
         manifest = self.candidates.get(candidate_id)
         if manifest is None:
             raise KeyError(f"candidato no registrado: {candidate_id}")
         if manifest.get("status") != "promoted":
             raise ValueError("solo un candidato promovido puede registrar capacidades")
-        specification = self.specifications.get(manifest["neuron_id"], manifest["version"])
+        specification = self.specifications.get(
+            manifest["neuron_id"], manifest["version"]
+        )
         if specification is None or specification.get("state") != "promoted":
             raise ValueError("la especificación no está promovida")
 
@@ -63,14 +67,18 @@ class NeuronLifecycleManager:
             raise KeyError(f"candidato no registrado: {candidate_id}")
         if manifest.get("status") != "promoted":
             raise ValueError("solo un candidato promovido puede revertirse")
-        specification = self.specifications.get(manifest["neuron_id"], manifest["version"])
+        specification = self.specifications.get(
+            manifest["neuron_id"], manifest["version"]
+        )
         if specification is None or specification.get("state") != "promoted":
             raise ValueError("la especificación no está promovida")
 
         for capability_id in specification.get("provides_capabilities", []):
             capability = self.capabilities.get(capability_id, specification["version"])
             if capability is not None:
-                self.capabilities.set_state(capability_id, specification["version"], "blocked")
+                self.capabilities.set_state(
+                    capability_id, specification["version"], "blocked"
+                )
         quarantined = self.specifications.transition(
             manifest["neuron_id"], manifest["version"], "quarantined"
         )
@@ -82,7 +90,11 @@ class NeuronLifecycleManager:
                 "UPDATE neuron_candidates SET status = ?, manifest_json = ? WHERE candidate_id = ?",
                 ("rolled_back", json.dumps(updated, sort_keys=True), candidate_id),
             )
-        return {"candidate_id": candidate_id, "status": "rolled_back", "specification": quarantined}
+        return {
+            "candidate_id": candidate_id,
+            "status": "rolled_back",
+            "specification": quarantined,
+        }
 
     def snapshot(self) -> dict[str, Any]:
         with sqlite3.connect(self.db_path) as conn:
@@ -98,6 +110,8 @@ class NeuronLifecycleManager:
             ).fetchone()["total"]
         return {
             "candidates": {row["status"]: row["total"] for row in candidate_rows},
-            "specifications": {row["state"]: row["total"] for row in specification_rows},
+            "specifications": {
+                row["state"]: row["total"] for row in specification_rows
+            },
             "executions": executions,
         }

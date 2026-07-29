@@ -8,10 +8,8 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
-import pytest
 
 from triade.core.life_pulse import (
     LifePulseEngine,
@@ -23,8 +21,6 @@ from triade.core.life_pulse import (
 from triade.core.neuron_autopromoter import NeuronAutopromoter
 from triade.core.stable_promotion_readiness import (
     evaluate_stable_readiness,
-    SYNTHETIC_POLICIES,
-    DEFAULT_THRESHOLDS,
 )
 
 
@@ -41,7 +37,15 @@ def make_life_db(tmp_path: Path) -> Path:
             """INSERT INTO runs
             (run_id, source, user_input, status, model_hypothalamus, model_central, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (run_id, "test", "pulso vida aprendizaje segundo plano", "ok", "rules-fallback", "template-fallback", "2026-06-05"),
+            (
+                run_id,
+                "test",
+                "pulso vida aprendizaje segundo plano",
+                "ok",
+                "rules-fallback",
+                "template-fallback",
+                "2026-06-05",
+            ),
         )
         conn.execute(
             "INSERT INTO signal_states (run_id, intent, tone, urgency, risk, pv7, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -57,7 +61,13 @@ def make_life_db(tmp_path: Path) -> Path:
         )
         conn.execute(
             "INSERT INTO episodic_memory (run_id, title, content, summary, tags) VALUES (?, ?, ?, ?, ?)",
-            (run_id, "Pulso", "Usuario privado\nRespuesta", "Resumen", "triade,mvp,run"),
+            (
+                run_id,
+                "Pulso",
+                "Usuario privado\nRespuesta",
+                "Resumen",
+                "triade,mvp,run",
+            ),
         )
     return db_path
 
@@ -123,8 +133,6 @@ def test_continuous_loop_respects_interval(tmp_path: Path) -> None:
     )
 
     # Monkey-patch _continuous_loop to track timing
-    cycle_times: list[float] = []
-    original_loop = engine._continuous_loop
 
     def tracking_loop() -> None:
         # Just track that the engine was configured correctly
@@ -166,7 +174,10 @@ def test_continuous_loop_stops_on_max_cycles(tmp_path: Path) -> None:
         nonlocal cycle_count
         while not engine._stop.is_set():
             cycle_count += 1
-            if engine.continuous_max_cycles > 0 and cycle_count >= engine.continuous_max_cycles:
+            if (
+                engine.continuous_max_cycles > 0
+                and cycle_count >= engine.continuous_max_cycles
+            ):
                 max_reached.set()
                 break
             engine._stop.wait(0.01)
@@ -271,7 +282,10 @@ def test_continuous_runner_requires_explicit_activation(tmp_path: Path) -> None:
     engine_off = LifePulseEngine(db_path=db_path, runs_dir=tmp_path / "runs")
     engine_off.start()
     time.sleep(0.1)
-    assert engine_off._continuous_thread is None or not engine_off._continuous_thread.is_alive()
+    assert (
+        engine_off._continuous_thread is None
+        or not engine_off._continuous_thread.is_alive()
+    )
     engine_off.stop()
 
     # Explicitly enabled
@@ -284,7 +298,10 @@ def test_continuous_runner_requires_explicit_activation(tmp_path: Path) -> None:
     )
     engine_on.start()
     time.sleep(0.1)
-    assert engine_on._continuous_thread is not None and engine_on._continuous_thread.is_alive()
+    assert (
+        engine_on._continuous_thread is not None
+        and engine_on._continuous_thread.is_alive()
+    )
     engine_on.stop()
 
 
@@ -321,7 +338,7 @@ def test_continuous_loop_never_modifies_identity_core(tmp_path: Path) -> None:
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM identity_core").fetchone()
-        before = dict(zip(row.keys(), row)) if row else {}
+        dict(zip(row.keys(), row)) if row else {}
 
     # The policy always says identity_core_modified is False
     snapshot = engine.snapshot()

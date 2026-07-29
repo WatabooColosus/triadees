@@ -32,14 +32,18 @@ class NeuronRegistry:
 
     def _init_db(self) -> None:
         if not self.schema_path.exists():
-            raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
+            raise FileNotFoundError(
+                f"No existe el esquema de memoria: {self.schema_path}"
+            )
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
             self._migrate_neurons_table(conn)
 
     def _migrate_neurons_table(self, conn: sqlite3.Connection) -> None:
         """Agrega columnas modernas de contrato a bases existentes."""
-        columns = {row["name"] for row in conn.execute("PRAGMA table_info(neurons)").fetchall()}
+        columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(neurons)").fetchall()
+        }
         additions = {
             "triggers": "TEXT",
             "inputs_allowed": "TEXT",
@@ -67,7 +71,9 @@ class NeuronRegistry:
             out.append(item)
         return out
 
-    def register(self, spec: NeuronSpec, contract_payload: dict[str, Any] | None = None) -> int:
+    def register(
+        self, spec: NeuronSpec, contract_payload: dict[str, Any] | None = None
+    ) -> int:
         """Crea o actualiza una neurona por nombre.
 
         contract_payload permite persistir contrato extendido de pipelines
@@ -76,7 +82,9 @@ class NeuronRegistry:
         """
         contract_payload = contract_payload or {}
         activation_policy = contract_payload.get("activation_policy") or {}
-        contract_json = contract_payload or (spec.to_dict() if hasattr(spec, "to_dict") else {})
+        contract_json = contract_payload or (
+            spec.to_dict() if hasattr(spec, "to_dict") else {}
+        )
 
         with self._connect() as conn:
             cursor = conn.execute(
@@ -109,12 +117,30 @@ class NeuronRegistry:
                     spec.mission,
                     spec.domain,
                     json.dumps(self._unique_list(spec.rules), ensure_ascii=False),
-                    json.dumps(self._unique_list(getattr(spec, "triggers", [])), ensure_ascii=False),
-                    json.dumps(self._unique_list(getattr(spec, "inputs_allowed", [])), ensure_ascii=False),
-                    json.dumps(self._unique_list(getattr(spec, "outputs_allowed", [])), ensure_ascii=False),
-                    json.dumps(self._unique_list(getattr(spec, "forbidden_actions", [])), ensure_ascii=False),
-                    json.dumps(self._unique_list(getattr(spec, "success_metrics", [])), ensure_ascii=False),
-                    json.dumps(self._unique_list(getattr(spec, "evidence_required", [])), ensure_ascii=False),
+                    json.dumps(
+                        self._unique_list(getattr(spec, "triggers", [])),
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(
+                        self._unique_list(getattr(spec, "inputs_allowed", [])),
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(
+                        self._unique_list(getattr(spec, "outputs_allowed", [])),
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(
+                        self._unique_list(getattr(spec, "forbidden_actions", [])),
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(
+                        self._unique_list(getattr(spec, "success_metrics", [])),
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(
+                        self._unique_list(getattr(spec, "evidence_required", [])),
+                        ensure_ascii=False,
+                    ),
                     json.dumps(activation_policy, ensure_ascii=False),
                     json.dumps(contract_json, ensure_ascii=False),
                     spec.status,
@@ -123,7 +149,9 @@ class NeuronRegistry:
             )
             if cursor.lastrowid:
                 return int(cursor.lastrowid)
-            row = conn.execute("SELECT id FROM neurons WHERE name = ?", (spec.name,)).fetchone()
+            row = conn.execute(
+                "SELECT id FROM neurons WHERE name = ?", (spec.name,)
+            ).fetchone()
             return int(row["id"])
 
     def store_training(self, neuron_id: int, result: NeuronTrainingResult) -> int:

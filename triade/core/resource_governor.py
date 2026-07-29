@@ -36,7 +36,7 @@ def decide_work_mode(
     ac = power.get("ac_connected")
     load_1min = resource_probe.get("cpu", {}).get("load_1min")
     thermal_status = resource_probe.get("thermal", {}).get("thermal_status")
-    warnings_list = resource_probe.get("warnings", [])
+    resource_probe.get("warnings", [])
 
     can_reason = bool(ollama_blood.get("can_reason"))
     can_embed = bool(ollama_blood.get("can_embed"))
@@ -48,20 +48,43 @@ def decide_work_mode(
     # --- Bloqueo por disco ---
     if disk_gb < 2:
         allowed_mode = "blocked"
-        reasons.append(f"Disco libre insuficiente ({disk_gb} GB). Operaciones bloqueadas.")
-        return _build_decision(allowed_mode, requested_mode, reasons, downgrades, resource_probe, ollama_blood)
+        reasons.append(
+            f"Disco libre insuficiente ({disk_gb} GB). Operaciones bloqueadas."
+        )
+        return _build_decision(
+            allowed_mode,
+            requested_mode,
+            reasons,
+            downgrades,
+            resource_probe,
+            ollama_blood,
+        )
 
     # --- Cooldown por RAM ---
     if ram_gb < 2:
         allowed_mode = "cooldown"
         reasons.append(f"RAM disponible muy baja ({ram_gb} GB). Cooldown forzado.")
-        return _build_decision(allowed_mode, requested_mode, reasons, downgrades, resource_probe, ollama_blood)
+        return _build_decision(
+            allowed_mode,
+            requested_mode,
+            reasons,
+            downgrades,
+            resource_probe,
+            ollama_blood,
+        )
 
     # --- Cooldown por batería crítica ---
     if battery_pct is not None and battery_pct < 15 and ac is not True:
         allowed_mode = "cooldown"
         reasons.append(f"Batería crítica ({battery_pct}%) sin AC.")
-        return _build_decision(allowed_mode, requested_mode, reasons, downgrades, resource_probe, ollama_blood)
+        return _build_decision(
+            allowed_mode,
+            requested_mode,
+            reasons,
+            downgrades,
+            resource_probe,
+            ollama_blood,
+        )
 
     # --- Observe-only por batería baja ---
     if battery_pct is not None and battery_pct < 25 and ac is not True:
@@ -91,16 +114,22 @@ def decide_work_mode(
     # --- Balanced por hardware medium ---
     elif tier == "medium":
         allowed_mode = "balanced_background"
-        reasons.append(f"Hardware tier {tier} con AC y Ollama OK. Máximo balanced_background.")
+        reasons.append(
+            f"Hardware tier {tier} con AC y Ollama OK. Máximo balanced_background."
+        )
     # --- Full local por high ---
     elif tier == "high" and blood_ok and (ac is not False):
         allowed_mode = "full_local_guarded"
-        reasons.append(f"Hardware tier {tier} con AC y Ollama Blood activa. Full local guarded permitido.")
+        reasons.append(
+            f"Hardware tier {tier} con AC y Ollama Blood activa. Full local guarded permitido."
+        )
     else:
         allowed_mode = "balanced_background"
         reasons.append(f"Hardware tier {tier}, recursos suficientes. Modo balanced.")
 
-    return _build_decision(allowed_mode, requested_mode, reasons, downgrades, resource_probe, ollama_blood)
+    return _build_decision(
+        allowed_mode, requested_mode, reasons, downgrades, resource_probe, ollama_blood
+    )
 
 
 def _build_decision(
@@ -114,17 +143,49 @@ def _build_decision(
     requested = requested_mode or "observe_only"
     if WORK_MODE_RANK.get(requested, 0) > WORK_MODE_RANK.get(allowed_mode, 0):
         effective_mode = allowed_mode
-        reasons.append(f"Modo solicitado '{requested}' excede permitido '{allowed_mode}'. Degradado.")
+        reasons.append(
+            f"Modo solicitado '{requested}' excede permitido '{allowed_mode}'. Degradado."
+        )
     else:
         effective_mode = requested
 
     can_embed = bool(blood.get("can_embed"))
     can_reason = bool(blood.get("can_reason"))
-    can_nourish = effective_mode in ("balanced_background", "full_local", "full_local_guarded", "execute_missions") and can_reason
-    can_evaluate = effective_mode in ("light_background", "balanced_background", "full_local", "full_local_guarded") and can_reason
-    can_consolidate = effective_mode in ("full_local", "full_local_guarded") and can_reason
-    can_workers = effective_mode in ("light_background", "balanced_background", "full_local", "full_local_guarded", "execute_missions")
-    can_write = effective_mode in ("balanced_background", "full_local", "full_local_guarded")
+    can_nourish = (
+        effective_mode
+        in (
+            "balanced_background",
+            "full_local",
+            "full_local_guarded",
+            "execute_missions",
+        )
+        and can_reason
+    )
+    can_evaluate = (
+        effective_mode
+        in (
+            "light_background",
+            "balanced_background",
+            "full_local",
+            "full_local_guarded",
+        )
+        and can_reason
+    )
+    can_consolidate = (
+        effective_mode in ("full_local", "full_local_guarded") and can_reason
+    )
+    can_workers = effective_mode in (
+        "light_background",
+        "balanced_background",
+        "full_local",
+        "full_local_guarded",
+        "execute_missions",
+    )
+    can_write = effective_mode in (
+        "balanced_background",
+        "full_local",
+        "full_local_guarded",
+    )
     can_write_repo = False
     # Shell libre permanece deshabilitado. Safe Shell es una capacidad aparte
     # y solo ejecuta entradas fijas, confinadas y auditadas.
@@ -136,11 +197,28 @@ def _build_decision(
     blocked: list[str] = []
     allowed_actions: list[str] = ["read_project", "publish_events", "record_heartbeat"]
 
-    if effective_mode in ("observe_only", "light_background", "balanced_background", "full_local", "full_local_guarded"):
+    if effective_mode in (
+        "observe_only",
+        "light_background",
+        "balanced_background",
+        "full_local",
+        "full_local_guarded",
+    ):
         allowed_actions.append("observe_bodega")
-    if effective_mode in ("light_background", "balanced_background", "full_local", "full_local_guarded", "execute_missions"):
+    if effective_mode in (
+        "light_background",
+        "balanced_background",
+        "full_local",
+        "full_local_guarded",
+        "execute_missions",
+    ):
         allowed_actions.append("run_workers")
-    if effective_mode in ("balanced_background", "full_local", "full_local_guarded", "execute_missions"):
+    if effective_mode in (
+        "balanced_background",
+        "full_local",
+        "full_local_guarded",
+        "execute_missions",
+    ):
         allowed_actions.append("run_neuron_nutrition")
         allowed_actions.append("write_runs")
         allowed_actions.append("write_artifacts")

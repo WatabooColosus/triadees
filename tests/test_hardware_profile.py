@@ -18,24 +18,42 @@ def test_hardware_profiler_detects_profile() -> None:
 
 
 def test_hardware_tier_low() -> None:
-    assert HardwareProfiler._tier(cpu_count=2, ram_total_gb=4, ram_available_gb=1.5) == "low"
+    assert (
+        HardwareProfiler._tier(cpu_count=2, ram_total_gb=4, ram_available_gb=1.5)
+        == "low"
+    )
 
 
 def test_hardware_tier_medium() -> None:
-    assert HardwareProfiler._tier(cpu_count=4, ram_total_gb=16, ram_available_gb=6) == "medium"
+    assert (
+        HardwareProfiler._tier(cpu_count=4, ram_total_gb=16, ram_available_gb=6)
+        == "medium"
+    )
 
 
 def test_hardware_tier_high() -> None:
-    assert HardwareProfiler._tier(cpu_count=8, ram_total_gb=32, ram_available_gb=16) == "high"
+    assert (
+        HardwareProfiler._tier(cpu_count=8, ram_total_gb=32, ram_available_gb=16)
+        == "high"
+    )
 
 
 def test_gpu_can_raise_tier() -> None:
-    gpu = GPUInfo(name="Test GPU", vendor="NVIDIA", vram_total_gb=8.0, cuda_available=True)
-    assert HardwareProfiler._tier(cpu_count=8, ram_total_gb=16, ram_available_gb=8, gpus=[gpu]) == "high"
+    gpu = GPUInfo(
+        name="Test GPU", vendor="NVIDIA", vram_total_gb=8.0, cuda_available=True
+    )
+    assert (
+        HardwareProfiler._tier(
+            cpu_count=8, ram_total_gb=16, ram_available_gb=8, gpus=[gpu]
+        )
+        == "high"
+    )
 
 
 def test_capability_notes_low_ram() -> None:
-    status, notes = HardwareProfiler._capability_status(tier="low", ram_available_gb=2.0, gpus=[])
+    status, notes = HardwareProfiler._capability_status(
+        tier="low", ram_available_gb=2.0, gpus=[]
+    )
 
     assert status == "low"
     assert any("RAM" in note for note in notes)

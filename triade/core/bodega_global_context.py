@@ -15,7 +15,6 @@ from typing import Any
 
 from triade.core.bodega import Bodega
 from triade.core.contracts import InputPacket
-from triade.core.neuron_missions import NeuronMissionStore
 from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
 from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_governance import SemanticMemoryGovernance
@@ -89,7 +88,9 @@ def _compute_continuity_summary(
     return "; ".join(parts)
 
 
-def _group_project_context(semantic_matches: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+def _group_project_context(
+    semantic_matches: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
     """Agrupa coincidencias semánticas por dominio."""
     grouped: dict[str, list[dict[str, Any]]] = {}
     for match in semantic_matches:
@@ -115,7 +116,9 @@ def _detect_contradictions(
         contradictions.append("Recuperación semántica desactivada con confianza baja.")
     needs_review = stable_audit_summary.get("stable_needs_review", 0)
     if needs_review > 0:
-        contradictions.append(f"{needs_review} neurona(s) stable(s) requieren revisión de evidencia.")
+        contradictions.append(
+            f"{needs_review} neurona(s) stable(s) requieren revisión de evidencia."
+        )
     if semantic_recall_info.get("status") in ("unavailable", "disabled"):
         contradictions.append("Recuperación semántica no disponible o desactivada.")
     return contradictions
@@ -125,6 +128,7 @@ def _get_qualia_snapshot() -> dict[str, Any]:
     """Obtiene snapshot de Qualia si está disponible."""
     try:
         from triade.core.qualia import QUALIA
+
         return QUALIA.snapshot(refresh_life=False)
     except Exception:
         return {}
@@ -140,13 +144,24 @@ def _build_semantic_search_engine(
     Returns the engine if all dependencies are available, None otherwise.
     Does not raise.
     """
-    if SemanticMemoryStore is None or SemanticEmbeddingEngine is None or SemanticSearchEngine is None or OllamaClient is None:
+    if (
+        SemanticMemoryStore is None
+        or SemanticEmbeddingEngine is None
+        or SemanticSearchEngine is None
+        or OllamaClient is None
+    ):
         return None
     try:
         store = SemanticMemoryStore(db_path=db_path)
-        client = OllamaClient(base_url=base_url or "http://127.0.0.1:11434", timeout=timeout)
-        embedding = SemanticEmbeddingEngine(store=store, client=client, use_local_fallback=True)
-        engine = SemanticSearchEngine(store=store, client=client, embedding_engine=embedding)
+        client = OllamaClient(
+            base_url=base_url or "http://127.0.0.1:11434", timeout=timeout
+        )
+        embedding = SemanticEmbeddingEngine(
+            store=store, client=client, use_local_fallback=True
+        )
+        engine = SemanticSearchEngine(
+            store=store, client=client, embedding_engine=embedding
+        )
         return engine
     except Exception:
         return None
@@ -184,29 +199,44 @@ def build_bodega_global_context(
         ollama_blood = check_ollama_blood()
         policy_bodega = ollama_blood_policy("bodega_diagnosis", ollama_blood)
         policy_semantic = ollama_blood_policy("semantic_embedding", ollama_blood)
-        ollama_health = check_ollama_cognitive_health() if check_ollama_cognitive_health is not None else {"ok": False, "errors": ["ollama health unavailable"]}
+        (
+            check_ollama_cognitive_health()
+            if check_ollama_cognitive_health is not None
+            else {"ok": False, "errors": ["ollama health unavailable"]}
+        )
 
         if semantic_recall_enabled:
             semantic_ready = bool(ollama_blood.get("can_embed"))
             # También verificar si hay embeddings locales disponibles
             local_embeddings_available = False
             try:
-                from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
+                from triade.memory.semantic_embedding_engine import (
+                    SemanticEmbeddingEngine,
+                )
+
                 test_engine = SemanticEmbeddingEngine(use_local_fallback=True)
                 selection = test_engine.select_model()
-                local_embeddings_available = selection.get("ok") and selection.get("provider") == "local"
+                local_embeddings_available = (
+                    selection.get("ok") and selection.get("provider") == "local"
+                )
             except Exception:
                 pass
-            
+
             if semantic_ready or local_embeddings_available:
                 semantic_engine = _build_semantic_search_engine(db_path)
-            if semantic_engine is not None and (semantic_ready or local_embeddings_available):
+            if semantic_engine is not None and (
+                semantic_ready or local_embeddings_available
+            ):
                 semantic_engine_status = "available"
-                embedding_model_used = ollama_blood.get("embedding_model") or "local-sentence-transformers"
+                embedding_model_used = (
+                    ollama_blood.get("embedding_model") or "local-sentence-transformers"
+                )
                 semantic_learning_allowed = True
             else:
                 semantic_engine_status = "unavailable"
-                semantic_degraded_reason = "Ollama o modelo de embeddings no disponible."
+                semantic_degraded_reason = (
+                    "Ollama o modelo de embeddings no disponible."
+                )
                 semantic_engine_error = "No se pudo construir SemanticSearchEngine (Ollama o dependencias no disponibles)."
 
         bodega = Bodega(db_path=db_path, semantic_search_engine=semantic_engine)
@@ -226,7 +256,7 @@ def build_bodega_global_context(
         identity_context = recall_dict.get("identity_matches", [])
         semantic_recall_info = recall_dict.get("semantic_recall", {})
         semantic_matches = recall_dict.get("semantic_matches", [])
-        episodic_matches = recall_dict.get("episodic_matches", [])
+        recall_dict.get("episodic_matches", [])
         confidence_score = recall_dict.get("confidence", 0.0)
 
         recent_episodes = bodega.list_recent_episodes(limit=limit)
@@ -253,7 +283,9 @@ def build_bodega_global_context(
             learning = LearningPipeline(db_path=db_path)
             candidates = learning.list_candidates(status="candidate", limit=limit)
             evaluated = learning.list_candidates(status="evaluated", limit=limit)
-            verified = learning.list_candidates(status="internally_checked", limit=limit)
+            verified = learning.list_candidates(
+                status="internally_checked", limit=limit
+            )
             learning_context = {
                 "candidates": len(candidates),
                 "evaluated": len(evaluated),
@@ -287,7 +319,9 @@ def build_bodega_global_context(
                 stable_audit_summary = {
                     "status": audit_result.get("status", "ok"),
                     "total_stable_neurons": audit_result.get("total_stable_neurons", 0),
-                    "stable_with_enough_evidence": audit_result.get("stable_with_enough_evidence", 0),
+                    "stable_with_enough_evidence": audit_result.get(
+                        "stable_with_enough_evidence", 0
+                    ),
                     "stable_needs_review": audit_result.get("stable_needs_review", 0),
                     "policy": audit_result.get("policy", {}),
                 }
@@ -296,12 +330,21 @@ def build_bodega_global_context(
             stable_audit_summary = {"status": "unavailable"}
 
         qualia_context = _get_qualia_snapshot()
-        from triade.core.federated_global_edge import build_federated_global_edge_context
-        federated_global_edge_context = build_federated_global_edge_context(db_path=db_path, limit=limit)
+        from triade.core.federated_global_edge import (
+            build_federated_global_edge_context,
+        )
 
-        continuity_summary = _compute_continuity_summary(recent_episodes, semantic_matches)
+        federated_global_edge_context = build_federated_global_edge_context(
+            db_path=db_path, limit=limit
+        )
+
+        continuity_summary = _compute_continuity_summary(
+            recent_episodes, semantic_matches
+        )
         if not ollama_blood.get("ollama_ok"):
-            semantic_recall_mode = "degraded_no_ollama" if semantic_recall_enabled else "keyword_only"
+            semantic_recall_mode = (
+                "degraded_no_ollama" if semantic_recall_enabled else "keyword_only"
+            )
         elif ollama_blood.get("can_embed"):
             semantic_recall_mode = "semantic_vector"
         elif ollama_blood.get("can_reason"):
@@ -364,7 +407,8 @@ def build_bodega_global_context(
             "bodega_diagnosis_allowed": bool(policy_bodega.get("allowed")),
             "recommended_model_action": (
                 "Iniciar Ollama o instalar modelo de embeddings."
-                if not ollama_blood.get("ollama_ok") or not ollama_blood.get("can_embed")
+                if not ollama_blood.get("ollama_ok")
+                or not ollama_blood.get("can_embed")
                 else "Ollama Blood activo para Bodega y memoria semántica."
             ),
             "recommended_action": (
@@ -399,7 +443,11 @@ def build_bodega_global_context(
             "semantic_governance": {"status": "unavailable"},
             "project_context": {},
             "neuron_context": [],
-            "learning_context": {"candidates": 0, "evaluated": 0, "internally_checked": 0},
+            "learning_context": {
+                "candidates": 0,
+                "evaluated": 0,
+                "internally_checked": 0,
+            },
             "safety_context": {
                 "identity_core_protected": True,
                 "stable_memory_requires_learning_pipeline": True,

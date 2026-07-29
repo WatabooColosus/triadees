@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 
@@ -13,8 +12,20 @@ from triade.os.event_engine import EventEngine, BUILTIN_RULES
 
 
 SCHEMA_SQL = Path(__file__).resolve().parents[1] / "triade" / "memory" / "schemas.sql"
-MIGRATION_003 = Path(__file__).resolve().parents[1] / "triade" / "memory" / "migrations" / "003_living_workers.sql"
-MIGRATION_005 = Path(__file__).resolve().parents[1] / "triade" / "memory" / "migrations" / "005_triade_os.sql"
+MIGRATION_003 = (
+    Path(__file__).resolve().parents[1]
+    / "triade"
+    / "memory"
+    / "migrations"
+    / "003_living_workers.sql"
+)
+MIGRATION_005 = (
+    Path(__file__).resolve().parents[1]
+    / "triade"
+    / "memory"
+    / "migrations"
+    / "005_triade_os.sql"
+)
 
 
 @pytest.fixture()
@@ -37,7 +48,9 @@ def engine(db: Path) -> EventEngine:
     return EventEngine(db_path=db)
 
 
-def _insert_event(conn: sqlite3.Connection, event_type: str, severity: str = "ok", message: str = "") -> int:
+def _insert_event(
+    conn: sqlite3.Connection, event_type: str, severity: str = "ok", message: str = ""
+) -> int:
     cursor = conn.execute(
         """INSERT INTO worker_events (event_type, status, message, created_at)
         VALUES (?, ?, ?, datetime('now'))""",
@@ -61,11 +74,13 @@ class TestBuiltinRules:
 class TestEventRuleRegistration:
     def test_register_custom_rule(self, engine: EventEngine) -> None:
         initial_count = len(engine.get_rules())
-        engine.register_rule(EventRule(
-            event_type_pattern=r"^custom_event$",
-            action="custom_action",
-            priority=10,
-        ))
+        engine.register_rule(
+            EventRule(
+                event_type_pattern=r"^custom_event$",
+                action="custom_action",
+                priority=10,
+            )
+        )
         assert len(engine.get_rules()) == initial_count + 1
 
     def test_clear_custom_rules(self, engine: EventEngine) -> None:
@@ -79,7 +94,9 @@ class TestEventEngineScan:
         tasks = engine.scan()
         assert tasks == []
 
-    def test_scan_creates_task_for_matching_event(self, engine: EventEngine, db: Path) -> None:
+    def test_scan_creates_task_for_matching_event(
+        self, engine: EventEngine, db: Path
+    ) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
         _insert_event(conn, "error_recorded", severity="warning", message="test error")
@@ -89,7 +106,9 @@ class TestEventEngineScan:
         assert len(tasks) >= 1
         assert tasks[0]["task_type"] == "neuron_candidate_formation"
 
-    def test_scan_does_not_trigger_for_unmatched_event(self, engine: EventEngine, db: Path) -> None:
+    def test_scan_does_not_trigger_for_unmatched_event(
+        self, engine: EventEngine, db: Path
+    ) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
         _insert_event(conn, "some_random_event", severity="ok", message="no match")
@@ -103,15 +122,21 @@ class TestEventEngineScan:
     def test_scan_respects_severity(self, engine: EventEngine, db: Path) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
-        _insert_event(conn, "error_recorded", severity="info", message="low severity error")
+        _insert_event(
+            conn, "error_recorded", severity="info", message="low severity error"
+        )
         conn.close()
 
         tasks = engine.scan()
         # error_recorded rule requires severity_min="warning", info=1 < warning=2
-        error_tasks = [t for t in tasks if t["task_type"] == "neuron_candidate_formation"]
+        error_tasks = [
+            t for t in tasks if t["task_type"] == "neuron_candidate_formation"
+        ]
         assert len(error_tasks) == 0
 
-    def test_scan_advances_last_processed_id(self, engine: EventEngine, db: Path) -> None:
+    def test_scan_advances_last_processed_id(
+        self, engine: EventEngine, db: Path
+    ) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
         _insert_event(conn, "error_recorded", severity="warning")
@@ -122,7 +147,9 @@ class TestEventEngineScan:
         assert last_id is not None
         assert int(last_id) > 0
 
-    def test_scan_deduplicates_pending_tasks(self, engine: EventEngine, db: Path) -> None:
+    def test_scan_deduplicates_pending_tasks(
+        self, engine: EventEngine, db: Path
+    ) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
         _insert_event(conn, "error_recorded", severity="warning")
@@ -168,11 +195,16 @@ class TestEventEngineCooldown:
         engine.process_single_event(eid)
         # Set cooldown
         from triade.core.contracts import utc_now
-        engine._set_state("cooldown:neuron_candidate_formation:error_recorded", utc_now())
+
+        engine._set_state(
+            "cooldown:neuron_candidate_formation:error_recorded", utc_now()
+        )
 
         # Second trigger should be blocked by cooldown
         tasks = engine.process_single_event(eid)
-        error_tasks = [t for t in tasks if t["task_type"] == "neuron_candidate_formation"]
+        error_tasks = [
+            t for t in tasks if t["task_type"] == "neuron_candidate_formation"
+        ]
         assert len(error_tasks) == 0
 
 

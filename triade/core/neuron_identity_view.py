@@ -21,7 +21,11 @@ INSUFFICIENT_IDENTITY_MESSAGE = (
 class NeuronIdentityView:
     """Serializer read-only que explica quién es cada neurona y qué evidencia tiene."""
 
-    def __init__(self, db_path: str | Path = "triade/memory/triade.db", runs_dir: str | Path = "runs") -> None:
+    def __init__(
+        self,
+        db_path: str | Path = "triade/memory/triade.db",
+        runs_dir: str | Path = "runs",
+    ) -> None:
         self.db_path = Path(db_path)
         self.runs_dir = Path(runs_dir)
 
@@ -29,7 +33,10 @@ class NeuronIdentityView:
         registry = NeuronRegistry(db_path=self.db_path)
         neurons = registry.list_neurons(limit=limit)
         context = self._context(limit=limit)
-        identities = [self._build_identity(registry, neuron, context, limit=limit) for neuron in neurons]
+        identities = [
+            self._build_identity(registry, neuron, context, limit=limit)
+            for neuron in neurons
+        ]
         counts: dict[str, int] = {}
         for item in identities:
             status = str(item.get("state") or "unknown")
@@ -70,7 +77,9 @@ class NeuronIdentityView:
         activity = NeuronActivityStore(db_path=self.db_path).list_activity(limit=limit)
         qualia_experiences: list[dict[str, Any]] = []
         try:
-            qualia_experiences = QualiaStore(db_path=self.db_path).list_experiences(limit=limit)
+            qualia_experiences = QualiaStore(db_path=self.db_path).list_experiences(
+                limit=limit
+            )
         except Exception:
             qualia_experiences = []
         return {
@@ -101,20 +110,29 @@ class NeuronIdentityView:
         evidence = context["evidence_by_name"].get(name, {})
         readiness = context["readiness_by_name"].get(name, {})
         activity = [
-            item for item in context["activity"]
-            if str(item.get("name") or "") == name or str(item.get("neuron_id") or "") == str(neuron.get("id") or "")
+            item
+            for item in context["activity"]
+            if str(item.get("name") or "") == name
+            or str(item.get("neuron_id") or "") == str(neuron.get("id") or "")
         ][:5]
         qualia = [
-            item for item in context["qualia_experiences"]
+            item
+            for item in context["qualia_experiences"]
             if str(item.get("neuron_id") or "") in {str(neuron.get("id") or ""), name}
         ][:5]
-        training = registry.list_training(int(neuron["id"]), limit=limit) if neuron.get("id") else []
+        training = (
+            registry.list_training(int(neuron["id"]), limit=limit)
+            if neuron.get("id")
+            else []
+        )
         latest_training = training[0] if training else {}
         score = float(latest_training.get("score") or 0.0)
         activation_count = int(evidence.get("activation_count") or 0)
         has_evidence = bool(training or activity or activation_count or qualia)
         ready_for_stable = bool(readiness.get("ready_for_stable_review"))
-        promotion_reason = self._promotion_reason(status, ready_for_stable, evidence, latest_training)
+        promotion_reason = self._promotion_reason(
+            status, ready_for_stable, evidence, latest_training
+        )
 
         if status == "stable" and not has_evidence:
             risk = "invalid_stable_without_evidence"
@@ -134,12 +152,17 @@ class NeuronIdentityView:
             "domain": domain,
             "observing": self._observing(neuron),
             "learning_state": self._learning_state(status, has_evidence),
-            "learned_or_attempting": self._learned_or_attempting(status, neuron, evidence),
-            "last_activity": (activity[0].get("created_at") if activity else None) or evidence.get("last_run_id"),
+            "learned_or_attempting": self._learned_or_attempting(
+                status, neuron, evidence
+            ),
+            "last_activity": (activity[0].get("created_at") if activity else None)
+            or evidence.get("last_run_id"),
             "evidence_used": self._evidence_used(evidence, training, qualia),
             "current_risk": risk,
             "warnings": warnings,
-            "allowed_effects": list(NEURON_STATUS_EFFECTS.get(status, ("observe", "diagnose"))),
+            "allowed_effects": list(
+                NEURON_STATUS_EFFECTS.get(status, ("observe", "diagnose"))
+            ),
             "triade_relation": {
                 "central": self._central_contribution(status, domain),
                 "hypothalamus": self._hypothalamus_signal(status),
@@ -152,7 +175,9 @@ class NeuronIdentityView:
             "readiness": {
                 "ready_for_stable_review": ready_for_stable,
                 "blockers": readiness.get("blockers", []),
-                "required_human_decision": readiness.get("required_human_decision", True),
+                "required_human_decision": readiness.get(
+                    "required_human_decision", True
+                ),
             },
             "recent_activity": activity,
             "recent_qualia_experiences": qualia,
@@ -175,40 +200,74 @@ class NeuronIdentityView:
     def _observing(neuron: dict[str, Any]) -> list[str]:
         triggers = neuron.get("triggers") or []
         inputs = neuron.get("inputs_allowed") or []
-        return list(dict.fromkeys([str(x) for x in [*triggers, *inputs] if str(x).strip()]))[:8]
+        return list(
+            dict.fromkeys([str(x) for x in [*triggers, *inputs] if str(x).strip()])
+        )[:8]
 
     @staticmethod
     def _learning_state(status: str, has_evidence: bool) -> str:
         if status == "candidate":
             return "candidate_limited_pending_evidence"
         if status == "experimental":
-            return "hypothesis_testing" if has_evidence else "experimental_without_sufficient_evidence"
+            return (
+                "hypothesis_testing"
+                if has_evidence
+                else "experimental_without_sufficient_evidence"
+            )
         if status in {"trusted_worker", "active_assistant"}:
             return "controlled_assistance_with_traceability"
         if status == "stable":
-            return "stable_with_evidence" if has_evidence else "invalid_stable_without_evidence"
+            return (
+                "stable_with_evidence"
+                if has_evidence
+                else "invalid_stable_without_evidence"
+            )
         return "unknown"
 
     @staticmethod
-    def _learned_or_attempting(status: str, neuron: dict[str, Any], evidence: dict[str, Any]) -> str:
+    def _learned_or_attempting(
+        status: str, neuron: dict[str, Any], evidence: dict[str, Any]
+    ) -> str:
         mission = str(neuron.get("mission") or "").strip()
         if status == "experimental":
-            return f"Como hipótesis, intenta validar: {mission}" if mission else INSUFFICIENT_IDENTITY_MESSAGE
+            return (
+                f"Como hipótesis, intenta validar: {mission}"
+                if mission
+                else INSUFFICIENT_IDENTITY_MESSAGE
+            )
         if status == "candidate":
-            return f"Propone observar: {mission}" if mission else INSUFFICIENT_IDENTITY_MESSAGE
+            return (
+                f"Propone observar: {mission}"
+                if mission
+                else INSUFFICIENT_IDENTITY_MESSAGE
+            )
         if evidence.get("activation_count"):
             return f"Ha acumulado {evidence.get('activation_count')} activaciones auditables."
         return mission or INSUFFICIENT_IDENTITY_MESSAGE
 
     @staticmethod
-    def _evidence_used(evidence: dict[str, Any], training: list[dict[str, Any]], qualia: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _evidence_used(
+        evidence: dict[str, Any],
+        training: list[dict[str, Any]],
+        qualia: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         if evidence:
-            items.append({"source": evidence.get("source"), "kind": "activity_ledger", "summary": evidence})
+            items.append(
+                {
+                    "source": evidence.get("source"),
+                    "kind": "activity_ledger",
+                    "summary": evidence,
+                }
+            )
         for row in training[:3]:
-            items.append({"source": "neuron_training", "kind": "training", "summary": row})
+            items.append(
+                {"source": "neuron_training", "kind": "training", "summary": row}
+            )
         for row in qualia[:3]:
-            items.append({"source": "qualia_bus", "kind": "qualia_hypothesis", "summary": row})
+            items.append(
+                {"source": "qualia_bus", "kind": "qualia_hypothesis", "summary": row}
+            )
         return items
 
     @staticmethod
@@ -228,13 +287,19 @@ class NeuronIdentityView:
     @staticmethod
     def _bodega_proposal(status: str) -> str:
         if status in {"candidate", "experimental"}:
-            return "Solo puede proponer memoria experimental; no escribe memoria estable."
-        return "Puede proponer aprendizaje, siempre pasando por LearningPipeline y gates."
+            return (
+                "Solo puede proponer memoria experimental; no escribe memoria estable."
+            )
+        return (
+            "Puede proponer aprendizaje, siempre pasando por LearningPipeline y gates."
+        )
 
     @staticmethod
     def _qualia_contribution(qualia: list[dict[str, Any]]) -> str:
         if qualia:
-            return f"{len(qualia)} experiencias recientes se tratan como hipótesis Qualia."
+            return (
+                f"{len(qualia)} experiencias recientes se tratan como hipótesis Qualia."
+            )
         return "Sin experiencias Qualia recientes."
 
     @staticmethod
@@ -252,9 +317,22 @@ class NeuronIdentityView:
         return list(dict.fromkeys(limits))
 
     @staticmethod
-    def _promotion_reason(status: str, ready_for_stable: bool, evidence: dict[str, Any], training: dict[str, Any]) -> str | None:
+    def _promotion_reason(
+        status: str,
+        ready_for_stable: bool,
+        evidence: dict[str, Any],
+        training: dict[str, Any],
+    ) -> str | None:
         if status == "stable":
-            return "Promovida con evidencia suficiente." if ready_for_stable or evidence or training else None
+            return (
+                "Promovida con evidencia suficiente."
+                if ready_for_stable or evidence or training
+                else None
+            )
         if status in {"trusted_worker", "active_assistant"}:
-            return "Promoción intermedia por contrato y score de entrenamiento." if training else None
+            return (
+                "Promoción intermedia por contrato y score de entrenamiento."
+                if training
+                else None
+            )
         return None

@@ -7,11 +7,15 @@ from triade.models.hardware_profile import HardwareProfile
 
 
 def hw(tier: str, available: float) -> HardwareProfile:
-    return HardwareProfile(cpu_count=8, ram_total_gb=16.0, ram_available_gb=available, tier=tier, notes=[])
+    return HardwareProfile(
+        cpu_count=8, ram_total_gb=16.0, ram_available_gb=available, tier=tier, notes=[]
+    )
 
 
 def test_compatibility_matrix_builds_counts() -> None:
-    matrix = ModelCompatibilityMatrix(hw("medium", 8.0), available_models=["qwen2.5:3b-instruct"])
+    matrix = ModelCompatibilityMatrix(
+        hw("medium", 8.0), available_models=["qwen2.5:3b-instruct"]
+    )
     payload = matrix.build()
 
     assert "counts" in payload
@@ -36,7 +40,9 @@ def test_embedding_model_allowed_even_when_not_installed() -> None:
 
 
 def test_installed_small_model_recommended_on_medium() -> None:
-    matrix = ModelCompatibilityMatrix(hw("medium", 8.0), available_models=["qwen2.5:3b-instruct"])
+    matrix = ModelCompatibilityMatrix(
+        hw("medium", 8.0), available_models=["qwen2.5:3b-instruct"]
+    )
     result = matrix.evaluate_model("qwen2.5:3b-instruct")
 
     assert result.installed is True

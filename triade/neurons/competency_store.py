@@ -17,8 +17,14 @@ def utc_now() -> str:
 class CompetencyStore:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
-        migration = Path(__file__).resolve().parents[1] / "memory/migrations/010_neuron_education.sql"
-        evidence_migration = Path(__file__).resolve().parents[1] / "memory/migrations/011_neuron_education_evidence.sql"
+        migration = (
+            Path(__file__).resolve().parents[1]
+            / "memory/migrations/010_neuron_education.sql"
+        )
+        evidence_migration = (
+            Path(__file__).resolve().parents[1]
+            / "memory/migrations/011_neuron_education_evidence.sql"
+        )
         with self.connect() as conn:
             conn.executescript(migration.read_text(encoding="utf-8"))
             conn.executescript(evidence_migration.read_text(encoding="utf-8"))
@@ -29,7 +35,9 @@ class CompetencyStore:
         conn.execute("PRAGMA busy_timeout=5000")
         return conn
 
-    def ensure_competency(self, neuron_id: int, domain: str, name: str) -> dict[str, Any]:
+    def ensure_competency(
+        self, neuron_id: int, domain: str, name: str
+    ) -> dict[str, Any]:
         now = utc_now()
         competency_id = f"competency-{uuid4().hex[:16]}"
         with self.connect() as conn:
@@ -44,7 +52,9 @@ class CompetencyStore:
             ).fetchone()
         return dict(row) if row else {}
 
-    def ensure_curriculum(self, neuron_id: int, mission_id: int | None, domain: str, objective: str) -> dict[str, Any]:
+    def ensure_curriculum(
+        self, neuron_id: int, mission_id: int | None, domain: str, objective: str
+    ) -> dict[str, Any]:
         now = utc_now()
         curriculum_id = f"curriculum-{uuid4().hex[:16]}"
         allowed = json.dumps(["repo", "document", "web", "node"], ensure_ascii=False)
@@ -53,15 +63,39 @@ class CompetencyStore:
                 """INSERT OR IGNORE INTO neuron_curricula
                 (curriculum_id,neuron_id,mission_id,domain,objective,allowed_source_types_json,status,created_at,updated_at)
                 VALUES(?,?,?,?,?,?,'candidate',?,?)""",
-                (curriculum_id, neuron_id, mission_id, domain, objective, allowed, now, now),
+                (
+                    curriculum_id,
+                    neuron_id,
+                    mission_id,
+                    domain,
+                    objective,
+                    allowed,
+                    now,
+                    now,
+                ),
             )
-            row = conn.execute("SELECT * FROM neuron_curricula WHERE neuron_id=? AND domain=?", (neuron_id, domain)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM neuron_curricula WHERE neuron_id=? AND domain=?",
+                (neuron_id, domain),
+            ).fetchone()
         return dict(row) if row else {}
 
-    def record_session(self, *, curriculum_id: str, neuron_id: int, competency_id: str, state: str,
-                       material_refs: list[str], independent_sources: int, lesson: dict[str, Any],
-                       exercise: dict[str, Any], evaluation: dict[str, Any], result: str,
-                       baseline_score: float | None = None, post_score: float | None = None) -> dict[str, Any]:
+    def record_session(
+        self,
+        *,
+        curriculum_id: str,
+        neuron_id: int,
+        competency_id: str,
+        state: str,
+        material_refs: list[str],
+        independent_sources: int,
+        lesson: dict[str, Any],
+        exercise: dict[str, Any],
+        evaluation: dict[str, Any],
+        result: str,
+        baseline_score: float | None = None,
+        post_score: float | None = None,
+    ) -> dict[str, Any]:
         session_id = f"education-{uuid4().hex[:16]}"
         now = utc_now()
         rollback_ref = f"education_session:{session_id}:archive_only"
@@ -71,15 +105,41 @@ class CompetencyStore:
                 (session_id,curriculum_id,neuron_id,competency_id,state,material_refs_json,independent_source_count,
                  lesson_json,exercise_json,evaluation_json,baseline_score,post_score,result,rollback_ref,created_at,finished_at)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (session_id, curriculum_id, neuron_id, competency_id, state, json.dumps(material_refs), independent_sources,
-                 json.dumps(lesson, ensure_ascii=False), json.dumps(exercise, ensure_ascii=False),
-                 json.dumps(evaluation, ensure_ascii=False), baseline_score, post_score, result, rollback_ref, now, now),
+                (
+                    session_id,
+                    curriculum_id,
+                    neuron_id,
+                    competency_id,
+                    state,
+                    json.dumps(material_refs),
+                    independent_sources,
+                    json.dumps(lesson, ensure_ascii=False),
+                    json.dumps(exercise, ensure_ascii=False),
+                    json.dumps(evaluation, ensure_ascii=False),
+                    baseline_score,
+                    post_score,
+                    result,
+                    rollback_ref,
+                    now,
+                    now,
+                ),
             )
             conn.execute(
                 "INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(?,?,?,?,?)",
-                (session_id, neuron_id, state, json.dumps({"result": result, "sources": independent_sources}), now),
+                (
+                    session_id,
+                    neuron_id,
+                    state,
+                    json.dumps({"result": result, "sources": independent_sources}),
+                    now,
+                ),
             )
-        return {"session_id": session_id, "state": state, "result": result, "rollback_ref": rollback_ref}
+        return {
+            "session_id": session_id,
+            "state": state,
+            "result": result,
+            "rollback_ref": rollback_ref,
+        }
 
     def record_independent_evaluation(
         self,
@@ -95,23 +155,32 @@ class CompetencyStore:
         evaluator = evaluator_id.strip()
         evidence = evidence_ref.strip()
         if not evaluator or evaluator in {"education_cycle", "neuron_formadora"}:
-            raise ValueError("La evaluación debe proceder de un evaluador independiente")
+            raise ValueError(
+                "La evaluación debe proceder de un evaluador independiente"
+            )
         if not evidence:
             raise ValueError("La evaluación requiere evidence_ref trazable")
         if not 0.0 <= baseline_score <= 1.0 or not 0.0 <= post_score <= 1.0:
             raise ValueError("Los scores deben estar entre 0 y 1")
         with self.connect() as conn:
             row = conn.execute(
-                "SELECT * FROM neuron_education_sessions WHERE session_id=?", (session_id,)
+                "SELECT * FROM neuron_education_sessions WHERE session_id=?",
+                (session_id,),
             ).fetchone()
             if row is None:
                 raise KeyError(f"Sesión inexistente: {session_id}")
             if row["state"] != "lesson_prepared":
-                raise ValueError(f"La sesión no está lista para evaluación: {row['state']}")
+                raise ValueError(
+                    f"La sesión no está lista para evaluación: {row['state']}"
+                )
             improvement = round(post_score - baseline_score, 6)
             passed = improvement >= minimum_improvement
             state = "evaluated_candidate" if passed else "evaluation_rejected"
-            result = "passed_pending_run_application" if passed else "rejected_no_improvement"
+            result = (
+                "passed_pending_run_application"
+                if passed
+                else "rejected_no_improvement"
+            )
             evaluation = {
                 "passed": passed,
                 "evaluator_id": evaluator,
@@ -126,16 +195,33 @@ class CompetencyStore:
             conn.execute(
                 """UPDATE neuron_education_sessions SET state=?,evaluation_json=?,baseline_score=?,
                 post_score=?,result=?,finished_at=? WHERE session_id=?""",
-                (state, json.dumps(evaluation, ensure_ascii=False), baseline_score, post_score,
-                 result, now, session_id),
+                (
+                    state,
+                    json.dumps(evaluation, ensure_ascii=False),
+                    baseline_score,
+                    post_score,
+                    result,
+                    now,
+                    session_id,
+                ),
             )
             conn.execute(
                 "INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(?,?,?,?,?)",
-                (session_id, int(row["neuron_id"]), state,
-                 json.dumps(evaluation, ensure_ascii=False), now),
+                (
+                    session_id,
+                    int(row["neuron_id"]),
+                    state,
+                    json.dumps(evaluation, ensure_ascii=False),
+                    now,
+                ),
             )
-        return {"session_id": session_id, "state": state, "result": result, "learned": False,
-                "evaluation": evaluation}
+        return {
+            "session_id": session_id,
+            "state": state,
+            "result": result,
+            "learned": False,
+            "evaluation": evaluation,
+        }
 
     def record_run_application(
         self,
@@ -154,28 +240,42 @@ class CompetencyStore:
             raise ValueError("outcome_score debe estar entre 0 y 1")
         with self.connect() as conn:
             row = conn.execute(
-                "SELECT * FROM neuron_education_sessions WHERE session_id=?", (session_id,)
+                "SELECT * FROM neuron_education_sessions WHERE session_id=?",
+                (session_id,),
             ).fetchone()
             if row is None:
                 raise KeyError(f"Sesión inexistente: {session_id}")
             if row["state"] not in {"evaluated_candidate", "validated_in_runs"}:
-                raise ValueError(f"La sesión no superó evaluación independiente: {row['state']}")
+                raise ValueError(
+                    f"La sesión no superó evaluación independiente: {row['state']}"
+                )
             before = conn.total_changes
             conn.execute(
                 """INSERT OR IGNORE INTO neuron_education_applications
                 (session_id,run_id,outcome_score,evidence_ref,created_at) VALUES(?,?,?,?,?)""",
-                (session_id, run_id.strip(), outcome_score, evidence_ref.strip(), utc_now()),
+                (
+                    session_id,
+                    run_id.strip(),
+                    outcome_score,
+                    evidence_ref.strip(),
+                    utc_now(),
+                ),
             )
             duplicate = conn.total_changes == before
             aggregate = conn.execute(
                 """SELECT COUNT(*) uses,AVG(outcome_score) average
-                FROM neuron_education_applications WHERE session_id=?""", (session_id,)
+                FROM neuron_education_applications WHERE session_id=?""",
+                (session_id,),
             ).fetchone()
             uses = int(aggregate["uses"])
             average = float(aggregate["average"] or 0.0)
             learned = uses >= minimum_uses and average >= minimum_average
             state = "validated_in_runs" if learned else "evaluated_candidate"
-            result = "learned_with_measured_run_evidence" if learned else "pending_more_run_evidence"
+            result = (
+                "learned_with_measured_run_evidence"
+                if learned
+                else "pending_more_run_evidence"
+            )
             now = utc_now()
             conn.execute(
                 """UPDATE neuron_education_sessions SET state=?,applied_run_count=?,post_score=?,
@@ -191,12 +291,33 @@ class CompetencyStore:
                 )
             conn.execute(
                 "INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(?,?,?,?,?)",
-                (session_id, int(row["neuron_id"]), "run_application",
-                 json.dumps({"run_id": run_id, "score": outcome_score, "evidence_ref": evidence_ref,
-                             "duplicate": duplicate, "uses": uses, "average": average}, ensure_ascii=False), now),
+                (
+                    session_id,
+                    int(row["neuron_id"]),
+                    "run_application",
+                    json.dumps(
+                        {
+                            "run_id": run_id,
+                            "score": outcome_score,
+                            "evidence_ref": evidence_ref,
+                            "duplicate": duplicate,
+                            "uses": uses,
+                            "average": average,
+                        },
+                        ensure_ascii=False,
+                    ),
+                    now,
+                ),
             )
-        return {"session_id": session_id, "state": state, "result": result, "learned": learned,
-                "applied_run_count": uses, "average_outcome_score": round(average, 3), "duplicate": duplicate}
+        return {
+            "session_id": session_id,
+            "state": state,
+            "result": result,
+            "learned": learned,
+            "applied_run_count": uses,
+            "average_outcome_score": round(average, 3),
+            "duplicate": duplicate,
+        }
 
     def record_candidate_application(
         self, candidate_id: str, *, run_id: str, outcome_score: float, evidence_ref: str
@@ -216,8 +337,12 @@ class CompetencyStore:
             candidate_ids = {str(item) for item in lesson.get("candidate_ids", [])}
             if candidate_id not in candidate_ids:
                 continue
-            applications.append(self.record_run_application(
-                str(row["session_id"]), run_id=run_id, outcome_score=outcome_score,
-                evidence_ref=evidence_ref,
-            ))
+            applications.append(
+                self.record_run_application(
+                    str(row["session_id"]),
+                    run_id=run_id,
+                    outcome_score=outcome_score,
+                    evidence_ref=evidence_ref,
+                )
+            )
         return applications

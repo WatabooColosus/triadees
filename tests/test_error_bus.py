@@ -26,7 +26,11 @@ def test_record_internal_error_is_queryable(tmp_path: Path) -> None:
             "tests.controlled",
             exc,
             run_id="run-observability-test",
-            payload={"module": "tests", "function": "test_record_internal_error_is_queryable", "operation": "controlled_raise"},
+            payload={
+                "module": "tests",
+                "function": "test_record_internal_error_is_queryable",
+                "operation": "controlled_raise",
+            },
             db_path=db_path,
         )
 

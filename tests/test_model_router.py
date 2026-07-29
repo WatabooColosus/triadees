@@ -17,7 +17,9 @@ AVAILABLE = [
 
 
 def hw(tier: str, available: float) -> HardwareProfile:
-    return HardwareProfile(cpu_count=8, ram_total_gb=16.0, ram_available_gb=available, tier=tier, notes=[])
+    return HardwareProfile(
+        cpu_count=8, ram_total_gb=16.0, ram_available_gb=available, tier=tier, notes=[]
+    )
 
 
 def test_model_router_selects_hypothalamus_model() -> None:

@@ -44,7 +44,9 @@ class ModelCompatibilityMatrix:
         "qwen3-embedding:0.6b": ["embedding"],
     }
 
-    def __init__(self, hardware: HardwareProfile, available_models: list[str] | None = None) -> None:
+    def __init__(
+        self, hardware: HardwareProfile, available_models: list[str] | None = None
+    ) -> None:
         self.hardware = hardware
         self.available_models = available_models or []
 
@@ -60,7 +62,15 @@ class ModelCompatibilityMatrix:
         if model in {"nomic-embed-text:latest", "qwen3-embedding:0.6b"}:
             status = "recommended" if installed else "allowed"
             reasons.append("Modelo liviano para embeddings/memoria semántica.")
-            return ModelCompatibility(model, status, installed, estimated_ram, self.ROLE_HINTS.get(model, []), reasons, warnings)
+            return ModelCompatibility(
+                model,
+                status,
+                installed,
+                estimated_ram,
+                self.ROLE_HINTS.get(model, []),
+                reasons,
+                warnings,
+            )
 
         ram = self.hardware.ram_available_gb
         tier = self.hardware.tier
@@ -78,7 +88,9 @@ class ModelCompatibilityMatrix:
             warnings.append("Hardware low; modelo pesado para esta máquina.")
         elif tier == "medium" and estimated_ram <= 4.0:
             status = "recommended"
-            reasons.append("Buen equilibrio entre capacidad y consumo para hardware medium.")
+            reasons.append(
+                "Buen equilibrio entre capacidad y consumo para hardware medium."
+            )
         elif tier == "medium" and estimated_ram <= 8.5:
             status = "allowed"
             reasons.append("Modelo permitido si no hay alta carga del sistema.")
@@ -99,11 +111,24 @@ class ModelCompatibilityMatrix:
         if not installed and status == "recommended":
             status = "allowed"
 
-        return ModelCompatibility(model, status, installed, estimated_ram, self.ROLE_HINTS.get(model, []), reasons, warnings)
+        return ModelCompatibility(
+            model,
+            status,
+            installed,
+            estimated_ram,
+            self.ROLE_HINTS.get(model, []),
+            reasons,
+            warnings,
+        )
 
     def build(self) -> dict[str, Any]:
         models = [self.evaluate_model(model).to_dict() for model in self.ALL_MODELS]
-        counts: dict[str, int] = {"recommended": 0, "allowed": 0, "risky": 0, "blocked": 0}
+        counts: dict[str, int] = {
+            "recommended": 0,
+            "allowed": 0,
+            "risky": 0,
+            "blocked": 0,
+        }
         for item in models:
             counts[item["status"]] = counts.get(item["status"], 0) + 1
         return {

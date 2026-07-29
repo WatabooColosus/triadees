@@ -10,7 +10,6 @@ No promueve neuronas. Solo calcula evidencia observable.
 from __future__ import annotations
 
 import json
-from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -64,13 +63,15 @@ def _build_from_db(db_path: str | Path, limit: int = 300) -> dict[str, Any]:
         item["test_plan_count"] += int(row.get("test_plan_count") or 0)
         item["last_run_id"] = item["last_run_id"] or row.get("run_id")
         item["last_policy"] = item["last_policy"] or row.get("policy")
-        item["runs"].append({
-            "run_id": row.get("run_id"),
-            "diagnosis_count": int(row.get("diagnosis_count") or 0),
-            "test_plan_count": int(row.get("test_plan_count") or 0),
-            "policy": row.get("policy"),
-            "activity_id": row.get("id"),
-        })
+        item["runs"].append(
+            {
+                "run_id": row.get("run_id"),
+                "diagnosis_count": int(row.get("diagnosis_count") or 0),
+                "test_plan_count": int(row.get("test_plan_count") or 0),
+                "policy": row.get("policy"),
+                "activity_id": row.get("id"),
+            }
+        )
 
     summary = {
         "experimental_neurons_with_evidence": len(by_neuron),
@@ -83,11 +84,15 @@ def _build_from_db(db_path: str | Path, limit: int = 300) -> dict[str, Any]:
         "status": "ok",
         "mode": "experimental_neuron_evidence_ledger",
         "summary": summary,
-        "neurons": sorted(by_neuron.values(), key=lambda x: x["activation_count"], reverse=True),
+        "neurons": sorted(
+            by_neuron.values(), key=lambda x: x["activation_count"], reverse=True
+        ),
     }
 
 
-def _build_from_artifacts(runs_dir: str | Path = "runs", limit: int = 200) -> dict[str, Any]:
+def _build_from_artifacts(
+    runs_dir: str | Path = "runs", limit: int = 200
+) -> dict[str, Any]:
     runs_path = Path(runs_dir)
     run_dirs = sorted(
         [p for p in runs_path.glob("run-*") if p.is_dir()],
@@ -117,17 +122,27 @@ def _build_from_artifacts(runs_dir: str | Path = "runs", limit: int = 200) -> di
             row["status"] = row["status"] or activation.get("status")
             row["domain"] = row["domain"] or activation.get("domain")
             row["activation_count"] += 1
-            row["diagnosis_count"] += len(diagnosis) if isinstance(diagnosis, list) else 0
-            row["test_plan_count"] += len(test_plan) if isinstance(test_plan, list) else 0
+            row["diagnosis_count"] += (
+                len(diagnosis) if isinstance(diagnosis, list) else 0
+            )
+            row["test_plan_count"] += (
+                len(test_plan) if isinstance(test_plan, list) else 0
+            )
             row["last_run_id"] = row["last_run_id"] or run_path.name
             row["last_policy"] = policy
-            row["runs"].append({
-                "run_id": run_path.name,
-                "match": activation.get("match"),
-                "diagnosis_count": len(diagnosis) if isinstance(diagnosis, list) else 0,
-                "test_plan_count": len(test_plan) if isinstance(test_plan, list) else 0,
-                "policy": policy,
-            })
+            row["runs"].append(
+                {
+                    "run_id": run_path.name,
+                    "match": activation.get("match"),
+                    "diagnosis_count": len(diagnosis)
+                    if isinstance(diagnosis, list)
+                    else 0,
+                    "test_plan_count": len(test_plan)
+                    if isinstance(test_plan, list)
+                    else 0,
+                    "policy": policy,
+                }
+            )
 
     summary = {
         "experimental_neurons_with_evidence": len(by_neuron),
@@ -140,7 +155,9 @@ def _build_from_artifacts(runs_dir: str | Path = "runs", limit: int = 200) -> di
         "status": "ok",
         "mode": "experimental_neuron_evidence_ledger",
         "summary": summary,
-        "neurons": sorted(by_neuron.values(), key=lambda x: x["activation_count"], reverse=True),
+        "neurons": sorted(
+            by_neuron.values(), key=lambda x: x["activation_count"], reverse=True
+        ),
     }
 
 

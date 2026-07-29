@@ -13,7 +13,13 @@ from triade.federation.federation import Federation
 class PublicRelayClient:
     """Orquesta nodos browser autorizados sin exponer memoria local."""
 
-    def __init__(self, base_url: str, admin_token: str, timeout: float = 20.0, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        admin_token: str,
+        timeout: float = 20.0,
+        client: httpx.Client | None = None,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.admin_token = admin_token
         self.timeout = timeout
@@ -43,12 +49,19 @@ class PublicRelayClient:
         response = self.client.post(
             f"{self.base_url}/api/jobs",
             headers=self.headers,
-            json={"node_id": node_id, "task": task, "payload": payload or {}, "seconds": seconds},
+            json={
+                "node_id": node_id,
+                "task": task,
+                "payload": payload or {},
+                "seconds": seconds,
+            },
         )
         response.raise_for_status()
         return str(response.json()["job_id"])
 
-    def wait_for_job(self, job_id: str, timeout: float = 30.0, interval: float = 1.0) -> dict[str, Any]:
+    def wait_for_job(
+        self, job_id: str, timeout: float = 30.0, interval: float = 1.0
+    ) -> dict[str, Any]:
         deadline = time.time() + timeout
         while time.time() < deadline:
             for job in self.list_jobs():
@@ -56,7 +69,12 @@ class PublicRelayClient:
                     if job.get("status") in {"completed", "failed"}:
                         return job
             time.sleep(interval)
-        return {"job_id": job_id, "status": "timeout", "result": None, "error": "Tiempo de espera agotado."}
+        return {
+            "job_id": job_id,
+            "status": "timeout",
+            "result": None,
+            "error": "Tiempo de espera agotado.",
+        }
 
     def sync_nodes_to_federation(self, federation: Federation) -> dict[str, Any]:
         synced = []
@@ -68,11 +86,18 @@ class PublicRelayClient:
             existing = federation.get_node(node_id)
             if existing:
                 previous = existing.get("capabilities") or {}
-                for key in ("benchmark_score", "last_benchmark", "compute_status", "last_benchmark_error"):
+                for key in (
+                    "benchmark_score",
+                    "last_benchmark",
+                    "compute_status",
+                    "last_benchmark_error",
+                ):
                     if key in previous and key not in capabilities:
                         capabilities[key] = previous[key]
                 if "benchmark_score" in capabilities:
-                    capabilities["model_support"] = model_support_from_capabilities(capabilities)
+                    capabilities["model_support"] = model_support_from_capabilities(
+                        capabilities
+                    )
             registered = federation.register_node(
                 node_id=node_id,
                 name=str(node.get("display_name") or node_id),
@@ -85,16 +110,27 @@ class PublicRelayClient:
             synced.append(registered)
         return {"status": "ok", "synced": len(synced), "nodes": synced}
 
-    def benchmark_online_nodes(self, federation: Federation, seconds: float = 2.0, wait_timeout: float = 45.0) -> dict[str, Any]:
+    def benchmark_online_nodes(
+        self, federation: Federation, seconds: float = 2.0, wait_timeout: float = 45.0
+    ) -> dict[str, Any]:
         sync = self.sync_nodes_to_federation(federation)
         jobs = []
         for node in sync["nodes"]:
             if not (node.get("capabilities") or {}).get("online"):
                 continue
-            job_id = self.create_job(str(node["node_id"]), task="browser_benchmark", seconds=seconds)
+            job_id = self.create_job(
+                str(node["node_id"]), task="browser_benchmark", seconds=seconds
+            )
             result_job = self.wait_for_job(job_id, timeout=wait_timeout)
             updated = self._update_node_with_job_result(federation, node, result_job)
-            jobs.append({"job_id": job_id, "node_id": node["node_id"], "job": result_job, "node": updated})
+            jobs.append(
+                {
+                    "job_id": job_id,
+                    "node_id": node["node_id"],
+                    "job": result_job,
+                    "node": updated,
+                }
+            )
         return {"status": "ok", "synced": sync["synced"], "benchmarks": jobs}
 
     def preprocess_text_online(
@@ -119,7 +155,9 @@ class PublicRelayClient:
                 seconds=1.0,
             )
             result_job = self.wait_for_job(job_id, timeout=wait_timeout)
-            jobs.append({"job_id": job_id, "node_id": node["node_id"], "job": result_job})
+            jobs.append(
+                {"job_id": job_id, "node_id": node["node_id"], "job": result_job}
+            )
         completed = [job for job in jobs if job["job"].get("status") == "completed"]
         return {
             "status": "ok",
@@ -149,25 +187,56 @@ class PublicRelayClient:
         return federation.update_capabilities(str(node["node_id"]), capabilities)
 
 
-def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> dict[str, Any]:
+def relay_capabilities_for_federation(
+    node: dict[str, Any], relay_url: str
+) -> dict[str, Any]:
     raw = dict(node.get("capabilities") or {})
     cpu = int(raw.get("cpu_count") or raw.get("hardware_concurrency") or 1)
     memory = float(raw.get("ram_available_gb") or raw.get("device_memory_gb") or 0.0)
     online = bool(node.get("online"))
     native_android = bool(raw.get("native_android") or raw.get("app_node"))
     has_reported_limit = "resource_limit_percent" in raw
-    resource_limit = max(0, min(100, int(raw.get("resource_limit_percent") or 100))) if native_android else 0
-    authorized_cpu = int(raw.get("cpu_authorized_count") or max(1, int(cpu * (resource_limit / 100.0)))) if native_android else 0
-    authorized_memory = float(raw.get("ram_authorized_gb") or (memory * (resource_limit / 100.0))) if native_android else 0.0
+    resource_limit = (
+        max(0, min(100, int(raw.get("resource_limit_percent") or 100)))
+        if native_android
+        else 0
+    )
+    authorized_cpu = (
+        int(
+            raw.get("cpu_authorized_count")
+            or max(1, int(cpu * (resource_limit / 100.0)))
+        )
+        if native_android
+        else 0
+    )
+    authorized_memory = (
+        float(raw.get("ram_authorized_gb") or (memory * (resource_limit / 100.0)))
+        if native_android
+        else 0.0
+    )
     capability_tier = _browser_tier(cpu, memory)
-    allowed_tasks = raw.get("allowed_tasks") if isinstance(raw.get("allowed_tasks"), list) else ["echo", "sha256", "browser_benchmark", "preprocess_text", "federated_inference_probe", "android_model_doctor", "android_local_generate"]
+    allowed_tasks = (
+        raw.get("allowed_tasks")
+        if isinstance(raw.get("allowed_tasks"), list)
+        else [
+            "echo",
+            "sha256",
+            "browser_benchmark",
+            "preprocess_text",
+            "federated_inference_probe",
+            "android_model_doctor",
+            "android_local_generate",
+        ]
+    )
     capabilities = {
         **raw,
         "source": "public_relay",
         "relay_url": relay_url.rstrip("/"),
         "relay_node_id": node.get("node_id"),
         "online": online,
-        "tier": "medium" if native_android and capability_tier == "low" and cpu >= 4 else capability_tier,
+        "tier": "medium"
+        if native_android and capability_tier == "low" and cpu >= 4
+        else capability_tier,
         "browser_tier": raw.get("tier", "browser"),
         "native_android": native_android,
         "cpu_count": cpu,
@@ -177,27 +246,41 @@ def relay_capabilities_for_federation(node: dict[str, Any], relay_url: str) -> d
         "ram_authorized_gb": authorized_memory,
         "resource_limit_percent": resource_limit,
         "resource_limit_reported": bool(has_reported_limit and native_android),
-        "resource_limit_source": "device_reported" if has_reported_limit and native_android else ("dedicated_100_missing_from_relay" if native_android else "not_native"),
+        "resource_limit_source": "device_reported"
+        if has_reported_limit and native_android
+        else ("dedicated_100_missing_from_relay" if native_android else "not_native"),
         "federation_complete": bool(native_android and online and resource_limit > 0),
         "allowed_tasks": allowed_tasks,
-        "model_support": model_support_from_capabilities({
-            "cpu_count": cpu,
-            "cpu_authorized_count": authorized_cpu,
-            "device_memory_gb": memory,
-            "ram_authorized_gb": authorized_memory,
-            "online": online,
-            "native_android": native_android,
-            "background_execution": bool(raw.get("background_execution")),
-            "resource_limit_percent": resource_limit,
-            "resource_limit_reported": bool(has_reported_limit and native_android),
-            "resource_limit_source": "device_reported" if has_reported_limit and native_android else ("dedicated_100_missing_from_relay" if native_android else "not_native"),
-            "edge_model_runtime": bool(raw.get("edge_model_runtime")),
-            "model_runtime_backend": raw.get("model_runtime_backend"),
-            "can_run_local_llm": bool(raw.get("can_run_local_llm")),
-            "local_model_runtime_ready": bool(raw.get("local_model_runtime_ready")),
-            "supported_model_formats": raw.get("supported_model_formats") if isinstance(raw.get("supported_model_formats"), list) else [],
-            "available_local_models": raw.get("available_local_models") if isinstance(raw.get("available_local_models"), list) else [],
-        }),
+        "model_support": model_support_from_capabilities(
+            {
+                "cpu_count": cpu,
+                "cpu_authorized_count": authorized_cpu,
+                "device_memory_gb": memory,
+                "ram_authorized_gb": authorized_memory,
+                "online": online,
+                "native_android": native_android,
+                "background_execution": bool(raw.get("background_execution")),
+                "resource_limit_percent": resource_limit,
+                "resource_limit_reported": bool(has_reported_limit and native_android),
+                "resource_limit_source": "device_reported"
+                if has_reported_limit and native_android
+                else (
+                    "dedicated_100_missing_from_relay"
+                    if native_android
+                    else "not_native"
+                ),
+                "edge_model_runtime": bool(raw.get("edge_model_runtime")),
+                "model_runtime_backend": raw.get("model_runtime_backend"),
+                "can_run_local_llm": bool(raw.get("can_run_local_llm")),
+                "local_model_runtime_ready": bool(raw.get("local_model_runtime_ready")),
+                "supported_model_formats": raw.get("supported_model_formats")
+                if isinstance(raw.get("supported_model_formats"), list)
+                else [],
+                "available_local_models": raw.get("available_local_models")
+                if isinstance(raw.get("available_local_models"), list)
+                else [],
+            }
+        ),
     }
     return capabilities
 
@@ -207,13 +290,42 @@ def model_support_from_capabilities(capabilities: dict[str, Any]) -> dict[str, A
     score = int(capabilities.get("benchmark_score") or 0)
     cpu = int(capabilities.get("cpu_count") or 1)
     native_android = bool(capabilities.get("native_android"))
-    authorized_cpu = int(capabilities.get("cpu_authorized_count") or (cpu if native_android else 0))
-    memory = float(capabilities.get("ram_authorized_gb") or capabilities.get("device_memory_gb") or 0.0) if native_android else 0.0
+    authorized_cpu = int(
+        capabilities.get("cpu_authorized_count") or (cpu if native_android else 0)
+    )
+    memory = (
+        float(
+            capabilities.get("ram_authorized_gb")
+            or capabilities.get("device_memory_gb")
+            or 0.0
+        )
+        if native_android
+        else 0.0
+    )
     ready = online and native_android and authorized_cpu >= 1 and memory >= 0.5
-    local_model_ready = bool(capabilities.get("can_run_local_llm") or capabilities.get("local_model_runtime_ready"))
+    local_model_ready = bool(
+        capabilities.get("can_run_local_llm")
+        or capabilities.get("local_model_runtime_ready")
+    )
     can_host_llm = bool(ready and local_model_ready)
-    recommended = "android_local_llm_host" if can_host_llm else ("android_native_cpu_feed" if ready else "not_federated")
-    assist = ["hashing", "benchmark", "preprocess", "context_chunking", "federated_inference_probe", "android_model_doctor", "background_cpu_feed"] if ready else ["heartbeat"]
+    recommended = (
+        "android_local_llm_host"
+        if can_host_llm
+        else ("android_native_cpu_feed" if ready else "not_federated")
+    )
+    assist = (
+        [
+            "hashing",
+            "benchmark",
+            "preprocess",
+            "context_chunking",
+            "federated_inference_probe",
+            "android_model_doctor",
+            "background_cpu_feed",
+        ]
+        if ready
+        else ["heartbeat"]
+    )
     if can_host_llm:
         assist.append("android_local_generate")
     return {
@@ -227,11 +339,14 @@ def model_support_from_capabilities(capabilities: dict[str, Any]) -> dict[str, A
         "authorized_ram_gb": memory,
         "resource_limit_percent": int(capabilities.get("resource_limit_percent") or 0),
         "resource_limit_reported": bool(capabilities.get("resource_limit_reported")),
-        "resource_limit_source": str(capabilities.get("resource_limit_source") or "unknown"),
+        "resource_limit_source": str(
+            capabilities.get("resource_limit_source") or "unknown"
+        ),
         "edge_model_runtime": bool(capabilities.get("edge_model_runtime")),
         "model_runtime_backend": capabilities.get("model_runtime_backend") or "none",
         "local_model_runtime_ready": local_model_ready,
-        "note": "Nodo Android nativo: alimenta modelos locales con CPU/RAM autorizadas y servicio en primer plano." if native_android
+        "note": "Nodo Android nativo: alimenta modelos locales con CPU/RAM autorizadas y servicio en primer plano."
+        if native_android
         else "Browser descartado: no invierte recursos nativos en el modelo local.",
     }
 
@@ -256,13 +371,17 @@ def _merge_preprocess_results(completed_jobs: list[dict[str, Any]]) -> dict[str,
         for keyword in result.get("keywords") or []:
             term = str(keyword.get("term") or "").strip().lower()
             if term:
-                keyword_counts[term] = keyword_counts.get(term, 0) + int(keyword.get("count") or 0)
+                keyword_counts[term] = keyword_counts.get(term, 0) + int(
+                    keyword.get("count") or 0
+                )
         for chunk in result.get("chunks") or []:
             if isinstance(chunk, dict):
                 chunks.append({**chunk, "node_id": item["node_id"]})
     keywords = [
         {"term": term, "count": count}
-        for term, count in sorted(keyword_counts.items(), key=lambda pair: (-pair[1], pair[0]))[:24]
+        for term, count in sorted(
+            keyword_counts.items(), key=lambda pair: (-pair[1], pair[0])
+        )[:24]
     ]
     return {
         "ready_for_local_model": bool(completed_jobs),

@@ -86,7 +86,16 @@ class NeuronEvaluator:
                 """INSERT INTO neuron_activation_history
                    (neuron_id, neuron_name, activated_at, score, success, response_ms, source, context)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (neuron_id, neuron_name, now, score, 1 if success else 0, response_ms, source, context),
+                (
+                    neuron_id,
+                    neuron_name,
+                    now,
+                    score,
+                    1 if success else 0,
+                    response_ms,
+                    source,
+                    context,
+                ),
             )
 
             row = conn.execute(
@@ -101,11 +110,19 @@ class NeuronEvaluator:
                         first_activation_at, avg_response_ms, composite_score, domain, status, updated_at)
                        VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
-                        neuron_id, neuron_name,
+                        neuron_id,
+                        neuron_name,
                         1 if success else 0,
                         0 if success else 1,
-                        score, score, now, now, response_ms,
-                        score, domain, status, now,
+                        score,
+                        score,
+                        now,
+                        now,
+                        response_ms,
+                        score,
+                        domain,
+                        status,
+                        now,
                     ),
                 )
             else:
@@ -113,8 +130,12 @@ class NeuronEvaluator:
                 successful = row["successful_activations"] + (1 if success else 0)
                 failed = row["failed_activations"] + (0 if success else 1)
                 new_ema = _EMA_ALPHA * score + (1 - _EMA_ALPHA) * row["ema_score"]
-                new_avg_score = (row["avg_score"] * row["total_activations"] + score) / total
-                new_avg_response = (row["avg_response_ms"] * row["total_activations"] + response_ms) / total
+                new_avg_score = (
+                    row["avg_score"] * row["total_activations"] + score
+                ) / total
+                new_avg_response = (
+                    row["avg_response_ms"] * row["total_activations"] + response_ms
+                ) / total
 
                 composite = self._compute_composite(
                     avg_score=new_avg_score,
@@ -134,9 +155,21 @@ class NeuronEvaluator:
                        last_activation_at = ?, avg_response_ms = ?,
                        composite_score = ?, trend = ?, domain = ?, status = ?, updated_at = ?
                        WHERE neuron_id = ?""",
-                    (total, successful, failed, round(new_avg_score, 4), round(new_ema, 4),
-                     now, round(new_avg_response, 2), round(composite, 4), trend,
-                     domain or row["domain"], status or row["status"], now, neuron_id),
+                    (
+                        total,
+                        successful,
+                        failed,
+                        round(new_avg_score, 4),
+                        round(new_ema, 4),
+                        now,
+                        round(new_avg_response, 2),
+                        round(composite, 4),
+                        trend,
+                        domain or row["domain"],
+                        status or row["status"],
+                        now,
+                        neuron_id,
+                    ),
                 )
 
     def get_neuron_metrics(self, neuron_id: int) -> dict[str, Any] | None:
@@ -147,7 +180,9 @@ class NeuronEvaluator:
             ).fetchone()
             return dict(row) if row else None
 
-    def get_neuron_history(self, neuron_id: int, limit: int = 50) -> list[dict[str, Any]]:
+    def get_neuron_history(
+        self, neuron_id: int, limit: int = 50
+    ) -> list[dict[str, Any]]:
         """Retorna historial de activaciones de una neurona."""
         with self._connect() as conn:
             rows = conn.execute(
@@ -184,7 +219,9 @@ class NeuronEvaluator:
             ).fetchone()
             return dict(row) if row else {}
 
-    def get_trending(self, direction: str = "up", limit: int = 10) -> list[dict[str, Any]]:
+    def get_trending(
+        self, direction: str = "up", limit: int = 10
+    ) -> list[dict[str, Any]]:
         """Retorna neuronas con tendencia ascendente o descendente."""
         with self._connect() as conn:
             rows = conn.execute(

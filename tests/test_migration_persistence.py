@@ -3,14 +3,24 @@
 from __future__ import annotations
 
 import sqlite3
-import tempfile
 from pathlib import Path
 
-import pytest
 
 SCHEMA_SQL = Path(__file__).resolve().parents[1] / "triade" / "memory" / "schemas.sql"
-MIGRATION_003 = Path(__file__).resolve().parents[1] / "triade" / "memory" / "migrations" / "003_living_workers.sql"
-MIGRATION_005 = Path(__file__).resolve().parents[1] / "triade" / "memory" / "migrations" / "005_triade_os.sql"
+MIGRATION_003 = (
+    Path(__file__).resolve().parents[1]
+    / "triade"
+    / "memory"
+    / "migrations"
+    / "003_living_workers.sql"
+)
+MIGRATION_005 = (
+    Path(__file__).resolve().parents[1]
+    / "triade"
+    / "memory"
+    / "migrations"
+    / "005_triade_os.sql"
+)
 
 
 def _create_full_db(db_path: Path) -> None:
@@ -33,14 +43,21 @@ class TestSchemaMigration:
         conn2 = sqlite3.connect(db)
         conn2.execute("ALTER TABLE neuron_activity DROP COLUMN activation_type")
         conn2.commit()
-        cols_before = {row[1] for row in conn2.execute("PRAGMA table_info(neuron_activity)").fetchall()}
+        {
+            row[1]
+            for row in conn2.execute("PRAGMA table_info(neuron_activity)").fetchall()
+        }
         conn2.close()
 
         from triade.os.neuron_scheduler import NeuronScheduler
+
         NeuronScheduler(db_path=db)
 
         conn3 = sqlite3.connect(db)
-        cols_after = {row[1] for row in conn3.execute("PRAGMA table_info(neuron_activity)").fetchall()}
+        cols_after = {
+            row[1]
+            for row in conn3.execute("PRAGMA table_info(neuron_activity)").fetchall()
+        }
         conn3.close()
         assert "activation_type" in cols_after
 
@@ -49,6 +66,7 @@ class TestSchemaMigration:
         _create_full_db(db)
 
         from triade.os.neuron_scheduler import NeuronScheduler
+
         scheduler = NeuronScheduler(db_path=db)
 
         conn = sqlite3.connect(db)
@@ -60,7 +78,9 @@ class TestSchemaMigration:
             ("MigratedNeuron", "Mission", "test", "experimental"),
         )
         conn.commit()
-        nid = conn.execute("SELECT id FROM neurons WHERE name = 'MigratedNeuron'").fetchone()[0]
+        nid = conn.execute(
+            "SELECT id FROM neurons WHERE name = 'MigratedNeuron'"
+        ).fetchone()[0]
         conn.close()
 
         scheduler.record_activation(nid, duration_ms=1000, success=True)
@@ -78,20 +98,27 @@ class TestSchemaMigration:
         db = tmp_path / "idempotent.db"
         _create_full_db(db)
         from triade.os.neuron_scheduler import NeuronScheduler
-        s1 = NeuronScheduler(db_path=db)
-        s2 = NeuronScheduler(db_path=db)
+
+        NeuronScheduler(db_path=db)
+        NeuronScheduler(db_path=db)
         conn = sqlite3.connect(db)
-        tables = {row[0] for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()}
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
         conn.close()
         assert "neuron_activity" in tables
         assert "neuron_priority_log" in tables
 
 
 class TestDataPersistence:
-    def test_neuron_scheduler_persistence_across_connections(self, tmp_path: Path) -> None:
+    def test_neuron_scheduler_persistence_across_connections(
+        self, tmp_path: Path
+    ) -> None:
         from triade.os.neuron_scheduler import NeuronScheduler
+
         db = tmp_path / "persist.db"
         _create_full_db(db)
         scheduler = NeuronScheduler(db_path=db)
@@ -105,7 +132,9 @@ class TestDataPersistence:
             ("PersistNeuron", "Mission", "test", "experimental"),
         )
         conn.commit()
-        nid = conn.execute("SELECT id FROM neurons WHERE name = 'PersistNeuron'").fetchone()[0]
+        nid = conn.execute(
+            "SELECT id FROM neurons WHERE name = 'PersistNeuron'"
+        ).fetchone()[0]
         conn.close()
 
         scheduler.record_activation(nid, duration_ms=500, success=True)
@@ -120,6 +149,7 @@ class TestDataPersistence:
 
     def test_event_engine_persistence_across_connections(self, tmp_path: Path) -> None:
         from triade.os.event_engine import EventEngine
+
         db = tmp_path / "event_persist.db"
         _create_full_db(db)
         engine = EventEngine(db_path=db)
@@ -142,6 +172,7 @@ class TestDataPersistence:
 
     def test_semantic_store_persistence(self, tmp_path: Path) -> None:
         from triade.memory.semantic_store import SemanticMemoryStore
+
         migration = "triade/memory/migrations/001_9A_semantic_memory.sql"
         db = tmp_path / "semantic_persist.db"
         store = SemanticMemoryStore(db_path=str(db), migration_path=migration)
@@ -155,6 +186,7 @@ class TestDataPersistence:
 
     def test_constitution_enforcer_persistence(self, tmp_path: Path) -> None:
         from triade.constitution.enforcer import ConstitutionEnforcer
+
         db = tmp_path / "constitution_persist.db"
         enforcer = ConstitutionEnforcer(db_path=str(db))
         enforcer.check_article("central", 1, {"modifies_identity": False})
@@ -166,6 +198,7 @@ class TestDataPersistence:
 
     def test_compression_consolidation_persistence(self, tmp_path: Path) -> None:
         from triade.memory.compression import MemoryConsolidator
+
         db = tmp_path / "compress_persist.db"
         _create_full_db(db)
         mc = MemoryConsolidator(db_path=str(db))

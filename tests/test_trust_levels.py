@@ -1,4 +1,5 @@
 """Tests para TrustLevelStore y auto-consolidación (Fase F-05)."""
+
 from __future__ import annotations
 
 import math
@@ -32,7 +33,9 @@ def insert_run(conn: sqlite3.Connection, run_id: str = "run-t-1") -> None:
     )
 
 
-def insert_reward(conn: sqlite3.Connection, reward: float, run_id: str = "run-t-1") -> None:
+def insert_reward(
+    conn: sqlite3.Connection, reward: float, run_id: str = "run-t-1"
+) -> None:
     insert_run(conn, run_id)
     conn.execute(
         "INSERT INTO reinforcement_log (run_id, reward, hypothalamus_quality, central_quality, coherence_score) VALUES (?, ?, ?, ?, ?)",
@@ -50,7 +53,9 @@ def insert_verification(
     )
 
 
-def insert_model_event(conn: sqlite3.Connection, ok: int, run_id: str = "run-t-1") -> None:
+def insert_model_event(
+    conn: sqlite3.Connection, ok: int, run_id: str = "run-t-1"
+) -> None:
     insert_run(conn, run_id)
     conn.execute(
         "INSERT INTO model_events (run_id, role, provider, model_name, ok) VALUES (?, ?, ?, ?, ?)",
@@ -172,13 +177,17 @@ class TestTrustLevelStore:
 
 
 class TestAutoConsolidation:
-    def test_auto_consolidate_low_risk_fails_when_trust_zero(self, tmp_path: Path) -> None:
+    def test_auto_consolidate_low_risk_fails_when_trust_zero(
+        self, tmp_path: Path
+    ) -> None:
         pipe = pipeline(tmp_path)
         cid = good_candidate(pipe)
         pipe.evaluate(cid)
         pipe.verify(cid)
 
-        with pytest.raises(ValueError, match="Trust insuficiente|auto-consolidar|run_uses"):
+        with pytest.raises(
+            ValueError, match="Trust insuficiente|auto-consolidar|run_uses"
+        ):
             pipe.consolidate(cid, auto_consolidate=True)
 
     def test_auto_consolidate_low_risk_succeeds_when_trust_above_threshold(

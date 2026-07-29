@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -108,7 +107,13 @@ class HierarchicalPulseEngine:
         self._log(reading)
         return reading
 
-    def read_neuron(self, neuron_id: str, *, latency_ms: float = 0.0, details: dict[str, Any] | None = None) -> PulseReading:
+    def read_neuron(
+        self,
+        neuron_id: str,
+        *,
+        latency_ms: float = 0.0,
+        details: dict[str, Any] | None = None,
+    ) -> PulseReading:
         health: PulseHealth = "healthy"
         errors = self._error_counts.get(neuron_id, 0)
         if errors > 5:
@@ -129,7 +134,13 @@ class HierarchicalPulseEngine:
         self._log(reading)
         return reading
 
-    def read_worker(self, worker_id: str, *, latency_ms: float = 0.0, details: dict[str, Any] | None = None) -> PulseReading:
+    def read_worker(
+        self,
+        worker_id: str,
+        *,
+        latency_ms: float = 0.0,
+        details: dict[str, Any] | None = None,
+    ) -> PulseReading:
         health: PulseHealth = "healthy"
         if latency_ms > 10000:
             health = "flatline"
@@ -213,8 +224,14 @@ class HierarchicalPulseEngine:
             with self._connect() as conn:
                 conn.execute(
                     "INSERT INTO pulse_log(level, component, health, latency_ms, details_json, recorded_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (reading.level, reading.component, reading.health, reading.latency_ms,
-                     json.dumps(reading.details, ensure_ascii=False), reading.last_beat_at),
+                    (
+                        reading.level,
+                        reading.component,
+                        reading.health,
+                        reading.latency_ms,
+                        json.dumps(reading.details, ensure_ascii=False),
+                        reading.last_beat_at,
+                    ),
                 )
         except sqlite3.OperationalError:
             pass

@@ -68,8 +68,15 @@ class HardwareProfiler:
         available_gb = round(available_kb / 1024 / 1024, 2) if available_kb else 0.0
         disk_total, disk_free = self._disk_gb()
         gpus = self._detect_gpus()
-        tier = self._tier(cpu_count=cpu_count, ram_total_gb=total_gb, ram_available_gb=available_gb, gpus=gpus)
-        status, compatibility = self._capability_status(tier=tier, ram_available_gb=available_gb, gpus=gpus)
+        tier = self._tier(
+            cpu_count=cpu_count,
+            ram_total_gb=total_gb,
+            ram_available_gb=available_gb,
+            gpus=gpus,
+        )
+        status, compatibility = self._capability_status(
+            tier=tier, ram_available_gb=available_gb, gpus=gpus
+        )
         notes = [
             f"os={platform.system()}",
             f"cpu_count={cpu_count}",
@@ -167,7 +174,9 @@ class HardwareProfiler:
             return processor
         cpuinfo = Path("/proc/cpuinfo")
         if cpuinfo.exists():
-            for line in cpuinfo.read_text(encoding="utf-8", errors="ignore").splitlines():
+            for line in cpuinfo.read_text(
+                encoding="utf-8", errors="ignore"
+            ).splitlines():
                 if line.lower().startswith("model name"):
                     return line.split(":", 1)[-1].strip()
         return "unknown"
@@ -180,7 +189,9 @@ class HardwareProfiler:
                 cores: set[tuple[str, str]] = set()
                 physical_id = "0"
                 core_id = "0"
-                for line in cpuinfo.read_text(encoding="utf-8", errors="ignore").splitlines():
+                for line in cpuinfo.read_text(
+                    encoding="utf-8", errors="ignore"
+                ).splitlines():
                     if line.startswith("physical id"):
                         physical_id = line.split(":", 1)[-1].strip()
                     elif line.startswith("core id"):
@@ -205,11 +216,13 @@ class HardwareProfiler:
     def _nvidia_smi_gpus() -> list[GPUInfo]:
         if not shutil.which("nvidia-smi"):
             return []
-        output = HardwareProfiler._run_command([
-            "nvidia-smi",
-            "--query-gpu=name,memory.total,driver_version",
-            "--format=csv,noheader,nounits",
-        ])
+        output = HardwareProfiler._run_command(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total,driver_version",
+                "--format=csv,noheader,nounits",
+            ]
+        )
         gpus: list[GPUInfo] = []
         for line in output.splitlines():
             parts = [item.strip() for item in line.split(",")]
@@ -218,7 +231,16 @@ class HardwareProfiler:
                     vram = round(float(parts[1]) / 1024, 2)
                 except ValueError:
                     vram = 0.0
-                gpus.append(GPUInfo(name=parts[0], vendor="NVIDIA", vram_total_gb=vram, driver=parts[2], cuda_available=True, source="nvidia-smi"))
+                gpus.append(
+                    GPUInfo(
+                        name=parts[0],
+                        vendor="NVIDIA",
+                        vram_total_gb=vram,
+                        driver=parts[2],
+                        cuda_available=True,
+                        source="nvidia-smi",
+                    )
+                )
         return gpus
 
     @staticmethod
@@ -230,7 +252,15 @@ class HardwareProfiler:
         for line in output.splitlines():
             lowered = line.lower()
             if "vga compatible controller" in lowered or "3d controller" in lowered:
-                vendor = "NVIDIA" if "nvidia" in lowered else "AMD" if "amd" in lowered or "radeon" in lowered else "Intel" if "intel" in lowered else "unknown"
+                vendor = (
+                    "NVIDIA"
+                    if "nvidia" in lowered
+                    else "AMD"
+                    if "amd" in lowered or "radeon" in lowered
+                    else "Intel"
+                    if "intel" in lowered
+                    else "unknown"
+                )
                 name = line.split(":", 2)[-1].strip()
                 gpus.append(GPUInfo(name=name, vendor=vendor, source="lspci"))
         return gpus
@@ -239,7 +269,16 @@ class HardwareProfiler:
     def _windows_wmic_gpus() -> list[GPUInfo]:
         if not shutil.which("wmic"):
             return []
-        output = HardwareProfiler._run_command(["wmic", "path", "win32_VideoController", "get", "name,AdapterRAM", "/format:csv"])
+        output = HardwareProfiler._run_command(
+            [
+                "wmic",
+                "path",
+                "win32_VideoController",
+                "get",
+                "name,AdapterRAM",
+                "/format:csv",
+            ]
+        )
         gpus: list[GPUInfo] = []
         for line in output.splitlines():
             if "," not in line or "AdapterRAM" in line:
@@ -251,8 +290,18 @@ class HardwareProfiler:
                     vram = round(float(parts[-2]) / 1024**3, 2)
                 except ValueError:
                     vram = 0.0
-                vendor = "NVIDIA" if "nvidia" in name.lower() else "AMD" if "amd" in name.lower() or "radeon" in name.lower() else "Intel" if "intel" in name.lower() else "unknown"
-                gpus.append(GPUInfo(name=name, vendor=vendor, vram_total_gb=vram, source="wmic"))
+                vendor = (
+                    "NVIDIA"
+                    if "nvidia" in name.lower()
+                    else "AMD"
+                    if "amd" in name.lower() or "radeon" in name.lower()
+                    else "Intel"
+                    if "intel" in name.lower()
+                    else "unknown"
+                )
+                gpus.append(
+                    GPUInfo(name=name, vendor=vendor, vram_total_gb=vram, source="wmic")
+                )
         return gpus
 
     @staticmethod
@@ -272,14 +321,23 @@ class HardwareProfiler:
     @staticmethod
     def _run_command(command: list[str]) -> str:
         try:
-            result = subprocess.run(command, check=False, capture_output=True, text=True, timeout=5)
+            result = subprocess.run(
+                command, check=False, capture_output=True, text=True, timeout=5
+            )
             return (result.stdout or result.stderr or "").strip()
         except (OSError, subprocess.TimeoutExpired):
             return ""
 
     @staticmethod
-    def _tier(cpu_count: int, ram_total_gb: float, ram_available_gb: float, gpus: list[GPUInfo] | None = None) -> str:
-        gpu_boost = any(gpu.vram_total_gb >= 8 or gpu.cuda_available for gpu in (gpus or []))
+    def _tier(
+        cpu_count: int,
+        ram_total_gb: float,
+        ram_available_gb: float,
+        gpus: list[GPUInfo] | None = None,
+    ) -> str:
+        gpu_boost = any(
+            gpu.vram_total_gb >= 8 or gpu.cuda_available for gpu in (gpus or [])
+        )
         if ram_total_gb >= 24 and ram_available_gb >= 12 and cpu_count >= 8:
             return "high"
         if gpu_boost and ram_total_gb >= 16 and ram_available_gb >= 6:
@@ -289,12 +347,16 @@ class HardwareProfiler:
         return "low"
 
     @staticmethod
-    def _capability_status(tier: str, ram_available_gb: float, gpus: list[GPUInfo]) -> tuple[str, list[str]]:
+    def _capability_status(
+        tier: str, ram_available_gb: float, gpus: list[GPUInfo]
+    ) -> tuple[str, list[str]]:
         notes: list[str] = []
         has_cuda = any(gpu.cuda_available for gpu in gpus)
         max_vram = max((gpu.vram_total_gb for gpu in gpus), default=0.0)
         if tier == "high":
-            notes.append("Apto para modelos medianos/profundos si Ollama está disponible.")
+            notes.append(
+                "Apto para modelos medianos/profundos si Ollama está disponible."
+            )
         elif tier == "medium":
             notes.append("Apto para modelos 3B/4B y algunos 8B según RAM disponible.")
         else:
@@ -306,5 +368,7 @@ class HardwareProfiler:
         elif max_vram > 0:
             notes.append("GPU detectada sin CUDA confirmada; validar backend local.")
         else:
-            notes.append("Sin VRAM detectada; selección conservadora basada en CPU/RAM.")
+            notes.append(
+                "Sin VRAM detectada; selección conservadora basada en CPU/RAM."
+            )
         return tier, notes

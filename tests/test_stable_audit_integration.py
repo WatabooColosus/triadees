@@ -14,14 +14,16 @@ def test_living_report_includes_stable_neuron_audit(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
     registry = NeuronRegistry(db_path=db_path)
-    registry.register(NeuronSpec(
-        name="neurona-lr-test",
-        mission="Probar living report.",
-        domain="system_governance",
-        rules=["Solo prueba"],
-        status="stable",
-        created_by="test",
-    ))
+    registry.register(
+        NeuronSpec(
+            name="neurona-lr-test",
+            mission="Probar living report.",
+            domain="system_governance",
+            rules=["Solo prueba"],
+            status="stable",
+            created_by="test",
+        )
+    )
     report = build_living_report(db_path=db_path, runs_dir=runs_dir, limit=5)
     assert "stable_neuron_audit" in report
     audit = report["stable_neuron_audit"]
@@ -95,6 +97,7 @@ def test_context_engine_preserves_memory_context(tmp_path: Path) -> None:
 
 def test_runner_semantic_recall_enabled_by_default(tmp_path: Path) -> None:
     from triade.core.runner import TriadeRunner
+
     runner = TriadeRunner(
         runs_dir=tmp_path / "runs",
         db_path=tmp_path / "triade.db",
@@ -107,6 +110,7 @@ def test_runner_semantic_recall_enabled_by_default(tmp_path: Path) -> None:
 
 def test_runner_injects_bodega_global_context(tmp_path: Path) -> None:
     from triade.core.runner import TriadeRunner
+
     runner = TriadeRunner(
         runs_dir=tmp_path / "runs",
         db_path=tmp_path / "triade.db",
@@ -122,21 +126,36 @@ def test_runner_injects_bodega_global_context(tmp_path: Path) -> None:
 def test_runner_no_identity_modification(tmp_path: Path) -> None:
     import sqlite3
     from triade.core.runner import TriadeRunner
+
     db_path = tmp_path / "triade.db"
     runner = TriadeRunner(
         runs_dir=tmp_path / "runs",
         db_path=db_path,
         use_ollama=False,
     )
-    before = sqlite3.connect(str(db_path)).execute("SELECT COUNT(*) FROM identity_core").fetchone()[0]
+    before = (
+        sqlite3.connect(str(db_path))
+        .execute("SELECT COUNT(*) FROM identity_core")
+        .fetchone()[0]
+    )
     runner.run(user_input="modifica identidad core", source="test")
-    after = sqlite3.connect(str(db_path)).execute("SELECT COUNT(*) FROM identity_core").fetchone()[0]
+    after = (
+        sqlite3.connect(str(db_path))
+        .execute("SELECT COUNT(*) FROM identity_core")
+        .fetchone()[0]
+    )
     assert before == after
 
 
 def test_central_plan_includes_memory_confidence_steps(tmp_path: Path) -> None:
     from triade.core.central import Central
-    from triade.core.contracts import InputPacket, SignalPacket, MemoryPacket, CrystalPacket, PlanPacket
+    from triade.core.contracts import (
+        InputPacket,
+        SignalPacket,
+        MemoryPacket,
+        CrystalPacket,
+    )
+
     central = Central()
     input_packet = InputPacket(
         user_input="test",
@@ -151,7 +170,9 @@ def test_central_plan_includes_memory_confidence_steps(tmp_path: Path) -> None:
             }
         },
     )
-    signals = SignalPacket(run_id="test", intent="conversation", tone="neutral", urgency="low", risk="low")
+    signals = SignalPacket(
+        run_id="test", intent="conversation", tone="neutral", urgency="low", risk="low"
+    )
     memory = MemoryPacket(run_id="test")
     crystal = CrystalPacket(run_id="test")
     plan = central.plan(input_packet, signals, memory, crystal)
@@ -163,10 +184,18 @@ def test_central_plan_includes_memory_confidence_steps(tmp_path: Path) -> None:
 
 def test_central_plan_no_bodega_global_fallback(tmp_path: Path) -> None:
     from triade.core.central import Central
-    from triade.core.contracts import InputPacket, SignalPacket, MemoryPacket, CrystalPacket
+    from triade.core.contracts import (
+        InputPacket,
+        SignalPacket,
+        MemoryPacket,
+        CrystalPacket,
+    )
+
     central = Central()
     input_packet = InputPacket(user_input="test", source="test", context={})
-    signals = SignalPacket(run_id="test", intent="conversation", tone="neutral", urgency="low", risk="low")
+    signals = SignalPacket(
+        run_id="test", intent="conversation", tone="neutral", urgency="low", risk="low"
+    )
     memory = MemoryPacket(run_id="test")
     crystal = CrystalPacket(run_id="test")
     plan = central.plan(input_packet, signals, memory, crystal)
@@ -175,9 +204,11 @@ def test_central_plan_no_bodega_global_fallback(tmp_path: Path) -> None:
 
 def test_worker_bodega_global_review_task_type_exists() -> None:
     from triade.workers.contracts import WORKER_TASK_TYPES
+
     assert "bodega_global_review" in WORKER_TASK_TYPES
 
 
 def test_worker_bodega_global_review_handler_exists() -> None:
     from triade.workers.worker_loop import WorkerLoop
+
     assert hasattr(WorkerLoop, "_bodega_global_review")

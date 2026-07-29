@@ -97,9 +97,16 @@ class CanaryMonitor:
                      payload_json, created_at, updated_at)
                     VALUES (?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
-                        payload["canary_id"], candidate_id, baseline_score, tolerance,
-                        traffic_percent, min_observations, max_observations,
-                        json.dumps(payload, sort_keys=True), now, now,
+                        payload["canary_id"],
+                        candidate_id,
+                        baseline_score,
+                        tolerance,
+                        traffic_percent,
+                        min_observations,
+                        max_observations,
+                        json.dumps(payload, sort_keys=True),
+                        now,
+                        now,
                     ),
                 )
             except sqlite3.IntegrityError as exc:

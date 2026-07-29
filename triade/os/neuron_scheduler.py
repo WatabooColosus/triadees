@@ -31,7 +31,12 @@ class NeuronScheduler:
         return conn
 
     def _ensure_schema(self) -> None:
-        migration = Path(__file__).resolve().parents[1] / "memory" / "migrations" / "005_triade_os.sql"
+        migration = (
+            Path(__file__).resolve().parents[1]
+            / "memory"
+            / "migrations"
+            / "005_triade_os.sql"
+        )
         if migration.exists():
             with self._connect() as conn:
                 conn.executescript(migration.read_text(encoding="utf-8"))
@@ -39,10 +44,15 @@ class NeuronScheduler:
 
     def _ensure_neuron_activity_column(self) -> None:
         with self._connect() as conn:
-            cols = {row[1] for row in conn.execute("PRAGMA table_info(neuron_activity)").fetchall()}
+            cols = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(neuron_activity)").fetchall()
+            }
             if "activation_type" not in cols:
                 try:
-                    conn.execute("ALTER TABLE neuron_activity ADD COLUMN activation_type TEXT")
+                    conn.execute(
+                        "ALTER TABLE neuron_activity ADD COLUMN activation_type TEXT"
+                    )
                 except Exception:
                     pass
 
@@ -66,7 +76,7 @@ class NeuronScheduler:
             for neuron in neurons:
                 nid = neuron["id"]
                 name = neuron["name"]
-                status = neuron["status"]
+                neuron["status"]
                 domain = neuron["domain"]
 
                 evidence_gap = self._compute_evidence_gap(conn, nid)
@@ -119,7 +129,9 @@ class NeuronScheduler:
         has_evidence = int(row["c"]) if row else 0
         return max(0.0, min(1.0, 1.0 - (has_evidence / required)))
 
-    def _compute_staleness(self, conn: sqlite3.Connection, neuron_id: int, now: datetime) -> float:
+    def _compute_staleness(
+        self, conn: sqlite3.Connection, neuron_id: int, now: datetime
+    ) -> float:
         row = conn.execute(
             """SELECT created_at FROM neuron_activity
             WHERE neuron_id = ?
@@ -218,27 +230,37 @@ class NeuronScheduler:
                     (p.neuron_id,),
                 ).fetchone()
                 if existing:
-                    scheduled.append({
-                        "task_id": int(existing["id"]), "neuron_id": p.neuron_id,
-                        "neuron_name": p.neuron_name, "priority_score": p.priority_score,
-                        "reason": "already_queued",
-                    })
+                    scheduled.append(
+                        {
+                            "task_id": int(existing["id"]),
+                            "neuron_id": p.neuron_id,
+                            "neuron_name": p.neuron_name,
+                            "priority_score": p.priority_score,
+                            "reason": "already_queued",
+                        }
+                    )
                     continue
                 cursor = conn.execute(
                     """INSERT INTO worker_tasks (task_type, status, priority, payload_json, created_at)
                     VALUES ('experimental_neuron_activity', 'pending', ?, ?, ?)""",
-                    (int(100 - p.priority_score * 100), json.dumps(payload, ensure_ascii=False), now),
+                    (
+                        int(100 - p.priority_score * 100),
+                        json.dumps(payload, ensure_ascii=False),
+                        now,
+                    ),
                 )
                 task_id = int(cursor.lastrowid)
 
             self._log_priority(p, now)
-            scheduled.append({
-                "task_id": task_id,
-                "neuron_id": p.neuron_id,
-                "neuron_name": p.neuron_name,
-                "priority_score": p.priority_score,
-                "reason": p.reason,
-            })
+            scheduled.append(
+                {
+                    "task_id": task_id,
+                    "neuron_id": p.neuron_id,
+                    "neuron_name": p.neuron_name,
+                    "priority_score": p.priority_score,
+                    "reason": p.reason,
+                }
+            )
 
         return scheduled
 
@@ -263,7 +285,9 @@ class NeuronScheduler:
 
     # ── Usage tracking ───────────────────────────────────────
 
-    def record_activation(self, neuron_id: int, duration_ms: int, success: bool) -> None:
+    def record_activation(
+        self, neuron_id: int, duration_ms: int, success: bool
+    ) -> None:
         now = utc_now()
         with self._connect() as conn:
             conn.execute(

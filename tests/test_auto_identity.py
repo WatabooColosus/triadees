@@ -21,12 +21,18 @@ def make_auto_db(tmp_path: Path) -> Path:
 # AutoIdentityStore
 # ---------------------------------------------------------------------------
 
+
 def test_store_creates_table(tmp_path: Path) -> None:
     db_path = make_auto_db(tmp_path)
-    store = AutoIdentityStore(db_path=db_path)
+    AutoIdentityStore(db_path=db_path)
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
-        tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        tables = {
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
     assert "auto_identity" in tables
 
 
@@ -34,7 +40,9 @@ def test_add_trait(tmp_path: Path) -> None:
     db_path = make_auto_db(tmp_path)
     store = AutoIdentityStore(db_path=db_path)
 
-    result = store.add_or_update("test_capability", "I am good at analysis", category="capability")
+    result = store.add_or_update(
+        "test_capability", "I am good at analysis", category="capability"
+    )
     assert result["updated"] is False
     assert result["confidence"] == 0.3
     assert result["evidence_count"] == 1
@@ -120,13 +128,16 @@ def test_doctor(tmp_path: Path) -> None:
 # Evolve from reflection
 # ---------------------------------------------------------------------------
 
+
 def test_evolve_from_reflection_creates_traits(tmp_path: Path) -> None:
     db_path = make_auto_db(tmp_path)
     store = AutoIdentityStore(db_path=db_path)
 
     reflection = {
         "observations": [
-            {"observation": "Tríade muestra capacidad para análisis profundo de código"},
+            {
+                "observation": "Tríade muestra capacidad para análisis profundo de código"
+            },
         ],
         "learning_candidates": {
             "candidate_themes": [
@@ -169,18 +180,24 @@ def test_evolve_from_reflection_integrates_with_bodega(tmp_path: Path) -> None:
 
     # Add a run first
     from triade.core.contracts import InputPacket
+
     packet = InputPacket(user_input="test identity evolution", run_id="run-identity-1")
     bodega.create_run(packet)
 
     from triade.memory.auto_identity_store import AutoIdentityStore
+
     store = AutoIdentityStore(db_path=db_path)
-    store.add_or_update("learned_trait", "I learn from experience", category="capability")
+    store.add_or_update(
+        "learned_trait", "I learn from experience", category="capability"
+    )
 
     identity = bodega._fetch_identity()
     assert len(identity) >= 6  # 6 core + at least 0 auto
 
     # Now check recall includes auto traits
     memory = bodega.recall(packet)
-    auto_traits_in_recall = [m for m in memory.identity_matches if m.get("source") == "auto_identity"]
+    auto_traits_in_recall = [
+        m for m in memory.identity_matches if m.get("source") == "auto_identity"
+    ]
     assert len(auto_traits_in_recall) == 1
     assert auto_traits_in_recall[0]["key"] == "learned_trait"

@@ -74,7 +74,9 @@ def publish_event(
     }
 
 
-def list_recent_events(limit: int = 100, db_path: str | Path = "triade/memory/triade.db") -> list[dict[str, Any]]:
+def list_recent_events(
+    limit: int = 100, db_path: str | Path = "triade/memory/triade.db"
+) -> list[dict[str, Any]]:
     with _connect(db_path) as conn:
         rows = conn.execute(
             """SELECT id, run_ref, task_id, task_type, event_type, status, message, payload_json, created_at
@@ -86,7 +88,9 @@ def list_recent_events(limit: int = 100, db_path: str | Path = "triade/memory/tr
     return [_row_to_dict(row) for row in rows]
 
 
-def mark_event_processed(event_id: int, db_path: str | Path = "triade/memory/triade.db") -> dict[str, Any]:
+def mark_event_processed(
+    event_id: int, db_path: str | Path = "triade/memory/triade.db"
+) -> dict[str, Any]:
     with _connect(db_path) as conn:
         cursor = conn.execute(
             "UPDATE worker_events SET status = ? WHERE id = ?",
@@ -99,7 +103,9 @@ def mark_event_processed(event_id: int, db_path: str | Path = "triade/memory/tri
     }
 
 
-def build_context_from_events(limit: int = 50, db_path: str | Path = "triade/memory/triade.db") -> dict[str, Any]:
+def build_context_from_events(
+    limit: int = 50, db_path: str | Path = "triade/memory/triade.db"
+) -> dict[str, Any]:
     events = list_recent_events(limit=limit, db_path=db_path)
     by_type: dict[str, int] = {}
     by_source: dict[str, int] = {}

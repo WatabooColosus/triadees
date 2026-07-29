@@ -1,4 +1,5 @@
 """Tests de Autonomía Delegada Gobernada."""
+
 from __future__ import annotations
 
 import os
@@ -7,14 +8,23 @@ from pathlib import Path
 
 from triade.core.system_zones import classify_path, REPO_ROOT
 from triade.core.autonomy_budget import build_autonomy_budget, LEVELS
-from triade.core.integrity_verifier import build_integrity_snapshot, verify_integrity_change
+from triade.core.integrity_verifier import (
+    build_integrity_snapshot,
+    verify_integrity_change,
+)
 from triade.core.quarantine_trash import trash_path, restore_trash_item, list_trash
-from triade.core.safe_file_ops import safe_create_file, safe_patch_file, safe_move_file, safe_delete_file
+from triade.core.safe_file_ops import (
+    safe_create_file,
+    safe_patch_file,
+    safe_move_file,
+    safe_delete_file,
+)
 from triade.core.delegated_action_planner import plan_delegated_action
 from triade.core.safe_file_ops import _backup_file, _restore_backup
 
 
 # ── Helper: green zone temp path ─────────────────────────────────────
+
 
 def _green_temp(suffix: str = ".txt") -> str:
     return tempfile.mktemp(dir=str(REPO_ROOT / "runs"), suffix=suffix)
@@ -116,7 +126,9 @@ def test_budget_project_maintenance():
 
 
 def test_integrity_snapshot_has_counts():
-    snap = build_integrity_snapshot([str(REPO_ROOT / "triade" / "core" / "system_zones.py")])
+    snap = build_integrity_snapshot(
+        [str(REPO_ROOT / "triade" / "core" / "system_zones.py")]
+    )
     assert snap["files_count"] > 0
     assert snap["total_bytes"] > 0
     assert "files" in snap
@@ -129,7 +141,12 @@ def test_integrity_detects_unplanned_hash_change():
     before = build_integrity_snapshot([tmp])
     Path(tmp).write_text("modified content")
     after = build_integrity_snapshot([tmp])
-    plan = {"action_type": "read", "target_paths": [tmp], "zones": ["green"], "max_bytes_per_cycle": 100000}
+    plan = {
+        "action_type": "read",
+        "target_paths": [tmp],
+        "zones": ["green"],
+        "max_bytes_per_cycle": 100000,
+    }
     result = verify_integrity_change(before, after, plan)
     assert result["hash_changed_unexpected"] != []
     assert result["requires_human_review"] is True
@@ -142,7 +159,12 @@ def test_integrity_planned_patch_ok():
     before = build_integrity_snapshot([tmp])
     Path(tmp).write_text("modified content")
     after = build_integrity_snapshot([tmp])
-    plan = {"action_type": "patch", "target_paths": [tmp], "zones": ["green"], "max_bytes_per_cycle": 100000}
+    plan = {
+        "action_type": "patch",
+        "target_paths": [tmp],
+        "zones": ["green"],
+        "max_bytes_per_cycle": 100000,
+    }
     result = verify_integrity_change(before, after, plan)
     assert "modified" in str(result)
     os.unlink(tmp)
@@ -227,7 +249,9 @@ def test_safe_delete_never_unlinks_directly():
     """safe_delete_file nunca debe hacer unlink directo, siempre trash_path."""
     tmp = _green_temp()
     Path(tmp).write_text("delete test content")
-    result = safe_delete_file(tmp, "project_maintenance", dry_run=False, reason="test delete")
+    result = safe_delete_file(
+        tmp, "project_maintenance", dry_run=False, reason="test delete"
+    )
     assert result["status"] == "ok"
     assert Path(tmp).exists() is False
     trash = list_trash(limit=50)
@@ -239,7 +263,9 @@ def test_safe_delete_unknown_requires_approval():
     """yellow_unknown requiere aprobación humana para borrar."""
     tmp = tempfile.mktemp(dir=str(REPO_ROOT))
     Path(tmp).write_text("delete unknown")
-    result = safe_delete_file(tmp, "full_local_guarded", dry_run=False, reason="test unknown")
+    result = safe_delete_file(
+        tmp, "full_local_guarded", dry_run=False, reason="test unknown"
+    )
     assert result["status"] == "requires_human_approval"
     os.unlink(tmp)
 
@@ -290,9 +316,16 @@ def test_safe_patch_rollback_on_failure():
     Path(tmp).write_text("unplanned change")
     after = build_integrity_snapshot([tmp])
     # Use action_type="read" so the hash change is unplanned
-    plan = {"action_type": "read", "target_paths": [tmp], "zones": ["green"], "max_bytes_per_cycle": 100000}
+    plan = {
+        "action_type": "read",
+        "target_paths": [tmp],
+        "zones": ["green"],
+        "max_bytes_per_cycle": 100000,
+    }
     result = verify_integrity_change(before, after, plan)
-    assert len(result.get("hash_changed_unexpected", [])) > 0, f"Esperaba cambios no planeados, obtuve: {result}"
+    assert len(result.get("hash_changed_unexpected", [])) > 0, (
+        f"Esperaba cambios no planeados, obtuve: {result}"
+    )
     os.unlink(tmp)
 
 
@@ -300,7 +333,9 @@ def test_safe_patch_rollback_on_failure():
 
 
 def test_delegated_plan_requires_human_for_red_zone():
-    plan = plan_delegated_action("delete", ["triade/memory/triade.db"], "full_local_guarded")
+    plan = plan_delegated_action(
+        "delete", ["triade/memory/triade.db"], "full_local_guarded"
+    )
     assert plan["human_approval_required"] is True
     assert plan["red_zones"] == ["triade/memory/triade.db"]
 
@@ -323,7 +358,9 @@ def test_delegated_plan_full_local_guarded_allows_green():
 
 
 def test_delegated_plan_risk_score():
-    plan = plan_delegated_action("refactor", ["triade/core/central.py"], "repo_refactor")
+    plan = plan_delegated_action(
+        "refactor", ["triade/core/central.py"], "repo_refactor"
+    )
     assert plan["risk_score"] > 0.3
     assert plan["dry_run_required"] is True
 
@@ -331,7 +368,9 @@ def test_delegated_plan_risk_score():
 def test_identity_core_never_modified():
     for level in LEVELS:
         budget = build_autonomy_budget(level)
-        assert budget["can_modify_identity_core"] is False, f"Nivel {level} no debe modificar identity_core"
+        assert budget["can_modify_identity_core"] is False, (
+            f"Nivel {level} no debe modificar identity_core"
+        )
     info = classify_path("identity_core.json")
     assert info["can_modify"] is False
 
@@ -366,7 +405,9 @@ def test_safe_patch_creates_backup_before_write():
     """safe_patch_file debe crear backup antes de escribir."""
     tmp = _green_temp()
     Path(tmp).write_text("original content")
-    result = safe_patch_file(tmp, "patched content", "project_maintenance", dry_run=False)
+    result = safe_patch_file(
+        tmp, "patched content", "project_maintenance", dry_run=False
+    )
     # Should complete without issues
     assert result["status"] in ("ok", "blocked_budget", "requires_human_approval")
     if result["status"] == "ok":
@@ -381,11 +422,14 @@ def test_safe_patch_restore_from_backup():
     """Backup debe permitir restaurar el original."""
     tmp = _green_temp()
     Path(tmp).write_text("original content")
-    result = safe_patch_file(tmp, "patched content", "project_maintenance", dry_run=False)
+    result = safe_patch_file(
+        tmp, "patched content", "project_maintenance", dry_run=False
+    )
     if result["status"] == "ok":
         bp = result.get("backup_manifest_path")
         assert bp is not None
         import json
+
         manifest = json.loads(Path(bp).read_text())
         assert "original_path" in manifest
         assert "backup_path" in manifest
@@ -402,7 +446,12 @@ def test_safe_move_reports_rollback_failed():
     Path(src).write_text("move rollback test")
     # Move with full_local_guarded should work on green zones
     result = safe_move_file(src, dst, "full_local_guarded", dry_run=False)
-    assert result["status"] in ("ok", "blocked_budget", "requires_human_approval", "error")
+    assert result["status"] in (
+        "ok",
+        "blocked_budget",
+        "requires_human_approval",
+        "error",
+    )
     if result["status"] == "ok":
         assert Path(dst).exists()
         assert Path(src).exists() is False
@@ -442,16 +491,16 @@ def test_autonomy_endpoints_registered():
     api_path = REPO_ROOT / "apps" / "routes" / "api.py"
     content = api_path.read_text()
     required = [
-        '/api/autonomy/budget',
-        '/api/system/zones',
-        '/api/integrity/snapshot',
-        '/api/trash/list',
-        '/api/trash/restore',
-        '/api/delegated/plan',
-        '/api/files/create',
-        '/api/files/patch',
-        '/api/files/move',
-        '/api/files/delete-to-trash',
+        "/api/autonomy/budget",
+        "/api/system/zones",
+        "/api/integrity/snapshot",
+        "/api/trash/list",
+        "/api/trash/restore",
+        "/api/delegated/plan",
+        "/api/files/create",
+        "/api/files/patch",
+        "/api/files/move",
+        "/api/files/delete-to-trash",
     ]
     for ep in required:
         assert ep in content, f"Endpoint faltante: {ep}"
@@ -469,10 +518,14 @@ def test_delete_to_trash_never_direct_delete():
     safe_ops_path = REPO_ROOT / "triade" / "core" / "safe_file_ops.py"
     content = safe_ops_path.read_text()
     # safe_delete_file should never call .unlink()
-    assert 'def safe_delete_file' in content
+    assert "def safe_delete_file" in content
     # Verify no unlink in the delete path
-    delete_func_start = content.find('def safe_delete_file')
-    delete_func_end = content.find('\ndef ', delete_func_start + 1)
-    delete_func = content[delete_func_start:delete_func_end] if delete_func_end > 0 else content[delete_func_start:]
-    assert '.unlink(' not in delete_func, "safe_delete_file no debe usar unlink"
-    assert 'trash_path(' in delete_func, "safe_delete_file debe usar trash_path"
+    delete_func_start = content.find("def safe_delete_file")
+    delete_func_end = content.find("\ndef ", delete_func_start + 1)
+    delete_func = (
+        content[delete_func_start:delete_func_end]
+        if delete_func_end > 0
+        else content[delete_func_start:]
+    )
+    assert ".unlink(" not in delete_func, "safe_delete_file no debe usar unlink"
+    assert "trash_path(" in delete_func, "safe_delete_file debe usar trash_path"

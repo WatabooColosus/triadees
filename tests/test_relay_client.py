@@ -35,7 +35,9 @@ def test_sync_nodes_to_federation(tmp_path):
         )
 
     federation = Federation(db_path=tmp_path / "triade.db")
-    client = PublicRelayClient("https://relay.test", "admin", client=make_client(handler))
+    client = PublicRelayClient(
+        "https://relay.test", "admin", client=make_client(handler)
+    )
 
     result = client.sync_nodes_to_federation(federation)
 
@@ -75,7 +77,12 @@ def test_benchmark_online_nodes_updates_model_feed(tmp_path):
                             "job_id": "rjob-1",
                             "node_id": "web-tablet",
                             "status": "completed",
-                            "result": {"task": "browser_benchmark", "seconds": 1, "loops": 1000, "score": 1000},
+                            "result": {
+                                "task": "browser_benchmark",
+                                "seconds": 1,
+                                "loops": 1000,
+                                "score": 1000,
+                            },
                         }
                     ]
                 },
@@ -83,7 +90,9 @@ def test_benchmark_online_nodes_updates_model_feed(tmp_path):
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
     federation = Federation(db_path=tmp_path / "triade.db")
-    client = PublicRelayClient("https://relay.test", "admin", client=make_client(handler))
+    client = PublicRelayClient(
+        "https://relay.test", "admin", client=make_client(handler)
+    )
 
     result = client.benchmark_online_nodes(federation, seconds=1, wait_timeout=1)
 
@@ -130,7 +139,14 @@ def test_preprocess_text_online_returns_model_feed(tmp_path):
                                 "word_count": 3,
                                 "approx_tokens": 5,
                                 "keywords": [{"term": "triade", "count": 2}],
-                                "chunks": [{"index": 0, "start": 0, "end": 18, "text": "triade usa nodos"}],
+                                "chunks": [
+                                    {
+                                        "index": 0,
+                                        "start": 0,
+                                        "end": 18,
+                                        "text": "triade usa nodos",
+                                    }
+                                ],
                             },
                         }
                     ]
@@ -139,9 +155,13 @@ def test_preprocess_text_online_returns_model_feed(tmp_path):
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
     federation = Federation(db_path=tmp_path / "triade.db")
-    client = PublicRelayClient("https://relay.test", "admin", client=make_client(handler))
+    client = PublicRelayClient(
+        "https://relay.test", "admin", client=make_client(handler)
+    )
 
-    result = client.preprocess_text_online(federation, "triade usa nodos", wait_timeout=1)
+    result = client.preprocess_text_online(
+        federation, "triade usa nodos", wait_timeout=1
+    )
 
     assert result["completed"] == 1
     assert result["model_feed"]["ready_for_local_model"] is True
@@ -176,7 +196,9 @@ def test_sync_native_android_node_marks_cpu_feed(tmp_path):
         )
 
     federation = Federation(db_path=tmp_path / "triade.db")
-    client = PublicRelayClient("https://relay.test", "admin", client=make_client(handler))
+    client = PublicRelayClient(
+        "https://relay.test", "admin", client=make_client(handler)
+    )
 
     client.sync_nodes_to_federation(federation)
     node = federation.get_node("android-phone")
@@ -216,7 +238,10 @@ def test_sync_native_android_model_runtime_can_host_llm_when_backend_ready(tmp_p
                             "model_runtime_backend": "llama.cpp",
                             "can_run_local_llm": True,
                             "local_model_runtime_ready": True,
-                            "allowed_tasks": ["android_model_doctor", "android_local_generate"],
+                            "allowed_tasks": [
+                                "android_model_doctor",
+                                "android_local_generate",
+                            ],
                         },
                     }
                 ]
@@ -224,7 +249,9 @@ def test_sync_native_android_model_runtime_can_host_llm_when_backend_ready(tmp_p
         )
 
     federation = Federation(db_path=tmp_path / "triade.db")
-    client = PublicRelayClient("https://relay.test", "admin", client=make_client(handler))
+    client = PublicRelayClient(
+        "https://relay.test", "admin", client=make_client(handler)
+    )
 
     client.sync_nodes_to_federation(federation)
     node = federation.get_node("android-llm")
@@ -259,7 +286,9 @@ def test_sync_native_android_marks_missing_resource_limit_as_assumed(tmp_path):
         )
 
     federation = Federation(db_path=tmp_path / "triade.db")
-    client = PublicRelayClient("https://relay.test", "admin", client=make_client(handler))
+    client = PublicRelayClient(
+        "https://relay.test", "admin", client=make_client(handler)
+    )
 
     client.sync_nodes_to_federation(federation)
     node = federation.get_node("android-old-relay")
@@ -298,9 +327,17 @@ def test_sync_preserves_existing_benchmark_score(tmp_path):
         "android-phone",
         name="Android nativo",
         permissions=["publish_capabilities", "request_compute"],
-        capabilities={"native_android": True, "online": True, "cpu_count": 8, "ram_available_gb": 4, "benchmark_score": 1234},
+        capabilities={
+            "native_android": True,
+            "online": True,
+            "cpu_count": 8,
+            "ram_available_gb": 4,
+            "benchmark_score": 1234,
+        },
     )
-    client = PublicRelayClient("https://relay.test", "admin", client=make_client(handler))
+    client = PublicRelayClient(
+        "https://relay.test", "admin", client=make_client(handler)
+    )
 
     client.sync_nodes_to_federation(federation)
     node = federation.get_node("android-phone")

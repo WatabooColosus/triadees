@@ -7,7 +7,6 @@ de deuda técnica y acciones recomendadas.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -38,29 +37,39 @@ def build_technical_debt_audit() -> dict[str, Any]:
 
     # ── UI React build disponible
     spa_index = _exists("frontend/dist/index.html")
-    spa_js = list((REPO_ROOT / "frontend/dist/assets").glob("index-*.js")) if (REPO_ROOT / "frontend/dist/assets").exists() else []
+    spa_js = (
+        list((REPO_ROOT / "frontend/dist/assets").glob("index-*.js"))
+        if (REPO_ROOT / "frontend/dist/assets").exists()
+        else []
+    )
     if not spa_index:
-        debts.append({
-            "area": "frontend",
-            "item": "React SPA build",
-            "detail": "frontend/dist/index.html no encontrado. Ejecutar npm --prefix frontend run build",
-            "severity": "high",
-        })
+        debts.append(
+            {
+                "area": "frontend",
+                "item": "React SPA build",
+                "detail": "frontend/dist/index.html no encontrado. Ejecutar npm --prefix frontend run build",
+                "severity": "high",
+            }
+        )
         score -= 15
     elif not spa_js:
-        warnings.append("frontend/dist/index.html existe pero no hay assets JS (build incompleto)")
+        warnings.append(
+            "frontend/dist/index.html existe pero no hay assets JS (build incompleto)"
+        )
 
     # ── HTML embebido legacy
     ui_html_path = REPO_ROOT / "apps/ui_html.py"
     if ui_html_path.exists():
         size_kb = ui_html_path.stat().st_size / 1024
         if size_kb > 5:
-            debts.append({
-                "area": "ui_legacy",
-                "item": "HTML embebido legacy",
-                "detail": f"apps/ui_html.py ({size_kb:.0f} KB). Constantes HTML embebidas deben migrarse a React.",
-                "severity": "medium",
-            })
+            debts.append(
+                {
+                    "area": "ui_legacy",
+                    "item": "HTML embebido legacy",
+                    "detail": f"apps/ui_html.py ({size_kb:.0f} KB). Constantes HTML embebidas deben migrarse a React.",
+                    "severity": "medium",
+                }
+            )
             score -= 10
 
     # ── Apps legacy duplicadas
@@ -69,21 +78,25 @@ def build_technical_debt_audit() -> dict[str, Any]:
         if _exists(f"apps/{app_name}"):
             legacy_apps.append(app_name)
     if legacy_apps:
-        debts.append({
-            "area": "api_legacy",
-            "item": "Apps FastAPI legacy",
-            "detail": f"{', '.join(legacy_apps)}. Son wrappers deprecated que duplican rutas de single_port_app.",
-            "severity": "medium",
-        })
+        debts.append(
+            {
+                "area": "api_legacy",
+                "item": "Apps FastAPI legacy",
+                "detail": f"{', '.join(legacy_apps)}. Son wrappers deprecated que duplican rutas de single_port_app.",
+                "severity": "medium",
+            }
+        )
         score -= 10
 
     # ── Duplicaciones de rutas en api.py (alias)
-    debts.append({
-        "area": "api_duplication",
-        "item": "Alias de rutas",
-        "detail": "Varias rutas tienen alias (/api/health = /health, /api/observability = /api/system/observability, etc.). Mantener compatibilidad.",
-        "severity": "low",
-    })
+    debts.append(
+        {
+            "area": "api_duplication",
+            "item": "Alias de rutas",
+            "detail": "Varias rutas tienen alias (/api/health = /health, /api/observability = /api/system/observability, etc.). Mantener compatibilidad.",
+            "severity": "low",
+        }
+    )
     score -= 3
 
     # ── APIs core disponibles
@@ -115,17 +128,23 @@ def build_technical_debt_audit() -> dict[str, Any]:
     # ── Tests presentes
     test_files = list((REPO_ROOT / "tests").glob("test_*.py"))
     if len(test_files) < 20:
-        debts.append({
-            "area": "tests",
-            "item": "Cobertura de tests baja",
-            "detail": f"Solo {len(test_files)} archivos de test encontrados. Objetivo: 30+.",
-            "severity": "low",
-        })
+        debts.append(
+            {
+                "area": "tests",
+                "item": "Cobertura de tests baja",
+                "detail": f"Solo {len(test_files)} archivos de test encontrados. Objetivo: 30+.",
+                "severity": "low",
+            }
+        )
         score -= 5
 
     # ── Docs vigentes
-    doc_files = ["docs/STATUS_CURRENT.md", "docs/UI_REACT_MIGRATION.md", "docs/DEPRECATED_UI_ROUTES.md",
-                  "docs/OLLAMA_BLOOD.md"]
+    doc_files = [
+        "docs/STATUS_CURRENT.md",
+        "docs/UI_REACT_MIGRATION.md",
+        "docs/DEPRECATED_UI_ROUTES.md",
+        "docs/OLLAMA_BLOOD.md",
+    ]
     for doc in doc_files:
         if not _exists(doc):
             warnings.append(f"Documento faltante: {doc}")
@@ -135,46 +154,56 @@ def build_technical_debt_audit() -> dict[str, Any]:
     if status_file.exists():
         content = status_file.read_text(encoding="utf-8")
         if "UI oficial React SPA" not in content:
-            debts.append({
-                "area": "docs",
-                "item": "STATUS_CURRENT.md no declara React como UI oficial",
-                "detail": "docs/STATUS_CURRENT.md debe tener sección UI oficial React SPA.",
-                "severity": "medium",
-            })
+            debts.append(
+                {
+                    "area": "docs",
+                    "item": "STATUS_CURRENT.md no declara React como UI oficial",
+                    "detail": "docs/STATUS_CURRENT.md debe tener sección UI oficial React SPA.",
+                    "severity": "medium",
+                }
+            )
             score -= 8
 
     # ── identity_core no se modifica
     if _exists("triade/core/identity_core.py"):
-        debts.append({
-            "area": "safety",
-            "item": "identity_core existe",
-            "detail": "identity_core presente. Verificar que ninguna ruta ni worker lo modifique.",
-            "severity": "low",
-        })
+        debts.append(
+            {
+                "area": "safety",
+                "item": "identity_core existe",
+                "detail": "identity_core presente. Verificar que ninguna ruta ni worker lo modifique.",
+                "severity": "low",
+            }
+        )
 
     # ── entrypoint oficial
     if _exists("apps/single_port_app.py"):
         available_endpoints += 1
     else:
-        debts.append({
-            "area": "api",
-            "item": "single_port_app.py no encontrado",
-            "detail": "El entrypoint oficial no existe.",
-            "severity": "high",
-        })
+        debts.append(
+            {
+                "area": "api",
+                "item": "single_port_app.py no encontrado",
+                "detail": "El entrypoint oficial no existe.",
+                "severity": "high",
+            }
+        )
         score -= 20
 
     score = max(0, min(100, score))
 
     recommended_actions = []
     if score < 50:
-        recommended_actions.append("Prioridad: construir React SPA y migrar rutas legacy.")
+        recommended_actions.append(
+            "Prioridad: construir React SPA y migrar rutas legacy."
+        )
     if not spa_index:
         recommended_actions.append("Ejecutar npm --prefix frontend run build")
     if legacy_apps:
         recommended_actions.append("Eliminar o reducir apps legacy a wrappers mínimos.")
     if score >= 70:
-        recommended_actions.append("Mantener: React SPA como UI oficial, endpoints JSON limpios.")
+        recommended_actions.append(
+            "Mantener: React SPA como UI oficial, endpoints JSON limpios."
+        )
 
     LIFE_PULSE.record_action("technical_debt_audit")
 

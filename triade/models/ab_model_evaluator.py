@@ -7,7 +7,6 @@ por tipo de tarea.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 import time
 from pathlib import Path
@@ -81,7 +80,9 @@ class ABModelEvaluator:
         timeout: int = 60,
     ) -> dict[str, Any]:
         """Evalúa dos modelos con el mismo prompt y compara."""
-        prompt = prompt or DEFAULT_PROMPTS.get(task_type, f"Ejecuta la tarea '{task_type}' de forma óptima.")
+        prompt = prompt or DEFAULT_PROMPTS.get(
+            task_type, f"Ejecuta la tarea '{task_type}' de forma óptima."
+        )
 
         result_a = self._run_model(model_a, prompt, timeout)
         result_b = self._run_model(model_b, prompt, timeout)
@@ -90,7 +91,13 @@ class ABModelEvaluator:
         score_b = self._score_output(result_b, prompt)
 
         winner_key = self._determine_winner(score_a, score_b, result_a, result_b)
-        winner = model_a if winner_key == "model_a" else model_b if winner_key == "model_b" else "tie"
+        winner = (
+            model_a
+            if winner_key == "model_a"
+            else model_b
+            if winner_key == "model_b"
+            else "tie"
+        )
 
         evaluation = {
             "task_type": task_type,
@@ -130,10 +137,14 @@ class ABModelEvaluator:
     def get_all_recommendations(self) -> dict[str, dict[str, Any]]:
         """Retorna recomendaciones para todos los tipos de tarea."""
         with self._connect() as conn:
-            rows = conn.execute("SELECT * FROM ab_recommendations ORDER BY task_type").fetchall()
+            rows = conn.execute(
+                "SELECT * FROM ab_recommendations ORDER BY task_type"
+            ).fetchall()
             return {row["task_type"]: dict(row) for row in rows}
 
-    def get_evaluation_history(self, task_type: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    def get_evaluation_history(
+        self, task_type: str | None = None, limit: int = 50
+    ) -> list[dict[str, Any]]:
         """Retorna historial de evaluaciones."""
         with self._connect() as conn:
             if task_type:
@@ -162,14 +173,22 @@ class ABModelEvaluator:
         model_b_wins = 0
 
         for task_type in task_types:
-            eval_result = self.evaluate_pair(task_type, model_a, model_b, timeout=timeout)
+            eval_result = self.evaluate_pair(
+                task_type, model_a, model_b, timeout=timeout
+            )
             results.append(eval_result)
             if eval_result["winner"] == model_a:
                 model_a_wins += 1
             elif eval_result["winner"] == model_b:
                 model_b_wins += 1
 
-        overall_winner = model_a if model_a_wins > model_b_wins else model_b if model_b_wins > model_a_wins else "tie"
+        overall_winner = (
+            model_a
+            if model_a_wins > model_b_wins
+            else model_b
+            if model_b_wins > model_a_wins
+            else "tie"
+        )
 
         return {
             "model_a": model_a,
@@ -185,6 +204,7 @@ class ABModelEvaluator:
         """Ejecuta un modelo Ollama y captura resultado."""
         try:
             from triade.models.ollama_client import OllamaClient
+
             client = OllamaClient(timeout=timeout)
             started = time.perf_counter()
             response = client.generate(model=model, prompt=prompt)
@@ -229,7 +249,14 @@ class ABModelEvaluator:
         if overlap > 3:
             score += 0.15
 
-        coherence_signals = ["porque", "por qué", "sin embargo", "además", "por lo tanto", "en conclusión"]
+        coherence_signals = [
+            "porque",
+            "por qué",
+            "sin embargo",
+            "además",
+            "por lo tanto",
+            "en conclusión",
+        ]
         if any(s in output_lower for s in coherence_signals):
             score += 0.1
 
@@ -252,7 +279,9 @@ class ABModelEvaluator:
         if diff < 0.05:
             if result_a.get("duration_ms", 99999) < result_b.get("duration_ms", 99999):
                 return "model_a"
-            elif result_b.get("duration_ms", 99999) < result_a.get("duration_ms", 99999):
+            elif result_b.get("duration_ms", 99999) < result_a.get(
+                "duration_ms", 99999
+            ):
                 return "model_b"
             return "tie"
 
@@ -322,12 +351,27 @@ class ABModelEvaluator:
                 b_wins = row["model_b_wins"] + (1 if winner == "model_b" else 0)
                 ties = row["ties"] + (1 if winner == "tie" else 0)
                 confidence = min(1.0, total / 10)
-                recommended = model_a if a_wins > b_wins else model_b if b_wins > a_wins else row["recommended_model"]
+                recommended = (
+                    model_a
+                    if a_wins > b_wins
+                    else model_b
+                    if b_wins > a_wins
+                    else row["recommended_model"]
+                )
 
                 conn.execute(
                     """UPDATE ab_recommendations SET
                        recommended_model = ?, confidence = ?, total_evals = ?,
                        model_a_wins = ?, model_b_wins = ?, ties = ?, updated_at = ?
                        WHERE task_type = ?""",
-                    (recommended, confidence, total, a_wins, b_wins, ties, now, task_type),
+                    (
+                        recommended,
+                        confidence,
+                        total,
+                        a_wins,
+                        b_wins,
+                        ties,
+                        now,
+                        task_type,
+                    ),
                 )

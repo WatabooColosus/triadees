@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 def _get_client():
     from apps.single_port_app import app
+
     return TestClient(app, raise_server_exceptions=False)
 
 

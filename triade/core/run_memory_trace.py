@@ -25,7 +25,9 @@ def build_run_memory_trace(
     bgc_status = bodega_global_context.get("status", "error")
     mem_conf = bodega_global_context.get("memory_confidence", "low")
     mem_score = bodega_global_context.get("memory_confidence_score", 0.0)
-    recommended = bodega_global_context.get("recommended_context_policy", "ask_or_operate_with_limited_memory")
+    recommended = bodega_global_context.get(
+        "recommended_context_policy", "ask_or_operate_with_limited_memory"
+    )
     continuity = bodega_global_context.get("continuity_summary", "")
     contradictions = bodega_global_context.get("contradictions") or []
     stable_audit = bodega_global_context.get("stable_audit_summary") or {}
@@ -41,21 +43,25 @@ def build_run_memory_trace(
 
     for match in memory.semantic_matches:
         if isinstance(match, dict):
-            authorized_matches.append({
-                "document_id": match.get("document_id", ""),
-                "domain": match.get("domain", ""),
-                "source_ref": match.get("source_ref", ""),
-                "retrieval_type": match.get("retrieval_type", ""),
-                "governance_note": match.get("governance_note", ""),
-            })
+            authorized_matches.append(
+                {
+                    "document_id": match.get("document_id", ""),
+                    "domain": match.get("domain", ""),
+                    "source_ref": match.get("source_ref", ""),
+                    "retrieval_type": match.get("retrieval_type", ""),
+                    "governance_note": match.get("governance_note", ""),
+                }
+            )
 
     for match in quarantined_raw:
         if isinstance(match, dict):
-            quarantined_matches.append({
-                "document_id": match.get("document_id", ""),
-                "domain": match.get("domain", ""),
-                "reason": match.get("governance_note", ""),
-            })
+            quarantined_matches.append(
+                {
+                    "document_id": match.get("document_id", ""),
+                    "domain": match.get("domain", ""),
+                    "reason": match.get("governance_note", ""),
+                }
+            )
 
     return {
         "run_id": run_id,

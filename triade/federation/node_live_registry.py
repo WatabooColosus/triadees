@@ -46,7 +46,9 @@ class NodeLiveRegistry:
                     self.last_result = {"status": "error", "error": str(exc)}
                 self._stop.wait(interval)
 
-        self._thread = threading.Thread(target=loop, name="triade-node-live-registry", daemon=True)
+        self._thread = threading.Thread(
+            target=loop, name="triade-node-live-registry", daemon=True
+        )
         self._thread.start()
 
     def stop(self) -> None:

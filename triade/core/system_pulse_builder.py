@@ -20,7 +20,13 @@ def pulse_item(
     level: str | None = None,
 ) -> dict[str, Any]:
     clean_level = level or ("ok" if ok else "warn")
-    return {"name": name, "ok": ok, "level": clean_level, "summary": summary, "detail": detail or {}}
+    return {
+        "name": name,
+        "ok": ok,
+        "level": clean_level,
+        "summary": summary,
+        "detail": detail or {},
+    }
 
 
 def safe_pulse(name: str, fn: Callable[[], dict[str, Any]]) -> dict[str, Any]:
@@ -60,7 +66,10 @@ def experimental_neuron_pulse() -> dict[str, Any]:
     except Exception as exc:
         return {
             "ok": False,
-            "summary": {"experimental_neurons_with_evidence": 0, "total_activations": 0},
+            "summary": {
+                "experimental_neurons_with_evidence": 0,
+                "total_activations": 0,
+            },
             "last_active_neuron": None,
             "stable_ready_count": 0,
             "neurons": [],
@@ -158,7 +167,11 @@ def build_system_pulse(
             "router",
             True,
             "Router disponible",
-            {"decisions": router_payload_fn(intent=intent, urgency=urgency).get("router", {}).get("decisions", {})},
+            {
+                "decisions": router_payload_fn(intent=intent, urgency=urgency)
+                .get("router", {})
+                .get("decisions", {})
+            },
         ),
     )
     compatibility = safe_pulse(
@@ -167,7 +180,10 @@ def build_system_pulse(
             "compatibility",
             True,
             f"{local.get('counts', {}).get('recommended', 0)} modelos recomendados",
-            {"counts": local.get("counts", {}), "summary": local.get("model_matrix_summary", "")},
+            {
+                "counts": local.get("counts", {}),
+                "summary": local.get("model_matrix_summary", ""),
+            },
             "ok" if local.get("counts", {}).get("recommended", 0) else "warn",
         ),
     )
@@ -202,10 +218,42 @@ def build_system_pulse(
     llm_host_count = edge_llm_host_count_fn(authorized, federation)
 
     checks = [
-        pulse_item("ollama", bool(ollama.get("ok")), "Ollama activo" if ollama.get("ok") else "Ollama apagado o no responde", {"models": ollama.get("models", [])}, "ok" if ollama.get("ok") else "warn"),
-        pulse_item("docker", bool(docker.get("ok")), "Docker activo" if docker.get("ok") else ("Docker instalado, motor pendiente" if docker.get("installed") else "Docker no disponible"), docker, "ok" if docker.get("ok") else "warn"),
-        pulse_item("local_ram", float(hardware.get("ram_available_gb") or 0) >= 4, f"{hardware.get('ram_available_gb')} GB RAM libre local", {"missing": local.get("missing_for_comfortable_models", [])}, "ok" if float(hardware.get("ram_available_gb") or 0) >= 4 else "warn"),
-        pulse_item("federation", len(nodes) > 0, f"{len(nodes)} nodos Android alimentando" if nodes else "Sin nodos Android nativos online", {"nodes": nodes, "authorized": authorized}, "ok" if nodes else "warn"),
+        pulse_item(
+            "ollama",
+            bool(ollama.get("ok")),
+            "Ollama activo" if ollama.get("ok") else "Ollama apagado o no responde",
+            {"models": ollama.get("models", [])},
+            "ok" if ollama.get("ok") else "warn",
+        ),
+        pulse_item(
+            "docker",
+            bool(docker.get("ok")),
+            "Docker activo"
+            if docker.get("ok")
+            else (
+                "Docker instalado, motor pendiente"
+                if docker.get("installed")
+                else "Docker no disponible"
+            ),
+            docker,
+            "ok" if docker.get("ok") else "warn",
+        ),
+        pulse_item(
+            "local_ram",
+            float(hardware.get("ram_available_gb") or 0) >= 4,
+            f"{hardware.get('ram_available_gb')} GB RAM libre local",
+            {"missing": local.get("missing_for_comfortable_models", [])},
+            "ok" if float(hardware.get("ram_available_gb") or 0) >= 4 else "warn",
+        ),
+        pulse_item(
+            "federation",
+            len(nodes) > 0,
+            f"{len(nodes)} nodos Android alimentando"
+            if nodes
+            else "Sin nodos Android nativos online",
+            {"nodes": nodes, "authorized": authorized},
+            "ok" if nodes else "warn",
+        ),
         pulse_item(
             "llm_android_host",
             llm_host_count > 0,
@@ -238,7 +286,9 @@ def build_system_pulse(
         ),
     ]
 
-    alerts = [item for item in checks if not item["ok"] or item["level"] in {"warn", "error"}]
+    alerts = [
+        item for item in checks if not item["ok"] or item["level"] in {"warn", "error"}
+    ]
     errors = [item for item in checks if item["level"] == "error"]
     level = "ok" if not alerts else ("bad" if errors else "warn")
 
@@ -246,7 +296,9 @@ def build_system_pulse(
         "status": "ok" if not errors else "degraded",
         "mode": "system-pulse",
         "level": level,
-        "summary": "Todo activo" if level == "ok" else ("Degradado" if level == "bad" else "Activo con pendientes"),
+        "summary": "Todo activo"
+        if level == "ok"
+        else ("Degradado" if level == "bad" else "Activo con pendientes"),
         "alerts": alerts,
         "checks": checks,
         "life": life_snapshot_fn(),

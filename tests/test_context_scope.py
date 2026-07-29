@@ -25,7 +25,10 @@ def test_context_scope_uses_project_neuron_when_available() -> None:
     basis = build_comparison_basis(packet, "analyze")
 
     assert basis["context_scope"] == "project_neuron"
-    assert basis["context_key"] == "project_neuron|intent=analyze|project_id=triade|active_neuron=cristal"
+    assert (
+        basis["context_key"]
+        == "project_neuron|intent=analyze|project_id=triade|active_neuron=cristal"
+    )
 
 
 def test_context_scope_ignores_invalid_explicit_scope() -> None:

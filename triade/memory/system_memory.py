@@ -25,8 +25,11 @@ class SystemState:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "key": self.key, "value": self.value, "category": self.category,
-            "source": self.source, "updated_at": self.updated_at,
+            "key": self.key,
+            "value": self.value,
+            "category": self.category,
+            "source": self.source,
+            "updated_at": self.updated_at,
         }
 
 
@@ -43,11 +46,19 @@ class SystemMemory:
         conn.execute("PRAGMA foreign_keys = ON;")
         return conn
 
-    def set(self, key: str, value: Any, *, category: str = "general", source: str = "") -> SystemState:
+    def set(
+        self, key: str, value: Any, *, category: str = "general", source: str = ""
+    ) -> SystemState:
         now = utc_now()
-        value_json = json.dumps(value, ensure_ascii=False, default=str) if not isinstance(value, str) else value
+        value_json = (
+            json.dumps(value, ensure_ascii=False, default=str)
+            if not isinstance(value, str)
+            else value
+        )
         with self._connect() as conn:
-            existing = conn.execute("SELECT 1 FROM system_state WHERE key = ?", (key,)).fetchone()
+            existing = conn.execute(
+                "SELECT 1 FROM system_state WHERE key = ?", (key,)
+            ).fetchone()
             if existing:
                 conn.execute(
                     "UPDATE system_state SET value = ?, category = ?, source = ?, updated_at = ? WHERE key = ?",
@@ -58,11 +69,15 @@ class SystemMemory:
                     "INSERT INTO system_state (key, value, category, source, updated_at) VALUES (?, ?, ?, ?, ?)",
                     (key, value_json, category, source, now),
                 )
-        return SystemState(key=key, value=value, category=category, source=source, updated_at=now)
+        return SystemState(
+            key=key, value=value, category=category, source=source, updated_at=now
+        )
 
     def get(self, key: str, default: Any = None) -> Any:
         with self._connect() as conn:
-            row = conn.execute("SELECT value FROM system_state WHERE key = ?", (key,)).fetchone()
+            row = conn.execute(
+                "SELECT value FROM system_state WHERE key = ?", (key,)
+            ).fetchone()
             if row is None:
                 return default
             raw = row["value"]
@@ -74,7 +89,8 @@ class SystemMemory:
     def get_by_category(self, category: str) -> list[SystemState]:
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT * FROM system_state WHERE category = ? ORDER BY updated_at DESC", (category,)
+                "SELECT * FROM system_state WHERE category = ? ORDER BY updated_at DESC",
+                (category,),
             ).fetchall()
         return [self._row_to_state(r) for r in rows]
 
@@ -92,13 +108,16 @@ class SystemMemory:
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT key FROM system_state ORDER BY updated_at DESC LIMIT ?", (limit,)
+                    "SELECT key FROM system_state ORDER BY updated_at DESC LIMIT ?",
+                    (limit,),
                 ).fetchall()
         return [r["key"] for r in rows]
 
     def snapshot(self) -> dict[str, Any]:
         with self._connect() as conn:
-            rows = conn.execute("SELECT key, value, category FROM system_state ORDER BY key").fetchall()
+            rows = conn.execute(
+                "SELECT key, value, category FROM system_state ORDER BY key"
+            ).fetchall()
         result: dict[str, Any] = {}
         for row in rows:
             key = str(row["key"])
@@ -111,11 +130,16 @@ class SystemMemory:
 
     def summary(self) -> dict[str, Any]:
         with self._connect() as conn:
-            count = conn.execute("SELECT COUNT(*) as c FROM system_state").fetchone()["c"]
+            count = conn.execute("SELECT COUNT(*) as c FROM system_state").fetchone()[
+                "c"
+            ]
             cats = conn.execute(
                 "SELECT category, COUNT(*) as c FROM system_state GROUP BY category"
             ).fetchall()
-        return {"total_keys": count, "by_category": {r["category"]: r["c"] for r in cats}}
+        return {
+            "total_keys": count,
+            "by_category": {r["category"]: r["c"] for r in cats},
+        }
 
     @staticmethod
     def _row_to_state(row: sqlite3.Row) -> SystemState:
@@ -125,7 +149,8 @@ class SystemMemory:
         except (json.JSONDecodeError, TypeError):
             value = raw
         return SystemState(
-            key=str(row["key"]), value=value,
+            key=str(row["key"]),
+            value=value,
             category=str(row["category"] or "general"),
             source=str(row["source"] or ""),
             updated_at=str(row["updated_at"] or ""),

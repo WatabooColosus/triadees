@@ -30,7 +30,9 @@ def stable_signals(run_id: str = "run-test") -> SignalPacket:
 
 
 def test_crystal_v2_outputs_real_fields() -> None:
-    crystal = Crystal().regulate(stable_signals(), MemoryPacket(run_id="run-test", confidence=0.75))
+    crystal = Crystal().regulate(
+        stable_signals(), MemoryPacket(run_id="run-test", confidence=0.75)
+    )
     payload = crystal.to_dict()
 
     assert payload["pv7_score"] > 0
@@ -49,18 +51,38 @@ def test_crystal_v2_outputs_real_fields() -> None:
 
 def test_q_crystal_payload_exposes_formula_components() -> None:
     payload = Crystal.q_crystal_payload(
-        ethics=0.9, depth=0.8, creativity=0.55, relation=0.82,
-        pv7_score=0.8, stability=0.85, intensity=0.3,
-        memory_confidence=0.8, risk="low",
+        ethics=0.9,
+        depth=0.8,
+        creativity=0.55,
+        relation=0.82,
+        pv7_score=0.8,
+        stability=0.85,
+        intensity=0.3,
+        memory_confidence=0.8,
+        risk="low",
     )
     assert 0 <= payload["q_crystal"] <= 1
-    assert set(["s_h", "s_t", "s_rel", "alpha", "beta", "c_prime", "i_prime", "r_prime", "phi_memory"]).issubset(payload)
+    assert set(
+        [
+            "s_h",
+            "s_t",
+            "s_rel",
+            "alpha",
+            "beta",
+            "c_prime",
+            "i_prime",
+            "r_prime",
+            "phi_memory",
+        ]
+    ).issubset(payload)
     assert round(payload["alpha"] + payload["beta"], 3) == 1.0
 
 
 def test_q_crystal_decreases_under_critical_risk() -> None:
     safe = Crystal.q_crystal_payload(0.9, 0.8, 0.55, 0.8, 0.8, 0.85, 0.25, 0.8, "low")
-    critical = Crystal.q_crystal_payload(0.9, 0.8, 0.35, 0.8, 0.8, 0.4, 1.0, 0.8, "critical")
+    critical = Crystal.q_crystal_payload(
+        0.9, 0.8, 0.35, 0.8, 0.8, 0.4, 1.0, 0.8, "critical"
+    )
     assert safe["q_crystal"] > critical["q_crystal"]
     assert critical["i_prime"] > safe["i_prime"]
 
@@ -81,8 +103,15 @@ def test_central_plan_uses_crystal_and_temporal_regulation() -> None:
     input_packet = InputPacket(user_input="Analiza", run_id="run-central")
     signals = stable_signals("run-central")
     memory = MemoryPacket(run_id="run-central", confidence=0.7)
-    high_crystal = CrystalPacket(run_id="run-central", q_crystal=0.78, stability=0.82, temporal_status="stable")
-    low_crystal = CrystalPacket(run_id="run-central", q_crystal=0.55, stability=0.58, temporal_status="degrading")
+    high_crystal = CrystalPacket(
+        run_id="run-central", q_crystal=0.78, stability=0.82, temporal_status="stable"
+    )
+    low_crystal = CrystalPacket(
+        run_id="run-central",
+        q_crystal=0.55,
+        stability=0.58,
+        temporal_status="degrading",
+    )
 
     high_plan = central.plan(input_packet, signals, memory, high_crystal)
     low_plan = central.plan(input_packet, signals, memory, low_crystal)
@@ -101,8 +130,16 @@ def test_crystal_v2_runner_artifact_contains_temporal_fields(tmp_path) -> None:
     first = runner.run("Primera prueba de cristal temporal", source="test")
     second = runner.run("Segunda prueba de cristal temporal", source="test")
 
-    first_payload = json.loads((tmp_path / "runs" / first["run_id"] / "crystal.json").read_text(encoding="utf-8"))
-    second_payload = json.loads((tmp_path / "runs" / second["run_id"] / "crystal.json").read_text(encoding="utf-8"))
+    first_payload = json.loads(
+        (tmp_path / "runs" / first["run_id"] / "crystal.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    second_payload = json.loads(
+        (tmp_path / "runs" / second["run_id"] / "crystal.json").read_text(
+            encoding="utf-8"
+        )
+    )
 
     assert first_payload["temporal_status"] == "baseline"
     assert second_payload["history_window"] >= 1

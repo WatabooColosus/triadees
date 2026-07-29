@@ -17,7 +17,10 @@ def test_repo_info_reports_connected_origin() -> None:
 
 
 def test_canonical_origin_accepts_github_checkout_url_without_git_suffix() -> None:
-    assert _canonical_origin("https://github.com/WatabooColosus/triadees") == "https://github.com/WatabooColosus/triadees.git"
+    assert (
+        _canonical_origin("https://github.com/WatabooColosus/triadees")
+        == "https://github.com/WatabooColosus/triadees.git"
+    )
 
 
 def test_repo_info_uses_github_head_ref_when_checkout_is_detached(monkeypatch) -> None:

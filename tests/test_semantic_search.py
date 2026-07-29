@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 
 import pytest
 
@@ -23,33 +22,61 @@ class FakeSearchClient:
     def health(self) -> dict[str, object]:
         return {"ok": True, "models": [MODEL], "base_url": "fake://ollama"}
 
-    def embed(self, model: str, input_text: str, truncate: bool = True, dimensions: int | None = None) -> EmbeddingResult:
+    def embed(
+        self,
+        model: str,
+        input_text: str,
+        truncate: bool = True,
+        dimensions: int | None = None,
+    ) -> EmbeddingResult:
         return EmbeddingResult(ok=True, model=model, embeddings=[self.query_vector])
 
 
-def build_engine(tmp_path, query_vector: list[float] | None = None) -> tuple[SemanticSearchEngine, SemanticMemoryStore]:
-    store = SemanticMemoryStore(db_path=tmp_path / "semantic.db", migration_path=MIGRATION)
+def build_engine(
+    tmp_path, query_vector: list[float] | None = None
+) -> tuple[SemanticSearchEngine, SemanticMemoryStore]:
+    store = SemanticMemoryStore(
+        db_path=tmp_path / "semantic.db", migration_path=MIGRATION
+    )
     client = FakeSearchClient(query_vector=query_vector)
     embed_engine = SemanticEmbeddingEngine(store=store, client=client)
-    return SemanticSearchEngine(store=store, client=client, embedding_engine=embed_engine), store
+    return SemanticSearchEngine(
+        store=store, client=client, embedding_engine=embed_engine
+    ), store
 
 
-def add_document(store: SemanticMemoryStore, content: str, vector: list[float], domain: str = "general", model: str = MODEL) -> str:
+def add_document(
+    store: SemanticMemoryStore,
+    content: str,
+    vector: list[float],
+    domain: str = "general",
+    model: str = MODEL,
+) -> str:
     document = store.upsert_document(content, domain=domain, source_type="test")
     store.store_embedding(document.document_id, model, vector)
     return document.document_id
 
 
 def test_cosine_similarity_calculates_expected_values() -> None:
-    assert SemanticSearchEngine.cosine_similarity([1.0, 0.0], [1.0, 0.0]) == pytest.approx(1.0)
-    assert SemanticSearchEngine.cosine_similarity([1.0, 0.0], [0.0, 1.0]) == pytest.approx(0.0)
-    assert SemanticSearchEngine.cosine_similarity([1.0, 0.0], [-1.0, 0.0]) == pytest.approx(-1.0)
+    assert SemanticSearchEngine.cosine_similarity(
+        [1.0, 0.0], [1.0, 0.0]
+    ) == pytest.approx(1.0)
+    assert SemanticSearchEngine.cosine_similarity(
+        [1.0, 0.0], [0.0, 1.0]
+    ) == pytest.approx(0.0)
+    assert SemanticSearchEngine.cosine_similarity(
+        [1.0, 0.0], [-1.0, 0.0]
+    ) == pytest.approx(-1.0)
 
 
 def test_search_ranks_documents_by_cosine_similarity(tmp_path) -> None:
     engine, store = build_engine(tmp_path)
-    closest = add_document(store, "Cristal y continuidad", [1.0, 0.0, 0.0], domain="crystal")
-    medium = add_document(store, "Memoria relacionada", [0.8, 0.2, 0.0], domain="memory")
+    closest = add_document(
+        store, "Cristal y continuidad", [1.0, 0.0, 0.0], domain="crystal"
+    )
+    medium = add_document(
+        store, "Memoria relacionada", [0.8, 0.2, 0.0], domain="memory"
+    )
     far = add_document(store, "Tema distante", [0.0, 1.0, 0.0], domain="general")
 
     result = engine.search("regulación de continuidad", model=MODEL, limit=3)

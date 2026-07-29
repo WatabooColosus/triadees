@@ -29,10 +29,14 @@ class UserProfile:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "user_id": self.user_id, "display_name": self.display_name,
-            "language": self.language, "interaction_count": self.interaction_count,
-            "trust_level": round(self.trust_level, 4), "preferences": dict(self.preferences),
-            "topics": list(self.topics), "created_at": self.created_at,
+            "user_id": self.user_id,
+            "display_name": self.display_name,
+            "language": self.language,
+            "interaction_count": self.interaction_count,
+            "trust_level": round(self.trust_level, 4),
+            "preferences": dict(self.preferences),
+            "topics": list(self.topics),
+            "created_at": self.created_at,
             "last_seen_at": self.last_seen_at,
         }
 
@@ -49,9 +53,13 @@ class InteractionRecord:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "user_id": self.user_id, "run_id": self.run_id, "intent": self.intent,
-            "topic": self.topic, "satisfaction": round(self.satisfaction, 4),
-            "notes": self.notes, "created_at": self.created_at,
+            "user_id": self.user_id,
+            "run_id": self.run_id,
+            "intent": self.intent,
+            "topic": self.topic,
+            "satisfaction": round(self.satisfaction, 4),
+            "notes": self.notes,
+            "created_at": self.created_at,
         }
 
 
@@ -87,19 +95,38 @@ class SocialMemory:
                     """UPDATE user_profiles SET display_name = COALESCE(NULLIF(?, ''), display_name),
                     language = ?, preferences = ?, topics = ?, last_seen_at = ?, interaction_count = interaction_count + 1
                     WHERE user_id = ?""",
-                    (display_name, language, json.dumps(preferences or {}), json.dumps(topics or [], ensure_ascii=False), now, user_id),
+                    (
+                        display_name,
+                        language,
+                        json.dumps(preferences or {}),
+                        json.dumps(topics or [], ensure_ascii=False),
+                        now,
+                        user_id,
+                    ),
                 )
             else:
                 conn.execute(
                     """INSERT INTO user_profiles (user_id, display_name, language, trust_level, preferences, topics, created_at, last_seen_at, interaction_count)
                     VALUES (?, ?, ?, 0.5, ?, ?, ?, ?, 1)""",
-                    (user_id, display_name, language, json.dumps(preferences or {}), json.dumps(topics or [], ensure_ascii=False), now, now),
+                    (
+                        user_id,
+                        display_name,
+                        language,
+                        json.dumps(preferences or {}),
+                        json.dumps(topics or [], ensure_ascii=False),
+                        now,
+                        now,
+                    ),
                 )
-        return self.get_profile(user_id) or UserProfile(user_id=user_id, display_name=display_name)
+        return self.get_profile(user_id) or UserProfile(
+            user_id=user_id, display_name=display_name
+        )
 
     def get_profile(self, user_id: str) -> UserProfile | None:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM user_profiles WHERE user_id = ?", (user_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM user_profiles WHERE user_id = ?", (user_id,)
+            ).fetchone()
             if row is None:
                 return None
             prefs = {}
@@ -113,11 +140,13 @@ class SocialMemory:
             except (json.JSONDecodeError, TypeError):
                 pass
             return UserProfile(
-                user_id=str(row["user_id"]), display_name=str(row["display_name"] or ""),
+                user_id=str(row["user_id"]),
+                display_name=str(row["display_name"] or ""),
                 language=str(row["language"] or "es"),
                 interaction_count=int(row["interaction_count"] or 0),
                 trust_level=float(row["trust_level"] or 0.5),
-                preferences=prefs, topics=topics,
+                preferences=prefs,
+                topics=topics,
                 created_at=str(row["created_at"] or ""),
                 last_seen_at=str(row["last_seen_at"] or ""),
             )
@@ -137,11 +166,24 @@ class SocialMemory:
             conn.execute(
                 """INSERT INTO user_interactions (user_id, run_id, intent, topic, satisfaction, notes, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (user_id, run_id, intent, topic, max(0, min(1, satisfaction)), notes, now),
+                (
+                    user_id,
+                    run_id,
+                    intent,
+                    topic,
+                    max(0, min(1, satisfaction)),
+                    notes,
+                    now,
+                ),
             )
         return InteractionRecord(
-            user_id=user_id, run_id=run_id, intent=intent, topic=topic,
-            satisfaction=satisfaction, notes=notes, created_at=now,
+            user_id=user_id,
+            run_id=run_id,
+            intent=intent,
+            topic=topic,
+            satisfaction=satisfaction,
+            notes=notes,
+            created_at=now,
         )
 
     def get_interactions(self, user_id: str, limit: int = 20) -> list[dict[str, Any]]:
@@ -158,7 +200,10 @@ class SocialMemory:
             return 0.5
         new_trust = max(0, min(1, profile.trust_level + delta))
         with self._connect() as conn:
-            conn.execute("UPDATE user_profiles SET trust_level = ? WHERE user_id = ?", (round(new_trust, 4), user_id))
+            conn.execute(
+                "UPDATE user_profiles SET trust_level = ? WHERE user_id = ?",
+                (round(new_trust, 4), user_id),
+            )
         return new_trust
 
     def top_topics(self, user_id: str, limit: int = 5) -> list[str]:
@@ -176,14 +221,26 @@ class SocialMemory:
     def summary(self, user_id: str | None = None) -> dict[str, Any]:
         with self._connect() as conn:
             if user_id:
-                profile = conn.execute("SELECT * FROM user_profiles WHERE user_id = ?", (user_id,)).fetchone()
-                count = conn.execute("SELECT COUNT(*) as c FROM user_interactions WHERE user_id = ?", (user_id,)).fetchone()
+                profile = conn.execute(
+                    "SELECT * FROM user_profiles WHERE user_id = ?", (user_id,)
+                ).fetchone()
+                count = conn.execute(
+                    "SELECT COUNT(*) as c FROM user_interactions WHERE user_id = ?",
+                    (user_id,),
+                ).fetchone()
                 return {
                     "user_id": user_id,
                     "has_profile": profile is not None,
                     "interaction_count": count["c"] if count else 0,
                 }
             else:
-                total_profiles = conn.execute("SELECT COUNT(*) as c FROM user_profiles").fetchone()["c"]
-                total_interactions = conn.execute("SELECT COUNT(*) as c FROM user_interactions").fetchone()["c"]
-                return {"total_profiles": total_profiles, "total_interactions": total_interactions}
+                total_profiles = conn.execute(
+                    "SELECT COUNT(*) as c FROM user_profiles"
+                ).fetchone()["c"]
+                total_interactions = conn.execute(
+                    "SELECT COUNT(*) as c FROM user_interactions"
+                ).fetchone()["c"]
+                return {
+                    "total_profiles": total_profiles,
+                    "total_interactions": total_interactions,
+                }

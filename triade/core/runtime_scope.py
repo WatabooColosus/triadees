@@ -19,9 +19,13 @@ def is_test_runtime() -> bool:
 
 
 def isolated_runtime_paths() -> tuple[Path, Path]:
-    scope = runtime_scope()
+    runtime_scope()
     marker = os.getenv("PYTEST_CURRENT_TEST", f"pid-{os.getpid()}")
     digest = hashlib.sha256(marker.encode()).hexdigest()[:12]
-    root = Path(os.getenv("TRIADE_TEST_ROOT", tempfile.gettempdir())) / "triade-tests" / digest
+    root = (
+        Path(os.getenv("TRIADE_TEST_ROOT", tempfile.gettempdir()))
+        / "triade-tests"
+        / digest
+    )
     root.mkdir(parents=True, exist_ok=True)
     return root / "triade.db", root / "runs"

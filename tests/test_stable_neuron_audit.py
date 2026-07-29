@@ -8,7 +8,10 @@ from pathlib import Path
 
 from triade.core.neuron_creator import NeuronSpec
 from triade.core.neuron_registry import NeuronRegistry
-from triade.core.stable_neuron_audit import audit_stable_neurons, apply_stable_neuron_audit
+from triade.core.stable_neuron_audit import (
+    audit_stable_neurons,
+    apply_stable_neuron_audit,
+)
 from triade.core.neuron_activity_store import NeuronActivityStore
 
 
@@ -61,22 +64,26 @@ def test_stable_neuron_audit_reports_and_apply(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
     registry = NeuronRegistry(db_path=db_path)
-    good_id = registry.register(NeuronSpec(
-        name="neurona-estable-fuerte",
-        mission="Auditar memoria y estabilidad con evidencia repetida.",
-        domain="system_governance",
-        rules=["r1", "r2", "r3", "r4", "r5"],
-        status="stable",
-        created_by="test",
-    ))
-    weak_id = registry.register(NeuronSpec(
-        name="neurona-estable-debil",
-        mission="Auditar memoria pero sin evidencia suficiente.",
-        domain="system_governance",
-        rules=["r1", "r2", "r3", "r4", "r5"],
-        status="stable",
-        created_by="test",
-    ))
+    good_id = registry.register(
+        NeuronSpec(
+            name="neurona-estable-fuerte",
+            mission="Auditar memoria y estabilidad con evidencia repetida.",
+            domain="system_governance",
+            rules=["r1", "r2", "r3", "r4", "r5"],
+            status="stable",
+            created_by="test",
+        )
+    )
+    weak_id = registry.register(
+        NeuronSpec(
+            name="neurona-estable-debil",
+            mission="Auditar memoria pero sin evidencia suficiente.",
+            domain="system_governance",
+            rules=["r1", "r2", "r3", "r4", "r5"],
+            status="stable",
+            created_by="test",
+        )
+    )
 
     for idx in range(5):
         _insert_activity(
@@ -96,7 +103,11 @@ def test_stable_neuron_audit_reports_and_apply(tmp_path: Path) -> None:
         test_plan_count=0,
     )
 
-    before_identity_core = sqlite3.connect(db_path).execute("SELECT COUNT(*) FROM identity_core").fetchone()[0]
+    before_identity_core = (
+        sqlite3.connect(db_path)
+        .execute("SELECT COUNT(*) FROM identity_core")
+        .fetchone()[0]
+    )
     report = audit_stable_neurons(db_path=db_path, runs_dir=runs_dir, limit=20)
 
     assert report["status"] == "ok"
@@ -105,14 +116,20 @@ def test_stable_neuron_audit_reports_and_apply(tmp_path: Path) -> None:
     assert report["stable_with_enough_evidence"] == 1
     assert report["stable_needs_review"] == 1
 
-    good = next(item for item in report["neurons"] if item["name"] == "neurona-estable-fuerte")
-    weak = next(item for item in report["neurons"] if item["name"] == "neurona-estable-debil")
+    good = next(
+        item for item in report["neurons"] if item["name"] == "neurona-estable-fuerte"
+    )
+    weak = next(
+        item for item in report["neurons"] if item["name"] == "neurona-estable-debil"
+    )
     assert good["recommended_action"] == "keep_stable"
     assert weak["recommended_action"] in {"mark_needs_review", "demote_to_experimental"}
     assert weak["apply_allowed"] is False
     assert report["policy"]["read_only_by_default"] is True
 
-    applied = apply_stable_neuron_audit(db_path=db_path, runs_dir=runs_dir, limit=20, apply=True)
+    applied = apply_stable_neuron_audit(
+        db_path=db_path, runs_dir=runs_dir, limit=20, apply=True
+    )
     assert applied["applied"] is True
     assert applied["applied_count"] == 1
     assert applied["policy"]["identity_core_modified"] is False
@@ -122,7 +139,11 @@ def test_stable_neuron_audit_reports_and_apply(tmp_path: Path) -> None:
     assert good_after["status"] == "stable"
     assert weak_after["status"] in {"needs_review", "experimental"}
 
-    after_identity_core = sqlite3.connect(db_path).execute("SELECT COUNT(*) FROM identity_core").fetchone()[0]
+    after_identity_core = (
+        sqlite3.connect(db_path)
+        .execute("SELECT COUNT(*) FROM identity_core")
+        .fetchone()[0]
+    )
     assert before_identity_core == after_identity_core
 
 
@@ -131,14 +152,16 @@ def test_stable_neuron_audit_cli(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
     registry = NeuronRegistry(db_path=db_path)
-    neuron_id = registry.register(NeuronSpec(
-        name="neurona-estable-cli",
-        mission="Auditar estado estable por CLI.",
-        domain="system_governance",
-        rules=["r1", "r2", "r3", "r4", "r5"],
-        status="stable",
-        created_by="test",
-    ))
+    neuron_id = registry.register(
+        NeuronSpec(
+            name="neurona-estable-cli",
+            mission="Auditar estado estable por CLI.",
+            domain="system_governance",
+            rules=["r1", "r2", "r3", "r4", "r5"],
+            status="stable",
+            created_by="test",
+        )
+    )
     _insert_activity(
         db_path,
         run_id="run-cli-0",

@@ -4,13 +4,13 @@ de forma gradual con monitoreo, rollback automático y métricas comparativas.""
 import json
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any
 
 from triade.core.contracts import utc_now
 
 
 def _gen_id(prefix: str) -> str:
     import hashlib
+
     return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(timezone.utc).timestamp()).encode()).hexdigest()[:6]}"
 
 
@@ -59,7 +59,9 @@ class CanaryDeployment:
 
     DEFAULT_TOLERANCE = 0.10
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
@@ -78,13 +80,22 @@ class CanaryDeployment:
                (canary_id, candidate_id, ci_run_id, traffic_pct,
                 baseline_metrics_json, status, created_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (canary_id, candidate_id, ci_run_id,
-             _clamp(traffic_pct, 0.0, 1.0),
-             json.dumps(baseline_metrics or {}, default=str),
-             "active", now),
+            (
+                canary_id,
+                candidate_id,
+                ci_run_id,
+                _clamp(traffic_pct, 0.0, 1.0),
+                json.dumps(baseline_metrics or {}, default=str),
+                "active",
+                now,
+            ),
         )
         self._conn.commit()
-        return {"canary_id": canary_id, "candidate_id": candidate_id, "status": "active"}
+        return {
+            "canary_id": canary_id,
+            "candidate_id": candidate_id,
+            "status": "active",
+        }
 
     def record_observation(
         self,
@@ -105,8 +116,17 @@ class CanaryDeployment:
                 baseline_value, canary_value, delta,
                 tolerance, passed, observed_at)
                VALUES (?,?,?,?,?,?,?,?,?)""",
-            (obs_id, canary_id, metric_name, baseline_value, canary_value,
-             round(delta, 6), tol, 1 if passed else 0, utc_now()),
+            (
+                obs_id,
+                canary_id,
+                metric_name,
+                baseline_value,
+                canary_value,
+                round(delta, 6),
+                tol,
+                1 if passed else 0,
+                utc_now(),
+            ),
         )
         self._conn.commit()
         return {
@@ -128,9 +148,12 @@ class CanaryDeployment:
         passed = sum(1 for o in obs if o["passed"])
         all_pass = total > 0 and passed == total
 
-        canary_status = dict(self._conn.execute(
-            "SELECT * FROM canary_deployments WHERE canary_id=?", (canary_id,)
-        ).fetchone() or {})
+        canary_status = dict(
+            self._conn.execute(
+                "SELECT * FROM canary_deployments WHERE canary_id=?", (canary_id,)
+            ).fetchone()
+            or {}
+        )
 
         verdict = "pass" if all_pass else "fail"
         new_traffic = canary_status.get("traffic_pct", 0.05)
@@ -155,17 +178,25 @@ class CanaryDeployment:
     def rollback(self, canary_id: str, reason: str) -> dict:
         now = utc_now()
         rollback_id = _gen_id("crb")
-        canary = dict(self._conn.execute(
-            "SELECT * FROM canary_deployments WHERE canary_id=?", (canary_id,)
-        ).fetchone() or {})
+        canary = dict(
+            self._conn.execute(
+                "SELECT * FROM canary_deployments WHERE canary_id=?", (canary_id,)
+            ).fetchone()
+            or {}
+        )
 
         self._conn.execute(
             """INSERT INTO canary_rollbacks
                (rollback_id, canary_id, reason,
                 metrics_at_rollback, rolled_back_at)
                VALUES (?,?,?,?,?)""",
-            (rollback_id, canary_id, reason,
-             canary.get("canary_metrics_json", "{}"), now),
+            (
+                rollback_id,
+                canary_id,
+                reason,
+                canary.get("canary_metrics_json", "{}"),
+                now,
+            ),
         )
         self._conn.execute(
             "UPDATE canary_deployments SET status='rolled_back' WHERE canary_id=?",
@@ -196,4 +227,8 @@ class CanaryDeployment:
         total_obs = self._conn.execute(
             "SELECT COUNT(*) as c FROM canary_observations"
         ).fetchone()["c"]
-        return {"active_canaries": active, "rolled_back": rolled_back, "total_observations": total_obs}
+        return {
+            "active_canaries": active,
+            "rolled_back": rolled_back,
+            "total_observations": total_obs,
+        }

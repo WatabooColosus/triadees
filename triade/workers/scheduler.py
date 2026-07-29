@@ -23,20 +23,26 @@ class WorkerScheduler:
         """Planifica un ciclo de tareas. Intenta MissionPlanner; fallback a defaults."""
         try:
             from .mission_planner import MissionPlanner
+
             planner = MissionPlanner(db_path=self.db_path)
             planned = planner.plan_cycle(run_ref=run_ref)
             if planned:
                 return self._enqueue_planned(planned, run_ref=run_ref)
         except Exception as exc:
             from triade.core.error_bus import record_internal_error
-            record_internal_error("scheduler.mission_planner", exc, run_id=run_ref, db_path=self.db_path)
+
+            record_internal_error(
+                "scheduler.mission_planner", exc, run_id=run_ref, db_path=self.db_path
+            )
         return self._enqueue_defaults(run_ref=run_ref)
 
     def _enqueue_planned(self, planned: list, run_ref: str | None = None) -> list[dict]:
         """Encola tareas planificadas con metadata de razón y fuente."""
         tasks = []
         for item in planned:
-            if not item.payload.get("goal_id") and self.adaptive.should_skip_task(item.task_type):
+            if not item.payload.get("goal_id") and self.adaptive.should_skip_task(
+                item.task_type
+            ):
                 continue
             payload = {
                 "reason": item.reason,

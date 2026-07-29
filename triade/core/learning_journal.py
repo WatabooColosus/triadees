@@ -54,23 +54,36 @@ def build_learning_journal(
         semantic_activity = []
 
     recent_events = [
-        event for event in list_recent_events(limit=max(limit * 2, 100), db_path=db_path)
+        event
+        for event in list_recent_events(limit=max(limit * 2, 100), db_path=db_path)
         if _is_recent(event.get("created_at"), cutoff)
     ]
 
     candidates_by_status = _count_candidates_recent(candidates_recent)
     cycles_last_24h = len(cycles)
     evidence_created = len(evidence)
-    missions_executed = len({row.get("mission_id") for row in cycles if row.get("mission_id") is not None})
-    neurons_nourished = len({
-        int(row.get("neuron_id"))
-        for row in cycles + evidence
-        if row.get("neuron_id") is not None
-    })
+    missions_executed = len(
+        {row.get("mission_id") for row in cycles if row.get("mission_id") is not None}
+    )
+    neurons_nourished = len(
+        {
+            int(row.get("neuron_id"))
+            for row in cycles + evidence
+            if row.get("neuron_id") is not None
+        }
+    )
 
-    latest_learning_candidates = [row for row in candidates_recent if row.get("status") in {"candidate", "evaluated", "internally_checked"}][:limit]
-    latest_consolidations = [row for row in candidates_recent if row.get("status") == "consolidated"][:limit]
-    latest_rejections = [row for row in candidates_recent if row.get("status") == "rejected"][:limit]
+    latest_learning_candidates = [
+        row
+        for row in candidates_recent
+        if row.get("status") in {"candidate", "evaluated", "internally_checked"}
+    ][:limit]
+    latest_consolidations = [
+        row for row in candidates_recent if row.get("status") == "consolidated"
+    ][:limit]
+    latest_rejections = [
+        row for row in candidates_recent if row.get("status") == "rejected"
+    ][:limit]
 
     return {
         "status": "ok",
@@ -96,7 +109,9 @@ def build_learning_journal(
     }
 
 
-def _query_rows(db_path: Path, query: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
+def _query_rows(
+    db_path: Path, query: str, params: tuple[Any, ...]
+) -> list[dict[str, Any]]:
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(query, params).fetchall()

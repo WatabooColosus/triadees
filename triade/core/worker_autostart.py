@@ -7,7 +7,6 @@ ni las protecciones internas del WorkerLoop.
 from __future__ import annotations
 
 import threading
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -44,27 +43,39 @@ def start_workers_if_configured(
 
     if not bool(config.get("workers_always_on", True)):
         with _WORKER_LOCK:
-            _WORKER_STATE.update({
-                "configured": False,
-                "autostart": bool(config.get("workers_autostart", False)),
-                "watchdog": bool(config.get("workers_watchdog", False)),
-                "active": False,
-                "status": "disabled",
-                "last_error": None,
-            })
-        _event("workers_disabled", {"reason": "workers_always_on=false"}, db_path=db_path)
+            _WORKER_STATE.update(
+                {
+                    "configured": False,
+                    "autostart": bool(config.get("workers_autostart", False)),
+                    "watchdog": bool(config.get("workers_watchdog", False)),
+                    "active": False,
+                    "status": "disabled",
+                    "last_error": None,
+                }
+            )
+        _event(
+            "workers_disabled", {"reason": "workers_always_on=false"}, db_path=db_path
+        )
         return build_workers_always_on_status()
 
     with _WORKER_LOCK:
-        _WORKER_STATE.update({
-            "configured": True,
-            "autostart": bool(config.get("workers_autostart", True)),
-            "watchdog": bool(config.get("workers_watchdog", True)),
-            "mode_configured": str(config.get("worker_mode") or config.get("mode") or "full_local_guarded"),
-        })
+        _WORKER_STATE.update(
+            {
+                "configured": True,
+                "autostart": bool(config.get("workers_autostart", True)),
+                "watchdog": bool(config.get("workers_watchdog", True)),
+                "mode_configured": str(
+                    config.get("worker_mode")
+                    or config.get("mode")
+                    or "full_local_guarded"
+                ),
+            }
+        )
 
     if not bool(config.get("workers_autostart", True)):
-        _event("workers_disabled", {"reason": "workers_autostart=false"}, db_path=db_path)
+        _event(
+            "workers_disabled", {"reason": "workers_autostart=false"}, db_path=db_path
+        )
         return build_workers_always_on_status(db_path=db_path, runs_dir=runs_dir)
 
     return ensure_workers_alive(config, db_path=db_path, runs_dir=runs_dir)
@@ -83,20 +94,24 @@ def ensure_workers_alive(
     configured = bool(config.get("workers_always_on", True))
     autostart = bool(config.get("workers_autostart", True))
     watchdog = bool(config.get("workers_watchdog", True))
-    mode_configured = str(config.get("worker_mode") or config.get("mode") or "full_local_guarded")
+    mode_configured = str(
+        config.get("worker_mode") or config.get("mode") or "full_local_guarded"
+    )
     mode_effective, degraded, reason = _decide_worker_mode(mode_configured)
 
     with _WORKER_LOCK:
         alive = bool(_WORKER_THREAD and _WORKER_THREAD.is_alive())
-        _WORKER_STATE.update({
-            "configured": configured,
-            "autostart": autostart,
-            "watchdog": watchdog,
-            "mode_configured": mode_configured,
-            "mode_effective": mode_effective,
-            "degraded_by_governor": degraded,
-            "degradation_reason": reason,
-        })
+        _WORKER_STATE.update(
+            {
+                "configured": configured,
+                "autostart": autostart,
+                "watchdog": watchdog,
+                "mode_configured": mode_configured,
+                "mode_effective": mode_effective,
+                "degraded_by_governor": degraded,
+                "degradation_reason": reason,
+            }
+        )
         if not configured or not autostart:
             _WORKER_STATE.update({"active": False, "status": "disabled"})
             return dict(_WORKER_STATE)
@@ -104,36 +119,60 @@ def ensure_workers_alive(
             _WORKER_STATE.update({"active": True, "status": "running"})
             return build_workers_always_on_status(db_path=db_path, runs_dir=runs_dir)
         if _WORKER_STATE.get("last_start_at") and watchdog:
-            _WORKER_STATE["restart_attempts"] = int(_WORKER_STATE.get("restart_attempts", 0) or 0) + 1
+            _WORKER_STATE["restart_attempts"] = (
+                int(_WORKER_STATE.get("restart_attempts", 0) or 0) + 1
+            )
         _WORKER_STATE.update({"status": "starting", "last_error": None})
 
     def _run() -> None:
         try:
             service = WorkerBackgroundService(db_path=db_path, runs_dir=runs_dir)
-            service.start(max_iterations=1_000_000, sleep_seconds=20.0, dry_run=False, task_timeout=30.0)
+            service.start(
+                max_iterations=1_000_000,
+                sleep_seconds=20.0,
+                dry_run=False,
+                task_timeout=30.0,
+            )
             with _WORKER_LOCK:
                 if _WORKER_STATE.get("status") != "stop_requested":
                     _WORKER_STATE.update({"active": False, "status": "completed"})
         except Exception as exc:  # pragma: no cover - defensive path
             with _WORKER_LOCK:
-                _WORKER_STATE.update({"active": False, "status": "failed", "last_error": str(exc)})
-            _event("worker_autostart_failed", {"error": str(exc)}, db_path=db_path, severity="error")
+                _WORKER_STATE.update(
+                    {"active": False, "status": "failed", "last_error": str(exc)}
+                )
+            _event(
+                "worker_autostart_failed",
+                {"error": str(exc)},
+                db_path=db_path,
+                severity="error",
+            )
 
     try:
-        thread = threading.Thread(target=_run, name="triade-workers-always-on", daemon=True)
+        thread = threading.Thread(
+            target=_run, name="triade-workers-always-on", daemon=True
+        )
         thread.start()
         with _WORKER_LOCK:
             _WORKER_THREAD = thread
-            _WORKER_STATE.update({
-                "active": True,
-                "status": "running",
-                "last_start_at": datetime.now(timezone.utc).isoformat(),
-                "last_error": None,
-            })
-        _event("workers_started", {"mode_configured": mode_configured, "mode_effective": mode_effective}, db_path=db_path)
+            _WORKER_STATE.update(
+                {
+                    "active": True,
+                    "status": "running",
+                    "last_start_at": datetime.now(timezone.utc).isoformat(),
+                    "last_error": None,
+                }
+            )
+        _event(
+            "workers_started",
+            {"mode_configured": mode_configured, "mode_effective": mode_effective},
+            db_path=db_path,
+        )
     except Exception as exc:
         with _WORKER_LOCK:
-            _WORKER_STATE.update({"active": False, "status": "failed", "last_error": str(exc)})
+            _WORKER_STATE.update(
+                {"active": False, "status": "failed", "last_error": str(exc)}
+            )
         _event("workers_failed", {"error": str(exc)}, db_path=db_path, severity="error")
 
     return build_workers_always_on_status(db_path=db_path, runs_dir=runs_dir)
@@ -156,17 +195,26 @@ def build_workers_always_on_status(
     db_path: str | Path = "triade/memory/triade.db",
     runs_dir: str | Path = "runs/background",
 ) -> dict[str, Any]:
-    service_status = WorkerBackgroundService(db_path=db_path, runs_dir=runs_dir).status()
+    service_status = WorkerBackgroundService(
+        db_path=db_path, runs_dir=runs_dir
+    ).status()
     with _WORKER_LOCK:
         state = dict(_WORKER_STATE)
         thread_alive = bool(_WORKER_THREAD and _WORKER_THREAD.is_alive())
     raw_active = bool(thread_alive or service_status.get("running"))
-    stop_requested = bool(service_status.get("stop_requested")) or state.get("status") == "stop_requested"
+    stop_requested = (
+        bool(service_status.get("stop_requested"))
+        or state.get("status") == "stop_requested"
+    )
     active = raw_active and not stop_requested
     state["active"] = active
     if state.get("configured") and active:
         state["status"] = "running"
-    elif state.get("configured") and not active and state.get("status") not in ("starting", "failed", "stop_requested"):
+    elif (
+        state.get("configured")
+        and not active
+        and state.get("status") not in ("starting", "failed", "stop_requested")
+    ):
         state["status"] = "inactive"
     state["thread_alive"] = thread_alive
     state["lock_file_active"] = bool(service_status.get("running"))
@@ -180,18 +228,30 @@ def _decide_worker_mode(mode_configured: str) -> tuple[str, bool, str | None]:
         from triade.core.ollama_blood import check_ollama_blood
         from triade.core.resource_probe import build_resource_probe
 
-        decision = decide_work_mode(build_resource_probe(), check_ollama_blood(), mode_configured)
+        decision = decide_work_mode(
+            build_resource_probe(), check_ollama_blood(), mode_configured
+        )
         effective = str(decision.get("effective_mode") or "observe_only")
-        degraded = WORK_MODE_RANK.get(effective, 0) < WORK_MODE_RANK.get(mode_configured, 0)
+        degraded = WORK_MODE_RANK.get(effective, 0) < WORK_MODE_RANK.get(
+            mode_configured, 0
+        )
         return effective, degraded, decision.get("reason") if degraded else None
     except Exception as exc:
         return "observe_only", True, f"worker_mode_decision_failed: {exc}"
 
 
-def _event(event_type: str, payload: dict[str, Any], *, db_path: str | Path, severity: str = "info") -> None:
+def _event(
+    event_type: str,
+    payload: dict[str, Any],
+    *,
+    db_path: str | Path,
+    severity: str = "info",
+) -> None:
     try:
         from triade.core.internal_runtime import record_internal_runtime_event
 
-        record_internal_runtime_event(event_type, "workers_always_on", payload, severity=severity)
+        record_internal_runtime_event(
+            event_type, "workers_always_on", payload, severity=severity
+        )
     except Exception:
         pass

@@ -46,7 +46,9 @@ def test_build_bodega_global_context_safety_policy(tmp_path: Path) -> None:
     assert result["safety_context"]["candidate_is_not_stable_memory"] is True
 
 
-def test_build_bodega_global_context_empty_db_has_low_confidence(tmp_path: Path) -> None:
+def test_build_bodega_global_context_empty_db_has_low_confidence(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     result = build_bodega_global_context(
         user_input="hello",
@@ -65,14 +67,16 @@ def test_build_bodega_global_context_empty_db_has_low_confidence(tmp_path: Path)
 def test_build_bodega_global_context_with_neurons(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     registry = NeuronRegistry(db_path=db_path)
-    registry.register(NeuronSpec(
-        name="neurona-ctx-test",
-        mission="Probar contexto global.",
-        domain="system_governance",
-        rules=["Solo prueba"],
-        status="stable",
-        created_by="test",
-    ))
+    registry.register(
+        NeuronSpec(
+            name="neurona-ctx-test",
+            mission="Probar contexto global.",
+            domain="system_governance",
+            rules=["Solo prueba"],
+            status="stable",
+            created_by="test",
+        )
+    )
     result = build_bodega_global_context(
         user_input="contexto",
         db_path=db_path,
@@ -94,21 +98,34 @@ def test_build_bodega_global_context_semantic_disabled(tmp_path: Path) -> None:
     )
     assert result["status"] == "ok"
     sr = result["semantic_recall"]
-    assert sr.get("enabled") is False or sr.get("status") in ("disabled", "unavailable", "ok")
+    assert sr.get("enabled") is False or sr.get("status") in (
+        "disabled",
+        "unavailable",
+        "ok",
+    )
 
 
 def test_build_bodega_global_context_no_identity_modification(tmp_path: Path) -> None:
     import sqlite3
     from triade.core.bodega import Bodega
+
     db_path = tmp_path / "triade.db"
     Bodega(db_path=db_path)
-    before = sqlite3.connect(str(db_path)).execute("SELECT COUNT(*) FROM identity_core").fetchone()[0]
+    before = (
+        sqlite3.connect(str(db_path))
+        .execute("SELECT COUNT(*) FROM identity_core")
+        .fetchone()[0]
+    )
     build_bodega_global_context(
         user_input="modifica identidad",
         db_path=db_path,
         runs_dir=tmp_path / "runs",
     )
-    after = sqlite3.connect(str(db_path)).execute("SELECT COUNT(*) FROM identity_core").fetchone()[0]
+    after = (
+        sqlite3.connect(str(db_path))
+        .execute("SELECT COUNT(*) FROM identity_core")
+        .fetchone()[0]
+    )
     assert before == after
 
 
@@ -140,18 +157,24 @@ def test_build_bodega_global_context_has_stable_audit_summary(tmp_path: Path) ->
 def test_build_bodega_global_context_no_candidate_consolidation(tmp_path: Path) -> None:
     """Verifica que el contexto global no consolida memoria candidate como verdad."""
     import sqlite3
+
     db_path = tmp_path / "triade.db"
     from triade.core.bodega import Bodega
+
     Bodega(db_path=db_path)
-    before = sqlite3.connect(str(db_path)).execute(
-        "SELECT COUNT(*) FROM learning_queue WHERE status = 'candidate'"
-    ).fetchone()[0]
+    before = (
+        sqlite3.connect(str(db_path))
+        .execute("SELECT COUNT(*) FROM learning_queue WHERE status = 'candidate'")
+        .fetchone()[0]
+    )
     build_bodega_global_context(
         user_input="consolida memoria",
         db_path=db_path,
         runs_dir=tmp_path / "runs",
     )
-    after = sqlite3.connect(str(db_path)).execute(
-        "SELECT COUNT(*) FROM learning_queue WHERE status = 'candidate'"
-    ).fetchone()[0]
+    after = (
+        sqlite3.connect(str(db_path))
+        .execute("SELECT COUNT(*) FROM learning_queue WHERE status = 'candidate'")
+        .fetchone()[0]
+    )
     assert before == after

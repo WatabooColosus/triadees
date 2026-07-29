@@ -114,9 +114,16 @@ def evaluate_neuron_candidate_worthiness(
     explicit_create = _looks_like_explicit_create(text, intent, context)
     operational_need = _looks_like_operational_need(text, intent, domain, context)
     factual_simple = _looks_like_factual_simple(text)
-    feedback_like = detected_type in {"positive_feedback", "thanks", "acknowledgement", "emotional_feedback"}
+    feedback_like = detected_type in {
+        "positive_feedback",
+        "thanks",
+        "acknowledgement",
+        "emotional_feedback",
+    }
     correction_like = detected_type == "correction"
-    short_casual = len(text.split()) <= 4 and not explicit_create and not operational_need
+    short_casual = (
+        len(text.split()) <= 4 and not explicit_create and not operational_need
+    )
 
     route = "ignore"
     should_create_neuron = False
@@ -224,23 +231,51 @@ def _looks_like_question(plain: str) -> bool:
     if "?" in plain:
         return True
     tokens = plain.split()
-    return bool(tokens and tokens[0] in QUESTION_WORDS) or plain.startswith(("que ", "qué ", "como ", "cómo ", "cuando ", "cuándo ", "donde ", "dónde ", "quien ", "quién ", "cual ", "cuál ", "cuanto ", "cuánto "))
+    return bool(tokens and tokens[0] in QUESTION_WORDS) or plain.startswith(
+        (
+            "que ",
+            "qué ",
+            "como ",
+            "cómo ",
+            "cuando ",
+            "cuándo ",
+            "donde ",
+            "dónde ",
+            "quien ",
+            "quién ",
+            "cual ",
+            "cuál ",
+            "cuanto ",
+            "cuánto ",
+        )
+    )
 
 
-def _looks_like_explicit_create(text: str, intent: str, context: dict[str, Any]) -> bool:
+def _looks_like_explicit_create(
+    text: str, intent: str, context: dict[str, Any]
+) -> bool:
     plain = _strip_accents(text)
     if any(hint in plain for hint in EXPLICIT_CREATE_HINTS):
         return True
-    if str(intent).strip().lower() in {"build_or_update", "create", "construct", "develop"}:
+    if str(intent).strip().lower() in {
+        "build_or_update",
+        "create",
+        "construct",
+        "develop",
+    }:
         return True
     context_text = " ".join(
         str(context.get(key) or "")
         for key in ("active_neuron", "project_id", "domain", "goal")
     ).lower()
-    return any(hint in context_text for hint in ("neuron", "neurona", "build", "create"))
+    return any(
+        hint in context_text for hint in ("neuron", "neurona", "build", "create")
+    )
 
 
-def _looks_like_operational_need(text: str, intent: str, domain: str | None, context: dict[str, Any]) -> bool:
+def _looks_like_operational_need(
+    text: str, intent: str, domain: str | None, context: dict[str, Any]
+) -> bool:
     plain = _strip_accents(text)
     if any(hint in plain for hint in OPERATIONAL_NEED_HINTS):
         return True
@@ -248,8 +283,12 @@ def _looks_like_operational_need(text: str, intent: str, domain: str | None, con
         return True
     if domain and domain not in {"general", "conversation"}:
         return True
-    context_text = " ".join(str(context.get(key) or "") for key in ("mission", "goal", "project_id")).lower()
-    return any(hint in context_text for hint in ("auditar", "operacion", "repetible", "neuron"))
+    context_text = " ".join(
+        str(context.get(key) or "") for key in ("mission", "goal", "project_id")
+    ).lower()
+    return any(
+        hint in context_text for hint in ("auditar", "operacion", "repetible", "neuron")
+    )
 
 
 def _looks_like_factual_simple(text: str) -> bool:
@@ -276,7 +315,9 @@ def _suggest_domain(domain: str | None, intent: str, context: dict[str, Any]) ->
 
 
 def _suggested_name(text: str, domain: str, context: dict[str, Any]) -> str:
-    context_name = str(context.get("active_neuron") or context.get("project_id") or "").strip()
+    context_name = str(
+        context.get("active_neuron") or context.get("project_id") or ""
+    ).strip()
     if context_name:
         return context_name
     keywords = _extract_keywords(text)
@@ -288,7 +329,23 @@ def _suggested_name(text: str, domain: str, context: dict[str, Any]) -> str:
 def _extract_keywords(text: str) -> list[str]:
     plain = _strip_accents(text)
     tokens = [token for token in re.findall(r"[a-z0-9]+", plain) if len(token) >= 4]
-    filtered = [token for token in tokens if token not in {"crea", "crear", "neurona", "para", "una", "unas", "unos", "esto", "esta", "este"}]
+    filtered = [
+        token
+        for token in tokens
+        if token
+        not in {
+            "crea",
+            "crear",
+            "neurona",
+            "para",
+            "una",
+            "unas",
+            "unos",
+            "esto",
+            "esta",
+            "este",
+        }
+    ]
     seen: set[str] = set()
     out: list[str] = []
     for token in filtered:

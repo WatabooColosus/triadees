@@ -64,13 +64,15 @@ def select_relevant_missions(
 
     for m in all_missions:
         if m.status not in active_statuses:
-            rejected.append({
-                "id": m.id,
-                "title": m.title,
-                "domain": m.domain,
-                "status": m.status,
-                "reason": f"status '{m.status}' not in active set",
-            })
+            rejected.append(
+                {
+                    "id": m.id,
+                    "title": m.title,
+                    "domain": m.domain,
+                    "status": m.status,
+                    "reason": f"status '{m.status}' not in active set",
+                }
+            )
             continue
 
         score = 0.0
@@ -85,7 +87,9 @@ def select_relevant_missions(
         if user_words:
             mission_lower = m.mission.lower()
             title_lower = m.title.lower()
-            matching_words = [w for w in user_words if w in mission_lower or w in title_lower]
+            matching_words = [
+                w for w in user_words if w in mission_lower or w in title_lower
+            ]
             if matching_words:
                 score += 1.0 + (0.2 * len(matching_words))
                 reasons.append(f"keyword_match:{','.join(matching_words[:3])}")

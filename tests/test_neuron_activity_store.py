@@ -20,18 +20,22 @@ def seed_run(db_path: Path, run_id: str) -> None:
         )
 
 
-def test_neuron_activity_store_persists_experimental_activations(tmp_path: Path) -> None:
+def test_neuron_activity_store_persists_experimental_activations(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
 
     registry = NeuronRegistry(db_path=db_path)
-    registry.register(NeuronSpec(
-        name="neurona-test-activity",
-        mission="Probar persistencia de actividad.",
-        domain="system_governance",
-        rules=["Solo diagnóstico"],
-        status="experimental",
-        created_by="test",
-    ))
+    registry.register(
+        NeuronSpec(
+            name="neurona-test-activity",
+            mission="Probar persistencia de actividad.",
+            domain="system_governance",
+            rules=["Solo diagnóstico"],
+            status="experimental",
+            created_by="test",
+        )
+    )
 
     neuron = registry.get_neuron("neurona-test-activity")
     assert neuron is not None
@@ -106,7 +110,9 @@ def test_neuron_activity_store_record_run_activity_alias(tmp_path: Path) -> None
     assert rows[0]["diagnosis_count"] == 1
 
 
-def test_neuron_activity_store_creates_parent_run_for_background_activity(tmp_path: Path) -> None:
+def test_neuron_activity_store_creates_parent_run_for_background_activity(
+    tmp_path: Path,
+) -> None:
     import sqlite3
 
     db_path = tmp_path / "triade.db"
@@ -139,7 +145,9 @@ def test_neuron_activity_store_ignores_inactive_payload(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     store = NeuronActivityStore(db_path=db_path)
 
-    ids = store.store_activity(run_id="run-inactive", activity={"active": False, "activations": []})
+    ids = store.store_activity(
+        run_id="run-inactive", activity={"active": False, "activations": []}
+    )
 
     assert ids == []
     assert store.list_activity() == []

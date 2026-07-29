@@ -54,7 +54,9 @@ class QualiaIntrospector:
         patterns = [item for item in patterns if item]
         learnings = [str(row.get("proposed_learning", "")).strip() for row in rows]
         learnings = [item for item in learnings if item]
-        evidence_refs = sorted({ref for row in rows for ref in row.get("evidence_refs", []) if ref})
+        evidence_refs = sorted(
+            {ref for row in rows for ref in row.get("evidence_refs", []) if ref}
+        )
 
         contradictions = self._detect_contradictions(rows)
         gaps: list[str] = []
@@ -63,33 +65,51 @@ class QualiaIntrospector:
         actions: list[str] = []
 
         if not observations:
-            gaps.append("No hay observaciones suficientes para interpretar el estado interno.")
+            gaps.append(
+                "No hay observaciones suficientes para interpretar el estado interno."
+            )
             questions.append("¿Qué experiencia concreta originó este estado?")
             actions.append("collect_more_experience")
 
         if state.novelty >= 0.6 and state.confidence < 0.7:
             gaps.append("La novedad supera la confianza disponible.")
-            questions.append("¿Qué parte de lo observado es nueva y qué evidencia falta para comprenderla?")
-            hypotheses.append("La señal novedosa puede contener un patrón útil aún no verificado.")
+            questions.append(
+                "¿Qué parte de lo observado es nueva y qué evidencia falta para comprenderla?"
+            )
+            hypotheses.append(
+                "La señal novedosa puede contener un patrón útil aún no verificado."
+            )
             actions.append("investigate_novelty")
 
         if state.curiosity >= 0.55:
-            questions.append("¿Por qué este patrón atrae atención y con qué conocimiento previo se relaciona?")
+            questions.append(
+                "¿Por qué este patrón atrae atención y con qué conocimiento previo se relaciona?"
+            )
             actions.append("compare_with_memory")
 
         if contradictions:
-            gaps.append("Existen interpretaciones incompatibles dentro del mismo flujo Qualia.")
-            questions.append("¿Qué evidencia independiente permite resolver la contradicción?")
-            hypotheses.append("Al menos una interpretación actual es incompleta o depende de contexto ausente.")
+            gaps.append(
+                "Existen interpretaciones incompatibles dentro del mismo flujo Qualia."
+            )
+            questions.append(
+                "¿Qué evidencia independiente permite resolver la contradicción?"
+            )
+            hypotheses.append(
+                "Al menos una interpretación actual es incompleta o depende de contexto ausente."
+            )
             actions.append("request_independent_verification")
 
         if learnings and not evidence_refs:
             gaps.append("Hay aprendizaje propuesto sin referencias de evidencia.")
-            questions.append("¿De dónde proviene esta conclusión y cómo puede falsarse?")
+            questions.append(
+                "¿De dónde proviene esta conclusión y cómo puede falsarse?"
+            )
             actions.append("quarantine_unreferenced_learning")
 
         if patterns and not learnings:
-            questions.append("¿Este patrón merece convertirse en una hipótesis de aprendizaje?")
+            questions.append(
+                "¿Este patrón merece convertirse en una hipótesis de aprendizaje?"
+            )
             actions.append("form_learning_hypothesis")
 
         if not questions:
@@ -97,7 +117,9 @@ class QualiaIntrospector:
             actions.append("observe_change_over_time")
 
         confidence = self._bounded((state.confidence + state.coherence) / 2.0)
-        curiosity = self._bounded(max(state.curiosity, state.novelty, 0.35 if gaps else 0.0))
+        curiosity = self._bounded(
+            max(state.curiosity, state.novelty, 0.35 if gaps else 0.0)
+        )
 
         return IntrospectionReport(
             run_id=run_id,
@@ -146,15 +168,35 @@ class QualiaIntrospector:
     def _detect_contradictions(rows: list[dict[str, Any]]) -> list[str]:
         claims: dict[str, set[str]] = {}
         for row in rows:
-            subject = str(row.get("mission") or row.get("source") or "general").strip().lower()
+            subject = (
+                str(row.get("mission") or row.get("source") or "general")
+                .strip()
+                .lower()
+            )
             observation = str(row.get("observation", "")).strip().lower()
             if not observation:
                 continue
-            polarity = "negative" if any(token in observation for token in (" no ", "nunca", "falso", "incorrecto", "falló", "falla")) else "positive"
+            polarity = (
+                "negative"
+                if any(
+                    token in observation
+                    for token in (
+                        " no ",
+                        "nunca",
+                        "falso",
+                        "incorrecto",
+                        "falló",
+                        "falla",
+                    )
+                )
+                else "positive"
+            )
             claims.setdefault(subject, set()).add(polarity)
 
         contradictions = []
         for subject, polarities in claims.items():
             if {"positive", "negative"}.issubset(polarities):
-                contradictions.append(f"Observaciones de polaridad opuesta sobre: {subject}.")
+                contradictions.append(
+                    f"Observaciones de polaridad opuesta sobre: {subject}."
+                )
         return contradictions

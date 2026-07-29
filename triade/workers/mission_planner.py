@@ -67,9 +67,15 @@ class MissionPlanner:
         tasks.extend(self._plan_research_curriculum())
         tasks.extend(self._plan_neuron_education())
         if os.getenv("TRIADE_BACKUP_KEY"):
-            tasks.append(PlannedTask(task_type="encrypted_backup", priority=80,
-                                     reason="Backup diario cifrado y restaurable",
-                                     source="backup_retention_policy", planner_score=0.4))
+            tasks.append(
+                PlannedTask(
+                    task_type="encrypted_backup",
+                    priority=80,
+                    reason="Backup diario cifrado y restaurable",
+                    source="backup_retention_policy",
+                    planner_score=0.4,
+                )
+            )
 
         tasks.sort(key=lambda t: t.priority)
         deduplicated: list[PlannedTask] = []
@@ -100,11 +106,19 @@ class MissionPlanner:
                 ).fetchone()
             count = int(row["cnt"] or 0) if row else 0
             if count:
-                return [PlannedTask(task_type="research_curriculum", priority=45,
-                                    reason=f"Currículo dirigido por {count} lagunas neuronales reales",
-                                    source="neural_gap_curriculum", planner_score=0.65)]
+                return [
+                    PlannedTask(
+                        task_type="research_curriculum",
+                        priority=45,
+                        reason=f"Currículo dirigido por {count} lagunas neuronales reales",
+                        source="neural_gap_curriculum",
+                        planner_score=0.65,
+                    )
+                ]
         except Exception as exc:
-            record_internal_error("mission_planner.research_curriculum", exc, db_path=self.db_path)
+            record_internal_error(
+                "mission_planner.research_curriculum", exc, db_path=self.db_path
+            )
         return []
 
     def _plan_neuron_education(self) -> list[PlannedTask]:
@@ -121,14 +135,24 @@ class MissionPlanner:
                         WHERE n.status='experimental' AND (c.next_review IS NULL OR c.next_review<=datetime('now'))"""
                     ).fetchone()
                 else:
-                    row = conn.execute("SELECT COUNT(*) cnt FROM neurons WHERE status='experimental'").fetchone()
+                    row = conn.execute(
+                        "SELECT COUNT(*) cnt FROM neurons WHERE status='experimental'"
+                    ).fetchone()
             count = int(row["cnt"] or 0) if row else 0
             if count:
-                return [PlannedTask(task_type="neuron_education_cycle", priority=42,
-                                    reason=f"{count} neuronas experimentales requieren educación o revisión",
-                                    source="governed_neuron_education", planner_score=0.7)]
+                return [
+                    PlannedTask(
+                        task_type="neuron_education_cycle",
+                        priority=42,
+                        reason=f"{count} neuronas experimentales requieren educación o revisión",
+                        source="governed_neuron_education",
+                        planner_score=0.7,
+                    )
+                ]
         except Exception as exc:
-            record_internal_error("mission_planner.neuron_education", exc, db_path=self.db_path)
+            record_internal_error(
+                "mission_planner.neuron_education", exc, db_path=self.db_path
+            )
         return []
 
     def _plan_baseline(self) -> list[PlannedTask]:
@@ -142,13 +166,15 @@ class MissionPlanner:
         tasks: list[PlannedTask] = []
 
         # pulse_check siempre se ejecuta
-        tasks.append(PlannedTask(
-            task_type="pulse_check",
-            priority=10,
-            reason="Verificación base de pulso del sistema",
-            source="mission_planner_baseline",
-            planner_score=1.0,
-        ))
+        tasks.append(
+            PlannedTask(
+                task_type="pulse_check",
+                priority=10,
+                reason="Verificación base de pulso del sistema",
+                source="mission_planner_baseline",
+                planner_score=1.0,
+            )
+        )
 
         try:
             with self._connect() as conn:
@@ -159,13 +185,15 @@ class MissionPlanner:
                 ).fetchone()
                 lr_cnt = int(lr["cnt"] or 0) if lr else 0
                 if lr_cnt > 0:
-                    tasks.append(PlannedTask(
-                        task_type="pending_learning_review",
-                        priority=12,
-                        reason=f"{lr_cnt} candidatos con transición ejecutable (candidate/evaluated)",
-                        source="mission_planner_baseline",
-                        planner_score=min(1.0, 0.5 + lr_cnt / 20),
-                    ))
+                    tasks.append(
+                        PlannedTask(
+                            task_type="pending_learning_review",
+                            priority=12,
+                            reason=f"{lr_cnt} candidatos con transición ejecutable (candidate/evaluated)",
+                            source="mission_planner_baseline",
+                            planner_score=min(1.0, 0.5 + lr_cnt / 20),
+                        )
+                    )
 
                 # semantic_memory_governance: solo si hay documentos o actividad
                 sm = conn.execute(
@@ -175,13 +203,15 @@ class MissionPlanner:
                 ).fetchone()
                 sm_cnt = int(sm["cnt"] or 0) if sm else 0
                 if sm_cnt > 0:
-                    tasks.append(PlannedTask(
-                        task_type="semantic_memory_governance",
-                        priority=13,
-                        reason=f"{sm_cnt} documentos semánticos candidate/experimental",
-                        source="mission_planner_baseline",
-                        planner_score=min(1.0, 0.5 + sm_cnt / 20),
-                    ))
+                    tasks.append(
+                        PlannedTask(
+                            task_type="semantic_memory_governance",
+                            priority=13,
+                            reason=f"{sm_cnt} documentos semánticos candidate/experimental",
+                            source="mission_planner_baseline",
+                            planner_score=min(1.0, 0.5 + sm_cnt / 20),
+                        )
+                    )
 
                 # neuron_autopromotion: solo si hay evidencia suficiente
                 ns = conn.execute(
@@ -196,18 +226,24 @@ class MissionPlanner:
                 ).fetchone()
                 ns_cnt = int(ns["cnt"] or 0) if ns else 0
                 if ns_cnt > 0:
-                    tasks.append(PlannedTask(
-                        task_type="neuron_autopromotion",
-                        priority=15,
-                        reason=f"{ns_cnt} neuronas promovibles con training o evidencia",
-                        source="mission_planner_baseline",
-                        planner_score=min(1.0, 0.55 + ns_cnt / 20),
-                    ))
+                    tasks.append(
+                        PlannedTask(
+                            task_type="neuron_autopromotion",
+                            priority=15,
+                            reason=f"{ns_cnt} neuronas promovibles con training o evidencia",
+                            source="mission_planner_baseline",
+                            planner_score=min(1.0, 0.55 + ns_cnt / 20),
+                        )
+                    )
         except Exception as exc:
             record_internal_error(
                 "mission_planner.baseline",
                 exc,
-                payload={"module": __name__, "function": "_plan_baseline", "operation": "baseline_sql_queries"},
+                payload={
+                    "module": __name__,
+                    "function": "_plan_baseline",
+                    "operation": "baseline_sql_queries",
+                },
                 db_path=self.db_path,
             )
 
@@ -228,21 +264,30 @@ class MissionPlanner:
             for row in rows:
                 confidence = float(row["confidence"] or 0)
                 priority = 20 if confidence >= 0.7 else 30
-                tasks.append(PlannedTask(
-                    task_type="pending_learning_review",
-                    priority=priority,
-                    reason=f"Candidato de aprendizaje '{(row['title'] or '')[:40]}' "
-                           f"status={row['status']} confidence={confidence:.2f}",
-                    source="mission_planner",
-                    planner_score=max(0.1, min(1.0, confidence)),
-                    related_candidate_id=int(row["id"]),
-                    payload={"candidate_id": int(row["id"]), "source_type": row["source_type"]},
-                ))
+                tasks.append(
+                    PlannedTask(
+                        task_type="pending_learning_review",
+                        priority=priority,
+                        reason=f"Candidato de aprendizaje '{(row['title'] or '')[:40]}' "
+                        f"status={row['status']} confidence={confidence:.2f}",
+                        source="mission_planner",
+                        planner_score=max(0.1, min(1.0, confidence)),
+                        related_candidate_id=int(row["id"]),
+                        payload={
+                            "candidate_id": int(row["id"]),
+                            "source_type": row["source_type"],
+                        },
+                    )
+                )
         except Exception as exc:
             record_internal_error(
                 "mission_planner.pending_learning",
                 exc,
-                payload={"module": __name__, "function": "_plan_pending_learning", "operation": "select_learning_queue"},
+                payload={
+                    "module": __name__,
+                    "function": "_plan_pending_learning",
+                    "operation": "select_learning_queue",
+                },
                 db_path=self.db_path,
             )
         return tasks
@@ -263,19 +308,29 @@ class MissionPlanner:
                 payload = json.loads(row["payload_json"] or "{}")
                 if payload.get("retried"):
                     continue
-                tasks.append(PlannedTask(
-                    task_type=str(row["task_type"]),
-                    priority=40,
-                    reason=f"Reintento de tarea fallida: {row['task_type']} error={(row['error'] or '')[:60]}",
-                    source="mission_planner_retry",
-                    planner_score=0.55,
-                    payload={**payload, "retried": True, "original_task_id": int(row["id"])},
-                ))
+                tasks.append(
+                    PlannedTask(
+                        task_type=str(row["task_type"]),
+                        priority=40,
+                        reason=f"Reintento de tarea fallida: {row['task_type']} error={(row['error'] or '')[:60]}",
+                        source="mission_planner_retry",
+                        planner_score=0.55,
+                        payload={
+                            **payload,
+                            "retried": True,
+                            "original_task_id": int(row["id"]),
+                        },
+                    )
+                )
         except Exception as exc:
             record_internal_error(
                 "mission_planner.failed_recent",
                 exc,
-                payload={"module": __name__, "function": "_plan_failed_recent", "operation": "select_failed_worker_tasks"},
+                payload={
+                    "module": __name__,
+                    "function": "_plan_failed_recent",
+                    "operation": "select_failed_worker_tasks",
+                },
                 db_path=self.db_path,
             )
         return tasks
@@ -291,19 +346,25 @@ class MissionPlanner:
                 ).fetchone()
                 cnt = int(row["cnt"] or 0) if row else 0
             if cnt > 0:
-                tasks.append(PlannedTask(
-                    task_type="stable_consolidation_review",
-                    priority=35,
-                    reason=f"{cnt} candidatos validados en runs pendientes de consolidar",
-                    source="mission_planner",
-                    planner_score=min(1.0, 0.5 + cnt / 10),
-                    payload={"pending_count": cnt},
-                ))
+                tasks.append(
+                    PlannedTask(
+                        task_type="stable_consolidation_review",
+                        priority=35,
+                        reason=f"{cnt} candidatos validados en runs pendientes de consolidar",
+                        source="mission_planner",
+                        planner_score=min(1.0, 0.5 + cnt / 10),
+                        payload={"pending_count": cnt},
+                    )
+                )
         except Exception as exc:
             record_internal_error(
                 "mission_planner.memory_consolidation",
                 exc,
-                payload={"module": __name__, "function": "_plan_memory_consolidation", "operation": "count_verified_learning"},
+                payload={
+                    "module": __name__,
+                    "function": "_plan_memory_consolidation",
+                    "operation": "count_verified_learning",
+                },
                 db_path=self.db_path,
             )
         return tasks
@@ -328,28 +389,34 @@ class MissionPlanner:
                     ).fetchone()
                 if evidence is None:
                     continue
-                tasks.append(PlannedTask(
-                    task_type="experimental_neuron_activity",
-                    priority=25,
-                    reason=f"Misión activa '{m.title}' dominio={m.domain}",
-                    source="mission_planner_mission",
-                    planner_score=0.8,
-                    related_neuron_id=m.neuron_id,
-                    payload={
-                        "mission_id": m.id,
-                        "neuron_id": m.neuron_id,
-                        "domain": m.domain,
-                        "allowed_sources": m.allowed_sources,
-                        "allowed_actions": m.allowed_actions,
-                        "evidence_refs": json.loads(evidence["refs_json"] or "[]"),
-                        "evidence_origin": str(evidence["source"]),
-                    },
-                ))
+                tasks.append(
+                    PlannedTask(
+                        task_type="experimental_neuron_activity",
+                        priority=25,
+                        reason=f"Misión activa '{m.title}' dominio={m.domain}",
+                        source="mission_planner_mission",
+                        planner_score=0.8,
+                        related_neuron_id=m.neuron_id,
+                        payload={
+                            "mission_id": m.id,
+                            "neuron_id": m.neuron_id,
+                            "domain": m.domain,
+                            "allowed_sources": m.allowed_sources,
+                            "allowed_actions": m.allowed_actions,
+                            "evidence_refs": json.loads(evidence["refs_json"] or "[]"),
+                            "evidence_origin": str(evidence["source"]),
+                        },
+                    )
+                )
         except Exception as exc:
             record_internal_error(
                 "mission_planner.active_missions",
                 exc,
-                payload={"module": __name__, "function": "_plan_active_missions", "operation": "list_experimental_missions"},
+                payload={
+                    "module": __name__,
+                    "function": "_plan_active_missions",
+                    "operation": "list_experimental_missions",
+                },
                 db_path=self.db_path,
             )
         return tasks
@@ -366,19 +433,25 @@ class MissionPlanner:
                 ).fetchone()
                 cnt = int(row["cnt"] or 0) if row else 0
             if cnt > 0:
-                tasks.append(PlannedTask(
-                    task_type="federation_inbox_review",
-                    priority=30,
-                    reason=f"{cnt} mensajes federados pendientes",
-                    source="mission_planner",
-                    planner_score=min(1.0, 0.5 + cnt / 10),
-                    payload={"pending_count": cnt},
-                ))
+                tasks.append(
+                    PlannedTask(
+                        task_type="federation_inbox_review",
+                        priority=30,
+                        reason=f"{cnt} mensajes federados pendientes",
+                        source="mission_planner",
+                        planner_score=min(1.0, 0.5 + cnt / 10),
+                        payload={"pending_count": cnt},
+                    )
+                )
         except Exception as exc:
             record_internal_error(
                 "mission_planner.federation_inbox",
                 exc,
-                payload={"module": __name__, "function": "_plan_federation_inbox", "operation": "count_pending_federation"},
+                payload={
+                    "module": __name__,
+                    "function": "_plan_federation_inbox",
+                    "operation": "count_pending_federation",
+                },
                 db_path=self.db_path,
             )
         return tasks
@@ -402,19 +475,25 @@ class MissionPlanner:
                 ).fetchone()
                 episodes = int(row2["cnt"] or 0) if row2 else 0
             if runs_ok > 5 and episodes < runs_ok * 2:
-                tasks.append(PlannedTask(
-                    task_type="system_debt_scan",
-                    priority=45,
-                    reason=f"Deuda detectada: {runs_ok} runs pero solo {episodes} episodios",
-                    source="mission_planner",
-                    planner_score=min(1.0, (runs_ok - episodes) / max(1, runs_ok)),
-                    payload={"runs_ok": runs_ok, "episodes": episodes},
-                ))
+                tasks.append(
+                    PlannedTask(
+                        task_type="system_debt_scan",
+                        priority=45,
+                        reason=f"Deuda detectada: {runs_ok} runs pero solo {episodes} episodios",
+                        source="mission_planner",
+                        planner_score=min(1.0, (runs_ok - episodes) / max(1, runs_ok)),
+                        payload={"runs_ok": runs_ok, "episodes": episodes},
+                    )
+                )
         except Exception as exc:
             record_internal_error(
                 "mission_planner.system_debt",
                 exc,
-                payload={"module": __name__, "function": "_plan_system_debt", "operation": "count_runs_and_episodes"},
+                payload={
+                    "module": __name__,
+                    "function": "_plan_system_debt",
+                    "operation": "count_runs_and_episodes",
+                },
                 db_path=self.db_path,
             )
         return tasks
@@ -430,19 +509,25 @@ class MissionPlanner:
                 ).fetchone()
                 cnt = int(row["cnt"] or 0) if row else 0
             if cnt > 0:
-                tasks.append(PlannedTask(
-                    task_type="neuron_candidate_formation",
-                    priority=28,
-                    reason=f"{cnt} candidatos neuronales pendientes de evaluación",
-                    source="mission_planner",
-                    planner_score=min(1.0, 0.5 + cnt / 10),
-                    payload={"pending_candidates": cnt},
-                ))
+                tasks.append(
+                    PlannedTask(
+                        task_type="neuron_candidate_formation",
+                        priority=28,
+                        reason=f"{cnt} candidatos neuronales pendientes de evaluación",
+                        source="mission_planner",
+                        planner_score=min(1.0, 0.5 + cnt / 10),
+                        payload={"pending_candidates": cnt},
+                    )
+                )
         except Exception as exc:
             record_internal_error(
                 "mission_planner.neuron_formation",
                 exc,
-                payload={"module": __name__, "function": "_plan_neuron_formation", "operation": "count_candidate_neurons"},
+                payload={
+                    "module": __name__,
+                    "function": "_plan_neuron_formation",
+                    "operation": "count_candidate_neurons",
+                },
                 db_path=self.db_path,
             )
         return tasks

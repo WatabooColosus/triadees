@@ -31,9 +31,19 @@ def _seed_experimental_mission(db_path: Path) -> int:
             INSERT INTO neurons (name, mission, domain, status, created_by)
             VALUES (?, ?, ?, ?, ?)
             """,
-            ("runtime-neuron", "Auditar memoria interna y proponer aprendizaje trazable.", "runtime", "experimental", "test"),
+            (
+                "runtime-neuron",
+                "Auditar memoria interna y proponer aprendizaje trazable.",
+                "runtime",
+                "experimental",
+                "test",
+            ),
         )
-        neuron_id = int(conn.execute("SELECT id FROM neurons WHERE name = ?", ("runtime-neuron",)).fetchone()[0])
+        neuron_id = int(
+            conn.execute(
+                "SELECT id FROM neurons WHERE name = ?", ("runtime-neuron",)
+            ).fetchone()[0]
+        )
     store = NeuronMissionStore(db_path=db_path)
     mission_id = store.create_mission(
         NeuronMission(
@@ -102,7 +112,7 @@ def test_runtime_full_local_does_not_touch_identity_core(tmp_path):
     runs_dir = tmp_path / "runs"
     _init_db(db_path)
     _seed_gap_run(db_path)
-    mission_id = _seed_experimental_mission(db_path)
+    _seed_experimental_mission(db_path)
 
     with sqlite3.connect(db_path) as conn:
         before = int(conn.execute("SELECT COUNT(*) FROM identity_core").fetchone()[0])

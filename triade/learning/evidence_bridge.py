@@ -53,7 +53,10 @@ class LearningEvidenceBridge:
                 )"""
             )
             columns = {
-                row["name"] for row in conn.execute("PRAGMA table_info(learning_evidence)").fetchall()
+                row["name"]
+                for row in conn.execute(
+                    "PRAGMA table_info(learning_evidence)"
+                ).fetchall()
             }
             if "regression_required" not in columns:
                 conn.execute(
@@ -79,8 +82,12 @@ class LearningEvidenceBridge:
         clean_hypothesis = hypothesis.strip()
         clean_capability = capability.strip()
         clean_subject = subject_id.strip()
-        if not all((candidate_id.strip(), clean_hypothesis, clean_capability, clean_subject)):
-            raise ValueError("candidate_id, hypothesis, capability y subject_id son obligatorios")
+        if not all(
+            (candidate_id.strip(), clean_hypothesis, clean_capability, clean_subject)
+        ):
+            raise ValueError(
+                "candidate_id, hypothesis, capability y subject_id son obligatorios"
+            )
         now = utc_now()
         with self._connect() as conn:
             conn.execute(
@@ -119,7 +126,10 @@ class LearningEvidenceBridge:
         if evidence is None:
             raise ValueError("Primero debe declararse una hipótesis de mejora")
         expected_subject = str(evidence["subject_id"])
-        if baseline.subject_id != expected_subject or candidate.subject_id != expected_subject:
+        if (
+            baseline.subject_id != expected_subject
+            or candidate.subject_id != expected_subject
+        ):
             raise ValueError("La evidencia no corresponde al subject_id declarado")
         if comparison.baseline_evaluation_id != baseline.evaluation_id:
             raise ValueError("baseline_evaluation_id inconsistente")
@@ -137,7 +147,9 @@ class LearningEvidenceBridge:
                     json.dumps(candidate.to_dict(), ensure_ascii=False),
                     json.dumps(comparison.to_dict(), ensure_ascii=False),
                     comparison.decision,
-                    json.dumps(list(comparison.critical_regressions), ensure_ascii=False),
+                    json.dumps(
+                        list(comparison.critical_regressions), ensure_ascii=False
+                    ),
                     artifact_ref,
                     now,
                     candidate_id,
@@ -156,7 +168,9 @@ class LearningEvidenceBridge:
         if report.candidate_id != candidate_id:
             raise ValueError("El reporte de regresión no corresponde al candidato")
         if report.capability != evidence["capability"]:
-            raise ValueError("El reporte de regresión no corresponde a la capacidad declarada")
+            raise ValueError(
+                "El reporte de regresión no corresponde a la capacidad declarada"
+            )
         with self._connect() as conn:
             conn.execute(
                 """UPDATE learning_evidence SET
@@ -178,15 +192,21 @@ class LearningEvidenceBridge:
         critical = evidence.get("critical_regressions") or []
         if critical:
             raise ValueError(f"La evidencia contiene regresiones críticas: {critical}")
-        if not evidence.get("baseline_evaluation") or not evidence.get("candidate_evaluation"):
+        if not evidence.get("baseline_evaluation") or not evidence.get(
+            "candidate_evaluation"
+        ):
             raise ValueError("La evidencia antes/después está incompleta")
         if evidence.get("regression_required"):
             report_id = evidence.get("regression_report_id")
             if not report_id:
-                raise ValueError("Regression Gate requerido pero no existe reporte asociado")
+                raise ValueError(
+                    "Regression Gate requerido pero no existe reporte asociado"
+                )
             report = self.regression_gate.require_pass(candidate_id)
             if report.report_id != report_id:
-                raise ValueError("El reporte vigente de Regression Gate no coincide con la evidencia")
+                raise ValueError(
+                    "El reporte vigente de Regression Gate no coincide con la evidencia"
+                )
             evidence["regression_report"] = report.to_dict()
 
         capability_id = str(evidence.get("capability") or "").strip()
@@ -204,7 +224,8 @@ class LearningEvidenceBridge:
     def get(self, candidate_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT * FROM learning_evidence WHERE candidate_id = ?", (candidate_id,)
+                "SELECT * FROM learning_evidence WHERE candidate_id = ?",
+                (candidate_id,),
             ).fetchone()
         if row is None:
             return None
@@ -223,5 +244,7 @@ class LearningEvidenceBridge:
                 result[target] = default
         latest = self.regression_gate.latest_for_candidate(candidate_id)
         result["regression_report"] = latest.to_dict() if latest else None
-        result["regression_quarantined"] = self.regression_gate.is_quarantined(candidate_id)
+        result["regression_quarantined"] = self.regression_gate.is_quarantined(
+            candidate_id
+        )
         return result

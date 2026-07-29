@@ -12,6 +12,7 @@ from triade.core.contracts import utc_now
 
 def _gen_id(prefix: str) -> str:
     import hashlib
+
     return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(timezone.utc).timestamp()).encode()).hexdigest()[:6]}"
 
 
@@ -79,7 +80,9 @@ class TrainingPipeline:
     MIN_PASS_RATE = 0.80
     MIN_GENERALIZATION = 0.60
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
@@ -87,7 +90,10 @@ class TrainingPipeline:
     # ─── dataset management ───
 
     def create_dataset(
-        self, neuron_name: str, domain: str, name: str,
+        self,
+        neuron_name: str,
+        domain: str,
+        name: str,
         items: list[dict[str, Any]],
     ) -> dict:
         now = utc_now()
@@ -96,8 +102,15 @@ class TrainingPipeline:
             """INSERT INTO training_datasets
                (dataset_id, neuron_name, domain, name, items_json, item_count, created_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (dataset_id, neuron_name, domain, name,
-             json.dumps(items, default=str), len(items), now),
+            (
+                dataset_id,
+                neuron_name,
+                domain,
+                name,
+                json.dumps(items, default=str),
+                len(items),
+                now,
+            ),
         )
         self._conn.commit()
         return {"dataset_id": dataset_id, "item_count": len(items), "created_at": now}
@@ -128,7 +141,11 @@ class TrainingPipeline:
         if not dataset:
             raise ValueError(f"Dataset {dataset_id} not found")
 
-        items = json.loads(dataset["items_json"]) if isinstance(dataset["items_json"], str) else dataset["items_json"]
+        items = (
+            json.loads(dataset["items_json"])
+            if isinstance(dataset["items_json"], str)
+            else dataset["items_json"]
+        )
         now = utc_now()
         run_id = _gen_id("trainrun")
 
@@ -145,6 +162,7 @@ class TrainingPipeline:
 
             if execute_fn:
                 import time
+
                 t0 = time.time()
                 try:
                     actual = execute_fn(inp)
@@ -182,9 +200,19 @@ class TrainingPipeline:
                     input_json, expected_json, actual_json,
                     score, duration_ms, status, created_at)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                (ep_id, dataset_id, neuron_name, i,
-                 json.dumps(inp, default=str), json.dumps(expected, default=str),
-                 json.dumps(actual, default=str), score, dur, status, now),
+                (
+                    ep_id,
+                    dataset_id,
+                    neuron_name,
+                    i,
+                    json.dumps(inp, default=str),
+                    json.dumps(expected, default=str),
+                    json.dumps(actual, default=str),
+                    score,
+                    dur,
+                    status,
+                    now,
+                ),
             )
 
         avg_score = round(sum(scores) / max(len(scores), 1), 4)
@@ -196,7 +224,16 @@ class TrainingPipeline:
                (run_id, neuron_name, dataset_id, episodes_total,
                 episodes_passed, avg_score, status, created_at)
                VALUES (?,?,?,?,?,?,?,?)""",
-            (run_id, neuron_name, dataset_id, total, passed, avg_score, "completed", now),
+            (
+                run_id,
+                neuron_name,
+                dataset_id,
+                total,
+                passed,
+                avg_score,
+                "completed",
+                now,
+            ),
         )
         self._conn.commit()
 
@@ -214,7 +251,9 @@ class TrainingPipeline:
     # ─── benchmarks ───
 
     def benchmark(
-        self, run_id: str, baseline_scores: dict[str, float] | None = None,
+        self,
+        run_id: str,
+        baseline_scores: dict[str, float] | None = None,
     ) -> dict:
         """Ejecuta benchmarks contra baseline y calcula deltas."""
         row = self._conn.execute(
@@ -255,7 +294,11 @@ class TrainingPipeline:
         if not holdout:
             raise ValueError(f"Holdout dataset {holdout_dataset_id} not found")
 
-        items = json.loads(holdout["items_json"]) if isinstance(holdout["items_json"], str) else holdout["items_json"]
+        items = (
+            json.loads(holdout["items_json"])
+            if isinstance(holdout["items_json"], str)
+            else holdout["items_json"]
+        )
         scores = []
         for item in items:
             inp = item.get("input", {})
@@ -288,7 +331,10 @@ class TrainingPipeline:
     # ─── feedback loops ───
 
     def record_feedback(
-        self, run_id: str, feedback_type: str, details: dict,
+        self,
+        run_id: str,
+        feedback_type: str,
+        details: dict,
     ) -> dict:
         """Registra feedback para un run de entrenamiento."""
         row = self._conn.execute(
@@ -296,14 +342,18 @@ class TrainingPipeline:
         ).fetchone()
         if not row:
             raise ValueError(f"Run {run_id} not found")
-        existing = json.loads(row["feedback_json"]) if row["feedback_json"] else {"items": []}
+        existing = (
+            json.loads(row["feedback_json"]) if row["feedback_json"] else {"items": []}
+        )
         if "items" not in existing:
             existing["items"] = []
-        existing["items"].append({
-            "type": feedback_type,
-            "details": details,
-            "timestamp": utc_now(),
-        })
+        existing["items"].append(
+            {
+                "type": feedback_type,
+                "details": details,
+                "timestamp": utc_now(),
+            }
+        )
 
         self._conn.execute(
             "UPDATE training_runs SET feedback_json=? WHERE run_id=?",
@@ -315,9 +365,12 @@ class TrainingPipeline:
     # ─── lifecycle: promote / degrade / retire ───
 
     def promote(self, neuron_name: str, run_id: str, reason: str = "") -> dict:
-        run = dict(self._conn.execute(
-            "SELECT * FROM training_runs WHERE run_id=?", (run_id,)
-        ).fetchone() or {})
+        run = dict(
+            self._conn.execute(
+                "SELECT * FROM training_runs WHERE run_id=?", (run_id,)
+            ).fetchone()
+            or {}
+        )
         avg = run.get("avg_score", 0.0)
         total = run.get("episodes_total", 0)
         passed = run.get("episodes_passed", 0)
@@ -332,11 +385,18 @@ class TrainingPipeline:
         if pass_rate < self.MIN_PASS_RATE:
             raise ValueError(f"Pass rate {pass_rate} < min {self.MIN_PASS_RATE}")
 
-        return self._lifecycle_action(neuron_name, "promote", "training", "promoted",
-                                       reason or f"avg={avg} pass_rate={pass_rate} gen={gen_score}")
+        return self._lifecycle_action(
+            neuron_name,
+            "promote",
+            "training",
+            "promoted",
+            reason or f"avg={avg} pass_rate={pass_rate} gen={gen_score}",
+        )
 
     def degrade(self, neuron_name: str, reason: str) -> dict:
-        return self._lifecycle_action(neuron_name, "degrade", "promoted", "degraded", reason)
+        return self._lifecycle_action(
+            neuron_name, "degrade", "promoted", "degraded", reason
+        )
 
     def retire(self, neuron_name: str, reason: str) -> dict:
         return self._lifecycle_action(neuron_name, "retire", None, "retired", reason)
@@ -351,10 +411,18 @@ class TrainingPipeline:
     # ─── diagnostics ───
 
     def doctor(self) -> dict:
-        ds = self._conn.execute("SELECT COUNT(*) as c FROM training_datasets").fetchone()["c"]
-        eps = self._conn.execute("SELECT COUNT(*) as c FROM training_episodes").fetchone()["c"]
-        runs = self._conn.execute("SELECT COUNT(*) as c FROM training_runs").fetchone()["c"]
-        actions = self._conn.execute("SELECT COUNT(*) as c FROM neuron_lifecycle_actions").fetchone()["c"]
+        ds = self._conn.execute(
+            "SELECT COUNT(*) as c FROM training_datasets"
+        ).fetchone()["c"]
+        eps = self._conn.execute(
+            "SELECT COUNT(*) as c FROM training_episodes"
+        ).fetchone()["c"]
+        runs = self._conn.execute("SELECT COUNT(*) as c FROM training_runs").fetchone()[
+            "c"
+        ]
+        actions = self._conn.execute(
+            "SELECT COUNT(*) as c FROM neuron_lifecycle_actions"
+        ).fetchone()["c"]
         return {
             "datasets": ds,
             "episodes": eps,
@@ -365,8 +433,12 @@ class TrainingPipeline:
     # ─── internal ───
 
     def _lifecycle_action(
-        self, neuron_name: str, action: str,
-        from_state: str | None, to_state: str, reason: str,
+        self,
+        neuron_name: str,
+        action: str,
+        from_state: str | None,
+        to_state: str,
+        reason: str,
     ) -> dict:
         now = utc_now()
         action_id = _gen_id("lcact")

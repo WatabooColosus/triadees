@@ -7,7 +7,13 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from .contracts import CentralKnowledgePacket, NeuronExperience, QualiaSignal, QualiaState, StorageMemoryPacket
+from .contracts import (
+    CentralKnowledgePacket,
+    NeuronExperience,
+    QualiaSignal,
+    QualiaState,
+    StorageMemoryPacket,
+)
 
 QUALIA_SCHEMA = """
 CREATE TABLE IF NOT EXISTS qualia_experiences (
@@ -98,10 +104,18 @@ CREATE INDEX IF NOT EXISTS idx_qualia_states_run_id ON qualia_states(run_id);
 
 
 class QualiaStore:
-    def __init__(self, db_path: str | Path = "triade/memory/triade.db", schema_path: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        db_path: str | Path = "triade/memory/triade.db",
+        schema_path: str | Path | None = None,
+    ) -> None:
         self.db_path = Path(db_path)
         repo_root = Path(__file__).resolve().parents[2]
-        self.schema_path = Path(schema_path) if schema_path is not None else repo_root / "triade/memory/schemas.sql"
+        self.schema_path = (
+            Path(schema_path)
+            if schema_path is not None
+            else repo_root / "triade/memory/schemas.sql"
+        )
         self.migration_path = repo_root / "triade/memory/migrations/004_qualia_bus.sql"
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
@@ -132,10 +146,24 @@ class QualiaStore:
                  extracted_pattern, proposed_learning, confidence, risk, usefulness, emotional_signal_json,
                  evidence_refs_json, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (exp.id, exp.run_id, str(exp.neuron_id) if exp.neuron_id is not None else None, exp.neuron_type,
-                 exp.mission, exp.source, exp.source_type, exp.observation, exp.extracted_pattern,
-                 exp.proposed_learning, exp.confidence, exp.risk, exp.usefulness,
-                 json.dumps(exp.emotional_signal, ensure_ascii=False), json.dumps(exp.evidence_refs, ensure_ascii=False), exp.created_at),
+                (
+                    exp.id,
+                    exp.run_id,
+                    str(exp.neuron_id) if exp.neuron_id is not None else None,
+                    exp.neuron_type,
+                    exp.mission,
+                    exp.source,
+                    exp.source_type,
+                    exp.observation,
+                    exp.extracted_pattern,
+                    exp.proposed_learning,
+                    exp.confidence,
+                    exp.risk,
+                    exp.usefulness,
+                    json.dumps(exp.emotional_signal, ensure_ascii=False),
+                    json.dumps(exp.evidence_refs, ensure_ascii=False),
+                    exp.created_at,
+                ),
             )
         return exp.id
 
@@ -146,9 +174,21 @@ class QualiaStore:
                 (id, run_id, experience_id, signal_type, intensity, valence, urgency, curiosity, risk,
                  confidence, tone_hint, reason, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (signal.id, signal.run_id, signal.experience_id, signal.signal_type, signal.intensity,
-                 signal.valence, signal.urgency, signal.curiosity, signal.risk, signal.confidence,
-                 signal.tone_hint, signal.reason, signal.created_at),
+                (
+                    signal.id,
+                    signal.run_id,
+                    signal.experience_id,
+                    signal.signal_type,
+                    signal.intensity,
+                    signal.valence,
+                    signal.urgency,
+                    signal.curiosity,
+                    signal.risk,
+                    signal.confidence,
+                    signal.tone_hint,
+                    signal.reason,
+                    signal.created_at,
+                ),
             )
         return signal.id
 
@@ -159,9 +199,20 @@ class QualiaStore:
                 (id, run_id, experience_id, claim, hypothesis, decision_hint, validation_need,
                  related_goals_json, confidence, evidence_refs_json, status, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (packet.id, packet.run_id, packet.experience_id, packet.claim, packet.hypothesis,
-                 packet.decision_hint, packet.validation_need, json.dumps(packet.related_goals, ensure_ascii=False),
-                 packet.confidence, json.dumps(packet.evidence_refs, ensure_ascii=False), packet.status, packet.created_at),
+                (
+                    packet.id,
+                    packet.run_id,
+                    packet.experience_id,
+                    packet.claim,
+                    packet.hypothesis,
+                    packet.decision_hint,
+                    packet.validation_need,
+                    json.dumps(packet.related_goals, ensure_ascii=False),
+                    packet.confidence,
+                    json.dumps(packet.evidence_refs, ensure_ascii=False),
+                    packet.status,
+                    packet.created_at,
+                ),
             )
         return packet.id
 
@@ -172,9 +223,21 @@ class QualiaStore:
                 (id, run_id, experience_id, memory_type, category, subcategory, content, source,
                  content_hash, confidence, verification_status, promotion_status, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (packet.id, packet.run_id, packet.experience_id, packet.memory_type, packet.category,
-                 packet.subcategory, packet.content, packet.source, packet.content_hash, packet.confidence,
-                 packet.verification_status, packet.promotion_status, packet.created_at),
+                (
+                    packet.id,
+                    packet.run_id,
+                    packet.experience_id,
+                    packet.memory_type,
+                    packet.category,
+                    packet.subcategory,
+                    packet.content,
+                    packet.source,
+                    packet.content_hash,
+                    packet.confidence,
+                    packet.verification_status,
+                    packet.promotion_status,
+                    packet.created_at,
+                ),
             )
         return packet.id
 
@@ -185,9 +248,20 @@ class QualiaStore:
                 (run_id, curiosity, confidence, risk, urgency, coherence, novelty, usefulness,
                  saturation, dominant_signal, recommended_action, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (state.run_id, state.curiosity, state.confidence, state.risk, state.urgency,
-                 state.coherence, state.novelty, state.usefulness, state.saturation,
-                 state.dominant_signal, state.recommended_action, state.updated_at),
+                (
+                    state.run_id,
+                    state.curiosity,
+                    state.confidence,
+                    state.risk,
+                    state.urgency,
+                    state.coherence,
+                    state.novelty,
+                    state.usefulness,
+                    state.saturation,
+                    state.dominant_signal,
+                    state.recommended_action,
+                    state.updated_at,
+                ),
             )
             return int(cur.lastrowid)
 
@@ -203,22 +277,51 @@ class QualiaStore:
             "storage_packet_id": bundle.storage_packet.id,
         }
 
-    def list_experiences(self, run_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
-        return self._list("qualia_experiences", run_id, limit, json_fields={"emotional_signal_json": "emotional_signal", "evidence_refs_json": "evidence_refs"})
+    def list_experiences(
+        self, run_id: str | None = None, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        return self._list(
+            "qualia_experiences",
+            run_id,
+            limit,
+            json_fields={
+                "emotional_signal_json": "emotional_signal",
+                "evidence_refs_json": "evidence_refs",
+            },
+        )
 
-    def list_signals(self, run_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    def list_signals(
+        self, run_id: str | None = None, limit: int = 50
+    ) -> list[dict[str, Any]]:
         return self._list("qualia_signals", run_id, limit)
 
-    def list_central_packets(self, run_id: str | None = None, limit: int = 50, statuses: set[str] | None = None) -> list[dict[str, Any]]:
-        rows = self._list("qualia_central_packets", run_id, limit, json_fields={"related_goals_json": "related_goals", "evidence_refs_json": "evidence_refs"})
+    def list_central_packets(
+        self,
+        run_id: str | None = None,
+        limit: int = 50,
+        statuses: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        rows = self._list(
+            "qualia_central_packets",
+            run_id,
+            limit,
+            json_fields={
+                "related_goals_json": "related_goals",
+                "evidence_refs_json": "evidence_refs",
+            },
+        )
         if statuses:
             rows = [row for row in rows if str(row.get("status")) in statuses]
         return rows
 
-    def list_storage_packets(self, run_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    def list_storage_packets(
+        self, run_id: str | None = None, limit: int = 50
+    ) -> list[dict[str, Any]]:
         return self._list("qualia_storage_packets", run_id, limit)
 
-    def list_states(self, run_id: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
+    def list_states(
+        self, run_id: str | None = None, limit: int = 20
+    ) -> list[dict[str, Any]]:
         return self._list("qualia_states", run_id, limit)
 
     def latest_state(self, run_id: str | None = None) -> dict[str, Any] | None:
@@ -226,33 +329,67 @@ class QualiaStore:
         return rows[0] if rows else None
 
     def counts(self, run_id: str | None = None) -> dict[str, int]:
-        tables = ["qualia_experiences", "qualia_signals", "qualia_central_packets", "qualia_storage_packets", "qualia_states"]
+        tables = [
+            "qualia_experiences",
+            "qualia_signals",
+            "qualia_central_packets",
+            "qualia_storage_packets",
+            "qualia_states",
+        ]
         result: dict[str, int] = {}
         with self._connect() as conn:
             for table in tables:
                 if run_id:
-                    row = conn.execute(f"SELECT COUNT(*) AS c FROM {table} WHERE run_id = ?", (run_id,)).fetchone()
+                    row = conn.execute(
+                        f"SELECT COUNT(*) AS c FROM {table} WHERE run_id = ?", (run_id,)
+                    ).fetchone()
                 else:
                     row = conn.execute(f"SELECT COUNT(*) AS c FROM {table}").fetchone()
                 result[table] = int(row["c"])
         return result
 
     def doctor(self) -> dict[str, Any]:
-        required = {"qualia_experiences", "qualia_signals", "qualia_central_packets", "qualia_storage_packets", "qualia_states"}
+        required = {
+            "qualia_experiences",
+            "qualia_signals",
+            "qualia_central_packets",
+            "qualia_storage_packets",
+            "qualia_states",
+        }
         try:
             with self._connect() as conn:
-                tables = {str(r["name"]) for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+                tables = {
+                    str(r["name"])
+                    for r in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    ).fetchall()
+                }
             missing = sorted(required - tables)
-            return {"status": "ok" if not missing else "missing_tables", "missing_tables": missing, "counts": self.counts() if not missing else {}}
+            return {
+                "status": "ok" if not missing else "missing_tables",
+                "missing_tables": missing,
+                "counts": self.counts() if not missing else {},
+            }
         except Exception as exc:
             return {"status": "error", "error": str(exc)}
 
-    def _list(self, table: str, run_id: str | None, limit: int, json_fields: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    def _list(
+        self,
+        table: str,
+        run_id: str | None,
+        limit: int,
+        json_fields: dict[str, str] | None = None,
+    ) -> list[dict[str, Any]]:
         with self._connect() as conn:
             if run_id:
-                rows = conn.execute(f"SELECT * FROM {table} WHERE run_id = ? ORDER BY rowid DESC LIMIT ?", (run_id, limit)).fetchall()
+                rows = conn.execute(
+                    f"SELECT * FROM {table} WHERE run_id = ? ORDER BY rowid DESC LIMIT ?",
+                    (run_id, limit),
+                ).fetchall()
             else:
-                rows = conn.execute(f"SELECT * FROM {table} ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
+                rows = conn.execute(
+                    f"SELECT * FROM {table} ORDER BY rowid DESC LIMIT ?", (limit,)
+                ).fetchall()
         decoded = [dict(row) for row in rows]
         for row in decoded:
             for src, dest in (json_fields or {}).items():

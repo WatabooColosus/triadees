@@ -49,7 +49,9 @@ def test_candidate_requires_specified_state(tmp_path: Path) -> None:
     NeuronSpecificationStore(db_path).register(specification)
 
     with pytest.raises(ValueError, match="estado specified"):
-        NeuronCandidateFactory(db_path).create(specification.neuron_id, specification.version)
+        NeuronCandidateFactory(db_path).create(
+            specification.neuron_id, specification.version
+        )
 
 
 def test_candidate_validates_required_capabilities(tmp_path: Path) -> None:
@@ -60,7 +62,9 @@ def test_candidate_validates_required_capabilities(tmp_path: Path) -> None:
     store.transition(specification.neuron_id, specification.version, "specified")
 
     with pytest.raises(ValueError, match="capacidades requeridas inexistentes"):
-        NeuronCandidateFactory(db_path).create(specification.neuron_id, specification.version)
+        NeuronCandidateFactory(db_path).create(
+            specification.neuron_id, specification.version
+        )
 
 
 def test_candidate_is_created_in_unique_sandbox(tmp_path: Path) -> None:

@@ -38,7 +38,9 @@ def run_neuron_nutrition_cycle(
     blood_policy = ollama_blood_policy("neuron_nutrition", ollama_blood)
     ollama_health = check_ollama_cognitive_health()
     model_policy = blood_policy
-    degraded_mode = bool(blood_policy.get("degraded") or not blood_policy.get("allowed"))
+    degraded_mode = bool(
+        blood_policy.get("degraded") or not blood_policy.get("allowed")
+    )
     learning_allowed = bool(blood_policy.get("allowed"))
     stable_write_allowed = False
     model_used = {
@@ -59,14 +61,21 @@ def run_neuron_nutrition_cycle(
     publish_event(
         "bodega_global_reviewed",
         "neuron_nutrition",
-        {"mode": mode, "status": bodega_global.get("status"), "memory_confidence": bodega_global.get("memory_confidence")},
+        {
+            "mode": mode,
+            "status": bodega_global.get("status"),
+            "memory_confidence": bodega_global.get("memory_confidence"),
+        },
         db_path=db_path,
         run_ref="neuron-nutrition",
     )
     publish_event(
         "ollama_blood_checked",
         "neuron_nutrition",
-        {"status": ollama_blood.get("status"), "blood_pressure_score": ollama_blood.get("blood_pressure_score")},
+        {
+            "status": ollama_blood.get("status"),
+            "blood_pressure_score": ollama_blood.get("blood_pressure_score"),
+        },
         db_path=db_path,
         run_ref="neuron-nutrition",
     )
@@ -94,8 +103,16 @@ def run_neuron_nutrition_cycle(
         domain=domain_seed,
         memory_context={
             "project_context": {
-                "domain": domain_seed or str((bodega_global.get("bodega_global_context_summary") or {}).get("recommended_context_policy") or ""),
-                "topics": [str(mission.domain or "") for mission in active_missions[:10]],
+                "domain": domain_seed
+                or str(
+                    (bodega_global.get("bodega_global_context_summary") or {}).get(
+                        "recommended_context_policy"
+                    )
+                    or ""
+                ),
+                "topics": [
+                    str(mission.domain or "") for mission in active_missions[:10]
+                ],
             },
             "domain": domain_seed,
         },
@@ -110,7 +127,9 @@ def run_neuron_nutrition_cycle(
     safe_selected = []
     for item in selected_missions:
         mission = store.get_mission(int(item.get("id") or 0))
-        if mission and set(mission.allowed_actions or []).intersection(SAFE_NUTRITION_ACTIONS):
+        if mission and set(mission.allowed_actions or []).intersection(
+            SAFE_NUTRITION_ACTIONS
+        ):
             safe_selected.append(item)
 
     effective_mode = mode
@@ -126,7 +145,9 @@ def run_neuron_nutrition_cycle(
                 "effective_mode": effective_mode,
                 "degraded_reason": blood_policy.get("reason"),
                 "blocked_actions": model_policy.get("blocked_actions", []),
-                "local_safe_execution": bool(safe_selected and effective_mode != "observe_only"),
+                "local_safe_execution": bool(
+                    safe_selected and effective_mode != "observe_only"
+                ),
             },
             severity="warning",
             db_path=db_path,
@@ -203,17 +224,25 @@ def run_neuron_nutrition_cycle(
             evidence_created += 1
         if result.get("learning_candidate"):
             candidates_created += 1
-            result["learning_candidate"]["model_provider"] = model_used["model_provider"]
+            result["learning_candidate"]["model_provider"] = model_used[
+                "model_provider"
+            ]
             result["learning_candidate"]["model_name"] = model_used["model_name"]
             result["learning_candidate"]["model_required"] = False
         if result.get("status") == "completed":
             nourished_entities.add(
-                f"neuron:{mission.neuron_id}" if mission.neuron_id is not None else f"mission:{mission_id}"
+                f"neuron:{mission.neuron_id}"
+                if mission.neuron_id is not None
+                else f"mission:{mission_id}"
             )
         publish_event(
             "neuron_mission_executed",
             "neuron_nutrition",
-            {"mission_id": mission_id, "decision": result.get("decision"), "composite_score": result.get("composite_score")},
+            {
+                "mission_id": mission_id,
+                "decision": result.get("decision"),
+                "composite_score": result.get("composite_score"),
+            },
             db_path=db_path,
             run_ref=f"neuron-nutrition-{mission_id}",
         )

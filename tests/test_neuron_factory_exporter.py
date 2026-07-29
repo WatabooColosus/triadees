@@ -65,8 +65,12 @@ def test_lifecycle_export_is_deterministic(tmp_path: Path) -> None:
             (candidate_id, neuron_id, version, sandbox_id, status, manifest_json)
             VALUES (?, ?, ?, ?, ?, ?)""",
             (
-                candidate["candidate_id"], candidate["neuron_id"], candidate["version"],
-                candidate["sandbox_id"], candidate["status"], json.dumps(candidate, sort_keys=True),
+                candidate["candidate_id"],
+                candidate["neuron_id"],
+                candidate["version"],
+                candidate["sandbox_id"],
+                candidate["status"],
+                json.dumps(candidate, sort_keys=True),
             ),
         )
 

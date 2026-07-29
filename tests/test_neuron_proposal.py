@@ -10,7 +10,9 @@ from triade.core.runner import TriadeRunner
 
 
 def make_runner(tmp_path: Path) -> TriadeRunner:
-    return TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+    return TriadeRunner(
+        runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False
+    )
 
 
 def test_build_intent_proposes_candidate_without_activation(tmp_path: Path) -> None:
@@ -37,7 +39,11 @@ def test_conversation_intent_makes_no_proposal(tmp_path: Path) -> None:
     result = runner.run("hola, ¿cómo estás?")
 
     assert result["neuron_proposal"] is None
-    assert result["memory_diff"]["neuron_candidate_gate"]["route"] in {"ignore", "learning_candidate", "episodic_memory"}
+    assert result["memory_diff"]["neuron_candidate_gate"]["route"] in {
+        "ignore",
+        "learning_candidate",
+        "episodic_memory",
+    }
 
 
 def test_proposal_never_downgrades_a_promoted_neuron(tmp_path: Path) -> None:
@@ -51,7 +57,9 @@ def test_proposal_never_downgrades_a_promoted_neuron(tmp_path: Path) -> None:
     result = runner.run("crea neurona demo otra vez", context={"active_neuron": "demo"})
 
     assert result["neuron_proposal"]["registered_as"] == "skipped_existing_promoted"
-    assert NeuronRegistry(db_path=db_path).get_neuron("demo")["status"] == "experimental"
+    assert (
+        NeuronRegistry(db_path=db_path).get_neuron("demo")["status"] == "experimental"
+    )
 
 
 def test_propose_neurons_flag_disables_proposal(tmp_path: Path) -> None:

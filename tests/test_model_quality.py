@@ -21,7 +21,9 @@ def test_score_hypothalamus_rewards_valid_model_signal() -> None:
 
 
 def test_score_central_rewards_model_and_traceable_response() -> None:
-    response = "Respuesta con memoria, riesgo y trazabilidad verificable para el usuario."
+    response = (
+        "Respuesta con memoria, riesgo y trazabilidad verificable para el usuario."
+    )
 
     assert score_central(response, model_ok=True) == 0.9
 

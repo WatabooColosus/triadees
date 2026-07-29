@@ -10,8 +10,20 @@ import pytest
 from triade.os.neuron_scheduler import NeuronScheduler
 
 SCHEMA_SQL = Path(__file__).resolve().parents[1] / "triade" / "memory" / "schemas.sql"
-MIGRATION_003 = Path(__file__).resolve().parents[1] / "triade" / "memory" / "migrations" / "003_living_workers.sql"
-MIGRATION_005 = Path(__file__).resolve().parents[1] / "triade" / "memory" / "migrations" / "005_triade_os.sql"
+MIGRATION_003 = (
+    Path(__file__).resolve().parents[1]
+    / "triade"
+    / "memory"
+    / "migrations"
+    / "003_living_workers.sql"
+)
+MIGRATION_005 = (
+    Path(__file__).resolve().parents[1]
+    / "triade"
+    / "memory"
+    / "migrations"
+    / "005_triade_os.sql"
+)
 
 
 @pytest.fixture()
@@ -29,7 +41,12 @@ def db(tmp_path: Path) -> Path:
     return db_path
 
 
-def _insert_neuron(conn: sqlite3.Connection, name: str, status: str = "experimental", domain: str = "test") -> int:
+def _insert_neuron(
+    conn: sqlite3.Connection,
+    name: str,
+    status: str = "experimental",
+    domain: str = "test",
+) -> int:
     cursor = conn.execute(
         """INSERT INTO neurons (name, mission, domain, status, rules, triggers,
         inputs_allowed, outputs_allowed, forbidden_actions, success_metrics,
@@ -41,7 +58,9 @@ def _insert_neuron(conn: sqlite3.Connection, name: str, status: str = "experimen
     return int(cursor.lastrowid)
 
 
-def _insert_activity(conn: sqlite3.Connection, neuron_id: int, activation_type: str = "scheduled") -> None:
+def _insert_activity(
+    conn: sqlite3.Connection, neuron_id: int, activation_type: str = "scheduled"
+) -> None:
     conn.execute(
         """INSERT INTO neuron_activity (neuron_id, activation_type, created_at)
         VALUES (?, ?, datetime('now'))""",
@@ -50,7 +69,9 @@ def _insert_activity(conn: sqlite3.Connection, neuron_id: int, activation_type: 
     conn.commit()
 
 
-def _insert_work_cycle(conn: sqlite3.Connection, neuron_id: int, status: str = "completed") -> None:
+def _insert_work_cycle(
+    conn: sqlite3.Connection, neuron_id: int, status: str = "completed"
+) -> None:
     conn.execute(
         """INSERT INTO neuron_work_cycles (mission_id, neuron_id, status)
         VALUES (?, ?, ?)""",
@@ -79,7 +100,9 @@ class TestComputePriorities:
         priorities = scheduler.compute_priorities()
         assert priorities == []
 
-    def test_returns_experimental_neurons(self, scheduler: NeuronScheduler, db: Path) -> None:
+    def test_returns_experimental_neurons(
+        self, scheduler: NeuronScheduler, db: Path
+    ) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
         _insert_neuron(conn, "TestNeuron", status="experimental")
@@ -89,7 +112,9 @@ class TestComputePriorities:
         assert len(priorities) == 1
         assert priorities[0].neuron_name == "TestNeuron"
 
-    def test_returns_multiple_statuses(self, scheduler: NeuronScheduler, db: Path) -> None:
+    def test_returns_multiple_statuses(
+        self, scheduler: NeuronScheduler, db: Path
+    ) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
         _insert_neuron(conn, "N1", status="experimental")
@@ -163,7 +188,9 @@ class TestScheduleWakeups:
         assert scheduled[0]["neuron_name"] == "WakeMe"
         assert "task_id" in scheduled[0]
 
-    def test_schedule_respects_max_wakeups(self, scheduler: NeuronScheduler, db: Path) -> None:
+    def test_schedule_respects_max_wakeups(
+        self, scheduler: NeuronScheduler, db: Path
+    ) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
         for i in range(10):
@@ -174,7 +201,9 @@ class TestScheduleWakeups:
         scheduled = scheduler.schedule_wakeups(max_wakeups=3)
         assert len(scheduled) <= 3
 
-    def test_schedule_skips_low_reputation(self, scheduler: NeuronScheduler, db: Path) -> None:
+    def test_schedule_skips_low_reputation(
+        self, scheduler: NeuronScheduler, db: Path
+    ) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
         nid = _insert_neuron(conn, "LowRep", status="experimental")
@@ -197,11 +226,15 @@ class TestScheduleWakeups:
         scheduler.schedule_wakeups(max_wakeups=1)
         conn2 = sqlite3.connect(db)
         conn2.row_factory = sqlite3.Row
-        logs = conn2.execute("SELECT COUNT(*) AS c FROM neuron_priority_log").fetchone()["c"]
+        logs = conn2.execute(
+            "SELECT COUNT(*) AS c FROM neuron_priority_log"
+        ).fetchone()["c"]
         conn2.close()
         assert logs >= 1
 
-    def test_schedule_refuses_self_referential_wakeup(self, scheduler: NeuronScheduler, db: Path) -> None:
+    def test_schedule_refuses_self_referential_wakeup(
+        self, scheduler: NeuronScheduler, db: Path
+    ) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
         nid = _insert_neuron(conn, "SelfOnly", status="experimental")
@@ -232,7 +265,9 @@ class TestRecordActivation:
         conn2.close()
         assert count == 1
 
-    def test_record_failed_activation(self, scheduler: NeuronScheduler, db: Path) -> None:
+    def test_record_failed_activation(
+        self, scheduler: NeuronScheduler, db: Path
+    ) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
         nid = _insert_neuron(conn, "FailNeuron", status="experimental")

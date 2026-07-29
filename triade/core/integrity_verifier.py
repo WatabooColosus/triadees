@@ -35,15 +35,25 @@ def _file_info(p: Path, zone: str) -> dict[str, Any]:
             "relative_path": str(p.relative_to(REPO_ROOT)),
             "sha256": _hash_path(p),
             "size": st.st_size,
-            "created_at": datetime.fromtimestamp(st.st_ctime, tz=timezone.utc).isoformat(),
-            "modified_at": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
+            "created_at": datetime.fromtimestamp(
+                st.st_ctime, tz=timezone.utc
+            ).isoformat(),
+            "modified_at": datetime.fromtimestamp(
+                st.st_mtime, tz=timezone.utc
+            ).isoformat(),
             "exists": True,
             "zone": zone,
         }
     except (OSError, PermissionError):
         return {
-            "path": str(p), "relative_path": "", "sha256": "",
-            "size": 0, "created_at": "", "modified_at": "", "exists": False, "zone": zone,
+            "path": str(p),
+            "relative_path": "",
+            "sha256": "",
+            "size": 0,
+            "created_at": "",
+            "modified_at": "",
+            "exists": False,
+            "zone": zone,
         }
 
 
@@ -63,7 +73,12 @@ def build_integrity_snapshot(paths: list[str] | None = None) -> dict[str, Any]:
         for root, dirs, fnames in os.walk(repo):
             rel = Path(root).relative_to(repo)
             parts = rel.parts
-            if ".git" in parts or "__pycache__" in parts or "node_modules" in parts or ".triade_trash" in parts:
+            if (
+                ".git" in parts
+                or "__pycache__" in parts
+                or "node_modules" in parts
+                or ".triade_trash" in parts
+            ):
                 dirs[:] = []
                 continue
             for fname in fnames:
@@ -146,7 +161,9 @@ def verify_integrity_change(
             if rel in planned_rel and planned_action in ("create", "move", "patch"):
                 created.append(rel)
             else:
-                hash_changed_unexpected.append({"rel": rel, "reason": "Archivo creado no planeado."})
+                hash_changed_unexpected.append(
+                    {"rel": rel, "reason": "Archivo creado no planeado."}
+                )
         elif b_exists and not a_exists:
             if rel in planned_rel and planned_action in ("delete_to_trash", "move"):
                 trashed.append(rel)
@@ -157,20 +174,32 @@ def verify_integrity_change(
                 if rel in planned_rel and planned_action in ("patch", "move", "create"):
                     modified.append(rel)
                 else:
-                    hash_changed_unexpected.append({"rel": rel, "reason": "Hash cambiado no planeado."})
+                    hash_changed_unexpected.append(
+                        {"rel": rel, "reason": "Hash cambiado no planeado."}
+                    )
 
     bytes_delta = after.get("total_bytes", 0) - before.get("total_bytes", 0)
     max_budget = plan.get("max_bytes_per_cycle", 0)
     risk_score = _calc_risk_score(
-        len(hash_changed_unexpected), len(missing_unexpected),
-        bytes_delta, max_budget, planned_rel, plan,
+        len(hash_changed_unexpected),
+        len(missing_unexpected),
+        bytes_delta,
+        max_budget,
+        planned_rel,
+        plan,
     )
 
     requires_rollback = risk_score > 0.6 or len(missing_unexpected) > 0
     requires_human_review = risk_score > 0.4 or len(hash_changed_unexpected) > 0
 
     return {
-        "status": "failed" if (requires_rollback or len(hash_changed_unexpected) > 0 or len(missing_unexpected) > 0) else "ok",
+        "status": "failed"
+        if (
+            requires_rollback
+            or len(hash_changed_unexpected) > 0
+            or len(missing_unexpected) > 0
+        )
+        else "ok",
         "created_files": created,
         "modified_files": modified,
         "moved_files": moved,
@@ -181,13 +210,19 @@ def verify_integrity_change(
         "risk_score": round(risk_score, 2),
         "requires_rollback": requires_rollback,
         "requires_human_review": requires_human_review,
-        "summary": _build_summary(created, modified, trashed, missing_unexpected, hash_changed_unexpected),
+        "summary": _build_summary(
+            created, modified, trashed, missing_unexpected, hash_changed_unexpected
+        ),
     }
 
 
 def _calc_risk_score(
-    unplanned_hashes: int, missing: int, delta: int, max_bytes: int,
-    planned: set, plan: dict,
+    unplanned_hashes: int,
+    missing: int,
+    delta: int,
+    max_bytes: int,
+    planned: set,
+    plan: dict,
 ) -> float:
     score = 0.0
     if unplanned_hashes > 0:

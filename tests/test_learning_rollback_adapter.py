@@ -35,12 +35,18 @@ def make_consolidated_learning(db_path: Path, label: str) -> tuple[str, str]:
         status="candidate",
     )
     governance = SemanticMemoryGovernance(db_path=db_path)
-    governance.transition_document(document.document_id, "experimental", reason="test", approved_by="test")
-    governance.transition_document(document.document_id, "stable", reason="test", approved_by="test")
+    governance.transition_document(
+        document.document_id, "experimental", reason="test", approved_by="test"
+    )
+    governance.transition_document(
+        document.document_id, "stable", reason="test", approved_by="test"
+    )
     return candidate_id, document.document_id
 
 
-def test_learning_rollback_retires_failed_candidate_and_preserves_stable_target(tmp_path: Path) -> None:
+def test_learning_rollback_retires_failed_candidate_and_preserves_stable_target(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     stable_id, stable_document_id = make_consolidated_learning(db_path, "stable")
     failed_id, failed_document_id = make_consolidated_learning(db_path, "failed")

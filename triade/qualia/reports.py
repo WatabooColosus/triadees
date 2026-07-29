@@ -7,7 +7,9 @@ from typing import Any
 from .store import QualiaStore
 
 
-def build_qualia_report(store: QualiaStore, run_id: str | None = None, limit: int = 20) -> dict[str, Any]:
+def build_qualia_report(
+    store: QualiaStore, run_id: str | None = None, limit: int = 20
+) -> dict[str, Any]:
     counts = store.counts(run_id=run_id)
     latest_state = store.latest_state(run_id=run_id)
     status = "empty" if not any(counts.values()) else "ok"

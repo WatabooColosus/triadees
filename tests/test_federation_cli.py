@@ -52,7 +52,15 @@ def test_federation_cli_lists_capable_nodes(tmp_path: Path) -> None:
     )
     assert registered["capability_status"] == "high"
 
-    capable = run_cli("federate", "--db", str(db_path), "capable", "--min-tier", "medium", "--require-gpu")
+    capable = run_cli(
+        "federate",
+        "--db",
+        str(db_path),
+        "capable",
+        "--min-tier",
+        "medium",
+        "--require-gpu",
+    )
     assert capable["nodes"][0]["node_id"] == "gpu-node"
 
     doctor = run_cli("federate", "--db", str(db_path), "doctor")

@@ -32,19 +32,34 @@ from triade.models.hardware_profile import HardwareProfiler
 
 TRUST_LEVELS = {"low", "medium", "high"}
 NODE_STATUSES = {"active", "paused", "revoked", "archived", "stale"}
-EXCHANGE_TYPES = {"knowledge", "pattern", "neuron_spec", "verification", "learning_candidate"}
+EXCHANGE_TYPES = {
+    "knowledge",
+    "pattern",
+    "neuron_spec",
+    "verification",
+    "learning_candidate",
+}
 RISK_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 ALLOWED_PERMISSIONS = {
-    "send_knowledge", "receive_knowledge",
-    "send_patterns", "receive_patterns",
-    "send_neuron_specs", "receive_neuron_specs",
-    "request_verification", "request_sandbox_test",
-    "publish_capabilities", "request_compute",
+    "send_knowledge",
+    "receive_knowledge",
+    "send_patterns",
+    "receive_patterns",
+    "send_neuron_specs",
+    "receive_neuron_specs",
+    "request_verification",
+    "request_sandbox_test",
+    "publish_capabilities",
+    "request_compute",
 }
 FORBIDDEN_PERMISSIONS = {
-    "read_full_memory", "write_stable_memory", "modify_identity_core",
-    "execute_system_commands", "access_private_files", "access_credentials",
+    "read_full_memory",
+    "write_stable_memory",
+    "modify_identity_core",
+    "execute_system_commands",
+    "access_private_files",
+    "access_credentials",
 }
 
 RECEIVE_PERMISSION = {
@@ -62,15 +77,30 @@ SEND_PERMISSION = {
     "verification": "request_verification",
 }
 # Marcadores que delatan contenido sensible que no debe salir del nodo local.
-PRIVATE_LEAK_FLAGS = ("password", "contraseña", "api_key", "api key", "token", "secreto", "credencial", "private key")
+PRIVATE_LEAK_FLAGS = (
+    "password",
+    "contraseña",
+    "api_key",
+    "api key",
+    "token",
+    "secreto",
+    "credencial",
+    "private key",
+)
 
 
 class Federation:
     """Registro de nodos y compuerta de intercambio federado."""
 
-    def __init__(self, db_path: str | Path = "triade/memory/triade.db", local_node_id: str = "local") -> None:
+    def __init__(
+        self,
+        db_path: str | Path = "triade/memory/triade.db",
+        local_node_id: str = "local",
+    ) -> None:
         self.db_path = Path(db_path)
-        self.schema_path = Path(__file__).resolve().parents[1] / "memory" / "schemas.sql"
+        self.schema_path = (
+            Path(__file__).resolve().parents[1] / "memory" / "schemas.sql"
+        )
         self.local_node_id = local_node_id
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
@@ -84,7 +114,9 @@ class Federation:
 
     def _init_db(self) -> None:
         if not self.schema_path.exists():
-            raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
+            raise FileNotFoundError(
+                f"No existe el esquema de memoria: {self.schema_path}"
+            )
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
             self._ensure_capability_columns(conn)
@@ -93,7 +125,10 @@ class Federation:
 
     @staticmethod
     def _ensure_capability_columns(conn: sqlite3.Connection) -> None:
-        columns = {row["name"] for row in conn.execute("PRAGMA table_info(federated_nodes)").fetchall()}
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(federated_nodes)").fetchall()
+        }
         additions = {
             "capabilities": "TEXT",
             "capability_status": "TEXT DEFAULT 'unknown'",
@@ -105,13 +140,23 @@ class Federation:
 
     @staticmethod
     def _ensure_exchange_log_columns(conn: sqlite3.Connection) -> None:
-        columns = {row["name"] for row in conn.execute("PRAGMA table_info(federated_exchange_log)").fetchall()}
+        columns = {
+            row["name"]
+            for row in conn.execute(
+                "PRAGMA table_info(federated_exchange_log)"
+            ).fetchall()
+        }
         if "reason" not in columns:
             conn.execute("ALTER TABLE federated_exchange_log ADD COLUMN reason TEXT")
 
     @staticmethod
     def _ensure_verification_report_columns(conn: sqlite3.Connection) -> None:
-        columns = {row["name"] for row in conn.execute("PRAGMA table_info(verification_reports)").fetchall()}
+        columns = {
+            row["name"]
+            for row in conn.execute(
+                "PRAGMA table_info(verification_reports)"
+            ).fetchall()
+        }
         if "scope" not in columns:
             conn.execute("ALTER TABLE verification_reports ADD COLUMN scope TEXT")
         if "score" not in columns:
@@ -144,7 +189,9 @@ class Federation:
         requested = [str(p).strip() for p in (permissions or []) if str(p).strip()]
         forbidden = sorted(set(requested) & FORBIDDEN_PERMISSIONS)
         if forbidden:
-            raise ValueError(f"Permisos prohibidos por defecto, no se pueden otorgar: {forbidden}")
+            raise ValueError(
+                f"Permisos prohibidos por defecto, no se pueden otorgar: {forbidden}"
+            )
         unknown = sorted(set(requested) - ALLOWED_PERMISSIONS)
         if unknown:
             raise ValueError(f"Permisos no reconocidos: {unknown}")
@@ -162,15 +209,26 @@ class Federation:
                     last_seen_at = COALESCE(excluded.last_seen_at, federated_nodes.last_seen_at),
                     status = 'active',
                     updated_at = CURRENT_TIMESTAMP""",
-                (clean_id, name.strip() or clean_id, owner, endpoint, public_key, trust,
-                 json.dumps(sorted(set(requested)), ensure_ascii=False),
-                 json.dumps(capabilities, ensure_ascii=False) if capabilities else None,
-                 self._capability_status(capabilities),
-                 utc_now() if capabilities else None),
+                (
+                    clean_id,
+                    name.strip() or clean_id,
+                    owner,
+                    endpoint,
+                    public_key,
+                    trust,
+                    json.dumps(sorted(set(requested)), ensure_ascii=False),
+                    json.dumps(capabilities, ensure_ascii=False)
+                    if capabilities
+                    else None,
+                    self._capability_status(capabilities),
+                    utc_now() if capabilities else None,
+                ),
             )
         return self.get_node(clean_id) or {}
 
-    def update_capabilities(self, node_id: str, capabilities: dict[str, Any]) -> dict[str, Any]:
+    def update_capabilities(
+        self, node_id: str, capabilities: dict[str, Any]
+    ) -> dict[str, Any]:
         self._require_node(node_id)
         if not isinstance(capabilities, dict) or not capabilities:
             raise ValueError("capabilities debe ser un objeto no vacío.")
@@ -180,7 +238,12 @@ class Federation:
                 """UPDATE federated_nodes
                 SET capabilities = ?, capability_status = ?, last_seen_at = ?, status = 'active', updated_at = CURRENT_TIMESTAMP
                 WHERE node_id = ?""",
-                (json.dumps(capabilities, ensure_ascii=False), status, utc_now(), node_id),
+                (
+                    json.dumps(capabilities, ensure_ascii=False),
+                    status,
+                    utc_now(),
+                    node_id,
+                ),
             )
         return self.get_node(node_id) or {}
 
@@ -194,8 +257,10 @@ class Federation:
             raise ValueError(f"trust_level inválido: {trust}")
         self._require_node(node_id)
         with self._connect() as conn:
-            conn.execute("UPDATE federated_nodes SET trust_level = ?, updated_at = CURRENT_TIMESTAMP WHERE node_id = ?",
-                         (trust, node_id))
+            conn.execute(
+                "UPDATE federated_nodes SET trust_level = ?, updated_at = CURRENT_TIMESTAMP WHERE node_id = ?",
+                (trust, node_id),
+            )
         return self.get_node(node_id) or {}
 
     def revoke_node(self, node_id: str, reason: str = "") -> dict[str, Any]:
@@ -207,7 +272,9 @@ class Federation:
     def reactivate_node(self, node_id: str) -> dict[str, Any]:
         return self._set_status(node_id, "active", "reactivado")
 
-    def stale_node(self, node_id: str, reason: str = "sin heartbeat reciente") -> dict[str, Any]:
+    def stale_node(
+        self, node_id: str, reason: str = "sin heartbeat reciente"
+    ) -> dict[str, Any]:
         self._require_node(node_id)
         with self._connect() as conn:
             conn.execute(
@@ -216,7 +283,9 @@ class Federation:
             )
         return self.get_node(node_id) or {}
 
-    def mark_stale_nodes(self, ttl_seconds: int = 45, keep_node_ids: set[str] | None = None) -> dict[str, Any]:
+    def mark_stale_nodes(
+        self, ttl_seconds: int = 45, keep_node_ids: set[str] | None = None
+    ) -> dict[str, Any]:
         keep = keep_node_ids or {"local-pc"}
         now = time.time()
         stale: list[str] = []
@@ -229,30 +298,54 @@ class Federation:
                 stale.append(node_id)
         for node_id in stale:
             self.stale_node(node_id, f"sin heartbeat en {ttl_seconds}s")
-        return {"ttl_seconds": ttl_seconds, "stale_count": len(stale), "stale_nodes": stale}
+        return {
+            "ttl_seconds": ttl_seconds,
+            "stale_count": len(stale),
+            "stale_nodes": stale,
+        }
 
     def get_node(self, node_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM federated_nodes WHERE node_id = ?", (node_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM federated_nodes WHERE node_id = ?", (node_id,)
+            ).fetchone()
         return self._decode_node(dict(row)) if row else None
 
     def list_nodes(self, status: str | None = None) -> list[dict[str, Any]]:
         with self._connect() as conn:
             if status:
-                rows = conn.execute("SELECT * FROM federated_nodes WHERE status = ? ORDER BY id DESC", (status,)).fetchall()
+                rows = conn.execute(
+                    "SELECT * FROM federated_nodes WHERE status = ? ORDER BY id DESC",
+                    (status,),
+                ).fetchall()
             else:
-                rows = conn.execute("SELECT * FROM federated_nodes ORDER BY id DESC").fetchall()
+                rows = conn.execute(
+                    "SELECT * FROM federated_nodes ORDER BY id DESC"
+                ).fetchall()
         return [self._decode_node(dict(row)) for row in rows]
 
-    def list_capable_nodes(self, min_tier: str | None = None, require_gpu: bool = False) -> list[dict[str, Any]]:
+    def list_capable_nodes(
+        self, min_tier: str | None = None, require_gpu: bool = False
+    ) -> list[dict[str, Any]]:
         tier_rank = {"unknown": 0, "low": 1, "medium": 2, "high": 3}
         min_rank = tier_rank.get((min_tier or "low").strip().lower(), 1)
         nodes = []
         for node in self.list_nodes(status="active"):
             capabilities = node.get("capabilities") or {}
-            tier = str(capabilities.get("tier") or node.get("capability_status") or "unknown").lower()
-            gpus = capabilities.get("gpus") if isinstance(capabilities.get("gpus"), list) else []
-            has_gpu = any(float(gpu.get("vram_total_gb") or 0.0) > 0 or bool(gpu.get("cuda_available")) for gpu in gpus if isinstance(gpu, dict))
+            tier = str(
+                capabilities.get("tier") or node.get("capability_status") or "unknown"
+            ).lower()
+            gpus = (
+                capabilities.get("gpus")
+                if isinstance(capabilities.get("gpus"), list)
+                else []
+            )
+            has_gpu = any(
+                float(gpu.get("vram_total_gb") or 0.0) > 0
+                or bool(gpu.get("cuda_available"))
+                for gpu in gpus
+                if isinstance(gpu, dict)
+            )
             if tier_rank.get(tier, 0) < min_rank:
                 continue
             if require_gpu and not has_gpu:
@@ -261,7 +354,14 @@ class Federation:
         return sorted(
             nodes,
             key=lambda node: (
-                tier_rank.get(str((node.get("capabilities") or {}).get("tier") or node.get("capability_status") or "unknown").lower(), 0),
+                tier_rank.get(
+                    str(
+                        (node.get("capabilities") or {}).get("tier")
+                        or node.get("capability_status")
+                        or "unknown"
+                    ).lower(),
+                    0,
+                ),
                 float((node.get("capabilities") or {}).get("ram_available_gb") or 0.0),
                 self._max_vram(node.get("capabilities") or {}),
             ),
@@ -284,7 +384,11 @@ class Federation:
         exchange_id = f"fed-{uuid4().hex[:16]}"
         clean_type = (exchange_type or "").strip().lower()
         clean_risk = (risk_level or "low").strip().lower()
-        content = payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)
+        content = (
+            payload
+            if isinstance(payload, str)
+            else json.dumps(payload, ensure_ascii=False)
+        )
         payload_ref = hashlib.sha256(content.encode("utf-8")).hexdigest()[:32]
 
         node = self.get_node(source_node_id)
@@ -294,32 +398,78 @@ class Federation:
         if node is None:
             decision, safety_status, reason = "blocked", "blocked", "Nodo desconocido."
         elif node["status"] != "active":
-            decision, safety_status, reason = "blocked", "blocked", f"Nodo en estado {node['status']}."
+            decision, safety_status, reason = (
+                "blocked",
+                "blocked",
+                f"Nodo en estado {node['status']}.",
+            )
         elif clean_type not in EXCHANGE_TYPES:
-            decision, safety_status, reason = "blocked", "blocked", f"Tipo de intercambio inválido: {clean_type}."
+            decision, safety_status, reason = (
+                "blocked",
+                "blocked",
+                f"Tipo de intercambio inválido: {clean_type}.",
+            )
         elif required_permission not in node["permissions"]:
-            decision, safety_status, reason = "blocked", "blocked", f"Permiso requerido ausente: {required_permission}."
+            decision, safety_status, reason = (
+                "blocked",
+                "blocked",
+                f"Permiso requerido ausente: {required_permission}.",
+            )
         elif clean_risk not in RISK_RANK:
-            decision, safety_status, reason = "blocked", "blocked", f"risk_level inválido: {clean_risk}."
+            decision, safety_status, reason = (
+                "blocked",
+                "blocked",
+                f"risk_level inválido: {clean_risk}.",
+            )
         elif clean_risk == "critical":
-            decision, safety_status, reason = "blocked", "blocked", "Riesgo crítico: intercambio bloqueado por Safety."
+            decision, safety_status, reason = (
+                "blocked",
+                "blocked",
+                "Riesgo crítico: intercambio bloqueado por Safety.",
+            )
         elif any(flag in content.lower() for flag in PRIVATE_LEAK_FLAGS):
-            decision, safety_status, reason = "blocked", "blocked", "Posible fuga de credenciales o memoria privada."
+            decision, safety_status, reason = (
+                "blocked",
+                "blocked",
+                "Posible fuga de credenciales o memoria privada.",
+            )
         elif required_permission is None:
-            decision, safety_status, reason = "blocked", "blocked", f"Tipo sin permiso configurado: {clean_type}."
+            decision, safety_status, reason = (
+                "blocked",
+                "blocked",
+                f"Tipo sin permiso configurado: {clean_type}.",
+            )
         else:
-            decision, safety_status, reason = "accepted_as_learning_candidate", "passed", "Intercambio aceptado como candidato."
+            decision, safety_status, reason = (
+                "accepted_as_learning_candidate",
+                "passed",
+                "Intercambio aceptado como candidato.",
+            )
 
         with self._connect() as conn:
             conn.execute(
                 """INSERT INTO federated_exchange_log
                 (exchange_id, source_node_id, exchange_type, payload_ref, risk_level, safety_status, decision, reason)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (exchange_id, source_node_id, clean_type, payload_ref, clean_risk, safety_status, decision, reason),
+                (
+                    exchange_id,
+                    source_node_id,
+                    clean_type,
+                    payload_ref,
+                    clean_risk,
+                    safety_status,
+                    decision,
+                    reason,
+                ),
             )
 
         learning_candidate = None
-        if decision == "accepted_as_learning_candidate" and clean_type in {"knowledge", "learning_candidate", "pattern", "neuron_spec"}:
+        if decision == "accepted_as_learning_candidate" and clean_type in {
+            "knowledge",
+            "learning_candidate",
+            "pattern",
+            "neuron_spec",
+        }:
             learning_candidate = self.learning.ingest(
                 title=title or f"Intercambio federado {exchange_id}",
                 content=content,
@@ -328,7 +478,11 @@ class Federation:
                 domain=domain,
                 risk_level=clean_risk,
             )
-        learning_candidate_id = (learning_candidate or {}).get("candidate_id") if decision == "accepted_as_learning_candidate" else None
+        learning_candidate_id = (
+            (learning_candidate or {}).get("candidate_id")
+            if decision == "accepted_as_learning_candidate"
+            else None
+        )
 
         return {
             "exchange_id": exchange_id,
@@ -354,7 +508,11 @@ class Federation:
         exchange_id = f"fed-{uuid4().hex[:16]}"
         clean_type = (exchange_type or "").strip().lower()
         clean_risk = (risk_level or "low").strip().lower()
-        content = payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)
+        content = (
+            payload
+            if isinstance(payload, str)
+            else json.dumps(payload, ensure_ascii=False)
+        )
         payload_ref = hashlib.sha256(content.encode("utf-8")).hexdigest()[:32]
 
         node = self.get_node(source_node_id)
@@ -363,15 +521,35 @@ class Federation:
         if node is None:
             decision, safety_status, reason = "blocked", "blocked", "Nodo desconocido."
         elif node["status"] != "active":
-            decision, safety_status, reason = "blocked", "blocked", f"Nodo en estado {node['status']}."
+            decision, safety_status, reason = (
+                "blocked",
+                "blocked",
+                f"Nodo en estado {node['status']}.",
+            )
         elif clean_type not in EXCHANGE_TYPES:
-            decision, safety_status, reason = "blocked", "blocked", f"Tipo de intercambio inválido: {clean_type}."
+            decision, safety_status, reason = (
+                "blocked",
+                "blocked",
+                f"Tipo de intercambio inválido: {clean_type}.",
+            )
         elif required_permission not in node["permissions"]:
-            decision, safety_status, reason = "blocked", "blocked", f"Permiso requerido ausente: {required_permission}."
+            decision, safety_status, reason = (
+                "blocked",
+                "blocked",
+                f"Permiso requerido ausente: {required_permission}.",
+            )
         elif any(flag in content.lower() for flag in PRIVATE_LEAK_FLAGS):
-            decision, safety_status, reason = "blocked", "blocked", "Posible fuga de credenciales o memoria privada."
+            decision, safety_status, reason = (
+                "blocked",
+                "blocked",
+                "Posible fuga de credenciales o memoria privada.",
+            )
         elif required_permission is None:
-            decision, safety_status, reason = "blocked", "blocked", f"Tipo sin permiso configurado: {clean_type}."
+            decision, safety_status, reason = (
+                "blocked",
+                "blocked",
+                f"Tipo sin permiso configurado: {clean_type}.",
+            )
         else:
             decision, safety_status, reason = "sent", "passed", "Intercambio enviado."
 
@@ -380,7 +558,16 @@ class Federation:
                 """INSERT INTO federated_exchange_log
                 (exchange_id, source_node_id, exchange_type, payload_ref, risk_level, safety_status, decision, reason)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (exchange_id, source_node_id, clean_type, payload_ref, clean_risk, safety_status, decision, reason),
+                (
+                    exchange_id,
+                    source_node_id,
+                    clean_type,
+                    payload_ref,
+                    clean_risk,
+                    safety_status,
+                    decision,
+                    reason,
+                ),
             )
 
         return {
@@ -397,11 +584,15 @@ class Federation:
     def doctor(self) -> dict[str, Any]:
         with self._connect() as conn:
             status_counts: dict[str, int] = {}
-            for row in conn.execute("SELECT status, COUNT(*) AS c FROM federated_nodes GROUP BY status").fetchall():
+            for row in conn.execute(
+                "SELECT status, COUNT(*) AS c FROM federated_nodes GROUP BY status"
+            ).fetchall():
                 status_counts[str(row["status"])] = int(row["c"])
 
             cap_counts: dict[str, int] = {}
-            for row in conn.execute("SELECT capability_status, COUNT(*) AS c FROM federated_nodes GROUP BY capability_status").fetchall():
+            for row in conn.execute(
+                "SELECT capability_status, COUNT(*) AS c FROM federated_nodes GROUP BY capability_status"
+            ).fetchall():
                 cap_counts[str(row["capability_status"])] = int(row["c"])
 
             compute_ready = conn.execute(
@@ -427,7 +618,9 @@ class Federation:
         if self.get_node(node_id) is None:
             raise ValueError(f"Nodo no registrado: {node_id}")
 
-    def _set_status(self, node_id: str, status: str, reason: str = "") -> dict[str, Any]:
+    def _set_status(
+        self, node_id: str, status: str, reason: str = ""
+    ) -> dict[str, Any]:
         if status not in NODE_STATUSES:
             raise ValueError(f"status inválido: {status}")
         self._require_node(node_id)
@@ -440,7 +633,13 @@ class Federation:
                 conn.execute(
                     """INSERT INTO verification_reports (run_id, scope, status, score, findings, recommendations)
                     VALUES (?, 'federation.node_status', ?, ?, ?, ?)""",
-                    (f"node-{node_id}", status, 1.0, f"status={status}; reason={reason}", ""),
+                    (
+                        f"node-{node_id}",
+                        status,
+                        1.0,
+                        f"status={status}; reason={reason}",
+                        "",
+                    ),
                 )
         return self.get_node(node_id) or {}
 
@@ -454,7 +653,11 @@ class Federation:
     def _capability_status(capabilities: dict[str, Any] | None) -> str:
         if not capabilities:
             return "unknown"
-        ram = float(capabilities.get("ram_available_gb") or capabilities.get("ram_total_gb") or 0)
+        ram = float(
+            capabilities.get("ram_available_gb")
+            or capabilities.get("ram_total_gb")
+            or 0
+        )
         cpu = int(capabilities.get("cpu_count") or 0)
         if ram >= 16 and cpu >= 8:
             return "high"
@@ -473,13 +676,19 @@ class Federation:
             return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
         except ValueError:
             try:
-                return datetime.fromisoformat(text.replace(" ", "T") + "+00:00").timestamp()
+                return datetime.fromisoformat(
+                    text.replace(" ", "T") + "+00:00"
+                ).timestamp()
             except ValueError:
                 return None
 
     @staticmethod
     def _max_vram(capabilities: dict[str, Any]) -> float:
-        gpus = capabilities.get("gpus") if isinstance(capabilities.get("gpus"), list) else []
+        gpus = (
+            capabilities.get("gpus")
+            if isinstance(capabilities.get("gpus"), list)
+            else []
+        )
         values = []
         for gpu in gpus:
             if isinstance(gpu, dict):

@@ -80,12 +80,16 @@ def run_in_sandbox(
         workdir.mkdir(parents=True, exist_ok=True)
 
         input_path = workdir / "input.json"
-        input_path.write_text(json.dumps(payload, ensure_ascii=False, default=str), encoding="utf-8")
+        input_path.write_text(
+            json.dumps(payload, ensure_ascii=False, default=str), encoding="utf-8"
+        )
 
         result = _execute_task(task, payload)
 
         result_path = workdir / "result.json"
-        result_path.write_text(json.dumps(result, ensure_ascii=False, default=str), encoding="utf-8")
+        result_path.write_text(
+            json.dumps(result, ensure_ascii=False, default=str), encoding="utf-8"
+        )
 
         result["sandbox"] = sandbox_id
         result["artifacts"] = {
@@ -211,6 +215,7 @@ def _task_dry_run_file_patch(payload: dict[str, Any]) -> dict[str, Any]:
 def _task_sha256(payload: dict[str, Any]) -> dict[str, Any]:
     """Calcula SHA-256 de un texto."""
     import hashlib
+
     text = str(payload.get("text", "triade"))
     sha = hashlib.sha256(text.encode()).hexdigest()
     return {
@@ -250,6 +255,7 @@ def _task_preprocess_text(payload: dict[str, Any]) -> dict[str, Any]:
 def _task_federated_inference_probe(payload: dict[str, Any]) -> dict[str, Any]:
     """Simula una sonda de inferencia federada."""
     import random
+
     iterations = int(payload.get("iterations", 5000))
     ops = iterations // 1000 + random.randint(0, 10)
     return {
@@ -263,6 +269,7 @@ def _task_federated_inference_probe(payload: dict[str, Any]) -> dict[str, Any]:
 def _task_browser_benchmark(payload: dict[str, Any]) -> dict[str, Any]:
     """Simula un benchmark de navegador."""
     import random
+
     score = random.randint(5000, 15000)
     return {
         "status": "completed",

@@ -50,12 +50,14 @@ class PlanRollback:
         description: str = "",
         reversible: bool = False,
     ) -> None:
-        self.rollback_stack.append(RollbackAction(
-            step_id=step_id,
-            action_type=action_type,
-            description=description,
-            reversible=reversible,
-        ))
+        self.rollback_stack.append(
+            RollbackAction(
+                step_id=step_id,
+                action_type=action_type,
+                description=description,
+                reversible=reversible,
+            )
+        )
 
     def can_rollback(self) -> bool:
         return any(a.reversible and not a.applied for a in self.rollback_stack)
@@ -99,12 +101,14 @@ class PlanRollback:
         pending = list(reversed(self.pending_reversals()))[:max_steps]
         for action in pending:
             success = self._apply_rollback(action)
-            results.append({
-                "step_id": action.step_id,
-                "action_type": action.action_type,
-                "applied": success,
-                "description": action.description,
-            })
+            results.append(
+                {
+                    "step_id": action.step_id,
+                    "action_type": action.action_type,
+                    "applied": success,
+                    "description": action.description,
+                }
+            )
             if success:
                 action.applied = True
         return results

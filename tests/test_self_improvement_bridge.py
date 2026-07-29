@@ -2,8 +2,15 @@ from pathlib import Path
 
 import pytest
 
-from triade.neuron_factory import NeuronSpecification, NeuronSpecificationStore, ResourceBudget
-from triade.self_improvement.bridge import ImprovementBudget, ImprovementNeuronFactoryBridge
+from triade.neuron_factory import (
+    NeuronSpecification,
+    NeuronSpecificationStore,
+    ResourceBudget,
+)
+from triade.self_improvement.bridge import (
+    ImprovementBudget,
+    ImprovementNeuronFactoryBridge,
+)
 from triade.self_improvement.contracts import ImprovementProposal, ImprovementSignal
 from triade.self_improvement.store import ImprovementStore
 
@@ -52,7 +59,9 @@ def prepare(
         resource_budget=resource_budget or ResourceBudget(512, 120, 32),
     )
     specifications.register(specification)
-    specifications.transition(specification.neuron_id, specification.version, "specified")
+    specifications.transition(
+        specification.neuron_id, specification.version, "specified"
+    )
     bridge = ImprovementNeuronFactoryBridge(db_path)
     return bridge, specification.neuron_id
 
@@ -62,7 +71,9 @@ def test_proposal_requires_explicit_approval(tmp_path: Path) -> None:
     bridge, neuron_id = prepare(db_path)
 
     with pytest.raises(ValueError, match="aprobada"):
-        bridge.create_candidate("proposal-quality", neuron_id=neuron_id, version="1.0.0")
+        bridge.create_candidate(
+            "proposal-quality", neuron_id=neuron_id, version="1.0.0"
+        )
 
     approved = bridge.approve("proposal-quality", approved_by="human-operator")
     assert approved["status"] == "approved"
@@ -110,10 +121,14 @@ def test_requested_capability_must_match_specification(tmp_path: Path) -> None:
     bridge.approve("proposal-quality", approved_by="human-operator")
 
     with pytest.raises(ValueError, match="no aporta"):
-        bridge.create_candidate("proposal-quality", neuron_id=other.neuron_id, version="1.0.0")
+        bridge.create_candidate(
+            "proposal-quality", neuron_id=other.neuron_id, version="1.0.0"
+        )
 
 
-def test_global_budget_blocks_candidate_before_factory_execution(tmp_path: Path) -> None:
+def test_global_budget_blocks_candidate_before_factory_execution(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     _, neuron_id = prepare(db_path, resource_budget=ResourceBudget(1024, 120, 32))
     bridge = ImprovementNeuronFactoryBridge(
@@ -128,9 +143,14 @@ def test_global_budget_blocks_candidate_before_factory_execution(tmp_path: Path)
     bridge.approve("proposal-quality", approved_by="human-operator")
 
     with pytest.raises(ValueError, match="memory_mb"):
-        bridge.create_candidate("proposal-quality", neuron_id=neuron_id, version="1.0.0")
+        bridge.create_candidate(
+            "proposal-quality", neuron_id=neuron_id, version="1.0.0"
+        )
 
-    assert NeuronSpecificationStore(db_path).get(neuron_id, "1.0.0")["state"] == "specified"
+    assert (
+        NeuronSpecificationStore(db_path).get(neuron_id, "1.0.0")["state"]
+        == "specified"
+    )
 
 
 def test_release_frees_global_resources(tmp_path: Path) -> None:
@@ -141,7 +161,9 @@ def test_release_frees_global_resources(tmp_path: Path) -> None:
         "proposal-quality", neuron_id=neuron_id, version="1.0.0"
     )
 
-    released = bridge.release_candidate(created["candidate"]["candidate_id"], outcome="completed")
+    released = bridge.release_candidate(
+        created["candidate"]["candidate_id"], outcome="completed"
+    )
 
     assert released["proposal_status"] == "completed"
     assert bridge.resource_usage() == {

@@ -27,7 +27,9 @@ def good_candidate(pipe: LearningPipeline) -> str:
     )["candidate_id"]
 
 
-def attach_improved_evidence(pipe: LearningPipeline, cid: str, capability: str = "controlled_learning") -> None:
+def attach_improved_evidence(
+    pipe: LearningPipeline, cid: str, capability: str = "controlled_learning"
+) -> None:
     subject = f"candidate:{cid}"
     pipe.evidence_bridge.declare_hypothesis(
         cid,
@@ -117,7 +119,10 @@ def test_verify_rejects_candidate_without_source_ref(tmp_path: Path) -> None:
     verified = pipe.verify(cid)
 
     assert verified["status"] == "rejected"
-    assert "has_source_ref" in verified["verification_notes"]["internally_checked"]["failed_gates"]
+    assert (
+        "has_source_ref"
+        in verified["verification_notes"]["internally_checked"]["failed_gates"]
+    )
 
 
 def test_identity_attack_is_rejected_at_evaluation(tmp_path: Path) -> None:
@@ -135,7 +140,9 @@ def test_identity_attack_is_rejected_at_evaluation(tmp_path: Path) -> None:
     assert evaluated["verification_notes"]["evaluated"]["identity_violation"] is True
 
 
-def test_critical_risk_does_not_auto_advance_and_cannot_consolidate(tmp_path: Path) -> None:
+def test_critical_risk_does_not_auto_advance_and_cannot_consolidate(
+    tmp_path: Path,
+) -> None:
     pipe = pipeline(tmp_path)
     cid = pipe.ingest(
         content="Acción operativa de alto impacto sobre infraestructura.",
@@ -147,7 +154,9 @@ def test_critical_risk_does_not_auto_advance_and_cannot_consolidate(tmp_path: Pa
     evaluated = pipe.evaluate(cid)
 
     assert evaluated["status"] == "evaluated"
-    assert evaluated["verification_notes"]["evaluated"]["requires_human_approval"] is False
+    assert (
+        evaluated["verification_notes"]["evaluated"]["requires_human_approval"] is False
+    )
     verified = pipe.verify(cid)
     assert verified["status"] == "rejected"
 
@@ -156,7 +165,9 @@ def test_pipeline_never_touches_identity_core(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     Bodega(db_path=db_path)
     with sqlite3.connect(db_path) as conn:
-        before = conn.execute("SELECT key, value FROM identity_core ORDER BY key").fetchall()
+        before = conn.execute(
+            "SELECT key, value FROM identity_core ORDER BY key"
+        ).fetchall()
 
     pipe = LearningPipeline(db_path=db_path)
     cid = good_candidate(pipe)
@@ -168,7 +179,9 @@ def test_pipeline_never_touches_identity_core(tmp_path: Path) -> None:
     pipe.consolidate(cid, approved_by="santiago")
 
     with sqlite3.connect(db_path) as conn:
-        after = conn.execute("SELECT key, value FROM identity_core ORDER BY key").fetchall()
+        after = conn.execute(
+            "SELECT key, value FROM identity_core ORDER BY key"
+        ).fetchall()
     assert before == after
 
 
@@ -181,7 +194,12 @@ def test_doctor_reports_counts_by_status(tmp_path: Path) -> None:
     for i in range(3):
         pipe.mark_used_in_run(c1, f"run-doc-{i}", outcome_score=0.80)
     pipe.consolidate(c1, approved_by="santiago")
-    pipe.reject(pipe.ingest(content="Ruido sin valor", source_type="web", source_ref=None)["candidate_id"], "bajo valor")
+    pipe.reject(
+        pipe.ingest(content="Ruido sin valor", source_type="web", source_ref=None)[
+            "candidate_id"
+        ],
+        "bajo valor",
+    )
 
     doctor = pipe.doctor()
     assert doctor["candidates_by_status"]["consolidated"] == 1

@@ -46,7 +46,9 @@ class NeuronMissionExecutor:
         started = time.monotonic()
         task_dir.mkdir(parents=True, exist_ok=True)
         explicit_blood = isinstance(task_payload.get("ollama_blood"), dict)
-        blood = task_payload.get("ollama_blood") if explicit_blood else _degraded_blood()
+        blood = (
+            task_payload.get("ollama_blood") if explicit_blood else _degraded_blood()
+        )
         blood_policy = ollama_blood_policy("neuron_nutrition", blood)
         blood_result = {
             "ollama_blood_status": blood.get("status"),
@@ -86,7 +88,15 @@ class NeuronMissionExecutor:
         recent_cycles = self.store.list_cycles(mission.id or mission_id, limit=5)
         recent_evidence = self.store.list_evidence(mission.id or mission_id, limit=5)
         latest_score = self.store.latest_score(mission.id or mission_id)
-        context = self._build_context(mission, run_ref, task_payload, recent_cycles, recent_evidence, latest_score, config)
+        context = self._build_context(
+            mission,
+            run_ref,
+            task_payload,
+            recent_cycles,
+            recent_evidence,
+            latest_score,
+            config,
+        )
 
         work = self._run_local_cycle(context)
         elapsed_ms = int((time.monotonic() - started) * 1000)
@@ -158,7 +168,11 @@ class NeuronMissionExecutor:
             "diagnosis": work["diagnosis"],
             "observation": work["observation"],
             "proposed_learning": work["proposed_learning"],
-            "evidence_refs": [*work["evidence_refs"], evidence_ref, f"mission:{mission.id or mission_id}:cycle:{cycle_id}"],
+            "evidence_refs": [
+                *work["evidence_refs"],
+                evidence_ref,
+                f"mission:{mission.id or mission_id}:cycle:{cycle_id}",
+            ],
             "score_components": work["score_components"],
             "composite_score": work["composite_score"],
             "learning_candidate": learning_candidate,
@@ -167,8 +181,12 @@ class NeuronMissionExecutor:
             "policy": work["policy"],
             **blood_result,
         }
-        (task_dir / "neuron_mission_context.json").write_text(json.dumps(context, ensure_ascii=False, indent=2), encoding="utf-8")
-        (task_dir / "neuron_mission_result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        (task_dir / "neuron_mission_context.json").write_text(
+            json.dumps(context, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        (task_dir / "neuron_mission_result.json").write_text(
+            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         return result
 
     def _build_context(

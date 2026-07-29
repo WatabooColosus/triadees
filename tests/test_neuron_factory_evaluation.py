@@ -37,7 +37,9 @@ def prepare_executed_candidate(db_path: Path) -> dict:
     store.transition(specification.neuron_id, specification.version, "specified")
     factory = NeuronCandidateFactory(db_path)
     candidate = factory.create(specification.neuron_id, specification.version)
-    SandboxExecutionEngine(db_path).execute_configuration(candidate["candidate_id"], {"mode": "safe"})
+    SandboxExecutionEngine(db_path).execute_configuration(
+        candidate["candidate_id"], {"mode": "safe"}
+    )
     persisted = factory.get(candidate["candidate_id"])
     assert persisted is not None
     return persisted
@@ -62,7 +64,9 @@ def evaluation(evaluation_id: str, subject_id: str, score: float) -> EvaluationR
     )
 
 
-def comparison(baseline: EvaluationRun, candidate: EvaluationRun, decision: str) -> EvaluationComparison:
+def comparison(
+    baseline: EvaluationRun, candidate: EvaluationRun, decision: str
+) -> EvaluationComparison:
     delta = candidate.aggregate_score - baseline.aggregate_score
     return EvaluationComparison(
         baseline_evaluation_id=baseline.evaluation_id,
@@ -78,7 +82,9 @@ def comparison(baseline: EvaluationRun, candidate: EvaluationRun, decision: str)
     )
 
 
-def test_improved_candidate_with_passing_regression_can_be_promoted(tmp_path: Path) -> None:
+def test_improved_candidate_with_passing_regression_can_be_promoted(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     manifest = prepare_executed_candidate(db_path)
     baseline = evaluation("baseline-eval", manifest["candidate_id"], 0.70)
@@ -99,8 +105,14 @@ def test_improved_candidate_with_passing_regression_can_be_promoted(tmp_path: Pa
 
     assert result["promotable"] is True
     assert promoted["status"] == "promoted"
-    assert NeuronSpecificationStore(db_path).get("neuron.research", "1.0.0")["state"] == "promoted"
-    assert NeuronCandidateFactory(db_path).get(manifest["candidate_id"])["status"] == "promoted"
+    assert (
+        NeuronSpecificationStore(db_path).get("neuron.research", "1.0.0")["state"]
+        == "promoted"
+    )
+    assert (
+        NeuronCandidateFactory(db_path).get(manifest["candidate_id"])["status"]
+        == "promoted"
+    )
 
 
 def test_neutral_candidate_cannot_be_promoted(tmp_path: Path) -> None:
@@ -143,7 +155,9 @@ def test_forged_improvement_decision_is_rejected(tmp_path: Path) -> None:
         )
 
 
-def test_regression_failure_blocks_promotion_and_allows_quarantine(tmp_path: Path) -> None:
+def test_regression_failure_blocks_promotion_and_allows_quarantine(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     manifest = prepare_executed_candidate(db_path)
     subject = manifest["candidate_id"]
@@ -198,5 +212,7 @@ def test_regression_failure_blocks_promotion_and_allows_quarantine(tmp_path: Pat
     assert result["regression_decision"] == "fail"
     with pytest.raises(ValueError, match="Regression Gate"):
         coordinator.promote(manifest["candidate_id"])
-    quarantined = coordinator.quarantine(manifest["candidate_id"], "regresión detectada")
+    quarantined = coordinator.quarantine(
+        manifest["candidate_id"], "regresión detectada"
+    )
     assert quarantined["status"] == "quarantined"

@@ -24,6 +24,9 @@ def score_central(response: str, model_ok: bool) -> float:
     score = 0.50 + (0.20 if model_ok else 0.0)
     if response and len(response.strip()) > 20:
         score += 0.10
-    if any(marker in response.lower() for marker in ["verific", "traz", "memoria", "cristal", "riesgo"]):
+    if any(
+        marker in response.lower()
+        for marker in ["verific", "traz", "memoria", "cristal", "riesgo"]
+    ):
         score += 0.10
     return round(min(score, 1.0), 3)

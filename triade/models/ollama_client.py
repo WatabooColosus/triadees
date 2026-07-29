@@ -71,11 +71,15 @@ class OllamaClient:
     keep using template fallback without failing the run.
     """
 
-    def __init__(self, base_url: str = "http://127.0.0.1:11434", timeout: int = 60) -> None:
+    def __init__(
+        self, base_url: str = "http://127.0.0.1:11434", timeout: int = 60
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
-    def generate(self, model: str, prompt: str, system: str | None = None) -> ModelResult:
+    def generate(
+        self, model: str, prompt: str, system: str | None = None
+    ) -> ModelResult:
         payload: dict[str, Any] = {
             "model": model,
             "prompt": prompt,
@@ -101,7 +105,12 @@ class OllamaClient:
                     text=str(parsed.get("response", "")).strip(),
                     model=model,
                 )
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            json.JSONDecodeError,
+            OSError,
+        ) as exc:
             return ModelResult(
                 ok=False,
                 text="",
@@ -118,12 +127,24 @@ class OllamaClient:
     ) -> EmbeddingResult:
         """Genera embeddings mediante el endpoint local POST /api/embed."""
         if not model.strip():
-            return EmbeddingResult(ok=False, model=model, error="Debe especificarse el modelo de embedding.")
+            return EmbeddingResult(
+                ok=False,
+                model=model,
+                error="Debe especificarse el modelo de embedding.",
+            )
         if isinstance(input_text, str):
             if not input_text.strip():
-                return EmbeddingResult(ok=False, model=model, error="El texto para embedding no puede estar vacío.")
+                return EmbeddingResult(
+                    ok=False,
+                    model=model,
+                    error="El texto para embedding no puede estar vacío.",
+                )
         elif not input_text or not all(str(item).strip() for item in input_text):
-            return EmbeddingResult(ok=False, model=model, error="Los textos para embedding no pueden estar vacíos.")
+            return EmbeddingResult(
+                ok=False,
+                model=model,
+                error="Los textos para embedding no pueden estar vacíos.",
+            )
 
         payload: dict[str, Any] = {
             "model": model.strip(),
@@ -142,8 +163,18 @@ class OllamaClient:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 parsed = json.loads(response.read().decode("utf-8"))
                 vectors = parsed.get("embeddings", [])
-                if not isinstance(vectors, list) or not vectors or not all(isinstance(vector, list) and vector for vector in vectors):
-                    return EmbeddingResult(ok=False, model=model.strip(), error="Ollama no retornó embeddings válidos.")
+                if (
+                    not isinstance(vectors, list)
+                    or not vectors
+                    or not all(
+                        isinstance(vector, list) and vector for vector in vectors
+                    )
+                ):
+                    return EmbeddingResult(
+                        ok=False,
+                        model=model.strip(),
+                        error="Ollama no retornó embeddings válidos.",
+                    )
                 embeddings = [[float(value) for value in vector] for vector in vectors]
                 return EmbeddingResult(
                     ok=True,
@@ -153,7 +184,14 @@ class OllamaClient:
                     load_duration=parsed.get("load_duration"),
                     prompt_eval_count=parsed.get("prompt_eval_count"),
                 )
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            json.JSONDecodeError,
+            OSError,
+            TypeError,
+            ValueError,
+        ) as exc:
             return EmbeddingResult(ok=False, model=model.strip(), error=str(exc))
 
     def health(self) -> dict[str, Any]:
@@ -164,8 +202,18 @@ class OllamaClient:
                 parsed = json.loads(body)
                 models = [item.get("name") for item in parsed.get("models", [])]
                 return {"ok": True, "base_url": self.base_url, "models": models}
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
-            return {"ok": False, "base_url": self.base_url, "models": [], "error": str(exc)}
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            json.JSONDecodeError,
+            OSError,
+        ) as exc:
+            return {
+                "ok": False,
+                "base_url": self.base_url,
+                "models": [],
+                "error": str(exc),
+            }
 
 
 def check_ollama_cognitive_health(
@@ -221,7 +269,14 @@ def check_ollama_cognitive_health(
         ]
     else:
         if not reasoning_available:
-            degraded_functions.extend(["neuron_nutrition", "learning_evaluation", "memory_diagnosis", "stable_consolidation"])
+            degraded_functions.extend(
+                [
+                    "neuron_nutrition",
+                    "learning_evaluation",
+                    "memory_diagnosis",
+                    "stable_consolidation",
+                ]
+            )
         if not embedding_available:
             degraded_functions.append("semantic_embedding")
 
@@ -232,7 +287,9 @@ def check_ollama_cognitive_health(
     if not health.get("ok"):
         recommended_action = "Iniciar Ollama y confirmar que /api/tags responda."
     elif not embedding_available:
-        recommended_action = "Instalar un modelo de embeddings compatible, por ejemplo nomic-embed-text."
+        recommended_action = (
+            "Instalar un modelo de embeddings compatible, por ejemplo nomic-embed-text."
+        )
     elif not reasoning_available:
         recommended_action = "Instalar un modelo de razonamiento recomendado, por ejemplo qwen2.5:3b-instruct."
     else:
@@ -258,6 +315,8 @@ def check_ollama_cognitive_health(
         },
         "role_capabilities": roles_by_model,
         "degraded_functions": sorted(set(degraded_functions)),
-        "mode": "full_local" if health.get("ok") and required_present else ("degraded_no_ollama" if not health.get("ok") else "partial_local"),
+        "mode": "full_local"
+        if health.get("ok") and required_present
+        else ("degraded_no_ollama" if not health.get("ok") else "partial_local"),
         "truth": "Sin Ollama, Tríade opera en observación/fallback; no consolida aprendizaje profundo automáticamente.",
     }

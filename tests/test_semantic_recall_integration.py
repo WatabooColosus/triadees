@@ -45,10 +45,16 @@ class FakeSemanticSearchEngine:
 
 class FailingSemanticSearchEngine:
     def search(self, **kwargs):
-        return {"status": "failed", "error": "embedding service unavailable", "results": []}
+        return {
+            "status": "failed",
+            "error": "embedding service unavailable",
+            "results": [],
+        }
 
 
-def seed_semantic_document(tmp_path, status: str = "candidate") -> SemanticMemoryGovernance:
+def seed_semantic_document(
+    tmp_path, status: str = "candidate"
+) -> SemanticMemoryGovernance:
     db_path = tmp_path / "triade.db"
     store = SemanticMemoryStore(db_path=db_path)
     store.upsert_document(
@@ -60,29 +66,48 @@ def seed_semantic_document(tmp_path, status: str = "candidate") -> SemanticMemor
     )
     governance = SemanticMemoryGovernance(db_path=db_path)
     if status in {"experimental", "stable"}:
-        governance.transition_document("sem-crystal", "experimental", "Revisión inicial documentada.", approved_by="test")
+        governance.transition_document(
+            "sem-crystal",
+            "experimental",
+            "Revisión inicial documentada.",
+            approved_by="test",
+        )
     if status == "stable":
-        governance.transition_document("sem-crystal", "stable", "Contenido verificado para influencia.", approved_by="test")
+        governance.transition_document(
+            "sem-crystal",
+            "stable",
+            "Contenido verificado para influencia.",
+            approved_by="test",
+        )
     return governance
 
 
 def test_bodega_keeps_vector_recall_disabled_by_default(tmp_path) -> None:
     engine = FakeSemanticSearchEngine()
     bodega = Bodega(db_path=tmp_path / "triade.db", semantic_search_engine=engine)
-    packet = InputPacket(user_input="¿Qué regula la continuidad?", source="test", run_id="run-disabled")
+    packet = InputPacket(
+        user_input="¿Qué regula la continuidad?", source="test", run_id="run-disabled"
+    )
 
     memory = bodega.recall(packet)
 
     assert memory.semantic_recall["enabled"] is False
     assert memory.semantic_recall["status"] == "disabled"
     assert engine.calls == []
-    assert all(match.get("retrieval_type") != "vector_similarity" for match in memory.semantic_matches)
+    assert all(
+        match.get("retrieval_type") != "vector_similarity"
+        for match in memory.semantic_matches
+    )
 
 
 def test_bodega_injects_raw_vector_matches_before_governance(tmp_path) -> None:
     engine = FakeSemanticSearchEngine()
     bodega = Bodega(db_path=tmp_path / "triade.db", semantic_search_engine=engine)
-    packet = InputPacket(user_input="órgano que controla estabilidad", source="test", run_id="run-enabled")
+    packet = InputPacket(
+        user_input="órgano que controla estabilidad",
+        source="test",
+        run_id="run-enabled",
+    )
 
     memory = bodega.recall(
         packet,
@@ -104,10 +129,17 @@ def test_bodega_injects_raw_vector_matches_before_governance(tmp_path) -> None:
 
 
 def test_bodega_preserves_run_if_semantic_search_fails(tmp_path) -> None:
-    bodega = Bodega(db_path=tmp_path / "triade.db", semantic_search_engine=FailingSemanticSearchEngine())
-    packet = InputPacket(user_input="Consulta semántica", source="test", run_id="run-failed")
+    bodega = Bodega(
+        db_path=tmp_path / "triade.db",
+        semantic_search_engine=FailingSemanticSearchEngine(),
+    )
+    packet = InputPacket(
+        user_input="Consulta semántica", source="test", run_id="run-failed"
+    )
 
-    memory = bodega.recall(packet, semantic_recall_enabled=True, semantic_model="nomic-embed-text:latest")
+    memory = bodega.recall(
+        packet, semantic_recall_enabled=True, semantic_model="nomic-embed-text:latest"
+    )
 
     assert memory.semantic_recall["status"] == "failed"
     assert memory.semantic_recall["error"] == "embedding service unavailable"
@@ -134,7 +166,9 @@ def test_runner_quarantines_candidate_semantic_memory_in_artifacts(tmp_path) -> 
     )
     run_path = tmp_path / "runs" / result["run_id"]
     memory = json.loads((run_path / "memory.json").read_text(encoding="utf-8"))
-    memory_diff = json.loads((run_path / "memory_diff.json").read_text(encoding="utf-8"))
+    memory_diff = json.loads(
+        (run_path / "memory_diff.json").read_text(encoding="utf-8")
+    )
     integrity = json.loads((run_path / "integrity.json").read_text(encoding="utf-8"))
 
     assert result["semantic_recall"]["matches_count"] == 1
@@ -142,7 +176,10 @@ def test_runner_quarantines_candidate_semantic_memory_in_artifacts(tmp_path) -> 
     assert memory["semantic_matches"] == []
     assert memory["semantic_recall"]["governance"]["quarantined_vector_matches"] == 1
     assert memory_diff["semantic_recall"]["authorized_matches"] == []
-    assert integrity["semantic_recall"]["governance"]["decisions"][0]["document_status"] == "candidate"
+    assert (
+        integrity["semantic_recall"]["governance"]["decisions"][0]["document_status"]
+        == "candidate"
+    )
     assert result["report"]["status"] == "warning"
     assert "semantic_memory_unverified" in result["safety"]["risk_types"]
 
@@ -164,7 +201,11 @@ def test_runner_allows_stable_semantic_memory_to_central_packet(tmp_path) -> Non
         semantic_model="nomic-embed-text:latest",
         semantic_domain="crystal",
     )
-    memory = json.loads((tmp_path / "runs" / result["run_id"] / "memory.json").read_text(encoding="utf-8"))
+    memory = json.loads(
+        (tmp_path / "runs" / result["run_id"] / "memory.json").read_text(
+            encoding="utf-8"
+        )
+    )
 
     assert result["semantic_recall"]["authorized_matches_count"] == 1
     assert result["semantic_recall"]["governance"]["allowed_vector_matches"] == 1
@@ -173,10 +214,18 @@ def test_runner_allows_stable_semantic_memory_to_central_packet(tmp_path) -> Non
     assert memory["semantic_matches"][0]["source_ref"] == "validacion-1.9C-crystal"
 
 
-def test_runner_without_semantic_recall_does_not_require_embedding_engine(tmp_path) -> None:
-    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+def test_runner_without_semantic_recall_does_not_require_embedding_engine(
+    tmp_path,
+) -> None:
+    runner = TriadeRunner(
+        runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False
+    )
 
-    result = runner.run("Ciclo normal sin memoria vectorial", source="test", semantic_recall_enabled=False)
+    result = runner.run(
+        "Ciclo normal sin memoria vectorial",
+        source="test",
+        semantic_recall_enabled=False,
+    )
 
     assert result["semantic_recall"]["enabled"] is False
     assert result["semantic_recall"]["status"] == "disabled"

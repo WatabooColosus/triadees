@@ -5,7 +5,9 @@ import pytest
 from triade.capabilities import CapabilityDefinition, CapabilityRegistry
 
 
-def make_capability(capability_id: str, dependencies: tuple[str, ...] = ()) -> CapabilityDefinition:
+def make_capability(
+    capability_id: str, dependencies: tuple[str, ...] = ()
+) -> CapabilityDefinition:
     return CapabilityDefinition(
         capability_id=capability_id,
         name=capability_id.replace("_", " ").title(),

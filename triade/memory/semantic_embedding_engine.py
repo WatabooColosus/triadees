@@ -46,6 +46,7 @@ class LocalEmbeddingProvider:
         if self._model is None:
             try:
                 from sentence_transformers import SentenceTransformer
+
                 self._model = SentenceTransformer(self.model_name)
                 logger.info("Modelo de embedding local cargado: %s", self.model_name)
             except Exception as exc:
@@ -181,19 +182,36 @@ class SemanticEmbeddingEngine:
             "error": "No se encontró un modelo de embeddings local permitido.",
         }
 
-    def _embed_with_provider(self, text: str, model: str, provider: str) -> EmbeddingResult:
+    def _embed_with_provider(
+        self, text: str, model: str, provider: str
+    ) -> EmbeddingResult:
         if provider == "local":
             local = self._get_local_provider()
             if not local:
-                return EmbeddingResult(ok=False, model=model, embeddings=[], error="Proveedor local no disponible")
+                return EmbeddingResult(
+                    ok=False,
+                    model=model,
+                    embeddings=[],
+                    error="Proveedor local no disponible",
+                )
             try:
                 vector = local.embed(text)
-                return EmbeddingResult(ok=True, model=model, embeddings=[vector], provider="local", error=None)
+                return EmbeddingResult(
+                    ok=True,
+                    model=model,
+                    embeddings=[vector],
+                    provider="local",
+                    error=None,
+                )
             except Exception as exc:
-                return EmbeddingResult(ok=False, model=model, embeddings=[], error=str(exc))
+                return EmbeddingResult(
+                    ok=False, model=model, embeddings=[], error=str(exc)
+                )
         return self.client.embed(model, text)
 
-    def embed_document(self, document_id: str, model: str | None = None) -> SemanticEmbeddingEvent:
+    def embed_document(
+        self, document_id: str, model: str | None = None
+    ) -> SemanticEmbeddingEvent:
         document = self.store.get_document(document_id)
         if document is None:
             return SemanticEmbeddingEvent(
@@ -265,11 +283,16 @@ class SemanticEmbeddingEngine:
         event = self.embed_document(document.document_id, model=model)
         return {"document": document.to_dict(), "embedding_event": event.to_dict()}
 
-    def embed_pending(self, limit: int = 20, model: str | None = None) -> dict[str, Any]:
+    def embed_pending(
+        self, limit: int = 20, model: str | None = None
+    ) -> dict[str, Any]:
         pending = self.store.list_documents(limit=limit)
         embedded_ids = {item["document_id"] for item in self.store.list_embeddings()}
         pending = [d for d in pending if d["document_id"] not in embedded_ids]
-        events = [self.embed_document(document["document_id"], model=model).to_dict() for document in pending]
+        events = [
+            self.embed_document(document["document_id"], model=model).to_dict()
+            for document in pending
+        ]
         return {
             "status": "ok",
             "requested_limit": limit,

@@ -28,7 +28,9 @@ def find_check(pulse: dict[str, Any], name: str) -> dict[str, Any]:
     return {}
 
 
-def normalize_federation_from_checks(pulse: dict[str, Any], federation: dict[str, Any]) -> dict[str, Any]:
+def normalize_federation_from_checks(
+    pulse: dict[str, Any], federation: dict[str, Any]
+) -> dict[str, Any]:
     """Completa datos de federación desde checks reales del pulso.
 
     El pulso actual de /api/system/pulse expone la verdad operativa en checks
@@ -52,15 +54,23 @@ def normalize_federation_from_checks(pulse: dict[str, Any], federation: dict[str
     federation.setdefault("node_count", len(nodes) if isinstance(nodes, list) else 0)
     federation.setdefault(
         "online_count",
-        sum(1 for n in nodes if isinstance(n, dict) and n.get("online")) if isinstance(nodes, list) else 0,
+        sum(1 for n in nodes if isinstance(n, dict) and n.get("online"))
+        if isinstance(nodes, list)
+        else 0,
     )
     federation.setdefault(
         "android_native_online",
         sum(
             1
             for n in nodes
-            if isinstance(n, dict) and n.get("online") and (n.get("native_android") or "android" in str(n.get("device", "")).lower())
-        ) if isinstance(nodes, list) else 0,
+            if isinstance(n, dict)
+            and n.get("online")
+            and (
+                n.get("native_android") or "android" in str(n.get("device", "")).lower()
+            )
+        )
+        if isinstance(nodes, list)
+        else 0,
     )
     federation.setdefault(
         "android_llm_hosts",
@@ -81,7 +91,9 @@ def summarize_pulse(pulse: dict[str, Any]) -> dict[str, Any]:
     """
     pulse = as_dict(pulse)
     local = as_dict(pulse.get("local"))
-    federation = normalize_federation_from_checks(pulse, as_dict(pulse.get("federation")))
+    federation = normalize_federation_from_checks(
+        pulse, as_dict(pulse.get("federation"))
+    )
     learning = as_dict(pulse.get("learning"))
     semantic = as_dict(pulse.get("semantic"))
 
@@ -123,7 +135,9 @@ def summarize_pulse(pulse: dict[str, Any]) -> dict[str, Any]:
             "ollama_ok": as_dict(local.get("ollama")).get("ok"),
             "docker_ok": as_dict(local.get("docker")).get("ok"),
             "hardware_tier": as_dict(local.get("hardware")).get("tier"),
-            "missing_for_comfortable_models": local.get("missing_for_comfortable_models"),
+            "missing_for_comfortable_models": local.get(
+                "missing_for_comfortable_models"
+            ),
         },
         "federation": {
             "node_count": federation.get("node_count"),
@@ -158,7 +172,9 @@ def build_run_context_with_pulse(
     """
     run_context = dict(base_context or {})
     try:
-        pulse = build_system_pulse(sync_relay=False, intent="conversation", urgency="medium")
+        pulse = build_system_pulse(
+            sync_relay=False, intent="conversation", urgency="medium"
+        )
         run_context["system_pulse_summary"] = summarize_pulse(pulse)
     except Exception as exc:  # pragma: no cover - defensa runtime para UI local
         run_context["system_pulse_summary"] = {

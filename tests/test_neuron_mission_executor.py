@@ -35,7 +35,8 @@ def create_mission(
             domain="observability",
             status=status,
             allowed_sources=["worker", "run"],
-            allowed_actions=allowed_actions or ["observe", "diagnose", "propose_learning"],
+            allowed_actions=allowed_actions
+            or ["observe", "diagnose", "propose_learning"],
         )
     )
 
@@ -47,7 +48,9 @@ def learning_count(db_path: Path) -> int:
 
 def identity_rows(db_path: Path) -> list[tuple]:
     with sqlite3.connect(db_path) as conn:
-        return conn.execute("SELECT key, value, category, confidence FROM identity_core ORDER BY id").fetchall()
+        return conn.execute(
+            "SELECT key, value, category, confidence FROM identity_core ORDER BY id"
+        ).fetchall()
 
 
 def test_execute_creates_cycle_evidence_and_score(tmp_path: Path) -> None:
@@ -77,7 +80,9 @@ def test_execute_creates_cycle_evidence_and_score(tmp_path: Path) -> None:
 
 def test_execute_creates_learning_candidate_when_allowed(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
-    mission_id = create_mission(db_path, allowed_actions=["observe", "diagnose", "propose_learning"])
+    mission_id = create_mission(
+        db_path, allowed_actions=["observe", "diagnose", "propose_learning"]
+    )
     result = NeuronMissionExecutor(db_path=db_path).execute(
         mission_id=mission_id,
         run_ref="run-learn-1",
@@ -88,11 +93,16 @@ def test_execute_creates_learning_candidate_when_allowed(tmp_path: Path) -> None
 
     assert result["decision"] == "learning_candidate_proposed"
     assert result["learning_candidate"]["source_type"] == "tool"
-    assert result["learning_candidate"]["source_ref"] == f"mission:{mission_id}:run:run-learn-1"
+    assert (
+        result["learning_candidate"]["source_ref"]
+        == f"mission:{mission_id}:run:run-learn-1"
+    )
     assert learning_count(db_path) == 1
 
 
-def test_execute_does_not_create_learning_candidate_without_allowed_action(tmp_path: Path) -> None:
+def test_execute_does_not_create_learning_candidate_without_allowed_action(
+    tmp_path: Path,
+) -> None:
     db_path = make_db(tmp_path)
     mission_id = create_mission(db_path, allowed_actions=["observe", "diagnose"])
     result = NeuronMissionExecutor(db_path=db_path).execute(
@@ -108,11 +118,17 @@ def test_execute_does_not_create_learning_candidate_without_allowed_action(tmp_p
     assert learning_count(db_path) == 0
 
 
-def test_worker_loop_experimental_neuron_activity_uses_payload_mission_id(tmp_path: Path) -> None:
+def test_worker_loop_experimental_neuron_activity_uses_payload_mission_id(
+    tmp_path: Path,
+) -> None:
     db_path = make_db(tmp_path)
     mission_id = create_mission(db_path)
     loop = WorkerLoop(db_path=db_path, runs_dir=tmp_path / "runs")
-    task = WorkerTask(task_type="experimental_neuron_activity", payload={"mission_id": mission_id}, id=42)
+    task = WorkerTask(
+        task_type="experimental_neuron_activity",
+        payload={"mission_id": mission_id},
+        id=42,
+    )
 
     result = loop._experimental_neuron_activity(
         task,

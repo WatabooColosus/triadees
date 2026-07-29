@@ -46,10 +46,14 @@ class QualiaBus:
         self.meaning = meaning or MeaningEngine()
         self.fragmentation = fragmentation or FragmentationDetector()
 
-    def publish_experience(self, experience: NeuronExperience, *, ingest_learning: bool = True) -> dict[str, Any]:
+    def publish_experience(
+        self, experience: NeuronExperience, *, ingest_learning: bool = True
+    ) -> dict[str, Any]:
         bundle = self.router.route(experience)
         persisted = self.persist_bundle(bundle)
-        learning_result = self.route_to_learning(experience) if ingest_learning else None
+        learning_result = (
+            self.route_to_learning(experience) if ingest_learning else None
+        )
         state = self.compute_state(experience.run_id)
         introspection = self.introspect(experience.run_id, state=state)
 
@@ -104,7 +108,9 @@ class QualiaBus:
         )
 
         meaning_score = self.meaning.score(
-            experience=experience, state=state, mission_context=mission_context,
+            experience=experience,
+            state=state,
+            mission_context=mission_context,
         )
 
         recent = self.store.list_experiences(run_id=experience.run_id, limit=50)
@@ -161,7 +167,9 @@ class QualiaBus:
             existing = pipe.list_candidates(status="candidate", limit=200)
             for row in existing:
                 if row.get("source_ref") == source_ref:
-                    row.setdefault("qualia_evidence_refs", candidate.get("evidence_refs", []))
+                    row.setdefault(
+                        "qualia_evidence_refs", candidate.get("evidence_refs", [])
+                    )
                     row["deduplicated"] = True
                     return row
         payload = dict(candidate)
@@ -177,7 +185,9 @@ class QualiaBus:
         self.store.store_state(state)
         return state
 
-    def introspect(self, run_id: str, *, state: QualiaState | None = None) -> IntrospectionReport:
+    def introspect(
+        self, run_id: str, *, state: QualiaState | None = None
+    ) -> IntrospectionReport:
         """Interpreta el flujo Qualia sin promover conclusiones a memoria estable."""
         current_state = state or self.compute_state(run_id)
         experiences = self.store.list_experiences(run_id=run_id, limit=200)

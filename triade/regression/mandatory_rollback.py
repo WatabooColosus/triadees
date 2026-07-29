@@ -11,8 +11,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from triade.core.contracts import utc_now
-
 
 @dataclass(frozen=True, slots=True)
 class MandatoryRollbackCheck:
@@ -58,17 +56,28 @@ class MandatoryRollbackEnforcer:
         blocking: list[str] = []
 
         if not has_handler:
-            blocking.append(f"No hay rollback handler registrado para '{capability_id}'.")
+            blocking.append(
+                f"No hay rollback handler registrado para '{capability_id}'."
+            )
         if not has_baseline:
-            blocking.append(f"No hay baseline estable registrado para '{capability_id}'.")
+            blocking.append(
+                f"No hay baseline estable registrado para '{capability_id}'."
+            )
         if not rollback_policy:
-            blocking.append(f"La capacidad '{capability_id}' no tiene rollback_policy definida.")
+            blocking.append(
+                f"La capacidad '{capability_id}' no tiene rollback_policy definida."
+            )
 
         is_critical = self._is_critical(capability_id)
-        promotion_allowed = not is_critical or (has_handler and has_baseline and rollback_policy)
+        promotion_allowed = not is_critical or (
+            has_handler and has_baseline and rollback_policy
+        )
 
         if is_critical and not promotion_allowed:
-            blocking.insert(0, f"Capacidad CRÍTICA '{capability_id}' requiere rollback completo para promover.")
+            blocking.insert(
+                0,
+                f"Capacidad CRÍTICA '{capability_id}' requiere rollback completo para promover.",
+            )
 
         return MandatoryRollbackCheck(
             capability_id=capability_id,
@@ -85,17 +94,24 @@ class MandatoryRollbackEnforcer:
         *,
         registered_handlers: set[str] | None = None,
     ) -> None:
-        check = self.check_promotion(capability_id, registered_handlers=registered_handlers)
+        check = self.check_promotion(
+            capability_id, registered_handlers=registered_handlers
+        )
         if not check.promotion_allowed:
             reasons = "; ".join(check.blocking_reasons)
             raise PermissionError(
                 f"BLOQUEADO por Rollback Obligatorio (Artículo III): {reasons}"
             )
 
-    def audit_all_critical(self, registered_handlers: set[str] | None = None) -> dict[str, Any]:
+    def audit_all_critical(
+        self, registered_handlers: set[str] | None = None
+    ) -> dict[str, Any]:
         handlers = registered_handlers or set()
         critical_caps = self._list_critical_capabilities()
-        checks = [self.check_promotion(cap, registered_handlers=handlers) for cap in critical_caps]
+        checks = [
+            self.check_promotion(cap, registered_handlers=handlers)
+            for cap in critical_caps
+        ]
         compliant = sum(1 for c in checks if c.promotion_allowed)
         non_compliant = [c.to_dict() for c in checks if not c.promotion_allowed]
         return {
@@ -128,6 +144,7 @@ class MandatoryRollbackEnforcer:
                 ).fetchone()
             if row:
                 import json
+
                 payload = json.loads(row["payload_json"])
                 return payload.get("rollback_policy")
         except sqlite3.OperationalError:
@@ -143,6 +160,7 @@ class MandatoryRollbackEnforcer:
                 ).fetchone()
             if row:
                 import json
+
                 payload = json.loads(row["payload_json"])
                 return payload.get("critical", False)
         except sqlite3.OperationalError:
@@ -158,6 +176,7 @@ class MandatoryRollbackEnforcer:
         except sqlite3.OperationalError:
             return []
         import json
+
         critical: list[str] = []
         seen: set[str] = set()
         for row in rows:

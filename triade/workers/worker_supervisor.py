@@ -2,11 +2,9 @@
 restart automático, recovery post-fallo, supervisión en tiempo real."""
 
 import hashlib
-import json
 import sqlite3
 import time
 from datetime import datetime, timezone
-from typing import Any
 
 from triade.core.contracts import utc_now
 
@@ -82,7 +80,9 @@ class WorkerSupervisor:
     MAX_CPU_SECONDS = 600
     RESTART_THRESHOLD_FAILURES = 3
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
@@ -90,10 +90,15 @@ class WorkerSupervisor:
     # ─── consumption tracking ───
 
     def record_consumption(
-        self, worker_id: str, task_id: str | None = None,
-        task_type: str = "", cpu_seconds: float = 0.0,
-        memory_peak_mb: float = 0.0, disk_read_mb: float = 0.0,
-        disk_write_mb: float = 0.0, gpu_seconds: float = 0.0,
+        self,
+        worker_id: str,
+        task_id: str | None = None,
+        task_type: str = "",
+        cpu_seconds: float = 0.0,
+        memory_peak_mb: float = 0.0,
+        disk_read_mb: float = 0.0,
+        disk_write_mb: float = 0.0,
+        gpu_seconds: float = 0.0,
         tokens_used: int = 0,
     ) -> dict:
         record_id = _gen_id("cons")
@@ -103,9 +108,19 @@ class WorkerSupervisor:
                 cpu_seconds, memory_peak_mb, disk_read_mb, disk_write_mb,
                 gpu_seconds, tokens_used, recorded_at)
                VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            (record_id, worker_id, task_id, task_type,
-             cpu_seconds, memory_peak_mb, disk_read_mb, disk_write_mb,
-             gpu_seconds, tokens_used, utc_now()),
+            (
+                record_id,
+                worker_id,
+                task_id,
+                task_type,
+                cpu_seconds,
+                memory_peak_mb,
+                disk_read_mb,
+                disk_write_mb,
+                gpu_seconds,
+                tokens_used,
+                utc_now(),
+            ),
         )
         self._conn.commit()
         return {"record_id": record_id, "worker_id": worker_id}
@@ -266,17 +281,22 @@ class WorkerSupervisor:
 
     def auto_restart_check(self, worker_id: str, recent_failures: int) -> dict:
         if recent_failures >= self.RESTART_THRESHOLD_FAILURES:
-            restart = self.request_restart(worker_id, "auto_restart",
-                                           f"{recent_failures} consecutive failures")
+            restart = self.request_restart(
+                worker_id, "auto_restart", f"{recent_failures} consecutive failures"
+            )
             return {"action": "restart", "restart": restart}
         return {"action": "none", "failures": recent_failures}
 
     # ─── real-time supervision ───
 
     def health_snapshot(
-        self, worker_id: str, status: str = "healthy",
-        cpu_pct: float = 0.0, mem_mb: float = 0.0,
-        tasks_running: int = 0, uptime_seconds: float = 0.0,
+        self,
+        worker_id: str,
+        status: str = "healthy",
+        cpu_pct: float = 0.0,
+        mem_mb: float = 0.0,
+        tasks_running: int = 0,
+        uptime_seconds: float = 0.0,
         last_error: str = "",
     ) -> dict:
         snap_id = _gen_id("whsnap")
@@ -285,8 +305,17 @@ class WorkerSupervisor:
                (snapshot_id, worker_id, status, cpu_pct, mem_mb,
                 tasks_running, uptime_seconds, last_error, created_at)
                VALUES (?,?,?,?,?,?,?,?,?)""",
-            (snap_id, worker_id, status, cpu_pct, mem_mb,
-             tasks_running, uptime_seconds, last_error, utc_now()),
+            (
+                snap_id,
+                worker_id,
+                status,
+                cpu_pct,
+                mem_mb,
+                tasks_running,
+                uptime_seconds,
+                last_error,
+                utc_now(),
+            ),
         )
         self._conn.commit()
         return {"snapshot_id": snap_id, "worker_id": worker_id, "status": status}
@@ -338,8 +367,12 @@ class WorkerSupervisor:
     # ─── diagnostics ───
 
     def doctor(self) -> dict:
-        consumption = self._conn.execute("SELECT COUNT(*) as c FROM worker_consumption").fetchone()["c"]
-        time_logs = self._conn.execute("SELECT COUNT(*) as c FROM worker_time_log").fetchone()["c"]
+        consumption = self._conn.execute(
+            "SELECT COUNT(*) as c FROM worker_consumption"
+        ).fetchone()["c"]
+        time_logs = self._conn.execute(
+            "SELECT COUNT(*) as c FROM worker_time_log"
+        ).fetchone()["c"]
         ownership = self._conn.execute(
             "SELECT COUNT(*) as c FROM worker_ownership WHERE released_at IS NULL"
         ).fetchone()["c"]

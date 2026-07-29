@@ -44,7 +44,9 @@ class SandboxExecutionEngine:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def execute_configuration(self, candidate_id: str, configuration: dict[str, Any]) -> dict[str, Any]:
+    def execute_configuration(
+        self, candidate_id: str, configuration: dict[str, Any]
+    ) -> dict[str, Any]:
         candidate = self.candidates.get(candidate_id)
         if candidate is None:
             raise KeyError(f"candidato no registrado: {candidate_id}")
@@ -57,7 +59,9 @@ class SandboxExecutionEngine:
             raise ValueError("la configuración debe ser un objeto no vacío")
 
         budget = candidate["resource_budget"]
-        payload = json.dumps(configuration, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        payload = json.dumps(
+            configuration, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
         max_bytes = int(budget["max_storage_mb"]) * 1024 * 1024
         if len(payload) > max_bytes:
             raise ValueError("la configuración excede el presupuesto de almacenamiento")
@@ -97,10 +101,16 @@ class SandboxExecutionEngine:
                 """UPDATE neuron_candidates
                 SET status = ?, manifest_json = ?
                 WHERE candidate_id = ?""",
-                ("executed", json.dumps(updated_candidate, sort_keys=True), candidate_id),
+                (
+                    "executed",
+                    json.dumps(updated_candidate, sort_keys=True),
+                    candidate_id,
+                ),
             )
 
-        self.specifications.transition(candidate["neuron_id"], candidate["version"], "evaluated")
+        self.specifications.transition(
+            candidate["neuron_id"], candidate["version"], "evaluated"
+        )
         return artifact
 
     def get_execution(self, execution_id: str) -> dict[str, Any] | None:

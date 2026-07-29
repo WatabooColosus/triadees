@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,7 +36,9 @@ class SalienceEngine:
         "urgency": 0.25,
     }
 
-    def score(self, user_input: str, intent: str, urgency: str, risk: str, tone: str) -> SalienceVector:
+    def score(
+        self, user_input: str, intent: str, urgency: str, risk: str, tone: str
+    ) -> SalienceVector:
         emotional = self._emotional_salience(user_input, tone)
         goal = self._goal_salience(user_input)
         novelty = self._novelty_salience(user_input)
@@ -73,10 +74,15 @@ class SalienceEngine:
                     return max(0.0, min(1.0, base + congruence * 0.3 + arousal * 0.2))
         except Exception as exc:
             from triade.core.error_bus import record_internal_error
+
             record_internal_error(
                 "salience.emotional",
                 exc,
-                payload={"module": __name__, "function": "_emotional_salience", "operation": "load_hypothalamus_state"},
+                payload={
+                    "module": __name__,
+                    "function": "_emotional_salience",
+                    "operation": "load_hypothalamus_state",
+                },
                 db_path=self.db_path,
             )
         return base
@@ -99,10 +105,15 @@ class SalienceEngine:
                 return max(0.1, min(1.0, matches / len(active)))
         except Exception as exc:
             from triade.core.error_bus import record_internal_error
+
             record_internal_error(
                 "salience.goal",
                 exc,
-                payload={"module": __name__, "function": "_goal_salience", "operation": "load_active_goals"},
+                payload={
+                    "module": __name__,
+                    "function": "_goal_salience",
+                    "operation": "load_active_goals",
+                },
                 db_path=self.db_path,
             )
             return 0.1
@@ -129,10 +140,15 @@ class SalienceEngine:
                 return max(0.0, min(1.0, novelty))
         except Exception as exc:
             from triade.core.error_bus import record_internal_error
+
             record_internal_error(
                 "salience.novelty",
                 exc,
-                payload={"module": __name__, "function": "_novelty_salience", "operation": "load_recent_runs"},
+                payload={
+                    "module": __name__,
+                    "function": "_novelty_salience",
+                    "operation": "load_recent_runs",
+                },
                 db_path=self.db_path,
             )
             return 0.5

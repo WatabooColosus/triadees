@@ -64,4 +64,6 @@ def test_neuron_trainer_penalizes_literal_question_like_mission() -> None:
     result = trainer.evaluate(spec)
 
     assert result.score < 0.5
-    assert any("pregunta factual simple" in warning.lower() for warning in result.warnings)
+    assert any(
+        "pregunta factual simple" in warning.lower() for warning in result.warnings
+    )

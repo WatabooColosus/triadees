@@ -114,7 +114,9 @@ class PeerSync:
             )
             with urllib.request.urlopen(req, timeout=self.DISCOVERY_TIMEOUT) as resp:
                 _assert_public_url(resp.geturl())
-                data = json.loads(resp.read(MAX_RESPONSE_BYTES + 1)[:MAX_RESPONSE_BYTES].decode())
+                data = json.loads(
+                    resp.read(MAX_RESPONSE_BYTES + 1)[:MAX_RESPONSE_BYTES].decode()
+                )
                 return {
                     "peer_id": data.get("peer_id", url),
                     "url": url,
@@ -165,10 +167,18 @@ class PeerSync:
                 results[sync_type] = {"status": "error", "error": str(exc)}
 
         elapsed = time.time() - started
-        failures = [name for name, result in results.items() if result.get("status") != "ok"]
+        failures = [
+            name for name, result in results.items() if result.get("status") != "ok"
+        ]
         overall_status = "error" if failures else "ok"
-        self._log_sync(peer_id, "full", total_synced, started, overall_status,
-                       ", ".join(failures) if failures else None)
+        self._log_sync(
+            peer_id,
+            "full",
+            total_synced,
+            started,
+            overall_status,
+            ", ".join(failures) if failures else None,
+        )
 
         with self._connect() as conn:
             conn.execute(
@@ -196,7 +206,9 @@ class PeerSync:
             results.append(result)
         return results
 
-    def push_state(self, peer_id: str, state_type: str, data: dict[str, Any]) -> dict[str, Any]:
+    def push_state(
+        self, peer_id: str, state_type: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Empuja estado a un peer específico."""
         peer = self._get_peer(peer_id)
         if not peer:
@@ -205,11 +217,13 @@ class PeerSync:
         try:
             url = f"{peer['url'].rstrip('/')}/api/peer/receive"
             _assert_public_url(url)
-            payload = json.dumps({
-                "state_type": state_type,
-                "data": data,
-                "source_peer": self._get_local_peer_id(),
-            }).encode("utf-8")
+            payload = json.dumps(
+                {
+                    "state_type": state_type,
+                    "data": data,
+                    "source_peer": self._get_local_peer_id(),
+                }
+            ).encode("utf-8")
 
             req = urllib.request.Request(
                 url,
@@ -219,7 +233,9 @@ class PeerSync:
             )
             with urllib.request.urlopen(req, timeout=self.SYNC_TIMEOUT) as resp:
                 _assert_public_url(resp.geturl())
-                result = json.loads(resp.read(MAX_RESPONSE_BYTES + 1)[:MAX_RESPONSE_BYTES].decode())
+                result = json.loads(
+                    resp.read(MAX_RESPONSE_BYTES + 1)[:MAX_RESPONSE_BYTES].decode()
+                )
                 return {"status": "ok", "peer_id": peer_id, "result": result}
         except Exception as exc:
             return {"status": "error", "peer_id": peer_id, "error": str(exc)}
@@ -244,7 +260,9 @@ class PeerSync:
             )
             with urllib.request.urlopen(req, timeout=self.SYNC_TIMEOUT) as resp:
                 _assert_public_url(resp.geturl())
-                remote_data = json.loads(resp.read(MAX_RESPONSE_BYTES + 1)[:MAX_RESPONSE_BYTES].decode())
+                remote_data = json.loads(
+                    resp.read(MAX_RESPONSE_BYTES + 1)[:MAX_RESPONSE_BYTES].decode()
+                )
                 count = self._merge_remote_data(sync_type, remote_data)
                 return {"status": "ok", "count": count, "type": sync_type}
         except Exception as exc:
@@ -258,6 +276,7 @@ class PeerSync:
             neurons = remote_data.get("neurons", [])
             try:
                 from triade.core.neuron_registry import NeuronRegistry
+
                 registry = NeuronRegistry(db_path=self.db_path)
                 for neuron in neurons:
                     name = neuron.get("name", "")
@@ -291,6 +310,7 @@ class PeerSync:
     def _get_local_peer_id(self) -> str:
         """Genera un ID único para esta instancia."""
         import socket
+
         hostname = socket.gethostname()
         return f"triade-{hostname}"
 
@@ -308,10 +328,20 @@ class PeerSync:
                 """INSERT INTO peer_sync_log
                    (peer_id, sync_type, items_synced, started_at, finished_at, status, error)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (peer_id, sync_type, items_synced, started_at, time.time(), status, error),
+                (
+                    peer_id,
+                    sync_type,
+                    items_synced,
+                    started_at,
+                    time.time(),
+                    status,
+                    error,
+                ),
             )
 
-    def get_sync_log(self, peer_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    def get_sync_log(
+        self, peer_id: str | None = None, limit: int = 50
+    ) -> list[dict[str, Any]]:
         """Retorna historial de sincronización."""
         with self._connect() as conn:
             if peer_id:

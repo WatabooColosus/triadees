@@ -68,12 +68,16 @@ class EdgeRouter:
     - Sumar RAM edge como RAM de PC/Ollama.
     """
 
-    def __init__(self, base_url: str = "http://127.0.0.1:8010", timeout_seconds: int = 120):
+    def __init__(
+        self, base_url: str = "http://127.0.0.1:8010", timeout_seconds: int = 120
+    ):
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
 
     def get_resource_lease(self) -> Dict[str, Any]:
-        return self._request_json("GET", "/api/federation/resource-lease?sync_relay=true")
+        return self._request_json(
+            "GET", "/api/federation/resource-lease?sync_relay=true"
+        )
 
     def list_edge_llm_nodes(self) -> list[EdgeNodeLease]:
         data = self.get_resource_lease()
@@ -88,8 +92,14 @@ class EdgeRouter:
                     transport=str(item.get("transport", "")),
                     can_host_llm=bool(item.get("can_host_llm", False)),
                     lease_status=str(item.get("lease_status", "")),
-                    edge_cpu_threads_available=int(item.get("cpu_authorized_count") or 0),
-                    edge_ram_available_gb=float(item.get("ram_available_gb") or item.get("ram_authorized_gb") or 0.0),
+                    edge_cpu_threads_available=int(
+                        item.get("cpu_authorized_count") or 0
+                    ),
+                    edge_ram_available_gb=float(
+                        item.get("ram_available_gb")
+                        or item.get("ram_authorized_gb")
+                        or 0.0
+                    ),
                     model_runtime_backend=str(item.get("model_runtime_backend", "")),
                     allowed_tasks=list(item.get("allowed_tasks", []) or []),
                     raw=item,
@@ -97,15 +107,22 @@ class EdgeRouter:
             )
         return nodes
 
-    def select_node(self, task: str = "android_local_generate") -> Optional[EdgeNodeLease]:
+    def select_node(
+        self, task: str = "android_local_generate"
+    ) -> Optional[EdgeNodeLease]:
         for node in self.list_edge_llm_nodes():
             if not node.is_ready:
                 continue
-            if task in node.allowed_tasks or "android_local_generate" in node.allowed_tasks:
+            if (
+                task in node.allowed_tasks
+                or "android_local_generate" in node.allowed_tasks
+            ):
                 return node
         return None
 
-    def should_route_to_edge(self, task: str, text: str, max_chars: int = 2500) -> Tuple[bool, str]:
+    def should_route_to_edge(
+        self, task: str, text: str, max_chars: int = 2500
+    ) -> Tuple[bool, str]:
         if task not in LIGHTWEIGHT_TASKS:
             return False, "task_not_lightweight"
         if not text or not text.strip():
@@ -147,7 +164,9 @@ class EdgeRouter:
         }
         return result
 
-    def run_lightweight_task(self, task: str, text: str, instruction: Optional[str] = None) -> Dict[str, Any]:
+    def run_lightweight_task(
+        self, task: str, text: str, instruction: Optional[str] = None
+    ) -> Dict[str, Any]:
         should_route, reason = self.should_route_to_edge(task, text)
         if not should_route:
             return {
@@ -169,7 +188,9 @@ class EdgeRouter:
             "### Response:\n"
         )
 
-        return self.generate_on_android(prompt=prompt, max_tokens=96, context_tokens=2048)
+        return self.generate_on_android(
+            prompt=prompt, max_tokens=96, context_tokens=2048
+        )
 
     def semantic_summary(self) -> Dict[str, Any]:
         node = self.select_node("android_local_generate")
@@ -177,8 +198,20 @@ class EdgeRouter:
             "mode": "task_parallel_edge_federation",
             "memory_pooling": False,
             "tensor_parallel": False,
-            "pc_role": ["orchestrator", "router", "central", "bodega", "audit", "fallback"],
-            "edge_role": ["local_inference", "lightweight_tasks", "preprocessing", "short_generation"],
+            "pc_role": [
+                "orchestrator",
+                "router",
+                "central",
+                "bodega",
+                "audit",
+                "fallback",
+            ],
+            "edge_role": [
+                "local_inference",
+                "lightweight_tasks",
+                "preprocessing",
+                "short_generation",
+            ],
             "selected_node": asdict(node) if node else None,
             "truth": "La RAM del Android no se suma a la RAM de la PC; Android aporta capacidad de procesamiento por tarea.",
         }
@@ -212,7 +245,9 @@ class EdgeRouter:
 
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(req, timeout=timeout or self.timeout_seconds) as resp:
+            with urllib.request.urlopen(
+                req, timeout=timeout or self.timeout_seconds
+            ) as resp:
                 raw = resp.read().decode("utf-8", errors="replace")
                 return json.loads(raw)
         except urllib.error.HTTPError as exc:

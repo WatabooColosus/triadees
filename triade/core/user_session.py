@@ -66,7 +66,9 @@ class UserSessionStore:
             with self._connect() as conn:
                 conn.executescript(schema_path.read_text(encoding="utf-8"))
 
-    def create_user(self, user_id: str, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+    def create_user(
+        self, user_id: str, metadata: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         now = _utc_now()
         with self._connect() as conn:
             existing = conn.execute(
@@ -78,7 +80,13 @@ class UserSessionStore:
             conn.execute(
                 """INSERT INTO user_sessions (user_id, session_id, status, permissions, metadata, created_at, last_active_at)
                 VALUES (?, ?, 'active', '{}', ?, ?, ?)""",
-                (user_id, _new_session_id(), json.dumps(metadata or {}, ensure_ascii=False), now, now),
+                (
+                    user_id,
+                    _new_session_id(),
+                    json.dumps(metadata or {}, ensure_ascii=False),
+                    now,
+                    now,
+                ),
             )
         return {"user_id": user_id, "status": "created"}
 

@@ -38,7 +38,9 @@ class PlanBudget:
             "used_tokens": self.used_tokens,
             "used_steps": self.used_steps,
             "used_retries": self.used_retries,
-            "remaining_seconds": round(max(0, self.max_total_seconds - self.used_seconds), 3),
+            "remaining_seconds": round(
+                max(0, self.max_total_seconds - self.used_seconds), 3
+            ),
             "remaining_tokens": max(0, self.max_tokens - self.used_tokens),
             "remaining_steps": max(0, self.max_steps - self.used_steps),
         }
@@ -73,7 +75,9 @@ class PlanBudget:
 
     def utilization(self) -> dict[str, float]:
         return {
-            "time_pct": round(self.used_seconds / max(1, self.max_total_seconds) * 100, 1),
+            "time_pct": round(
+                self.used_seconds / max(1, self.max_total_seconds) * 100, 1
+            ),
             "token_pct": round(self.used_tokens / max(1, self.max_tokens) * 100, 1),
             "step_pct": round(self.used_steps / max(1, self.max_steps) * 100, 1),
         }

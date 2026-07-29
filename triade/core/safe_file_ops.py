@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import json
 import shutil
+import sqlite3
 import time
 from pathlib import Path
 from typing import Any
 
 from triade.core.autonomy_budget import build_autonomy_budget
-from triade.core.integrity_verifier import build_integrity_snapshot, verify_integrity_change
-from triade.core.quarantine_trash import trash_path, list_trash
+from triade.core.integrity_verifier import (
+    build_integrity_snapshot,
+    verify_integrity_change,
+)
+from triade.core.quarantine_trash import trash_path
 from triade.core.system_zones import classify_path, REPO_ROOT
 
 EVENT_SOURCE = "safe_file_ops"
@@ -34,13 +38,20 @@ def _backup_file(path: Path) -> dict[str, Any]:
     shutil.copy2(str(path), str(backup_path))
     manifest = {
         "original_path": str(path),
-        "relative_path": str(path.relative_to(REPO_ROOT)) if path != REPO_ROOT else path.name,
+        "relative_path": str(path.relative_to(REPO_ROOT))
+        if path != REPO_ROOT
+        else path.name,
         "backup_path": str(backup_path),
         "created_at": ts,
     }
     manifest_file = backup_path.with_suffix(backup_path.suffix + ".manifest.json")
     manifest_file.write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
-    return {"status": "ok", "manifest_path": str(manifest_file), "backup_path": str(backup_path), "manifest": manifest}
+    return {
+        "status": "ok",
+        "manifest_path": str(manifest_file),
+        "backup_path": str(backup_path),
+        "manifest": manifest,
+    }
 
 
 def _restore_backup(manifest_path: str) -> dict[str, Any]:
@@ -51,7 +62,10 @@ def _restore_backup(manifest_path: str) -> dict[str, Any]:
     manifest = json.loads(mp.read_text())
     backup = Path(manifest["backup_path"])
     if not backup.exists():
-        return {"status": "error", "reason": f"Backup no encontrado: {manifest['backup_path']}"}
+        return {
+            "status": "error",
+            "reason": f"Backup no encontrado: {manifest['backup_path']}",
+        }
     orig = Path(manifest["original_path"])
     orig.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(str(backup), str(orig))
@@ -59,7 +73,9 @@ def _restore_backup(manifest_path: str) -> dict[str, Any]:
     return {"status": "ok", "restored_path": str(orig), "manifest": manifest}
 
 
-def _plan(action_type: str, path: str, budget: dict, zones: list[str] | None = None) -> dict[str, Any]:
+def _plan(
+    action_type: str, path: str, budget: dict, zones: list[str] | None = None
+) -> dict[str, Any]:
     return {
         "action_type": action_type,
         "target_paths": [path],
@@ -72,18 +88,33 @@ def _plan(action_type: str, path: str, budget: dict, zones: list[str] | None = N
 def _blocked(info: dict, budget: dict, action: str, budget_level: str) -> dict | None:
     zone = info["zone"]
     if zone == "forbidden":
-        return {"status": "blocked_forbidden_zone", "reason": f"Zona prohibida: {info['path']}"}
+        return {
+            "status": "blocked_forbidden_zone",
+            "reason": f"Zona prohibida: {info['path']}",
+        }
     if zone == "red":
-        return {"status": "requires_human_approval", "reason": "Zona roja requiere aprobación humana."}
+        return {
+            "status": "requires_human_approval",
+            "reason": "Zona roja requiere aprobación humana.",
+        }
     if zone == "yellow_unknown":
-        return {"status": "requires_human_approval", "reason": "Zona desconocida requiere aprobación humana o dry-run."}
+        return {
+            "status": "requires_human_approval",
+            "reason": "Zona desconocida requiere aprobación humana o dry-run.",
+        }
     if action not in budget.get("allowed_actions", []):
-        return {"status": "blocked_budget", "reason": f"Nivel {budget_level} no permite {action} en zona {zone}."}
+        return {
+            "status": "blocked_budget",
+            "reason": f"Nivel {budget_level} no permite {action} en zona {zone}.",
+        }
     return None
 
 
 def safe_create_file(
-    path: str, content: str, budget_level: str, dry_run: bool = True,
+    path: str,
+    content: str,
+    budget_level: str,
+    dry_run: bool = True,
 ) -> dict[str, Any]:
     """Crea archivo de forma segura con dry-run."""
     budget = build_autonomy_budget(budget_level)
@@ -96,11 +127,17 @@ def safe_create_file(
 
     max_bytes = budget.get("max_bytes_per_cycle", 0)
     if max_bytes > 0 and len(content) > max_bytes:
-        return {"status": "blocked_budget", "reason": f"Contenido ({len(content)} bytes) supera máximo del ciclo ({max_bytes} bytes)."}
+        return {
+            "status": "blocked_budget",
+            "reason": f"Contenido ({len(content)} bytes) supera máximo del ciclo ({max_bytes} bytes).",
+        }
 
     ext = Path(target.name).suffix.lower()
     if ext in SUSPICIOUS_EXTENSIONS:
-        return {"status": "blocked_budget", "reason": f"Extensión sospechosa no permitida: {ext}"}
+        return {
+            "status": "blocked_budget",
+            "reason": f"Extensión sospechosa no permitida: {ext}",
+        }
 
     if target.exists():
         return {"status": "error", "reason": f"Ya existe: {path}"}
@@ -110,10 +147,14 @@ def safe_create_file(
 
     if dry_run:
         return {
-            "status": "dry_run", "action": "create",
-            "path": str(target), "zone": info["zone"],
-            "content_length": len(content), "max_bytes_per_cycle": max_bytes,
-            "plan": plan, "budget": budget,
+            "status": "dry_run",
+            "action": "create",
+            "path": str(target),
+            "zone": info["zone"],
+            "content_length": len(content),
+            "max_bytes_per_cycle": max_bytes,
+            "plan": plan,
+            "budget": budget,
         }
 
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -124,18 +165,40 @@ def safe_create_file(
     if result.get("status") == "failed":
         trash_result = trash_path(str(target), reason="rollback_failed_integrity")
         return {
-            "status": result["status"], "action": "create",
-            "path": str(target), "zone": info["zone"],
-            "integrity": result, "requires_rollback": True,
-            "rollback_trash": trash_result.get("manifest_path") if trash_result.get("status") == "ok" else None,
+            "status": result["status"],
+            "action": "create",
+            "path": str(target),
+            "zone": info["zone"],
+            "integrity": result,
+            "requires_rollback": True,
+            "rollback_trash": trash_result.get("manifest_path")
+            if trash_result.get("status") == "ok"
+            else None,
         }
 
-    _register_event("safe_file_created", {"path": str(target), "zone": info["zone"], "status": result["status"], "budget_level": budget_level})
-    return {"status": result["status"], "action": "create", "path": str(target), "zone": info["zone"], "integrity": result}
+    _register_event(
+        "safe_file_created",
+        {
+            "path": str(target),
+            "zone": info["zone"],
+            "status": result["status"],
+            "budget_level": budget_level,
+        },
+    )
+    return {
+        "status": result["status"],
+        "action": "create",
+        "path": str(target),
+        "zone": info["zone"],
+        "integrity": result,
+    }
 
 
 def safe_patch_file(
-    path: str, patch_or_content: str, budget_level: str, dry_run: bool = True,
+    path: str,
+    patch_or_content: str,
+    budget_level: str,
+    dry_run: bool = True,
 ) -> dict[str, Any]:
     """Modifica archivo existente de forma segura."""
     budget = build_autonomy_budget(budget_level)
@@ -148,7 +211,10 @@ def safe_patch_file(
 
     max_bytes = budget.get("max_bytes_per_cycle", 0)
     if max_bytes > 0 and len(patch_or_content) > max_bytes:
-        return {"status": "blocked_budget", "reason": f"Contenido ({len(patch_or_content)} bytes) supera máximo del ciclo ({max_bytes} bytes)."}
+        return {
+            "status": "blocked_budget",
+            "reason": f"Contenido ({len(patch_or_content)} bytes) supera máximo del ciclo ({max_bytes} bytes).",
+        }
 
     if not target.exists():
         return {"status": "error", "reason": f"No existe: {path}"}
@@ -158,10 +224,13 @@ def safe_patch_file(
 
     if dry_run:
         return {
-            "status": "dry_run", "action": "patch",
-            "path": str(target), "zone": info["zone"],
+            "status": "dry_run",
+            "action": "patch",
+            "path": str(target),
+            "zone": info["zone"],
             "original_size": target.stat().st_size,
-            "new_size": len(patch_or_content), "budget": budget,
+            "new_size": len(patch_or_content),
+            "budget": budget,
         }
 
     backup = _backup_file(target)
@@ -172,22 +241,47 @@ def safe_patch_file(
     result = verify_integrity_change(before, after, plan)
 
     if result.get("status") == "failed":
-        restore = _restore_backup(backup.get("backup_path") + ".manifest.json") if backup_path else {"status": "error", "reason": "sin backup"}
+        restore = (
+            _restore_backup(str(backup_path))
+            if backup_path
+            else {"status": "error", "reason": "sin backup"}
+        )
         return {
-            "status": result["status"], "action": "patch",
-            "path": str(target), "zone": info["zone"],
-            "integrity": result, "requires_rollback": True,
+            "status": result["status"],
+            "action": "patch",
+            "path": str(target),
+            "zone": info["zone"],
+            "integrity": result,
+            "requires_rollback": True,
             "backup_manifest_path": backup_path,
             "restore_status": restore.get("status"),
             "rollback_failed": restore.get("status") != "ok",
         }
 
-    _register_event("safe_file_patched", {"path": str(target), "zone": info["zone"], "status": result["status"], "budget_level": budget_level})
-    return {"status": result["status"], "action": "patch", "path": str(target), "zone": info["zone"], "integrity": result, "backup_manifest_path": backup_path}
+    _register_event(
+        "safe_file_patched",
+        {
+            "path": str(target),
+            "zone": info["zone"],
+            "status": result["status"],
+            "budget_level": budget_level,
+        },
+    )
+    return {
+        "status": result["status"],
+        "action": "patch",
+        "path": str(target),
+        "zone": info["zone"],
+        "integrity": result,
+        "backup_manifest_path": backup_path,
+    }
 
 
 def safe_move_file(
-    src: str, dst: str, budget_level: str, dry_run: bool = True,
+    src: str,
+    dst: str,
+    budget_level: str,
+    dry_run: bool = True,
 ) -> dict[str, Any]:
     """Mueve archivo de forma segura."""
     budget = build_autonomy_budget(budget_level)
@@ -199,11 +293,20 @@ def safe_move_file(
     if src_info["zone"] == "forbidden" or dst_info["zone"] == "forbidden":
         return {"status": "blocked_forbidden_zone", "reason": "Zona prohibida."}
     if src_info["zone"] == "red" or dst_info["zone"] == "red":
-        return {"status": "requires_human_approval", "reason": "Zona roja requiere aprobación humana."}
+        return {
+            "status": "requires_human_approval",
+            "reason": "Zona roja requiere aprobación humana.",
+        }
     if src_info["zone"] == "yellow_unknown" or dst_info["zone"] == "yellow_unknown":
-        return {"status": "requires_human_approval", "reason": "Zona desconocida requiere aprobación humana."}
+        return {
+            "status": "requires_human_approval",
+            "reason": "Zona desconocida requiere aprobación humana.",
+        }
     if "move" not in budget.get("allowed_actions", []):
-        return {"status": "blocked_budget", "reason": f"Nivel {budget_level} no permite mover."}
+        return {
+            "status": "blocked_budget",
+            "reason": f"Nivel {budget_level} no permite mover.",
+        }
     if not src_p.exists():
         return {"status": "error", "reason": f"No existe: {src}"}
     if dst_p.exists():
@@ -215,9 +318,12 @@ def safe_move_file(
 
     if dry_run:
         return {
-            "status": "dry_run", "action": "move",
-            "src": str(src_p), "dst": str(dst_p),
-            "src_zone": src_info["zone"], "dst_zone": dst_info["zone"],
+            "status": "dry_run",
+            "action": "move",
+            "src": str(src_p),
+            "dst": str(dst_p),
+            "src_zone": src_info["zone"],
+            "dst_zone": dst_info["zone"],
             "budget": budget,
         }
 
@@ -234,18 +340,42 @@ def safe_move_file(
             rollback_ok = False
             result["rollback_error"] = str(exc)
         return {
-            "status": result["status"], "action": "move",
-            "src": str(src_p), "dst": str(dst_p),
-            "integrity": result, "requires_rollback": True,
+            "status": result["status"],
+            "action": "move",
+            "src": str(src_p),
+            "dst": str(dst_p),
+            "integrity": result,
+            "requires_rollback": True,
             "rollback_failed": not rollback_ok,
         }
 
-    _register_event("safe_file_moved", {"src": str(src_p), "dst": str(dst_p), "src_zone": src_info["zone"], "dst_zone": dst_info["zone"], "status": result["status"], "budget_level": budget_level})
-    return {"status": result["status"], "action": "move", "src": str(src_p), "dst": str(dst_p), "src_zone": src_info["zone"], "dst_zone": dst_info["zone"], "integrity": result}
+    _register_event(
+        "safe_file_moved",
+        {
+            "src": str(src_p),
+            "dst": str(dst_p),
+            "src_zone": src_info["zone"],
+            "dst_zone": dst_info["zone"],
+            "status": result["status"],
+            "budget_level": budget_level,
+        },
+    )
+    return {
+        "status": result["status"],
+        "action": "move",
+        "src": str(src_p),
+        "dst": str(dst_p),
+        "src_zone": src_info["zone"],
+        "dst_zone": dst_info["zone"],
+        "integrity": result,
+    }
 
 
 def safe_delete_file(
-    path: str, budget_level: str, dry_run: bool = True, reason: str = "Sin motivo especificado",
+    path: str,
+    budget_level: str,
+    dry_run: bool = True,
+    reason: str = "Sin motivo especificado",
 ) -> dict[str, Any]:
     """Borra (mueve a papelera) archivo de forma segura. Nunca unlink directo."""
     budget = build_autonomy_budget(budget_level)
@@ -255,16 +385,31 @@ def safe_delete_file(
     if info["zone"] == "forbidden":
         return {"status": "blocked_forbidden_zone", "reason": "Zona prohibida."}
     if info["zone"] == "red":
-        return {"status": "requires_human_approval", "reason": "Zona roja requiere aprobación humana."}
+        return {
+            "status": "requires_human_approval",
+            "reason": "Zona roja requiere aprobación humana.",
+        }
     if info["zone"] == "yellow_unknown":
-        return {"status": "requires_human_approval", "reason": "Zona desconocida requiere aprobación humana."}
+        return {
+            "status": "requires_human_approval",
+            "reason": "Zona desconocida requiere aprobación humana.",
+        }
     if "delete_to_trash" not in budget.get("allowed_actions", []):
-        return {"status": "blocked_budget", "reason": f"Nivel {budget_level} no permite borrar."}
+        return {
+            "status": "blocked_budget",
+            "reason": f"Nivel {budget_level} no permite borrar.",
+        }
     if not target.exists():
         return {"status": "error", "reason": f"No existe: {path}"}
 
     if dry_run:
-        return {"status": "dry_run", "action": "delete_to_trash", "path": str(target), "zone": info["zone"], "budget": budget}
+        return {
+            "status": "dry_run",
+            "action": "delete_to_trash",
+            "path": str(target),
+            "zone": info["zone"],
+            "budget": budget,
+        }
 
     result = trash_path(str(target), reason=reason)
     return result
@@ -272,7 +417,11 @@ def safe_delete_file(
 
 def _register_event(event_type: str, data: dict) -> None:
     try:
-        from triade.core.run_system_events import register_system_event
-        register_system_event(event_type, {**data, "source": EVENT_SOURCE})
-    except ImportError:
-        pass
+        from triade.services.event_bus import publish_event
+
+        publish_event(event_type, EVENT_SOURCE, data)
+    except (ImportError, OSError, sqlite3.Error) as exc:
+        # A file operation must not be reported as unaudited success.  Raising
+        # here lets the governed caller mark the operation degraded and recover
+        # it instead of silently discarding its evidence trail.
+        raise RuntimeError(f"failed to persist {event_type} audit event") from exc

@@ -46,7 +46,9 @@ class DesignEngine:
     CREATE INDEX IF NOT EXISTS idx_design_domain ON neuron_designs(domain);
     """
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(self.SCHEMA_SQL)
@@ -162,33 +164,52 @@ class DesignEngine:
 
 # ---------- helpers ----------
 
+
 def _build_contract(schema: dict, kind: str) -> dict:
     return {
         "kind": kind,
         "schema": schema,
         "required_fields": list(schema.get("properties", {}).keys()),
-        "nullable_fields": [k for k, v in schema.get("properties", {}).items() if v.get("nullable")],
+        "nullable_fields": [
+            k for k, v in schema.get("properties", {}).items() if v.get("nullable")
+        ],
     }
 
 
 def _infer_components(mission: str, domain: str, caps: list[str]) -> list[dict]:
     components = [{"name": "core", "role": "primary", "responsibility": mission}]
     for i, cap in enumerate(caps):
-        components.append({"name": f"cap_{cap}", "role": "capability", "responsibility": f"Provee {cap}"})
+        components.append(
+            {
+                "name": f"cap_{cap}",
+                "role": "capability",
+                "responsibility": f"Provee {cap}",
+            }
+        )
     if len(caps) > 3:
-        components.append({"name": "orchestrator", "role": "coordinator", "responsibility": "Coordina capacidades"})
+        components.append(
+            {
+                "name": "orchestrator",
+                "role": "coordinator",
+                "responsibility": "Coordina capacidades",
+            }
+        )
     return components
 
 
-def _infer_interfaces(components: list[dict], input_c: dict, output_c: dict) -> list[dict]:
+def _infer_interfaces(
+    components: list[dict], input_c: dict, output_c: dict
+) -> list[dict]:
     interfaces = []
     for comp in components:
-        interfaces.append({
-            "component": comp["name"],
-            "input_fields": input_c.get("required_fields", []),
-            "output_fields": output_c.get("required_fields", []),
-            "type": "function",
-        })
+        interfaces.append(
+            {
+                "component": comp["name"],
+                "input_fields": input_c.get("required_fields", []),
+                "output_fields": output_c.get("required_fields", []),
+                "type": "function",
+            }
+        )
     return interfaces
 
 
@@ -203,14 +224,21 @@ def _success_criteria(mission: str, components: list[dict]) -> list[dict]:
     criteria = [
         {"criterion": "all_components_instantiable", "type": "structural"},
         {"criterion": "input_output_contracts_respected", "type": "contractual"},
-        {"criterion": f"mission_coverage_above_0.8", "type": "functional"},
+        {"criterion": "mission_coverage_above_0.8", "type": "functional"},
     ]
     if len(components) > 3:
-        criteria.append({"criterion": "orchestrator_coordinates_successfully", "type": "integration"})
+        criteria.append(
+            {
+                "criterion": "orchestrator_coordinates_successfully",
+                "type": "integration",
+            }
+        )
     return criteria
 
 
-def _complexity_score(components: list[dict], interfaces: list[dict], deps: list[dict]) -> float:
+def _complexity_score(
+    components: list[dict], interfaces: list[dict], deps: list[dict]
+) -> float:
     c_score = min(len(components) / 6.0, 1.0) * 0.4
     i_score = min(len(interfaces) / 6.0, 1.0) * 0.3
     d_score = min(len(deps) / 5.0, 1.0) * 0.3

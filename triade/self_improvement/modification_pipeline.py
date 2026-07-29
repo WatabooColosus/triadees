@@ -6,16 +6,23 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
 
 from triade.core.contracts import utc_now
 
 ModificationPhase = Literal[
-    "proposed", "test_first", "patch_limited", "ci_running",
-    "mutation_testing", "canary", "auto_merge_green", "rollback",
-    "completed", "rejected",
+    "proposed",
+    "test_first",
+    "patch_limited",
+    "ci_running",
+    "mutation_testing",
+    "canary",
+    "auto_merge_green",
+    "rollback",
+    "completed",
+    "rejected",
 ]
 
 
@@ -63,8 +70,14 @@ class CanaryObservation:
 
 
 PHASE_ORDER: list[ModificationPhase] = [
-    "proposed", "test_first", "patch_limited", "ci_running",
-    "mutation_testing", "canary", "auto_merge_green", "completed",
+    "proposed",
+    "test_first",
+    "patch_limited",
+    "ci_running",
+    "mutation_testing",
+    "canary",
+    "auto_merge_green",
+    "completed",
 ]
 
 
@@ -126,11 +139,15 @@ class SelfModificationPipeline:
         risk_level: str = "medium",
     ) -> ModificationProposal:
         proposal = ModificationProposal(
-            proposal_id=proposal_id, target_file=target_file,
-            description=description, risk_level=risk_level,
-            test_required=True, ci_required=True,
+            proposal_id=proposal_id,
+            target_file=target_file,
+            description=description,
+            risk_level=risk_level,
+            test_required=True,
+            ci_required=True,
             canary_required=risk_level in {"medium", "high", "critical"},
-            rollback_required=True, created_at=utc_now(),
+            rollback_required=True,
+            created_at=utc_now(),
         )
         with self._connect() as conn:
             conn.execute(
@@ -138,8 +155,17 @@ class SelfModificationPipeline:
                 (proposal_id, target_file, description, risk_level,
                  test_required, ci_required, canary_required, rollback_required, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (proposal_id, target_file, description, risk_level,
-                 1, 1, 1 if proposal.canary_required else 0, 1, utc_now()),
+                (
+                    proposal_id,
+                    target_file,
+                    description,
+                    risk_level,
+                    1,
+                    1,
+                    1 if proposal.canary_required else 0,
+                    1,
+                    utc_now(),
+                ),
             )
         self._record_phase(proposal_id, "proposed", "started")
         return proposal
@@ -174,9 +200,13 @@ class SelfModificationPipeline:
         delta = canary_value - baseline_value
         passed = abs(delta) <= abs(baseline_value * tolerance) + tolerance
         obs = CanaryObservation(
-            canary_id=canary_id, proposal_id=proposal_id,
-            metric_name=metric_name, baseline_value=baseline_value,
-            canary_value=canary_value, delta=delta, passed=passed,
+            canary_id=canary_id,
+            proposal_id=proposal_id,
+            metric_name=metric_name,
+            baseline_value=baseline_value,
+            canary_value=canary_value,
+            delta=delta,
+            passed=passed,
             observed_at=utc_now(),
         )
         with self._connect() as conn:
@@ -185,8 +215,16 @@ class SelfModificationPipeline:
                 (canary_id, proposal_id, metric_name, baseline_value, canary_value,
                  delta, passed, observed_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (canary_id, proposal_id, metric_name, baseline_value,
-                 canary_value, delta, 1 if passed else 0, utc_now()),
+                (
+                    canary_id,
+                    proposal_id,
+                    metric_name,
+                    baseline_value,
+                    canary_value,
+                    delta,
+                    1 if passed else 0,
+                    utc_now(),
+                ),
             )
         return obs
 
@@ -208,8 +246,12 @@ class SelfModificationPipeline:
             "failed_observations": total - passed,
         }
 
-    def rollback(self, proposal_id: str, reason: str = "auto_rollback") -> ModificationPhaseRecord:
-        record = self._record_phase(proposal_id, "rollback", "applied", {"reason": reason})
+    def rollback(
+        self, proposal_id: str, reason: str = "auto_rollback"
+    ) -> ModificationPhaseRecord:
+        record = self._record_phase(
+            proposal_id, "rollback", "applied", {"reason": reason}
+        )
         return record
 
     def status(self, proposal_id: str) -> dict[str, Any]:
@@ -248,25 +290,38 @@ class SelfModificationPipeline:
         return "proposed"
 
     def _record_phase(
-        self, proposal_id: str, phase: str, status: str,
+        self,
+        proposal_id: str,
+        phase: str,
+        status: str,
         details: dict[str, Any] | None = None,
     ) -> ModificationPhaseRecord:
         now = utc_now()
         record = ModificationPhaseRecord(
-            proposal_id=proposal_id, phase=phase, status=status,
-            details=details or {}, timestamp=now,
+            proposal_id=proposal_id,
+            phase=phase,
+            status=status,
+            details=details or {},
+            timestamp=now,
         )
         with self._connect() as conn:
             conn.execute(
                 "INSERT INTO modification_phases(proposal_id, phase, status, details_json, recorded_at) VALUES (?, ?, ?, ?, ?)",
-                (proposal_id, phase, status,
-                 json.dumps(details or {}, ensure_ascii=False), now),
+                (
+                    proposal_id,
+                    phase,
+                    status,
+                    json.dumps(details or {}, ensure_ascii=False),
+                    now,
+                ),
             )
         return record
 
     def doctor(self) -> dict[str, Any]:
         with self._connect() as conn:
-            total = conn.execute("SELECT COUNT(*) as c FROM modification_proposals").fetchone()["c"]
+            total = conn.execute(
+                "SELECT COUNT(*) as c FROM modification_proposals"
+            ).fetchone()["c"]
             by_risk = conn.execute(
                 "SELECT risk_level, COUNT(*) as c FROM modification_proposals GROUP BY risk_level"
             ).fetchall()

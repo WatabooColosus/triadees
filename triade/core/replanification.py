@@ -113,9 +113,8 @@ class Replanner:
         budget_remaining: dict[str, Any] | None = None,
     ) -> ReplanificationStrategy:
         strategy = STRATEGY_MAP.get(analysis.failure_type, "retry")
-        budget_ok = True
         if budget_remaining:
-            budget_ok = budget_remaining.get("remaining_steps", 10) > 2
+            budget_remaining.get("remaining_steps", 10) > 2
 
         if strategy == "abort_plan" or not analysis.recoverable:
             return ReplanificationStrategy(
@@ -127,18 +126,21 @@ class Replanner:
         if strategy == "retry_with_fallback" and analysis.step_id:
             return ReplanificationStrategy(
                 strategy="retry",
-                modified_steps=[{
-                    "step_id": analysis.step_id,
-                    "fallback": True,
-                    "use_template": True,
-                }],
+                modified_steps=[
+                    {
+                        "step_id": analysis.step_id,
+                        "fallback": True,
+                        "use_template": True,
+                    }
+                ],
                 risk_assessment="low",
                 rationale="Reintentar con fallback a plantilla ante error de modelo.",
             )
 
         if strategy == "skip_and_continue":
             ready_after = [
-                s.to_dict() for s in remaining_steps
+                s.to_dict()
+                for s in remaining_steps
                 if analysis.step_id not in s.dependencies
             ]
             return ReplanificationStrategy(
@@ -179,7 +181,9 @@ class Replanner:
             return "dependency_missing"
         return "unknown"
 
-    def _guess_root_cause(self, failure_type: str, error: str, context: dict[str, Any]) -> str:
+    def _guess_root_cause(
+        self, failure_type: str, error: str, context: dict[str, Any]
+    ) -> str:
         if failure_type == "model_error":
             return "Ollama no disponible o modelo sobrecargado"
         if failure_type == "timeout":

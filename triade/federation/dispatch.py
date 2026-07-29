@@ -10,7 +10,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from .exchange import FederatedEnvelope, FederatedExchangeStore, HMACEnvelopeAuthenticator
+from .exchange import (
+    FederatedEnvelope,
+    FederatedExchangeStore,
+    HMACEnvelopeAuthenticator,
+)
 from .registry import FederatedNodeRegistry
 
 Transport = Callable[[FederatedEnvelope, float], FederatedEnvelope]
@@ -109,7 +113,9 @@ class FederatedDispatcher:
             capability=capability,
             permission="submit_work",
         ):
-            raise PermissionError("nodo remoto no autorizado para ejecutar la capacidad")
+            raise PermissionError(
+                "nodo remoto no autorizado para ejecutar la capacidad"
+            )
 
         request_payload = {
             "kind": "work_request",
@@ -138,7 +144,9 @@ class FederatedDispatcher:
                 payload=request_payload,
             )
         )
-        self._create(job_id, remote_node_id, capability, request_sha, request.to_dict(), now)
+        self._create(
+            job_id, remote_node_id, capability, request_sha, request.to_dict(), now
+        )
 
         started = float(self.clock())
         try:
@@ -147,7 +155,9 @@ class FederatedDispatcher:
             if elapsed > budget.timeout_seconds:
                 raise TimeoutError("el nodo remoto excedió el timeout")
             accepted = self.incoming.accept(response)
-            result = self._validate_response(job_id, remote_node_id, capability, response, budget)
+            result = self._validate_response(
+                job_id, remote_node_id, capability, response, budget
+            )
             result["exchange"] = accepted
             result["elapsed_seconds"] = elapsed
             self._complete(job_id, result)
@@ -188,7 +198,10 @@ class FederatedDispatcher:
     ) -> dict[str, Any]:
         if response.sender_node_id != remote_node_id:
             raise ValueError("respuesta emitida por un nodo distinto")
-        if response.capability != capability or response.permission != "return_evidence":
+        if (
+            response.capability != capability
+            or response.permission != "return_evidence"
+        ):
             raise ValueError("respuesta fuera del alcance autorizado")
         payload = response.payload
         if payload.get("kind") != "work_result" or payload.get("job_id") != job_id:
@@ -208,7 +221,9 @@ class FederatedDispatcher:
             value = float(usage.get(key, -1))
             if value < 0 or value > limit:
                 raise ValueError(f"uso remoto excede presupuesto: {key}")
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
         if len(encoded) > budget.output_kb * 1024:
             raise ValueError("resultado remoto excede output_kb")
         evidence_sha = self._sha(evidence)
@@ -236,7 +251,15 @@ class FederatedDispatcher:
                 (job_id, remote_node_id, capability, status, request_sha256,
                  result_sha256, payload_json, created_at, updated_at)
                 VALUES (?, ?, ?, 'dispatched', ?, NULL, ?, ?, ?)""",
-                (job_id, remote_node_id, capability, request_sha, json.dumps(payload, sort_keys=True), now, now),
+                (
+                    job_id,
+                    remote_node_id,
+                    capability,
+                    request_sha,
+                    json.dumps(payload, sort_keys=True),
+                    now,
+                    now,
+                ),
             )
             self._event(conn, job_id, "dispatched", payload, now)
 
@@ -253,7 +276,13 @@ class FederatedDispatcher:
             conn.execute(
                 """UPDATE federated_jobs SET status = ?, result_sha256 = ?,
                 payload_json = ?, updated_at = ? WHERE job_id = ?""",
-                (result["status"], result_sha, json.dumps(payload, sort_keys=True), now, job_id),
+                (
+                    result["status"],
+                    result_sha,
+                    json.dumps(payload, sort_keys=True),
+                    now,
+                    job_id,
+                ),
             )
             self._event(conn, job_id, result["status"], result, now)
 
@@ -276,7 +305,13 @@ class FederatedDispatcher:
             self._event(conn, job_id, "failed", error, now)
 
     @staticmethod
-    def _event(conn: sqlite3.Connection, job_id: str, action: str, payload: dict[str, Any], now: float) -> None:
+    def _event(
+        conn: sqlite3.Connection,
+        job_id: str,
+        action: str,
+        payload: dict[str, Any],
+        now: float,
+    ) -> None:
         conn.execute(
             "INSERT INTO federated_job_events (job_id, action, payload_json, created_at) VALUES (?, ?, ?, ?)",
             (job_id, action, json.dumps(payload, sort_keys=True), now),

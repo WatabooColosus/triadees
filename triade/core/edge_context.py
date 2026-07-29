@@ -18,7 +18,9 @@ import time
 from triade.core.edge_processing import EdgeProcessingService
 
 
-def parse_model_json_safely(text: str | None, *, fallback_text: str, parser_name: str) -> dict[str, Any]:
+def parse_model_json_safely(
+    text: str | None, *, fallback_text: str, parser_name: str
+) -> dict[str, Any]:
     """Convierte salida JSON de modelo en dato o señal; no lanza por JSON inválido."""
     raw = "" if text is None else str(text)
     stripped = raw.strip()
@@ -44,7 +46,7 @@ def parse_model_json_safely(text: str | None, *, fallback_text: str, parser_name
     cleaned = stripped.replace("```json", "").replace("```", "").strip()
     start = cleaned.find("{")
     end = cleaned.rfind("}")
-    candidate = cleaned[start:end + 1] if start >= 0 and end > start else cleaned
+    candidate = cleaned[start : end + 1] if start >= 0 and end > start else cleaned
     if "{" not in candidate or "}" not in candidate:
         return {
             **base,
@@ -127,6 +129,7 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
         local_intent = compact_intent_probe(heuristic_intent(user_text, raw=""))
         try:
             from triade.core.edge_observations import record_edge_observation
+
             record_edge_observation(
                 parser_name="local_edge_signal",
                 observation_type="local_heuristic",
@@ -170,7 +173,9 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
         accepted = accepted or intent_result.accepted_for_context
         node_id = intent_result.node_id or node_id
         intent_data = parse_intent(intent_result.response, fallback_text=user_text)
-        edge_observations.extend(_extract_edge_observations(intent_data, "intent_probe"))
+        edge_observations.extend(
+            _extract_edge_observations(intent_data, "intent_probe")
+        )
 
         keywords_result = service.keywords(user_text)
         evidence["keywords"] = keywords_result.to_dict()
@@ -219,10 +224,6 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str
     return ctx.to_dict()
 
 
-
-
-
-
 def compact_intent_probe(data: dict[str, Any]) -> dict[str, Any]:
     """Deja solo campos seguros para plan/memory_diff.
 
@@ -243,15 +244,21 @@ def parse_context_probe(text: str, fallback_text: str = "") -> dict[str, Any]:
     Devuelve un dict con intent_probe y keywords. Si el JSON viene incompleto
     o sucio, usa fallback determinista.
     """
-    result = parse_model_json_safely(text, fallback_text=fallback_text, parser_name="context_probe")
+    result = parse_model_json_safely(
+        text, fallback_text=fallback_text, parser_name="context_probe"
+    )
     if not result["ok"]:
-        _record_edge_signal(result, fallback_text=fallback_text, parser_name="context_probe")
+        _record_edge_signal(
+            result, fallback_text=fallback_text, parser_name="context_probe"
+        )
         intent_data = heuristic_intent(fallback_text or text, raw=text)
-        intent_data.update({
-            "_edge_signal_quality": result["signal_quality"],
-            "_edge_observation_type": result["observation_type"],
-            "_fallback_used": True,
-        })
+        intent_data.update(
+            {
+                "_edge_signal_quality": result["signal_quality"],
+                "_edge_observation_type": result["observation_type"],
+                "_fallback_used": True,
+            }
+        )
         return {
             "ok": False,
             "intent_probe": intent_data,
@@ -284,8 +291,13 @@ def parse_context_probe(text: str, fallback_text: str = "") -> dict[str, Any]:
         if isinstance(raw_keywords, str):
             keywords = parse_keywords(raw_keywords, fallback_text=fallback_text)
         elif isinstance(raw_keywords, list):
-            keywords = [str(k).strip(" .;:-\t\n\"'") for k in raw_keywords if str(k).strip()]
-            if not keywords or any(len(k) > 40 or "palabra clave" in k.lower() or "###" in k for k in keywords):
+            keywords = [
+                str(k).strip(" .;:-\t\n\"'") for k in raw_keywords if str(k).strip()
+            ]
+            if not keywords or any(
+                len(k) > 40 or "palabra clave" in k.lower() or "###" in k
+                for k in keywords
+            ):
                 keywords = heuristic_keywords(fallback_text)
             keywords = keywords[:8]
         else:
@@ -309,13 +321,17 @@ def parse_context_probe(text: str, fallback_text: str = "") -> dict[str, Any]:
             "signal_quality": "low",
             "observation_type": "malformed_json",
         }
-        _record_edge_signal(malformed, fallback_text=fallback_text, parser_name="context_probe")
+        _record_edge_signal(
+            malformed, fallback_text=fallback_text, parser_name="context_probe"
+        )
         intent_data = heuristic_intent(fallback_text or text, raw=text)
-        intent_data.update({
-            "_edge_signal_quality": "low",
-            "_edge_observation_type": "malformed_json",
-            "_fallback_used": True,
-        })
+        intent_data.update(
+            {
+                "_edge_signal_quality": "low",
+                "_edge_observation_type": "malformed_json",
+                "_fallback_used": True,
+            }
+        )
         return {
             "ok": False,
             "intent_probe": intent_data,
@@ -327,9 +343,10 @@ def parse_context_probe(text: str, fallback_text: str = "") -> dict[str, Any]:
         }
 
 
-
 def parse_intent(text: str, fallback_text: str = "") -> Dict[str, Any]:
-    result = parse_model_json_safely(text, fallback_text=fallback_text, parser_name="intent_probe")
+    result = parse_model_json_safely(
+        text, fallback_text=fallback_text, parser_name="intent_probe"
+    )
     if result["ok"]:
         data = result["data"] or {}
         intent = str(data.get("intent", "unknown")).strip().lower()
@@ -339,7 +356,9 @@ def parse_intent(text: str, fallback_text: str = "") -> Dict[str, Any]:
         if intent and intent != "unknown":
             # Corrección determinista para tareas técnicas APK/nodo.
             ft = (fallback_text or "").lower()
-            if "apk" in ft and ("nodo" in ft or "procesamiento" in ft or "conectar" in ft):
+            if "apk" in ft and (
+                "nodo" in ft or "procesamiento" in ft or "conectar" in ft
+            ):
                 intent = "connect_apk_node"
                 urgency = "medium"
                 risk = "low"
@@ -355,19 +374,25 @@ def parse_intent(text: str, fallback_text: str = "") -> Dict[str, Any]:
                 "_fallback_used": False,
             }
     else:
-        _record_edge_signal(result, fallback_text=fallback_text, parser_name="intent_probe")
+        _record_edge_signal(
+            result, fallback_text=fallback_text, parser_name="intent_probe"
+        )
 
     # Fallback determinista desde el texto original, no desde la salida débil del LLM.
     intent_data = heuristic_intent(fallback_text or text, raw=text)
-    intent_data.update({
-        "_edge_signal_quality": result["signal_quality"],
-        "_edge_observation_type": result["observation_type"],
-        "_fallback_used": True,
-    })
+    intent_data.update(
+        {
+            "_edge_signal_quality": result["signal_quality"],
+            "_edge_observation_type": result["observation_type"],
+            "_fallback_used": True,
+        }
+    )
     return intent_data
 
 
-def _record_edge_signal(result: dict[str, Any], *, fallback_text: str, parser_name: str) -> None:
+def _record_edge_signal(
+    result: dict[str, Any], *, fallback_text: str, parser_name: str
+) -> None:
     from triade.core.edge_observations import record_edge_observation
 
     record_edge_observation(
@@ -380,22 +405,36 @@ def _record_edge_signal(result: dict[str, Any], *, fallback_text: str, parser_na
     )
 
 
-def _extract_edge_observations(payload: dict[str, Any], parser_name: str) -> list[dict[str, Any]]:
-    obs_type = payload.get("edge_observation_type") or payload.get("_edge_observation_type")
+def _extract_edge_observations(
+    payload: dict[str, Any], parser_name: str
+) -> list[dict[str, Any]]:
+    obs_type = payload.get("edge_observation_type") or payload.get(
+        "_edge_observation_type"
+    )
     quality = payload.get("edge_signal_quality") or payload.get("_edge_signal_quality")
-    fallback = payload.get("fallback_used") if "fallback_used" in payload else payload.get("_fallback_used")
-    nested = payload.get("intent_probe") if isinstance(payload.get("intent_probe"), dict) else {}
+    fallback = (
+        payload.get("fallback_used")
+        if "fallback_used" in payload
+        else payload.get("_fallback_used")
+    )
+    nested = (
+        payload.get("intent_probe")
+        if isinstance(payload.get("intent_probe"), dict)
+        else {}
+    )
     obs_type = obs_type or nested.get("_edge_observation_type")
     quality = quality or nested.get("_edge_signal_quality")
     fallback = fallback if fallback is not None else nested.get("_fallback_used")
     if not obs_type:
         return []
-    return [{
-        "parser_name": parser_name,
-        "observation_type": obs_type,
-        "signal_quality": quality or "low",
-        "fallback_used": bool(fallback),
-    }]
+    return [
+        {
+            "parser_name": parser_name,
+            "observation_type": obs_type,
+            "signal_quality": quality or "low",
+            "fallback_used": bool(fallback),
+        }
+    ]
 
 
 def _merge_signal_quality(observations: list[dict[str, Any]]) -> str:
@@ -412,7 +451,9 @@ def _merge_signal_quality(observations: list[dict[str, Any]]) -> str:
     return "high"
 
 
-def _edge_confidence_score(*, observations: list[dict[str, Any]], accepted_for_context: bool, used_edge: bool) -> float:
+def _edge_confidence_score(
+    *, observations: list[dict[str, Any]], accepted_for_context: bool, used_edge: bool
+) -> float:
     types = {str(obs.get("observation_type") or "") for obs in observations}
     score = 0.0
     if not observations or "valid_json" in types:
@@ -440,17 +481,19 @@ def parse_keywords(text: str, fallback_text: str = "") -> list[str]:
     # Si el modelo devolvió explicación, frase larga o poca separación, usar input original.
     too_long = any(len(p) > 42 for p in parts)
     looks_like_explanation = any(
-        p.lower().startswith((
-            "el proceso",
-            "por ejemplo",
-            "para ",
-            "debemos",
-            "a continuación",
-            "más de",
-            "mas de",
-            "las cuales son",
-            "se han encontrado",
-        ))
+        p.lower().startswith(
+            (
+                "el proceso",
+                "por ejemplo",
+                "para ",
+                "debemos",
+                "a continuación",
+                "más de",
+                "mas de",
+                "las cuales son",
+                "se han encontrado",
+            )
+        )
         for p in parts
     )
     weak_keywords = any(
@@ -464,7 +507,9 @@ def parse_keywords(text: str, fallback_text: str = "") -> list[str]:
         or " en español" in p.lower()
         for p in parts
     )
-    if fallback_text and (len(parts) <= 2 or too_long or looks_like_explanation or weak_keywords):
+    if fallback_text and (
+        len(parts) <= 2 or too_long or looks_like_explanation or weak_keywords
+    ):
         parts = heuristic_keywords(fallback_text)
 
     result = []
@@ -484,8 +529,25 @@ def parse_keywords(text: str, fallback_text: str = "") -> list[str]:
 
 def heuristic_keywords(text: str) -> list[str]:
     stop = {
-        "es", "una", "un", "de", "del", "la", "el", "los", "las", "con", "y",
-        "por", "para", "en", "como", "que", "se", "a", "al"
+        "es",
+        "una",
+        "un",
+        "de",
+        "del",
+        "la",
+        "el",
+        "los",
+        "las",
+        "con",
+        "y",
+        "por",
+        "para",
+        "en",
+        "como",
+        "que",
+        "se",
+        "a",
+        "al",
     }
     words = []
     for token in text.replace(".", " ").replace(",", " ").split():
@@ -543,7 +605,9 @@ def heuristic_intent(text: str, raw: str = "") -> Dict[str, Any]:
         urgency = "high"
 
     risk = "low"
-    if any(w in t for w in ("token", "contraseña", "password", "permiso", "credencial")):
+    if any(
+        w in t for w in ("token", "contraseña", "password", "permiso", "credencial")
+    ):
         risk = "medium"
 
     data = {

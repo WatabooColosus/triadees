@@ -62,7 +62,10 @@ def test_learning_pipeline_never_modifies_identity_core(tmp_path: Path) -> None:
     Bodega(db_path=db_path)
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
-        before = {row["key"]: row["value"] for row in conn.execute("SELECT key, value FROM identity_core").fetchall()}
+        before = {
+            row["key"]: row["value"]
+            for row in conn.execute("SELECT key, value FROM identity_core").fetchall()
+        }
 
     pipe = LearningPipeline(db_path=db_path)
     cid = pipe.ingest(
@@ -81,7 +84,10 @@ def test_learning_pipeline_never_modifies_identity_core(tmp_path: Path) -> None:
 
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
-        after = {row["key"]: row["value"] for row in conn.execute("SELECT key, value FROM identity_core").fetchall()}
+        after = {
+            row["key"]: row["value"]
+            for row in conn.execute("SELECT key, value FROM identity_core").fetchall()
+        }
 
     assert before == after
 
@@ -91,14 +97,34 @@ def test_worker_loop_never_modifies_identity_core(tmp_path: Path) -> None:
     Bodega(db_path=db_path)
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
-        before = {row["key"]: row["value"] for row in conn.execute("SELECT key, value FROM identity_core").fetchall()}
+        before = {
+            row["key"]: row["value"]
+            for row in conn.execute("SELECT key, value FROM identity_core").fetchall()
+        }
 
-    loop = WorkerLoop(db_path=db_path, runs_dir=tmp_path / "runs", lock_file=tmp_path / "lock", stop_file=tmp_path / "stop")
-    loop.run(WorkerRunConfig(max_iterations=1, sleep_seconds=0, once=True, runs_dir=str(tmp_path / "runs"), lock_file=str(tmp_path / "lock"), stop_file=str(tmp_path / "stop")))
+    loop = WorkerLoop(
+        db_path=db_path,
+        runs_dir=tmp_path / "runs",
+        lock_file=tmp_path / "lock",
+        stop_file=tmp_path / "stop",
+    )
+    loop.run(
+        WorkerRunConfig(
+            max_iterations=1,
+            sleep_seconds=0,
+            once=True,
+            runs_dir=str(tmp_path / "runs"),
+            lock_file=str(tmp_path / "lock"),
+            stop_file=str(tmp_path / "stop"),
+        )
+    )
 
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
-        after = {row["key"]: row["value"] for row in conn.execute("SELECT key, value FROM identity_core").fetchall()}
+        after = {
+            row["key"]: row["value"]
+            for row in conn.execute("SELECT key, value FROM identity_core").fetchall()
+        }
 
     assert before == after
 

@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from .background_neurons import candidates_from_system_debt
-from .contracts import NeuronContributionPacket
 from .error_bus import record_internal_error
 from .experimental_neuron_runtime import run_experimental_neurons
 from .neuron_activity_store import NeuronActivityStore
@@ -49,7 +48,9 @@ def orchestrate_run_neurons(
     mission_selection = select_relevant_missions(
         user_input=input_packet.user_input,
         domain=str((input_packet.context or {}).get("semantic_domain") or ""),
-        memory_context=living_context if isinstance(living_context, dict) else input_packet.context or {},
+        memory_context=living_context
+        if isinstance(living_context, dict)
+        else input_packet.context or {},
         db_path=db_path,
         limit=5,
     )
@@ -71,29 +72,35 @@ def orchestrate_run_neurons(
             experimental_neuron_activity,
         )
         experimental_neuron_activity["db_activity_ids"] = neuron_activity_ids
-        system_events.append({
-            "type": "experimental_neuron_activity",
-            "severity": "info",
-            "status": "contributions_produced",
-            "message": f"{experimental_neuron_activity.get('count')} neurona(s) activada(s), {experimental_neuron_activity.get('contributions_count', 0)} contribution(s).",
-            "action_required": "none",
-            "payload": experimental_neuron_activity,
-        })
+        system_events.append(
+            {
+                "type": "experimental_neuron_activity",
+                "severity": "info",
+                "status": "contributions_produced",
+                "message": f"{experimental_neuron_activity.get('count')} neurona(s) activada(s), {experimental_neuron_activity.get('contributions_count', 0)} contribution(s).",
+                "action_required": "none",
+                "payload": experimental_neuron_activity,
+            }
+        )
 
     contributions = _extract_contributions(experimental_neuron_activity)
     learning_candidates = _generate_learning_candidates_from_contributions(
-        contributions, db_path=db_path, run_id=input_packet.run_id,
+        contributions,
+        db_path=db_path,
+        run_id=input_packet.run_id,
     )
 
     for lc in learning_candidates:
-        system_events.append({
-            "type": "neuron_learning_candidate",
-            "severity": "info",
-            "status": "auto_generated",
-            "message": f"Candidato de aprendizaje generado desde contribución neuronal: {lc.get('candidate_id')}",
-            "action_required": "evaluate_in_pipeline",
-            "payload": lc,
-        })
+        system_events.append(
+            {
+                "type": "neuron_learning_candidate",
+                "severity": "info",
+                "status": "auto_generated",
+                "message": f"Candidato de aprendizaje generado desde contribución neuronal: {lc.get('candidate_id')}",
+                "action_required": "evaluate_in_pipeline",
+                "payload": lc,
+            }
+        )
 
     background_neuron_candidates = candidates_from_system_debt(
         pulse_summary=(input_packet.context or {}).get("system_pulse_summary"),
@@ -102,14 +109,16 @@ def orchestrate_run_neurons(
     background_neuron_candidates = form_candidates(background_neuron_candidates)
 
     for candidate in background_neuron_candidates:
-        system_events.append({
-            "type": "background_neuron_candidate",
-            "severity": candidate.get("severity", "medium"),
-            "status": "auto_approved",
-            "message": f"Neurona candidata propuesta: {candidate.get('display_name') or candidate.get('name')}",
-            "action_required": "approve_or_reject_background_neuron",
-            "payload": candidate,
-        })
+        system_events.append(
+            {
+                "type": "background_neuron_candidate",
+                "severity": candidate.get("severity", "medium"),
+                "status": "auto_approved",
+                "message": f"Neurona candidata propuesta: {candidate.get('display_name') or candidate.get('name')}",
+                "action_required": "approve_or_reject_background_neuron",
+                "payload": candidate,
+            }
+        )
 
     if autopromotion_events:
         system_events.extend(autopromotion_events)
@@ -161,7 +170,11 @@ def _generate_learning_candidates_from_contributions(
             "run_neuron_orchestrator.learning_pipeline_init",
             exc,
             run_id=run_id,
-            payload={"module": __name__, "function": "_generate_learning_candidates_from_contributions", "operation": "init_learning_pipeline"},
+            payload={
+                "module": __name__,
+                "function": "_generate_learning_candidates_from_contributions",
+                "operation": "init_learning_pipeline",
+            },
             db_path=db_path,
         )
         return candidates
@@ -186,13 +199,15 @@ def _generate_learning_candidates_from_contributions(
                 domain=str(contrib.get("neuron_domain") or "general"),
                 risk_level=str(contrib.get("risk") or "low"),
             )
-            candidates.append({
-                "candidate_id": candidate.get("candidate_id"),
-                "source_neuron": neuron_name,
-                "neuron_status": neuron_status,
-                "confidence": confidence,
-                "run_id": run_id,
-            })
+            candidates.append(
+                {
+                    "candidate_id": candidate.get("candidate_id"),
+                    "source_neuron": neuron_name,
+                    "neuron_status": neuron_status,
+                    "confidence": confidence,
+                    "run_id": run_id,
+                }
+            )
         except Exception as exc:
             record_internal_error(
                 "run_neuron_orchestrator.learning_candidate_ingest",

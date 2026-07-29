@@ -19,7 +19,9 @@ FALLBACK_RESPONSE_ROLES = {
     "central_reasoning",
 }
 
-ALL_ROLES = CRITICAL_ROLES | FALLBACK_RESPONSE_ROLES | {"federation_probe", "safety_review"}
+ALL_ROLES = (
+    CRITICAL_ROLES | FALLBACK_RESPONSE_ROLES | {"federation_probe", "safety_review"}
+)
 
 DEFAULT_MODELS = {
     "chat_response": "qwen2.5:3b-instruct",
@@ -44,7 +46,11 @@ def get_model_cognitive_policy(
     """Devuelve permisos explícitos para el rol cognitivo indicado."""
 
     clean_role = (role or "").strip().lower() or "central_reasoning"
-    selected_model = (requested_model or DEFAULT_MODELS.get(clean_role) or DEFAULT_MODELS["central_reasoning"]).strip()
+    selected_model = (
+        requested_model
+        or DEFAULT_MODELS.get(clean_role)
+        or DEFAULT_MODELS["central_reasoning"]
+    ).strip()
     model_required = clean_role in CRITICAL_ROLES
 
     allowed_actions: dict[str, bool] = {
@@ -65,9 +71,11 @@ def get_model_cognitive_policy(
             {
                 "allow_response": True,
                 "allow_fallback": False,
-                "allow_learning_write": clean_role in CRITICAL_ROLES | {"central_reasoning"},
+                "allow_learning_write": clean_role
+                in CRITICAL_ROLES | {"central_reasoning"},
                 "allow_stable_memory_write": clean_role in {"stable_consolidation"},
-                "allow_candidate_creation": clean_role in CRITICAL_ROLES | {"central_reasoning", "hypothalamus_analysis"},
+                "allow_candidate_creation": clean_role
+                in CRITICAL_ROLES | {"central_reasoning", "hypothalamus_analysis"},
             }
         )
     elif clean_role in CRITICAL_ROLES:
@@ -91,7 +99,9 @@ def get_model_cognitive_policy(
         ]
         if clean_role == "neuron_nutrition":
             allowed_actions["allow_candidate_creation"] = False
-            allowed_actions["candidate_creation_status"] = "candidate_requires_model_review"
+            allowed_actions["candidate_creation_status"] = (
+                "candidate_requires_model_review"
+            )
     elif clean_role in FALLBACK_RESPONSE_ROLES:
         status = "fallback" if fallback_allowed else "degraded"
         degraded_reason = "Ollama no disponible; respuesta en fallback degradado."
@@ -106,7 +116,12 @@ def get_model_cognitive_policy(
     else:
         status = "fallback" if fallback_allowed else "degraded"
         degraded_reason = "Ollama no disponible; capacidades cognitivas limitadas."
-        allowed_actions.update({"allow_response": bool(fallback_allowed), "allow_fallback": bool(fallback_allowed)})
+        allowed_actions.update(
+            {
+                "allow_response": bool(fallback_allowed),
+                "allow_fallback": bool(fallback_allowed),
+            }
+        )
         blocked_actions = ["learning_write", "stable_memory_write"]
 
     return {

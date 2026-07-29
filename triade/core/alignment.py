@@ -89,7 +89,11 @@ class CoreAlignment:
         present = set(artifacts)
         missing = sorted(self.EXPECTED_ARTIFACTS - present)
         extra = sorted(present - self.EXPECTED_ARTIFACTS)
-        score = round((len(self.EXPECTED_ARTIFACTS) - len(missing)) / len(self.EXPECTED_ARTIFACTS), 2)
+        score = round(
+            (len(self.EXPECTED_ARTIFACTS) - len(missing))
+            / len(self.EXPECTED_ARTIFACTS),
+            2,
+        )
         return {
             "status": self._status_from_score(score),
             "score": score,
@@ -103,7 +107,9 @@ class CoreAlignment:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _build(organ: str, checks: list[tuple[str, bool]], recommendations: list[str]) -> OrganAlignment:
+    def _build(
+        organ: str, checks: list[tuple[str, bool]], recommendations: list[str]
+    ) -> OrganAlignment:
         fulfilled = [label for label, ok in checks if ok]
         missing = [label for label, ok in checks if not ok]
         score = round(len(fulfilled) / len(checks), 2) if checks else 0.0
@@ -131,11 +137,23 @@ class CoreAlignment:
         plan_src = _source(getattr(Central, "plan", None))
         runner_run_src = self._runner_run_source()
         checks = [
-            ("Genera plan cognitivo (Central.plan).", _safe(lambda: hasattr(Central, "plan"))),
-            ("Genera salida (Central.respond).", _safe(lambda: hasattr(Central, "respond"))),
-            ("Usa modelo local con fallback por plantilla.", "model_client" in _init_params(Central)),
+            (
+                "Genera plan cognitivo (Central.plan).",
+                _safe(lambda: hasattr(Central, "plan")),
+            ),
+            (
+                "Genera salida (Central.respond).",
+                _safe(lambda: hasattr(Central, "respond")),
+            ),
+            (
+                "Usa modelo local con fallback por plantilla.",
+                "model_client" in _init_params(Central),
+            ),
             ("Respeta gobernanza semántica al planear.", "governance" in plan_src),
-            ("Integra N Creadora/Formadora en el ciclo run().", "neuron" in runner_run_src.lower()),
+            (
+                "Integra N Creadora/Formadora en el ciclo run().",
+                "neuron" in runner_run_src.lower(),
+            ),
         ]
         return self._build(
             "central",
@@ -150,37 +168,74 @@ class CoreAlignment:
         from .hypothalamus import Hypothalamus
 
         rules_src = _source(getattr(Hypothalamus, "_analyze_rules", None))
-        virtues = ["humildad", "generosidad", "respeto", "paciencia", "templanza", "caridad", "diligencia"]
+        virtues = [
+            "humildad",
+            "generosidad",
+            "respeto",
+            "paciencia",
+            "templanza",
+            "caridad",
+            "diligencia",
+        ]
         pv7_complete = all(virtue in rules_src for virtue in virtues)
         checks = [
-            ("Detecta intención, tono, urgencia y riesgo (analyze).", _safe(lambda: hasattr(Hypothalamus, "analyze"))),
+            (
+                "Detecta intención, tono, urgencia y riesgo (analyze).",
+                _safe(lambda: hasattr(Hypothalamus, "analyze")),
+            ),
             ("Genera vector PV-7 completo (7 ejes).", pv7_complete),
-            ("Usa modelo local con fallback por reglas.", "model_client" in _init_params(Hypothalamus)),
-            ("Valida el JSON de señales del modelo.", _safe(lambda: hasattr(Hypothalamus, "_parse_model_json"))),
-            ("Mantiene estado emocional longitudinal por sesión.", "session" in rules_src.lower()),
+            (
+                "Usa modelo local con fallback por reglas.",
+                "model_client" in _init_params(Hypothalamus),
+            ),
+            (
+                "Valida el JSON de señales del modelo.",
+                _safe(lambda: hasattr(Hypothalamus, "_parse_model_json")),
+            ),
+            (
+                "Mantiene estado emocional longitudinal por sesión.",
+                "session" in rules_src.lower(),
+            ),
         ]
         return self._build(
             "hypothalamus",
             checks,
-            ["Persistir señales emocionales agregadas por sesión (estado longitudinal)."],
+            [
+                "Persistir señales emocionales agregadas por sesión (estado longitudinal)."
+            ],
         )
 
     def evaluate_bodega(self) -> OrganAlignment:
         from .bodega import Bodega
 
         schema_src = self._read("triade/memory/schemas.sql")
-        store_methods = ["store_signal", "store_crystal", "store_safety", "store_verification_report", "store_episode"]
+        store_methods = [
+            "store_signal",
+            "store_crystal",
+            "store_safety",
+            "store_verification_report",
+            "store_episode",
+        ]
         persists_all = all(hasattr(Bodega, method) for method in store_methods)
         semantic_ok = _safe(self._semantic_layer_importable)
         governance_ok = _safe(self._semantic_governance_importable)
         learning_active = "learning_queue" in self._learning_code_refs()
         checks = [
-            ("Inicializa SQLite con esquema versionado.", _safe(lambda: hasattr(Bodega, "_init_db"))),
+            (
+                "Inicializa SQLite con esquema versionado.",
+                _safe(lambda: hasattr(Bodega, "_init_db")),
+            ),
             ("Persiste señales, cristal, safety, episodios y reportes.", persists_all),
             ("Expone diagnóstico (doctor).", _safe(lambda: hasattr(Bodega, "doctor"))),
-            ("Memoria semántica vectorial operativa (store/search/embedding).", semantic_ok),
+            (
+                "Memoria semántica vectorial operativa (store/search/embedding).",
+                semantic_ok,
+            ),
             ("Gobernanza semántica de estados (candidate→stable).", governance_ok),
-            ("Cola de aprendizaje (learning_queue) con lógica activa.", learning_active and "learning_queue" in schema_src),
+            (
+                "Cola de aprendizaje (learning_queue) con lógica activa.",
+                learning_active and "learning_queue" in schema_src,
+            ),
         ]
         return self._build(
             "bodega",
@@ -199,20 +254,43 @@ class CoreAlignment:
             packet_fields = set(CrystalPacket.__dataclass_fields__)
         except Exception:
             packet_fields = set()
-        v2_metrics = {"pv7_score", "stability", "intensity", "q_crystal"}.issubset(packet_fields)
-        temporal_fields = {"temporal_status", "q_delta", "stability_delta", "history_window"}.issubset(packet_fields)
-        context_fields = {"context_scope", "context_key", "comparison_basis"}.issubset(packet_fields)
+        v2_metrics = {"pv7_score", "stability", "intensity", "q_crystal"}.issubset(
+            packet_fields
+        )
+        temporal_fields = {
+            "temporal_status",
+            "q_delta",
+            "stability_delta",
+            "history_window",
+        }.issubset(packet_fields)
+        context_fields = {"context_scope", "context_key", "comparison_basis"}.issubset(
+            packet_fields
+        )
         checks = [
-            ("Regula ética, profundidad, creatividad y relación (regulate).", _safe(lambda: hasattr(Crystal, "regulate"))),
-            ("Fórmula Q_cristal relacional completa (q_crystal_payload).", _safe(lambda: hasattr(Crystal, "q_crystal_payload"))),
-            ("Métricas extendidas en CrystalPacket (pv7/stability/intensity/Q).", v2_metrics),
-            ("Continuidad temporal (temporal_state + deltas).", _safe(lambda: hasattr(Crystal, "temporal_state")) and temporal_fields),
+            (
+                "Regula ética, profundidad, creatividad y relación (regulate).",
+                _safe(lambda: hasattr(Crystal, "regulate")),
+            ),
+            (
+                "Fórmula Q_cristal relacional completa (q_crystal_payload).",
+                _safe(lambda: hasattr(Crystal, "q_crystal_payload")),
+            ),
+            (
+                "Métricas extendidas en CrystalPacket (pv7/stability/intensity/Q).",
+                v2_metrics,
+            ),
+            (
+                "Continuidad temporal (temporal_state + deltas).",
+                _safe(lambda: hasattr(Crystal, "temporal_state")) and temporal_fields,
+            ),
             ("Historial comparativo contextualizado.", context_fields),
         ]
         return self._build(
             "crystal",
             checks,
-            ["Crystal v2 ya implementado; mantener trazabilidad de la ventana temporal."],
+            [
+                "Crystal v2 ya implementado; mantener trazabilidad de la ventana temporal."
+            ],
         )
 
     def evaluate_runner(self) -> OrganAlignment:
@@ -223,19 +301,32 @@ class CoreAlignment:
         # solo el cuerpo de Runner.run producía un falso negativo después de
         # extraer esa responsabilidad a un módulo dedicado.
         artifact_contract = run_src + artifact_src
-        writes_all_artifacts = all(name in artifact_contract for name in self.EXPECTED_ARTIFACTS)
+        writes_all_artifacts = all(
+            name in artifact_contract for name in self.EXPECTED_ARTIFACTS
+        )
         checks = [
             ("Ejecuta el ciclo cognitivo completo (run).", bool(run_src)),
             ("Escribe los 11 artefactos auditables por run.", writes_all_artifacts),
-            ("Cierra el run con integrity.json y CLOSED.", "integrity.json" in artifact_contract and "CLOSED" in artifact_contract),
-            ("Selección automática de modelos (Model Router).", "ModelRouter" in init_src or "_select_models" in init_src),
-            ("Registra eventos y calidad de modelo por run.", "store_model_event" in run_src),
+            (
+                "Cierra el run con integrity.json y CLOSED.",
+                "integrity.json" in artifact_contract and "CLOSED" in artifact_contract,
+            ),
+            (
+                "Selección automática de modelos (Model Router).",
+                "ModelRouter" in init_src or "_select_models" in init_src,
+            ),
+            (
+                "Registra eventos y calidad de modelo por run.",
+                "store_model_event" in run_src,
+            ),
             ("Ejecuta aprendizaje controlado post-run.", "learning" in run_src.lower()),
         ]
         return self._build(
             "runner",
             checks,
-            ["Agregar paso opcional de candidato de aprendizaje post-run (Fase C del ROADMAP)."],
+            [
+                "Agregar paso opcional de candidato de aprendizaje post-run (Fase C del ROADMAP)."
+            ],
         )
 
     # ------------------------------------------------------------------
@@ -256,7 +347,9 @@ class CoreAlignment:
         try:
             from .runner import TriadeRunner
 
-            return _source(TriadeRunner.__init__) + _source(getattr(TriadeRunner, "_select_models", None))
+            return _source(TriadeRunner.__init__) + _source(
+                getattr(TriadeRunner, "_select_models", None)
+            )
         except Exception:
             return ""
 

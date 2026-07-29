@@ -66,8 +66,12 @@ class NeuronCreator:
             "execute_external_action_without_approval",
         ]
 
-        final_rules = base_rules + [self._clean(rule) for rule in (rules or []) if self._clean(rule)]
-        final_forbidden = base_forbidden + [self._clean(x) for x in (forbidden_actions or []) if self._clean(x)]
+        final_rules = base_rules + [
+            self._clean(rule) for rule in (rules or []) if self._clean(rule)
+        ]
+        final_forbidden = base_forbidden + [
+            self._clean(x) for x in (forbidden_actions or []) if self._clean(x)
+        ]
 
         return NeuronSpec(
             name=clean_name,
@@ -75,11 +79,19 @@ class NeuronCreator:
             domain=clean_domain,
             rules=final_rules,
             triggers=[self._clean(x) for x in (triggers or []) if self._clean(x)],
-            inputs_allowed=[self._clean(x) for x in (inputs_allowed or []) if self._clean(x)],
-            outputs_allowed=[self._clean(x) for x in (outputs_allowed or []) if self._clean(x)],
+            inputs_allowed=[
+                self._clean(x) for x in (inputs_allowed or []) if self._clean(x)
+            ],
+            outputs_allowed=[
+                self._clean(x) for x in (outputs_allowed or []) if self._clean(x)
+            ],
             forbidden_actions=final_forbidden,
-            success_metrics=[self._clean(x) for x in (success_metrics or []) if self._clean(x)],
-            evidence_required=[self._clean(x) for x in (evidence_required or []) if self._clean(x)],
+            success_metrics=[
+                self._clean(x) for x in (success_metrics or []) if self._clean(x)
+            ],
+            evidence_required=[
+                self._clean(x) for x in (evidence_required or []) if self._clean(x)
+            ],
             status="candidate_detected",
         )
 

@@ -5,29 +5,33 @@ Tríade Ω — Sandbox Policy
 
 from __future__ import annotations
 
-ALLOWED_TASKS: frozenset[str] = frozenset({
-    "sandbox_exec",
-    "validate_learning_candidate",
-    "analyze_memory_candidate",
-    "dry_run_file_patch",
-    "sha256",
-    "echo",
-    "preprocess_text",
-    "federated_inference_probe",
-    "browser_benchmark",
-})
+ALLOWED_TASKS: frozenset[str] = frozenset(
+    {
+        "sandbox_exec",
+        "validate_learning_candidate",
+        "analyze_memory_candidate",
+        "dry_run_file_patch",
+        "sha256",
+        "echo",
+        "preprocess_text",
+        "federated_inference_probe",
+        "browser_benchmark",
+    }
+)
 
-BLOCKED_TASKS: frozenset[str] = frozenset({
-    "shell",
-    "exec",
-    "eval",
-    "deploy",
-    "install",
-    "publish",
-    "git_push",
-    "filesystem_write",
-    "network_request",
-})
+BLOCKED_TASKS: frozenset[str] = frozenset(
+    {
+        "shell",
+        "exec",
+        "eval",
+        "deploy",
+        "install",
+        "publish",
+        "git_push",
+        "filesystem_write",
+        "network_request",
+    }
+)
 
 
 def is_task_allowed(task: str) -> bool:

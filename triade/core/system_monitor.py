@@ -3,15 +3,14 @@ disco, temperatura, red, con señales al Hipotálamo."""
 
 import json
 import sqlite3
-import time
 from datetime import datetime, timezone
-from typing import Any
 
 from triade.core.contracts import utc_now
 
 
 def _gen_id(prefix: str) -> str:
     import hashlib
+
     return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(timezone.utc).timestamp()).encode()).hexdigest()[:6]}"
 
 
@@ -71,7 +70,9 @@ class SystemMonitor:
         "disk_percent": (85.0, 95.0),
     }
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
@@ -100,16 +101,27 @@ class SystemMonitor:
                 load_avg_1, load_avg_5, load_avg_15, ollama_status,
                 raw_json, created_at)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (snap_id,
-             m.get("cpu_percent", 0), m.get("ram_percent", 0),
-             m.get("ram_used_gb", 0), m.get("ram_total_gb", 0),
-             m.get("gpu_percent", 0), m.get("gpu_vram_used", 0),
-             m.get("gpu_vram_total", 0), m.get("gpu_temp_c", 0),
-             m.get("disk_percent", 0), m.get("disk_free_gb", 0),
-             m.get("net_sent_mb", 0), m.get("net_recv_mb", 0),
-             m.get("load_avg_1", 0), m.get("load_avg_5", 0),
-             m.get("load_avg_15", 0), m.get("ollama_status", "unknown"),
-             json.dumps(m, default=str), now),
+            (
+                snap_id,
+                m.get("cpu_percent", 0),
+                m.get("ram_percent", 0),
+                m.get("ram_used_gb", 0),
+                m.get("ram_total_gb", 0),
+                m.get("gpu_percent", 0),
+                m.get("gpu_vram_used", 0),
+                m.get("gpu_vram_total", 0),
+                m.get("gpu_temp_c", 0),
+                m.get("disk_percent", 0),
+                m.get("disk_free_gb", 0),
+                m.get("net_sent_mb", 0),
+                m.get("net_recv_mb", 0),
+                m.get("load_avg_1", 0),
+                m.get("load_avg_5", 0),
+                m.get("load_avg_15", 0),
+                m.get("ollama_status", "unknown"),
+                json.dumps(m, default=str),
+                now,
+            ),
         )
 
         signals = self._check_thresholds(m)
@@ -126,6 +138,7 @@ class SystemMonitor:
         metrics = {}
         try:
             import psutil
+
             metrics["cpu_percent"] = psutil.cpu_percent(interval=0.1)
             mem = psutil.virtual_memory()
             metrics["ram_percent"] = mem.percent
@@ -147,10 +160,16 @@ class SystemMonitor:
 
         try:
             import subprocess
+
             result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu",
-                 "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, timeout=5,
+                [
+                    "nvidia-smi",
+                    "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu",
+                    "--format=csv,noheader,nounits",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0:
                 parts = result.stdout.strip().split(", ")
@@ -169,7 +188,10 @@ class SystemMonitor:
     def _check_ollama() -> str:
         try:
             import urllib.request
-            req = urllib.request.Request("http://127.0.0.1:11434/api/tags", method="GET")
+
+            req = urllib.request.Request(
+                "http://127.0.0.1:11434/api/tags", method="GET"
+            )
             with urllib.request.urlopen(req, timeout=3) as resp:
                 return "healthy" if resp.status == 200 else "degraded"
         except Exception:
@@ -210,14 +232,27 @@ class SystemMonitor:
                        (signal_id, signal_type, severity, metric_name,
                         metric_value, threshold, message, created_at)
                        VALUES (?,?,?,?,?,?,?,?)""",
-                    (signal_id, "threshold_exceeded", severity, name,
-                     val, crit, msg, utc_now()),
+                    (
+                        signal_id,
+                        "threshold_exceeded",
+                        severity,
+                        name,
+                        val,
+                        crit,
+                        msg,
+                        utc_now(),
+                    ),
                 )
-                signals.append({
-                    "signal_id": signal_id, "type": "threshold_exceeded",
-                    "severity": severity, "metric": name,
-                    "value": val, "message": msg,
-                })
+                signals.append(
+                    {
+                        "signal_id": signal_id,
+                        "type": "threshold_exceeded",
+                        "severity": severity,
+                        "metric": name,
+                        "value": val,
+                        "message": msg,
+                    }
+                )
         return signals
 
     def get_snapshot(self, snapshot_id: str) -> dict | None:
@@ -251,8 +286,13 @@ class SystemMonitor:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def set_threshold(self, metric_name: str, warning: float, critical: float,
-                      direction: str = "above") -> dict:
+    def set_threshold(
+        self,
+        metric_name: str,
+        warning: float,
+        critical: float,
+        direction: str = "above",
+    ) -> dict:
         self._conn.execute(
             """INSERT INTO monitor_thresholds (metric_name, warning, critical, direction)
                VALUES (?,?,?,?)
@@ -265,12 +305,20 @@ class SystemMonitor:
     def get_models_status(self) -> dict:
         """Check Ollama models status."""
         try:
-            import urllib.request, json as _json
-            req = urllib.request.Request("http://127.0.0.1:11434/api/tags", method="GET")
+            import urllib.request
+            import json as _json
+
+            req = urllib.request.Request(
+                "http://127.0.0.1:11434/api/tags", method="GET"
+            )
             with urllib.request.urlopen(req, timeout=3) as resp:
                 data = _json.loads(resp.read())
                 models = [m.get("name", "unknown") for m in data.get("models", [])]
-                return {"models_available": models, "count": len(models), "status": "healthy"}
+                return {
+                    "models_available": models,
+                    "count": len(models),
+                    "status": "healthy",
+                }
         except Exception:
             return {"models_available": [], "count": 0, "status": "unreachable"}
 
@@ -278,6 +326,7 @@ class SystemMonitor:
         """Check scheduler status."""
         try:
             from triade.workers.advanced_scheduler import AdvancedScheduler
+
             sch = AdvancedScheduler()
             return sch.doctor()
         except Exception:
@@ -287,16 +336,27 @@ class SystemMonitor:
         """Check workers status."""
         try:
             from triade.workers.worker_supervisor import WorkerSupervisor
+
             ws = WorkerSupervisor()
             return ws.doctor()
         except Exception:
             return {"status": "unreachable"}
 
     def doctor(self) -> dict:
-        snaps = self._conn.execute("SELECT COUNT(*) as c FROM monitor_snapshots").fetchone()["c"]
-        signals = self._conn.execute("SELECT COUNT(*) as c FROM monitor_signals").fetchone()["c"]
-        pending = self._conn.execute("SELECT COUNT(*) as c FROM monitor_signals WHERE delivered=0").fetchone()["c"]
-        return {"snapshots": snaps, "total_signals": signals, "pending_signals": pending,
-                "models": self.get_models_status(),
-                "scheduler": self.get_scheduler_status(),
-                "workers": self.get_workers_status()}
+        snaps = self._conn.execute(
+            "SELECT COUNT(*) as c FROM monitor_snapshots"
+        ).fetchone()["c"]
+        signals = self._conn.execute(
+            "SELECT COUNT(*) as c FROM monitor_signals"
+        ).fetchone()["c"]
+        pending = self._conn.execute(
+            "SELECT COUNT(*) as c FROM monitor_signals WHERE delivered=0"
+        ).fetchone()["c"]
+        return {
+            "snapshots": snaps,
+            "total_signals": signals,
+            "pending_signals": pending,
+            "models": self.get_models_status(),
+            "scheduler": self.get_scheduler_status(),
+            "workers": self.get_workers_status(),
+        }

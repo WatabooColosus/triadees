@@ -11,7 +11,9 @@ from typing import Any
 
 def _linux_load_avg() -> dict[str, Any]:
     try:
-        text = Path("/proc/loadavg").read_text(encoding="utf-8", errors="ignore").strip()
+        text = (
+            Path("/proc/loadavg").read_text(encoding="utf-8", errors="ignore").strip()
+        )
         parts = text.split()
         if len(parts) >= 3:
             return {
@@ -28,7 +30,12 @@ def _linux_load_avg() -> dict[str, Any]:
 def _linux_power() -> dict[str, Any]:
     power_supply = Path("/sys/class/power_supply")
     if not power_supply.is_dir():
-        return {"ac_connected": None, "battery_percent": None, "battery_status": None, "power_source": None}
+        return {
+            "ac_connected": None,
+            "battery_percent": None,
+            "battery_status": None,
+            "power_source": None,
+        }
     ac_connected = None
     battery_percent = None
     battery_status = None
@@ -40,7 +47,11 @@ def _linux_power() -> dict[str, Any]:
                 continue
             ptype = type_file.read_text(encoding="utf-8", errors="ignore").strip()
             if ptype == "Mains":
-                online = (entry / "online").read_text(encoding="utf-8", errors="ignore").strip()
+                online = (
+                    (entry / "online")
+                    .read_text(encoding="utf-8", errors="ignore")
+                    .strip()
+                )
                 ac_connected = online == "1"
                 if ac_connected:
                     power_source = "AC"
@@ -48,16 +59,22 @@ def _linux_power() -> dict[str, Any]:
                 capacity = entry / "capacity"
                 status_file = entry / "status"
                 if capacity.exists():
-                    battery_percent = float(capacity.read_text(encoding="utf-8", errors="ignore").strip())
+                    battery_percent = float(
+                        capacity.read_text(encoding="utf-8", errors="ignore").strip()
+                    )
                 if status_file.exists():
-                    battery_status = status_file.read_text(encoding="utf-8", errors="ignore").strip()
+                    battery_status = status_file.read_text(
+                        encoding="utf-8", errors="ignore"
+                    ).strip()
                 if power_source is None:
                     if battery_status == "Discharging":
                         power_source = "battery"
                     elif battery_status == "Charging":
                         power_source = "AC"
                     else:
-                        power_source = battery_status.lower() if battery_status else "unknown"
+                        power_source = (
+                            battery_status.lower() if battery_status else "unknown"
+                        )
         except (OSError, ValueError):
             continue
     return {
@@ -116,12 +133,20 @@ def build_resource_probe() -> dict[str, Any]:
 
     # CPU
     cpu_count = os.cpu_count() or 1
-    load = _linux_load_avg() if platform.system().lower() == "linux" else {"load_1min": None}
+    load = (
+        _linux_load_avg()
+        if platform.system().lower() == "linux"
+        else {"load_1min": None}
+    )
 
     # Memory
     ram_total_gb = hw_dict.get("ram_total_gb", 0.0)
     ram_available_gb = hw_dict.get("ram_available_gb", 0.0)
-    mem_pct = round((1 - ram_available_gb / max(ram_total_gb, 1)) * 100, 1) if ram_total_gb > 0 else None
+    mem_pct = (
+        round((1 - ram_available_gb / max(ram_total_gb, 1)) * 100, 1)
+        if ram_total_gb > 0
+        else None
+    )
 
     # Disk
     disk_total, disk_free = _linux_disk_free()
@@ -130,15 +155,30 @@ def build_resource_probe() -> dict[str, Any]:
     gpus_raw = hw_dict.get("gpus", [])
     gpu_info = {
         "count": len(gpus_raw),
-        "devices": [{"name": g.get("name", "unknown"), "vram_gb": g.get("vram_total_gb", 0.0), "vendor": g.get("vendor", "unknown")} for g in gpus_raw],
+        "devices": [
+            {
+                "name": g.get("name", "unknown"),
+                "vram_gb": g.get("vram_total_gb", 0.0),
+                "vendor": g.get("vendor", "unknown"),
+            }
+            for g in gpus_raw
+        ],
         "total_vram_gb": round(sum(g.get("vram_total_gb", 0.0) for g in gpus_raw), 2),
     }
 
     # Power
-    power = _linux_power() if platform.system().lower() == "linux" else {"ac_connected": None, "battery_percent": None, "power_source": "unknown"}
+    power = (
+        _linux_power()
+        if platform.system().lower() == "linux"
+        else {"ac_connected": None, "battery_percent": None, "power_source": "unknown"}
+    )
 
     # Thermal
-    thermal = _linux_thermal() if platform.system().lower() == "linux" else {"thermal_status": None, "temperature_celsius": None}
+    thermal = (
+        _linux_thermal()
+        if platform.system().lower() == "linux"
+        else {"thermal_status": None, "temperature_celsius": None}
+    )
 
     # Limits
     limits = {
@@ -152,14 +192,28 @@ def build_resource_probe() -> dict[str, Any]:
         warnings.append(f"RAM disponible baja ({ram_available_gb} GB).")
     if disk_free < 2:
         warnings.append(f"Disco libre bajo ({disk_free} GB).")
-    if power.get("battery_percent") is not None and power.get("battery_percent", 100) < 25 and not power.get("ac_connected"):
+    if (
+        power.get("battery_percent") is not None
+        and power.get("battery_percent", 100) < 25
+        and not power.get("ac_connected")
+    ):
         warnings.append(f"Batería baja ({power['battery_percent']}%) sin AC.")
-    if load.get("load_1min") is not None and cpu_count and load["load_1min"] > cpu_count * 2:
-        warnings.append(f"Load average alto ({load['load_1min']}) para {cpu_count} CPUs.")
+    if (
+        load.get("load_1min") is not None
+        and cpu_count
+        and load["load_1min"] > cpu_count * 2
+    ):
+        warnings.append(
+            f"Load average alto ({load['load_1min']}) para {cpu_count} CPUs."
+        )
     if thermal.get("thermal_status") == "critical":
-        warnings.append(f"Temperatura crítica ({thermal.get('temperature_celsius')}°C).")
+        warnings.append(
+            f"Temperatura crítica ({thermal.get('temperature_celsius')}°C)."
+        )
     if thermal.get("thermal_status") == "high":
-        warnings.append(f"Temperatura elevada ({thermal.get('temperature_celsius')}°C).")
+        warnings.append(
+            f"Temperatura elevada ({thermal.get('temperature_celsius')}°C)."
+        )
 
     return {
         "status": "ok",

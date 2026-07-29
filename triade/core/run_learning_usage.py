@@ -78,11 +78,13 @@ def record_learning_usage_from_output(
             for cand in rows:
                 cid = str(cand["candidate_id"] or "")
                 if cid in explicit_ids or int(cand["id"]) in explicit_ids:
-                    matched.append({
-                        **dict(cand),
-                        "match_source": "explicit_candidate_id",
-                        "reason": f"Candidato {cid} listado en output.memory_diff.used_learning_candidate_ids",
-                    })
+                    matched.append(
+                        {
+                            **dict(cand),
+                            "match_source": "explicit_candidate_id",
+                            "reason": f"Candidato {cid} listado en output.memory_diff.used_learning_candidate_ids",
+                        }
+                    )
 
         # ── 2. Match por documentos semánticos ──
         semantic_doc_ids = _extract_semantic_document_ids(memory_packet)
@@ -90,11 +92,13 @@ def record_learning_usage_from_output(
             for cand in rows:
                 sr = str(cand["source_ref"] or "")
                 if sr and sr in semantic_doc_ids:
-                    matched.append({
-                        **dict(cand),
-                        "match_source": "semantic_document",
-                        "reason": f"Documento semántico {sr} referenciado en memory.semantic_matches",
-                    })
+                    matched.append(
+                        {
+                            **dict(cand),
+                            "match_source": "semantic_document",
+                            "reason": f"Documento semántico {sr} referenciado en memory.semantic_matches",
+                        }
+                    )
 
         # ── 3. Match por evidence_refs ──
         evidence_refs = _extract_evidence_refs(output_packet)
@@ -103,17 +107,23 @@ def record_learning_usage_from_output(
                 sr = str(cand["source_ref"] or "")
                 title = str(cand["title"] or "")
                 if sr and any(sr in ref for ref in evidence_refs):
-                    matched.append({
-                        **dict(cand),
-                        "match_source": "evidence_ref",
-                        "reason": f"source_ref {sr} encontrado en evidence_refs del output",
-                    })
-                elif title and any(title.lower() in ref.lower() for ref in evidence_refs):
-                    matched.append({
-                        **dict(cand),
-                        "match_source": "evidence_ref_title",
-                        "reason": f"Title '{title[:40]}' matcheado por evidence_ref",
-                    })
+                    matched.append(
+                        {
+                            **dict(cand),
+                            "match_source": "evidence_ref",
+                            "reason": f"source_ref {sr} encontrado en evidence_refs del output",
+                        }
+                    )
+                elif title and any(
+                    title.lower() in ref.lower() for ref in evidence_refs
+                ):
+                    matched.append(
+                        {
+                            **dict(cand),
+                            "match_source": "evidence_ref_title",
+                            "reason": f"Title '{title[:40]}' matcheado por evidence_ref",
+                        }
+                    )
 
         # ── 4. Diagnóstico heurístico: jamás se registra como uso ──
         heuristic_observations: list[dict[str, Any]] = []
@@ -127,7 +137,9 @@ def record_learning_usage_from_output(
 
             heuristic_reason = None
             if title and title[:10] in response_lower:
-                heuristic_reason = f"Title prefix '{title[:10]}' encontrado en respuesta"
+                heuristic_reason = (
+                    f"Title prefix '{title[:10]}' encontrado en respuesta"
+                )
             elif domain and domain in response_lower:
                 heuristic_reason = f"Domain '{domain}' encontrado en respuesta"
             elif content:
@@ -135,15 +147,19 @@ def record_learning_usage_from_output(
                 response_words = set(response_lower.split())
                 overlap = len(content_words & response_words)
                 if overlap >= 3:
-                    heuristic_reason = f"Overlap de {overlap} palabras entre contenido y respuesta"
+                    heuristic_reason = (
+                        f"Overlap de {overlap} palabras entre contenido y respuesta"
+                    )
 
             if heuristic_reason:
-                heuristic_observations.append({
-                    **dict(cand),
-                    "match_source": "heuristic",
-                    "heuristic_match": True,
-                    "reason": heuristic_reason,
-                })
+                heuristic_observations.append(
+                    {
+                        **dict(cand),
+                        "match_source": "heuristic",
+                        "heuristic_match": True,
+                        "reason": heuristic_reason,
+                    }
+                )
 
         # ── Deduplicate by candidate id ──
         seen_ids: set[int] = set()
@@ -164,12 +180,14 @@ def record_learning_usage_from_output(
             is_heuristic = cand.get("heuristic_match", False)
 
             if outcome_score is None or not outcome_evidence:
-                result["trace"].append({
-                    "candidate_id": candidate_id_str,
-                    "match_source": match_source,
-                    "status": "observed_not_counted",
-                    "reason": "Falta outcome_score medido o evidence_ref explícito",
-                })
+                result["trace"].append(
+                    {
+                        "candidate_id": candidate_id_str,
+                        "match_source": match_source,
+                        "status": "observed_not_counted",
+                        "reason": "Falta outcome_score medido o evidence_ref explícito",
+                    }
+                )
                 continue
 
             try:
@@ -182,58 +200,79 @@ def record_learning_usage_from_output(
                 result["candidates_marked"] += 1
                 source_counter = result["matched_by_source"]
                 source_counter[match_source] = source_counter.get(match_source, 0) + 1
-                result["trace"].append({
-                    "candidate_id": candidate_id_str,
-                    "title": str(cand.get("title", ""))[:60],
-                    "match_source": match_source,
-                    "heuristic_match": is_heuristic,
-                    "reason": reason,
-                    "outcome_score": outcome_score,
-                })
-                education_applications = CompetencyStore(db_path).record_candidate_application(
+                result["trace"].append(
+                    {
+                        "candidate_id": candidate_id_str,
+                        "title": str(cand.get("title", ""))[:60],
+                        "match_source": match_source,
+                        "heuristic_match": is_heuristic,
+                        "reason": reason,
+                        "outcome_score": outcome_score,
+                    }
+                )
+                education_applications = CompetencyStore(
+                    db_path
+                ).record_candidate_application(
                     candidate_id_str,
                     run_id=run_id,
                     outcome_score=outcome_score,
                     evidence_ref=outcome_evidence,
                 )
                 if education_applications:
-                    result.setdefault("education_applications", []).extend(education_applications)
+                    result.setdefault("education_applications", []).extend(
+                        education_applications
+                    )
             except ValueError as exc:
                 # A verified candidate may accumulate real-use observations before
                 # Measurement Core has produced promotable evidence.  That is an
                 # expected governance block, not an internal runtime failure.
                 message = str(exc)
-                if "evidencia Measurement Core" in message or "evidencia no demuestra mejora" in message:
-                    result["trace"].append({
+                if (
+                    "evidencia Measurement Core" in message
+                    or "evidencia no demuestra mejora" in message
+                ):
+                    result["trace"].append(
+                        {
+                            "candidate_id": candidate_id_str,
+                            "match_source": match_source,
+                            "status": "blocked_by_measurement_gate",
+                            "reason": message,
+                        }
+                    )
+                    continue
+                result["trace"].append(
+                    {
                         "candidate_id": candidate_id_str,
                         "match_source": match_source,
-                        "status": "blocked_by_measurement_gate",
-                        "reason": message,
-                    })
-                    continue
-                result["trace"].append({
-                    "candidate_id": candidate_id_str,
-                    "match_source": match_source,
-                    "error": message,
-                })
+                        "error": message,
+                    }
+                )
                 record_internal_error(
                     "learning_usage.mark_used",
                     exc,
                     run_id=run_id,
-                    payload={"candidate_id": candidate_id_str, "match_source": match_source},
+                    payload={
+                        "candidate_id": candidate_id_str,
+                        "match_source": match_source,
+                    },
                     db_path=db_path,
                 )
             except Exception as exc:
-                result["trace"].append({
-                    "candidate_id": candidate_id_str,
-                    "match_source": match_source,
-                    "error": str(exc),
-                })
+                result["trace"].append(
+                    {
+                        "candidate_id": candidate_id_str,
+                        "match_source": match_source,
+                        "error": str(exc),
+                    }
+                )
                 record_internal_error(
                     "learning_usage.mark_used",
                     exc,
                     run_id=run_id,
-                    payload={"candidate_id": candidate_id_str, "match_source": match_source},
+                    payload={
+                        "candidate_id": candidate_id_str,
+                        "match_source": match_source,
+                    },
                     db_path=db_path,
                 )
 
@@ -253,7 +292,9 @@ def record_learning_usage_from_output(
 
     except Exception as exc:
         result["error"] = str(exc)
-        record_internal_error("learning_usage.main", exc, run_id=run_id, db_path=db_path)
+        record_internal_error(
+            "learning_usage.main", exc, run_id=run_id, db_path=db_path
+        )
 
     return result
 
@@ -263,7 +304,9 @@ def _extract_explicit_candidate_ids(output_packet: Any) -> set[str | int]:
     ids: set[str | int] = set()
     try:
         mem_diff = {}
-        if hasattr(output_packet, "memory_diff") and isinstance(output_packet.memory_diff, dict):
+        if hasattr(output_packet, "memory_diff") and isinstance(
+            output_packet.memory_diff, dict
+        ):
             mem_diff = output_packet.memory_diff
         elif isinstance(output_packet, dict):
             mem_diff = output_packet.get("memory_diff", {})
@@ -278,7 +321,11 @@ def _extract_explicit_candidate_ids(output_packet: Any) -> set[str | int]:
         record_internal_error(
             "learning_usage.extract_explicit_candidate_ids",
             exc,
-            payload={"module": __name__, "function": "_extract_explicit_candidate_ids", "operation": "parse_output_memory_diff"},
+            payload={
+                "module": __name__,
+                "function": "_extract_explicit_candidate_ids",
+                "operation": "parse_output_memory_diff",
+            },
         )
     return ids
 
@@ -290,7 +337,9 @@ def _extract_semantic_document_ids(memory_packet: Any) -> set[str]:
         if memory_packet is None:
             return ids
         semantic_recall = {}
-        if hasattr(memory_packet, "semantic_recall") and isinstance(memory_packet.semantic_recall, dict):
+        if hasattr(memory_packet, "semantic_recall") and isinstance(
+            memory_packet.semantic_recall, dict
+        ):
             semantic_recall = memory_packet.semantic_recall
         elif hasattr(memory_packet, "semantic_matches"):
             matches = memory_packet.semantic_matches
@@ -300,7 +349,11 @@ def _extract_semantic_document_ids(memory_packet: Any) -> set[str]:
                         ids.add(str(m["document_id"]))
                 return ids
 
-        matches = semantic_recall.get("authorized_matches") or semantic_recall.get("semantic_matches") or []
+        matches = (
+            semantic_recall.get("authorized_matches")
+            or semantic_recall.get("semantic_matches")
+            or []
+        )
         if isinstance(matches, list):
             for m in matches:
                 if isinstance(m, dict) and "document_id" in m:
@@ -309,7 +362,11 @@ def _extract_semantic_document_ids(memory_packet: Any) -> set[str]:
         record_internal_error(
             "learning_usage.extract_semantic_document_ids",
             exc,
-            payload={"module": __name__, "function": "_extract_semantic_document_ids", "operation": "parse_memory_semantic_matches"},
+            payload={
+                "module": __name__,
+                "function": "_extract_semantic_document_ids",
+                "operation": "parse_memory_semantic_matches",
+            },
         )
     return ids
 
@@ -319,7 +376,9 @@ def _extract_evidence_refs(output_packet: Any) -> list[str]:
     refs: list[str] = []
     try:
         mem_diff = {}
-        if hasattr(output_packet, "memory_diff") and isinstance(output_packet.memory_diff, dict):
+        if hasattr(output_packet, "memory_diff") and isinstance(
+            output_packet.memory_diff, dict
+        ):
             mem_diff = output_packet.memory_diff
         elif isinstance(output_packet, dict):
             mem_diff = output_packet.get("memory_diff", {})
@@ -331,7 +390,11 @@ def _extract_evidence_refs(output_packet: Any) -> list[str]:
         record_internal_error(
             "learning_usage.extract_evidence_refs",
             exc,
-            payload={"module": __name__, "function": "_extract_evidence_refs", "operation": "parse_output_evidence_refs"},
+            payload={
+                "module": __name__,
+                "function": "_extract_evidence_refs",
+                "operation": "parse_output_evidence_refs",
+            },
         )
     return refs
 
@@ -344,14 +407,18 @@ def _extract_measured_outcome(output_packet: Any) -> tuple[float | None, str | N
     el match queda como observación y no modifica contadores de aprendizaje.
     """
     try:
-        if hasattr(output_packet, "memory_diff") and isinstance(output_packet.memory_diff, dict):
+        if hasattr(output_packet, "memory_diff") and isinstance(
+            output_packet.memory_diff, dict
+        ):
             memory_diff = output_packet.memory_diff
         elif isinstance(output_packet, dict):
             memory_diff = output_packet.get("memory_diff", {})
         else:
             memory_diff = {}
         raw_score = memory_diff.get("learning_outcome_score")
-        evidence_ref = str(memory_diff.get("learning_outcome_evidence_ref") or "").strip()
+        evidence_ref = str(
+            memory_diff.get("learning_outcome_evidence_ref") or ""
+        ).strip()
         if raw_score is None or not evidence_ref:
             return None, None
         score = float(raw_score)

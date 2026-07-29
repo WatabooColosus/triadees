@@ -23,10 +23,17 @@ class EmotionalState:
     dominance: float = 0.2
     primary_emotion: str = "neutral"
     fatigue: float = 0.0
-    pv7_baseline: dict[str, float] = field(default_factory=lambda: {
-        "humildad": 0.7, "generosidad": 0.7, "respeto": 0.8,
-        "paciencia": 0.7, "templanza": 0.7, "caridad": 0.7, "diligencia": 0.8,
-    })
+    pv7_baseline: dict[str, float] = field(
+        default_factory=lambda: {
+            "humildad": 0.7,
+            "generosidad": 0.7,
+            "respeto": 0.8,
+            "paciencia": 0.7,
+            "templanza": 0.7,
+            "caridad": 0.7,
+            "diligencia": 0.8,
+        }
+    )
     run_count: int = 0
     last_active_at: str | None = None
     # PV-14: Señales de hardware y carga cognitiva
@@ -86,12 +93,22 @@ def compute_primary_emotion(valence: float, arousal: float, fatigue: float) -> s
     return "neutral"
 
 
-def mood_from_signals(signals: SignalPacket, previous: EmotionalState | None = None) -> EmotionalState:
+def mood_from_signals(
+    signals: SignalPacket, previous: EmotionalState | None = None
+) -> EmotionalState:
     prev = previous or EmotionalState()
 
-    valence_tones = {"constructive": 0.2, "positive": 0.3, "encouraging": 0.3,
-                     "supportive": 0.2, "neutral": 0.0, "cautious": -0.2,
-                     "critical": -0.3, "warning": -0.3, "urgent": -0.1}
+    valence_tones = {
+        "constructive": 0.2,
+        "positive": 0.3,
+        "encouraging": 0.3,
+        "supportive": 0.2,
+        "neutral": 0.0,
+        "cautious": -0.2,
+        "critical": -0.3,
+        "warning": -0.3,
+        "urgent": -0.1,
+    }
     tone_valence = valence_tones.get(signals.tone.lower(), 0.0)
 
     pv7_avg = sum(signals.pv7.values()) / max(len(signals.pv7), 1)
@@ -121,7 +138,9 @@ def mood_from_signals(signals: SignalPacket, previous: EmotionalState | None = N
     )
 
 
-def fatigue_decay(fatigue: float, rest_seconds: float, decay_rate: float = 0.01) -> float:
+def fatigue_decay(
+    fatigue: float, rest_seconds: float, decay_rate: float = 0.01
+) -> float:
     amount = decay_rate * (rest_seconds / 60.0)
     return max(0.0, fatigue - amount)
 
@@ -146,22 +165,31 @@ class HypothalamusStateStore:
 
     def _init_db(self) -> None:
         if not self.schema_path.exists():
-            raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
+            raise FileNotFoundError(
+                f"No existe el esquema de memoria: {self.schema_path}"
+            )
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
             self._run_migration(conn)
 
     def _run_migration(self, conn: sqlite3.Connection) -> None:
         """Ejecuta migración 006 de forma segura (ignora columnas ya existentes)."""
-        migration_path = Path(__file__).resolve().parent / "migrations" / "006_hypothalamus_pv14.sql"
+        migration_path = (
+            Path(__file__).resolve().parent / "migrations" / "006_hypothalamus_pv14.sql"
+        )
         if migration_path.exists():
             try:
                 conn.executescript(migration_path.read_text(encoding="utf-8"))
             except sqlite3.OperationalError:
                 pass  # Columnas ya existen
 
-    def save(self, run_id: str, signals: SignalPacket, previous: EmotionalState | None = None,
-             cognitive_snapshot: dict[str, Any] | None = None) -> int:
+    def save(
+        self,
+        run_id: str,
+        signals: SignalPacket,
+        previous: EmotionalState | None = None,
+        cognitive_snapshot: dict[str, Any] | None = None,
+    ) -> int:
         if previous is None:
             previous = self.load_latest()
         mood = mood_from_signals(signals, previous)
@@ -198,13 +226,23 @@ class HypothalamusStateStore:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         run_id,
-                        mood.valence, mood.arousal, mood.dominance,
-                        mood.primary_emotion, mood.fatigue,
+                        mood.valence,
+                        mood.arousal,
+                        mood.dominance,
+                        mood.primary_emotion,
+                        mood.fatigue,
                         json.dumps(mood.pv7_baseline, ensure_ascii=False),
-                        mood.run_count, mood.last_active_at, now,
-                        mood.cpu_load, mood.ram_usage, mood.gpu_utilization,
-                        mood.gpu_memory_used, mood.gpu_temperature,
-                        mood.cognitive_load, mood.curiosity, mood.uncertainty,
+                        mood.run_count,
+                        mood.last_active_at,
+                        now,
+                        mood.cpu_load,
+                        mood.ram_usage,
+                        mood.gpu_utilization,
+                        mood.gpu_memory_used,
+                        mood.gpu_temperature,
+                        mood.cognitive_load,
+                        mood.curiosity,
+                        mood.uncertainty,
                         json.dumps(mood.tensions, ensure_ascii=False),
                         json.dumps(mood.cognitive_snapshot, ensure_ascii=False),
                     ),
@@ -226,13 +264,23 @@ class HypothalamusStateStore:
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
                             run_id,
-                            mood.valence, mood.arousal, mood.dominance,
-                            mood.primary_emotion, mood.fatigue,
+                            mood.valence,
+                            mood.arousal,
+                            mood.dominance,
+                            mood.primary_emotion,
+                            mood.fatigue,
                             json.dumps(mood.pv7_baseline, ensure_ascii=False),
-                            mood.run_count, mood.last_active_at, now,
-                            mood.cpu_load, mood.ram_usage, mood.gpu_utilization,
-                            mood.gpu_memory_used, mood.gpu_temperature,
-                            mood.cognitive_load, mood.curiosity, mood.uncertainty,
+                            mood.run_count,
+                            mood.last_active_at,
+                            now,
+                            mood.cpu_load,
+                            mood.ram_usage,
+                            mood.gpu_utilization,
+                            mood.gpu_memory_used,
+                            mood.gpu_temperature,
+                            mood.cognitive_load,
+                            mood.curiosity,
+                            mood.uncertainty,
                             json.dumps(mood.tensions, ensure_ascii=False),
                             json.dumps(mood.cognitive_snapshot, ensure_ascii=False),
                         ),
@@ -252,13 +300,24 @@ class HypothalamusStateStore:
                  cognitive_load, curiosity, uncertainty, tensions_json, cognitive_snapshot_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    run_id, state.valence, state.arousal, state.dominance,
-                    state.primary_emotion, state.fatigue,
+                    run_id,
+                    state.valence,
+                    state.arousal,
+                    state.dominance,
+                    state.primary_emotion,
+                    state.fatigue,
                     json.dumps(state.pv7_baseline, ensure_ascii=False),
-                    state.run_count, state.last_active_at, now,
-                    state.cpu_load, state.ram_usage, state.gpu_utilization,
-                    state.gpu_memory_used, state.gpu_temperature,
-                    state.cognitive_load, state.curiosity, state.uncertainty,
+                    state.run_count,
+                    state.last_active_at,
+                    now,
+                    state.cpu_load,
+                    state.ram_usage,
+                    state.gpu_utilization,
+                    state.gpu_memory_used,
+                    state.gpu_temperature,
+                    state.cognitive_load,
+                    state.curiosity,
+                    state.uncertainty,
                     json.dumps(state.tensions, ensure_ascii=False),
                     json.dumps(state.cognitive_snapshot, ensure_ascii=False),
                 ),
@@ -296,7 +355,9 @@ class HypothalamusStateStore:
             )
         return True
 
-    def update_fatigue_with_timestamp(self, run_id: str, fatigue: float, timestamp: str) -> int:
+    def update_fatigue_with_timestamp(
+        self, run_id: str, fatigue: float, timestamp: str
+    ) -> int:
         clamped = cap(fatigue)
         with self._connect() as conn:
             cursor = conn.execute(
@@ -305,18 +366,35 @@ class HypothalamusStateStore:
                  fatigue, pv7_baseline, run_count, last_active_at, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    run_id, 0.0, 0.0, 0.0, "resting", clamped,
-                    "{}", 0, timestamp, new_utc(),
+                    run_id,
+                    0.0,
+                    0.0,
+                    0.0,
+                    "resting",
+                    clamped,
+                    "{}",
+                    0,
+                    timestamp,
+                    new_utc(),
                 ),
             )
             return int(cursor.lastrowid)
 
     def count(self) -> int:
         with self._connect() as conn:
-            row = conn.execute("SELECT COUNT(*) AS c FROM hypothalamus_state").fetchone()
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM hypothalamus_state"
+            ).fetchone()
             return row["c"] if row else 0
 
-    def reinforce(self, run_id: str, reward: float, hypothalamus_quality: float = 0.0, central_quality: float = 0.0, coherence_score: float = 0.0) -> EmotionalState | None:
+    def reinforce(
+        self,
+        run_id: str,
+        reward: float,
+        hypothalamus_quality: float = 0.0,
+        central_quality: float = 0.0,
+        coherence_score: float = 0.0,
+    ) -> EmotionalState | None:
         latest = self.load_latest()
         if latest is None:
             return None
@@ -327,23 +405,56 @@ class HypothalamusStateStore:
         latest.valence = cap(latest.valence + reward * 0.2)
         latest.dominance = cap(latest.dominance + reward * 0.15)
         latest.fatigue = cap(max(0.0, latest.fatigue - reward * 0.1))
-        latest.primary_emotion = compute_primary_emotion(latest.valence, latest.arousal, latest.fatigue)
+        latest.primary_emotion = compute_primary_emotion(
+            latest.valence, latest.arousal, latest.fatigue
+        )
         latest.last_active_at = new_utc()
 
         self.save_raw(run_id, latest)
 
-        self._store_reinforcement(run_id, reward, hypothalamus_quality, central_quality, coherence_score, before_valence, latest.valence, before_fatigue, latest.fatigue)
+        self._store_reinforcement(
+            run_id,
+            reward,
+            hypothalamus_quality,
+            central_quality,
+            coherence_score,
+            before_valence,
+            latest.valence,
+            before_fatigue,
+            latest.fatigue,
+        )
 
         return latest
 
-    def _store_reinforcement(self, run_id: str, reward: float, hyp_q: float, cen_q: float, coh: float, val_before: float, val_after: float, fat_before: float, fat_after: float) -> int:
+    def _store_reinforcement(
+        self,
+        run_id: str,
+        reward: float,
+        hyp_q: float,
+        cen_q: float,
+        coh: float,
+        val_before: float,
+        val_after: float,
+        fat_before: float,
+        fat_after: float,
+    ) -> int:
         with self._connect() as conn:
             cursor = conn.execute(
                 """INSERT INTO reinforcement_log
                 (run_id, reward, hypothalamus_quality, central_quality, coherence_score,
                  mood_valence_before, mood_valence_after, fatigue_before, fatigue_after)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (run_id, reward, hyp_q, cen_q, coh, val_before, val_after, fat_before, fat_after),
+                (
+                    run_id,
+                    reward,
+                    hyp_q,
+                    cen_q,
+                    coh,
+                    val_before,
+                    val_after,
+                    fat_before,
+                    fat_after,
+                ),
             )
             return int(cursor.lastrowid)
 
@@ -363,7 +474,11 @@ class HypothalamusStateStore:
                 """SELECT AVG(reward) AS avg_reward FROM (SELECT reward FROM reinforcement_log ORDER BY id DESC LIMIT ?)""",
                 (limit,),
             ).fetchone()
-            return round(float(row["avg_reward"]), 6) if row and row["avg_reward"] is not None else 0.0
+            return (
+                round(float(row["avg_reward"]), 6)
+                if row and row["avg_reward"] is not None
+                else 0.0
+            )
 
     def doctor(self) -> dict[str, Any]:
         latest = self.load_latest()
@@ -374,10 +489,15 @@ class HypothalamusStateStore:
             avg_reward = self.avg_reward(50)
         except Exception as exc:
             from triade.core.error_bus import record_internal_error
+
             record_internal_error(
                 "hypothalamus_store.doctor.reinforcement",
                 exc,
-                payload={"module": __name__, "function": "doctor", "operation": "load_reinforcement_summary"},
+                payload={
+                    "module": __name__,
+                    "function": "doctor",
+                    "operation": "load_reinforcement_summary",
+                },
                 db_path=self.db_path,
             )
         return {
@@ -390,7 +510,15 @@ class HypothalamusStateStore:
             },
         }
 
-    def learn_pattern(self, text: str, intent: str, tone: str, risk: str, urgency: str, confidence: float = 0.8) -> int:
+    def learn_pattern(
+        self,
+        text: str,
+        intent: str,
+        tone: str,
+        risk: str,
+        urgency: str,
+        confidence: float = 0.8,
+    ) -> int:
         """Aprende un patrón de análisis para uso futuro."""
         now = new_utc()
         text_hash = self._hash_text(text)
@@ -411,7 +539,18 @@ class HypothalamusStateStore:
                 """INSERT INTO hypothalamus_patterns
                 (text_hash, text_preview, intent, tone, risk, urgency, confidence, hit_count, created_at, last_used_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (text_hash, text[:200], intent, tone, risk, urgency, confidence, 1, now, now),
+                (
+                    text_hash,
+                    text[:200],
+                    intent,
+                    tone,
+                    risk,
+                    urgency,
+                    confidence,
+                    1,
+                    now,
+                    now,
+                ),
             )
             return int(cursor.lastrowid)
 
@@ -449,6 +588,7 @@ class HypothalamusStateStore:
     @staticmethod
     def _hash_text(text: str) -> str:
         import hashlib
+
         normalized = text.lower().strip()[:100]
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:32]
 
@@ -468,13 +608,17 @@ class HypothalamusStateStore:
 
         tensions_raw = r("tensions_json", "{}")
         try:
-            tensions = json.loads(str(tensions_raw)) if isinstance(tensions_raw, str) else {}
+            tensions = (
+                json.loads(str(tensions_raw)) if isinstance(tensions_raw, str) else {}
+            )
         except (json.JSONDecodeError, TypeError):
             tensions = {}
 
         cog_raw = r("cognitive_snapshot_json", "{}")
         try:
-            cognitive_snapshot = json.loads(str(cog_raw)) if isinstance(cog_raw, str) else {}
+            cognitive_snapshot = (
+                json.loads(str(cog_raw)) if isinstance(cog_raw, str) else {}
+            )
         except (json.JSONDecodeError, TypeError):
             cognitive_snapshot = {}
 

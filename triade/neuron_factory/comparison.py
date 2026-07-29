@@ -40,7 +40,9 @@ class ComparisonEngine:
     CREATE INDEX IF NOT EXISTS idx_comp_domain ON neuron_comparisons(domain);
     """
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(self.SCHEMA_SQL)
@@ -64,7 +66,9 @@ class ComparisonEngine:
 
         for neuron in existing_neurons:
             neuron_caps = set(neuron.get("capabilities", []))
-            jaccard = len(prop_caps & neuron_caps) / max(len(prop_caps | neuron_caps), 1)
+            jaccard = len(prop_caps & neuron_caps) / max(
+                len(prop_caps | neuron_caps), 1
+            )
             name_sim = _name_similarity(proposal_name, neuron.get("name", ""))
             sim = round(0.6 * jaccard + 0.4 * name_sim, 3)
             results.append(
@@ -151,7 +155,13 @@ def _decide(
     best_match: dict,
 ) -> tuple[str, str]:
     if similarity > 0.85 and overlap > 0.8:
-        return "reuse", f"Neurona '{best_match.get('name', '')}' cubre >85% de la propuesta"
+        return (
+            "reuse",
+            f"Neurona '{best_match.get('name', '')}' cubre >85% de la propuesta",
+        )
     if similarity > 0.65:
-        return "extend", f"Neurona '{best_match.get('name', '')}' cubre parcialmente; extiende"
+        return (
+            "extend",
+            f"Neurona '{best_match.get('name', '')}' cubre parcialmente; extiende",
+        )
     return "create_new", "No se encontró solucion suficientemente similar"

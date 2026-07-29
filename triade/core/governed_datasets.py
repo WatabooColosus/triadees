@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -68,7 +68,9 @@ class GovernedDatasets:
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
-        self.schema_path = Path(__file__).resolve().parents[1] / "memory" / "schemas.sql"
+        self.schema_path = (
+            Path(__file__).resolve().parents[1] / "memory" / "schemas.sql"
+        )
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
@@ -159,10 +161,23 @@ class GovernedDatasets:
     def update_dataset(
         self, dataset_id: str, updates: dict[str, Any]
     ) -> DatasetRecord | None:
-        allowed = {"name", "description", "domain", "source", "status", "row_count",
-                    "schema_json", "governance_rules"}
+        allowed = {
+            "name",
+            "description",
+            "domain",
+            "source",
+            "status",
+            "row_count",
+            "schema_json",
+            "governance_rules",
+        }
         filtered = {k: v for k, v in updates.items() if k in allowed}
-        if "status" in filtered and filtered["status"] not in {"draft","validated","training_ready","archived"}:
+        if "status" in filtered and filtered["status"] not in {
+            "draft",
+            "validated",
+            "training_ready",
+            "archived",
+        }:
             raise ValueError("Estado de dataset inválido")
         if not filtered:
             return self.get_dataset(dataset_id)
@@ -316,15 +331,21 @@ class GovernedDatasets:
         if adapter.status == "training":
             recommendations.append("Entrenamiento en curso. Monitorear métricas.")
         elif adapter.status == "trained":
-            recommendations.append("Listo para evaluación. Ejecutar eval antes de deploy.")
+            recommendations.append(
+                "Listo para evaluación. Ejecutar eval antes de deploy."
+            )
         elif adapter.status == "evaluated":
             if adapter.metrics.get("accuracy", 0) < 0.7:
-                recommendations.append("Accuracy baja. Considerar más datos o reentrenar.")
+                recommendations.append(
+                    "Accuracy baja. Considerar más datos o reentrenar."
+                )
             recommendations.append("Aprobado para deployment.")
         elif adapter.status == "deployed":
             recommendations.append("En producción. Monitorear drift y latencia.")
         elif adapter.status == "retired":
-            recommendations.append("Retirado. Considerar reemplazo con versión más reciente.")
+            recommendations.append(
+                "Retirado. Considerar reemplazo con versión más reciente."
+            )
 
         dataset_info: dict[str, Any] | None = None
         if adapter.dataset_id:

@@ -58,8 +58,14 @@ class EventDrivenScheduler:
         if interval_seconds <= 0:
             raise ValueError("interval_seconds must be positive")
         now = self._clock()
-        due = now if run_immediately else now + self._jittered(interval_seconds, jitter_seconds)
-        job = ScheduledJob(due, priority, name, interval_seconds, callback, jitter_seconds)
+        due = (
+            now
+            if run_immediately
+            else now + self._jittered(interval_seconds, jitter_seconds)
+        )
+        job = ScheduledJob(
+            due, priority, name, interval_seconds, callback, jitter_seconds
+        )
         with self._lock:
             if name in self._by_name:
                 raise ValueError(f"job already registered: {name}")
@@ -94,7 +100,9 @@ class EventDrivenScheduler:
                 finished = self._clock()
                 job.run_count += 1
                 job.last_duration_ms = max(0.0, (finished - started) * 1000.0)
-                job.next_due_at = finished + self._jittered(job.interval_seconds, job.jitter_seconds)
+                job.next_due_at = finished + self._jittered(
+                    job.interval_seconds, job.jitter_seconds
+                )
                 with self._lock:
                     if job.enabled:
                         heapq.heappush(self._jobs, job)
@@ -110,7 +118,12 @@ class EventDrivenScheduler:
             return maximum_seconds
         return max(0.0, min(maximum_seconds, due - self._clock()))
 
-    def wait(self, *, shutdown_event: threading.Event | None = None, maximum_seconds: float = 60.0) -> str:
+    def wait(
+        self,
+        *,
+        shutdown_event: threading.Event | None = None,
+        maximum_seconds: float = 60.0,
+    ) -> str:
         if shutdown_event is not None and shutdown_event.is_set():
             return "shutdown"
         self._wake_event.clear()
@@ -131,7 +144,9 @@ class EventDrivenScheduler:
             "state": "active",
             "clock": "monotonic",
             "job_count": len(jobs),
-            "next_due_ms": min((max(0.0, job.next_due_at - now) * 1000 for job in jobs), default=None),
+            "next_due_ms": min(
+                (max(0.0, job.next_due_at - now) * 1000 for job in jobs), default=None
+            ),
             "jobs": {
                 job.name: {
                     "next_due_ms": max(0.0, (job.next_due_at - now) * 1000),

@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from .contracts import CrystalPacket, MemoryPacket, OutputPacket, SafetyPacket, VerificationReport
+from .contracts import (
+    CrystalPacket,
+    MemoryPacket,
+    OutputPacket,
+    SafetyPacket,
+    VerificationReport,
+)
 
 
 class Verifier:
@@ -26,7 +32,10 @@ class Verifier:
         traceability_score = 0.80
         usefulness_score = 0.70
 
-        if safety.status in {"approved_with_warning", "approved"} and safety.risk_level in {"high", "critical"}:
+        if safety.status in {
+            "approved_with_warning",
+            "approved",
+        } and safety.risk_level in {"high", "critical"}:
             warnings.append(safety.reason)
             safety_score = 0.65
 
@@ -46,7 +55,9 @@ class Verifier:
             traceability_score = 0.90
         else:
             warnings.append("El episodio no fue persistido en memoria SQLite.")
-            recommendations.append("Revisar Bodega.store_episode y la ruta de triade.db.")
+            recommendations.append(
+                "Revisar Bodega.store_episode y la ruta de triade.db."
+            )
 
         if full_pre_report_persistence:
             memory_score = 0.90
@@ -105,7 +116,9 @@ class Verifier:
                 if status == "ok":
                     status = "warning"
             elif temporal_status == "improving":
-                recommendations.append("Mantener trazabilidad mientras continúa la mejora temporal del Cristal.")
+                recommendations.append(
+                    "Mantener trazabilidad mientras continúa la mejora temporal del Cristal."
+                )
 
         hypothalamus_ok = bool(output.memory_diff.get("hypothalamus_model_ok"))
         central_ok = bool(output.memory_diff.get("central_model_ok"))
@@ -113,7 +126,9 @@ class Verifier:
 
         if hypothalamus_ok and central_ok:
             usefulness_score = 0.85
-            recommendations.append("Continuar registrando métricas de calidad por rol de modelo.")
+            recommendations.append(
+                "Continuar registrando métricas de calidad por rol de modelo."
+            )
         elif central_requested_ollama and output.model_ok and not hypothalamus_ok:
             usefulness_score = 0.80
             recommendations.extend(
@@ -123,7 +138,9 @@ class Verifier:
                 ]
             )
         elif central_requested_ollama and not output.model_ok:
-            warnings.append("Ollama fue solicitado pero no generó respuesta central; se usó fallback por plantilla.")
+            warnings.append(
+                "Ollama fue solicitado pero no generó respuesta central; se usó fallback por plantilla."
+            )
             recommendations.extend(
                 [
                     "Verificar que Ollama esté corriendo en http://127.0.0.1:11434.",

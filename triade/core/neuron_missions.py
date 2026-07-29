@@ -29,8 +29,12 @@ class NeuronMission:
     title: str = ""
     mission: str = ""
     domain: str = "general"
-    allowed_sources: list[str] = field(default_factory=lambda: ["worker", "run", "federation"])
-    allowed_actions: list[str] = field(default_factory=lambda: ["observe", "diagnose", "propose_learning"])
+    allowed_sources: list[str] = field(
+        default_factory=lambda: ["worker", "run", "federation"]
+    )
+    allowed_actions: list[str] = field(
+        default_factory=lambda: ["observe", "diagnose", "propose_learning"]
+    )
     schedule_hint: str = "every_cycle"
     status: str = "candidate"
     created_at: str = field(default_factory=utc_now)
@@ -145,7 +149,9 @@ class NeuronMissionStore:
 
     def get_mission(self, mission_id: int) -> NeuronMission | None:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM neuron_missions WHERE id = ?", (mission_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM neuron_missions WHERE id = ?", (mission_id,)
+            ).fetchone()
         return self._mission_from_row(row) if row else None
 
     def get_missions_by_neuron(self, neuron_id: int) -> list[NeuronMission]:
@@ -369,7 +375,11 @@ def select_relevant_missions(
         if user_lower:
             mission_lower = m.mission.lower()
             title_lower = m.title.lower()
-            if any(word in mission_lower or word in title_lower for word in user_lower.split() if len(word) > 3):
+            if any(
+                word in mission_lower or word in title_lower
+                for word in user_lower.split()
+                if len(word) > 3
+            ):
                 score += 1.0
 
         if m.metrics:

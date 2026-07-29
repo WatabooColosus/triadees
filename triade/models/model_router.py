@@ -64,13 +64,18 @@ class ModelRouter:
             return known
         # Estimar desde el nombre: qwen3:4b → 4B params → ~2x en GB
         import re
-        match = re.search(r'(?:[:\-])(\d+)b', model)
+
+        match = re.search(r"(?:[:\-])(\d+)b", model)
         if match:
             params_b = int(match.group(1))
             return max(1.0, params_b * 1.8)  # ~1.8GB por cada 1B params
         return 4.0  # fallback conservador
 
-    def __init__(self, available_models: list[str] | None = None, hardware: HardwareProfile | None = None) -> None:
+    def __init__(
+        self,
+        available_models: list[str] | None = None,
+        hardware: HardwareProfile | None = None,
+    ) -> None:
         self.available_models = available_models or []
         self.hardware = hardware
 
@@ -92,7 +97,14 @@ class ModelRouter:
             return ModelRouteDecision(
                 role=normalized_role,
                 selected_model=selected,
-                reason=self._reason(normalized_role, selected, urgency, prefer_speed, prefer_depth, hardware_tier),
+                reason=self._reason(
+                    normalized_role,
+                    selected,
+                    urgency,
+                    prefer_speed,
+                    prefer_depth,
+                    hardware_tier,
+                ),
                 fallback_used=False,
                 candidates=hardware_candidates,
                 hardware_tier=hardware_tier,
@@ -107,7 +119,9 @@ class ModelRouter:
             )
         else:
             fallback = "qwen2.5:3b-instruct"
-            fallback_reason = "No hay modelos instalados en Ollama; se usó fallback por defecto."
+            fallback_reason = (
+                "No hay modelos instalados en Ollama; se usó fallback por defecto."
+            )
         return ModelRouteDecision(
             role=normalized_role,
             selected_model=fallback,
@@ -118,17 +132,34 @@ class ModelRouter:
             rejected_by_hardware=rejected,
         )
 
-    def route_many(self, intent: str = "conversation", urgency: str = "medium") -> dict[str, Any]:
+    def route_many(
+        self, intent: str = "conversation", urgency: str = "medium"
+    ) -> dict[str, Any]:
         prefer_speed = urgency == "high"
         prefer_depth = intent in {"analyze", "memory", "build_or_update"}
-        roles = ["hypothalamus", "central", "creator", "trainer", "coder", "embedding", "fast", "deep"]
+        roles = [
+            "hypothalamus",
+            "central",
+            "creator",
+            "trainer",
+            "coder",
+            "embedding",
+            "fast",
+            "deep",
+        ]
         return {
             "available_models": self.available_models,
             "hardware": self.hardware.to_dict() if self.hardware else None,
             "intent": intent,
             "urgency": urgency,
             "decisions": {
-                role: self.route(role, intent=intent, urgency=urgency, prefer_speed=prefer_speed, prefer_depth=prefer_depth).to_dict()
+                role: self.route(
+                    role,
+                    intent=intent,
+                    urgency=urgency,
+                    prefer_speed=prefer_speed,
+                    prefer_depth=prefer_depth,
+                ).to_dict()
                 for role in roles
             },
         }
@@ -169,7 +200,9 @@ class ModelRouter:
         return None
 
     @staticmethod
-    def _normalize_role(role: str, intent: str, prefer_speed: bool, prefer_depth: bool) -> str:
+    def _normalize_role(
+        role: str, intent: str, prefer_speed: bool, prefer_depth: bool
+    ) -> str:
         clean = (role or "central").strip().lower()
         aliases = {
             "hipotalamo": "hypothalamus",
@@ -194,7 +227,14 @@ class ModelRouter:
         return clean if clean in ModelRouter.DEFAULTS else "central"
 
     @staticmethod
-    def _reason(role: str, model: str, urgency: str, prefer_speed: bool, prefer_depth: bool, hardware_tier: str) -> str:
+    def _reason(
+        role: str,
+        model: str,
+        urgency: str,
+        prefer_speed: bool,
+        prefer_depth: bool,
+        hardware_tier: str,
+    ) -> str:
         hw = f" Perfil hardware={hardware_tier}."
         if role == "fast" or prefer_speed:
             return f"Seleccionado {model} por prioridad de velocidad/urgencia {urgency}.{hw}"
@@ -204,4 +244,6 @@ class ModelRouter:
             return f"Seleccionado {model} por tarea relacionada con código.{hw}"
         if role == "embedding":
             return f"Seleccionado {model} para memoria semántica o embeddings.{hw}"
-        return f"Seleccionado {model} como mejor candidato disponible para rol {role}.{hw}"
+        return (
+            f"Seleccionado {model} como mejor candidato disponible para rol {role}.{hw}"
+        )

@@ -42,7 +42,9 @@ def test_router_high_risk_sets_cautious_tone() -> None:
 
 
 def test_router_central_verified_when_high_confidence_low_risk() -> None:
-    exp = NeuronExperience(run_id="run-vc", confidence=0.9, risk="low", extracted_pattern="patrón claro")
+    exp = NeuronExperience(
+        run_id="run-vc", confidence=0.9, risk="low", extracted_pattern="patrón claro"
+    )
     central = QualiaRouter().to_central_packet(exp)
     assert central.status == "verified_context"
     assert central.validation_need == "verified_context_allowed"
@@ -56,12 +58,20 @@ def test_router_central_hypothesis_when_medium_confidence() -> None:
 
 
 def test_router_storage_content_hash() -> None:
-    exp = NeuronExperience(run_id="run-hash", mission="test", observation="obs", extracted_pattern="pat")
+    exp = NeuronExperience(
+        run_id="run-hash", mission="test", observation="obs", extracted_pattern="pat"
+    )
     storage = QualiaRouter().to_storage_packet(exp)
     assert len(storage.content_hash) == 64
 
 
 def test_router_storage_empty_content_no_hash() -> None:
-    exp = NeuronExperience(run_id="run-empty", mission="", observation="", extracted_pattern="", proposed_learning="")
+    exp = NeuronExperience(
+        run_id="run-empty",
+        mission="",
+        observation="",
+        extracted_pattern="",
+        proposed_learning="",
+    )
     storage = QualiaRouter().to_storage_packet(exp)
     assert storage.content_hash == ""

@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 
 from triade.core.central import Central
-from triade.core.contracts import InputPacket, SignalPacket, MemoryPacket, CrystalPacket, PlanPacket
+from triade.core.contracts import InputPacket
 from triade.core.context_engine import build_living_context_for_chat
 from triade.core.bodega import Bodega
 from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
@@ -21,9 +21,19 @@ def _seed_runtime_mission(db_path: Path) -> None:
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             "INSERT INTO neurons (name, mission, domain, status, created_by) VALUES (?, ?, ?, ?, ?)",
-            ("context-neuron", "Mantener contexto interno vivo.", "runtime", "experimental", "test"),
+            (
+                "context-neuron",
+                "Mantener contexto interno vivo.",
+                "runtime",
+                "experimental",
+                "test",
+            ),
         )
-        neuron_id = int(conn.execute("SELECT id FROM neurons WHERE name = ?", ("context-neuron",)).fetchone()[0])
+        neuron_id = int(
+            conn.execute(
+                "SELECT id FROM neurons WHERE name = ?", ("context-neuron",)
+            ).fetchone()[0]
+        )
     store = NeuronMissionStore(db_path=db_path)
     store.create_mission(
         NeuronMission(
@@ -44,7 +54,9 @@ def test_context_engine_includes_runtime_state(tmp_path):
     _init_db(db_path)
     _seed_runtime_mission(db_path)
 
-    context = build_living_context_for_chat("estado runtime y misiones", db_path=db_path, runs_dir=runs_dir, limit=5)
+    context = build_living_context_for_chat(
+        "estado runtime y misiones", db_path=db_path, runs_dir=runs_dir, limit=5
+    )
     assert context["status"] == "ok"
     assert context["internal_context"]["missions"]["active_count"] == 1
     assert "runtime" in context["internal_context"]
@@ -57,7 +69,9 @@ def test_central_uses_living_context_without_repeating_previous_answer(tmp_path)
     runs_dir = tmp_path / "runs"
     _init_db(db_path)
     _seed_runtime_mission(db_path)
-    context = build_living_context_for_chat("estado runtime y misiones", db_path=db_path, runs_dir=runs_dir, limit=5)
+    context = build_living_context_for_chat(
+        "estado runtime y misiones", db_path=db_path, runs_dir=runs_dir, limit=5
+    )
 
     packet = InputPacket(
         user_input="cuántas misiones tienes?",
@@ -68,4 +82,3 @@ def test_central_uses_living_context_without_repeating_previous_answer(tmp_path)
 
     assert "misiones_actives=1" in response
     assert "runtime interno reporta" in response
-

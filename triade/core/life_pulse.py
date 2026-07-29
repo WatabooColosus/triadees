@@ -39,11 +39,11 @@ from .self_reflection import SelfReflectionEngine
 # configurado, y NO puede excederlo sin intervención humana explícita.
 
 AUTONOMY_LEVELS: list[str] = [
-    "observe_only",        # Solo tick de observación; no genera neuronas.
-    "form_candidates",     # Forma candidatos desde deuda del sistema.
-    "train_candidates",    # Entrena candidatos existentes.
-    "promote_experimental", # Promueve candidate → experimental si score ≥ threshold.
-    "promote_stable",      # Promueve experimental → stable con evidencia diversa.
+    "observe_only",  # Solo tick de observación; no genera neuronas.
+    "form_candidates",  # Forma candidatos desde deuda del sistema.
+    "train_candidates",  # Entrena candidatos existentes.
+    "promote_experimental",  # Promueve candidate → experimental si score ≥ threshold.
+    "promote_stable",  # Promueve experimental → stable con evidencia diversa.
 ]
 
 DEFAULT_AUTONOMY_LEVEL = "observe_only"
@@ -66,10 +66,16 @@ class LifePulseEngine:
     continuous_interval_seconds: int = _DEFAULT_CONTINUOUS_INTERVAL
     continuous_max_cycles: int = 0
     autonomy_level: str = DEFAULT_AUTONOMY_LEVEL
-    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
-    _stop: threading.Event = field(default_factory=threading.Event, init=False, repr=False)
+    _lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False
+    )
+    _stop: threading.Event = field(
+        default_factory=threading.Event, init=False, repr=False
+    )
     _thread: threading.Thread | None = field(default=None, init=False, repr=False)
-    _continuous_thread: threading.Thread | None = field(default=None, init=False, repr=False)
+    _continuous_thread: threading.Thread | None = field(
+        default=None, init=False, repr=False
+    )
     _started_at: float = field(default_factory=time.time, init=False)
     _last_tick_at: float | None = field(default=None, init=False)
     _last_error: str | None = field(default=None, init=False)
@@ -77,7 +83,9 @@ class LifePulseEngine:
     _last_reflection: dict[str, Any] = field(default_factory=dict, init=False)
     _counters: Counter[str] = field(default_factory=Counter, init=False)
     _actions: Counter[str] = field(default_factory=Counter, init=False)
-    _stream_of_consciousness: list[dict[str, Any]] = field(default_factory=list, init=False)
+    _stream_of_consciousness: list[dict[str, Any]] = field(
+        default_factory=list, init=False
+    )
     _continuous_cycle_count: int = 0
     _last_continuous_error: str | None = None
     _last_continuous_at: float | None = None
@@ -111,10 +119,20 @@ class LifePulseEngine:
     def from_env(cls) -> "LifePulseEngine":
         interval = int(os.environ.get("TRIADE_LIFE_PULSE_INTERVAL", "60") or "60")
         limit = int(os.environ.get("TRIADE_LIFE_REFLECTION_LIMIT", "30") or "30")
-        continuous = str(os.environ.get("TRIADE_CONTINUOUS_RUNNER", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
-        ci = int(os.environ.get("TRIADE_CONTINUOUS_INTERVAL_SECONDS", str(_DEFAULT_CONTINUOUS_INTERVAL)) or _DEFAULT_CONTINUOUS_INTERVAL)
+        continuous = str(
+            os.environ.get("TRIADE_CONTINUOUS_RUNNER", "0") or "0"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        ci = int(
+            os.environ.get(
+                "TRIADE_CONTINUOUS_INTERVAL_SECONDS", str(_DEFAULT_CONTINUOUS_INTERVAL)
+            )
+            or _DEFAULT_CONTINUOUS_INTERVAL
+        )
         max_c = int(os.environ.get("TRIADE_CONTINUOUS_MAX_CYCLES", "0") or "0")
-        autonomy = str(os.environ.get("TRIADE_AUTONOMY_LEVEL", DEFAULT_AUTONOMY_LEVEL) or DEFAULT_AUTONOMY_LEVEL).strip()
+        autonomy = str(
+            os.environ.get("TRIADE_AUTONOMY_LEVEL", DEFAULT_AUTONOMY_LEVEL)
+            or DEFAULT_AUTONOMY_LEVEL
+        ).strip()
         if autonomy not in AUTONOMY_LEVELS:
             autonomy = DEFAULT_AUTONOMY_LEVEL
         return cls(
@@ -131,10 +149,16 @@ class LifePulseEngine:
             if self._thread and self._thread.is_alive():
                 return
             self._stop.clear()
-            self._thread = threading.Thread(target=self._loop, name="triade-life-pulse", daemon=True)
+            self._thread = threading.Thread(
+                target=self._loop, name="triade-life-pulse", daemon=True
+            )
             self._thread.start()
             if self.continuous_run_enabled:
-                self._continuous_thread = threading.Thread(target=self._continuous_loop, name="triade-continuous-runner", daemon=True)
+                self._continuous_thread = threading.Thread(
+                    target=self._continuous_loop,
+                    name="triade-continuous-runner",
+                    daemon=True,
+                )
                 self._continuous_thread.start()
 
     def stop(self) -> None:
@@ -170,11 +194,15 @@ class LifePulseEngine:
                     }
                 self.autonomy_level = clean_level
             if interval_seconds is not None:
-                self.continuous_interval_seconds = max(_MIN_CONTINUOUS_INTERVAL, int(interval_seconds))
+                self.continuous_interval_seconds = max(
+                    _MIN_CONTINUOUS_INTERVAL, int(interval_seconds)
+                )
             if max_cycles is not None:
                 self.continuous_max_cycles = max(0, int(max_cycles))
             self.continuous_run_enabled = bool(enabled)
-            continuous_alive = bool(self._continuous_thread and self._continuous_thread.is_alive())
+            continuous_alive = bool(
+                self._continuous_thread and self._continuous_thread.is_alive()
+            )
             should_start = self.continuous_run_enabled and not continuous_alive
             should_stop = not self.continuous_run_enabled and continuous_alive
 
@@ -194,8 +222,12 @@ class LifePulseEngine:
                 cthread.join(timeout=2)
             self._continuous_thread = None
             self._stop.clear()
-            if pulse_was_alive and (self._thread is None or not self._thread.is_alive()):
-                self._thread = threading.Thread(target=self._loop, name="triade-life-pulse", daemon=True)
+            if pulse_was_alive and (
+                self._thread is None or not self._thread.is_alive()
+            ):
+                self._thread = threading.Thread(
+                    target=self._loop, name="triade-life-pulse", daemon=True
+                )
                 self._thread.start()
 
         snapshot = self.snapshot()
@@ -224,16 +256,26 @@ class LifePulseEngine:
             self._recompute_trust()
             self._generate_thought()
             integrity = self._check_integrity()
-            reflection = SelfReflectionEngine(db_path=self.db_path).reflect(limit=self.reflection_limit)
+            reflection = SelfReflectionEngine(db_path=self.db_path).reflect(
+                limit=self.reflection_limit
+            )
             elapsed_ms = int((time.time() - started) * 1000)
             with self._lock:
                 self._counters["cycles"] += 1
                 self._counters["doctor_checks"] += 1
                 self._counters["integrity_checks"] += 1
                 self._counters["reflection_checks"] += 1
-                self._counters["learning_candidates_seen"] = len(reflection.get("learning_candidates", {}).get("candidate_themes", []))
-                self._counters["neuron_proposals_seen"] = len(reflection.get("neuron_proposals", []))
-                self._counters["auto_identity_traits"] = auto_id.get("active_count", 0) if auto_id else 0
+                self._counters["learning_candidates_seen"] = len(
+                    reflection.get("learning_candidates", {}).get(
+                        "candidate_themes", []
+                    )
+                )
+                self._counters["neuron_proposals_seen"] = len(
+                    reflection.get("neuron_proposals", [])
+                )
+                self._counters["auto_identity_traits"] = (
+                    auto_id.get("active_count", 0) if auto_id else 0
+                )
                 self._last_tick_at = time.time()
                 self._last_error = None
                 self._last_integrity = integrity
@@ -252,21 +294,27 @@ class LifePulseEngine:
         with self._lock:
             now = time.time()
             running = bool(self._thread and self._thread.is_alive())
-            continuous_running = bool(self._continuous_thread and self._continuous_thread.is_alive())
+            continuous_running = bool(
+                self._continuous_thread and self._continuous_thread.is_alive()
+            )
             next_tick = None
             if self._last_tick_at is not None:
-                next_tick = max(0, int(self.interval_seconds - (now - self._last_tick_at)))
+                next_tick = max(
+                    0, int(self.interval_seconds - (now - self._last_tick_at))
+                )
             integrity = dict(self._last_integrity)
             reflection = dict(self._last_reflection)
             counters = dict(self._counters)
             actions = dict(self._actions)
             last_error = self._last_error
             last_tick_at = self._last_tick_at
-            elapsed_ms = list(self._continuous_elapsed_ms)
+            list(self._continuous_elapsed_ms)
             cycle_count = self._continuous_cycle_count
             cycle_timestamps = list(self._continuous_cycle_timestamps)
 
-        cycles_per_minute = float(sum(1 for timestamp in cycle_timestamps if now - timestamp <= 60.0))
+        cycles_per_minute = float(
+            sum(1 for timestamp in cycle_timestamps if now - timestamp <= 60.0)
+        )
 
         return {
             "status": "ok" if not last_error else "degraded",
@@ -314,10 +362,12 @@ class LifePulseEngine:
 
     def _activate_experimental_light(self) -> None:
         """Canary sintético explícito; nunca es evidencia de aprendizaje."""
-        import json, time
+        import json
+        import time
         from pathlib import Path
         from .neuron_activity_store import NeuronActivityStore
         from .neuron_registry import NeuronRegistry
+
         registry = NeuronRegistry(db_path=self.db_path)
         store = NeuronActivityStore(db_path=self.db_path)
         neurons = registry.list_neurons(limit=50)
@@ -341,36 +391,68 @@ class LifePulseEngine:
             }
             run_path = Path(str(self.runs_dir)) / f"run-{now_ts}"
             run_path.mkdir(parents=True, exist_ok=True)
-            (run_path / "experimental_neuron_activity.json").write_text(json.dumps({
-                "active": True, "count": 1, "activations": [{
-                    "neuron_id": n.get("id"), "name": name, "status": "experimental",
-                    "domain": domain, "active": True,
-                    "match": {"active": True, "reasons": ["pulse_cycle_forced"]},
-                    "inputs_used": ["pulse_cycle"],
-                    "output": output,
-                    "policy": "experimental_light_pulse",
-                }],
-            }, indent=2))
-            store.store_activity(run_id=f"pulse-{now_ts}", activity={
-                "active": True, "count": 1, "activations": [{
-                    "neuron_id": n.get("id"), "name": name, "status": "experimental",
-                    "domain": domain, "active": True,
-                    "match": {"active": True, "reasons": ["pulse_cycle_forced"]},
-                    "inputs_used": ["pulse_cycle"],
-                    "output": output,
-                    "policy": "experimental_light_pulse",
-                }],
-            })
+            (run_path / "experimental_neuron_activity.json").write_text(
+                json.dumps(
+                    {
+                        "active": True,
+                        "count": 1,
+                        "activations": [
+                            {
+                                "neuron_id": n.get("id"),
+                                "name": name,
+                                "status": "experimental",
+                                "domain": domain,
+                                "active": True,
+                                "match": {
+                                    "active": True,
+                                    "reasons": ["pulse_cycle_forced"],
+                                },
+                                "inputs_used": ["pulse_cycle"],
+                                "output": output,
+                                "policy": "experimental_light_pulse",
+                            }
+                        ],
+                    },
+                    indent=2,
+                )
+            )
+            store.store_activity(
+                run_id=f"pulse-{now_ts}",
+                activity={
+                    "active": True,
+                    "count": 1,
+                    "activations": [
+                        {
+                            "neuron_id": n.get("id"),
+                            "name": name,
+                            "status": "experimental",
+                            "domain": domain,
+                            "active": True,
+                            "match": {
+                                "active": True,
+                                "reasons": ["pulse_cycle_forced"],
+                            },
+                            "inputs_used": ["pulse_cycle"],
+                            "output": output,
+                            "policy": "experimental_light_pulse",
+                        }
+                    ],
+                },
+            )
 
     @staticmethod
-    def _light_diagnostic(neuron: dict[str, Any], match: dict[str, Any]) -> dict[str, Any]:
+    def _light_diagnostic(
+        neuron: dict[str, Any], match: dict[str, Any]
+    ) -> dict[str, Any]:
         # kept for backward compatibility
         return {
             "diagnosis": [
                 f"Neurona {neuron.get('name', 'unknown')} evaluada en diagnóstico ligero.",
                 f"Match activo: {bool(match.get('active')) if isinstance(match, dict) else False}.",
             ],
-            "test_plan": ["Registrar observación ligera y esperar evidencia adicional."],
+            "test_plan": [
+                "Registrar observación ligera y esperar evidencia adicional."
+            ],
             "human_review_request": False,
         }
 
@@ -398,7 +480,10 @@ class LifePulseEngine:
             cycle_start = time.time()
 
             # Respetar max ciclos
-            if self.continuous_max_cycles > 0 and tick_counter >= self.continuous_max_cycles:
+            if (
+                self.continuous_max_cycles > 0
+                and tick_counter >= self.continuous_max_cycles
+            ):
                 with self._lock:
                     self._last_continuous_error = (
                         f"max_cycles={self.continuous_max_cycles} alcanzado; "
@@ -418,8 +503,10 @@ class LifePulseEngine:
                 worker_active = worker_lock.exists()
 
                 # 1. Generar candidatos desde deuda del sistema (requiere form_candidates+)
-                if not worker_active and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("form_candidates"):
-                    run_path = Path(str(self.runs_dir)) / f"pulse-{int(time.time())}"
+                if not worker_active and AUTONOMY_LEVELS.index(
+                    level
+                ) >= AUTONOMY_LEVELS.index("form_candidates"):
+                    Path(str(self.runs_dir)) / f"pulse-{int(time.time())}"
                     try:
                         pulse_summary = self._build_system_dict()
                         raw_candidates = candidates_from_system_debt(
@@ -440,29 +527,50 @@ class LifePulseEngine:
 
                 # 2. Registrar candidatos formados
                 registry = NeuronRegistry(db_path=self.db_path)
-                if formed and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("form_candidates"):
+                if formed and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index(
+                    "form_candidates"
+                ):
                     from .neuron_creator import NeuronSpec
                     from .neuron_missions import NeuronMission, NeuronMissionStore
                     from .neuron_trainer import NeuronTrainingResult, NeuronTrainer
+
                     mission_store = NeuronMissionStore(db_path=self.db_path)
                     for candidate in formed:
                         name = candidate.get("name", "?")
                         existing = registry.get_neuron(name)
-                        if existing and existing.get("status") in ("experimental", "stable"):
+                        if existing and existing.get("status") in (
+                            "experimental",
+                            "stable",
+                        ):
                             continue
                         creator_spec = candidate.get("creator_spec") or {}
                         contracts = candidate.get("contracts") or {}
                         spec = NeuronSpec(
                             name=str(creator_spec.get("name") or name),
-                            mission=str(creator_spec.get("mission") or candidate.get("mission") or "Auto-generada por pulso continuo."),
-                            domain=str(creator_spec.get("domain") or candidate.get("domain") or "general"),
-                            rules=creator_spec.get("rules") or candidate.get("rules", []),
-                            triggers=creator_spec.get("triggers") or candidate.get("triggers", []),
-                            inputs_allowed=creator_spec.get("inputs_allowed") or contracts.get("inputs_allowed", []),
-                            outputs_allowed=creator_spec.get("outputs_allowed") or contracts.get("outputs_allowed", []),
-                            forbidden_actions=creator_spec.get("forbidden_actions") or contracts.get("forbidden_actions", []),
-                            success_metrics=creator_spec.get("success_metrics") or candidate.get("success_metrics", []),
-                            evidence_required=creator_spec.get("evidence_required") or candidate.get("evidence_required", []),
+                            mission=str(
+                                creator_spec.get("mission")
+                                or candidate.get("mission")
+                                or "Auto-generada por pulso continuo."
+                            ),
+                            domain=str(
+                                creator_spec.get("domain")
+                                or candidate.get("domain")
+                                or "general"
+                            ),
+                            rules=creator_spec.get("rules")
+                            or candidate.get("rules", []),
+                            triggers=creator_spec.get("triggers")
+                            or candidate.get("triggers", []),
+                            inputs_allowed=creator_spec.get("inputs_allowed")
+                            or contracts.get("inputs_allowed", []),
+                            outputs_allowed=creator_spec.get("outputs_allowed")
+                            or contracts.get("outputs_allowed", []),
+                            forbidden_actions=creator_spec.get("forbidden_actions")
+                            or contracts.get("forbidden_actions", []),
+                            success_metrics=creator_spec.get("success_metrics")
+                            or candidate.get("success_metrics", []),
+                            evidence_required=creator_spec.get("evidence_required")
+                            or candidate.get("evidence_required", []),
                             status="candidate",
                             created_by="life_pulse_continuous",
                         )
@@ -470,18 +578,20 @@ class LifePulseEngine:
                         # La misión es el puente entre la Formadora (contrato) y
                         # la Educadora (ciclos, scores y evidencia observables).
                         if not mission_store.get_missions_by_neuron(neuron_id):
-                            mission_store.create_mission(NeuronMission(
-                                neuron_id=neuron_id,
-                                title=f"Educación autónoma · {name}",
-                                mission=spec.mission,
-                                domain=spec.domain,
-                                status="candidate",
-                                metrics={
-                                    "origin": "life_pulse_continuous",
-                                    "formed_by": "neuron_trainer",
-                                    "educated_by": "neuron_mission_executor",
-                                },
-                            ))
+                            mission_store.create_mission(
+                                NeuronMission(
+                                    neuron_id=neuron_id,
+                                    title=f"Educación autónoma · {name}",
+                                    mission=spec.mission,
+                                    domain=spec.domain,
+                                    status="candidate",
+                                    metrics={
+                                        "origin": "life_pulse_continuous",
+                                        "formed_by": "neuron_trainer",
+                                        "educated_by": "neuron_mission_executor",
+                                    },
+                                )
+                            )
                         training_dict = candidate.get("training_result") or {}
                         if training_dict:
                             tr = NeuronTrainingResult(
@@ -490,21 +600,28 @@ class LifePulseEngine:
                                 status=str(training_dict.get("status", "candidate")),
                                 strengths=training_dict.get("strengths", []),
                                 warnings=training_dict.get("warnings", []),
-                                recommendations=training_dict.get("recommendations", []),
+                                recommendations=training_dict.get(
+                                    "recommendations", []
+                                ),
                                 required_human_review=False,
                                 policy="trainer_auto_approves",
                             )
                             registry.store_training(neuron_id, tr)
 
                 # 2b. Entrenar toda candidata existente sin training (requiere train_candidates+)
-                if not worker_active and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("train_candidates"):
+                if not worker_active and AUTONOMY_LEVELS.index(
+                    level
+                ) >= AUTONOMY_LEVELS.index("train_candidates"):
                     from .neuron_creator import NeuronSpec
                     from .neuron_trainer import NeuronTrainer, NeuronTrainingResult
+
                     for n in registry.list_neurons(limit=200):
                         st = (n.get("status") or "").strip().lower()
                         if st not in ("candidate", "candidate_reviewable"):
                             continue
-                        existing_training = registry.list_training(int(n["id"]), limit=1)
+                        existing_training = registry.list_training(
+                            int(n["id"]), limit=1
+                        )
                         if existing_training:
                             continue
                         spec_data = registry.get_neuron(n.get("name", ""))
@@ -525,41 +642,60 @@ class LifePulseEngine:
                         try:
                             trainer = NeuronTrainer()
                             tr = trainer.evaluate(backfill_spec)
-                            registry.store_training(int(n["id"]), NeuronTrainingResult(
-                                name=tr.name, score=tr.score, status=tr.status,
-                                strengths=tr.strengths, warnings=tr.warnings,
-                                recommendations=tr.recommendations,
-                                required_human_review=False,
-                                policy="trainer_auto_approves",
-                            ))
+                            registry.store_training(
+                                int(n["id"]),
+                                NeuronTrainingResult(
+                                    name=tr.name,
+                                    score=tr.score,
+                                    status=tr.status,
+                                    strengths=tr.strengths,
+                                    warnings=tr.warnings,
+                                    recommendations=tr.recommendations,
+                                    required_human_review=False,
+                                    policy="trainer_auto_approves",
+                                ),
+                            )
                         except Exception as exc:
                             self._record_error(
                                 "life_pulse.continuous.training",
                                 exc,
                                 function="_continuous_loop",
                                 operation="train_candidate_without_training",
-                                payload={"neuron_id": n.get("id"), "neuron_name": n.get("name")},
+                                payload={
+                                    "neuron_id": n.get("id"),
+                                    "neuron_name": n.get("name"),
+                                },
                             )
 
                 # 3. Autopromoción (requiere promote_experimental+)
-                if not worker_active and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("promote_experimental"):
+                if not worker_active and AUTONOMY_LEVELS.index(
+                    level
+                ) >= AUTONOMY_LEVELS.index("promote_experimental"):
                     autopromoter = NeuronAutopromoter(db_path=self.db_path)
                     promotion_events = autopromoter.promote()
                     for ev in promotion_events:
                         if ev.get("status") == "promoted":
                             with self._lock:
                                 self._last_promotion_at = time.time()
-                                self._last_promotion_name = (ev.get("payload") or {}).get("name")
+                                self._last_promotion_name = (
+                                    ev.get("payload") or {}
+                                ).get("name")
 
                 # 4. Canary sintético solo por opt-in explícito. Nunca debe
                 # aparentar aprendizaje ni acumular evidencia de promoción.
-                synthetic_canary = str(os.environ.get("TRIADE_SYNTHETIC_CANARY", "0")).lower() in {
-                    "1", "true", "yes", "on",
+                synthetic_canary = str(
+                    os.environ.get("TRIADE_SYNTHETIC_CANARY", "0")
+                ).lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                    "on",
                 }
                 if (
                     synthetic_canary
                     and not worker_active
-                    and AUTONOMY_LEVELS.index(level) >= AUTONOMY_LEVELS.index("promote_experimental")
+                    and AUTONOMY_LEVELS.index(level)
+                    >= AUTONOMY_LEVELS.index("promote_experimental")
                     and tick_counter % 3 == 0
                 ):
                     try:
@@ -576,6 +712,7 @@ class LifePulseEngine:
                 if tick_counter % 10 == 0:
                     try:
                         from triade.memory.trust_store import TrustLevelStore
+
                         TrustLevelStore(db_path=self.db_path).recompute_all()
                     except Exception as exc:
                         self._record_error(
@@ -590,7 +727,9 @@ class LifePulseEngine:
                     try:
                         runner_pool_cycle = 0
                         system_pulse = self._build_system_pulse_text()
-                        runner = TriadeRunner(runs_dir=self.runs_dir, db_path=self.db_path)
+                        runner = TriadeRunner(
+                            runs_dir=self.runs_dir, db_path=self.db_path
+                        )
                         runner.run(
                             user_input=system_pulse,
                             source="system_pulse_continuous",
@@ -611,7 +750,9 @@ class LifePulseEngine:
                     self._last_continuous_error = None
                     self._continuous_elapsed_ms.append(elapsed_ms)
                     self._continuous_cycle_timestamps.append(self._last_continuous_at)
-                    self._continuous_cycle_timestamps = self._continuous_cycle_timestamps[-600:]
+                    self._continuous_cycle_timestamps = (
+                        self._continuous_cycle_timestamps[-600:]
+                    )
                     if len(self._continuous_elapsed_ms) > 200:
                         self._continuous_elapsed_ms = self._continuous_elapsed_ms[-200:]
                     self._continuous_backoff_seconds = 0.0
@@ -631,7 +772,9 @@ class LifePulseEngine:
                     self._last_continuous_error = str(exc)
                     self._continuous_elapsed_ms.append(elapsed_ms)
                     self._continuous_cycle_timestamps.append(self._last_continuous_at)
-                    self._continuous_cycle_timestamps = self._continuous_cycle_timestamps[-600:]
+                    self._continuous_cycle_timestamps = (
+                        self._continuous_cycle_timestamps[-600:]
+                    )
                     if len(self._continuous_elapsed_ms) > 200:
                         self._continuous_elapsed_ms = self._continuous_elapsed_ms[-200:]
                     # Backoff exponencial
@@ -641,7 +784,9 @@ class LifePulseEngine:
                     )
 
             # Sleep con backoff
-            sleep_time = max(self.continuous_interval_seconds, self._continuous_backoff_seconds)
+            sleep_time = max(
+                self.continuous_interval_seconds, self._continuous_backoff_seconds
+            )
             if self._stop.wait(sleep_time):
                 break
 
@@ -692,15 +837,27 @@ class LifePulseEngine:
                 function="_build_system_pulse_text",
                 operation="compose_continuous_pulse_text",
             )
-            return "Soy Triade, pulso vital continuo. Auto-reflexion y formacion autonoma."
-
+            return (
+                "Soy Triade, pulso vital continuo. Auto-reflexion y formacion autonoma."
+            )
 
     def _check_integrity(self) -> dict[str, Any]:
-        doctor = TriadeRunner(runs_dir=self.runs_dir, db_path=self.db_path, use_ollama=False).doctor()
+        doctor = TriadeRunner(
+            runs_dir=self.runs_dir, db_path=self.db_path, use_ollama=False
+        ).doctor()
         counts = doctor.get("counts", {})
-        required_counts = ["runs", "episodes", "signals", "crystals", "verification_reports", "model_events"]
+        required_counts = [
+            "runs",
+            "episodes",
+            "signals",
+            "crystals",
+            "verification_reports",
+            "model_events",
+        ]
         missing = [name for name in required_counts if name not in counts]
-        ok = bool(doctor.get("db_exists") and doctor.get("schema_exists") and not missing)
+        ok = bool(
+            doctor.get("db_exists") and doctor.get("schema_exists") and not missing
+        )
         return {
             "ok": ok,
             "db_exists": bool(doctor.get("db_exists")),
@@ -714,7 +871,9 @@ class LifePulseEngine:
     def _generate_thought(self) -> None:
         try:
             emotion = self._get_emotional_state().get("latest")
-            mood_label = emotion.get("primary_emotion", "neutral") if emotion else "neutral"
+            mood_label = (
+                emotion.get("primary_emotion", "neutral") if emotion else "neutral"
+            )
             fatigue = emotion.get("fatigue", 0.0) if emotion else 0.0
 
             thought_parts = [f"Mood: {mood_label}"]
@@ -723,7 +882,9 @@ class LifePulseEngine:
 
             auto_id = self._get_auto_identity()
             if auto_id.get("active_count", 0) > 0:
-                thought_parts.append(f"identidad evolutiva: {auto_id['active_count']} rasgos")
+                thought_parts.append(
+                    f"identidad evolutiva: {auto_id['active_count']} rasgos"
+                )
 
             reflection = self._last_reflection or {}
             obs = reflection.get("observations", [])
@@ -755,7 +916,11 @@ class LifePulseEngine:
             record_internal_error(
                 "life_pulse.generate_thought",
                 exc,
-                payload={"module": __name__, "function": "_generate_thought", "operation": "append_stream_of_consciousness"},
+                payload={
+                    "module": __name__,
+                    "function": "_generate_thought",
+                    "operation": "append_stream_of_consciousness",
+                },
                 db_path=self.db_path,
             )
 
@@ -766,7 +931,11 @@ class LifePulseEngine:
             record_internal_error(
                 "life_pulse.recompute_trust",
                 exc,
-                payload={"module": __name__, "function": "_recompute_trust", "operation": "trust_recompute_all"},
+                payload={
+                    "module": __name__,
+                    "function": "_recompute_trust",
+                    "operation": "trust_recompute_all",
+                },
                 db_path=self.db_path,
             )
 
@@ -784,7 +953,11 @@ class LifePulseEngine:
             record_internal_error(
                 "life_pulse.check_auto_identity",
                 exc,
-                payload={"module": __name__, "function": "_check_auto_identity", "operation": "auto_identity_doctor"},
+                payload={
+                    "module": __name__,
+                    "function": "_check_auto_identity",
+                    "operation": "auto_identity_doctor",
+                },
                 db_path=self.db_path,
             )
             return None
@@ -808,7 +981,11 @@ class LifePulseEngine:
             record_internal_error(
                 "life_pulse.update_emotional_rest",
                 exc,
-                payload={"module": __name__, "function": "_update_emotional_rest", "operation": "decay_hypothalamus_fatigue"},
+                payload={
+                    "module": __name__,
+                    "function": "_update_emotional_rest",
+                    "operation": "decay_hypothalamus_fatigue",
+                },
                 db_path=self.db_path,
             )
 
@@ -828,7 +1005,9 @@ class LifePulseEngine:
         return {
             "core_awareness": reflection.get("core_awareness", {}),
             "observations": reflection.get("observations", [])[:8],
-            "neuron_proposals": [item.get("name") for item in reflection.get("neuron_proposals", [])],
+            "neuron_proposals": [
+                item.get("name") for item in reflection.get("neuron_proposals", [])
+            ],
             "learning_candidate_count": len(learning.get("candidate_themes", [])),
             "fallback_percent": model_usage.get("fallback_percent", 0.0),
             "ollama_percent": model_usage.get("ollama_percent", 0.0),

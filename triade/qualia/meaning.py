@@ -7,7 +7,6 @@ para la misión, novedad y alineación con la identidad del sistema.
 from __future__ import annotations
 
 import hashlib
-import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -111,7 +110,7 @@ class MeaningEngine:
         obs = getattr(experience, "observation", "") or ""
         pattern = getattr(experience, "extracted_pattern", "") or ""
         mission = getattr(experience, "mission", "") or ""
-        source = getattr(experience, "source", "") or ""
+        getattr(experience, "source", "") or ""
         combined_text = f"{obs} {pattern} {mission}".lower()
 
         profile = self._domain_profile(combined_text)
@@ -121,9 +120,7 @@ class MeaningEngine:
         )
         impact = self._calc_impact(combined_text, experience, state, profile)
         novelty = self._calc_novelty(obs, pattern)
-        identity_alignment = self._calc_identity(
-            combined_text, identity_values or []
-        )
+        identity_alignment = self._calc_identity(combined_text, identity_values or [])
 
         weights = (0.30, 0.25, 0.25, 0.20)
         composite = (
@@ -214,16 +211,12 @@ class MeaningEngine:
             return 0.3
         h = hashlib.md5(f"{obs}|{pattern}".encode()).hexdigest()[:12]
         if h in self._seen_hashes:
-            repeat_count = sum(
-                1 for k in self._seen_hashes if k.startswith(h[:8])
-            )
+            repeat_count = sum(1 for k in self._seen_hashes if k.startswith(h[:8]))
             return max(0.1, 0.8 - repeat_count * 0.1)
         self._seen_hashes[h] = 1.0
         return 0.7
 
-    def _calc_identity(
-        self, text: str, identity_values: list[str]
-    ) -> float:
+    def _calc_identity(self, text: str, identity_values: list[str]) -> float:
         id_hits = sum(1 for kw in IDENTITY_KEYWORDS if kw in text)
         value_hits = sum(1 for v in identity_values if v.lower() in text)
         return min(1.0, 0.4 + id_hits * 0.1 + value_hits * 0.05)

@@ -100,11 +100,15 @@ class ImprovementNeuronFactoryBridge:
     ) -> dict[str, Any]:
         proposal = self._proposal(proposal_id)
         if proposal["status"] not in {"approved", "candidate_created"}:
-            raise ValueError("la propuesta debe estar aprobada antes de crear candidatos")
+            raise ValueError(
+                "la propuesta debe estar aprobada antes de crear candidatos"
+            )
         specification = self.specifications.get(neuron_id, version)
         if specification is None:
             raise KeyError(f"especificación no registrada: {neuron_id}@{version}")
-        if proposal["requested_capability"] not in specification.get("provides_capabilities", []):
+        if proposal["requested_capability"] not in specification.get(
+            "provides_capabilities", []
+        ):
             raise ValueError("la especificación no aporta la capacidad solicitada")
 
         existing = self._links_for_proposal(proposal_id)
@@ -116,7 +120,8 @@ class ImprovementNeuronFactoryBridge:
         projected = {
             "active_candidates": usage["active_candidates"] + 1,
             "memory_mb": usage["memory_mb"] + int(resource["max_memory_mb"]),
-            "runtime_seconds": usage["runtime_seconds"] + int(resource["max_runtime_seconds"]),
+            "runtime_seconds": usage["runtime_seconds"]
+            + int(resource["max_runtime_seconds"]),
             "storage_mb": usage["storage_mb"] + int(resource["max_storage_mb"]),
         }
         self._require_within_budget(projected)
@@ -193,7 +198,9 @@ class ImprovementNeuronFactoryBridge:
         return {
             "active_candidates": len(resources),
             "memory_mb": sum(int(item["max_memory_mb"]) for item in resources),
-            "runtime_seconds": sum(int(item["max_runtime_seconds"]) for item in resources),
+            "runtime_seconds": sum(
+                int(item["max_runtime_seconds"]) for item in resources
+            ),
             "storage_mb": sum(int(item["max_storage_mb"]) for item in resources),
         }
 
@@ -223,4 +230,6 @@ class ImprovementNeuronFactoryBridge:
         }
         exceeded = [name for name, value in projected.items() if value > limits[name]]
         if exceeded:
-            raise ValueError(f"presupuesto global excedido: {', '.join(sorted(exceeded))}")
+            raise ValueError(
+                f"presupuesto global excedido: {', '.join(sorted(exceeded))}"
+            )

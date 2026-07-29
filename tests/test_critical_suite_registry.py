@@ -17,7 +17,9 @@ def make_run(suite_id: str, version: str, metric_ids: tuple[str, ...]) -> Evalua
         suite_version=version,
         subject_id="subject-1",
         results=tuple(
-            MetricResult(case_id=metric_id, score=1.0, passed=True, actual=1.0, expected=1.0)
+            MetricResult(
+                case_id=metric_id, score=1.0, passed=True, actual=1.0, expected=1.0
+            )
             for metric_id in metric_ids
         ),
         aggregate_score=1.0,
@@ -41,7 +43,9 @@ def test_default_registry_contains_three_versioned_critical_suites() -> None:
 
 def test_suite_validates_matching_run_and_builds_policies() -> None:
     suite = CriticalSuiteRegistry().get("triade-core-safety", "1.0.0")
-    run = make_run("triade-core-safety", "1.0.0", ("identity_core", "safety", "isolation"))
+    run = make_run(
+        "triade-core-safety", "1.0.0", ("identity_core", "safety", "isolation")
+    )
 
     suite.validate_run(run)
     policies = suite.policies()
@@ -55,7 +59,13 @@ def test_suite_rejects_wrong_version() -> None:
     run = make_run(
         "learning-promotion",
         "2.0.0",
-        ("identity_core", "safety", "evidence_quality", "generalization", "outcome_quality"),
+        (
+            "identity_core",
+            "safety",
+            "evidence_quality",
+            "generalization",
+            "outcome_quality",
+        ),
     )
 
     with pytest.raises(ValueError, match="suite_version incompatible"):

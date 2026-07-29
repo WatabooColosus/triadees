@@ -30,7 +30,9 @@ class ProtectionRule:
     description: str = ""
 
     def __post_init__(self) -> None:
-        if not all((self.capability.strip(), self.metric_id.strip(), self.version.strip())):
+        if not all(
+            (self.capability.strip(), self.metric_id.strip(), self.version.strip())
+        ):
             raise ValueError("capability, metric_id y version son obligatorios")
         if self.severity not in {"critical", "high", "medium", "low"}:
             raise ValueError("severity inválida")
@@ -178,7 +180,9 @@ class CapabilityProtectionRegistry:
     def policies_for(self, capability: str) -> tuple[MetricPolicy, ...]:
         rules = self.list_for_capability(capability, status="active")
         if not rules:
-            raise ValueError(f"No existen protecciones activas para capability={capability}")
+            raise ValueError(
+                f"No existen protecciones activas para capability={capability}"
+            )
         return tuple(rule.to_metric_policy() for rule in rules)
 
     def disable(self, rule_id: str) -> ProtectionRule:

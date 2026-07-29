@@ -50,7 +50,11 @@ class EvaluationRunner:
                 passed=score == 1.0,
                 actual=actual,
                 expected=case.expected,
-                details={"critical": case.critical, "weight": case.weight, "tags": list(case.tags)},
+                details={
+                    "critical": case.critical,
+                    "weight": case.weight,
+                    "tags": list(case.tags),
+                },
             )
             results.append(result)
             total_weight += case.weight
@@ -70,7 +74,9 @@ class EvaluationRunner:
         self._persist(run, suite)
         return run
 
-    def create_baseline(self, capability: str, run: EvaluationRun) -> CapabilityBaseline:
+    def create_baseline(
+        self, capability: str, run: EvaluationRun
+    ) -> CapabilityBaseline:
         baseline = CapabilityBaseline(
             baseline_id=f"baseline-{uuid4().hex[:16]}",
             capability=capability,
@@ -82,7 +88,10 @@ class EvaluationRunner:
             created_at=utc_now(),
         )
         target = self.runs_dir / run.evaluation_id / "baseline.json"
-        target.write_text(json.dumps(baseline.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+        target.write_text(
+            json.dumps(baseline.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
         return baseline
 
     def _persist(self, run: EvaluationRun, suite: BenchmarkSuite) -> None:
@@ -103,7 +112,10 @@ def compare_evaluations(
     critical_case_ids: set[str] | None = None,
     epsilon: float = 1e-9,
 ) -> EvaluationComparison:
-    if (baseline.suite_id, baseline.suite_version) != (candidate.suite_id, candidate.suite_version):
+    if (baseline.suite_id, baseline.suite_version) != (
+        candidate.suite_id,
+        candidate.suite_version,
+    ):
         return EvaluationComparison(
             baseline_evaluation_id=baseline.evaluation_id,
             candidate_evaluation_id=candidate.evaluation_id,
@@ -144,8 +156,10 @@ def compare_evaluations(
 
     critical = tuple(sorted(set(degraded) & set(critical_case_ids or set())))
     absolute_delta = round(candidate.aggregate_score - baseline.aggregate_score, 6)
-    percent_delta = None if baseline.aggregate_score == 0 else round(
-        (absolute_delta / baseline.aggregate_score) * 100.0, 6
+    percent_delta = (
+        None
+        if baseline.aggregate_score == 0
+        else round((absolute_delta / baseline.aggregate_score) * 100.0, 6)
     )
     if critical or absolute_delta < -epsilon:
         decision = "regressed"

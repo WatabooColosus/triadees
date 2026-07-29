@@ -27,7 +27,12 @@ def test_guarded_mode_allows_safe_shell_but_never_free_shell():
     assert permissions["permissions"]["can_run_shell"] is False
 
     probe = {
-        "limits": {"ram_available_gb": 16, "disk_free_gb": 100, "tier": "high", "cpu_count": 8},
+        "limits": {
+            "ram_available_gb": 16,
+            "disk_free_gb": 100,
+            "tier": "high",
+            "cpu_count": 8,
+        },
         "cpu": {"load_1min": 1.0},
         "power": {"ac_connected": True, "battery_percent": 100},
         "thermal": {"thermal_status": "ok"},
@@ -49,6 +54,7 @@ def test_peer_registration_rejects_private_urls_and_schema_works(tmp_path):
 
     # Avoid DNS/network dependence while proving the persistence schema itself.
     import triade.federation.peer_sync as peer_module
+
     original = peer_module._assert_public_url
     peer_module._assert_public_url = lambda _url: None
     try:
@@ -65,7 +71,9 @@ def test_ab_evaluator_uses_real_ollama_result_shape(tmp_path, monkeypatch):
         ollama_client.OllamaClient,
         "generate",
         lambda self, model, prompt, system=None: ModelResult(
-            ok=True, text="respuesta comprobable suficientemente extensa para evaluar", model=model
+            ok=True,
+            text="respuesta comprobable suficientemente extensa para evaluar",
+            model=model,
         ),
     )
     evaluator = ABModelEvaluator(tmp_path / "ab.db")
@@ -80,7 +88,9 @@ def test_ab_evaluator_reports_the_actual_model_name(tmp_path, monkeypatch):
         "strong": {"status": "ok", "output": "porque " * 120, "duration_ms": 100},
         "weak": {"status": "error", "output": "", "duration_ms": 0},
     }
-    monkeypatch.setattr(evaluator, "_run_model", lambda model, prompt, timeout: responses[model])
+    monkeypatch.setattr(
+        evaluator, "_run_model", lambda model, prompt, timeout: responses[model]
+    )
     result = evaluator.evaluate_pair("pulse_check", "strong", "weak")
     assert result["winner"] == "strong"
     assert result["evaluation_method"] == "internal_heuristic"
@@ -93,7 +103,9 @@ def test_coordination_lock_excludes_other_owner_and_expires(tmp_path):
     assert lock.try_acquire("task", "one", ttl_seconds=10)
     assert not lock.try_acquire("task", "two", ttl_seconds=1)
     with sqlite3.connect(db_path) as conn:
-        conn.execute("UPDATE orchestrator_locks SET expires_at = 0 WHERE lock_key = 'task'")
+        conn.execute(
+            "UPDATE orchestrator_locks SET expires_at = 0 WHERE lock_key = 'task'"
+        )
     assert lock.try_acquire("task", "two", ttl_seconds=1)
 
 

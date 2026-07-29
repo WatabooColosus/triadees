@@ -11,7 +11,11 @@ from typing import Any
 def repo_info(cwd: str | Path | None = None) -> dict[str, Any]:
     root = Path(cwd) if cwd is not None else Path(__file__).resolve().parents[2]
     origin = _canonical_origin(_git(["remote", "get-url", "origin"], root))
-    branch = _git(["branch", "--show-current"], root) or os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME", "")
+    branch = (
+        _git(["branch", "--show-current"], root)
+        or os.environ.get("GITHUB_HEAD_REF")
+        or os.environ.get("GITHUB_REF_NAME", "")
+    )
     commit = _git(["rev-parse", "--short", "HEAD"], root)
     upstream = _git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], root)
     status = _git(["status", "--short"], root)

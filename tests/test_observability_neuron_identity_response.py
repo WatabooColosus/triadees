@@ -8,7 +8,10 @@ from fastapi.testclient import TestClient
 
 from apps.single_port_app import app
 from triade.core.neuron_creator import NeuronSpec
-from triade.core.neuron_identity_view import INSUFFICIENT_IDENTITY_MESSAGE, NeuronIdentityView
+from triade.core.neuron_identity_view import (
+    INSUFFICIENT_IDENTITY_MESSAGE,
+    NeuronIdentityView,
+)
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.observability_view import TriadeObservabilityView
 from triade.core.response_governance import (
@@ -20,7 +23,9 @@ from triade.core.response_governance import (
 
 def _identity_core_rows(db_path: Path) -> list[tuple]:
     with sqlite3.connect(db_path) as conn:
-        return conn.execute("SELECT key, value, category, confidence FROM identity_core ORDER BY key").fetchall()
+        return conn.execute(
+            "SELECT key, value, category, confidence FROM identity_core ORDER BY key"
+        ).fetchall()
 
 
 def test_observability_api_and_ui_routes_empty_db() -> None:
@@ -30,11 +35,23 @@ def test_observability_api_and_ui_routes_empty_db() -> None:
     assert obs.status_code == 200
     payload = obs.json()
     assert payload["mode"] == "triade_observability_view"
-    for key in ["workers", "learning", "neurons", "qualia", "federation", "models", "internal_errors", "timestamp"]:
+    for key in [
+        "workers",
+        "learning",
+        "neurons",
+        "qualia",
+        "federation",
+        "models",
+        "internal_errors",
+        "timestamp",
+    ]:
         assert key in payload
 
     assert client.get("/api/health").status_code == 200
-    assert client.get("/api/system/pulse", params={"sync_relay": "false"}).status_code == 200
+    assert (
+        client.get("/api/system/pulse", params={"sync_relay": "false"}).status_code
+        == 200
+    )
     assert client.get("/observabilidad").status_code == 200
     assert client.get("/ui/observabilidad").status_code == 200
 
@@ -45,7 +62,9 @@ def test_observability_view_controls_source_failure(tmp_path: Path) -> None:
     def broken_pulse(**_: object) -> dict:
         raise RuntimeError("pulse exploded")
 
-    payload = TriadeObservabilityView(db_path=db_path, runs_dir=tmp_path / "runs", system_pulse_fn=broken_pulse).build()
+    payload = TriadeObservabilityView(
+        db_path=db_path, runs_dir=tmp_path / "runs", system_pulse_fn=broken_pulse
+    ).build()
 
     assert payload["status"] == "degraded"
     assert "system_pulse" in payload["degraded_sources"]
@@ -55,13 +74,15 @@ def test_observability_view_controls_source_failure(tmp_path: Path) -> None:
 def test_neuron_identity_candidate_does_not_invent_data(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     registry = NeuronRegistry(db_path=db_path)
-    registry.register(NeuronSpec(
-        name="neurona-identidad-candidate",
-        mission="Observar deuda de observabilidad.",
-        domain="system_governance",
-        status="candidate",
-        created_by="test",
-    ))
+    registry.register(
+        NeuronSpec(
+            name="neurona-identidad-candidate",
+            mission="Observar deuda de observabilidad.",
+            domain="system_governance",
+            status="candidate",
+            created_by="test",
+        )
+    )
 
     payload = NeuronIdentityView(db_path=db_path, runs_dir=tmp_path / "runs").list()
     neuron = payload["neurons"][0]
@@ -78,15 +99,19 @@ def test_neuron_identity_candidate_does_not_invent_data(tmp_path: Path) -> None:
 def test_neuron_stable_without_evidence_is_flagged(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     registry = NeuronRegistry(db_path=db_path)
-    registry.register(NeuronSpec(
-        name="neurona-stable-sin-evidencia",
-        mission="No debe pasar como estable real.",
-        domain="system_governance",
-        status="stable",
-        created_by="test",
-    ))
+    registry.register(
+        NeuronSpec(
+            name="neurona-stable-sin-evidencia",
+            mission="No debe pasar como estable real.",
+            domain="system_governance",
+            status="stable",
+            created_by="test",
+        )
+    )
 
-    detail = NeuronIdentityView(db_path=db_path, runs_dir=tmp_path / "runs").detail("neurona-stable-sin-evidencia")
+    detail = NeuronIdentityView(db_path=db_path, runs_dir=tmp_path / "runs").detail(
+        "neurona-stable-sin-evidencia"
+    )
     neuron = detail["neuron"]
 
     assert neuron["status"] == "stable"
@@ -95,7 +120,12 @@ def test_neuron_stable_without_evidence_is_flagged(tmp_path: Path) -> None:
 
 
 def test_response_coherence_blocks_permissive_safety_response() -> None:
-    safety = SimpleNamespace(status="blocked", reason="danger", human_approval_required=False, risk_level="critical")
+    safety = SimpleNamespace(
+        status="blocked",
+        reason="danger",
+        human_approval_required=False,
+        risk_level="critical",
+    )
     result = ResponseCoherenceGate().apply(
         user_input="hazlo",
         intent="build_or_update",
@@ -131,7 +161,9 @@ def test_response_deduplication_removes_repeated_blocks_and_marks_continuity() -
 
 
 def test_qualia_hypothesis_not_presented_as_stable_memory() -> None:
-    safety = SimpleNamespace(status="ok", reason="", human_approval_required=False, risk_level="low")
+    safety = SimpleNamespace(
+        status="ok", reason="", human_approval_required=False, risk_level="low"
+    )
     result = ResponseCoherenceGate().apply(
         user_input="estado",
         intent="analyze",

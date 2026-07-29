@@ -4,19 +4,35 @@ from triade.core.contracts import NEURON_STATUS_EFFECTS, IDENTITY_CORE_FORBIDDEN
 
 
 def test_all_statuses_defined():
-    expected = {"candidate", "experimental", "active_assistant", "trusted_worker", "stable"}
+    expected = {
+        "candidate",
+        "experimental",
+        "active_assistant",
+        "trusted_worker",
+        "stable",
+    }
     assert set(NEURON_STATUS_EFFECTS.keys()) == expected
 
 
 def test_candidate_cannot_influence():
     effects = NEURON_STATUS_EFFECTS["candidate"]
-    for forbidden in ("influence_plan", "influence_response", "write_experimental_memory", "request_stable_promotion"):
+    for forbidden in (
+        "influence_plan",
+        "influence_response",
+        "write_experimental_memory",
+        "request_stable_promotion",
+    ):
         assert forbidden not in effects, f"candidate no debe tener {forbidden}"
 
 
 def test_experimental_cannot_influence():
     effects = NEURON_STATUS_EFFECTS["experimental"]
-    for forbidden in ("influence_plan", "influence_response", "write_experimental_memory", "request_stable_promotion"):
+    for forbidden in (
+        "influence_plan",
+        "influence_response",
+        "write_experimental_memory",
+        "request_stable_promotion",
+    ):
         assert forbidden not in effects, f"experimental no debe tener {forbidden}"
 
 
@@ -37,15 +53,31 @@ def test_trusted_worker_can_influence_plan_and_response():
 
 def test_stable_has_all_effects():
     effects = NEURON_STATUS_EFFECTS["stable"]
-    for required in ("observe", "diagnose", "propose_learning", "influence_plan", "influence_response", "write_experimental_memory", "request_stable_promotion"):
+    for required in (
+        "observe",
+        "diagnose",
+        "propose_learning",
+        "influence_plan",
+        "influence_response",
+        "write_experimental_memory",
+        "request_stable_promotion",
+    ):
         assert required in effects, f"stable debe tener {required}"
 
 
 def test_monotonic_effect_granting():
     prev_count = 0
-    for status in ("candidate", "experimental", "active_assistant", "trusted_worker", "stable"):
+    for status in (
+        "candidate",
+        "experimental",
+        "active_assistant",
+        "trusted_worker",
+        "stable",
+    ):
         current_count = len(NEURON_STATUS_EFFECTS[status])
-        assert current_count >= prev_count, f"{status} debe tener >= efectos que el anterior"
+        assert current_count >= prev_count, (
+            f"{status} debe tener >= efectos que el anterior"
+        )
         prev_count = current_count
 
 
@@ -53,7 +85,9 @@ def test_identity_core_forbidden_effects_always_blocked():
     for status, effects in NEURON_STATUS_EFFECTS.items():
         for forbidden in IDENTITY_CORE_FORBIDDEN_EFFECTS:
             if status in ("candidate", "experimental", "active_assistant"):
-                assert forbidden not in effects, f"{status} no debe tener {forbidden} (forbidden)"
+                assert forbidden not in effects, (
+                    f"{status} no debe tener {forbidden} (forbidden)"
+                )
 
 
 def test_observe_and_diagnose_always_allowed():

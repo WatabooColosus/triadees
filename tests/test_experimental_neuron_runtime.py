@@ -10,34 +10,45 @@ from triade.core.neuron_creator import NeuronSpec
 from triade.core.neuron_registry import NeuronRegistry
 
 
-def test_experimental_runtime_activates_only_experimental_neurons(tmp_path: Path) -> None:
+def test_experimental_runtime_activates_only_experimental_neurons(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     registry = NeuronRegistry(db_path=db_path)
 
-    registry.register(NeuronSpec(
-        name="neurona-android-experimental",
-        mission="Auditar nodo Android edge.",
-        domain="federation_android_edge",
-        rules=["Solo diagnóstico"],
-        status="experimental",
-        created_by="test",
-    ))
+    registry.register(
+        NeuronSpec(
+            name="neurona-android-experimental",
+            mission="Auditar nodo Android edge.",
+            domain="federation_android_edge",
+            rules=["Solo diagnóstico"],
+            status="experimental",
+            created_by="test",
+        )
+    )
 
-    registry.register(NeuronSpec(
-        name="neurona-android-candidate",
-        mission="No debe activarse.",
-        domain="federation_android_edge",
-        rules=["No activar"],
-        status="candidate",
-        created_by="test",
-    ))
+    registry.register(
+        NeuronSpec(
+            name="neurona-android-candidate",
+            mission="No debe activarse.",
+            domain="federation_android_edge",
+            rules=["No activar"],
+            status="candidate",
+            created_by="test",
+        )
+    )
 
     result = run_experimental_neurons(
         db_path=str(db_path),
         user_input="Verifica el nodo Android edge",
         context={},
         signals=SimpleNamespace(intent="analyze"),
-        edge_usage={"used_edge": True, "accepted": True, "node_id": "local-test", "keywords": ["android", "edge"]},
+        edge_usage={
+            "used_edge": True,
+            "accepted": True,
+            "node_id": "local-test",
+            "keywords": ["android", "edge"],
+        },
         system_events=[],
     )
 
@@ -55,18 +66,22 @@ def test_experimental_runtime_activates_only_experimental_neurons(tmp_path: Path
     assert result["policy"]["can_execute_external_actions"] is False
 
 
-def test_experimental_runtime_does_not_activate_unmatched_domain(tmp_path: Path) -> None:
+def test_experimental_runtime_does_not_activate_unmatched_domain(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     registry = NeuronRegistry(db_path=db_path)
 
-    registry.register(NeuronSpec(
-        name="neurona-android-experimental",
-        mission="Auditar nodo Android edge.",
-        domain="federation_android_edge",
-        rules=["Solo diagnóstico"],
-        status="experimental",
-        created_by="test",
-    ))
+    registry.register(
+        NeuronSpec(
+            name="neurona-android-experimental",
+            mission="Auditar nodo Android edge.",
+            domain="federation_android_edge",
+            rules=["Solo diagnóstico"],
+            status="experimental",
+            created_by="test",
+        )
+    )
 
     result = run_experimental_neurons(
         db_path=str(db_path),
@@ -110,7 +125,9 @@ def test_experimental_evidence_ledger_counts_activations(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    ledger = build_experimental_evidence_ledger(runs_dir=runs_dir, limit=10, prefer_db=False)
+    ledger = build_experimental_evidence_ledger(
+        runs_dir=runs_dir, limit=10, prefer_db=False
+    )
 
     assert ledger["summary"]["experimental_neurons_with_evidence"] == 1
     assert ledger["summary"]["total_activations"] == 1
@@ -120,4 +137,6 @@ def test_experimental_evidence_ledger_counts_activations(tmp_path: Path) -> None
     assert neuron["diagnosis_count"] == 2
     assert neuron["test_plan_count"] == 3
     assert neuron["stable_promotion_ready"] is False
-    assert "stable promotion requires separate human gate" in neuron["promotion_blockers"]
+    assert (
+        "stable promotion requires separate human gate" in neuron["promotion_blockers"]
+    )

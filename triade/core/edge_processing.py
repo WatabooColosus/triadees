@@ -122,7 +122,9 @@ class EdgeProcessingService:
                 raw={"status": "skipped", "reason": reason},
             )
 
-        raw = self.router.run_lightweight_task(task=task, text=text, instruction=instruction)
+        raw = self.router.run_lightweight_task(
+            task=task, text=text, instruction=instruction
+        )
         response = extract_response(raw)
         response = normalize_task_response(task, response)
         node_id = raw.get("node_id") or raw.get("job", {}).get("node_id")
@@ -186,10 +188,12 @@ def normalize_edge_text(text: str) -> str:
         changed = False
         for prefix in prefixes:
             if out.lower().startswith(prefix.lower()):
-                out = out[len(prefix):].strip()
+                out = out[len(prefix) :].strip()
                 changed = True
 
-    out = out.replace("[end of text]", "").replace("</s>", "").replace("<s>", "").strip()
+    out = (
+        out.replace("[end of text]", "").replace("</s>", "").replace("<s>", "").strip()
+    )
 
     if len(out) >= 2 and out[0] == '"' and out[-1] == '"':
         out = out[1:-1].strip()
@@ -221,9 +225,11 @@ def normalize_task_response(task: str, response: str) -> str:
 
 def normalize_summary(text: str) -> str:
     out = normalize_edge_text(text)
-    out = re.sub(r'(?i)^el texto anterior fue resumido en español como:\s*', '', out).strip()
-    out = re.sub(r'(?i)^el texto anterior fue resumido como:\s*', '', out).strip()
-    out = re.sub(r'(?i)^resumen:\s*', '', out).strip()
+    out = re.sub(
+        r"(?i)^el texto anterior fue resumido en español como:\s*", "", out
+    ).strip()
+    out = re.sub(r"(?i)^el texto anterior fue resumido como:\s*", "", out).strip()
+    out = re.sub(r"(?i)^resumen:\s*", "", out).strip()
     if len(out) >= 2 and out[0] == '"' and out[-1] == '"':
         out = out[1:-1].strip()
     return out
@@ -231,11 +237,11 @@ def normalize_summary(text: str) -> str:
 
 def normalize_keywords(text: str) -> str:
     out = normalize_edge_text(text)
-    out = re.sub(r'(?i)^máximo\s+\d+\s+palabras\s+clave:\s*', '', out).strip()
-    out = re.sub(r'(?i)^palabras\s+clave:\s*', '', out).strip()
+    out = re.sub(r"(?i)^máximo\s+\d+\s+palabras\s+clave:\s*", "", out).strip()
+    out = re.sub(r"(?i)^palabras\s+clave:\s*", "", out).strip()
 
     # Convertir listas numeradas o por líneas en partes separadas.
-    out = re.sub(r'(?m)^\s*\d+\.\s*', '', out)
+    out = re.sub(r"(?m)^\s*\d+\.\s*", "", out)
     out = out.replace("\n", ", ")
 
     raw_parts = []
@@ -244,14 +250,27 @@ def normalize_keywords(text: str) -> str:
         if not chunk:
             continue
         # Si aún quedan piezas tipo "1. Tríade 2. Modular", separarlas.
-        subparts = re.split(r'\s+\d+\.\s+', chunk)
+        subparts = re.split(r"\s+\d+\.\s+", chunk)
         raw_parts.extend([s.strip(" .;:\t\n") for s in subparts if s.strip()])
 
     clean = []
     seen = set()
-    stopwords = {"a", "de", "con", "y", "el", "la", "los", "las", "un", "una", "por", "run"}
+    stopwords = {
+        "a",
+        "de",
+        "con",
+        "y",
+        "el",
+        "la",
+        "los",
+        "las",
+        "un",
+        "una",
+        "por",
+        "run",
+    }
     for part in raw_parts:
-        part = re.sub(r'^\d+\.\s*', '', part).strip()
+        part = re.sub(r"^\d+\.\s*", "", part).strip()
         if not part:
             continue
         if part.lower() in stopwords:
@@ -284,7 +303,9 @@ def normalize_intent_probe(text: str) -> str:
             data = json.loads(candidate)
             normalized = {
                 "intent": normalize_enum_text(data.get("intent", "unknown")),
-                "urgency": normalize_level(data.get("urgency", "medium"), default="medium"),
+                "urgency": normalize_level(
+                    data.get("urgency", "medium"), default="medium"
+                ),
                 "risk": normalize_level(data.get("risk", "low"), default="low"),
                 "needs_tool": normalize_bool_like(data.get("needs_tool", False)),
             }
@@ -320,12 +341,18 @@ def first_json_object(text: str) -> str:
         elif ch == "}":
             depth -= 1
             if depth == 0:
-                return text[start:i + 1].strip()
+                return text[start : i + 1].strip()
     return ""
 
 
 def normalize_enum_text(value) -> str:
-    return str(value).strip().lower().replace("need_", "").replace("connect_appkg", "connect_apk")
+    return (
+        str(value)
+        .strip()
+        .lower()
+        .replace("need_", "")
+        .replace("connect_appkg", "connect_apk")
+    )
 
 
 def normalize_level(value, default: str = "medium") -> str:

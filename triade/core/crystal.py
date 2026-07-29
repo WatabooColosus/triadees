@@ -47,8 +47,16 @@ class Crystal:
         sig = _SP(
             run_id=packet.run_id,
             pv7=pv7_raw,
-            urgency="high" if float(signal.urgency or 0) > 0.7 else "medium" if float(signal.urgency or 0) > 0.4 else "low",
-            risk="high" if float(signal.risk or 0) > 0.7 else "medium" if float(signal.risk or 0) > 0.4 else "low",
+            urgency="high"
+            if float(signal.urgency or 0) > 0.7
+            else "medium"
+            if float(signal.urgency or 0) > 0.4
+            else "low",
+            risk="high"
+            if float(signal.risk or 0) > 0.7
+            else "medium"
+            if float(signal.risk or 0) > 0.4
+            else "low",
             intent=signal.signal_type if signal else "observe",
             tone=signal.tone_hint if signal and hasattr(signal, "tone_hint") else "",
         )
@@ -58,17 +66,29 @@ class Crystal:
             confidence=float(signal.confidence or 0.5) if signal else 0.5,
         )
 
-        result = self.regulate(sig, mem, history=history, comparison_basis=comparison_basis)
+        result = self.regulate(
+            sig, mem, history=history, comparison_basis=comparison_basis
+        )
 
         if meaning and hasattr(meaning, "composite"):
             result.ethics_vector["meaning_composite"] = float(meaning.composite)
             if float(meaning.composite or 0) > 0.75:
-                result.regulation_notes.append("Experiencia de alto significado detectada.")
+                result.regulation_notes.append(
+                    "Experiencia de alto significado detectada."
+                )
         if continuity and hasattr(continuity, "depth") and continuity.depth > 0:
             result.ethics_vector["chain_depth"] = continuity.depth
-            result.regulation_notes.append(f"Cadena de continuidad profundidad={continuity.depth}.")
-        if fragmentation and hasattr(fragmentation, "drift_detected") and fragmentation.drift_detected:
-            result.regulation_notes.append("Fragmentación detectada: coherencia reducida.")
+            result.regulation_notes.append(
+                f"Cadena de continuidad profundidad={continuity.depth}."
+            )
+        if (
+            fragmentation
+            and hasattr(fragmentation, "drift_detected")
+            and fragmentation.drift_detected
+        ):
+            result.regulation_notes.append(
+                "Fragmentación detectada: coherencia reducida."
+            )
 
         return result
 
@@ -122,7 +142,9 @@ class Crystal:
             risk=signals.risk,
         )
         q_crystal = q_payload["q_crystal"]
-        temporal = self.temporal_state(q_crystal=q_crystal, stability=stability, history=history)
+        temporal = self.temporal_state(
+            q_crystal=q_crystal, stability=stability, history=history
+        )
         regulation_notes.extend(temporal["alerts"])
 
         ethics_vector = self.ethics_vector(signals, pv7_score, stability, intensity)
@@ -188,12 +210,18 @@ class Crystal:
     @staticmethod
     def intensity(signals: SignalPacket) -> float:
         urgency = {"low": 0.25, "medium": 0.55, "high": 0.85}.get(signals.urgency, 0.5)
-        risk = {"low": 0.20, "medium": 0.45, "high": 0.75, "critical": 1.0}.get(signals.risk, 0.5)
+        risk = {"low": 0.20, "medium": 0.45, "high": 0.75, "critical": 1.0}.get(
+            signals.risk, 0.5
+        )
         return round((urgency + risk) / 2, 2)
 
     @classmethod
-    def stability(cls, signals: SignalPacket, memory: MemoryPacket, pv7_score: float) -> float:
-        penalty = {"low": 0.0, "medium": 0.12, "high": 0.30, "critical": 0.45}.get(signals.risk, 0.15)
+    def stability(
+        cls, signals: SignalPacket, memory: MemoryPacket, pv7_score: float
+    ) -> float:
+        penalty = {"low": 0.0, "medium": 0.12, "high": 0.30, "critical": 0.45}.get(
+            signals.risk, 0.15
+        )
         value = 0.45 + memory.confidence * 0.30 + pv7_score * 0.25 - penalty
         return round(cls._clamp(value), 2)
 
@@ -234,9 +262,24 @@ class Crystal:
         memory_confidence: float,
         risk: str,
     ) -> dict[str, float]:
-        risk_pressure = {"low": 0.10, "medium": 0.35, "high": 0.70, "critical": 1.0}.get(risk, 0.35)
-        s_h = cls._clamp((pv7_score * 0.48) + ((1.0 - intensity) * 0.30) + ((1.0 - risk_pressure) * 0.22))
-        s_t = cls._clamp((ethics * 0.28) + (depth * 0.24) + (relation * 0.20) + (stability * 0.18) + (creativity * 0.10))
+        risk_pressure = {
+            "low": 0.10,
+            "medium": 0.35,
+            "high": 0.70,
+            "critical": 1.0,
+        }.get(risk, 0.35)
+        s_h = cls._clamp(
+            (pv7_score * 0.48)
+            + ((1.0 - intensity) * 0.30)
+            + ((1.0 - risk_pressure) * 0.22)
+        )
+        s_t = cls._clamp(
+            (ethics * 0.28)
+            + (depth * 0.24)
+            + (relation * 0.20)
+            + (stability * 0.18)
+            + (creativity * 0.10)
+        )
         alpha = cls._clamp(0.55 + pv7_score * 0.10 - risk_pressure * 0.10)
         beta = cls._clamp(1.0 - alpha)
         s_rel = cls._clamp((alpha * s_h) + (beta * s_t))
@@ -245,7 +288,7 @@ class Crystal:
         r_prime = 1.0 + (stability * 0.45) + (ethics * 0.10)
         phi_memory = cls._clamp(0.62 + memory_confidence * 0.38)
         base = cls._clamp((s_rel + c_prime) / i_prime)
-        q_value = cls._clamp((base ** r_prime) * phi_memory)
+        q_value = cls._clamp((base**r_prime) * phi_memory)
         return {
             "q_crystal": round(q_value, 3),
             "s_h": round(s_h, 3),
@@ -260,7 +303,9 @@ class Crystal:
         }
 
     @classmethod
-    def temporal_state(cls, q_crystal: float, stability: float, history: list[dict[str, Any]]) -> dict[str, Any]:
+    def temporal_state(
+        cls, q_crystal: float, stability: float, history: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         if not history:
             return {
                 "status": "baseline",
@@ -269,7 +314,9 @@ class Crystal:
                 "q_delta": 0.0,
                 "stability_delta": 0.0,
                 "history_window": 0,
-                "alerts": ["Línea base temporal iniciada; aún no hay historial comparable."],
+                "alerts": [
+                    "Línea base temporal iniciada; aún no hay historial comparable."
+                ],
             }
         latest = history[0]
         previous_q = float(latest.get("q_crystal") or 0.0)
@@ -281,19 +328,27 @@ class Crystal:
         alerts: list[str] = []
         if q_crystal < 0.30 or stability < 0.35:
             status = "critical"
-            alerts.append("Alerta temporal crítica: Q_cristal o estabilidad en umbral bajo.")
+            alerts.append(
+                "Alerta temporal crítica: Q_cristal o estabilidad en umbral bajo."
+            )
         elif q_delta <= -0.15 or stability_delta <= -0.15:
             status = "degrading"
-            alerts.append("Alerta temporal: degradación marcada frente al ciclo anterior.")
+            alerts.append(
+                "Alerta temporal: degradación marcada frente al ciclo anterior."
+            )
         elif q_delta >= 0.10 and stability_delta >= 0.05:
             status = "improving"
-            alerts.append("Tendencia temporal favorable: Q_cristal y estabilidad mejoran.")
+            alerts.append(
+                "Tendencia temporal favorable: Q_cristal y estabilidad mejoran."
+            )
         else:
             status = "stable"
             alerts.append("Continuidad temporal estable dentro de umbrales operativos.")
         if q_crystal < historic_avg - 0.12 and status not in {"critical", "degrading"}:
             status = "degrading"
-            alerts.append("Q_cristal actual por debajo del promedio histórico reciente.")
+            alerts.append(
+                "Q_cristal actual por debajo del promedio histórico reciente."
+            )
         return {
             "status": status,
             "previous_q_crystal": round(previous_q, 3),
@@ -305,8 +360,12 @@ class Crystal:
         }
 
     @staticmethod
-    def ethics_vector(signals: SignalPacket, pv7_score: float, stability: float, intensity: float) -> dict[str, float]:
-        risk_pressure = {"low": 0.1, "medium": 0.35, "high": 0.7, "critical": 1.0}.get(signals.risk, 0.35)
+    def ethics_vector(
+        signals: SignalPacket, pv7_score: float, stability: float, intensity: float
+    ) -> dict[str, float]:
+        risk_pressure = {"low": 0.1, "medium": 0.35, "high": 0.7, "critical": 1.0}.get(
+            signals.risk, 0.35
+        )
         return {
             "virtue_alignment": pv7_score,
             "risk_pressure": risk_pressure,

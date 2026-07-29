@@ -8,7 +8,6 @@ Bodega puede incorporar recuerdos vectoriales de manera explícita y auditable.
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -56,10 +55,12 @@ class Bodega(BodegaStorage):
 
         if semantic_recall_enabled:
             if self.semantic_search_engine is None:
-                semantic_recall.update({
-                    "status": "unavailable",
-                    "error": "SemanticSearchEngine no fue configurado para este run.",
-                })
+                semantic_recall.update(
+                    {
+                        "status": "unavailable",
+                        "error": "SemanticSearchEngine no fue configurado para este run.",
+                    }
+                )
             else:
                 search_result = self.semantic_search_engine.search(
                     query=packet.user_input,
@@ -68,16 +69,24 @@ class Bodega(BodegaStorage):
                     min_similarity=semantic_min_similarity,
                     domain=semantic_domain,
                 )
-                semantic_recall.update({
-                    "status": search_result.get("status", "failed"),
-                    "model": search_result.get("model", semantic_model),
-                    "query_dimensions": search_result.get("query_dimensions"),
-                    "candidate_embeddings": search_result.get("candidate_embeddings", 0),
-                    "matching_candidates": search_result.get("matching_candidates", 0),
-                    "skipped_model": search_result.get("skipped_model", 0),
-                    "skipped_dimensions": search_result.get("skipped_dimensions", 0),
-                    "error": search_result.get("error"),
-                })
+                semantic_recall.update(
+                    {
+                        "status": search_result.get("status", "failed"),
+                        "model": search_result.get("model", semantic_model),
+                        "query_dimensions": search_result.get("query_dimensions"),
+                        "candidate_embeddings": search_result.get(
+                            "candidate_embeddings", 0
+                        ),
+                        "matching_candidates": search_result.get(
+                            "matching_candidates", 0
+                        ),
+                        "skipped_model": search_result.get("skipped_model", 0),
+                        "skipped_dimensions": search_result.get(
+                            "skipped_dimensions", 0
+                        ),
+                        "error": search_result.get("error"),
+                    }
+                )
                 if search_result.get("status") == "ok":
                     vector_semantic = [
                         {**match, "retrieval_type": "vector_similarity"}
@@ -92,7 +101,9 @@ class Bodega(BodegaStorage):
         if episodic or keyword_semantic:
             confidence += 0.2
         if vector_semantic:
-            strongest = max(float(match.get("similarity", 0.0)) for match in vector_semantic)
+            strongest = max(
+                float(match.get("similarity", 0.0)) for match in vector_semantic
+            )
             confidence += 0.2 if strongest >= semantic_min_similarity else 0.1
             semantic_recall["strongest_similarity"] = round(strongest, 6)
         return MemoryPacket(
@@ -108,10 +119,18 @@ class Bodega(BodegaStorage):
         with self._connect() as conn:
             conn.execute(
                 "INSERT OR IGNORE INTO runs (run_id, source, user_input, status, created_at) VALUES (?, ?, ?, ?, ?)",
-                (packet.run_id, packet.source, packet.user_input, "created", packet.timestamp),
+                (
+                    packet.run_id,
+                    packet.source,
+                    packet.user_input,
+                    "created",
+                    packet.timestamp,
+                ),
             )
 
-    def update_run_models(self, run_id: str, model_hypothalamus: str, model_central: str) -> None:
+    def update_run_models(
+        self, run_id: str, model_hypothalamus: str, model_central: str
+    ) -> None:
         with self._connect() as conn:
             conn.execute(
                 "UPDATE runs SET model_hypothalamus = ?, model_central = ? WHERE run_id = ?",
@@ -144,7 +163,16 @@ class Bodega(BodegaStorage):
                 """INSERT INTO model_events
                 (run_id, role, provider, model_name, ok, error, quality_score, latency_ms)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (run_id, role, provider, model_name, 1 if ok else 0, error, quality_score, latency_ms),
+                (
+                    run_id,
+                    role,
+                    provider,
+                    model_name,
+                    1 if ok else 0,
+                    error,
+                    quality_score,
+                    latency_ms,
+                ),
             )
             return int(cursor.lastrowid)
 
@@ -210,7 +238,9 @@ class Bodega(BodegaStorage):
             )
             return int(cursor.lastrowid)
 
-    def list_recent_crystals(self, limit: int = 5, context_key: str | None = None) -> list[dict[str, Any]]:
+    def list_recent_crystals(
+        self, limit: int = 5, context_key: str | None = None
+    ) -> list[dict[str, Any]]:
         with self._connect() as conn:
             if context_key:
                 rows = conn.execute(
@@ -273,7 +303,9 @@ class Bodega(BodegaStorage):
             )
             return int(cursor.lastrowid)
 
-    def store_episode(self, input_packet: InputPacket, output: OutputPacket) -> dict[str, Any]:
+    def store_episode(
+        self, input_packet: InputPacket, output: OutputPacket
+    ) -> dict[str, Any]:
         title = self._make_title(input_packet.user_input)
         content = f"Usuario: {input_packet.user_input}\nRespuesta: {output.response}"
         summary = output.response[:280]
@@ -289,10 +321,19 @@ class Bodega(BodegaStorage):
                 (input_packet.run_id, title, content, summary, tags, 0.5, 0.75),
             )
             episode_id = cursor.lastrowid
-        return {"run_id": output.run_id, "stored": True, "episode_id": episode_id, "db_path": str(self.db_path)}
+        return {
+            "run_id": output.run_id,
+            "stored": True,
+            "episode_id": episode_id,
+            "db_path": str(self.db_path),
+        }
 
     def diff_from_output(self, output: OutputPacket) -> dict[str, object]:
-        return {"run_id": output.run_id, "stored": False, "reason": "Usar store_episode(input_packet, output) para persistencia real."}
+        return {
+            "run_id": output.run_id,
+            "stored": False,
+            "reason": "Usar store_episode(input_packet, output) para persistencia real.",
+        }
 
     def list_recent_episodes(self, limit: int = 10) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -306,14 +347,31 @@ class Bodega(BodegaStorage):
     def doctor(self, runs_dir: str | Path = "runs") -> dict[str, Any]:
         runs_path = Path(runs_dir)
         with self._connect() as conn:
-            tables = [row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()]
+            tables = [
+                row["name"]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+                ).fetchall()
+            ]
             run_count = conn.execute("SELECT COUNT(*) AS c FROM runs").fetchone()["c"]
-            episode_count = conn.execute("SELECT COUNT(*) AS c FROM episodic_memory").fetchone()["c"]
-            signal_count = conn.execute("SELECT COUNT(*) AS c FROM signal_states").fetchone()["c"]
-            crystal_count = conn.execute("SELECT COUNT(*) AS c FROM crystal_states").fetchone()["c"]
-            verification_count = conn.execute("SELECT COUNT(*) AS c FROM verification_reports").fetchone()["c"]
-            safety_count = conn.execute("SELECT COUNT(*) AS c FROM knowledge_patterns WHERE domain = 'safety'").fetchone()["c"]
-            model_event_count = conn.execute("SELECT COUNT(*) AS c FROM model_events").fetchone()["c"]
+            episode_count = conn.execute(
+                "SELECT COUNT(*) AS c FROM episodic_memory"
+            ).fetchone()["c"]
+            signal_count = conn.execute(
+                "SELECT COUNT(*) AS c FROM signal_states"
+            ).fetchone()["c"]
+            crystal_count = conn.execute(
+                "SELECT COUNT(*) AS c FROM crystal_states"
+            ).fetchone()["c"]
+            verification_count = conn.execute(
+                "SELECT COUNT(*) AS c FROM verification_reports"
+            ).fetchone()["c"]
+            safety_count = conn.execute(
+                "SELECT COUNT(*) AS c FROM knowledge_patterns WHERE domain = 'safety'"
+            ).fetchone()["c"]
+            model_event_count = conn.execute(
+                "SELECT COUNT(*) AS c FROM model_events"
+            ).fetchone()["c"]
             model_rows = conn.execute(
                 """SELECT model_hypothalamus, model_central, COUNT(*) AS c FROM runs
                 WHERE model_hypothalamus IS NOT NULL OR model_central IS NOT NULL
@@ -356,7 +414,9 @@ class Bodega(BodegaStorage):
                 "safety_events": safety_count,
                 "verification_reports": verification_count,
                 "model_events": model_event_count,
-                "qualia_experiences": int((qualia_bus.get("counts") or {}).get("qualia_experiences", 0) or 0),
+                "qualia_experiences": int(
+                    (qualia_bus.get("counts") or {}).get("qualia_experiences", 0) or 0
+                ),
             },
             "qualia_bus": qualia_bus,
             "crystal_quality": dict(crystal_quality) if crystal_quality else {},
@@ -366,9 +426,9 @@ class Bodega(BodegaStorage):
             "model_events": [dict(row) for row in model_event_rows],
         }
 
-
     def _qualia_store(self) -> Any:
         from triade.qualia.store import QualiaStore
+
         return QualiaStore(db_path=self.db_path)
 
     def _qualia_doctor(self) -> dict[str, Any]:
@@ -392,16 +452,24 @@ class Bodega(BodegaStorage):
     def store_qualia_state(self, state: Any) -> int:
         return self._qualia_store().store_state(state)
 
-    def list_qualia_state(self, run_id: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
+    def list_qualia_state(
+        self, run_id: str | None = None, limit: int = 20
+    ) -> list[dict[str, Any]]:
         return self._qualia_store().list_states(run_id=run_id, limit=limit)
 
-    def list_qualia_experiences(self, run_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    def list_qualia_experiences(
+        self, run_id: str | None = None, limit: int = 50
+    ) -> list[dict[str, Any]]:
         return self._qualia_store().list_experiences(run_id=run_id, limit=limit)
 
     def _fetch_identity(self) -> list[dict[str, Any]]:
         with self._connect() as conn:
-            core = conn.execute("SELECT key, value, category, confidence FROM identity_core ORDER BY id ASC").fetchall()
-            auto = conn.execute("SELECT trait_key AS key, trait_value AS value, category, confidence FROM auto_identity WHERE status IN ('candidate', 'stable') ORDER BY confidence DESC").fetchall()
+            core = conn.execute(
+                "SELECT key, value, category, confidence FROM identity_core ORDER BY id ASC"
+            ).fetchall()
+            auto = conn.execute(
+                "SELECT trait_key AS key, trait_value AS value, category, confidence FROM auto_identity WHERE status IN ('candidate', 'stable') ORDER BY confidence DESC"
+            ).fetchall()
         results = [dict(row) for row in core]
         for row in auto:
             item = dict(row)
@@ -413,7 +481,9 @@ class Bodega(BodegaStorage):
         terms = self._terms(query)
         if not terms:
             return []
-        like_clauses = " OR ".join(["value LIKE ? OR key LIKE ? OR domain LIKE ?" for _ in terms])
+        like_clauses = " OR ".join(
+            ["value LIKE ? OR key LIKE ? OR domain LIKE ?" for _ in terms]
+        )
         params: list[str] = []
         for term in terms:
             pattern = f"%{term}%"
@@ -429,7 +499,12 @@ class Bodega(BodegaStorage):
         terms = self._terms(query)
         if not terms:
             return []
-        like_clauses = " OR ".join(["content LIKE ? OR summary LIKE ? OR title LIKE ? OR tags LIKE ?" for _ in terms])
+        like_clauses = " OR ".join(
+            [
+                "content LIKE ? OR summary LIKE ? OR title LIKE ? OR tags LIKE ?"
+                for _ in terms
+            ]
+        )
         params: list[str] = []
         for term in terms:
             pattern = f"%{term}%"
@@ -443,7 +518,23 @@ class Bodega(BodegaStorage):
 
     @staticmethod
     def _terms(query: str) -> list[str]:
-        stop = {"el", "la", "los", "las", "un", "una", "de", "del", "y", "o", "a", "en", "que", "por", "para"}
+        stop = {
+            "el",
+            "la",
+            "los",
+            "las",
+            "un",
+            "una",
+            "de",
+            "del",
+            "y",
+            "o",
+            "a",
+            "en",
+            "que",
+            "por",
+            "para",
+        }
         words = [w.strip(".,:;!?¡¿()[]{}\"'").lower() for w in query.split()]
         return [w for w in words if len(w) >= 4 and w not in stop][:6]
 

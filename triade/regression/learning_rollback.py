@@ -23,35 +23,60 @@ class LearningRollbackAdapter:
 
     def __call__(self, request: dict[str, Any]) -> dict[str, Any]:
         if request.get("capability") != "learning":
-            return {"applied": False, "error": "capability no soportada por LearningRollbackAdapter"}
+            return {
+                "applied": False,
+                "error": "capability no soportada por LearningRollbackAdapter",
+            }
 
         failed_candidate_id = str(request.get("candidate_id") or "").strip()
         target = dict(request.get("target") or {})
         stable_candidate_id = str(target.get("subject_id") or "").strip()
         if not failed_candidate_id or not stable_candidate_id:
-            return {"applied": False, "error": "candidate_id y target.subject_id son obligatorios"}
+            return {
+                "applied": False,
+                "error": "candidate_id y target.subject_id son obligatorios",
+            }
         if failed_candidate_id == stable_candidate_id:
-            return {"applied": False, "error": "el candidato degradado no puede ser el target estable"}
+            return {
+                "applied": False,
+                "error": "el candidato degradado no puede ser el target estable",
+            }
 
         failed = self.pipeline.get_candidate(failed_candidate_id)
         stable = self.pipeline.get_candidate(stable_candidate_id)
         if failed is None:
-            return {"applied": False, "error": f"no existe candidato degradado: {failed_candidate_id}"}
+            return {
+                "applied": False,
+                "error": f"no existe candidato degradado: {failed_candidate_id}",
+            }
         if stable is None:
-            return {"applied": False, "error": f"no existe candidato estable: {stable_candidate_id}"}
+            return {
+                "applied": False,
+                "error": f"no existe candidato estable: {stable_candidate_id}",
+            }
         if stable.get("status") != "consolidated":
-            return {"applied": False, "error": "el target de aprendizaje no está consolidated"}
+            return {
+                "applied": False,
+                "error": "el target de aprendizaje no está consolidated",
+            }
 
         stable_document = self._document_for_candidate(stable_candidate_id)
         if stable_document is None or stable_document.get("status") != "stable":
-            return {"applied": False, "error": "el target no tiene memoria semántica stable"}
+            return {
+                "applied": False,
+                "error": "el target no tiene memoria semántica stable",
+            }
 
         failed_document = self._document_for_candidate(failed_candidate_id)
         before_state = {
             "subject_id": failed_candidate_id,
             "candidate_status": failed.get("status"),
-            "semantic_document_id": failed_document.get("document_id") if failed_document else None,
-            "semantic_status": failed_document.get("status") if failed_document else None,
+            "semantic_document_id": failed_document.get("document_id")
+            if failed_document
+            else None,
+            "semantic_status": failed_document.get("status")
+            if failed_document
+            else None,
         }
 
         if failed_document and failed_document.get("status") != "rejected":
@@ -77,14 +102,20 @@ class LearningRollbackAdapter:
             "semantic_document_id": stable_document.get("document_id"),
             "semantic_status": stable_document.get("status"),
             "retired_candidate_id": failed_candidate_id,
-            "retired_candidate_status": (self.pipeline.get_candidate(failed_candidate_id) or {}).get("status"),
+            "retired_candidate_status": (
+                self.pipeline.get_candidate(failed_candidate_id) or {}
+            ).get("status"),
             "retired_semantic_status": (
                 (self._document_for_candidate(failed_candidate_id) or {}).get("status")
                 if failed_document
                 else None
             ),
         }
-        return {"applied": True, "before_state": before_state, "after_state": after_state}
+        return {
+            "applied": True,
+            "before_state": before_state,
+            "after_state": after_state,
+        }
 
     def _document_for_candidate(self, candidate_id: str) -> dict[str, Any] | None:
         with sqlite3.connect(self.db_path) as conn:

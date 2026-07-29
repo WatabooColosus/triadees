@@ -170,16 +170,23 @@ class MemoryConsolidator:
                 details.append(f"Duplicate {combo[:40]}: {len(ids)}→1")
         conn.commit()
         return ConsolidationResult(
-            operation="deduplicate_semantic", items_processed=processed,
-            items_removed=removed, details=details,
+            operation="deduplicate_semantic",
+            items_processed=processed,
+            items_removed=removed,
+            details=details,
         )
 
-    def compress_episodes(self, *, max_age_days: int = 90, keep_min: int = 10) -> ConsolidationResult:
+    def compress_episodes(
+        self, *, max_age_days: int = 90, keep_min: int = 10
+    ) -> ConsolidationResult:
         conn = self._get_conn()
-        total = conn.execute("SELECT COUNT(*) as c FROM episodic_memory").fetchone()["c"]
+        total = conn.execute("SELECT COUNT(*) as c FROM episodic_memory").fetchone()[
+            "c"
+        ]
         if total <= keep_min:
             return ConsolidationResult(
-                operation="compress_episodes", items_processed=total,
+                operation="compress_episodes",
+                items_processed=total,
                 details=["Not enough episodes to compress."],
             )
         rows = conn.execute(
@@ -193,22 +200,35 @@ class MemoryConsolidator:
         conn.commit()
         loss = removed / max(total, 1)
         return ConsolidationResult(
-            operation="compress_episodes", items_processed=total,
-            items_removed=removed, information_loss=loss,
+            operation="compress_episodes",
+            items_processed=total,
+            items_removed=removed,
+            information_loss=loss,
             details=[f"Removed {removed} old episodes, loss={loss:.2%}"],
         )
 
     # --- Olvido reversible ---
 
-    def forget(self, table: str, entry_id: int, reason: str = "", policy: str = "manual",
-               actor: str = "user") -> dict[str, Any]:
+    def forget(
+        self,
+        table: str,
+        entry_id: int,
+        reason: str = "",
+        policy: str = "manual",
+        actor: str = "user",
+    ) -> dict[str, Any]:
         conn = self._get_conn()
         row = conn.execute(f"SELECT * FROM {table} WHERE id=?", (entry_id,)).fetchone()
         if not row:
             return {"error": "not_found"}
         snapshot = dict(row)
         now = utc_now()
-        status_col = "status" if "status" in [d[1] for d in conn.execute(f"PRAGMA table_info({table})").fetchall()] else None
+        status_col = (
+            "status"
+            if "status"
+            in [d[1] for d in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+            else None
+        )
         if status_col:
             conn.execute(
                 f"UPDATE {table} SET status='forgotten' WHERE id=?", (entry_id,)
@@ -218,37 +238,67 @@ class MemoryConsolidator:
                (operation, target_table, target_ids, details_json, source_evidence,
                 confidence, validation_method, actor, created_at)
                VALUES (?,?,?,?,?,?,?,?,?)""",
-            ("forget", table, json.dumps([entry_id]),
-             json.dumps({"reason": reason, "policy": policy, "snapshot": {k: str(v)[:200] for k, v in snapshot.items()}}, default=str),
-             "", 1.0, "explicit", actor, now),
+            (
+                "forget",
+                table,
+                json.dumps([entry_id]),
+                json.dumps(
+                    {
+                        "reason": reason,
+                        "policy": policy,
+                        "snapshot": {k: str(v)[:200] for k, v in snapshot.items()},
+                    },
+                    default=str,
+                ),
+                "",
+                1.0,
+                "explicit",
+                actor,
+                now,
+            ),
         )
         conn.commit()
-        return {"forgotten": True, "entry_id": entry_id, "table": table, "reason": reason}
+        return {
+            "forgotten": True,
+            "entry_id": entry_id,
+            "table": table,
+            "reason": reason,
+        }
 
     def restore(self, table: str, entry_id: int, actor: str = "user") -> dict[str, Any]:
         conn = self._get_conn()
         row = conn.execute(f"SELECT * FROM {table} WHERE id=?", (entry_id,)).fetchone()
         if not row:
             return {"error": "not_found"}
-        status_col = "status" if "status" in [d[1] for d in conn.execute(f"PRAGMA table_info({table})").fetchall()] else None
+        status_col = (
+            "status"
+            if "status"
+            in [d[1] for d in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+            else None
+        )
         if status_col:
-            conn.execute(
-                f"UPDATE {table} SET status='active' WHERE id=?", (entry_id,)
-            )
+            conn.execute(f"UPDATE {table} SET status='active' WHERE id=?", (entry_id,))
         conn.execute(
             """INSERT INTO consolidation_log
                (operation, target_table, target_ids, details_json, actor, created_at)
                VALUES (?,?,?,?,?,?)""",
-            ("restore", table, json.dumps([entry_id]),
-             json.dumps({"reason": "explicit_restore"}), actor, utc_now()),
+            (
+                "restore",
+                table,
+                json.dumps([entry_id]),
+                json.dumps({"reason": "explicit_restore"}),
+                actor,
+                utc_now(),
+            ),
         )
         conn.commit()
         return {"restored": True, "entry_id": entry_id, "table": table}
 
     # --- Detección de contradicciones ---
 
-    def detect_contradictions(self, table_a: str, table_b: str, field_name: str,
-                               id_a: int, id_b: int) -> dict[str, Any]:
+    def detect_contradictions(
+        self, table_a: str, table_b: str, field_name: str, id_a: int, id_b: int
+    ) -> dict[str, Any]:
         conn = self._get_conn()
         row_a = conn.execute(f"SELECT * FROM {table_a} WHERE id=?", (id_a,)).fetchone()
         row_b = conn.execute(f"SELECT * FROM {table_b} WHERE id=?", (id_b,)).fetchone()
@@ -267,7 +317,12 @@ class MemoryConsolidator:
             (id_a, table_a, id_b, table_b, field_name, val_a, val_b, "detected", now),
         )
         conn.commit()
-        return {"contradiction": True, "field": field_name, "value_a": val_a, "value_b": val_b}
+        return {
+            "contradiction": True,
+            "field": field_name,
+            "value_a": val_a,
+            "value_b": val_b,
+        }
 
     def get_contradictions(self, status: str = "detected") -> list[dict[str, Any]]:
         conn = self._get_conn()
@@ -277,8 +332,9 @@ class MemoryConsolidator:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def resolve_contradiction(self, contradiction_id: int, resolution: str,
-                               actor: str = "system") -> dict[str, Any]:
+    def resolve_contradiction(
+        self, contradiction_id: int, resolution: str, actor: str = "system"
+    ) -> dict[str, Any]:
         conn = self._get_conn()
         conn.execute(
             """UPDATE memory_contradictions
@@ -291,9 +347,15 @@ class MemoryConsolidator:
 
     # --- Cadena de reemplazos ---
 
-    def register_replacement(self, old_table: str, old_id: int,
-                              new_table: str, new_id: int,
-                              reason: str = "", chain_id: str = "") -> dict[str, Any]:
+    def register_replacement(
+        self,
+        old_table: str,
+        old_id: int,
+        new_table: str,
+        new_id: int,
+        reason: str = "",
+        chain_id: str = "",
+    ) -> dict[str, Any]:
         conn = self._get_conn()
         if not chain_id:
             chain_id = f"chain-{int(time.time() * 1000)}-{hashlib.md5(str(time.time()).encode()).hexdigest()[:6]}"
@@ -304,7 +366,11 @@ class MemoryConsolidator:
             (old_id, old_table, new_id, new_table, reason, chain_id, utc_now()),
         )
         conn.commit()
-        return {"chain_id": chain_id, "old": f"{old_table}:{old_id}", "new": f"{new_table}:{new_id}"}
+        return {
+            "chain_id": chain_id,
+            "old": f"{old_table}:{old_id}",
+            "new": f"{new_table}:{new_id}",
+        }
 
     def get_replacement_chain(self, chain_id: str) -> list[dict[str, Any]]:
         conn = self._get_conn()
@@ -316,15 +382,27 @@ class MemoryConsolidator:
 
     # --- Log de auditoría ---
 
-    def log_operation(self, operation: str, target_table: str, target_ids: list[int],
-                      details: dict[str, Any], actor: str = "system") -> None:
+    def log_operation(
+        self,
+        operation: str,
+        target_table: str,
+        target_ids: list[int],
+        details: dict[str, Any],
+        actor: str = "system",
+    ) -> None:
         conn = self._get_conn()
         conn.execute(
             """INSERT INTO consolidation_log
                (operation, target_table, target_ids, details_json, actor, created_at)
                VALUES (?,?,?,?,?,?)""",
-            (operation, target_table, json.dumps(target_ids),
-             json.dumps(details, default=str), actor, utc_now()),
+            (
+                operation,
+                target_table,
+                json.dumps(target_ids),
+                json.dumps(details, default=str),
+                actor,
+                utc_now(),
+            ),
         )
         conn.commit()
 
@@ -341,8 +419,12 @@ class MemoryConsolidator:
         contradictions = conn.execute(
             "SELECT COUNT(*) as c FROM memory_contradictions WHERE status='detected'"
         ).fetchone()["c"]
-        replacements = conn.execute("SELECT COUNT(*) as c FROM memory_replacements").fetchone()["c"]
-        log_count = conn.execute("SELECT COUNT(*) as c FROM consolidation_log").fetchone()["c"]
+        replacements = conn.execute(
+            "SELECT COUNT(*) as c FROM memory_replacements"
+        ).fetchone()["c"]
+        log_count = conn.execute(
+            "SELECT COUNT(*) as c FROM consolidation_log"
+        ).fetchone()["c"]
         return {
             "pending_contradictions": contradictions,
             "total_replacements": replacements,

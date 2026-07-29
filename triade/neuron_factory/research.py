@@ -38,7 +38,9 @@ class ResearchEngine:
     CREATE INDEX IF NOT EXISTS idx_research_domain ON neuron_research(domain);
     """
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(self.SCHEMA_SQL)
@@ -153,13 +155,17 @@ class ResearchEngine:
         num_solutions = min(len(solutions) / 5.0, 1.0)
         mission_complexity = min(len(mission.split()) / 15.0, 1.0)
         score = _clamp(
-            0.3 * existing_coverage + 0.3 * num_solutions + 0.4 * (1.0 - mission_complexity)
+            0.3 * existing_coverage
+            + 0.3 * num_solutions
+            + 0.4 * (1.0 - mission_complexity)
         )
         return round(score, 3)
 
     @staticmethod
     def _risk_assessment(feasibility: float, mission: str) -> dict:
-        risk_level = "low" if feasibility > 0.7 else ("medium" if feasibility > 0.4 else "high")
+        risk_level = (
+            "low" if feasibility > 0.7 else ("medium" if feasibility > 0.4 else "high")
+        )
         return {
             "level": risk_level,
             "factors": {

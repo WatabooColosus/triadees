@@ -55,11 +55,22 @@ class NeuronSpecificationStore:
                     """INSERT INTO neuron_specifications
                     (neuron_id, version, state, payload_json)
                     VALUES (?, ?, ?, ?)""",
-                    (specification.neuron_id, specification.version, specification.state, payload_json),
+                    (
+                        specification.neuron_id,
+                        specification.version,
+                        specification.state,
+                        payload_json,
+                    ),
                 )
             except sqlite3.IntegrityError as exc:
                 raise ValueError("especificación ya registrada") from exc
-            self._append_history(conn, specification.neuron_id, specification.version, "registered", payload)
+            self._append_history(
+                conn,
+                specification.neuron_id,
+                specification.version,
+                "registered",
+                payload,
+            )
         return payload
 
     def get(self, neuron_id: str, version: str | None = None) -> dict[str, Any] | None:
@@ -96,7 +107,9 @@ class NeuronSpecificationStore:
             )
         return payload
 
-    def history(self, neuron_id: str, version: str | None = None) -> list[dict[str, Any]]:
+    def history(
+        self, neuron_id: str, version: str | None = None
+    ) -> list[dict[str, Any]]:
         sql = "SELECT action, payload_json, created_at FROM neuron_specification_history WHERE neuron_id = ?"
         params: list[Any] = [neuron_id]
         if version:

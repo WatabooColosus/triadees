@@ -16,7 +16,9 @@
 
 ## Parcial
 
-- WorkerLoop legacy consulta el ledger y registra resultados, pero aún no consume la cola v2.
+- WorkerLoop migra cada tarea legacy a `autonomous_tasks` con clave idempotente,
+  adquiere un lease v2 antes de ejecutarla y conserva retry/dead-letter/recovery.
+  La cola legacy se mantiene como productor compatible durante la migración.
 - El watchdog tiene entrypoint y persistencia; falta exponerlo en Cabina Viva y efectuar un simulacro prolongado.
 - Los units son plantillas `/opt/triade`; deben adaptarse y revisarse antes de instalar.
 
@@ -25,12 +27,14 @@
 - CuriosityEngine y KnowledgeGapStore.
 - Investigación multifuente completa y extracción de claims.
 - Máquina unificada de conocimiento.
-- Evaluación educativa independiente, transferencia y aplicación medida en runs.
+- La educación declara una hipótesis trazable en `learning_evidence`; evaluación
+  independiente, transferencia y aplicación medida siguen siendo gates pendientes,
+  por lo que una lección preparada nunca se presenta como aprendizaje.
 - Benchmark de memoria y olvido completamente reversible.
 - Flujo LoRA completo solicitado.
 - Creación de las diez neuronas funcionales.
 - Cabina Viva completa y E2E punta a punta nuevo.
-- Cierre de los errores Ruff/mypy y vulnerabilidad npm del baseline.
+- Cierre de los errores mypy globales del baseline.
 
 Por tanto, Tríade aún no satisface el criterio final completo. Esta fase establece las garantías de supervivencia y recursos necesarias para continuar.
 # Actualización 2026-07-29 — núcleo vivo event-driven
@@ -42,7 +46,11 @@ Por tanto, Tríade aún no satisface el criterio final completo. Esta fase estab
 - Añadidos benchmarks reproducibles y simulación acelerada de 24 horas.
 - Añadido perfil declarativo para 31 GiB RAM / NVIDIA L4 23.034 MiB.
 - Pendiente: enforcement de ActivityBudget, backpressure completo, GPUResourceManager y separación de workers.
-- La suite global no se declara verde: Ruff y mypy ya fallaban en el baseline.
+- Pytest, compileall, Ruff y frontend build están verdes en el corte local. Mypy
+  global continúa rojo como deuda P2 explícita; no se desactivó, filtró ni presentó
+  como verde. La publicación P0/P1 fue solicitada expresamente por el operador.
+- `npm audit` queda en cero vulnerabilidades tras actualizar la dependencia
+  transitiva vulnerable de PostCSS y reconstruir el frontend.
 - Pytest completo y frontend build pasan; npm conserva una vulnerabilidad alta preexistente.
 - Despliegue pendiente: systemd rechazó el reinicio por permisos, y el proceso activo aún ejecuta el código anterior.
 

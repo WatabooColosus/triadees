@@ -9,7 +9,9 @@ from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore
 
 
-def prepare(tmp_path, with_source: bool = True) -> tuple[SemanticMemoryStore, SemanticMemoryGovernance, str]:
+def prepare(
+    tmp_path, with_source: bool = True
+) -> tuple[SemanticMemoryStore, SemanticMemoryGovernance, str]:
     db_path = tmp_path / "semantic.db"
     store = SemanticMemoryStore(db_path=db_path)
     document = store.upsert_document(
@@ -57,10 +59,16 @@ def test_candidate_is_quarantined_and_cannot_raise_confidence(tmp_path) -> None:
 
 def test_experimental_requires_explicit_authorization(tmp_path) -> None:
     _, governance, document_id = prepare(tmp_path)
-    governance.transition_document(document_id, "experimental", "Prueba inicial", approved_by="tester")
+    governance.transition_document(
+        document_id, "experimental", "Prueba inicial", approved_by="tester"
+    )
 
-    blocked = governance.govern_memory(vector_memory(document_id), allow_experimental=False)
-    allowed = governance.govern_memory(vector_memory(document_id), allow_experimental=True)
+    blocked = governance.govern_memory(
+        vector_memory(document_id), allow_experimental=False
+    )
+    allowed = governance.govern_memory(
+        vector_memory(document_id), allow_experimental=True
+    )
 
     assert blocked.semantic_matches == []
     assert blocked.confidence == 0.60
@@ -71,8 +79,12 @@ def test_experimental_requires_explicit_authorization(tmp_path) -> None:
 
 def test_stable_is_allowed_preserves_source_and_confidence(tmp_path) -> None:
     _, governance, document_id = prepare(tmp_path)
-    governance.transition_document(document_id, "experimental", "Prueba inicial", approved_by="tester")
-    governance.transition_document(document_id, "stable", "Contenido comprobado", approved_by="tester")
+    governance.transition_document(
+        document_id, "experimental", "Prueba inicial", approved_by="tester"
+    )
+    governance.transition_document(
+        document_id, "stable", "Contenido comprobado", approved_by="tester"
+    )
 
     memory = governance.govern_memory(vector_memory(document_id))
 

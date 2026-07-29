@@ -16,7 +16,9 @@ def make_db(tmp_path: Path) -> Path:
     return db_path
 
 
-def test_worker_events_are_pruned_to_retention_limit(tmp_path: Path, monkeypatch) -> None:
+def test_worker_events_are_pruned_to_retention_limit(
+    tmp_path: Path, monkeypatch
+) -> None:
     db_path = make_db(tmp_path)
     monkeypatch.setenv("TRIADE_WORKER_EVENTS_RETENTION", "3")
     store = WorkerStateStore(db_path=db_path)
@@ -26,4 +28,8 @@ def test_worker_events_are_pruned_to_retention_limit(tmp_path: Path, monkeypatch
 
     events = store.list_events(limit=10)
     assert len(events) == 3
-    assert [event["message"] for event in reversed(events)] == ["event 3", "event 4", "event 5"]
+    assert [event["message"] for event in reversed(events)] == [
+        "event 3",
+        "event 4",
+        "event 5",
+    ]

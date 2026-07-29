@@ -8,7 +8,7 @@ declara explícitamente su padre si existe.
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -146,12 +146,14 @@ class ContinuityEngine:
             if a.run_id != run_id and a.parent_packet_id:
                 parent = self._find_anchor(a.parent_packet_id)
                 if parent and parent.run_id == run_id:
-                    bridges.append({
-                        "child_packet": a.packet_id,
-                        "child_run": a.run_id,
-                        "parent_packet": parent.packet_id,
-                        "bridged_sessions": a.bridged_sessions,
-                    })
+                    bridges.append(
+                        {
+                            "child_packet": a.packet_id,
+                            "child_run": a.run_id,
+                            "parent_packet": parent.packet_id,
+                            "bridged_sessions": a.bridged_sessions,
+                        }
+                    )
         return bridges
 
     def _find_anchor(self, packet_id: str) -> ExperienceAnchor | None:

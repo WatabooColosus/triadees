@@ -56,7 +56,11 @@ class RegressionObservability:
             )
         decisions = {str(row["decision"]): int(row["count"]) for row in report_rows}
         rollbacks = {str(row["status"]): int(row["count"]) for row in rollback_rows}
-        unhealthy = quarantine_active > 0 or decisions.get("fail", 0) > 0 or decisions.get("invalid", 0) > 0
+        unhealthy = (
+            quarantine_active > 0
+            or decisions.get("fail", 0) > 0
+            or decisions.get("invalid", 0) > 0
+        )
         if not schema_ready:
             status = "not_initialized"
         else:

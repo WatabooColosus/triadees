@@ -43,7 +43,9 @@ class NeuronTestGenerator:
     CREATE INDEX IF NOT EXISTS idx_test_suite ON neuron_test_results(suite_id);
     """
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(self.SCHEMA_SQL)
@@ -90,15 +92,27 @@ class NeuronTestGenerator:
                (suite_id, neuron_name, design_id, tests_json,
                 test_count, coverage_json, created_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (suite_id, neuron_name, design_id, json.dumps(tests, default=str),
-             len(tests), json.dumps(coverage, default=str), now),
+            (
+                suite_id,
+                neuron_name,
+                design_id,
+                json.dumps(tests, default=str),
+                len(tests),
+                json.dumps(coverage, default=str),
+                now,
+            ),
         )
         self._conn.commit()
         return payload
 
     def record_result(
-        self, suite_id: str, test_name: str, test_type: str,
-        status: str, details: dict | None = None, duration_ms: float = 0.0,
+        self,
+        suite_id: str,
+        test_name: str,
+        test_type: str,
+        status: str,
+        details: dict | None = None,
+        duration_ms: float = 0.0,
     ) -> dict:
         result_id = _gen_id("tresult")
         self._conn.execute(
@@ -106,9 +120,16 @@ class NeuronTestGenerator:
                (result_id, suite_id, test_name, test_type,
                 status, details_json, duration_ms, created_at)
                VALUES (?,?,?,?,?,?,?,?)""",
-            (result_id, suite_id, test_name, test_type,
-             status, json.dumps(details or {}, default=str),
-             duration_ms, utc_now()),
+            (
+                result_id,
+                suite_id,
+                test_name,
+                test_type,
+                status,
+                json.dumps(details or {}, default=str),
+                duration_ms,
+                utc_now(),
+            ),
         )
         self._conn.commit()
         return {"result_id": result_id, "status": status}
@@ -139,39 +160,46 @@ class NeuronTestGenerator:
 
 # ---------- test generators ----------
 
+
 def _contract_tests(design: dict) -> list[dict]:
     tests = []
     input_c = design.get("input_contract", {})
     for field in input_c.get("required_fields", []):
-        tests.append({
-            "name": f"contract_input_has_{field}",
-            "type": "contract",
-            "description": f"Input debe incluir campo '{field}'",
-            "assertion": "input_has_field",
-            "params": {"field": field},
-        })
+        tests.append(
+            {
+                "name": f"contract_input_has_{field}",
+                "type": "contract",
+                "description": f"Input debe incluir campo '{field}'",
+                "assertion": "input_has_field",
+                "params": {"field": field},
+            }
+        )
     output_c = design.get("output_contract", {})
     for field in output_c.get("required_fields", []):
-        tests.append({
-            "name": f"contract_output_has_{field}",
-            "type": "contract",
-            "description": f"Output debe incluir campo '{field}'",
-            "assertion": "output_has_field",
-            "params": {"field": field},
-        })
+        tests.append(
+            {
+                "name": f"contract_output_has_{field}",
+                "type": "contract",
+                "description": f"Output debe incluir campo '{field}'",
+                "assertion": "output_has_field",
+                "params": {"field": field},
+            }
+        )
     return tests
 
 
 def _component_tests(design: dict) -> list[dict]:
     tests = []
     for comp in design.get("components", []):
-        tests.append({
-            "name": f"component_{comp['name']}_instantiable",
-            "type": "unit",
-            "description": f"Componente '{comp['name']}' se puede instanciar",
-            "assertion": "component_exists",
-            "params": {"component_name": comp["name"]},
-        })
+        tests.append(
+            {
+                "name": f"component_{comp['name']}_instantiable",
+                "type": "unit",
+                "description": f"Componente '{comp['name']}' se puede instanciar",
+                "assertion": "component_exists",
+                "params": {"component_name": comp["name"]},
+            }
+        )
     return tests
 
 
@@ -179,22 +207,26 @@ def _integration_tests(design: dict) -> list[dict]:
     tests = []
     components = design.get("components", [])
     if len(components) > 1:
-        tests.append({
-            "name": "integration_all_components_connected",
-            "type": "integration",
-            "description": "Todos los componentes se conectan correctamente",
-            "assertion": "components_connected",
-            "params": {"count": len(components)},
-        })
+        tests.append(
+            {
+                "name": "integration_all_components_connected",
+                "type": "integration",
+                "description": "Todos los componentes se conectan correctamente",
+                "assertion": "components_connected",
+                "params": {"count": len(components)},
+            }
+        )
     deps = design.get("dependencies", [])
     for dep in deps:
-        tests.append({
-            "name": f"integration_dependency_{dep['name']}_available",
-            "type": "integration",
-            "description": f"Dependencia '{dep['name']}' está disponible",
-            "assertion": "dependency_available",
-            "params": {"dependency_name": dep["name"]},
-        })
+        tests.append(
+            {
+                "name": f"integration_dependency_{dep['name']}_available",
+                "type": "integration",
+                "description": f"Dependencia '{dep['name']}' está disponible",
+                "assertion": "dependency_available",
+                "params": {"dependency_name": dep["name"]},
+            }
+        )
     return tests
 
 

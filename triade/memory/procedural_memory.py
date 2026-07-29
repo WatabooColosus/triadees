@@ -34,13 +34,20 @@ class Procedure:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "procedure_id": self.procedure_id, "name": self.name,
-            "description": self.description, "category": self.category,
-            "steps": list(self.steps), "input_schema": dict(self.input_schema),
+            "procedure_id": self.procedure_id,
+            "name": self.name,
+            "description": self.description,
+            "category": self.category,
+            "steps": list(self.steps),
+            "input_schema": dict(self.input_schema),
             "output_schema": dict(self.output_schema),
-            "success_count": self.success_count, "failure_count": self.failure_count,
-            "confidence": round(self.confidence, 4), "source": self.source,
-            "tags": list(self.tags), "created_at": self.created_at, "updated_at": self.updated_at,
+            "success_count": self.success_count,
+            "failure_count": self.failure_count,
+            "confidence": round(self.confidence, 4),
+            "source": self.source,
+            "tags": list(self.tags),
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
         }
 
     @property
@@ -75,6 +82,7 @@ class ProceduralMemory:
         tags: list[str] | None = None,
     ) -> Procedure:
         import uuid
+
         proc_id = f"proc-{uuid.uuid4().hex[:12]}"
         now = utc_now()
         with self._connect() as conn:
@@ -83,22 +91,37 @@ class ProceduralMemory:
                 (procedure_id, name, description, category, steps, input_schema, output_schema,
                  success_count, failure_count, confidence, source, tags, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0.5, ?, ?, ?, ?)""",
-                (proc_id, name, description, category,
-                 json.dumps(steps or [], ensure_ascii=False),
-                 json.dumps(input_schema or {}, ensure_ascii=False),
-                 json.dumps(output_schema or {}, ensure_ascii=False),
-                 source, json.dumps(tags or [], ensure_ascii=False), now, now),
+                (
+                    proc_id,
+                    name,
+                    description,
+                    category,
+                    json.dumps(steps or [], ensure_ascii=False),
+                    json.dumps(input_schema or {}, ensure_ascii=False),
+                    json.dumps(output_schema or {}, ensure_ascii=False),
+                    source,
+                    json.dumps(tags or [], ensure_ascii=False),
+                    now,
+                    now,
+                ),
             )
         return Procedure(
-            procedure_id=proc_id, name=name, description=description,
-            category=category, steps=steps or [], source=source,
-            tags=tags or [], created_at=now, updated_at=now,
+            procedure_id=proc_id,
+            name=name,
+            description=description,
+            category=category,
+            steps=steps or [],
+            source=source,
+            tags=tags or [],
+            created_at=now,
+            updated_at=now,
         )
 
     def get(self, procedure_id: str) -> Procedure | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT * FROM procedural_memory WHERE procedure_id = ?", (procedure_id,)
+                "SELECT * FROM procedural_memory WHERE procedure_id = ?",
+                (procedure_id,),
             ).fetchone()
             if row is None:
                 return None
@@ -113,7 +136,8 @@ class ProceduralMemory:
                 (now, procedure_id),
             )
             row = conn.execute(
-                "SELECT * FROM procedural_memory WHERE procedure_id = ?", (procedure_id,)
+                "SELECT * FROM procedural_memory WHERE procedure_id = ?",
+                (procedure_id,),
             ).fetchone()
             if row is None:
                 return None
@@ -153,11 +177,15 @@ class ProceduralMemory:
 
     def summary(self) -> dict[str, Any]:
         with self._connect() as conn:
-            count = conn.execute("SELECT COUNT(*) as c FROM procedural_memory").fetchone()["c"]
+            count = conn.execute(
+                "SELECT COUNT(*) as c FROM procedural_memory"
+            ).fetchone()["c"]
             cats = conn.execute(
                 "SELECT category, COUNT(*) as c FROM procedural_memory GROUP BY category"
             ).fetchall()
-            avg_conf = conn.execute("SELECT AVG(confidence) as a FROM procedural_memory").fetchone()
+            avg_conf = conn.execute(
+                "SELECT AVG(confidence) as a FROM procedural_memory"
+            ).fetchone()
         return {
             "total_procedures": count,
             "by_category": {r["category"]: r["c"] for r in cats},
@@ -171,8 +199,10 @@ class ProceduralMemory:
                 return json.loads(raw)
             except (json.JSONDecodeError, TypeError):
                 return default
+
         return Procedure(
-            procedure_id=str(row["procedure_id"]), name=str(row["name"]),
+            procedure_id=str(row["procedure_id"]),
+            name=str(row["name"]),
             description=str(row["description"] or ""),
             category=str(row["category"] or "general"),
             steps=_json(row["steps"], []),

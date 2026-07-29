@@ -4,13 +4,13 @@ en un sistema operativo cognitivo autónomo con ciclos configurables."""
 import json
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any
 
 from triade.core.contracts import utc_now
 
 
 def _gen_id(prefix: str) -> str:
     import hashlib
+
     return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(timezone.utc).timestamp()).encode()).hexdigest()[:6]}"
 
 
@@ -40,11 +40,25 @@ CREATE INDEX IF NOT EXISTS tsh_cycle ON triadeos_subsystem_health(cycle_id);
 """
 
 SUBSYSTEMS = [
-    "central", "hypothalamus", "crystal", "qualia_bus",
-    "semantic_store", "learning_pipeline", "neuron_factory",
-    "scheduler", "workers", "tool_registry", "secure_executor",
-    "federation", "constitution", "monitor", "models",
-    "supervisor", "creadora", "formadora", "pulse",
+    "central",
+    "hypothalamus",
+    "crystal",
+    "qualia_bus",
+    "semantic_store",
+    "learning_pipeline",
+    "neuron_factory",
+    "scheduler",
+    "workers",
+    "tool_registry",
+    "secure_executor",
+    "federation",
+    "constitution",
+    "monitor",
+    "models",
+    "supervisor",
+    "creadora",
+    "formadora",
+    "pulse",
 ]
 
 
@@ -52,7 +66,9 @@ class TriadeOSComplete:
     """Sistema operativo cognitivo completo que integra todos los subsistemas
     en ciclos autónomos configurables."""
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
@@ -78,6 +94,7 @@ class TriadeOSComplete:
 
         try:
             import time
+
             t0 = time.time()
             self._invoke_subsystem(subsystem)
             latency = (time.time() - t0) * 1000
@@ -90,11 +107,14 @@ class TriadeOSComplete:
                (health_id, cycle_id, subsystem, status, latency_ms,
                 error, checked_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (health_id, cycle_id, subsystem, status, round(latency, 2),
-             error, now),
+            (health_id, cycle_id, subsystem, status, round(latency, 2), error, now),
         )
         self._conn.commit()
-        return {"subsystem": subsystem, "status": status, "latency_ms": round(latency, 2)}
+        return {
+            "subsystem": subsystem,
+            "status": status,
+            "latency_ms": round(latency, 2),
+        }
 
     def run_full_check(self, cycle_id: str) -> dict:
         results = []
@@ -114,56 +134,74 @@ class TriadeOSComplete:
                    subsystems_invoked_json=?, results_json=?,
                    errors_json=?, summary=?
                WHERE cycle_id=?""",
-            ("completed", status, utc_now(),
-             json.dumps(SUBSYSTEMS, default=str),
-             json.dumps(results, default=str),
-             json.dumps(errors, default=str),
-             f"{healthy}/{len(SUBSYSTEMS)} healthy",
-             cycle_id),
+            (
+                "completed",
+                status,
+                utc_now(),
+                json.dumps(SUBSYSTEMS, default=str),
+                json.dumps(results, default=str),
+                json.dumps(errors, default=str),
+                f"{healthy}/{len(SUBSYSTEMS)} healthy",
+                cycle_id,
+            ),
         )
         self._conn.commit()
 
         return {
-            "cycle_id": cycle_id, "status": status,
-            "total": len(SUBSYSTEMS), "healthy": healthy,
-            "errors": len(errors), "results": results,
+            "cycle_id": cycle_id,
+            "status": status,
+            "total": len(SUBSYSTEMS),
+            "healthy": healthy,
+            "errors": len(errors),
+            "results": results,
         }
 
     def _invoke_subsystem(self, subsystem: str):
         if subsystem == "central":
-            from triade.core.central import Central
+            pass
         elif subsystem == "constitution":
             from triade.constitution.enforcer import ConstitutionEnforcer
+
             ConstitutionEnforcer()
         elif subsystem == "monitor":
             from triade.core.system_monitor import SystemMonitor
+
             SystemMonitor()
         elif subsystem == "scheduler":
             from triade.workers.advanced_scheduler import AdvancedScheduler
+
             AdvancedScheduler()
         elif subsystem == "federation":
             from triade.federation.federation_advanced import FederationAdvanced
+
             FederationAdvanced()
         elif subsystem == "models":
             from triade.models.smart_router import SmartModelRouter
+
             SmartModelRouter()
         elif subsystem == "neuron_factory":
             from triade.neuron_factory.training import TrainingPipeline
+
             TrainingPipeline()
         elif subsystem == "supervisor":
             from triade.workers.worker_supervisor import WorkerSupervisor
+
             WorkerSupervisor()
         elif subsystem == "creadora":
             from triade.neuron_factory.design import DesignEngine
+
             DesignEngine()
         elif subsystem == "formadora":
             from triade.neuron_factory.training import TrainingPipeline
+
             TrainingPipeline()
         elif subsystem == "learning_pipeline":
             from triade.learning.causal_learning import CausalLearningEngine
+
             CausalLearningEngine()
         elif subsystem == "pulse":
             from triade.core.system_monitor import SystemMonitor
+
             mon = SystemMonitor()
             mon.snapshot()
         else:
@@ -189,7 +227,17 @@ class TriadeOSComplete:
         return [dict(r) for r in rows]
 
     def doctor(self) -> dict:
-        cycles = self._conn.execute("SELECT COUNT(*) as c FROM triadeos_cycles").fetchone()["c"]
-        running = self._conn.execute("SELECT COUNT(*) as c FROM triadeos_cycles WHERE status='running'").fetchone()["c"]
-        health_checks = self._conn.execute("SELECT COUNT(*) as c FROM triadeos_subsystem_health").fetchone()["c"]
-        return {"total_cycles": cycles, "running": running, "health_checks": health_checks}
+        cycles = self._conn.execute(
+            "SELECT COUNT(*) as c FROM triadeos_cycles"
+        ).fetchone()["c"]
+        running = self._conn.execute(
+            "SELECT COUNT(*) as c FROM triadeos_cycles WHERE status='running'"
+        ).fetchone()["c"]
+        health_checks = self._conn.execute(
+            "SELECT COUNT(*) as c FROM triadeos_subsystem_health"
+        ).fetchone()["c"]
+        return {
+            "total_cycles": cycles,
+            "running": running,
+            "health_checks": health_checks,
+        }

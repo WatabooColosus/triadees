@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import os
 import sqlite3
 import threading
-import time
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -23,10 +21,8 @@ from triade.core.bodega import Bodega
 from triade.models.hardware_profile import HardwareProfiler
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
-from triade.qualia.bus import QualiaBus
 from triade.workers.background_service import WorkerBackgroundService
 from triade.workers.mission_planner import MissionPlanner
-from triade.workers.neuron_mission_executor import NeuronMissionExecutor
 from triade.workers.state_store import WorkerStateStore
 from triade.os import get_triadeos
 
@@ -58,10 +54,25 @@ class InternalRuntimeSupervisor:
         self.db_path = Path(db_path)
         self.runs_dir = Path(runs_dir)
         self.runs_dir.mkdir(parents=True, exist_ok=True)
-        self.mode = self._normalize_mode(mode or os.environ.get("TRIADE_RUNTIME_MODE", "observe_only"))
-        self.enabled = enabled if enabled is not None else self._env_flag("TRIADE_RUNTIME_ENABLED", default=False)
-        self.interval_seconds = max(1, int(interval_seconds or os.environ.get("TRIADE_RUNTIME_INTERVAL_SECONDS", "30") or 30))
-        self.max_cycles = max(0, int(max_cycles or os.environ.get("TRIADE_RUNTIME_MAX_CYCLES", "0") or 0))
+        self.mode = self._normalize_mode(
+            mode or os.environ.get("TRIADE_RUNTIME_MODE", "observe_only")
+        )
+        self.enabled = (
+            enabled
+            if enabled is not None
+            else self._env_flag("TRIADE_RUNTIME_ENABLED", default=False)
+        )
+        self.interval_seconds = max(
+            1,
+            int(
+                interval_seconds
+                or os.environ.get("TRIADE_RUNTIME_INTERVAL_SECONDS", "30")
+                or 30
+            ),
+        )
+        self.max_cycles = max(
+            0, int(max_cycles or os.environ.get("TRIADE_RUNTIME_MAX_CYCLES", "0") or 0)
+        )
         self.runtime_id = f"runtime-{uuid4().hex[:12]}"
         self.started_at = utc_now()
         self.lock_file = self.runs_dir / ".triade_runtime.lock"
@@ -81,12 +92,16 @@ class InternalRuntimeSupervisor:
             "requires_explicit_activation": True,
         }
         self.self_test_cycle_count = 0
-        self.self_test_every_cycles = int(os.environ.get("TRIADE_SELF_TEST_EVERY_CYCLES", "5") or "5")
+        self.self_test_every_cycles = int(
+            os.environ.get("TRIADE_SELF_TEST_EVERY_CYCLES", "5") or "5"
+        )
         self.last_self_test_result: dict[str, Any] | None = None
 
     @staticmethod
     def _env_flag(name: str, default: bool = False) -> bool:
-        value = str(os.environ.get(name, "1" if default else "0") or "0").strip().lower()
+        value = (
+            str(os.environ.get(name, "1" if default else "0") or "0").strip().lower()
+        )
         return value in {"1", "true", "yes", "on"}
 
     @staticmethod
@@ -142,7 +157,7 @@ class InternalRuntimeSupervisor:
         # ── Resource Governor ──────────────────────────────────────────
         governor = self._run_governor(current_mode)
         effective_mode = governor.get("effective_mode", current_mode)
-        perm = governor.get("permissions", {})
+        governor.get("permissions", {})
         results["governor"] = governor
 
         try:
@@ -161,13 +176,20 @@ class InternalRuntimeSupervisor:
                     run_ref=self.runtime_id,
                 )
                 results["status"] = "skipped"
-                results["skipped_reason"] = governor.get("reason", "Cooldown por recursos.")
+                results["skipped_reason"] = governor.get(
+                    "reason", "Cooldown por recursos."
+                )
                 self.counters["cycles"] += 1
                 self.last_events = list_recent_events(limit=20, db_path=self.db_path)
                 publish_event(
                     "runtime_cycle_complete",
                     "internal_runtime",
-                    {"cycle_id": cycle_id, "mode": current_mode, "skipped": True, "effective_mode": effective_mode},
+                    {
+                        "cycle_id": cycle_id,
+                        "mode": current_mode,
+                        "skipped": True,
+                        "effective_mode": effective_mode,
+                    },
                     db_path=self.db_path,
                     run_ref=self.runtime_id,
                 )
@@ -178,23 +200,38 @@ class InternalRuntimeSupervisor:
             results["services"]["memory_service"] = self._memory_service(current_mode)
             results["services"]["qualia_service"] = self._qualia_service(current_mode)
             results["services"]["model_service"] = self._model_service(current_mode)
-            results["services"]["observability_service"] = self._observability_service(current_mode)
+            results["services"]["observability_service"] = self._observability_service(
+                current_mode
+            )
 
             # Coordination: skip missions/learning if Worker is already handling them.
             worker_lock = self.runs_dir / ".triade_workers.lock"
             worker_active = worker_lock.exists()
             if worker_active:
-                results["coordination"] = {"worker_active": True, "skipped": ["missions", "learning"]}
+                results["coordination"] = {
+                    "worker_active": True,
+                    "skipped": ["missions", "learning"],
+                }
             if AUTONOMY_RANK[current_mode] >= AUTONOMY_RANK["learn_candidates"]:
                 if worker_active:
-                    results["services"]["mission_service"] = {"status": "delegated", "reason": "Worker activo — misiones delegadas."}
+                    results["services"]["mission_service"] = {
+                        "status": "delegated",
+                        "reason": "Worker activo — misiones delegadas.",
+                    }
                 else:
-                    results["services"]["mission_service"] = self._governed_mission_service(current_mode, governor)
+                    results["services"]["mission_service"] = (
+                        self._governed_mission_service(current_mode, governor)
+                    )
             if AUTONOMY_RANK[current_mode] >= AUTONOMY_RANK["full_local"]:
                 if worker_active:
-                    results["services"]["learning_service"] = {"status": "delegated", "reason": "Worker activo — learning delegado."}
+                    results["services"]["learning_service"] = {
+                        "status": "delegated",
+                        "reason": "Worker activo — learning delegado.",
+                    }
                 else:
-                    results["services"]["learning_service"] = self._governed_learning_service(current_mode, governor)
+                    results["services"]["learning_service"] = (
+                        self._governed_learning_service(current_mode, governor)
+                    )
             # ── TriadeOS cycle ────────────────────────────────────────
             try:
                 triadeos = get_triadeos(db_path=self.db_path)
@@ -204,30 +241,47 @@ class InternalRuntimeSupervisor:
                 publish_event(
                     "triadeos_cycle_complete",
                     "triadeos_service",
-                    {"summary": triadeos_result.get("summary", ""), "actions": len(triadeos_result.get("actions", []))},
+                    {
+                        "summary": triadeos_result.get("summary", ""),
+                        "actions": len(triadeos_result.get("actions", [])),
+                    },
                     db_path=self.db_path,
                     run_ref=self.runtime_id,
                 )
             except Exception as triadeos_exc:
-                results["services"]["triadeos_service"] = {"status": "error", "error": str(triadeos_exc)}
+                results["services"]["triadeos_service"] = {
+                    "status": "error",
+                    "error": str(triadeos_exc),
+                }
 
             self.self_test_cycle_count += 1
             if self.self_test_cycle_count % self.self_test_every_cycles == 0:
                 try:
                     from triade.core.self_test_cycle import run_self_test_cycle
+
                     self.last_self_test_result = run_self_test_cycle(
-                        mode="safe", db_path=self.db_path, runs_dir=self.runs_dir,
+                        mode="safe",
+                        db_path=self.db_path,
+                        runs_dir=self.runs_dir,
                     )
                     results["self_test"] = self.last_self_test_result
                 except Exception as st_exc:
-                    self.last_self_test_result = {"status": "error", "error": str(st_exc)}
+                    self.last_self_test_result = {
+                        "status": "error",
+                        "error": str(st_exc),
+                    }
                     results["self_test"] = self.last_self_test_result
             self.counters["cycles"] += 1
             self.last_events = list_recent_events(limit=20, db_path=self.db_path)
             publish_event(
                 "runtime_cycle_complete",
                 "internal_runtime",
-                {"runtime_id": self.runtime_id, "cycle_id": cycle_id, "mode": current_mode, "services": list(results["services"].keys())},
+                {
+                    "runtime_id": self.runtime_id,
+                    "cycle_id": cycle_id,
+                    "mode": current_mode,
+                    "services": list(results["services"].keys()),
+                },
                 db_path=self.db_path,
                 run_ref=self.runtime_id,
             )
@@ -246,7 +300,12 @@ class InternalRuntimeSupervisor:
             publish_event(
                 "runtime_cycle_error",
                 "internal_runtime",
-                {"runtime_id": self.runtime_id, "cycle_id": cycle_id, "mode": current_mode, "error": str(exc)},
+                {
+                    "runtime_id": self.runtime_id,
+                    "cycle_id": cycle_id,
+                    "mode": current_mode,
+                    "error": str(exc),
+                },
                 severity="error",
                 db_path=self.db_path,
                 run_ref=self.runtime_id,
@@ -287,20 +346,37 @@ class InternalRuntimeSupervisor:
 
         return {**decision, "permissions": permissions, "resource_probe": probe}
 
-    def _governed_mission_service(self, mode: str, governor: dict[str, Any]) -> dict[str, Any]:
+    def _governed_mission_service(
+        self, mode: str, governor: dict[str, Any]
+    ) -> dict[str, Any]:
         """Ejecuta misiones con degradación local segura y explícita."""
         if not governor.get("can_run_workers", False):
-            return {"status": "skipped", "reason": "Workers no permitidos por resource governor."}
+            return {
+                "status": "skipped",
+                "reason": "Workers no permitidos por resource governor.",
+            }
         return self._mission_service(mode)
 
-    def _governed_learning_service(self, mode: str, governor: dict[str, Any]) -> dict[str, Any]:
+    def _governed_learning_service(
+        self, mode: str, governor: dict[str, Any]
+    ) -> dict[str, Any]:
         """Ejecuta aprendizaje solo si permisos lo permiten."""
         if not governor.get("can_evaluate_learning", False):
-            return {"status": "skipped", "reason": "Evaluación no permitida por resource governor."}
+            return {
+                "status": "skipped",
+                "reason": "Evaluación no permitida por resource governor.",
+            }
         return self._learning_service(mode)
 
-    def run_forever(self, interval_seconds: int = 30, max_cycles: int = 0, mode: str | None = None) -> dict[str, Any]:
-        self.configure(mode=mode, enabled=True, interval_seconds=interval_seconds, max_cycles=max_cycles)
+    def run_forever(
+        self, interval_seconds: int = 30, max_cycles: int = 0, mode: str | None = None
+    ) -> dict[str, Any]:
+        self.configure(
+            mode=mode,
+            enabled=True,
+            interval_seconds=interval_seconds,
+            max_cycles=max_cycles,
+        )
         self._stop.clear()
         self.lock_file.write_text(self.runtime_id, encoding="utf-8")
         try:
@@ -335,7 +411,11 @@ class InternalRuntimeSupervisor:
             db_path=self.db_path,
             run_ref=self.runtime_id,
         )
-        return {"status": "stop_requested", "runtime_id": self.runtime_id, "stop_file": str(self.stop_file)}
+        return {
+            "status": "stop_requested",
+            "runtime_id": self.runtime_id,
+            "stop_file": str(self.stop_file),
+        }
 
     def snapshot(self) -> dict[str, Any]:
         return {
@@ -370,26 +450,42 @@ class InternalRuntimeSupervisor:
         }
 
     def _build_services_snapshot(self) -> dict[str, Any]:
-        worker_service = WorkerBackgroundService(db_path=self.db_path, runs_dir=self.runs_dir)
+        worker_service = WorkerBackgroundService(
+            db_path=self.db_path, runs_dir=self.runs_dir
+        )
         learning = LearningPipeline(db_path=self.db_path)
         mission_store = NeuronMissionStore(db_path=self.db_path)
         missions = mission_store.list_missions(limit=20)
-        active_missions = [m for m in missions if m.status in {"experimental", "stable"}]
+        active_missions = [
+            m for m in missions if m.status in {"experimental", "stable"}
+        ]
         try:
             ollama_health = OllamaClient().health()
         except Exception as exc:
             ollama_health = {"ok": False, "error": str(exc)}
         hardware = HardwareProfiler().detect()
-        router = ModelRouter(available_models=ollama_health.get("models", []) if isinstance(ollama_health, dict) else [], hardware=hardware)
+        router = ModelRouter(
+            available_models=ollama_health.get("models", [])
+            if isinstance(ollama_health, dict)
+            else [],
+            hardware=hardware,
+        )
         model_route = router.route_many(intent="runtime", urgency="medium")
-        model_decisions = model_route.get("decisions", {}) if isinstance(model_route, dict) else {}
+        model_decisions = (
+            model_route.get("decisions", {}) if isinstance(model_route, dict) else {}
+        )
         return {
             "life_pulse": LIFE_PULSE.snapshot(),
             "worker_loop": worker_service.status(),
             "mission_planner": {
                 "active_missions": len(active_missions),
                 "missions": [m.to_dict() for m in active_missions[:5]],
-                "next_plan_preview": [item.to_dict() for item in MissionPlanner(db_path=self.db_path).plan_cycle(run_ref=self.runtime_id)[:5]],
+                "next_plan_preview": [
+                    item.to_dict()
+                    for item in MissionPlanner(db_path=self.db_path).plan_cycle(
+                        run_ref=self.runtime_id
+                    )[:5]
+                ],
             },
             "neuron_mission_executor": {
                 "available": True,
@@ -397,7 +493,9 @@ class InternalRuntimeSupervisor:
             },
             "qualia_bus": QUALIA.snapshot(refresh_life=False),
             "learning_pipeline": learning.doctor(),
-            "semantic_memory": Bodega(db_path=self.db_path).doctor(runs_dir=self.runs_dir),
+            "semantic_memory": Bodega(db_path=self.db_path).doctor(
+                runs_dir=self.runs_dir
+            ),
             "federation": {
                 "status": "ok",
                 "doctor": None,
@@ -421,12 +519,18 @@ class InternalRuntimeSupervisor:
         bodega = Bodega(db_path=self.db_path)
         doctor = bodega.doctor(runs_dir=self.runs_dir)
         episodes = bodega.list_recent_episodes(limit=10)
-        gaps = max(0, int(doctor.get("runs", 0) or 0) - int(doctor.get("episodes", 0) or 0))
+        gaps = max(
+            0, int(doctor.get("runs", 0) or 0) - int(doctor.get("episodes", 0) or 0)
+        )
         created_candidate = None
         if AUTONOMY_RANK[mode] >= AUTONOMY_RANK["learn_candidates"] and gaps > 0:
             pipe = LearningPipeline(db_path=self.db_path)
             source_ref = f"runtime:{self.runtime_id}:memory-gap"
-            existing = [item for item in pipe.list_candidates(status="candidate", limit=100) if item.get("source_ref") == source_ref]
+            existing = [
+                item
+                for item in pipe.list_candidates(status="candidate", limit=100)
+                if item.get("source_ref") == source_ref
+            ]
             if not existing:
                 created_candidate = pipe.ingest(
                     content=f"Gap operativo detectado por runtime: runs={doctor.get('runs', 0)} episodes={doctor.get('episodes', 0)}.",
@@ -440,7 +544,11 @@ class InternalRuntimeSupervisor:
                 publish_event(
                     "learning_candidate_created",
                     "memory_service",
-                    {"candidate_id": created_candidate.get("candidate_id"), "source_ref": source_ref, "reason": "memory_gap"},
+                    {
+                        "candidate_id": created_candidate.get("candidate_id"),
+                        "source_ref": source_ref,
+                        "reason": "memory_gap",
+                    },
                     db_path=self.db_path,
                     run_ref=self.runtime_id,
                 )
@@ -465,9 +573,15 @@ class InternalRuntimeSupervisor:
                 mode=mode,
                 limit=5,
             )
-            self.counters["tasks_executed"] += int(nutrition.get("missions_executed") or 0)
-            self.counters["missions_executed"] += int(nutrition.get("missions_executed") or 0)
-            self.counters["learning_candidates_created"] += int(nutrition.get("candidates_created") or 0)
+            self.counters["tasks_executed"] += int(
+                nutrition.get("missions_executed") or 0
+            )
+            self.counters["missions_executed"] += int(
+                nutrition.get("missions_executed") or 0
+            )
+            self.counters["learning_candidates_created"] += int(
+                nutrition.get("candidates_created") or 0
+            )
             publish_event(
                 "missions_executed",
                 "mission_service",
@@ -494,12 +608,20 @@ class InternalRuntimeSupervisor:
                 publish_event(
                     "learning_candidate_evaluated",
                     "learning_service",
-                    {"candidate_id": candidate.get("candidate_id"), "status": "evaluated"},
+                    {
+                        "candidate_id": candidate.get("candidate_id"),
+                        "status": "evaluated",
+                    },
                     db_path=self.db_path,
                     run_ref=self.runtime_id,
                 )
             except Exception as exc:
-                record_internal_error("internal_runtime.learning.evaluate", exc, run_id=self.runtime_id, db_path=self.db_path)
+                record_internal_error(
+                    "internal_runtime.learning.evaluate",
+                    exc,
+                    run_id=self.runtime_id,
+                    db_path=self.db_path,
+                )
         for candidate in pipe.list_candidates(status="evaluated", limit=10):
             try:
                 processed.append(pipe.verify(candidate["candidate_id"]))
@@ -507,12 +629,20 @@ class InternalRuntimeSupervisor:
                 publish_event(
                     "learning_candidate_verified",
                     "learning_service",
-                    {"candidate_id": candidate.get("candidate_id"), "status": "verified"},
+                    {
+                        "candidate_id": candidate.get("candidate_id"),
+                        "status": "verified",
+                    },
                     db_path=self.db_path,
                     run_ref=self.runtime_id,
                 )
             except Exception as exc:
-                record_internal_error("internal_runtime.learning.verify", exc, run_id=self.runtime_id, db_path=self.db_path)
+                record_internal_error(
+                    "internal_runtime.learning.verify",
+                    exc,
+                    run_id=self.runtime_id,
+                    db_path=self.db_path,
+                )
         return {"status": "ok", "processed": processed, "mode": mode}
 
     def _qualia_service(self, mode: str) -> dict[str, Any]:
@@ -539,9 +669,18 @@ class InternalRuntimeSupervisor:
         except Exception as exc:
             health = {"ok": False, "error": str(exc)}
         hardware = HardwareProfiler().detect()
-        router = ModelRouter(available_models=health.get("models", []) if isinstance(health, dict) else [], hardware=hardware)
+        router = ModelRouter(
+            available_models=health.get("models", [])
+            if isinstance(health, dict)
+            else [],
+            hardware=hardware,
+        )
         recommendations = router.route_many(intent="runtime", urgency="medium")
-        decisions = recommendations.get("decisions", {}) if isinstance(recommendations, dict) else {}
+        decisions = (
+            recommendations.get("decisions", {})
+            if isinstance(recommendations, dict)
+            else {}
+        )
         if isinstance(decisions, dict) and decisions.get("central"):
             primary = decisions.get("central") or {}
         elif isinstance(decisions, dict):
@@ -559,7 +698,9 @@ class InternalRuntimeSupervisor:
                     "ollama",
                     str(primary.get("selected_model") or "unknown"),
                     1 if bool(health.get("ok")) else 0,
-                    None if health.get("ok") else str(health.get("error") or "health_failed"),
+                    None
+                    if health.get("ok")
+                    else str(health.get("error") or "health_failed"),
                     0.75 if health.get("ok") else 0.0,
                     None,
                     utc_now(),
@@ -568,7 +709,12 @@ class InternalRuntimeSupervisor:
         publish_event(
             "model_service_checked",
             "model_service",
-            {"health_ok": bool(health.get("ok")), "recommendations": [item.to_dict() for item in recommendations] if isinstance(recommendations, list) else []},
+            {
+                "health_ok": bool(health.get("ok")),
+                "recommendations": [item.to_dict() for item in recommendations]
+                if isinstance(recommendations, list)
+                else [],
+            },
             db_path=self.db_path,
             run_ref=self.runtime_id,
         )
@@ -592,11 +738,23 @@ class InternalRuntimeSupervisor:
             "worker": worker,
             "missions": {
                 "total": len(missions.list_missions(limit=100)),
-                "active": len([m for m in missions.list_missions(limit=100) if m.status in {"experimental", "stable"}]),
+                "active": len(
+                    [
+                        m
+                        for m in missions.list_missions(limit=100)
+                        if m.status in {"experimental", "stable"}
+                    ]
+                ),
             },
             "learning": learning,
             "errors": recent_errors,
             "events": recent_events,
         }
-        publish_event("observability_snapshot", "observability_service", payload, db_path=self.db_path, run_ref=self.runtime_id)
+        publish_event(
+            "observability_snapshot",
+            "observability_service",
+            payload,
+            db_path=self.db_path,
+            run_ref=self.runtime_id,
+        )
         return payload

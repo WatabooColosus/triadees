@@ -36,7 +36,9 @@ class RunApiRequest(BaseModel):
     db_path: str = Field(default="triade/memory/triade.db", description="Ruta SQLite")
     config_path: str = Field(default="triade.yml", description="Ruta de configuración")
     use_ollama: bool = Field(default=True, description="Usar Ollama si está disponible")
-    hypothalamus_model: str | None = Field(default=None, description="Modelo de Hipotálamo")
+    hypothalamus_model: str | None = Field(
+        default=None, description="Modelo de Hipotálamo"
+    )
     central_model: str | None = Field(default=None, description="Modelo de Central")
 
 

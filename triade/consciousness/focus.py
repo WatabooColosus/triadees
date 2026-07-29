@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +24,10 @@ class FocusModulator:
                 if row is None:
                     return self.BASE_THRESHOLD
                 valence, arousal, fatigue, emotion = (
-                    float(row[0]), float(row[1]), float(row[2]), str(row[3])
+                    float(row[0]),
+                    float(row[1]),
+                    float(row[2]),
+                    str(row[3]),
                 )
 
                 modulation = 0.0

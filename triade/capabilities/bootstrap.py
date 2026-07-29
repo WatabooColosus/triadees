@@ -77,7 +77,9 @@ def core_capabilities() -> tuple[CapabilityDefinition, ...]:
     )
 
 
-def bootstrap_core_capabilities(db_path: str | Path = "triade/memory/triade.db") -> list[dict[str, Any]]:
+def bootstrap_core_capabilities(
+    db_path: str | Path = "triade/memory/triade.db",
+) -> list[dict[str, Any]]:
     registry = CapabilityRegistry(db_path)
     results: list[dict[str, Any]] = []
     for definition in core_capabilities():

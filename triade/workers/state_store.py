@@ -18,7 +18,9 @@ class WorkerStateStore:
         self.db_path = Path(db_path)
         repo_root = Path(__file__).resolve().parents[2]
         self.schema_path = repo_root / "triade/memory/schemas.sql"
-        self.migration_path = repo_root / "triade/memory/migrations/003_living_workers.sql"
+        self.migration_path = (
+            repo_root / "triade/memory/migrations/003_living_workers.sql"
+        )
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
@@ -30,13 +32,17 @@ class WorkerStateStore:
 
     def _init_db(self) -> None:
         if not self.schema_path.exists():
-            raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
+            raise FileNotFoundError(
+                f"No existe el esquema de memoria: {self.schema_path}"
+            )
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
             if self.migration_path.exists():
                 conn.executescript(self.migration_path.read_text(encoding="utf-8"))
 
-    def create_worker_run(self, run_ref: str, config: WorkerRunConfig, artifact_dir: str | Path) -> dict[str, Any]:
+    def create_worker_run(
+        self, run_ref: str, config: WorkerRunConfig, artifact_dir: str | Path
+    ) -> dict[str, Any]:
         with self._connect() as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO worker_runs
@@ -55,37 +61,76 @@ class WorkerStateStore:
             )
             conn.execute(
                 "INSERT OR IGNORE INTO runs (run_id, source, user_input, status, created_at) VALUES (?, ?, ?, ?, ?)",
-                (run_ref, "worker", "Triade Living Workers background cycle", "created", utc_now()),
+                (
+                    run_ref,
+                    "worker",
+                    "Triade Living Workers background cycle",
+                    "created",
+                    utc_now(),
+                ),
             )
         return self.get_worker_run(run_ref) or {}
 
-    def finish_worker_run(self, run_ref: str, status: str, summary: dict[str, Any], error: str | None = None) -> None:
+    def finish_worker_run(
+        self,
+        run_ref: str,
+        status: str,
+        summary: dict[str, Any],
+        error: str | None = None,
+    ) -> None:
         with self._connect() as conn:
             conn.execute(
                 "UPDATE worker_runs SET status = ?, finished_at = ?, summary_json = ?, error = ? WHERE run_ref = ?",
-                (status, utc_now(), json.dumps(summary, ensure_ascii=False), error, run_ref),
+                (
+                    status,
+                    utc_now(),
+                    json.dumps(summary, ensure_ascii=False),
+                    error,
+                    run_ref,
+                ),
             )
-            conn.execute("UPDATE runs SET status = ?, closed_at = ? WHERE run_id = ?", (status, utc_now(), run_ref))
+            conn.execute(
+                "UPDATE runs SET status = ?, closed_at = ? WHERE run_id = ?",
+                (status, utc_now(), run_ref),
+            )
 
     def get_worker_run(self, run_ref: str) -> dict[str, Any] | None:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM worker_runs WHERE run_ref = ?", (run_ref,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM worker_runs WHERE run_ref = ?", (run_ref,)
+            ).fetchone()
         return self._decode(row) if row else None
 
     def list_worker_runs(self, limit: int = 20) -> list[dict[str, Any]]:
         with self._connect() as conn:
-            rows = conn.execute("SELECT * FROM worker_runs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+            rows = conn.execute(
+                "SELECT * FROM worker_runs ORDER BY id DESC LIMIT ?", (limit,)
+            ).fetchall()
         return [self._decode(row) for row in rows]
 
-    def enqueue_task(self, task_type: str, payload: dict[str, Any] | None = None, priority: int = 50, run_ref: str | None = None) -> WorkerTask:
+    def enqueue_task(
+        self,
+        task_type: str,
+        payload: dict[str, Any] | None = None,
+        priority: int = 50,
+        run_ref: str | None = None,
+    ) -> WorkerTask:
         with self._connect() as conn:
             cursor = conn.execute(
                 """INSERT INTO worker_tasks (task_type, status, priority, payload_json, created_at, run_ref)
                 VALUES (?, 'pending', ?, ?, ?, ?)""",
-                (task_type, int(priority), json.dumps(payload or {}, ensure_ascii=False), utc_now(), run_ref),
+                (
+                    task_type,
+                    int(priority),
+                    json.dumps(payload or {}, ensure_ascii=False),
+                    utc_now(),
+                    run_ref,
+                ),
             )
             task_id = int(cursor.lastrowid)
-        return self.get_task(task_id) or WorkerTask(id=task_id, task_type=task_type, payload=payload or {}, priority=priority)
+        return self.get_task(task_id) or WorkerTask(
+            id=task_id, task_type=task_type, payload=payload or {}, priority=priority
+        )
 
     def claim_next_task(self) -> WorkerTask | None:
         with self._connect() as conn:
@@ -94,47 +139,101 @@ class WorkerStateStore:
             ).fetchone()
             if row is None:
                 return None
-            conn.execute("UPDATE worker_tasks SET status = 'running', started_at = ? WHERE id = ?", (utc_now(), row["id"]))
+            conn.execute(
+                "UPDATE worker_tasks SET status = 'running', started_at = ? WHERE id = ?",
+                (utc_now(), row["id"]),
+            )
         task = self.get_task(int(row["id"]))
         return task
 
     def get_task(self, task_id: int) -> WorkerTask | None:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM worker_tasks WHERE id = ?", (task_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM worker_tasks WHERE id = ?", (task_id,)
+            ).fetchone()
         return self._task_from_row(row) if row else None
 
-    def list_tasks(self, status: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    def list_tasks(
+        self, status: str | None = None, limit: int = 50
+    ) -> list[dict[str, Any]]:
         with self._connect() as conn:
             if status:
-                rows = conn.execute("SELECT * FROM worker_tasks WHERE status = ? ORDER BY id DESC LIMIT ?", (status, limit)).fetchall()
+                rows = conn.execute(
+                    "SELECT * FROM worker_tasks WHERE status = ? ORDER BY id DESC LIMIT ?",
+                    (status, limit),
+                ).fetchall()
             else:
-                rows = conn.execute("SELECT * FROM worker_tasks ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+                rows = conn.execute(
+                    "SELECT * FROM worker_tasks ORDER BY id DESC LIMIT ?", (limit,)
+                ).fetchall()
         return [self._task_from_row(row).to_dict() for row in rows]
 
-    def finish_task(self, task_id: int, status: str, result: dict[str, Any] | None = None, safety_status: str | None = None, error: str | None = None, run_ref: str | None = None) -> None:
+    def finish_task(
+        self,
+        task_id: int,
+        status: str,
+        result: dict[str, Any] | None = None,
+        safety_status: str | None = None,
+        error: str | None = None,
+        run_ref: str | None = None,
+    ) -> None:
         with self._connect() as conn:
             conn.execute(
                 """UPDATE worker_tasks SET status = ?, result_json = ?, safety_status = ?, finished_at = ?, error = ?, run_ref = COALESCE(?, run_ref)
                 WHERE id = ?""",
-                (status, json.dumps(result or {}, ensure_ascii=False), safety_status, utc_now(), error, run_ref, task_id),
+                (
+                    status,
+                    json.dumps(result or {}, ensure_ascii=False),
+                    safety_status,
+                    utc_now(),
+                    error,
+                    run_ref,
+                    task_id,
+                ),
             )
 
-    def record_event(self, event_type: str, message: str, *, run_ref: str | None = None, task_id: int | None = None, task_type: str | None = None, status: str = "ok", payload: dict[str, Any] | None = None) -> int:
+    def record_event(
+        self,
+        event_type: str,
+        message: str,
+        *,
+        run_ref: str | None = None,
+        task_id: int | None = None,
+        task_type: str | None = None,
+        status: str = "ok",
+        payload: dict[str, Any] | None = None,
+    ) -> int:
         with self._connect() as conn:
             cursor = conn.execute(
                 """INSERT INTO worker_events (run_ref, task_id, task_type, event_type, status, message, payload_json, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (run_ref, task_id, task_type, event_type, status, message, json.dumps(payload or {}, ensure_ascii=False), utc_now()),
+                (
+                    run_ref,
+                    task_id,
+                    task_type,
+                    event_type,
+                    status,
+                    message,
+                    json.dumps(payload or {}, ensure_ascii=False),
+                    utc_now(),
+                ),
             )
             prune_worker_events(conn)
             return int(cursor.lastrowid)
 
-    def list_events(self, limit: int = 50, run_ref: str | None = None) -> list[dict[str, Any]]:
+    def list_events(
+        self, limit: int = 50, run_ref: str | None = None
+    ) -> list[dict[str, Any]]:
         with self._connect() as conn:
             if run_ref:
-                rows = conn.execute("SELECT * FROM worker_events WHERE run_ref = ? ORDER BY id DESC LIMIT ?", (run_ref, limit)).fetchall()
+                rows = conn.execute(
+                    "SELECT * FROM worker_events WHERE run_ref = ? ORDER BY id DESC LIMIT ?",
+                    (run_ref, limit),
+                ).fetchall()
             else:
-                rows = conn.execute("SELECT * FROM worker_events ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+                rows = conn.execute(
+                    "SELECT * FROM worker_events ORDER BY id DESC LIMIT ?", (limit,)
+                ).fetchall()
         return [self._decode(row) for row in rows]
 
     def set_state(self, key: str, value: dict[str, Any]) -> None:
@@ -147,13 +246,25 @@ class WorkerStateStore:
 
     def get_state(self, key: str) -> dict[str, Any] | None:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM worker_state WHERE key = ?", (key,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM worker_state WHERE key = ?", (key,)
+            ).fetchone()
         return self._decode(row).get("value_json") if row else None
 
     def status(self) -> dict[str, Any]:
         with self._connect() as conn:
-            task_counts = {row["status"]: int(row["c"]) for row in conn.execute("SELECT status, COUNT(*) AS c FROM worker_tasks GROUP BY status").fetchall()}
-            run_counts = {row["status"]: int(row["c"]) for row in conn.execute("SELECT status, COUNT(*) AS c FROM worker_runs GROUP BY status").fetchall()}
+            task_counts = {
+                row["status"]: int(row["c"])
+                for row in conn.execute(
+                    "SELECT status, COUNT(*) AS c FROM worker_tasks GROUP BY status"
+                ).fetchall()
+            }
+            run_counts = {
+                row["status"]: int(row["c"])
+                for row in conn.execute(
+                    "SELECT status, COUNT(*) AS c FROM worker_runs GROUP BY status"
+                ).fetchall()
+            }
         return {
             "status": "ok",
             "mode": "triade-living-workers",
@@ -217,7 +328,9 @@ class WorkerStateStore:
             "deduplicated": len(duplicate_ids),
         }
 
-    def find_active_equivalent(self, task_type: str, payload: dict[str, Any]) -> WorkerTask | None:
+    def find_active_equivalent(
+        self, task_type: str, payload: dict[str, Any]
+    ) -> WorkerTask | None:
         logical = self._logical_task_key(task_type, payload)
         with self._connect() as conn:
             rows = conn.execute(
@@ -226,7 +339,10 @@ class WorkerStateStore:
             ).fetchall()
         for row in rows:
             candidate = self._task_from_row(row)
-            if self._logical_task_key(candidate.task_type, candidate.payload) == logical:
+            if (
+                self._logical_task_key(candidate.task_type, candidate.payload)
+                == logical
+            ):
                 return candidate
         return None
 
@@ -234,7 +350,15 @@ class WorkerStateStore:
     def _logical_task_key(task_type: str, payload: dict[str, Any]) -> str:
         identity = {
             key: payload.get(key)
-            for key in ("goal_id", "goal_step_id", "mission_id", "neuron_id", "candidate_id", "related_candidate_id", "command_key")
+            for key in (
+                "goal_id",
+                "goal_step_id",
+                "mission_id",
+                "neuron_id",
+                "candidate_id",
+                "related_candidate_id",
+                "command_key",
+            )
             if payload.get(key) is not None
         }
         # Tareas baseline solo necesitan una instancia activa por tipo.

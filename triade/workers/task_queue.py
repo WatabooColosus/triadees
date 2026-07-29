@@ -14,14 +14,22 @@ class WorkerTaskQueue:
         self.db_path = Path(db_path)
         self.store = WorkerStateStore(db_path=db_path)
 
-    def enqueue(self, task_type: str, payload: dict[str, Any] | None = None, priority: int = 50, run_ref: str | None = None) -> WorkerTask:
+    def enqueue(
+        self,
+        task_type: str,
+        payload: dict[str, Any] | None = None,
+        priority: int = 50,
+        run_ref: str | None = None,
+    ) -> WorkerTask:
         if task_type not in WORKER_TASK_TYPES:
             raise ValueError(f"worker task_type inválido: {task_type}")
         clean_payload = payload or {}
         existing = self.store.find_active_equivalent(task_type, clean_payload)
         if existing is not None:
             return existing
-        task = self.store.enqueue_task(task_type, payload=clean_payload, priority=priority, run_ref=run_ref)
+        task = self.store.enqueue_task(
+            task_type, payload=clean_payload, priority=priority, run_ref=run_ref
+        )
         from triade.runtime.wake_bus import wake_runtime
 
         wake_runtime(self.db_path)
@@ -30,7 +38,14 @@ class WorkerTaskQueue:
     def enqueue_defaults(self, run_ref: str | None = None) -> list[WorkerTask]:
         tasks = []
         for index, task_type in enumerate(WORKER_TASK_TYPES):
-            tasks.append(self.enqueue(task_type, payload={"scheduled": True}, priority=10 + index, run_ref=run_ref))
+            tasks.append(
+                self.enqueue(
+                    task_type,
+                    payload={"scheduled": True},
+                    priority=10 + index,
+                    run_ref=run_ref,
+                )
+            )
         return tasks
 
     def claim_next(self) -> WorkerTask | None:

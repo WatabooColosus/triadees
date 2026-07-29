@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from fastapi.testclient import TestClient
 
@@ -18,9 +17,13 @@ FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 def test_react_build_exists_or_build_instruction():
     """La SPA React build debe existir."""
     index = FRONTEND_DIST / "index.html"
-    assert index.exists(), "frontend/dist/index.html no encontrado. Ejecutar npm --prefix frontend run build"
+    assert index.exists(), (
+        "frontend/dist/index.html no encontrado. Ejecutar npm --prefix frontend run build"
+    )
     assets = list((FRONTEND_DIST / "assets").glob("index-*.js"))
-    assert len(assets) >= 1, "No hay assets JS build. Ejecutar npm --prefix frontend run build"
+    assert len(assets) >= 1, (
+        "No hay assets JS build. Ejecutar npm --prefix frontend run build"
+    )
 
 
 def test_single_port_serves_spa_index():
@@ -36,7 +39,9 @@ def test_legacy_ui_routes_redirect_to_spa():
     """Las rutas antiguas solo redirigen; ya no sirven wrappers HTML."""
     for route in ["/api/ui/clean", "/api/ui/legacy"]:
         resp = client.get(route)
-        assert resp.status_code in (200, 302, 307), f"{route} returned {resp.status_code}"
+        assert resp.status_code in (200, 302, 307), (
+            f"{route} returned {resp.status_code}"
+        )
         assert resp.history and resp.history[0].status_code in (302, 307)
 
 
@@ -51,7 +56,9 @@ def test_api_runtime_heartbeat_contains_ollama_blood():
     resp = client.get("/api/runtime/heartbeat")
     assert resp.status_code == 200
     data = resp.json()
-    assert "ollama_blood" in data or "blood_pressure_score" in data or "ollama_ok" in data
+    assert (
+        "ollama_blood" in data or "blood_pressure_score" in data or "ollama_ok" in data
+    )
 
 
 def test_api_models_ollama_blood():
@@ -60,7 +67,11 @@ def test_api_models_ollama_blood():
     assert resp.status_code == 200
     data = resp.json()
     assert data.get("status") in ("ok", "degraded", "unavailable")
-    assert "ollama_blood" in data or "cognitive_blood_active" in data or "blood_pressure_score" in data
+    assert (
+        "ollama_blood" in data
+        or "cognitive_blood_active" in data
+        or "blood_pressure_score" in data
+    )
 
 
 def test_react_dashboard_endpoint_read_only():
@@ -187,7 +198,15 @@ def test_react_dashboard_contains_system_processes():
     data = resp.json()
     assert "system_processes" in data
     sp = data["system_processes"]
-    for k in ("runtime_enabled", "runtime_mode", "background_thread_alive", "workers_active", "active_tasks", "cycles_last_hour", "latest_action"):
+    for k in (
+        "runtime_enabled",
+        "runtime_mode",
+        "background_thread_alive",
+        "workers_active",
+        "active_tasks",
+        "cycles_last_hour",
+        "latest_action",
+    ):
         assert k in sp, f"Missing system_processes.{k}"
 
 
@@ -195,6 +214,7 @@ def test_repo_runtime_status_uses_whitelist_no_shell():
     """build_repo_runtime_status usa solo comandos whitelist con shell=False."""
     import inspect
     from triade.core.repo_runtime_status import build_repo_runtime_status, _run_git
+
     src = inspect.getsource(_run_git)
     assert "shell=False" in src, "_run_git debe usar shell=False"
     assert "subprocess.run" in src
@@ -230,8 +250,12 @@ def test_runtime_once_records_cycle_event():
         events_resp = client.get("/api/runtime/events?limit=100")
         ev = events_resp.json()
         types = {e.get("event_type") for e in ev.get("events", [])}
-        assert types & {"runtime_cycle_start", "runtime_cycle_started"}, "Falta runtime_cycle_start/started"
-        assert types & {"runtime_cycle_complete", "runtime_cycle_completed"}, "Falta runtime_cycle_complete/completed"
+        assert types & {"runtime_cycle_start", "runtime_cycle_started"}, (
+            "Falta runtime_cycle_start/started"
+        )
+        assert types & {"runtime_cycle_complete", "runtime_cycle_completed"}, (
+            "Falta runtime_cycle_complete/completed"
+        )
 
 
 def test_heartbeat_contains_api_server_alive():
@@ -258,6 +282,7 @@ def test_heartbeat_contains_api_server_alive():
 def test_heartbeat_counts_both_event_variants():
     """build_runtime_heartbeat cuenta runtime_cycle_start y runtime_cycle_started."""
     from triade.core.internal_runtime import RUNTIME_CYCLE_EVENTS
+
     assert "runtime_cycle_start" in RUNTIME_CYCLE_EVENTS
     assert "runtime_cycle_started" in RUNTIME_CYCLE_EVENTS
     assert "runtime_cycle_complete" in RUNTIME_CYCLE_EVENTS
@@ -267,6 +292,7 @@ def test_heartbeat_counts_both_event_variants():
 def test_heartbeat_truth_api_alive_runtime_off():
     """Cuando runtime está apagado, heartbeat_truth lo indica."""
     from triade.core.internal_runtime import stop_internal_runtime_background
+
     stop_internal_runtime_background()
     resp = client.get("/api/runtime/heartbeat")
     data = resp.json()
@@ -274,18 +300,21 @@ def test_heartbeat_truth_api_alive_runtime_off():
     if not data.get("runtime_enabled"):
         truth = data.get("heartbeat_truth") or ""
         assert (
-                "Runtime apagado" in truth
-                or "ALWAYS-ON configurado, pero background no está vivo" in truth
-                or "ALWAYS-ON apagado" in truth
-                or "Autonomía full_local_guarded configurada" in truth
-            )
+            "Runtime apagado" in truth
+            or "ALWAYS-ON configurado, pero background no está vivo" in truth
+            or "ALWAYS-ON apagado" in truth
+            or "Autonomía full_local_guarded configurada" in truth
+        )
 
 
 def test_runtime_start_observe_only_returns_enabled():
     """POST /api/runtime/start con observe_only devuelve runtime_enabled True."""
     from triade.core.internal_runtime import stop_internal_runtime_background
+
     stop_internal_runtime_background()
-    resp = client.post("/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999})
+    resp = client.post(
+        "/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999}
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data.get("status") in ("started", "already_running")
@@ -300,12 +329,17 @@ def test_runtime_start_observe_only_returns_enabled():
 
 def test_runtime_start_does_not_duplicate_thread():
     """Llamar start dos veces devuelve already_running sin duplicar."""
-    from triade.core.internal_runtime import stop_internal_runtime_background, _BACKGROUND_THREAD
+    from triade.core.internal_runtime import stop_internal_runtime_background
+
     stop_internal_runtime_background()
-    resp1 = client.post("/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999})
+    resp1 = client.post(
+        "/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999}
+    )
     assert resp1.status_code == 200
     assert resp1.json()["status"] == "started"
-    resp2 = client.post("/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999})
+    resp2 = client.post(
+        "/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999}
+    )
     assert resp2.status_code == 200
     data2 = resp2.json()
     assert data2["status"] == "already_running"
@@ -317,7 +351,10 @@ def test_runtime_start_does_not_duplicate_thread():
 def test_runtime_stop_returns_disabled():
     """POST /api/runtime/stop devuelve runtime_enabled False."""
     from triade.core.internal_runtime import stop_internal_runtime_background
-    client.post("/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999})
+
+    client.post(
+        "/api/runtime/start", json={"mode": "observe_only", "interval_seconds": 9999}
+    )
     resp = client.post("/api/runtime/stop")
     assert resp.status_code == 200
     data = resp.json()
@@ -332,6 +369,7 @@ def test_runtime_stop_returns_disabled():
 def test_react_dashboard_shows_runtime_off_not_error():
     """Cuando runtime está apagado, el dashboard no debe mostrar error."""
     from triade.core.internal_runtime import stop_internal_runtime_background
+
     stop_internal_runtime_background()
     resp = client.get("/api/ui/react-dashboard")
     assert resp.status_code == 200
@@ -343,10 +381,10 @@ def test_react_dashboard_shows_runtime_off_not_error():
         assert "heartbeat_truth" in hb
         truth = hb["heartbeat_truth"] or ""
         assert (
-                "Runtime apagado" in truth
-                or "ALWAYS-ON configurado, pero background no está vivo" in truth
-                or "ALWAYS-ON apagado" in truth
-                or "Autonomía full_local_guarded configurada" in truth
-            )
+            "Runtime apagado" in truth
+            or "ALWAYS-ON configurado, pero background no está vivo" in truth
+            or "ALWAYS-ON apagado" in truth
+            or "Autonomía full_local_guarded configurada" in truth
+        )
     # No debe ser error
     assert data.get("status") in ("ok", "partial")

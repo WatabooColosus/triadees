@@ -12,6 +12,7 @@ client = TestClient(app, raise_server_exceptions=False)
 def test_resource_probe_returns_safe_payload():
     """build_resource_probe no debe fallar ni ejecutar shell peligroso."""
     from triade.core.resource_probe import build_resource_probe
+
     probe = build_resource_probe()
     assert probe.get("status") == "ok"
     assert "cpu" in probe
@@ -28,8 +29,14 @@ def test_resource_probe_returns_safe_payload():
 def test_work_mode_low_ram_degrades():
     """RAM < 2 GB debe forzar cooldown."""
     from triade.core.resource_governor import decide_work_mode
+
     probe = {
-        "limits": {"ram_available_gb": 1.0, "disk_free_gb": 100, "tier": "high", "cpu_count": 8},
+        "limits": {
+            "ram_available_gb": 1.0,
+            "disk_free_gb": 100,
+            "tier": "high",
+            "cpu_count": 8,
+        },
         "cpu": {"load_1min": 1.0},
         "power": {"ac_connected": True, "battery_percent": None},
         "thermal": {"thermal_status": "ok"},
@@ -44,8 +51,14 @@ def test_work_mode_low_ram_degrades():
 def test_work_mode_battery_low_observe_only():
     """Batería < 25% sin AC debe forzar observe_only."""
     from triade.core.resource_governor import decide_work_mode
+
     probe = {
-        "limits": {"ram_available_gb": 16, "disk_free_gb": 100, "tier": "high", "cpu_count": 8},
+        "limits": {
+            "ram_available_gb": 16,
+            "disk_free_gb": 100,
+            "tier": "high",
+            "cpu_count": 8,
+        },
         "cpu": {"load_1min": 1.0},
         "power": {"ac_connected": False, "battery_percent": 20},
         "thermal": {"thermal_status": "ok"},
@@ -60,8 +73,14 @@ def test_work_mode_battery_low_observe_only():
 def test_work_mode_high_hardware_allows_full_local():
     """Hardware tier high + AC + Ollama debe permitir full_local."""
     from triade.core.resource_governor import decide_work_mode
+
     probe = {
-        "limits": {"ram_available_gb": 16, "disk_free_gb": 100, "tier": "high", "cpu_count": 8},
+        "limits": {
+            "ram_available_gb": 16,
+            "disk_free_gb": 100,
+            "tier": "high",
+            "cpu_count": 8,
+        },
         "cpu": {"load_1min": 1.0},
         "power": {"ac_connected": True, "battery_percent": 100},
         "thermal": {"thermal_status": "ok"},
@@ -78,8 +97,14 @@ def test_work_mode_high_hardware_allows_full_local():
 def test_work_mode_no_ollama_reasoner_limits():
     """Sin can_reason, máximo light_background."""
     from triade.core.resource_governor import decide_work_mode
+
     probe = {
-        "limits": {"ram_available_gb": 16, "disk_free_gb": 100, "tier": "high", "cpu_count": 8},
+        "limits": {
+            "ram_available_gb": 16,
+            "disk_free_gb": 100,
+            "tier": "high",
+            "cpu_count": 8,
+        },
         "cpu": {"load_1min": 1.0},
         "power": {"ac_connected": True, "battery_percent": 100},
         "thermal": {"thermal_status": "ok"},
@@ -94,7 +119,13 @@ def test_work_mode_no_ollama_reasoner_limits():
 def test_permission_profile_identity_core_always_false():
     """identity_core nunca se modifica en ningún modo."""
     from triade.core.permission_governor import build_permission_profile
-    for mode in ("observe_only", "light_background", "balanced_background", "full_local"):
+
+    for mode in (
+        "observe_only",
+        "light_background",
+        "balanced_background",
+        "full_local",
+    ):
         p = build_permission_profile(mode)
         assert p["permissions"].get("can_modify_identity_core") is False
 
@@ -102,6 +133,7 @@ def test_permission_profile_identity_core_always_false():
 def test_safe_shell_rejects_unknown_command():
     """Comando no whitelist debe ser rechazado."""
     from triade.core.safe_shell import run_safe_command
+
     result = run_safe_command("rm -rf /")
     assert result["status"] == "error"
     assert "whitelist" in result["error"]
@@ -110,6 +142,7 @@ def test_safe_shell_rejects_unknown_command():
 def test_safe_shell_git_status_allowed():
     """git_status debe ejecutarse sin error."""
     from triade.core.safe_shell import run_safe_command
+
     result = run_safe_command("git_status")
     assert result["status"] in ("ok", "error")
     assert result["command_key"] == "git_status"
@@ -119,6 +152,7 @@ def test_safe_shell_no_shell_true():
     """run_safe_command usa shell=False."""
     import inspect
     from triade.core.safe_shell import run_safe_command
+
     src = inspect.getsource(run_safe_command)
     assert "shell=False" in src
 
@@ -186,6 +220,7 @@ def test_no_shell_true_in_governor():
     import inspect
     from triade.core.resource_governor import decide_work_mode
     from triade.core.permission_governor import build_permission_profile
+
     for mod in (decide_work_mode, build_permission_profile):
         src = inspect.getsource(mod)
-        assert 'subprocess' not in src, f"{mod.__name__} contiene subprocess"
+        assert "subprocess" not in src, f"{mod.__name__} contiene subprocess"

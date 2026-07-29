@@ -9,7 +9,9 @@ from triade.learning.evidence_bridge import LearningEvidenceBridge
 from triade.regression import MetricPolicy
 
 
-def make_run(evaluation_id: str, subject_id: str, scores: dict[str, float]) -> EvaluationRun:
+def make_run(
+    evaluation_id: str, subject_id: str, scores: dict[str, float]
+) -> EvaluationRun:
     results = tuple(
         MetricResult(
             case_id=case_id,
@@ -62,8 +64,12 @@ def test_required_regression_report_blocks_when_missing(tmp_path: Path) -> None:
     bridge = LearningEvidenceBridge(tmp_path / "triade.db")
     candidate_id = "candidate-required"
     subject_id = "subject-required"
-    baseline = make_run("baseline-required", subject_id, {"quality": 0.6, "identity": 1.0})
-    candidate = make_run("candidate-required-eval", subject_id, {"quality": 0.8, "identity": 1.0})
+    baseline = make_run(
+        "baseline-required", subject_id, {"quality": 0.6, "identity": 1.0}
+    )
+    candidate = make_run(
+        "candidate-required-eval", subject_id, {"quality": 0.8, "identity": 1.0}
+    )
 
     bridge.declare_hypothesis(
         candidate_id,
@@ -83,7 +89,9 @@ def test_pass_report_allows_learning_promotion(tmp_path: Path) -> None:
     candidate_id = "candidate-pass"
     subject_id = "subject-pass"
     baseline = make_run("baseline-pass", subject_id, {"quality": 0.6, "identity": 1.0})
-    candidate = make_run("candidate-pass-eval", subject_id, {"quality": 0.8, "identity": 1.0})
+    candidate = make_run(
+        "candidate-pass-eval", subject_id, {"quality": 0.8, "identity": 1.0}
+    )
 
     bridge.declare_hypothesis(
         candidate_id,
@@ -115,7 +123,9 @@ def test_failed_regression_report_blocks_and_quarantines(tmp_path: Path) -> None
     candidate_id = "candidate-fail"
     subject_id = "subject-fail"
     baseline = make_run("baseline-fail", subject_id, {"quality": 0.6, "identity": 1.0})
-    candidate = make_run("candidate-fail-eval", subject_id, {"quality": 0.9, "identity": 0.7})
+    candidate = make_run(
+        "candidate-fail-eval", subject_id, {"quality": 0.9, "identity": 0.7}
+    )
 
     bridge.declare_hypothesis(
         candidate_id,

@@ -1,10 +1,10 @@
 """Tests para Fase G: Atención y memoria de trabajo (G-01, G-02, G-03)."""
+
 from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
 
-import pytest
 
 from triade.consciousness import FocusModulator, SalienceEngine, WorkingMemory
 
@@ -51,7 +51,9 @@ class TestSalienceEngine:
         with sqlite3.connect(db_path) as conn:
             conn.executescript(schema)
         engine = SalienceEngine(db_path=db_path)
-        sv = engine.score("algo completamente nuevo", "conversation", "low", "low", "constructive")
+        sv = engine.score(
+            "algo completamente nuevo", "conversation", "low", "low", "constructive"
+        )
         assert sv.novelty_salience >= 0.5
 
     def test_emotional_salience_uses_tone(self) -> None:
@@ -70,7 +72,9 @@ class TestSalienceEngine:
                 ("memoria", "mejorar la memoria semantica", "active"),
             )
         engine = SalienceEngine(db_path=db_path)
-        sv = engine.score("hay que mejorar la memoria", "conversation", "low", "low", "constructive")
+        sv = engine.score(
+            "hay que mejorar la memoria", "conversation", "low", "low", "constructive"
+        )
         assert sv.goal_salience > 0.2
 
     def test_goal_salience_no_active_goals(self) -> None:
@@ -92,7 +96,9 @@ class TestWorkingMemory:
     def test_push_and_peek(self) -> None:
         wm = WorkingMemory(max_size=5)
         assert len(wm.peek()) == 0
-        sal = SalienceEngine(db_path=":memory:").score("hola", "conversation", "low", "low", "constructive")
+        sal = SalienceEngine(db_path=":memory:").score(
+            "hola", "conversation", "low", "low", "constructive"
+        )
         wm.push("hola mundo", "user", sal)
         assert len(wm.peek()) == 1
 
@@ -100,7 +106,10 @@ class TestWorkingMemory:
         wm = WorkingMemory(max_size=3)
         # Manually create items with clearly different salience
         from triade.consciousness.salience import SalienceVector
-        wm.push("importante", "user", SalienceVector(relevance=0.9, urgency_salience=0.9))
+
+        wm.push(
+            "importante", "user", SalienceVector(relevance=0.9, urgency_salience=0.9)
+        )
         wm.push("medio", "user", SalienceVector(relevance=0.5, urgency_salience=0.5))
         wm.push("bajo", "user", SalienceVector(relevance=0.2, urgency_salience=0.2))
         wm.push("muy bajo", "user", SalienceVector(relevance=0.1, urgency_salience=0.1))
@@ -131,14 +140,18 @@ class TestWorkingMemory:
 
     def test_clear_empties(self) -> None:
         wm = WorkingMemory(max_size=5)
-        sal = SalienceEngine(db_path=":memory:").score("test", "conversation", "low", "low", "constructive")
+        sal = SalienceEngine(db_path=":memory:").score(
+            "test", "conversation", "low", "low", "constructive"
+        )
         wm.push("test", "user", sal)
         wm.clear()
         assert len(wm.peek()) == 0
 
     def test_get_context_includes_labels(self) -> None:
         wm = WorkingMemory(max_size=5)
-        sal = SalienceEngine(db_path=":memory:").score("test", "conversation", "low", "low", "constructive")
+        sal = SalienceEngine(db_path=":memory:").score(
+            "test", "conversation", "low", "low", "constructive"
+        )
         wm.push("contenido de prueba", "user", sal)
         ctx = wm.get_context()
         assert "User" in ctx
@@ -146,7 +159,9 @@ class TestWorkingMemory:
 
     def test_access_count_increments(self) -> None:
         wm = WorkingMemory(max_size=5)
-        sal = SalienceEngine(db_path=":memory:").score("test", "conversation", "low", "low", "constructive")
+        sal = SalienceEngine(db_path=":memory:").score(
+            "test", "conversation", "low", "low", "constructive"
+        )
         wm.push("item", "user", sal)
         before = wm.peek()[0].access_count
         wm.get_relevant(limit=5)
@@ -154,7 +169,9 @@ class TestWorkingMemory:
 
     def test_doctor(self) -> None:
         wm = WorkingMemory(max_size=5)
-        sal = SalienceEngine(db_path=":memory:").score("test", "conversation", "low", "low", "constructive")
+        sal = SalienceEngine(db_path=":memory:").score(
+            "test", "conversation", "low", "low", "constructive"
+        )
         wm.push("test", "user", sal)
         report = wm.doctor()
         assert report["status"] == "ok"

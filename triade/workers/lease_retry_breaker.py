@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import json
 import random
 import sqlite3
 import time
@@ -77,15 +76,22 @@ class LeaseManager:
         self._cleanup_expired(resource)
         now = utc_now()
         from datetime import datetime, timedelta
+
         expires = (datetime.utcnow() + timedelta(seconds=ttl_seconds)).isoformat()
-        lease_id = f"lease-{resource}-{int(time.time()*1000)}"
+        lease_id = f"lease-{resource}-{int(time.time() * 1000)}"
         try:
             with self._connect() as conn:
                 conn.execute(
                     "INSERT INTO leases(lease_id, resource, owner, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
                     (lease_id, resource, owner, expires, now),
                 )
-            return Lease(lease_id=lease_id, resource=resource, owner=owner, expires_at=expires, created_at=now)
+            return Lease(
+                lease_id=lease_id,
+                resource=resource,
+                owner=owner,
+                expires_at=expires,
+                created_at=now,
+            )
         except sqlite3.IntegrityError:
             return None
 
@@ -127,7 +133,7 @@ class RetryPolicy:
         self.jitter = jitter
 
     def delay_for_attempt(self, attempt: int) -> float:
-        delay = min(self.base_delay_ms * (2 ** attempt), self.max_delay_ms)
+        delay = min(self.base_delay_ms * (2**attempt), self.max_delay_ms)
         if self.jitter:
             delay = delay * (0.5 + random.random() * 0.5)
         return delay
@@ -160,6 +166,7 @@ class CircuitBreaker:
     def state(self) -> CircuitState:
         if self._state == "open" and self._opened_at:
             from datetime import datetime, timezone
+
             opened = datetime.fromisoformat(self._opened_at.replace("Z", "+00:00"))
             now = datetime.now(timezone.utc)
             if (now - opened).total_seconds() > self.recovery_timeout:

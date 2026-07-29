@@ -20,7 +20,10 @@ def test_single_port_ui_serves_html() -> None:
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "<title>Tríade Ω</title>" in response.text or "Tríade Ω · Consola limpia" in response.text
+    assert (
+        "<title>Tríade Ω</title>" in response.text
+        or "Tríade Ω · Consola limpia" in response.text
+    )
     assert "root" in response.text or "Tríade Ω · Consola limpia" in response.text
     assert "Tríade" in response.text
 
@@ -37,7 +40,9 @@ def test_single_port_health() -> None:
     assert "doctor" in payload
 
 
-def test_cloud_readiness_defaults_to_writable_checkout_paths(tmp_path, monkeypatch) -> None:
+def test_cloud_readiness_defaults_to_writable_checkout_paths(
+    tmp_path, monkeypatch
+) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("TRIADE_MEMORY_DIR", raising=False)
     monkeypatch.delenv("TRIADE_RUNS_DIR", raising=False)
@@ -52,7 +57,9 @@ def test_cloud_readiness_defaults_to_writable_checkout_paths(tmp_path, monkeypat
 
 
 def test_single_port_router_doctor() -> None:
-    response = client.post("/api/router/doctor", json={"intent": "analyze", "urgency": "medium"})
+    response = client.post(
+        "/api/router/doctor", json={"intent": "analyze", "urgency": "medium"}
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -118,7 +125,9 @@ def test_single_port_system_pulse_summarizes_alerts() -> None:
     assert payload["life"]["mode"] == "life-pulse"
     assert payload["qualia"]["mode"] == "qualia"
     names = {item["name"] for item in payload["checks"]}
-    assert {"router", "semantic_memory", "signed_transport", "model_queue"}.issubset(names)
+    assert {"router", "semantic_memory", "signed_transport", "model_queue"}.issubset(
+        names
+    )
 
 
 def test_single_port_life_endpoint_reports_background_counters() -> None:
@@ -137,7 +146,12 @@ def test_single_port_life_endpoint_reports_background_counters() -> None:
 def test_continuous_runner_control_endpoint_default_safe() -> None:
     response = client.post(
         "/api/system/life/continuous-runner",
-        json={"enabled": False, "autonomy_level": "observe_only", "interval_seconds": 1, "max_cycles": 1},
+        json={
+            "enabled": False,
+            "autonomy_level": "observe_only",
+            "interval_seconds": 1,
+            "max_cycles": 1,
+        },
     )
 
     assert response.status_code == 200
@@ -158,7 +172,9 @@ def test_continuous_runner_control_rejects_invalid_autonomy_level() -> None:
 
 
 def test_full_neuron_operational_state_endpoint() -> None:
-    response = client.get("/api/system/neurons/full", params={"limit": 5, "mission_limit": 5})
+    response = client.get(
+        "/api/system/neurons/full", params={"limit": 5, "mission_limit": 5}
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -233,7 +249,9 @@ def test_single_port_chat_answers_semantic_memory_state_with_qualia() -> None:
     text = payload["response"].lower()
     assert "memoria persistente" in text
     assert payload["memory_diff"]["semantic_continuity"]["status"] == "ok"
-    assert payload["memory_diff"]["semantic_continuity"]["embedding_event"]["ok"] is True
+    assert (
+        payload["memory_diff"]["semantic_continuity"]["embedding_event"]["ok"] is True
+    )
 
 
 def test_federated_model_plan_sums_authorized_resources() -> None:
@@ -260,7 +278,10 @@ def test_federated_model_plan_sums_authorized_resources() -> None:
 
     assert plan["cpu_authorized_count"] == 8
     assert plan["ram_authorized_gb"] == 4.3
-    assert any(item["model"] == "qwen2.5:3b-instruct" for item in plan["runnable_by_aggregate_ram"])
+    assert any(
+        item["model"] == "qwen2.5:3b-instruct"
+        for item in plan["runnable_by_aggregate_ram"]
+    )
     assert plan["can_run_single_llm_by_sum"] is False
     assert plan["runtime"] == "pending_distributed_inference_runtime"
 
@@ -303,7 +324,10 @@ def test_federation_resource_lease_tracks_transports_and_resources() -> None:
                 "edge_model_runtime": False,
                 "model_runtime_backend": "none",
                 "can_host_llm": False,
-                "capabilities": {"relay_url": "https://relay.test", "allowed_tasks": ["preprocess_text"]},
+                "capabilities": {
+                    "relay_url": "https://relay.test",
+                    "allowed_tasks": ["preprocess_text"],
+                },
             },
         ]
     )
@@ -317,7 +341,9 @@ def test_federation_resource_lease_tracks_transports_and_resources() -> None:
     assert lease["leases"][0]["lease_status"] == "job_worker_ready"
 
 
-def test_single_port_android_apk_missing_until_artifact_is_copied(tmp_path, monkeypatch) -> None:
+def test_single_port_android_apk_missing_until_artifact_is_copied(
+    tmp_path, monkeypatch
+) -> None:
     monkeypatch.setattr(services, "ANDROID_APK_PATH", tmp_path / "missing.apk")
 
     response = client.get("/downloads/triade-android-node.apk")
@@ -325,7 +351,9 @@ def test_single_port_android_apk_missing_until_artifact_is_copied(tmp_path, monk
     assert response.status_code == 404
 
 
-def test_single_port_serves_android_apk_when_artifact_exists(tmp_path, monkeypatch) -> None:
+def test_single_port_serves_android_apk_when_artifact_exists(
+    tmp_path, monkeypatch
+) -> None:
     apk = tmp_path / "triade-android-node.apk"
     apk.write_bytes(b"PK\x03\x04" + b"apk" * 1024)
     monkeypatch.setattr(services, "ANDROID_APK_PATH", apk)
@@ -337,9 +365,15 @@ def test_single_port_serves_android_apk_when_artifact_exists(tmp_path, monkeypat
     assert int(response.headers["content-length"]) == apk.stat().st_size
 
 
-def test_single_port_android_runtime_manifest_reports_missing_assets(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(services, "ANDROID_LLAMA_CLI_PATH", tmp_path / "missing-llama-cli")
-    monkeypatch.setattr(services, "ANDROID_BASE_MODEL_PATH", tmp_path / "missing-model.gguf")
+def test_single_port_android_runtime_manifest_reports_missing_assets(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        services, "ANDROID_LLAMA_CLI_PATH", tmp_path / "missing-llama-cli"
+    )
+    monkeypatch.setattr(
+        services, "ANDROID_BASE_MODEL_PATH", tmp_path / "missing-model.gguf"
+    )
 
     response = client.get("/downloads/android/runtime-manifest")
 
@@ -372,11 +406,19 @@ def test_single_port_serves_android_runtime_assets(tmp_path, monkeypatch) -> Non
     assert "pkg install" in script_response.text
 
 
-def test_single_port_accepts_local_android_node_heartbeat(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+def test_single_port_accepts_local_android_node_heartbeat(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json"
+    )
 
     def fake_upsert(node_id: str, name: str, capabilities: dict):
-        return {"node_id": node_id, "name": name, "capabilities": services.local_node_capabilities(node_id, capabilities)}
+        return {
+            "node_id": node_id,
+            "name": name,
+            "capabilities": services.local_node_capabilities(node_id, capabilities),
+        }
 
     monkeypatch.setattr(services, "upsert_local_android_node", fake_upsert)
 
@@ -423,7 +465,9 @@ def test_single_port_accepts_local_android_node_heartbeat(tmp_path, monkeypatch)
 
 
 def test_single_port_local_job_cycle(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+    monkeypatch.setattr(
+        services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json"
+    )
     single_port_app.LOCAL_JOBS.clear()
     node_id = "local-test-node"
     job = single_port_app.create_local_job(node_id, "browser_benchmark", seconds=1)
@@ -450,11 +494,21 @@ def test_single_port_local_job_cycle(tmp_path, monkeypatch) -> None:
 
 
 def test_signed_federated_transport_local_job_cycle(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+    monkeypatch.setattr(
+        services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json"
+    )
     single_port_app.LOCAL_JOBS.clear()
-    register = client.post("/api/register", json={"display_name": "Android firmado", "capabilities": {"native_android": True, "app_node": True}})
+    register = client.post(
+        "/api/register",
+        json={
+            "display_name": "Android firmado",
+            "capabilities": {"native_android": True, "app_node": True},
+        },
+    )
     identity = register.json()
-    job = single_port_app.create_local_job(identity["node_id"], "sha256", payload={"hello": "triade"})
+    job = single_port_app.create_local_job(
+        identity["node_id"], "sha256", payload={"hello": "triade"}
+    )
 
     next_payload = {"request": "next_job"}
     timestamp = int(time.time())
@@ -463,7 +517,13 @@ def test_signed_federated_transport_local_job_cycle(tmp_path, monkeypatch) -> No
         "timestamp": timestamp,
         "nonce": "nonce-next-12345",
         "payload": next_payload,
-        "signature": sign_payload(identity["node_token"], identity["node_id"], timestamp, "nonce-next-12345", next_payload),
+        "signature": sign_payload(
+            identity["node_token"],
+            identity["node_id"],
+            timestamp,
+            "nonce-next-12345",
+            next_payload,
+        ),
         "public_key": "android-test-key",
     }
     next_job = client.post("/api/federation/transport/next", json=next_envelope)
@@ -472,14 +532,25 @@ def test_signed_federated_transport_local_job_cycle(tmp_path, monkeypatch) -> No
     assert next_job.json()["job"]["job_id"] == job["job_id"]
     assert single_port_app.LOCAL_JOBS[job["job_id"]]["status"] == "running"
 
-    result_payload = {"job_id": job["job_id"], "status": "completed", "result": {"sha256": "abc"}, "error": None}
+    result_payload = {
+        "job_id": job["job_id"],
+        "status": "completed",
+        "result": {"sha256": "abc"},
+        "error": None,
+    }
     result_timestamp = int(time.time())
     result_envelope = {
         "node_id": identity["node_id"],
         "timestamp": result_timestamp,
         "nonce": "nonce-result-123",
         "payload": result_payload,
-        "signature": sign_payload(identity["node_token"], identity["node_id"], result_timestamp, "nonce-result-123", result_payload),
+        "signature": sign_payload(
+            identity["node_token"],
+            identity["node_id"],
+            result_timestamp,
+            "nonce-result-123",
+            result_payload,
+        ),
         "public_key": "android-test-key",
     }
     result = client.post("/api/federation/transport/result", json=result_envelope)
@@ -489,12 +560,24 @@ def test_signed_federated_transport_local_job_cycle(tmp_path, monkeypatch) -> No
     assert single_port_app.LOCAL_JOBS[job["job_id"]]["result"]["sha256"] == "abc"
 
 
-def test_signed_federated_transport_rejects_bad_signature(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+def test_signed_federated_transport_rejects_bad_signature(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json"
+    )
     single_port_app.LOCAL_JOBS.clear()
-    register = client.post("/api/register", json={"display_name": "Android firmado", "capabilities": {"native_android": True, "app_node": True}})
+    register = client.post(
+        "/api/register",
+        json={
+            "display_name": "Android firmado",
+            "capabilities": {"native_android": True, "app_node": True},
+        },
+    )
     identity = register.json()
-    single_port_app.create_local_job(identity["node_id"], "sha256", payload={"hello": "triade"})
+    single_port_app.create_local_job(
+        identity["node_id"], "sha256", payload={"hello": "triade"}
+    )
 
     response = client.post(
         "/api/federation/transport/next",
@@ -510,13 +593,25 @@ def test_signed_federated_transport_rejects_bad_signature(tmp_path, monkeypatch)
     assert response.status_code == 401
 
 
-def test_signed_federated_transport_rejects_replayed_nonce(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json")
+def test_signed_federated_transport_rejects_replayed_nonce(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        services, "local_node_token_path", lambda: tmp_path / "local_node_tokens.json"
+    )
     routes_api.SIGNED_NONCE_CACHE.clear()
     single_port_app.LOCAL_JOBS.clear()
-    register = client.post("/api/register", json={"display_name": "Android firmado", "capabilities": {"native_android": True, "app_node": True}})
+    register = client.post(
+        "/api/register",
+        json={
+            "display_name": "Android firmado",
+            "capabilities": {"native_android": True, "app_node": True},
+        },
+    )
     identity = register.json()
-    single_port_app.create_local_job(identity["node_id"], "sha256", payload={"hello": "triade"})
+    single_port_app.create_local_job(
+        identity["node_id"], "sha256", payload={"hello": "triade"}
+    )
 
     payload = {"request": "next_job"}
     timestamp = int(time.time())
@@ -525,7 +620,13 @@ def test_signed_federated_transport_rejects_replayed_nonce(tmp_path, monkeypatch
         "timestamp": timestamp,
         "nonce": "nonce-replay-12345",
         "payload": payload,
-        "signature": sign_payload(identity["node_token"], identity["node_id"], timestamp, "nonce-replay-12345", payload),
+        "signature": sign_payload(
+            identity["node_token"],
+            identity["node_id"],
+            timestamp,
+            "nonce-replay-12345",
+            payload,
+        ),
     }
 
     first = client.post("/api/federation/transport/next", json=envelope)
@@ -551,15 +652,26 @@ def test_local_jobs_only_accept_sandbox_tasks() -> None:
     except ValueError as exc:
         assert "sandbox federado" in str(exc)
     else:
-        raise AssertionError("create_local_job accepted a task outside the federation sandbox")
+        raise AssertionError(
+            "create_local_job accepted a task outside the federation sandbox"
+        )
 
 
 def test_distributed_runtime_preprocess_merges_android_results(monkeypatch) -> None:
     single_port_app.LOCAL_JOBS.clear()
-    fake_nodes = lambda task=None: [
-        {"node_id": "android-a", "capabilities": {"allowed_tasks": ["preprocess_text"]}},
-        {"node_id": "android-b", "capabilities": {"allowed_tasks": ["preprocess_text"]}},
-    ]
+
+    def fake_nodes(task=None):
+        return [
+            {
+                "node_id": "android-a",
+                "capabilities": {"allowed_tasks": ["preprocess_text"]},
+            },
+            {
+                "node_id": "android-b",
+                "capabilities": {"allowed_tasks": ["preprocess_text"]},
+            },
+        ]
+
     monkeypatch.setattr(single_port_app, "local_federated_nodes", fake_nodes)
     monkeypatch.setattr(routes_api, "local_federated_nodes", fake_nodes)
 
@@ -581,7 +693,10 @@ def test_distributed_runtime_preprocess_merges_android_results(monkeypatch) -> N
     monkeypatch.setattr(routes_api, "wait_local_job", fake_wait)
     response = client.post(
         "/api/distributed-runtime/preprocess",
-        json={"text": "triade federada alimenta modelo local con contexto distribuido", "wait_timeout": 1},
+        json={
+            "text": "triade federada alimenta modelo local con contexto distribuido",
+            "wait_timeout": 1,
+        },
     )
 
     assert response.status_code == 200
@@ -595,20 +710,35 @@ def test_distributed_runtime_preprocess_merges_android_results(monkeypatch) -> N
 
 def test_distributed_runtime_preprocess_falls_back_to_public_relay(monkeypatch) -> None:
     monkeypatch.setattr(routes_api, "local_federated_nodes", lambda task=None: [])
-    monkeypatch.setattr(routes_api, "relay_settings", lambda: {"url": "https://relay.test", "admin_token": "token"})
+    monkeypatch.setattr(
+        routes_api,
+        "relay_settings",
+        lambda: {"url": "https://relay.test", "admin_token": "token"},
+    )
 
     class FakeRelayClient:
         def __init__(self, url: str, admin_token: str, timeout: float = 12.0) -> None:
             self.url = url
             self.admin_token = admin_token
 
-        def preprocess_text_online(self, federation, text: str, max_chunk_chars: int = 1200, wait_timeout: float = 45.0):
+        def preprocess_text_online(
+            self,
+            federation,
+            text: str,
+            max_chunk_chars: int = 1200,
+            wait_timeout: float = 45.0,
+        ):
             return {
                 "status": "ok",
                 "submitted": 1,
                 "completed": 1,
-                "results": [{"node_id": "relay-android", "job": {"status": "completed"}}],
-                "model_feed": {"ready_for_local_model": True, "keywords": [{"term": "relay", "count": 1}]},
+                "results": [
+                    {"node_id": "relay-android", "job": {"status": "completed"}}
+                ],
+                "model_feed": {
+                    "ready_for_local_model": True,
+                    "keywords": [{"term": "relay", "count": 1}],
+                },
             }
 
     monkeypatch.setattr(routes_api, "PublicRelayClient", FakeRelayClient)
@@ -629,7 +759,12 @@ def test_distributed_runtime_probe_reports_remote_ops(monkeypatch) -> None:
     monkeypatch.setattr(
         routes_api,
         "local_federated_nodes",
-        lambda task=None: [{"node_id": "android-a", "capabilities": {"allowed_tasks": ["federated_inference_probe"]}}],
+        lambda task=None: [
+            {
+                "node_id": "android-a",
+                "capabilities": {"allowed_tasks": ["federated_inference_probe"]},
+            }
+        ],
     )
 
     def fake_wait(job_id: str, timeout: float = 25.0, interval: float = 0.5):
@@ -659,11 +794,18 @@ def test_distributed_runtime_probe_reports_remote_ops(monkeypatch) -> None:
     assert "tensor-paralela" in payload["truth"]
 
 
-def test_distributed_runtime_android_model_doctor_reports_unavailable_backend(monkeypatch) -> None:
+def test_distributed_runtime_android_model_doctor_reports_unavailable_backend(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(
         routes_api,
         "local_federated_nodes",
-        lambda task=None: [{"node_id": "android-a", "capabilities": {"allowed_tasks": ["android_model_doctor"]}}],
+        lambda task=None: [
+            {
+                "node_id": "android-a",
+                "capabilities": {"allowed_tasks": ["android_model_doctor"]},
+            }
+        ],
     )
 
     def fake_wait(job_id: str, timeout: float = 25.0, interval: float = 0.5):
@@ -680,7 +822,9 @@ def test_distributed_runtime_android_model_doctor_reports_unavailable_backend(mo
         }
 
     monkeypatch.setattr(routes_api, "wait_local_job", fake_wait)
-    response = client.post("/api/distributed-runtime/android-model-doctor", json={"wait_timeout": 1})
+    response = client.post(
+        "/api/distributed-runtime/android-model-doctor", json={"wait_timeout": 1}
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -692,7 +836,11 @@ def test_distributed_runtime_android_model_doctor_reports_unavailable_backend(mo
 
 def test_android_local_generate_requires_real_llm_host(monkeypatch) -> None:
     monkeypatch.setattr(routes_api, "local_federated_nodes", lambda task=None: [])
-    monkeypatch.setattr(routes_api, "relay_settings", lambda: {"url": "https://relay.test", "admin_token": None})
+    monkeypatch.setattr(
+        routes_api,
+        "relay_settings",
+        lambda: {"url": "https://relay.test", "admin_token": None},
+    )
 
     response = client.post(
         "/api/distributed-runtime/android-local-generate",
@@ -740,7 +888,12 @@ def test_android_local_generate_uses_ready_local_host(monkeypatch) -> None:
     monkeypatch.setattr(routes_api, "wait_local_job", fake_wait)
     response = client.post(
         "/api/distributed-runtime/android-local-generate",
-        json={"prompt": "hola desde android", "model": "tiny.gguf", "max_tokens": 16, "wait_timeout": 5},
+        json={
+            "prompt": "hola desde android",
+            "model": "tiny.gguf",
+            "max_tokens": 16,
+            "wait_timeout": 5,
+        },
     )
 
     assert response.status_code == 200
@@ -748,7 +901,10 @@ def test_android_local_generate_uses_ready_local_host(monkeypatch) -> None:
     assert payload["status"] == "ok"
     assert payload["transport"] == "lan_8010"
     assert payload["response"] == "respuesta android"
-    assert single_port_app.LOCAL_JOBS[payload["job"]["job_id"]]["payload"]["model"] == "tiny.gguf"
+    assert (
+        single_port_app.LOCAL_JOBS[payload["job"]["job_id"]]["payload"]["model"]
+        == "tiny.gguf"
+    )
 
 
 def test_single_port_run_accepts_auto_select_models() -> None:

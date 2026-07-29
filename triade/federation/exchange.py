@@ -40,7 +40,9 @@ class FederatedEnvelope:
             self.nonce,
         )
         if not all(item.strip() for item in required):
-            raise ValueError("identificadores, capacidad, permiso y nonce son obligatorios")
+            raise ValueError(
+                "identificadores, capacidad, permiso y nonce son obligatorios"
+            )
         if self.issued_at < 0 or self.expires_at <= self.issued_at:
             raise ValueError("ventana temporal inválida")
         if not isinstance(self.payload, dict):
@@ -71,14 +73,18 @@ class HMACEnvelopeAuthenticator:
 
     def sign(self, envelope: FederatedEnvelope) -> FederatedEnvelope:
         secret = self._secret(envelope.sender_node_id)
-        signature = hmac.new(secret, envelope.canonical_bytes(), hashlib.sha256).hexdigest()
+        signature = hmac.new(
+            secret, envelope.canonical_bytes(), hashlib.sha256
+        ).hexdigest()
         return FederatedEnvelope(**{**envelope.to_dict(), "signature": signature})
 
     def verify(self, envelope: FederatedEnvelope) -> bool:
         if len(envelope.signature) != 64:
             return False
         secret = self._secret(envelope.sender_node_id)
-        expected = hmac.new(secret, envelope.canonical_bytes(), hashlib.sha256).hexdigest()
+        expected = hmac.new(
+            secret, envelope.canonical_bytes(), hashlib.sha256
+        ).hexdigest()
         return hmac.compare_digest(expected, envelope.signature)
 
     def _secret(self, node_id: str) -> bytes:
@@ -181,7 +187,14 @@ class FederatedExchangeStore:
                     now,
                 ),
             )
-            self._event(conn, envelope.message_id, "accepted", "validación completa", envelope.to_dict(), now)
+            self._event(
+                conn,
+                envelope.message_id,
+                "accepted",
+                "validación completa",
+                envelope.to_dict(),
+                now,
+            )
         return {
             "message_id": envelope.message_id,
             "status": "accepted",

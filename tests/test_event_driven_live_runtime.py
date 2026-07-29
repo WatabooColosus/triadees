@@ -21,7 +21,12 @@ def test_scheduler_uses_monotonic_due_times_without_drift() -> None:
     clock = FakeClock()
     calls: list[float] = []
     scheduler = EventDrivenScheduler(clock=clock, seed=1)
-    scheduler.add_job("heartbeat", lambda: calls.append(clock()), interval_seconds=5, run_immediately=True)
+    scheduler.add_job(
+        "heartbeat",
+        lambda: calls.append(clock()),
+        interval_seconds=5,
+        run_immediately=True,
+    )
 
     scheduler.execute_due()
     assert calls == [100.0]
@@ -36,7 +41,9 @@ def test_scheduler_uses_monotonic_due_times_without_drift() -> None:
 def test_scheduler_jitter_stays_bounded() -> None:
     clock = FakeClock()
     scheduler = EventDrivenScheduler(clock=clock, seed=7)
-    job = scheduler.add_job("health", lambda: None, interval_seconds=15, jitter_seconds=2)
+    job = scheduler.add_job(
+        "health", lambda: None, interval_seconds=15, jitter_seconds=2
+    )
     assert 113.0 <= job.next_due_at <= 117.0
 
 
@@ -48,7 +55,9 @@ def test_new_task_wakes_idle_runtime(tmp_path) -> None:
     scheduler.add_job("later", lambda: None, interval_seconds=60)
     result: list[str] = []
 
-    waiter = threading.Thread(target=lambda: result.append(scheduler.wait(maximum_seconds=2)))
+    waiter = threading.Thread(
+        target=lambda: result.append(scheduler.wait(maximum_seconds=2))
+    )
     waiter.start()
     time.sleep(0.02)
     WorkerTaskQueue(db_path).enqueue("pulse_check", {"wake": True})
@@ -74,12 +83,16 @@ def test_accelerated_day_has_bounded_scheduler_state() -> None:
     scheduler = EventDrivenScheduler(clock=clock, seed=3)
     counts = {"heartbeat": 0, "dispatch": 0}
     scheduler.add_job(
-        "heartbeat", lambda: counts.__setitem__("heartbeat", counts["heartbeat"] + 1),
-        interval_seconds=5, run_immediately=True,
+        "heartbeat",
+        lambda: counts.__setitem__("heartbeat", counts["heartbeat"] + 1),
+        interval_seconds=5,
+        run_immediately=True,
     )
     scheduler.add_job(
-        "dispatch", lambda: counts.__setitem__("dispatch", counts["dispatch"] + 1),
-        interval_seconds=20, run_immediately=True,
+        "dispatch",
+        lambda: counts.__setitem__("dispatch", counts["dispatch"] + 1),
+        interval_seconds=20,
+        run_immediately=True,
     )
 
     for second in range(86_401):

@@ -13,10 +13,20 @@ def pytest_configure(config):
     source_root = Path(_ORIGINAL_CWD)
     memory = root / "triade" / "memory"
     memory.mkdir(parents=True)
-    (memory / "schemas.sql").symlink_to(source_root / "triade" / "memory" / "schemas.sql")
-    (memory / "migrations").symlink_to(source_root / "triade" / "memory" / "migrations", target_is_directory=True)
+    (memory / "schemas.sql").symlink_to(
+        source_root / "triade" / "memory" / "schemas.sql"
+    )
+    (memory / "migrations").symlink_to(
+        source_root / "triade" / "memory" / "migrations", target_is_directory=True
+    )
     (root / "scripts").symlink_to(source_root / "scripts", target_is_directory=True)
-    for name in ("triade.yml", "triade_digimon.py", "pyproject.toml", "requirements.txt", ".env.example"):
+    for name in (
+        "triade.yml",
+        "triade_digimon.py",
+        "pyproject.toml",
+        "requirements.txt",
+        ".env.example",
+    ):
         source = source_root / name
         if source.exists():
             (root / name).symlink_to(source)

@@ -25,7 +25,9 @@ class NeuronActivityStore:
 
     def _init_db(self) -> None:
         if not self.schema_path.exists():
-            raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
+            raise FileNotFoundError(
+                f"No existe el esquema de memoria: {self.schema_path}"
+            )
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
             self._migrate_table(conn)
@@ -51,10 +53,18 @@ class NeuronActivityStore:
             )
             """
         )
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_neuron_activity_run_id ON neuron_activity(run_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_neuron_activity_neuron_id ON neuron_activity(neuron_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_neuron_activity_name ON neuron_activity(name)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_neuron_activity_created_at ON neuron_activity(created_at)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_neuron_activity_run_id ON neuron_activity(run_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_neuron_activity_neuron_id ON neuron_activity(neuron_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_neuron_activity_name ON neuron_activity(name)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_neuron_activity_created_at ON neuron_activity(created_at)"
+        )
 
     def store_activity(self, *, run_id: str, activity: dict[str, Any]) -> list[int]:
         """Persiste activaciones de experimental_neuron_activity."""
@@ -113,7 +123,9 @@ class NeuronActivityStore:
         """Alias semántico usado por TriadeRunner para registrar actividad de un run."""
         return self.store_activity(run_id=run_id, activity=activity)
 
-    def list_activity(self, *, name: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    def list_activity(
+        self, *, name: str | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
         with self._connect() as conn:
             if name:
                 rows = conn.execute(

@@ -5,7 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from triade.core.internal_runtime import get_internal_runtime_state, RUNTIME_CYCLE_EVENTS
+from triade.core.internal_runtime import (
+    get_internal_runtime_state,
+    RUNTIME_CYCLE_EVENTS,
+)
 from triade.core.neuron_missions import NeuronMissionStore
 from triade.core.stable_neuron_audit import audit_stable_neurons
 from triade.learning.pipeline import LearningPipeline
@@ -45,7 +48,9 @@ def build_living_report(
         stable_audit = {
             "status": stable_audit_raw.get("status", "ok"),
             "total_stable_neurons": stable_audit_raw.get("total_stable_neurons", 0),
-            "stable_with_enough_evidence": stable_audit_raw.get("stable_with_enough_evidence", 0),
+            "stable_with_enough_evidence": stable_audit_raw.get(
+                "stable_with_enough_evidence", 0
+            ),
             "stable_needs_review": stable_audit_raw.get("stable_needs_review", 0),
             "thresholds": stable_audit_raw.get("thresholds", {}),
             "policy": stable_audit_raw.get("policy", {}),
@@ -75,8 +80,12 @@ def build_living_report(
     hardware = HardwareProfiler().detect()
     recent_events = list_recent_events(limit=200, db_path=db_path)
     cycles_last_hour = _count_recent(recent_events, RUNTIME_CYCLE_EVENTS, hours=1)
-    missions_executed_last_hour = _count_recent(recent_events, {"missions_executed"}, hours=1)
-    candidates_created_last_hour = _count_recent(recent_events, {"learning_candidate_created"}, hours=1)
+    missions_executed_last_hour = _count_recent(
+        recent_events, {"missions_executed"}, hours=1
+    )
+    candidates_created_last_hour = _count_recent(
+        recent_events, {"learning_candidate_created"}, hours=1
+    )
     last_cycle_at = _last_timestamp(recent_events, RUNTIME_CYCLE_EVENTS)
     top_internal_events = [
         {
@@ -110,7 +119,9 @@ def build_living_report(
             "semantic_engine_status": "unavailable",
         }
     bgc_mem_conf = bodega_global.get("memory_confidence", "low")
-    bgc_needs_review = (bodega_global.get("stable_audit_summary") or {}).get("stable_needs_review", 0)
+    bgc_needs_review = (bodega_global.get("stable_audit_summary") or {}).get(
+        "stable_needs_review", 0
+    )
     continuity_score = _compute_runtime_continuity_score(
         runtime_enabled=bool(runtime.get("enabled")),
         cycles_last_hour=cycles_last_hour,
@@ -122,6 +133,7 @@ def build_living_report(
     )
     runtime_enabled = bool(runtime.get("enabled"))
     from triade.core.ollama_blood import check_ollama_blood
+
     _ollama_degraded = check_ollama_blood().get("status") == "degraded_no_ollama"
     if not runtime_enabled:
         truth = "Servidor activo · Runtime apagado"
@@ -138,7 +150,11 @@ def build_living_report(
         "status": "ok",
         "api_server_alive": True,
         "heartbeat_truth": truth,
-        "is_thinking_without_chat": bool(cycles_last_hour or missions_executed_last_hour or candidates_created_last_hour),
+        "is_thinking_without_chat": bool(
+            cycles_last_hour
+            or missions_executed_last_hour
+            or candidates_created_last_hour
+        ),
         "runtime_enabled": runtime_enabled,
         "runtime_mode": runtime.get("mode"),
         "runtime_id": runtime.get("runtime_id"),
@@ -147,7 +163,9 @@ def build_living_report(
         "missions_executed_last_hour": missions_executed_last_hour,
         "learning_candidates_created_last_hour": candidates_created_last_hour,
         "workers_active": bool(worker_status.get("running")),
-        "models_available": ollama.get("models", []) if isinstance(ollama, dict) else [],
+        "models_available": ollama.get("models", [])
+        if isinstance(ollama, dict)
+        else [],
         "qualia_state": qualia,
         "top_internal_events": top_internal_events,
         "safety": {
@@ -165,14 +183,24 @@ def build_living_report(
         "bodega_global_context_summary": {
             "status": bodega_global.get("status", "error"),
             "memory_confidence": bgc_mem_conf,
-            "memory_confidence_score": bodega_global.get("memory_confidence_score", 0.0),
+            "memory_confidence_score": bodega_global.get(
+                "memory_confidence_score", 0.0
+            ),
             "continuity_summary": bodega_global.get("continuity_summary", ""),
-            "recommended_context_policy": bodega_global.get("recommended_context_policy", "ask_or_operate_with_limited_memory"),
+            "recommended_context_policy": bodega_global.get(
+                "recommended_context_policy", "ask_or_operate_with_limited_memory"
+            ),
             "contradictions_count": len(bodega_global.get("contradictions") or []),
-            "semantic_matches_count": len((bodega_global.get("semantic_recall") or {}).get("semantic_matches", [])) if isinstance(bodega_global.get("semantic_recall"), dict) else 0,
+            "semantic_matches_count": len(
+                (bodega_global.get("semantic_recall") or {}).get("semantic_matches", [])
+            )
+            if isinstance(bodega_global.get("semantic_recall"), dict)
+            else 0,
             "recent_episodes_count": len(bodega_global.get("recent_episodes") or []),
             "stable_needs_review": bgc_needs_review,
-            "semantic_engine_status": bodega_global.get("semantic_engine_status", "unavailable"),
+            "semantic_engine_status": bodega_global.get(
+                "semantic_engine_status", "unavailable"
+            ),
         },
         "runtime_continuity_score": continuity_score,
     }
@@ -209,7 +237,9 @@ def _compute_runtime_continuity_score(
     return min(score, 1.0)
 
 
-def _count_recent(events: list[dict[str, Any]], wanted: set[str], hours: int = 1) -> int:
+def _count_recent(
+    events: list[dict[str, Any]], wanted: set[str], hours: int = 1
+) -> int:
     from datetime import datetime, timedelta, timezone
 
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)

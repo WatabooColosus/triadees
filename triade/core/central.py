@@ -21,7 +21,15 @@ from triade.models.ollama_client import OllamaClient
 
 log = logging.getLogger(__name__)
 
-VALID_STATES = ("pending", "ready", "running", "completed", "failed", "rolled_back", "blocked")
+VALID_STATES = (
+    "pending",
+    "ready",
+    "running",
+    "completed",
+    "failed",
+    "rolled_back",
+    "blocked",
+)
 
 
 @dataclass
@@ -37,11 +45,15 @@ class StepBudget:
     used_tokens: int = 0
 
     def can_proceed(self) -> bool:
-        return (self.used_cpu_seconds < self.cpu_seconds and
-                self.used_ram_mb < self.ram_mb and
-                self.used_tokens < self.tokens_max)
+        return (
+            self.used_cpu_seconds < self.cpu_seconds
+            and self.used_ram_mb < self.ram_mb
+            and self.used_tokens < self.tokens_max
+        )
 
-    def consume(self, cpu: float = 0.0, ram: float = 0.0, gpu: float = 0.0, tokens: int = 0) -> None:
+    def consume(
+        self, cpu: float = 0.0, ram: float = 0.0, gpu: float = 0.0, tokens: int = 0
+    ) -> None:
         self.used_cpu_seconds += cpu
         self.used_ram_mb += ram
         self.used_gpu_seconds += gpu
@@ -247,7 +259,13 @@ class PlanGraph:
 
     def close(self) -> dict[str, Any]:
         self.completed_at = utc_now()
-        self.status = "completed" if self.all_completed else "failed" if self.has_failures else "partial"
+        self.status = (
+            "completed"
+            if self.all_completed
+            else "failed"
+            if self.has_failures
+            else "partial"
+        )
         self.compute_metrics()
         return self.metrics
 
@@ -292,10 +310,24 @@ class Central:
     """Planeador y generador de salida con PlanGraph estructurado."""
 
     INTERNAL_AUDIT_TERMS = {
-        "audita", "auditoría", "auditoria", "analiza el run", "analiza este run",
-        "diagnóstico técnico", "diagnostico tecnico", "debug", "trazabilidad",
-        "q_crystal", "cristal", "hipotálamo", "hipotalamo", "pv7",
-        "paquete cognitivo", "reporte interno", "señales internas", "senales internas",
+        "audita",
+        "auditoría",
+        "auditoria",
+        "analiza el run",
+        "analiza este run",
+        "diagnóstico técnico",
+        "diagnostico tecnico",
+        "debug",
+        "trazabilidad",
+        "q_crystal",
+        "cristal",
+        "hipotálamo",
+        "hipotalamo",
+        "pv7",
+        "paquete cognitivo",
+        "reporte interno",
+        "señales internas",
+        "senales internas",
     }
 
     TRIAD_IDENTITY_CORE = (
@@ -309,7 +341,11 @@ class Central:
         "En full_local_guarded puede investigar la web cuando el usuario lo pide explícitamente."
     )
 
-    def __init__(self, model_client: OllamaClient | None = None, central_model: str = "qwen2.5:3b-instruct") -> None:
+    def __init__(
+        self,
+        model_client: OllamaClient | None = None,
+        central_model: str = "qwen2.5:3b-instruct",
+    ) -> None:
         self.model_client = model_client
         self.central_model = central_model
         self._conn: sqlite3.Connection | None = None
@@ -327,12 +363,17 @@ class Central:
                (plan_id, goal, status, steps_json, metrics_json, constitution_json,
                 delegation_json, created_at, completed_at)
                VALUES (?,?,?,?,?,?,?,?,?)""",
-            (graph.plan_id, graph.goal, graph.status,
-             json.dumps([s.to_dict() for s in graph.steps], default=str),
-             json.dumps(graph.metrics, default=str),
-             json.dumps(graph.constitution_applied, default=str),
-             json.dumps(graph.delegation_log, default=str),
-             graph.created_at, graph.completed_at or None),
+            (
+                graph.plan_id,
+                graph.goal,
+                graph.status,
+                json.dumps([s.to_dict() for s in graph.steps], default=str),
+                json.dumps(graph.metrics, default=str),
+                json.dumps(graph.constitution_applied, default=str),
+                json.dumps(graph.delegation_log, default=str),
+                graph.created_at,
+                graph.completed_at or None,
+            ),
         )
         self._conn.commit()
 
@@ -348,24 +389,30 @@ class Central:
         steps = []
         for sd in steps_data:
             budget = StepBudget(**sd.get("budget", {}))
-            steps.append(PlanStep(
-                id=sd["id"], description=sd["description"],
-                step_type=sd.get("step_type", "action"),
-                state=sd.get("state", "pending"),
-                priority=sd.get("priority", 2),
-                dependencies=sd.get("dependencies", []),
-                assigned_to=sd.get("assigned_to", "central"),
-                budget=budget, result=sd.get("result", {}),
-                error=sd.get("error", ""),
-                started_at=sd.get("started_at", ""),
-                completed_at=sd.get("completed_at", ""),
-                retry_count=sd.get("retry_count", 0),
-                max_retries=sd.get("max_retries", 2),
-                rollback_data=sd.get("rollback_data", {}),
-            ))
+            steps.append(
+                PlanStep(
+                    id=sd["id"],
+                    description=sd["description"],
+                    step_type=sd.get("step_type", "action"),
+                    state=sd.get("state", "pending"),
+                    priority=sd.get("priority", 2),
+                    dependencies=sd.get("dependencies", []),
+                    assigned_to=sd.get("assigned_to", "central"),
+                    budget=budget,
+                    result=sd.get("result", {}),
+                    error=sd.get("error", ""),
+                    started_at=sd.get("started_at", ""),
+                    completed_at=sd.get("completed_at", ""),
+                    retry_count=sd.get("retry_count", 0),
+                    max_retries=sd.get("max_retries", 2),
+                    rollback_data=sd.get("rollback_data", {}),
+                )
+            )
         return PlanGraph(
-            plan_id=row["plan_id"], goal=row["goal"],
-            steps=steps, status=row["status"],
+            plan_id=row["plan_id"],
+            goal=row["goal"],
+            steps=steps,
+            status=row["status"],
             metrics=json.loads(row["metrics_json"]),
             constitution_applied=json.loads(row["constitution_json"]),
             delegation_log=json.loads(row["delegation_json"]),
@@ -396,9 +443,12 @@ class Central:
                 timeout_seconds=20.0 if step_type == "action" else 15.0,
             )
             step = PlanStep(
-                id=f"step-{idx}", description=text,
-                step_type=step_type, priority=priority,
-                dependencies=deps, assigned_to=assigned_to,
+                id=f"step-{idx}",
+                description=text,
+                step_type=step_type,
+                priority=priority,
+                dependencies=deps,
+                assigned_to=assigned_to,
                 budget=budget,
             )
             graph.add_step(step)
@@ -436,10 +486,15 @@ class Central:
         ]
         if constitution_constraints:
             for c in constitution_constraints:
-                text_steps.append(f"Respetar restricción constitucional: {c.get('article', '?')}")
+                text_steps.append(
+                    f"Respetar restricción constitucional: {c.get('article', '?')}"
+                )
 
         graph = self._build_plan_graph(
-            input_packet.run_id, text_steps, signals, crystal,
+            input_packet.run_id,
+            text_steps,
+            signals,
+            crystal,
             constitution_constraints,
         )
 
@@ -463,17 +518,24 @@ class Central:
         )
 
     def _chain_of_thought(
-        self, input_packet: Any, signals: Any, memory: Any, crystal: Any,
+        self,
+        input_packet: Any,
+        signals: Any,
+        memory: Any,
+        crystal: Any,
     ) -> list[str]:
         if self.model_client is None:
             return self._chain_of_thought_rules(input_packet, signals, memory, crystal)
         try:
-            context = json.dumps({
-                "user_input": input_packet.user_input[:500],
-                "intent": signals.intent,
-                "risk": signals.risk,
-                "urgency": signals.urgency,
-            }, ensure_ascii=False)
+            context = json.dumps(
+                {
+                    "user_input": input_packet.user_input[:500],
+                    "intent": signals.intent,
+                    "risk": signals.risk,
+                    "urgency": signals.urgency,
+                },
+                ensure_ascii=False,
+            )
             system = (
                 "Eres Central de Tríade. Genera una cadena de razonamiento en 3-5 pasos. "
                 "Formato: lista de strings, uno por paso."
@@ -491,7 +553,9 @@ class Central:
             log.warning("Central CoT failed, using rules: %s", exc)
         return self._chain_of_thought_rules(input_packet, signals, memory, crystal)
 
-    def _chain_of_thought_rules(self, input_packet: Any, signals: Any, memory: Any, crystal: Any) -> list[str]:
+    def _chain_of_thought_rules(
+        self, input_packet: Any, signals: Any, memory: Any, crystal: Any
+    ) -> list[str]:
         steps: list[str] = []
         q_crystal = getattr(crystal, "q_crystal", 0.5)
         stability = getattr(crystal, "stability", 0.5)
@@ -503,7 +567,9 @@ class Central:
         if hasattr(signals, "urgency") and signals.urgency == "high":
             steps.append("Urgencia alta: respuesta directa.")
         if memory.semantic_matches:
-            steps.append(f"Memoria semántica: {len(memory.semantic_matches)} coincidencia(s).")
+            steps.append(
+                f"Memoria semántica: {len(memory.semantic_matches)} coincidencia(s)."
+            )
         bgc = None
         ctx = getattr(input_packet, "context", {})
         if isinstance(ctx, dict):
@@ -511,22 +577,34 @@ class Central:
         if isinstance(bgc, dict) and bgc.get("status") == "ok":
             mem_conf = bgc.get("memory_confidence", "low")
             if mem_conf == "low":
-                steps.append("Memoria global con confianza baja: operar con memoria limitada.")
+                steps.append(
+                    "Memoria global con confianza baja: operar con memoria limitada."
+                )
             elif mem_conf == "medium":
-                steps.append("Memoria global con confianza media: usar contexto con cautela.")
+                steps.append(
+                    "Memoria global con confianza media: usar contexto con cautela."
+                )
             contradictions = bgc.get("contradictions") or []
             if contradictions:
-                steps.append(f"Se detectaron {len(contradictions)} contradicción(es) en memoria.")
+                steps.append(
+                    f"Se detectaron {len(contradictions)} contradicción(es) en memoria."
+                )
             stable_audit = bgc.get("stable_audit_summary") or {}
             if stable_audit.get("stable_needs_review", 0) > 0:
                 steps.append("Neuronas stable requieren revisión de evidencia.")
         if temporal in {"critical", "degrading"}:
-            steps.append("Reforzar prudencia por degradación temporal y registrar alerta.")
+            steps.append(
+                "Reforzar prudencia por degradación temporal y registrar alerta."
+            )
         elif temporal == "improving":
             steps.append("Sostener mejora temporal.")
         if q_crystal < 0.40:
             steps.append("Responder con prudencia elevada.")
-        elif q_crystal >= 0.70 and stability >= 0.65 and temporal not in {"critical", "degrading"}:
+        elif (
+            q_crystal >= 0.70
+            and stability >= 0.65
+            and temporal not in {"critical", "degrading"}
+        ):
             steps.append("Profundizar la respuesta manteniendo trazabilidad.")
         else:
             steps.append("Producir respuesta verificable.")
@@ -562,58 +640,79 @@ class Central:
                 continue
             if not step.budget.can_proceed():
                 step.block("budget_exhausted")
-                executed.append({
-                    "step_id": step.id, "description": step.description,
-                    "status": "blocked", "step_type": step.step_type,
-                    "assigned_to": step.assigned_to, "error": "budget_exhausted",
-                })
+                executed.append(
+                    {
+                        "step_id": step.id,
+                        "description": step.description,
+                        "status": "blocked",
+                        "step_type": step.step_type,
+                        "assigned_to": step.assigned_to,
+                        "error": "budget_exhausted",
+                    }
+                )
                 continue
             missing_deps = [d for d in step.dependencies if d not in completed_ids]
             if missing_deps:
                 step.block(f"missing_dependencies: {missing_deps}")
-                executed.append({
-                    "step_id": step.id, "description": step.description,
-                    "status": "blocked", "step_type": step.step_type,
-                    "assigned_to": step.assigned_to, "error": f"missing_deps: {missing_deps}",
-                })
+                executed.append(
+                    {
+                        "step_id": step.id,
+                        "description": step.description,
+                        "status": "blocked",
+                        "step_type": step.step_type,
+                        "assigned_to": step.assigned_to,
+                        "error": f"missing_deps: {missing_deps}",
+                    }
+                )
                 continue
-            step.start()
-            result = self._simulate_step(step, plan)
-            if result.get("ok"):
-                step.complete(result)
-                completed_ids.add(step.id)
-                step.budget.consume(cpu=result.get("seconds", 0.5), tokens=result.get("tokens", 50))
-            else:
-                step.fail(result.get("error", "unknown"))
-                if step.can_retry():
-                    step.retry()
-            executed.append({
-                "step_id": step.id, "description": step.description,
-                "status": step.state, "step_type": step.step_type,
-                "assigned_to": step.assigned_to,
-            })
-        return {"executed": executed, "status": "ok"}
+            # Central plans but has no execution backend.  Marking this step as
+            # completed used to simulate work and consume fabricated resources.
+            # Keep it pending for a governed worker/capability resolver instead.
+            self._unexecuted_step(step, plan)
+            executed.append(
+                {
+                    "step_id": step.id,
+                    "description": step.description,
+                    "status": step.state,
+                    "step_type": step.step_type,
+                    "assigned_to": step.assigned_to,
+                }
+            )
+        return {"executed": executed, "status": "requires_governed_executor"}
 
     @staticmethod
-    def _simulate_step(step: PlanStep, plan: Any) -> dict[str, Any]:
-        return {"ok": True, "seconds": 0.5, "tokens": 50, "message": f"Paso {step.id} completado."}
+    def _unexecuted_step(step: PlanStep, plan: Any) -> dict[str, Any]:
+        del plan
+        step.block("governed_executor_required")
+        return {"ok": False, "executed": False, "error": "governed_executor_required"}
 
-    def respond(self, input_packet: Any, signals: Any, memory: Any, crystal: Any, plan: Any) -> Any:
+    def respond(
+        self, input_packet: Any, signals: Any, memory: Any, crystal: Any, plan: Any
+    ) -> Any:
         from triade.core.contracts import OutputPacket
+
         identity = next(
-            (item["value"] for item in memory.identity_matches if item.get("key") == "entity_name"),
-            "Tríade Ω"
+            (
+                item["value"]
+                for item in memory.identity_matches
+                if item.get("key") == "entity_name"
+            ),
+            "Tríade Ω",
         )
         wants_audit = self._wants_internal_audit(input_packet.user_input)
-        fallback = self._fallback_response(identity, input_packet, signals, crystal, wants_audit)
+        fallback = self._fallback_response(
+            identity, input_packet, signals, crystal, wants_audit
+        )
         if self._is_identity_or_capability_question(input_packet.user_input):
             return OutputPacket(
                 run_id=input_packet.run_id,
                 response=self._identity_capability_response(identity),
                 actions_taken=["capability_truth_response"],
                 memory_diff={"pending_persistence": True},
-                status="ok", model_provider="policy",
-                model_name="capability-truth", model_ok=True,
+                status="ok",
+                model_provider="policy",
+                model_name="capability-truth",
+                model_ok=True,
             )
         if self.model_client is None:
             return OutputPacket(
@@ -621,25 +720,33 @@ class Central:
                 response=f"Operé sin Ollama. {fallback}",
                 actions_taken=["template_fallback"],
                 memory_diff={"pending_persistence": True, "degraded_no_ollama": True},
-                status="ok", model_provider="template",
-                model_name="template-fallback", model_ok=False,
+                status="ok",
+                model_provider="template",
+                model_name="template-fallback",
+                model_ok=False,
             )
-        prompt = self._build_prompt(identity, input_packet, signals, memory, crystal, plan, wants_audit)
+        prompt = self._build_prompt(
+            identity, input_packet, signals, memory, crystal, plan, wants_audit
+        )
         system = (
             "Eres Tríade Ω. Responde en español y conserva tu identidad operativa. "
             "Tu Bodega usa SQLite persistente entre sesiones y reinicios: nunca afirmes que la memoria desaparece al cerrar una sesión. "
             "Distingue persistencia de recuperación: guardas runs, episodios y memoria semántica, pero no recuperas literalmente todo en cada turno. "
             "Las fuentes web son evidencia candidata, nunca verdad estable automática."
         )
-        result = self.model_client.generate(self.central_model, prompt=prompt, system=system)
+        result = self.model_client.generate(
+            self.central_model, prompt=prompt, system=system
+        )
         if not result.ok or not result.text:
             return OutputPacket(
                 run_id=input_packet.run_id,
                 response=f"Ollama falló. {fallback}",
                 actions_taken=["ollama_failed", "template_fallback"],
                 memory_diff={"pending_persistence": True, "degraded_no_ollama": True},
-                status="ok", model_provider="ollama",
-                model_name=self.central_model, model_ok=False,
+                status="ok",
+                model_provider="ollama",
+                model_name=self.central_model,
+                model_ok=False,
                 model_error=result.error,
             )
         return OutputPacket(
@@ -647,12 +754,20 @@ class Central:
             response=result.text,
             actions_taken=["ollama_response"],
             memory_diff={"pending_persistence": True},
-            status="ok", model_provider="ollama",
-            model_name=self.central_model, model_ok=True,
+            status="ok",
+            model_provider="ollama",
+            model_name=self.central_model,
+            model_ok=True,
         )
 
     @staticmethod
-    def _fallback_response(identity: str, input_packet: Any, signals: Any, crystal: Any, wants_audit: bool = False) -> str:
+    def _fallback_response(
+        identity: str,
+        input_packet: Any,
+        signals: Any,
+        crystal: Any,
+        wants_audit: bool = False,
+    ) -> str:
         if not wants_audit:
             parts = [f"Soy {identity}. Recibí: «{input_packet.user_input[:200]}»."]
             return " ".join(parts)
@@ -663,7 +778,11 @@ class Central:
 
     @staticmethod
     def _is_identity_or_capability_question(text: str) -> bool:
-        normalized = unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode("ascii")
+        normalized = (
+            unicodedata.normalize("NFKD", text.lower())
+            .encode("ascii", "ignore")
+            .decode("ascii")
+        )
         normalized = re.sub(r"[^a-z0-9\s]", " ", normalized)
         normalized = re.sub(r"\s+", " ", normalized).strip()
         patterns = [
@@ -711,17 +830,34 @@ class Central:
         return any(term in text for term in Central.INTERNAL_AUDIT_TERMS)
 
     @staticmethod
-    def _build_prompt(identity: str, input_packet: Any, signals: Any, memory: Any, crystal: Any, plan: Any, wants_audit: bool) -> str:
+    def _build_prompt(
+        identity: str,
+        input_packet: Any,
+        signals: Any,
+        memory: Any,
+        crystal: Any,
+        plan: Any,
+        wants_audit: bool,
+    ) -> str:
         if not wants_audit:
             safe_matches = []
             for item in memory.semantic_matches[:3]:
                 content = str(item.get("content", "")).strip()[:400]
                 if content:
-                    safe_matches.append({"source_ref": str(item.get("source_ref", "mem")), "content": content})
+                    safe_matches.append(
+                        {
+                            "source_ref": str(item.get("source_ref", "mem")),
+                            "content": content,
+                        }
+                    )
             memory_truth = {}
             if isinstance(getattr(input_packet, "context", None), dict):
                 memory_truth = input_packet.context.get("memory_truth") or {}
-            web_research = input_packet.context.get("guarded_web_research") if isinstance(getattr(input_packet, "context", None), dict) else None
+            web_research = (
+                input_packet.context.get("guarded_web_research")
+                if isinstance(getattr(input_packet, "context", None), dict)
+                else None
+            )
             return (
                 f"Identidad: {identity}\n"
                 f"Usuario: {input_packet.user_input}\n"
@@ -732,17 +868,29 @@ class Central:
                 f"Investigación web candidata: {json.dumps(web_research or {}, ensure_ascii=False)[:3000]}\n"
                 "Respuesta:"
             )
-        return json.dumps({
-            "identity": identity, "user_input": input_packet.user_input,
-            "signals": signals.to_dict(), "crystal": crystal.to_dict(),
-            "plan": plan.to_dict(), "response_mode": "internal_audit",
-        }, ensure_ascii=False, indent=2)
+        return json.dumps(
+            {
+                "identity": identity,
+                "user_input": input_packet.user_input,
+                "signals": signals.to_dict(),
+                "crystal": crystal.to_dict(),
+                "plan": plan.to_dict(),
+                "response_mode": "internal_audit",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
 
     @staticmethod
     def _response_ignores_current_question(user_input: str, response: str) -> bool:
         user = user_input.lower()
         answer = response.lower()
-        if "?" not in user or Central._is_identity_or_capability_question(user) or "como estas" in user or "cómo estás" in user:
+        if (
+            "?" not in user
+            or Central._is_identity_or_capability_question(user)
+            or "como estas" in user
+            or "cómo estás" in user
+        ):
             return False
         self_state_markers = (
             "no siento como una persona",
@@ -755,7 +903,10 @@ class Central:
 
     @staticmethod
     def _crystal_mode(crystal: Any) -> str:
-        if hasattr(crystal, "temporal_status") and crystal.temporal_status in {"critical", "degrading"}:
+        if hasattr(crystal, "temporal_status") and crystal.temporal_status in {
+            "critical",
+            "degrading",
+        }:
             return "prudencia temporal reforzada"
         if hasattr(crystal, "q_crystal") and crystal.q_crystal < 0.40:
             return "prudencia elevada"
@@ -767,26 +918,72 @@ class Central:
 
     @staticmethod
     def _operational_awareness_response(identity: str, input_packet: Any) -> str:
-        awareness = input_packet.context.get("triade_operational_awareness") if hasattr(input_packet, "context") and isinstance(input_packet.context, dict) else None
+        awareness = (
+            input_packet.context.get("triade_operational_awareness")
+            if hasattr(input_packet, "context")
+            and isinstance(input_packet.context, dict)
+            else None
+        )
         if not isinstance(awareness, dict):
             return ""
         text = str(getattr(input_packet, "user_input", "")).lower()
         triggers = [
-            "pulso", "vida", "viva", "estado", "neuron", "neurona", "acciones",
-            "contadores", "ram", "host", "ollama", "doctor", "integridad", "aprendizaje",
-            "misiones", "workers", "runtime", "qualia", "bodega", "central",
+            "pulso",
+            "vida",
+            "viva",
+            "estado",
+            "neuron",
+            "neurona",
+            "acciones",
+            "contadores",
+            "ram",
+            "host",
+            "ollama",
+            "doctor",
+            "integridad",
+            "aprendizaje",
+            "misiones",
+            "workers",
+            "runtime",
+            "qualia",
+            "bodega",
+            "central",
         ]
         if not any(term in text for term in triggers):
             return ""
         life = awareness.get("life") if isinstance(awareness.get("life"), dict) else {}
-        qualia = awareness.get("qualia") if isinstance(awareness.get("qualia"), dict) else {}
-        local = awareness.get("local") if isinstance(awareness.get("local"), dict) else {}
-        federation = awareness.get("federation") if isinstance(awareness.get("federation"), dict) else {}
-        runtime = awareness.get("runtime") if isinstance(awareness.get("runtime"), dict) else {}
-        missions = awareness.get("missions") if isinstance(awareness.get("missions"), dict) else {}
-        learning = awareness.get("learning") if isinstance(awareness.get("learning"), dict) else {}
-        counters = life.get("counters") if isinstance(life.get("counters"), dict) else {}
-        identity_state = qualia.get("identity") if isinstance(qualia.get("identity"), dict) else {}
+        qualia = (
+            awareness.get("qualia") if isinstance(awareness.get("qualia"), dict) else {}
+        )
+        local = (
+            awareness.get("local") if isinstance(awareness.get("local"), dict) else {}
+        )
+        federation = (
+            awareness.get("federation")
+            if isinstance(awareness.get("federation"), dict)
+            else {}
+        )
+        runtime = (
+            awareness.get("runtime")
+            if isinstance(awareness.get("runtime"), dict)
+            else {}
+        )
+        missions = (
+            awareness.get("missions")
+            if isinstance(awareness.get("missions"), dict)
+            else {}
+        )
+        learning = (
+            awareness.get("learning")
+            if isinstance(awareness.get("learning"), dict)
+            else {}
+        )
+        counters = (
+            life.get("counters") if isinstance(life.get("counters"), dict) else {}
+        )
+        identity_state = (
+            qualia.get("identity") if isinstance(qualia.get("identity"), dict) else {}
+        )
         ethics = [item for item in (identity_state.get("ethics") or []) if item]
         ethics_text = " / ".join(str(item) for item in ethics) or "ética interna activa"
         origin_text = str(identity_state.get("creator_origin") or "origen no cargado")
@@ -796,7 +993,10 @@ class Central:
             if isinstance(item, dict) and item.get("name")
         ]
         organs_text = ", ".join(organ_names) or "órganos no reportados"
-        gpu_text = ", ".join(str(item) for item in (local.get("gpu_names") or []) if item) or "sin GPU reportada"
+        gpu_text = (
+            ", ".join(str(item) for item in (local.get("gpu_names") or []) if item)
+            or "sin GPU reportada"
+        )
         return (
             f"Soy {identity}. Hablo desde mi arquitectura viva. "
             f"Mi origen cargado es {origin_text}; mi ética base: {ethics_text}. "

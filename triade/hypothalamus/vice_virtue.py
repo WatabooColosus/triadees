@@ -18,13 +18,23 @@ from typing import Any
 from triade.core.contracts import utc_now
 
 VIRTUE_NAMES: tuple[str, ...] = (
-    "humildad", "generosidad", "respeto", "paciencia",
-    "templanza", "caridad", "diligencia",
+    "humildad",
+    "generosidad",
+    "respeto",
+    "paciencia",
+    "templanza",
+    "caridad",
+    "diligencia",
 )
 
 SIN_NAMES: tuple[str, ...] = (
-    "orgullo", "avaricia", "desprecio", "impaciencia",
-    "exceso", "indiferencia", "pereza",
+    "orgullo",
+    "avaricia",
+    "desprecio",
+    "impaciencia",
+    "exceso",
+    "indiferencia",
+    "pereza",
 )
 
 ALL_DIMENSIONS: tuple[str, ...] = VIRTUE_NAMES + SIN_NAMES
@@ -83,6 +93,7 @@ def _clamp(v: float, lo: float = 0.0, hi: float = 1.0) -> float:
 
 def _gen_id(prefix: str) -> str:
     import hashlib
+
     return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(timezone.utc).timestamp()).encode()).hexdigest()[:6]}"
 
 
@@ -227,7 +238,7 @@ class ViceVirtueState:
 
     def all_tensions(self, threshold: float = 0.1) -> dict[str, float]:
         result: dict[str, float] = {}
-        for (a, b) in TENSION_PAIRS:
+        for a, b in TENSION_PAIRS:
             t = self.tension_pair((a, b))
             if t >= threshold:
                 result[f"{a}_vs_{b}"] = t
@@ -306,8 +317,14 @@ class ViceVirtueState:
             "virtues": {v: self._virtues.get(v, 0.5) for v in VIRTUE_NAMES},
             "sins": {s: self._sins.get(s, 0.5) for s in SIN_NAMES},
             "tensions": self.all_tensions(threshold=0.05),
-            "dominant_virtue": {"name": self.dominant_virtue[0], "value": self.dominant_virtue[1]},
-            "dominant_sin": {"name": self.dominant_sin[0], "value": self.dominant_sin[1]},
+            "dominant_virtue": {
+                "name": self.dominant_virtue[0],
+                "value": self.dominant_virtue[1],
+            },
+            "dominant_sin": {
+                "name": self.dominant_sin[0],
+                "value": self.dominant_sin[1],
+            },
             "overall_virtue_score": self.overall_virtue_score,
             "overall_sin_score": self.overall_sin_score,
             "decay_rates": dict(self._decay_rates),
@@ -331,8 +348,13 @@ class ViceVirtueState:
             """INSERT OR REPLACE INTO vice_virtue_state
                (state_id, run_id, dimensions_json, decay_config_json, created_at)
                VALUES (?,?,?,?,?)""",
-            (state_id, run_id or self._run_id, json.dumps(dims, default=str),
-             json.dumps(self._decay_rates, default=str), now),
+            (
+                state_id,
+                run_id or self._run_id,
+                json.dumps(dims, default=str),
+                json.dumps(self._decay_rates, default=str),
+                now,
+            ),
         )
         self._conn.commit()
         self._state_id = state_id
@@ -349,8 +371,13 @@ class ViceVirtueState:
             """INSERT INTO vice_virtue_history
                (history_id, state_id, dimensions_json, trigger_event, created_at)
                VALUES (?,?,?,?,?)""",
-            (history_id, self._state_id, json.dumps(self.to_dict(), default=str),
-             trigger_event, now),
+            (
+                history_id,
+                self._state_id,
+                json.dumps(self.to_dict(), default=str),
+                trigger_event,
+                now,
+            ),
         )
         self._conn.commit()
         return history_id
@@ -367,9 +394,13 @@ class ViceVirtueState:
         virtues = {v: dims.get(v, 0.5) for v in VIRTUE_NAMES}
         sins = {s: dims.get(s, 0.5) for s in SIN_NAMES}
         return cls(
-            _virtues=virtues, _sins=sins, _decay_rates=decay or dict(DEFAULT_DECAY_RATES),
-            _state_id=row["state_id"], _run_id=row["run_id"],
-            _created_at=row["created_at"], _conn=conn,
+            _virtues=virtues,
+            _sins=sins,
+            _decay_rates=decay or dict(DEFAULT_DECAY_RATES),
+            _state_id=row["state_id"],
+            _run_id=row["run_id"],
+            _created_at=row["created_at"],
+            _conn=conn,
         )
 
     def get_history(self, limit: int = 50) -> list[dict]:

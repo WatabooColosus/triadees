@@ -80,7 +80,9 @@ class NeuronSpecification:
         if not self.provides_capabilities:
             raise ValueError("la neurona debe proporcionar al menos una capacidad")
         if set(self.provides_capabilities) & set(self.requires_capabilities):
-            raise ValueError("una capacidad no puede ser requerida y proporcionada a la vez")
+            raise ValueError(
+                "una capacidad no puede ser requerida y proporcionada a la vez"
+            )
         if not self.sandbox_required:
             raise ValueError("toda neurona nueva debe iniciar en sandbox")
         if self.resource_budget is None:

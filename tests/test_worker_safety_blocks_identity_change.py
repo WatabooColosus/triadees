@@ -10,7 +10,9 @@ from triade.workers.contracts import WorkerRunConfig
 from triade.workers.worker_loop import WorkerLoop
 
 
-def test_worker_rejects_identity_change_candidate_without_touching_identity_core(tmp_path: Path) -> None:
+def test_worker_rejects_identity_change_candidate_without_touching_identity_core(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     pipe = LearningPipeline(db_path=db_path)
     candidate = pipe.ingest(
@@ -24,8 +26,22 @@ def test_worker_rejects_identity_change_candidate_without_touching_identity_core
     with sqlite3.connect(db_path) as conn:
         before = conn.execute("SELECT COUNT(*) FROM identity_core").fetchone()[0]
 
-    loop = WorkerLoop(db_path=db_path, runs_dir=tmp_path / "runs", lock_file=tmp_path / "lock", stop_file=tmp_path / "stop")
-    loop.run(WorkerRunConfig(max_iterations=1, sleep_seconds=0, once=True, runs_dir=str(tmp_path / "runs"), lock_file=str(tmp_path / "lock"), stop_file=str(tmp_path / "stop")))
+    loop = WorkerLoop(
+        db_path=db_path,
+        runs_dir=tmp_path / "runs",
+        lock_file=tmp_path / "lock",
+        stop_file=tmp_path / "stop",
+    )
+    loop.run(
+        WorkerRunConfig(
+            max_iterations=1,
+            sleep_seconds=0,
+            once=True,
+            runs_dir=str(tmp_path / "runs"),
+            lock_file=str(tmp_path / "lock"),
+            stop_file=str(tmp_path / "stop"),
+        )
+    )
 
     updated = pipe.get_candidate(candidate["candidate_id"])
     with sqlite3.connect(db_path) as conn:

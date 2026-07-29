@@ -16,23 +16,45 @@ MAX_SOURCES = 3
 USER_AGENT = "TriadeOmega/1.0 guarded-research"
 
 CURATED_PUBLIC_SOURCES: tuple[tuple[tuple[str, ...], str], ...] = (
-    (("vision", "visual", "imagen", "opencv"), "https://docs.opencv.org/4.x/d1/dfb/intro.html"),
-    (("vision", "visual", "imagen", "pillow"), "https://pillow.readthedocs.io/en/stable/handbook/tutorial.html"),
-    (("código", "codigo", "pruebas", "testing", "software"), "https://docs.python.org/3/library/unittest.html"),
-    (("código", "codigo", "pruebas", "testing", "software"), "https://docs.pytest.org/en/stable/how-to/index.html"),
+    (
+        ("vision", "visual", "imagen", "opencv"),
+        "https://docs.opencv.org/4.x/d1/dfb/intro.html",
+    ),
+    (
+        ("vision", "visual", "imagen", "pillow"),
+        "https://pillow.readthedocs.io/en/stable/handbook/tutorial.html",
+    ),
+    (
+        ("código", "codigo", "pruebas", "testing", "software"),
+        "https://docs.python.org/3/library/unittest.html",
+    ),
+    (
+        ("código", "codigo", "pruebas", "testing", "software"),
+        "https://docs.pytest.org/en/stable/how-to/index.html",
+    ),
 )
 
 
 def requests_web_research(text: str) -> bool:
     normalized = text.lower()
-    return any(marker in normalized for marker in (
-        "busca en internet", "buscar en internet", "investiga en internet",
-        "consulta internet", "consulta la web", "busca en la web",
-        "investiga en la web", "verifica en internet",
-    ))
+    return any(
+        marker in normalized
+        for marker in (
+            "busca en internet",
+            "buscar en internet",
+            "investiga en internet",
+            "consulta internet",
+            "consulta la web",
+            "busca en la web",
+            "investiga en la web",
+            "verifica en internet",
+        )
+    )
 
 
-def guarded_web_research(query: str, *, timeout: int = 8, max_sources: int = MAX_SOURCES) -> dict[str, Any]:
+def guarded_web_research(
+    query: str, *, timeout: int = 8, max_sources: int = MAX_SOURCES
+) -> dict[str, Any]:
     """Busca con DuckDuckGo HTML y extrae texto de resultados públicos.
 
     No ejecuta JavaScript, no usa cookies, no acepta URLs privadas y limita el
@@ -40,10 +62,19 @@ def guarded_web_research(query: str, *, timeout: int = 8, max_sources: int = MAX
     """
     clean_query = _clean_query(query)
     if not clean_query:
-        return {"status": "skipped", "query": "", "sources": [], "reason": "empty_query"}
-    search_url = "https://html.duckduckgo.com/html/?" + urllib.parse.urlencode({"q": clean_query})
+        return {
+            "status": "skipped",
+            "query": "",
+            "sources": [],
+            "reason": "empty_query",
+        }
+    search_url = "https://html.duckduckgo.com/html/?" + urllib.parse.urlencode(
+        {"q": clean_query}
+    )
     try:
-        search_html = _download(search_url, timeout=timeout).decode("utf-8", errors="replace")
+        search_html = _download(search_url, timeout=timeout).decode(
+            "utf-8", errors="replace"
+        )
         urls = _result_urls(search_html)
     except Exception as exc:
         urls = []
@@ -52,10 +83,14 @@ def guarded_web_research(query: str, *, timeout: int = 8, max_sources: int = MAX
         search_error = ""
 
     if not urls:
-        sources = _curated_sources(clean_query, timeout=timeout, max_sources=max_sources)
+        sources = _curated_sources(
+            clean_query, timeout=timeout, max_sources=max_sources
+        )
         remaining = max(0, max_sources - len(sources))
         if remaining:
-            sources.extend(_wikipedia_sources(clean_query, timeout=timeout, max_sources=remaining))
+            sources.extend(
+                _wikipedia_sources(clean_query, timeout=timeout, max_sources=remaining)
+            )
         return {
             "status": "ok" if sources else "degraded",
             "query": clean_query,
@@ -76,14 +111,24 @@ def guarded_web_research(query: str, *, timeout: int = 8, max_sources: int = MAX
             text = _visible_text(raw)[:1800]
             if len(text) < 80:
                 continue
-            sources.append({"url": url, "title": _title(raw) or urllib.parse.urlparse(url).netloc, "excerpt": text})
+            sources.append(
+                {
+                    "url": url,
+                    "title": _title(raw) or urllib.parse.urlparse(url).netloc,
+                    "excerpt": text,
+                }
+            )
         except Exception:
             continue
     if not sources:
-        sources = _curated_sources(clean_query, timeout=timeout, max_sources=max_sources)
+        sources = _curated_sources(
+            clean_query, timeout=timeout, max_sources=max_sources
+        )
         remaining = max(0, max_sources - len(sources))
         if remaining:
-            sources.extend(_wikipedia_sources(clean_query, timeout=timeout, max_sources=remaining))
+            sources.extend(
+                _wikipedia_sources(clean_query, timeout=timeout, max_sources=remaining)
+            )
     return {
         "status": "ok" if sources else "degraded",
         "query": clean_query,
@@ -94,7 +139,9 @@ def guarded_web_research(query: str, *, timeout: int = 8, max_sources: int = MAX
     }
 
 
-def _curated_sources(query: str, *, timeout: int, max_sources: int) -> list[dict[str, str]]:
+def _curated_sources(
+    query: str, *, timeout: int, max_sources: int
+) -> list[dict[str, str]]:
     """Documentación primaria autorizada por coincidencia explícita de dominio."""
     normalized = query.lower()
     result: list[dict[str, str]] = []
@@ -105,7 +152,14 @@ def _curated_sources(query: str, *, timeout: int, max_sources: int) -> list[dict
             raw = _download(url, timeout=timeout).decode("utf-8", errors="replace")
             excerpt = _visible_text(raw)[:1800]
             if len(excerpt) >= 120:
-                result.append({"url": url, "title": _title(raw), "excerpt": excerpt, "source_type": "primary_documentation"})
+                result.append(
+                    {
+                        "url": url,
+                        "title": _title(raw),
+                        "excerpt": excerpt,
+                        "source_type": "primary_documentation",
+                    }
+                )
         except Exception:
             continue
         if len(result) >= max_sources:
@@ -113,12 +167,23 @@ def _curated_sources(query: str, *, timeout: int, max_sources: int) -> list[dict
     return result
 
 
-def _wikipedia_sources(query: str, *, timeout: int, max_sources: int) -> list[dict[str, str]]:
-    params = urllib.parse.urlencode({
-        "action": "query", "generator": "search", "gsrsearch": query,
-        "gsrlimit": max(1, min(max_sources, MAX_SOURCES)), "prop": "extracts|info",
-        "exintro": 1, "explaintext": 1, "inprop": "url", "format": "json", "utf8": 1,
-    })
+def _wikipedia_sources(
+    query: str, *, timeout: int, max_sources: int
+) -> list[dict[str, str]]:
+    params = urllib.parse.urlencode(
+        {
+            "action": "query",
+            "generator": "search",
+            "gsrsearch": query,
+            "gsrlimit": max(1, min(max_sources, MAX_SOURCES)),
+            "prop": "extracts|info",
+            "exintro": 1,
+            "explaintext": 1,
+            "inprop": "url",
+            "format": "json",
+            "utf8": 1,
+        }
+    )
     url = "https://es.wikipedia.org/w/api.php?" + params
     try:
         payload = json.loads(_download_json(url, timeout=timeout).decode("utf-8"))
@@ -130,33 +195,48 @@ def _wikipedia_sources(query: str, *, timeout: int, max_sources: int) -> list[di
         excerpt = " ".join(str(page.get("extract") or "").split())[:1800]
         source_url = str(page.get("fullurl") or "")
         if excerpt and source_url:
-            result.append({"url": source_url, "title": str(page.get("title") or "Wikipedia"), "excerpt": excerpt})
+            result.append(
+                {
+                    "url": source_url,
+                    "title": str(page.get("title") or "Wikipedia"),
+                    "excerpt": excerpt,
+                }
+            )
     return result[:max_sources]
 
 
 def _clean_query(query: str) -> str:
     query = re.sub(
         r"(?i)\b(busca(?:r)?|investiga(?:r)?|consulta(?:r)?|verifica(?:r)?)\s+(?:en\s+)?(?:la\s+)?(?:internet|web)\b[:\s,-]*",
-        "", query,
+        "",
+        query,
     )
     return " ".join(query.split())[:300]
 
 
 def _download(url: str, *, timeout: int) -> bytes:
     _assert_public_url(url)
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"})
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
+    )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         final_url = response.geturl()
         _assert_public_url(final_url)
         content_type = str(response.headers.get("Content-Type") or "").lower()
-        if "text/html" not in content_type and "application/xhtml+xml" not in content_type:
+        if (
+            "text/html" not in content_type
+            and "application/xhtml+xml" not in content_type
+        ):
             raise ValueError("content_type_not_allowed")
         return response.read(MAX_RESPONSE_BYTES + 1)[:MAX_RESPONSE_BYTES]
 
 
 def _download_json(url: str, *, timeout: int) -> bytes:
     _assert_public_url(url)
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
+    request = urllib.request.Request(
+        url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"}
+    )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         _assert_public_url(response.geturl())
         if "json" not in str(response.headers.get("Content-Type") or "").lower():
@@ -171,7 +251,11 @@ def _assert_public_url(url: str) -> None:
     host = parsed.hostname.lower()
     if host in {"localhost", "localhost.localdomain"} or host.endswith(".local"):
         raise ValueError("private_host_blocked")
-    for item in socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM):
+    for item in socket.getaddrinfo(
+        host,
+        parsed.port or (443 if parsed.scheme == "https" else 80),
+        type=socket.SOCK_STREAM,
+    ):
         address = ipaddress.ip_address(item[4][0])
         if not address.is_global:
             raise ValueError("private_address_blocked")
@@ -201,5 +285,9 @@ def _title(page: str) -> str:
 
 
 def web_context_for_prompt(result: dict[str, Any]) -> str:
-    safe = {"query": result.get("query"), "sources": result.get("sources", []), "policy": result.get("policy")}
+    safe = {
+        "query": result.get("query"),
+        "sources": result.get("sources", []),
+        "policy": result.get("policy"),
+    }
     return json.dumps(safe, ensure_ascii=False, indent=2)

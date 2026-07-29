@@ -7,8 +7,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _declared_models() -> set[str]:
-    lines = (REPO_ROOT / "config" / "studio-models.txt").read_text(encoding="utf-8").splitlines()
-    return {line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")}
+    lines = (
+        (REPO_ROOT / "config" / "studio-models.txt")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+    return {
+        line.strip()
+        for line in lines
+        if line.strip() and not line.lstrip().startswith("#")
+    }
 
 
 def test_studio_catalog_covers_critical_model_roles() -> None:

@@ -23,13 +23,23 @@ def _make_mission(
 
 
 def test_irrelevant_mission_not_selected():
-    missions = [_make_mission(title="Deep Learning", mission="Train neural networks", domain="ml")]
-    result = select_relevant_missions(missions, user_input="cooking recipes", domain="cooking")
+    missions = [
+        _make_mission(
+            title="Deep Learning", mission="Train neural networks", domain="ml"
+        )
+    ]
+    result = select_relevant_missions(
+        missions, user_input="cooking recipes", domain="cooking"
+    )
     assert len(result) == 0
 
 
 def test_same_domain_mission_selected():
-    missions = [_make_mission(title="Data Analysis", mission="Analyze data patterns", domain="analytics")]
+    missions = [
+        _make_mission(
+            title="Data Analysis", mission="Analyze data patterns", domain="analytics"
+        )
+    ]
     result = select_relevant_missions(missions, user_input="", domain="analytics")
     assert len(result) == 1
     assert result[0].domain == "analytics"
@@ -54,7 +64,9 @@ def test_stable_mission_selected():
 
 
 def test_experimental_mission_selected():
-    missions = [_make_mission(title="Exp Mission", domain="research", status="experimental")]
+    missions = [
+        _make_mission(title="Exp Mission", domain="research", status="experimental")
+    ]
     result = select_relevant_missions(missions, domain="research")
     assert len(result) == 1
     assert result[0].status == "experimental"
@@ -62,10 +74,20 @@ def test_experimental_mission_selected():
 
 def test_keyword_relevance_boosts_score():
     missions = [
-        _make_mission(title="Memory System", mission="Manage memory consolidation", domain="general"),
-        _make_mission(title="Network System", mission="Handle network connections", domain="general"),
+        _make_mission(
+            title="Memory System",
+            mission="Manage memory consolidation",
+            domain="general",
+        ),
+        _make_mission(
+            title="Network System",
+            mission="Handle network connections",
+            domain="general",
+        ),
     ]
-    result = select_relevant_missions(missions, user_input="memory consolidation", domain="general")
+    result = select_relevant_missions(
+        missions, user_input="memory consolidation", domain="general"
+    )
     assert len(result) >= 1
     assert result[0].title == "Memory System"
 

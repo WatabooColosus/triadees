@@ -21,7 +21,9 @@ def make_db(tmp_path: Path) -> Path:
     return db_path
 
 
-def test_record_usage_requires_explicit_candidate_and_measured_evidence(tmp_path: Path) -> None:
+def test_record_usage_requires_explicit_candidate_and_measured_evidence(
+    tmp_path: Path,
+) -> None:
     db_path = make_db(tmp_path)
     pipeline = LearningPipeline(db_path=db_path)
     candidate = pipeline.ingest(
@@ -104,7 +106,9 @@ def test_record_usage_empty_response(tmp_path: Path) -> None:
 
 
 def test_outcome_score_requires_measurement(tmp_path: Path) -> None:
-    output = SimpleNamespace(response="A" * 100, status="ok", model_ok=True, memory_diff={})
+    output = SimpleNamespace(
+        response="A" * 100, status="ok", model_ok=True, memory_diff={}
+    )
     memory = SimpleNamespace(verification_status="ok")
     score = _compute_outcome_score(output, memory)
     assert score == 0.0

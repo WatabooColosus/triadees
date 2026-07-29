@@ -90,7 +90,12 @@ def _allowed_actions(level: str) -> list[str]:
     if level == "observe_only":
         return base
     base.append("create")
-    if level in ("safe_write", "project_maintenance", "repo_refactor", "full_local_guarded"):
+    if level in (
+        "safe_write",
+        "project_maintenance",
+        "repo_refactor",
+        "full_local_guarded",
+    ):
         base.append("patch")
         base.append("move")
         base.append("delete_to_trash")
@@ -118,7 +123,12 @@ def _forbidden_actions(level: str) -> list[str]:
 
 
 def _human_approval(level: str) -> list[str]:
-    appr = ["delete_permanently", "modify_identity_core", "modify_git", "run_shell_free"]
+    appr = [
+        "delete_permanently",
+        "modify_identity_core",
+        "modify_git",
+        "run_shell_free",
+    ]
     if level != "full_local_guarded":
         appr.append("run_tests")
         appr.append("run_build")

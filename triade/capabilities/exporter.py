@@ -25,7 +25,9 @@ class CapabilityRegistryExporter:
             "capabilities": capabilities,
             "history": history,
         }
-        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        canonical = json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
         return {
             **payload,
             "sha256": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
@@ -35,7 +37,8 @@ class CapabilityRegistryExporter:
         output = Path(path)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(
-            json.dumps(self.build(), ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+            json.dumps(self.build(), ensure_ascii=False, sort_keys=True, indent=2)
+            + "\n",
             encoding="utf-8",
         )
         return output

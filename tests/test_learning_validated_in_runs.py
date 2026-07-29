@@ -81,7 +81,9 @@ def test_mark_used_in_run_increments_count(tmp_path: Path) -> None:
     assert result["avg_outcome_score"] == 0.80
 
 
-def test_mark_used_in_run_multiple_uses_requires_evidence_at_promotion_gate(tmp_path: Path) -> None:
+def test_mark_used_in_run_multiple_uses_requires_evidence_at_promotion_gate(
+    tmp_path: Path,
+) -> None:
     pipe = _pipe(tmp_path)
     cid = _verified_candidate(pipe)
     pipe.mark_used_in_run(cid, "run-1", outcome_score=0.80)

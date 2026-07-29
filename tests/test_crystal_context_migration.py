@@ -22,7 +22,10 @@ CONTEXT_COLUMNS = {
 def test_new_db_has_crystal_context_columns(tmp_path) -> None:
     bodega = Bodega(db_path=tmp_path / "triade.db")
     with bodega._connect() as conn:
-        columns = {row["name"] for row in conn.execute("PRAGMA table_info(crystal_states)").fetchall()}
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(crystal_states)").fetchall()
+        }
     assert CONTEXT_COLUMNS.issubset(columns)
 
 
@@ -34,7 +37,13 @@ def test_legacy_db_receives_crystal_context_columns(tmp_path) -> None:
         )
     bodega = Bodega(db_path=db_path)
     with bodega._connect() as conn:
-        columns = {row["name"] for row in conn.execute("PRAGMA table_info(crystal_states)").fetchall()}
-        indexes = {row["name"] for row in conn.execute("PRAGMA index_list(crystal_states)").fetchall()}
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(crystal_states)").fetchall()
+        }
+        indexes = {
+            row["name"]
+            for row in conn.execute("PRAGMA index_list(crystal_states)").fetchall()
+        }
     assert CONTEXT_COLUMNS.issubset(columns)
     assert "idx_crystal_states_context_key" in indexes

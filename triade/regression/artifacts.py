@@ -42,7 +42,10 @@ class RegressionArtifactExporter:
             raise ValueError("baseline no coincide con el reporte")
         if report.candidate_evaluation_id != candidate.evaluation_id:
             raise ValueError("candidate no coincide con el reporte")
-        if report.suite_id != candidate.suite_id or report.suite_version != candidate.suite_version:
+        if (
+            report.suite_id != candidate.suite_id
+            or report.suite_version != candidate.suite_version
+        ):
             raise ValueError("suite del reporte inconsistente")
 
         destination = self.root / report.report_id

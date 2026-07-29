@@ -12,7 +12,13 @@ client = TestClient(app)
 
 
 def test_workers_api_run_once_status_queue_events(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(routes_api, "WorkerBackgroundService", lambda: WorkerBackgroundService(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs"))
+    monkeypatch.setattr(
+        routes_api,
+        "WorkerBackgroundService",
+        lambda: WorkerBackgroundService(
+            db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs"
+        ),
+    )
 
     run = client.post("/workers/run-once")
     status = client.get("/workers/status")
@@ -26,8 +32,16 @@ def test_workers_api_run_once_status_queue_events(tmp_path, monkeypatch) -> None
     assert events.json()["count"] >= 1
 
 
-def test_workers_api_learning_pending_and_neuron_activity(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(routes_api, "WorkerBackgroundService", lambda: WorkerBackgroundService(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs"))
+def test_workers_api_learning_pending_and_neuron_activity(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        routes_api,
+        "WorkerBackgroundService",
+        lambda: WorkerBackgroundService(
+            db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs"
+        ),
+    )
     client.post("/workers/run-once")
 
     pending = client.get("/learning/pending")

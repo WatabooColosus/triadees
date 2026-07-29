@@ -6,7 +6,6 @@ import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 
 from triade.core.contracts import InputPacket, SignalPacket
 from triade.core.hypothalamus import Hypothalamus
@@ -46,10 +45,20 @@ def make_signal(run_id: str, **overrides: object) -> SignalPacket:
         tone=str(overrides.get("tone", "constructive")),
         urgency=str(overrides.get("urgency", "medium")),
         risk=str(overrides.get("risk", "low")),
-        pv7=dict(overrides.get("pv7", {
-            "humildad": 0.7, "generosidad": 0.7, "respeto": 0.8,
-            "paciencia": 0.7, "templanza": 0.7, "caridad": 0.7, "diligencia": 0.8,
-        })),
+        pv7=dict(
+            overrides.get(
+                "pv7",
+                {
+                    "humildad": 0.7,
+                    "generosidad": 0.7,
+                    "respeto": 0.8,
+                    "paciencia": 0.7,
+                    "templanza": 0.7,
+                    "caridad": 0.7,
+                    "diligencia": 0.8,
+                },
+            )
+        ),
         notes=list(overrides.get("notes", ["test"])),
     )
 
@@ -58,12 +67,18 @@ def make_signal(run_id: str, **overrides: object) -> SignalPacket:
 # HypothalamusStateStore
 # ---------------------------------------------------------------------------
 
+
 def test_store_initialize_creates_table(tmp_path: Path) -> None:
     db_path = make_state_db(tmp_path)
-    store = HypothalamusStateStore(db_path=db_path)
+    HypothalamusStateStore(db_path=db_path)
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
-        tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        tables = {
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
     assert "hypothalamus_state" in tables
 
 
@@ -159,6 +174,7 @@ def test_store_doctor(tmp_path: Path) -> None:
 # EmotionalState helpers
 # ---------------------------------------------------------------------------
 
+
 def test_compute_primary_emotion() -> None:
     assert compute_primary_emotion(0.0, 0.0, 0.0) == "neutral"
     assert compute_primary_emotion(0.5, 0.6, 0.0) == "engaged"
@@ -200,6 +216,7 @@ def test_mood_from_signals_with_previous() -> None:
 # Hypothalamus integration
 # ---------------------------------------------------------------------------
 
+
 def test_hypothalamus_creates_emotional_state_on_analyze(tmp_path: Path) -> None:
     db_path = make_state_db(tmp_path)
     store = HypothalamusStateStore(db_path=db_path)
@@ -240,7 +257,9 @@ def test_hypothalamus_mood_modulates_tone_when_fatigued(tmp_path: Path) -> None:
 
     fake_rid = "fatigue-base"
     add_run(db_path, fake_rid)
-    store.save_raw(fake_rid, EmotionalState(fatigue=0.8, primary_emotion="fatigued", run_count=10))
+    store.save_raw(
+        fake_rid, EmotionalState(fatigue=0.8, primary_emotion="fatigued", run_count=10)
+    )
 
     packet = InputPacket(user_input="Hazme una tarea", run_id="fatigue-test-1")
     add_run(db_path, packet.run_id)
@@ -255,7 +274,9 @@ def test_hypothalamus_mood_modulates_pv7(tmp_path: Path) -> None:
 
     fake_rid = "pv7-base"
     add_run(db_path, fake_rid)
-    store.save_raw(fake_rid, EmotionalState(fatigue=0.8, primary_emotion="fatigued", run_count=5))
+    store.save_raw(
+        fake_rid, EmotionalState(fatigue=0.8, primary_emotion="fatigued", run_count=5)
+    )
 
     packet = InputPacket(user_input="Construye un módulo", run_id="pv7-test-1")
     add_run(db_path, packet.run_id)
@@ -299,6 +320,7 @@ def test_hypothalamus_with_model_client(tmp_path: Path) -> None:
 # LifePulse emotional integration
 # ---------------------------------------------------------------------------
 
+
 def test_life_pulse_snapshot_includes_emotional_state(tmp_path: Path) -> None:
     from triade.core.life_pulse import LifePulseEngine
 
@@ -308,7 +330,12 @@ def test_life_pulse_snapshot_includes_emotional_state(tmp_path: Path) -> None:
     add_run(db_path, rid)
     store.save(rid, make_signal(rid, tone="constructive", urgency="medium", risk="low"))
 
-    engine = LifePulseEngine(db_path=db_path, runs_dir=tmp_path / "runs", interval_seconds=5, reflection_limit=10)
+    engine = LifePulseEngine(
+        db_path=db_path,
+        runs_dir=tmp_path / "runs",
+        interval_seconds=5,
+        reflection_limit=10,
+    )
     payload = engine.tick()
 
     assert "emotional_state" in payload
@@ -327,7 +354,12 @@ def test_emotional_rest_decays_fatigue(tmp_path: Path) -> None:
     add_run(db_path, rid)
     store.save_raw(rid, EmotionalState(fatigue=0.5, run_count=10))
 
-    engine = LifePulseEngine(db_path=db_path, runs_dir=tmp_path / "runs", interval_seconds=60, reflection_limit=10)
+    engine = LifePulseEngine(
+        db_path=db_path,
+        runs_dir=tmp_path / "runs",
+        interval_seconds=60,
+        reflection_limit=10,
+    )
     engine._update_emotional_rest()
 
     state = store.load_latest()
@@ -338,6 +370,7 @@ def test_emotional_rest_decays_fatigue(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Reinforcement learning
 # ---------------------------------------------------------------------------
+
 
 def _setup_reinforce(store: HypothalamusStateStore, db_path: Path, rid: str) -> None:
     """Ensure run exists for reinforce to not violate FK."""
@@ -361,7 +394,13 @@ def test_reinforce_increases_valence_on_high_reward(tmp_path: Path) -> None:
 
     rid2 = "reinforce-2"
     _setup_reinforce(store, db_path, rid2)
-    reinforced = store.reinforce(rid2, reward=0.8, hypothalamus_quality=0.9, central_quality=0.85, coherence_score=0.8)
+    reinforced = store.reinforce(
+        rid2,
+        reward=0.8,
+        hypothalamus_quality=0.9,
+        central_quality=0.85,
+        coherence_score=0.8,
+    )
     assert reinforced is not None
     assert reinforced.valence > bv
     assert reinforced.fatigue < before.fatigue

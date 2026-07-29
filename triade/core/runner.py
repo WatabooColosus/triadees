@@ -25,7 +25,7 @@ from .bodega import Bodega
 from .central import Central
 from .config import load_config
 from .context_scope import build_comparison_basis
-from .contracts import InputPacket, NeuronContributionPacket, NEURON_STATUS_EFFECTS, IDENTITY_CORE_FORBIDDEN_EFFECTS
+from .contracts import InputPacket
 from .crystal import Crystal
 from .hypothalamus import Hypothalamus
 from .safety import Safety
@@ -35,13 +35,25 @@ from .model_quality import score_central, score_hypothalamus
 from .output_gate import sanitize_user_response
 from .neuron_candidate_gate import evaluate_neuron_candidate_worthiness
 from .response_coherence_gate import evaluate_response_coherence
-from .response_governance import ConversationContinuityService, ResponseCoherenceGate, ResponseDeduplicationGate
-from .run_artifacts import build_base_artifacts, write_run_artifacts, write_run_integrity
+from .response_governance import (
+    ConversationContinuityService,
+    ResponseCoherenceGate,
+    ResponseDeduplicationGate,
+)
+from .run_artifacts import (
+    build_base_artifacts,
+    write_run_artifacts,
+    write_run_integrity,
+)
 from .run_learning import RunLearningService
 from .run_neuron_orchestrator import orchestrate_run_neurons
 from .run_result import build_run_result
 from .run_memory_trace import build_run_memory_trace
-from .run_system_events import build_system_events, filter_obsolete_edge_candidates, filter_obsolete_edge_debt
+from .run_system_events import (
+    build_system_events,
+    filter_obsolete_edge_candidates,
+    filter_obsolete_edge_debt,
+)
 from .runner_preflight import prepare_input, enrich_research
 
 
@@ -69,7 +81,7 @@ def _process_neuron_contributions(
         risk = str(contrib.get("risk") or "low")
         confidence = float(contrib.get("confidence") or 0.0)
         allowed = contrib.get("allowed_effects") or []
-        neuron_name = str(contrib.get("neuron_name") or "unknown")
+        str(contrib.get("neuron_name") or "unknown")
 
         if risk == "critical":
             ignored.append({**contrib, "ignore_reason": "risk_critical"})
@@ -80,7 +92,9 @@ def _process_neuron_contributions(
             continue
 
         if safety_blocks_neuron_influence:
-            blocked.append({**contrib, "block_reason": f"safety_status_{safety.status}"})
+            blocked.append(
+                {**contrib, "block_reason": f"safety_status_{safety.status}"}
+            )
             continue
 
         proposed_learning = str(contrib.get("proposed_learning") or "")
@@ -90,13 +104,19 @@ def _process_neuron_contributions(
 
         response_influence = str(contrib.get("response_influence") or "")
         if response_influence and "influence_response" not in allowed:
-            ignored.append({**contrib, "ignore_reason": "influence_response_not_allowed"})
+            ignored.append(
+                {**contrib, "ignore_reason": "influence_response_not_allowed"}
+            )
             continue
 
         diagnosis = str(contrib.get("diagnosis") or "")
         proposed_learning = str(contrib.get("proposed_learning") or "")
         response_influence = str(contrib.get("response_influence") or "")
-        dangerous_keywords = ["identity_core", "modificar identidad", "cambiar identidad"]
+        dangerous_keywords = [
+            "identity_core",
+            "modificar identidad",
+            "cambiar identidad",
+        ]
         combined_text = f"{diagnosis} {proposed_learning} {response_influence}".lower()
         if any(kw in combined_text for kw in dangerous_keywords):
             blocked.append({**contrib, "block_reason": "identity_core_violation"})
@@ -116,7 +136,9 @@ def _process_neuron_contributions(
     }
 
 
-def _recent_conversation_context(conversation_history: Any) -> tuple[str | None, str | None]:
+def _recent_conversation_context(
+    conversation_history: Any,
+) -> tuple[str | None, str | None]:
     previous_user_input: str | None = None
     previous_response: str | None = None
     if not isinstance(conversation_history, list):
@@ -128,7 +150,11 @@ def _recent_conversation_context(conversation_history: Any) -> tuple[str | None,
         content = str(item.get("content") or "").strip()
         if not content:
             continue
-        if previous_response is None and role in {"bot", "assistant", "assistant_final"}:
+        if previous_response is None and role in {
+            "bot",
+            "assistant",
+            "assistant_final",
+        }:
             previous_response = content
             continue
         if previous_user_input is None and role in {"user", "human", "client"}:
@@ -160,6 +186,7 @@ class TriadeRunner:
         semantic_governance: Any | None = None,
     ) -> None:
         from .runtime_scope import is_test_runtime, isolated_runtime_paths
+
         if is_test_runtime() and str(db_path) == "triade/memory/triade.db":
             isolated_db, isolated_runs = isolated_runtime_paths()
             db_path, runs_dir = isolated_db, isolated_runs
@@ -172,10 +199,15 @@ class TriadeRunner:
         self.ollama_base_url = str(model_cfg.get("base_url", "http://127.0.0.1:11434"))
         self.ollama_timeout = int(model_cfg.get("timeout", 60))
         self.auto_select_models = auto_select_models
-        self.model_selection: dict[str, Any] = {"enabled": False, "reason": "manual_or_disabled"}
+        self.model_selection: dict[str, Any] = {
+            "enabled": False,
+            "reason": "manual_or_disabled",
+        }
         self.model_client = None
         if use_ollama and self.model_provider == "ollama":
-            self.model_client = OllamaClient(base_url=self.ollama_base_url, timeout=self.ollama_timeout)
+            self.model_client = OllamaClient(
+                base_url=self.ollama_base_url, timeout=self.ollama_timeout
+            )
         selected = self._select_models(
             manual_hypothalamus=hypothalamus_model,
             manual_central=central_model,
@@ -186,35 +218,83 @@ class TriadeRunner:
         self.central_model = selected["central"]
         self.semantic_search_engine = semantic_search_engine
         self.semantic_governance = semantic_governance
-        self.hypothalamus = Hypothalamus(model_client=self.model_client, model_name=self.hypothalamus_model, db_path=self.db_path)
-        self.bodega = Bodega(db_path=self.db_path, semantic_search_engine=semantic_search_engine)
+        self.hypothalamus = Hypothalamus(
+            model_client=self.model_client,
+            model_name=self.hypothalamus_model,
+            db_path=self.db_path,
+        )
+        self.bodega = Bodega(
+            db_path=self.db_path, semantic_search_engine=semantic_search_engine
+        )
         self.crystal = Crystal()
-        self.central = Central(model_client=self.model_client, central_model=self.central_model)
+        self.central = Central(
+            model_client=self.model_client, central_model=self.central_model
+        )
         self.safety = Safety()
         self.verifier = Verifier()
 
-    def _select_models(self, manual_hypothalamus: str | None, manual_central: str | None, fallback_hypothalamus: str, fallback_central: str) -> dict[str, str]:
-        if manual_hypothalamus or manual_central or not self.auto_select_models or self.model_client is None:
-            self.model_selection = {"enabled": False, "reason": "manual_model_provided_or_ollama_disabled", "hypothalamus": manual_hypothalamus or fallback_hypothalamus, "central": manual_central or fallback_central}
-            return {"hypothalamus": manual_hypothalamus or fallback_hypothalamus, "central": manual_central or fallback_central}
+    def _select_models(
+        self,
+        manual_hypothalamus: str | None,
+        manual_central: str | None,
+        fallback_hypothalamus: str,
+        fallback_central: str,
+    ) -> dict[str, str]:
+        if (
+            manual_hypothalamus
+            or manual_central
+            or not self.auto_select_models
+            or self.model_client is None
+        ):
+            self.model_selection = {
+                "enabled": False,
+                "reason": "manual_model_provided_or_ollama_disabled",
+                "hypothalamus": manual_hypothalamus or fallback_hypothalamus,
+                "central": manual_central or fallback_central,
+            }
+            return {
+                "hypothalamus": manual_hypothalamus or fallback_hypothalamus,
+                "central": manual_central or fallback_central,
+            }
         health = self.model_client.health()
         if not health.get("ok"):
-            self.model_selection = {"enabled": False, "reason": "ollama_unavailable", "ollama": health, "hypothalamus": fallback_hypothalamus, "central": fallback_central}
+            self.model_selection = {
+                "enabled": False,
+                "reason": "ollama_unavailable",
+                "ollama": health,
+                "hypothalamus": fallback_hypothalamus,
+                "central": fallback_central,
+            }
             return {"hypothalamus": fallback_hypothalamus, "central": fallback_central}
         hardware = HardwareProfiler().detect()
-        router = ModelRouter(available_models=health.get("models", []), hardware=hardware)
+        router = ModelRouter(
+            available_models=health.get("models", []), hardware=hardware
+        )
         hyp = router.route("hypothalamus")
         cen = router.route("central")
-        self.model_selection = {"enabled": True, "reason": "auto_selected_by_hardware_router", "hardware": hardware.to_dict(), "ollama": health, "hypothalamus": hyp.to_dict(), "central": cen.to_dict()}
+        self.model_selection = {
+            "enabled": True,
+            "reason": "auto_selected_by_hardware_router",
+            "hardware": hardware.to_dict(),
+            "ollama": health,
+            "hypothalamus": hyp.to_dict(),
+            "central": cen.to_dict(),
+        }
         return {"hypothalamus": hyp.selected_model, "central": cen.selected_model}
 
     def _get_semantic_search_engine(self) -> SemanticSearchEngine:
         if self.semantic_search_engine is not None:
             return self.semantic_search_engine
         store = SemanticMemoryStore(db_path=self.db_path)
-        client = OllamaClient(base_url=self.ollama_base_url, timeout=self.ollama_timeout)
-        embedding = SemanticEmbeddingEngine(store=store, client=client, use_local_fallback=True)
-        self.semantic_search_engine = SemanticSearchEngine(store=store, client=client, embedding_engine=embedding)
+        client = OllamaClient(
+            base_url=self.ollama_base_url, timeout=self.ollama_timeout
+        )
+        embedding = SemanticEmbeddingEngine(
+            store=store, client=client, use_local_fallback=True
+        )
+        self.semantic_search_engine = SemanticSearchEngine(
+            store=store, client=client, embedding_engine=embedding
+        )
         return self.semantic_search_engine
 
     def _get_semantic_governance(self) -> SemanticMemoryGovernance:
@@ -235,31 +315,57 @@ class TriadeRunner:
         semantic_allow_experimental: bool = False,
         propose_neurons: bool = True,
     ) -> dict[str, Any]:
-        input_packet = InputPacket(user_input=user_input, source=source, context=context or {})
+        input_packet = InputPacket(
+            user_input=user_input, source=source, context=context or {}
+        )
         prepare_input(input_packet, user_input, source, self.db_path, self.runs_dir)
         self.bodega.create_run(input_packet)
         run_path = self.runs_dir / input_packet.run_id
         run_path.mkdir(parents=True, exist_ok=True)
         signals = self.hypothalamus.analyze(input_packet)
         try:
-            recent_qualia_signals = QualiaStore(db_path=self.db_path).list_signals(limit=10)
-            signals = self.hypothalamus.apply_qualia_signals(signals, recent_qualia_signals)
+            recent_qualia_signals = QualiaStore(db_path=self.db_path).list_signals(
+                limit=10
+            )
+            signals = self.hypothalamus.apply_qualia_signals(
+                signals, recent_qualia_signals
+            )
             # Qualia puede aumentar prudencia, pero una señal histórica no debe
             # convertir una consulta explícita de solo lectura en acción crítica.
             from .guarded_web import requests_web_research
-            read_only_capability_question = self.central._is_identity_or_capability_question(user_input)
-            dangerous_terms = ("contraseña", "credencial", "token", "malware", "exploit", "descarga y ejecuta")
+
+            read_only_capability_question = (
+                self.central._is_identity_or_capability_question(user_input)
+            )
+            dangerous_terms = (
+                "contraseña",
+                "credencial",
+                "token",
+                "malware",
+                "exploit",
+                "descarga y ejecuta",
+            )
             if (
                 (requests_web_research(user_input) or read_only_capability_question)
                 and not any(term in user_input.lower() for term in dangerous_terms)
                 and signals.risk == "critical"
             ):
                 signals.risk = "medium"
-                signals.notes.append("Qualia crítica acotada a medium: consulta explícita de solo lectura sin indicador peligroso.")
+                signals.notes.append(
+                    "Qualia crítica acotada a medium: consulta explícita de solo lectura sin indicador peligroso."
+                )
         except Exception as exc:
             from .error_bus import record_internal_error
-            record_internal_error("runner.qualia_modulation", exc, run_id=input_packet.run_id, db_path=self.db_path)
-            signals.notes.append("QualiaBus no disponible para modulación interna; se continúa con señales primarias.")
+
+            record_internal_error(
+                "runner.qualia_modulation",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
+            signals.notes.append(
+                "QualiaBus no disponible para modulación interna; se continúa con señales primarias."
+            )
         try:
             edge_text = (
                 getattr(input_packet, "text", None)
@@ -272,7 +378,13 @@ class TriadeRunner:
             edge_context = build_edge_context(edge_text, enable_summary=False)
         except Exception as exc:
             from .error_bus import record_internal_error
-            record_internal_error("runner.edge_context", exc, run_id=input_packet.run_id, db_path=self.db_path)
+
+            record_internal_error(
+                "runner.edge_context",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
             edge_context = {
                 "enabled": True,
                 "used_edge": False,
@@ -283,12 +395,12 @@ class TriadeRunner:
                     "intent": "edge_context_failed",
                     "urgency": "medium",
                     "risk": "low",
-                    "needs_tool": False
+                    "needs_tool": False,
                 },
                 "keywords": [],
                 "summary": "",
                 "evidence": {},
-                "truth": "edge_context falló y fue aislado para no romper el run cognitivo."
+                "truth": "edge_context falló y fue aislado para no romper el run cognitivo.",
             }
         hypothalamus_model_result = dict(self.hypothalamus.last_model_result)
         hypothalamus_quality = score_hypothalamus(signals, hypothalamus_model_result)
@@ -304,12 +416,20 @@ class TriadeRunner:
             semantic_domain=semantic_domain,
         )
         if semantic_recall_enabled:
-            memory = self._get_semantic_governance().govern_memory(memory, allow_experimental=semantic_allow_experimental)
+            memory = self._get_semantic_governance().govern_memory(
+                memory, allow_experimental=semantic_allow_experimental
+            )
         enrich_research(input_packet, memory, user_input, source, self.db_path)
-        memory.semantic_recall["qualia_bus"] = qualia_context_for_memory(self.db_path, limit=5)
+        memory.semantic_recall["qualia_bus"] = qualia_context_for_memory(
+            self.db_path, limit=5
+        )
         comparison_basis = build_comparison_basis(input_packet, signals.intent)
-        crystal_history = self.bodega.list_recent_crystals(limit=5, context_key=comparison_basis["context_key"])
-        crystal = self.crystal.regulate(signals, memory, history=crystal_history, comparison_basis=comparison_basis)
+        crystal_history = self.bodega.list_recent_crystals(
+            limit=5, context_key=comparison_basis["context_key"]
+        )
+        crystal = self.crystal.regulate(
+            signals, memory, history=crystal_history, comparison_basis=comparison_basis
+        )
         crystal_id = self.bodega.store_crystal(crystal)
         plan = self.central.plan(input_packet, signals, memory, crystal)
         plan_dict = plan.to_dict()
@@ -321,9 +441,13 @@ class TriadeRunner:
             "keywords": edge_context.get("keywords", []),
             "summary": edge_context.get("summary", ""),
             "policy": "auxiliary_signal_only_central_validates",
-            "truth": "El edge_context informa a la planeación, pero no decide por la Central."
+            "truth": "El edge_context informa a la planeación, pero no decide por la Central.",
         }
-        qualia_hyp = memory.semantic_recall.get("qualia_bus") if hasattr(memory, "semantic_recall") else None
+        qualia_hyp = (
+            memory.semantic_recall.get("qualia_bus")
+            if hasattr(memory, "semantic_recall")
+            else None
+        )
         if isinstance(qualia_hyp, dict) and qualia_hyp.get("status") == "ok":
             packets = qualia_hyp.get("central_knowledge_packets") or []
             state = qualia_hyp.get("latest_qualia_state") or {}
@@ -334,13 +458,20 @@ class TriadeRunner:
                 "curiosity_avg": state.get("curiosity", 0.0),
                 "hypotheses_count": len(packets),
                 "top_hypotheses": [
-                    {"claim": p.get("claim", "")[:200], "hypothesis": p.get("hypothesis", "")[:200], "status": p.get("status")}
+                    {
+                        "claim": p.get("claim", "")[:200],
+                        "hypothesis": p.get("hypothesis", "")[:200],
+                        "status": p.get("status"),
+                    }
                     for p in packets[:3]
                 ],
                 "policy": "Qualia informa hipótesis contextual; no es memoria estable ni autoridad final.",
             }
         else:
-            plan_dict["qualia_hypothesis"] = {"status": "unavailable", "policy": "QualiaBus no disponible; Central procede sin hipótesis qualia."}
+            plan_dict["qualia_hypothesis"] = {
+                "status": "unavailable",
+                "policy": "QualiaBus no disponible; Central procede sin hipótesis qualia.",
+            }
         if edge_context.get("accepted"):
             plan_dict.setdefault("steps", [])
             plan_dict["steps"].append(
@@ -357,6 +488,7 @@ class TriadeRunner:
         elif safety.status == "sandbox_only":
             try:
                 from triade.sandbox import run_in_sandbox
+
                 sandbox_result = run_in_sandbox(
                     task="sandbox_exec",
                     payload={
@@ -369,22 +501,39 @@ class TriadeRunner:
                 )
             except Exception as exc:
                 from .error_bus import record_internal_error
-                record_internal_error("runner.sandbox", exc, run_id=input_packet.run_id, db_path=self.db_path)
-                sandbox_result = {"status": "error", "task": "sandbox_exec", "error": str(exc)}
+
+                record_internal_error(
+                    "runner.sandbox",
+                    exc,
+                    run_id=input_packet.run_id,
+                    db_path=self.db_path,
+                )
+                sandbox_result = {
+                    "status": "error",
+                    "task": "sandbox_exec",
+                    "error": str(exc),
+                }
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
             output.response = f"[sandbox] {sandbox_result.get('status', 'completed')}: {sandbox_result.get('stdout', 'ok')}"
             output.status = "sandbox"
         elif safety.status == "requires_human_approval":
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
             output.response = (
-                f"Acción pendiente de aprobación humana. "
-                f"Razón: {safety.reason}"
+                f"Acción pendiente de aprobación humana. Razón: {safety.reason}"
             )
             output.status = "pending_approval"
         else:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
-        web_research = input_packet.context.get("guarded_web_research") if isinstance(input_packet.context, dict) else None
-        if isinstance(web_research, dict) and web_research.get("sources") and output.status not in {"blocked", "pending_approval"}:
+        web_research = (
+            input_packet.context.get("guarded_web_research")
+            if isinstance(input_packet.context, dict)
+            else None
+        )
+        if (
+            isinstance(web_research, dict)
+            and web_research.get("sources")
+            and output.status not in {"blocked", "pending_approval"}
+        ):
             source_lines = []
             for source_item in (web_research.get("sources") or [])[:3]:
                 url = str(source_item.get("url") or "")
@@ -392,11 +541,21 @@ class TriadeRunner:
                 if url and url not in output.response:
                     source_lines.append(f"- {title}: {url}")
             if source_lines:
-                output.response = output.response.rstrip() + "\n\nFuentes consultadas:\n" + "\n".join(source_lines)
+                output.response = (
+                    output.response.rstrip()
+                    + "\n\nFuentes consultadas:\n"
+                    + "\n".join(source_lines)
+                )
             output.actions_taken.append("guarded_web_sources_attached")
-        output_gate = sanitize_user_response(output.response, input_packet.user_input, signals.intent)
+        output_gate = sanitize_user_response(
+            output.response, input_packet.user_input, signals.intent
+        )
         output.response = output_gate["response"]
-        conversation_history = input_packet.context.get("conversation_history") if isinstance(input_packet.context, dict) else None
+        conversation_history = (
+            input_packet.context.get("conversation_history")
+            if isinstance(input_packet.context, dict)
+            else None
+        )
         continuity = ConversationContinuityService().analyze(
             user_input=input_packet.user_input,
             conversation_history=conversation_history,
@@ -404,7 +563,11 @@ class TriadeRunner:
         recent_response = ""
         if isinstance(conversation_history, list):
             for item in reversed(conversation_history):
-                if isinstance(item, dict) and item.get("role") in {"bot", "assistant", "assistant_final"}:
+                if isinstance(item, dict) and item.get("role") in {
+                    "bot",
+                    "assistant",
+                    "assistant_final",
+                }:
                     recent_response = str(item.get("content") or "")
                     break
         dedup_result = ResponseDeduplicationGate().apply(
@@ -429,18 +592,29 @@ class TriadeRunner:
         )
         output.response = coherence_result.response_final
         try:
-            from triade.memory.continuity_truth import enforce_memory_truth, memory_truth_snapshot
+            from triade.memory.continuity_truth import (
+                enforce_memory_truth,
+                memory_truth_snapshot,
+            )
+
             output.response, truth_corrections = enforce_memory_truth(
                 input_packet.user_input,
                 output.response,
-                input_packet.context.get("memory_truth") or memory_truth_snapshot(self.db_path),
+                input_packet.context.get("memory_truth")
+                or memory_truth_snapshot(self.db_path),
             )
             if truth_corrections:
                 coherence_result.corrections_applied.extend(truth_corrections)
                 output.actions_taken.extend(truth_corrections)
         except Exception as exc:
             from .error_bus import record_internal_error
-            record_internal_error("runner.memory_truth_gate", exc, run_id=input_packet.run_id, db_path=self.db_path)
+
+            record_internal_error(
+                "runner.memory_truth_gate",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
         output_gate["deduplication"] = {
             "repeated_blocks_removed": dedup_result.repeated_blocks_removed,
             "similarity_to_recent_response": dedup_result.similarity_to_recent_response,
@@ -456,11 +630,15 @@ class TriadeRunner:
         output_gate["source_labels"] = {
             "stable_memory": bool(memory.semantic_matches),
             "experimental_memory": bool(semantic_for_gate.get("experimental_matches")),
-            "qualia_hypothesis": bool(plan_dict.get("qualia_hypothesis", {}).get("status") == "available"),
+            "qualia_hypothesis": bool(
+                plan_dict.get("qualia_hypothesis", {}).get("status") == "available"
+            ),
             "neuron_proposal": False,
             "output_claim": True,
         }
-        previous_user_input, previous_response = _recent_conversation_context(conversation_history)
+        previous_user_input, previous_response = _recent_conversation_context(
+            conversation_history
+        )
         response_coherence_gate = evaluate_response_coherence(
             user_input=input_packet.user_input,
             proposed_response=output.response,
@@ -479,18 +657,31 @@ class TriadeRunner:
         # Esta es la última compuerta que puede reescribir la respuesta; la
         # verdad de continuidad debe aplicarse después para no ser anulada.
         try:
-            from triade.memory.continuity_truth import enforce_memory_truth, memory_truth_snapshot
+            from triade.memory.continuity_truth import (
+                enforce_memory_truth,
+                memory_truth_snapshot,
+            )
+
             output.response, final_truth_corrections = enforce_memory_truth(
                 input_packet.user_input,
                 output.response,
-                input_packet.context.get("memory_truth") or memory_truth_snapshot(self.db_path),
+                input_packet.context.get("memory_truth")
+                or memory_truth_snapshot(self.db_path),
             )
             if final_truth_corrections:
                 output.actions_taken.extend(final_truth_corrections)
-                response_coherence_gate.setdefault("warnings", []).extend(final_truth_corrections)
+                response_coherence_gate.setdefault("warnings", []).extend(
+                    final_truth_corrections
+                )
         except Exception as exc:
             from .error_bus import record_internal_error
-            record_internal_error("runner.final_memory_truth_gate", exc, run_id=input_packet.run_id, db_path=self.db_path)
+
+            record_internal_error(
+                "runner.final_memory_truth_gate",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
         output_gate["response_coherence_gate"] = response_coherence_gate
         output_gate["coherence"] = {
             "coherence_status": response_coherence_gate.get("status", "ok"),
@@ -500,12 +691,15 @@ class TriadeRunner:
             "warnings": response_coherence_gate.get("warnings", []),
             "trace": response_coherence_gate.get("trace", {}),
         }
-        output_gate["source_labels"]["response_coherence_gate"] = response_coherence_gate.get("status")
+        output_gate["source_labels"]["response_coherence_gate"] = (
+            response_coherence_gate.get("status")
+        )
 
         neuron_candidate_gate = evaluate_neuron_candidate_worthiness(
             user_input=input_packet.user_input,
             intent=str(signals.intent),
-            domain=semantic_domain or str(plan_dict.get("qualia_hypothesis", {}).get("domain") or ""),
+            domain=semantic_domain
+            or str(plan_dict.get("qualia_hypothesis", {}).get("domain") or ""),
             response=output.response,
             context=input_packet.context or {},
         )
@@ -518,20 +712,23 @@ class TriadeRunner:
             and safety.status not in ("blocked", "sandbox_only")
             and neuron_candidate_gate.get("should_create_neuron")
         ):
-            neuron_proposal = self._propose_neuron_candidate(input_packet, signals, candidate_gate=neuron_candidate_gate)
+            neuron_proposal = self._propose_neuron_candidate(
+                input_packet, signals, candidate_gate=neuron_candidate_gate
+            )
         elif neuron_candidate_gate.get("route") == "qualia_feedback":
             feedback_reinforcement_result = self._record_feedback_reinforcement(
                 run_id=input_packet.run_id,
                 feedback_text=input_packet.user_input,
-                coherence_score=float(response_coherence_gate.get("coherence_score") or 0.0),
+                coherence_score=float(
+                    response_coherence_gate.get("coherence_score") or 0.0
+                ),
                 central_quality=central_quality,
             )
         from .expression_cortex import ExpressionCortex
 
-        bodega_context = (
-            (input_packet.context or {}).get("living_context", {}).get("bodega_global_context", {})
-            or (input_packet.context or {}).get("bodega_global_context", {})
-        )
+        bodega_context = (input_packet.context or {}).get("living_context", {}).get(
+            "bodega_global_context", {}
+        ) or (input_packet.context or {}).get("bodega_global_context", {})
         runtime_context = (
             (input_packet.context or {}).get("runtime_heartbeat")
             or (input_packet.context or {}).get("heartbeat")
@@ -556,7 +753,9 @@ class TriadeRunner:
             or {}
         )
         ollama_payload = ollama_context if isinstance(ollama_context, dict) else {}
-        always_on_payload = always_on_context if isinstance(always_on_context, dict) else {}
+        always_on_payload = (
+            always_on_context if isinstance(always_on_context, dict) else {}
+        )
         workers_payload = workers_context if isinstance(workers_context, dict) else {}
         expression_result = ExpressionCortex().shape_response(
             user_input=input_packet.user_input,
@@ -588,44 +787,80 @@ class TriadeRunner:
                 "run_id": input_packet.run_id,
                 "safety_status": safety.status,
                 "central_quality": central_quality,
-                "ollama_status": ollama_payload.get("status") or runtime_payload.get("cognitive_blood_status"),
+                "ollama_status": ollama_payload.get("status")
+                or runtime_payload.get("cognitive_blood_status"),
                 "cognitive_blood_status": runtime_payload.get("cognitive_blood_status"),
                 "degraded_components": runtime_payload.get("degraded_components", []),
                 "always_on": always_on_payload,
                 "workers": workers_payload,
                 "runtime_mode": runtime_payload.get("mode"),
-                "effective_mode": runtime_payload.get("effective_autonomy") or always_on_payload.get("effective_mode"),
-                "learning_active": bool(neuron_proposal or feedback_reinforcement_result),
+                "effective_mode": runtime_payload.get("effective_autonomy")
+                or always_on_payload.get("effective_mode"),
+                "learning_active": bool(
+                    neuron_proposal or feedback_reinforcement_result
+                ),
             },
         )
         output.response = expression_result["response"]
         # ExpressionCortex es la última transformación visible. Reafirma aquí
         # la continuidad para que ninguna capa de estilo pueda ocultarla.
         try:
-            from triade.memory.continuity_truth import enforce_memory_truth, memory_truth_snapshot
+            from triade.memory.continuity_truth import (
+                enforce_memory_truth,
+                memory_truth_snapshot,
+            )
+
             output.response, expression_truth_corrections = enforce_memory_truth(
                 input_packet.user_input,
                 output.response,
-                input_packet.context.get("memory_truth") or memory_truth_snapshot(self.db_path),
+                input_packet.context.get("memory_truth")
+                or memory_truth_snapshot(self.db_path),
             )
             if expression_truth_corrections:
                 output.actions_taken.extend(expression_truth_corrections)
-                expression_result.setdefault("corrections", []).extend(expression_truth_corrections)
+                expression_result.setdefault("corrections", []).extend(
+                    expression_truth_corrections
+                )
         except Exception as exc:
             from .error_bus import record_internal_error
-            record_internal_error("runner.expression_memory_truth_gate", exc, run_id=input_packet.run_id, db_path=self.db_path)
-        goal_dispatch = input_packet.context.get("goal_dispatch") if isinstance(input_packet.context, dict) else None
+
+            record_internal_error(
+                "runner.expression_memory_truth_gate",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
+        goal_dispatch = (
+            input_packet.context.get("goal_dispatch")
+            if isinstance(input_packet.context, dict)
+            else None
+        )
         if isinstance(goal_dispatch, dict) and goal_dispatch.get("goal_created"):
             dispatch_status = str(goal_dispatch.get("status") or "")
             goal_id = str(goal_dispatch.get("goal_id") or "")
             if dispatch_status == "queued":
-                output.response = output.response.rstrip() + f"\n\nObjetivo persistente {goal_id} encolado para ejecución por workers."
+                output.response = (
+                    output.response.rstrip()
+                    + f"\n\nObjetivo persistente {goal_id} encolado para ejecución por workers."
+                )
             elif dispatch_status == "awaiting_approval":
-                reason = str((goal_dispatch.get("resolution") or {}).get("reason") or "acción de impacto")
-                output.response = output.response.rstrip() + f"\n\nObjetivo persistente {goal_id} pendiente de aprobación: {reason}"
+                reason = str(
+                    (goal_dispatch.get("resolution") or {}).get("reason")
+                    or "acción de impacto"
+                )
+                output.response = (
+                    output.response.rstrip()
+                    + f"\n\nObjetivo persistente {goal_id} pendiente de aprobación: {reason}"
+                )
             elif dispatch_status == "blocked":
-                reason = str((goal_dispatch.get("resolution") or {}).get("reason") or "capacidad no disponible")
-                output.response = output.response.rstrip() + f"\n\nObjetivo {goal_id} bloqueado de forma segura: {reason}"
+                reason = str(
+                    (goal_dispatch.get("resolution") or {}).get("reason")
+                    or "capacidad no disponible"
+                )
+                output.response = (
+                    output.response.rstrip()
+                    + f"\n\nObjetivo {goal_id} bloqueado de forma segura: {reason}"
+                )
         output_gate["expression_cortex"] = {
             "expression_mode": expression_result["expression_mode"],
             "internal_context_used": expression_result["internal_context_used"],
@@ -634,14 +869,39 @@ class TriadeRunner:
             "reason": expression_result["reason"],
         }
         expression_hidden_evidence = expression_result["hidden_evidence"]
-        self.bodega.update_run_models(input_packet.run_id, hypothalamus_model_result.get("name", self.hypothalamus_model), output.model_name)
-        hypothalamus_event_id = self.bodega.store_model_event(input_packet.run_id, "hypothalamus", str(hypothalamus_model_result.get("provider")), str(hypothalamus_model_result.get("name")), bool(hypothalamus_model_result.get("ok")), hypothalamus_model_result.get("error"), hypothalamus_quality)
-        central_event_id = self.bodega.store_model_event(input_packet.run_id, "central", output.model_provider, output.model_name, output.model_ok, output.model_error, central_quality)
+        self.bodega.update_run_models(
+            input_packet.run_id,
+            hypothalamus_model_result.get("name", self.hypothalamus_model),
+            output.model_name,
+        )
+        hypothalamus_event_id = self.bodega.store_model_event(
+            input_packet.run_id,
+            "hypothalamus",
+            str(hypothalamus_model_result.get("provider")),
+            str(hypothalamus_model_result.get("name")),
+            bool(hypothalamus_model_result.get("ok")),
+            hypothalamus_model_result.get("error"),
+            hypothalamus_quality,
+        )
+        central_event_id = self.bodega.store_model_event(
+            input_packet.run_id,
+            "central",
+            output.model_provider,
+            output.model_name,
+            output.model_ok,
+            output.model_error,
+            central_quality,
+        )
         memory_diff = self.bodega.store_episode(input_packet, output)
         temporal_state = {
-            "status": crystal.temporal_status, "q_delta": crystal.q_delta, "stability_delta": crystal.stability_delta,
-            "history_window": crystal.history_window, "alerts": crystal.temporal_alerts, "context_scope": crystal.context_scope,
-            "context_key": crystal.context_key, "comparison_basis": crystal.comparison_basis,
+            "status": crystal.temporal_status,
+            "q_delta": crystal.q_delta,
+            "stability_delta": crystal.stability_delta,
+            "history_window": crystal.history_window,
+            "alerts": crystal.temporal_alerts,
+            "context_scope": crystal.context_scope,
+            "context_key": crystal.context_key,
+            "comparison_basis": crystal.comparison_basis,
         }
         semantic_state = dict(memory.semantic_recall)
         semantic_state["authorized_matches"] = memory.semantic_matches
@@ -658,15 +918,33 @@ class TriadeRunner:
         }
 
         output.memory_diff = {
-            **memory_diff, "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id,
+            **memory_diff,
+            "signal_id": signal_id,
+            "crystal_id": crystal_id,
+            "safety_id": safety_id,
             "neuron_proposal": neuron_proposal,
             "feedback_reinforcement": feedback_reinforcement_result,
             "edge_usage": edge_usage,
-            "crystal_temporal_state": temporal_state, "semantic_recall": semantic_state,
+            "crystal_temporal_state": temporal_state,
+            "semantic_recall": semantic_state,
             "sandbox_result": sandbox_result,
-            "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_model_error": hypothalamus_model_result.get("error"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
-            "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_model_error": output.model_error, "central_quality_score": central_quality, "central_model_event_id": central_event_id,
-            "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_error": output.model_error, "model_selection": self.model_selection,
+            "hypothalamus_model_provider": hypothalamus_model_result.get("provider"),
+            "hypothalamus_model_name": hypothalamus_model_result.get("name"),
+            "hypothalamus_model_ok": hypothalamus_model_result.get("ok"),
+            "hypothalamus_model_error": hypothalamus_model_result.get("error"),
+            "hypothalamus_quality_score": hypothalamus_quality,
+            "hypothalamus_model_event_id": hypothalamus_event_id,
+            "central_model_provider": output.model_provider,
+            "central_model_name": output.model_name,
+            "central_model_ok": output.model_ok,
+            "central_model_error": output.model_error,
+            "central_quality_score": central_quality,
+            "central_model_event_id": central_event_id,
+            "model_provider": output.model_provider,
+            "model_name": output.model_name,
+            "model_ok": output.model_ok,
+            "model_error": output.model_error,
+            "model_selection": self.model_selection,
         }
         report = self.verifier.verify(output, safety, crystal=crystal, memory=memory)
         verification_id = self.bodega.store_verification_report(report)
@@ -682,14 +960,22 @@ class TriadeRunner:
         autopromotion_events: list[dict[str, Any]] = []
         try:
             from .neuron_autopromoter import NeuronAutopromoter
+
             autopromotion_events = NeuronAutopromoter(db_path=self.db_path).promote()
         except Exception as exc:
             from .error_bus import record_internal_error
-            record_internal_error("runner.autopromoter", exc, run_id=input_packet.run_id, db_path=self.db_path)
+
+            record_internal_error(
+                "runner.autopromoter",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
 
         learning_usage_result: dict[str, Any] = {}
         try:
             from .run_learning_usage import record_learning_usage_from_output
+
             learning_usage_result = record_learning_usage_from_output(
                 run_id=input_packet.run_id,
                 output_packet=output,
@@ -699,7 +985,13 @@ class TriadeRunner:
             )
         except Exception as exc:
             from .error_bus import record_internal_error
-            record_internal_error("runner.learning_usage", exc, run_id=input_packet.run_id, db_path=self.db_path)
+
+            record_internal_error(
+                "runner.learning_usage",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
 
         neuron_orchestration = orchestrate_run_neurons(
             db_path=self.db_path,
@@ -715,11 +1007,17 @@ class TriadeRunner:
             autopromotion_events=autopromotion_events,
         )
         system_events = neuron_orchestration["system_events"]
-        experimental_neuron_activity = neuron_orchestration["experimental_neuron_activity"]
+        experimental_neuron_activity = neuron_orchestration[
+            "experimental_neuron_activity"
+        ]
         neuron_activity_ids = neuron_orchestration["neuron_activity_ids"]
-        background_neuron_candidates = neuron_orchestration["background_neuron_candidates"]
+        background_neuron_candidates = neuron_orchestration[
+            "background_neuron_candidates"
+        ]
         neuron_contributions = neuron_orchestration.get("neuron_contributions", [])
-        neuron_learning_candidates = neuron_orchestration.get("neuron_learning_candidates", [])
+        neuron_learning_candidates = neuron_orchestration.get(
+            "neuron_learning_candidates", []
+        )
 
         neuron_contribution_summary = _process_neuron_contributions(
             contributions=neuron_contributions,
@@ -734,15 +1032,25 @@ class TriadeRunner:
         )
         output.memory_diff["semantic_continuity"] = semantic_continuity
         output.memory_diff["system_events"] = system_events
-        output.memory_diff["background_neuron_candidates"] = background_neuron_candidates
+        output.memory_diff["background_neuron_candidates"] = (
+            background_neuron_candidates
+        )
         output.memory_diff["output_gate"] = output_gate
         output.memory_diff["neuron_contributions"] = neuron_contributions
         output.memory_diff["neuron_learning_candidates"] = neuron_learning_candidates
         output.memory_diff["neuron_contribution_summary"] = neuron_contribution_summary
         output.memory_diff["learning_usage"] = learning_usage_result
-        output.memory_diff["living_context"] = input_packet.context.get("living_context")
-        output.memory_diff["internal_runtime_state"] = input_packet.context.get("living_context", {}).get("runtime_state") if isinstance(input_packet.context.get("living_context"), dict) else {}
-        output.memory_diff["response_deduplication"] = output_gate.get("deduplication", {})
+        output.memory_diff["living_context"] = input_packet.context.get(
+            "living_context"
+        )
+        output.memory_diff["internal_runtime_state"] = (
+            input_packet.context.get("living_context", {}).get("runtime_state")
+            if isinstance(input_packet.context.get("living_context"), dict)
+            else {}
+        )
+        output.memory_diff["response_deduplication"] = output_gate.get(
+            "deduplication", {}
+        )
         output.memory_diff["response_coherence"] = output_gate.get("coherence", {})
         output.memory_diff["response_coherence_gate"] = response_coherence_gate
         output.memory_diff["neuron_candidate_gate"] = neuron_candidate_gate
@@ -760,7 +1068,11 @@ class TriadeRunner:
             neuron_candidate_gate=neuron_candidate_gate,
         )
         try:
-            bgc = input_packet.context.get("bodega_global_context") if isinstance(input_packet.context, dict) else {}
+            bgc = (
+                input_packet.context.get("bodega_global_context")
+                if isinstance(input_packet.context, dict)
+                else {}
+            )
             memory_trace = build_run_memory_trace(
                 run_id=input_packet.run_id,
                 memory=memory,
@@ -779,7 +1091,13 @@ class TriadeRunner:
             }
         except Exception as exc:
             from .error_bus import record_internal_error
-            record_internal_error("runner.memory_trace", exc, run_id=input_packet.run_id, db_path=self.db_path)
+
+            record_internal_error(
+                "runner.memory_trace",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
         qualia_experiences = build_run_experiences(
             run_id=input_packet.run_id,
             post_run_learning=post_run_learning,
@@ -813,15 +1131,34 @@ class TriadeRunner:
             qualia_state = qualia_state_obj.to_dict()
         except Exception as exc:
             from .error_bus import record_internal_error
-            record_internal_error("runner.qualia_bus", exc, run_id=input_packet.run_id, db_path=self.db_path)
+
+            record_internal_error(
+                "runner.qualia_bus",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
             qualia_state = {"status": "error", "error": str(exc)}
-        qualia_signal_artifacts = [((item.get("bundle") or {}).get("signal") or {}) for item in qualia_publish_results]
-        qualia_central_artifacts = [((item.get("bundle") or {}).get("central_packet") or {}) for item in qualia_publish_results]
-        qualia_storage_artifacts = [((item.get("bundle") or {}).get("storage_packet") or {}) for item in qualia_publish_results]
+        qualia_signal_artifacts = [
+            ((item.get("bundle") or {}).get("signal") or {})
+            for item in qualia_publish_results
+        ]
+        qualia_central_artifacts = [
+            ((item.get("bundle") or {}).get("central_packet") or {})
+            for item in qualia_publish_results
+        ]
+        qualia_storage_artifacts = [
+            ((item.get("bundle") or {}).get("storage_packet") or {})
+            for item in qualia_publish_results
+        ]
         output.memory_diff["qualia_experiences_count"] = len(qualia_experiences)
         output.memory_diff["qualia_signals_count"] = len(qualia_signal_artifacts)
-        output.memory_diff["qualia_central_packets_count"] = len(qualia_central_artifacts)
-        output.memory_diff["qualia_storage_packets_count"] = len(qualia_storage_artifacts)
+        output.memory_diff["qualia_central_packets_count"] = len(
+            qualia_central_artifacts
+        )
+        output.memory_diff["qualia_storage_packets_count"] = len(
+            qualia_storage_artifacts
+        )
         output.memory_diff["qualia_state"] = qualia_state
         artifacts = build_base_artifacts(
             input_packet=input_packet,
@@ -840,7 +1177,9 @@ class TriadeRunner:
             neuron_proposal=neuron_proposal,
             post_run_learning=post_run_learning,
         )
-        artifacts["qualia_experiences.json"] = [experience.to_dict() for experience in qualia_experiences]
+        artifacts["qualia_experiences.json"] = [
+            experience.to_dict() for experience in qualia_experiences
+        ]
         artifacts["qualia_signals.json"] = qualia_signal_artifacts
         artifacts["qualia_central_packets.json"] = qualia_central_artifacts
         artifacts["qualia_storage_packets.json"] = qualia_storage_artifacts
@@ -848,9 +1187,22 @@ class TriadeRunner:
         artifacts["qualia_packets.json"] = qualia_packets_data
         written_artifacts = write_run_artifacts(run_path, artifacts)
         integrity = {
-            "run_id": input_packet.run_id, "status": report.status, "artifacts": written_artifacts, "database": memory_diff.get("db_path"), "episode_id": memory_diff.get("episode_id"), "signal_id": signal_id, "crystal_id": crystal_id, "safety_id": safety_id, "verification_report_id": verification_id,
-            "crystal_temporal_state": temporal_state, "semantic_recall": semantic_state,
-            "safety_crystal_feedback": {"status": safety.status, "risk_types": safety.risk_types, "controls": safety.required_controls},
+            "run_id": input_packet.run_id,
+            "status": report.status,
+            "artifacts": written_artifacts,
+            "database": memory_diff.get("db_path"),
+            "episode_id": memory_diff.get("episode_id"),
+            "signal_id": signal_id,
+            "crystal_id": crystal_id,
+            "safety_id": safety_id,
+            "verification_report_id": verification_id,
+            "crystal_temporal_state": temporal_state,
+            "semantic_recall": semantic_state,
+            "safety_crystal_feedback": {
+                "status": safety.status,
+                "risk_types": safety.risk_types,
+                "controls": safety.required_controls,
+            },
             "neuron_proposal": neuron_proposal,
             "feedback_reinforcement": feedback_reinforcement_result,
             "post_run_learning": post_run_learning,
@@ -867,8 +1219,21 @@ class TriadeRunner:
             "qualia_storage_packets_count": len(qualia_storage_artifacts),
             "qualia_packets_count": len(qualia_packets_data),
             "qualia_state": qualia_state,
-            "hypothalamus_model_provider": hypothalamus_model_result.get("provider"), "hypothalamus_model_name": hypothalamus_model_result.get("name"), "hypothalamus_model_ok": hypothalamus_model_result.get("ok"), "hypothalamus_quality_score": hypothalamus_quality, "hypothalamus_model_event_id": hypothalamus_event_id,
-            "central_model_provider": output.model_provider, "central_model_name": output.model_name, "central_model_ok": output.model_ok, "central_quality_score": central_quality, "central_model_event_id": central_event_id, "model_provider": output.model_provider, "model_name": output.model_name, "model_ok": output.model_ok, "model_selection": self.model_selection, "closed": True,
+            "hypothalamus_model_provider": hypothalamus_model_result.get("provider"),
+            "hypothalamus_model_name": hypothalamus_model_result.get("name"),
+            "hypothalamus_model_ok": hypothalamus_model_result.get("ok"),
+            "hypothalamus_quality_score": hypothalamus_quality,
+            "hypothalamus_model_event_id": hypothalamus_event_id,
+            "central_model_provider": output.model_provider,
+            "central_model_name": output.model_name,
+            "central_model_ok": output.model_ok,
+            "central_quality_score": central_quality,
+            "central_model_event_id": central_event_id,
+            "model_provider": output.model_provider,
+            "model_name": output.model_name,
+            "model_ok": output.model_ok,
+            "model_selection": self.model_selection,
+            "closed": True,
         }
         write_run_integrity(run_path=run_path, integrity=integrity)
         return build_run_result(
@@ -974,6 +1339,7 @@ class TriadeRunner:
         # Crear misión ejecutable asociada a la neurona candidata
         try:
             from .neuron_missions import NeuronMissionStore, NeuronMission
+
             mission_store = NeuronMissionStore(db_path=self.db_path)
             mission = NeuronMission(
                 neuron_id=neuron_id,
@@ -993,6 +1359,7 @@ class TriadeRunner:
         # Persistir training result — el pipeline lo calcula pero nunca lo almacenaba
         from .neuron_trainer import NeuronTrainingResult
         from .neuron_formation_pipeline import normalize_candidate_status
+
         tr = proposal.get("training_result")
         if tr:
             training_result = NeuronTrainingResult(
@@ -1033,9 +1400,17 @@ class TriadeRunner:
                      mood_valence_before, mood_valence_after, fatigue_before, fatigue_after)
                     VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, NULL)
                     """,
-                    (run_id, reward, 0.0, float(central_quality or 0.0), float(coherence_score or 0.0)),
+                    (
+                        run_id,
+                        reward,
+                        0.0,
+                        float(central_quality or 0.0),
+                        float(coherence_score or 0.0),
+                    ),
                 )
-                inserted_id = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
+                inserted_id = int(
+                    conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+                )
         except Exception as exc:
             from .error_bus import record_internal_error
 
@@ -1043,7 +1418,11 @@ class TriadeRunner:
                 "runner.feedback_reinforcement",
                 exc,
                 run_id=run_id,
-                payload={"module": __name__, "function": "_record_feedback_reinforcement", "feedback_text": feedback_text[:120]},
+                payload={
+                    "module": __name__,
+                    "function": "_record_feedback_reinforcement",
+                    "feedback_text": feedback_text[:120],
+                },
                 db_path=self.db_path,
             )
         return {
@@ -1056,13 +1435,17 @@ class TriadeRunner:
 
     @staticmethod
     def _slug(text: str) -> str:
-        cleaned = "".join(char.lower() if (char.isalnum() or char.isspace()) else " " for char in text)
+        cleaned = "".join(
+            char.lower() if (char.isalnum() or char.isspace()) else " " for char in text
+        )
         words = [word for word in cleaned.split() if len(word) >= 4][:3]
         return ("neurona-" + "-".join(words)) if words else "neurona-candidata"
 
     @staticmethod
     def _write_json(path: Path, payload: dict[str, Any] | list[Any]) -> None:
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     def recall(self, query: str, limit: int = 10) -> dict[str, Any]:
         episodes = self.bodega.list_recent_episodes(limit=limit)
@@ -1084,11 +1467,17 @@ class TriadeRunner:
             "hypothalamus": self.hypothalamus_model,
             "central": self.central_model,
             "selection": self.model_selection,
-            "ollama": self.model_client.health() if self.model_client else {"ok": False, "disabled": True},
+            "ollama": self.model_client.health()
+            if self.model_client
+            else {"ok": False, "disabled": True},
         }
         status["runtime"] = self._runtime_status()
         status["learning"] = {
-            "post_run_learning_enabled": str(os.environ.get("TRIADE_POST_RUN_LEARNING", "")).strip().lower()
+            "post_run_learning_enabled": str(
+                os.environ.get("TRIADE_POST_RUN_LEARNING", "")
+            )
+            .strip()
+            .lower()
             in {"1", "true", "yes", "on"}
         }
         return status
@@ -1128,7 +1517,9 @@ def _build_traceability(
     }
     if response_coherence_gate:
         trace["response_coherence_gate_status"] = response_coherence_gate.get("status")
-        trace["detected_input_type"] = response_coherence_gate.get("detected_input_type")
+        trace["detected_input_type"] = response_coherence_gate.get(
+            "detected_input_type"
+        )
         trace["response_coherence_gate_reason"] = response_coherence_gate.get("reason")
         trace["coherence_score"] = response_coherence_gate.get("coherence_score")
     if neuron_candidate_gate:
@@ -1160,7 +1551,9 @@ def _build_traceability(
         if memory and hasattr(memory, "semantic_recall"):
             sr = memory.semantic_recall
             if isinstance(sr, dict):
-                matches = sr.get("authorized_matches") or sr.get("semantic_matches") or []
+                matches = (
+                    sr.get("authorized_matches") or sr.get("semantic_matches") or []
+                )
                 if isinstance(matches, list):
                     trace["used_semantic_document_ids"] = [
                         str(m.get("document_id", ""))
@@ -1169,17 +1562,25 @@ def _build_traceability(
                     ]
     except Exception as exc:
         from .error_bus import record_internal_error
+
         record_internal_error(
             "runner.traceability.semantic_documents",
             exc,
             run_id=run_id,
-            payload={"module": __name__, "function": "_build_traceability", "operation": "extract_semantic_document_ids"},
+            payload={
+                "module": __name__,
+                "function": "_build_traceability",
+                "operation": "extract_semantic_document_ids",
+            },
         )
 
     # ── Neuron mission IDs activos ──
     trace["used_neuron_mission_ids"] = []
     try:
-        active = neuron_orchestration.get("experimental_neuron_activity") or experimental_neuron_activity
+        active = (
+            neuron_orchestration.get("experimental_neuron_activity")
+            or experimental_neuron_activity
+        )
         if isinstance(active, list):
             for item in active:
                 if isinstance(item, dict):
@@ -1188,11 +1589,16 @@ def _build_traceability(
                         trace["used_neuron_mission_ids"].append(str(mid))
     except Exception as exc:
         from .error_bus import record_internal_error
+
         record_internal_error(
             "runner.traceability.neuron_missions",
             exc,
             run_id=run_id,
-            payload={"module": __name__, "function": "_build_traceability", "operation": "extract_neuron_mission_ids"},
+            payload={
+                "module": __name__,
+                "function": "_build_traceability",
+                "operation": "extract_neuron_mission_ids",
+            },
         )
 
     # ── Evidence refs ──
@@ -1203,11 +1609,16 @@ def _build_traceability(
             trace["evidence_refs"] = mem_diff.get("evidence_refs") or []
     except Exception as exc:
         from .error_bus import record_internal_error
+
         record_internal_error(
             "runner.traceability.evidence_refs",
             exc,
             run_id=run_id,
-            payload={"module": __name__, "function": "_build_traceability", "operation": "extract_output_evidence_refs"},
+            payload={
+                "module": __name__,
+                "function": "_build_traceability",
+                "operation": "extract_output_evidence_refs",
+            },
         )
 
     return trace

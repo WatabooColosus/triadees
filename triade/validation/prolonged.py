@@ -146,10 +146,16 @@ class ProlongedValidator:
         status: ValidationStatus = "passed" if failed_checks == 0 else "failed"
         now = utc_now()
         checkpoint = ValidationCheckpoint(
-            checkpoint_id=checkpoint_id, window=window, status=status,
-            health_score=health_score, total_checks=total_checks,
-            passed_checks=passed_checks, failed_checks=failed_checks,
-            details=details or {}, started_at=now, completed_at=now,
+            checkpoint_id=checkpoint_id,
+            window=window,
+            status=status,
+            health_score=health_score,
+            total_checks=total_checks,
+            passed_checks=passed_checks,
+            failed_checks=failed_checks,
+            details=details or {},
+            started_at=now,
+            completed_at=now,
         )
         with self._connect() as conn:
             conn.execute(
@@ -157,9 +163,18 @@ class ProlongedValidator:
                 (checkpoint_id, window, status, health_score, total_checks,
                  passed_checks, failed_checks, details_json, started_at, completed_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (checkpoint_id, window, status, health_score, total_checks,
-                 passed_checks, failed_checks,
-                 json.dumps(details or {}, ensure_ascii=False), now, now),
+                (
+                    checkpoint_id,
+                    window,
+                    status,
+                    health_score,
+                    total_checks,
+                    passed_checks,
+                    failed_checks,
+                    json.dumps(details or {}, ensure_ascii=False),
+                    now,
+                    now,
+                ),
             )
         return checkpoint
 
@@ -173,8 +188,10 @@ class ProlongedValidator:
         data_integrity_verified: bool,
     ) -> DisasterRecoveryTest:
         test = DisasterRecoveryTest(
-            test_id=test_id, scenario=scenario,
-            steps_executed=tuple(steps), success=success,
+            test_id=test_id,
+            scenario=scenario,
+            steps_executed=tuple(steps),
+            success=success,
             duration_seconds=duration_seconds,
             data_integrity_verified=data_integrity_verified,
             executed_at=utc_now(),
@@ -185,9 +202,15 @@ class ProlongedValidator:
                 (test_id, scenario, steps_json, success, duration_seconds,
                  data_integrity_verified, executed_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (test_id, scenario, json.dumps(steps, ensure_ascii=False),
-                 1 if success else 0, duration_seconds,
-                 1 if data_integrity_verified else 0, utc_now()),
+                (
+                    test_id,
+                    scenario,
+                    json.dumps(steps, ensure_ascii=False),
+                    1 if success else 0,
+                    duration_seconds,
+                    1 if data_integrity_verified else 0,
+                    utc_now(),
+                ),
             )
         return test
 
@@ -202,18 +225,23 @@ class ProlongedValidator:
             ).fetchall()
         checkpoints = tuple(
             ValidationCheckpoint(
-                checkpoint_id=r["checkpoint_id"], window=r["window"],
-                status=r["status"], health_score=r["health_score"],
-                total_checks=r["total_checks"], passed_checks=r["passed_checks"],
+                checkpoint_id=r["checkpoint_id"],
+                window=r["window"],
+                status=r["status"],
+                health_score=r["health_score"],
+                total_checks=r["total_checks"],
+                passed_checks=r["passed_checks"],
                 failed_checks=r["failed_checks"],
                 details=json.loads(r["details_json"] or "{}"),
-                started_at=r["started_at"], completed_at=r["completed_at"],
+                started_at=r["started_at"],
+                completed_at=r["completed_at"],
             )
             for r in cp_rows
         )
         disaster_recovery = tuple(
             DisasterRecoveryTest(
-                test_id=r["test_id"], scenario=r["scenario"],
+                test_id=r["test_id"],
+                scenario=r["scenario"],
                 steps_executed=tuple(json.loads(r["steps_json"])),
                 success=bool(r["success"]),
                 duration_seconds=r["duration_seconds"],
@@ -229,7 +257,9 @@ class ProlongedValidator:
         overall_score = 0.0
         if total_cp + total_dr > 0:
             overall_score = round((passed_cp + passed_dr) / (total_cp + total_dr), 3)
-        overall_status: ValidationStatus = "passed" if overall_score >= 0.9 else "failed"
+        overall_status: ValidationStatus = (
+            "passed" if overall_score >= 0.9 else "failed"
+        )
         summary = (
             f"Validación {window}: {passed_cp}/{total_cp} checkpoints pasaron, "
             f"{passed_dr}/{total_dr} tests de recuperación pasaron. "
@@ -237,17 +267,26 @@ class ProlongedValidator:
         )
         report = SignedReport(
             report_id=f"report-{window}-{int(__import__('time').time())}",
-            window=window, checkpoints=checkpoints,
+            window=window,
+            checkpoints=checkpoints,
             disaster_recovery=disaster_recovery,
-            overall_status=overall_status, overall_score=overall_score,
-            summary=summary, created_at=utc_now(), checksum="",
+            overall_status=overall_status,
+            overall_score=overall_score,
+            summary=summary,
+            created_at=utc_now(),
+            checksum="",
         )
         checksum = self._compute_checksum(report)
         report = SignedReport(
-            report_id=report.report_id, window=window,
-            checkpoints=checkpoints, disaster_recovery=disaster_recovery,
-            overall_status=overall_status, overall_score=overall_score,
-            summary=summary, created_at=report.created_at, checksum=checksum,
+            report_id=report.report_id,
+            window=window,
+            checkpoints=checkpoints,
+            disaster_recovery=disaster_recovery,
+            overall_status=overall_status,
+            overall_score=overall_score,
+            summary=summary,
+            created_at=report.created_at,
+            checksum=checksum,
         )
         self._persist_report(report)
         return report
@@ -280,12 +319,16 @@ class ProlongedValidator:
             ).fetchall()
         return [
             ValidationCheckpoint(
-                checkpoint_id=r["checkpoint_id"], window=r["window"],
-                status=r["status"], health_score=r["health_score"],
-                total_checks=r["total_checks"], passed_checks=r["passed_checks"],
+                checkpoint_id=r["checkpoint_id"],
+                window=r["window"],
+                status=r["status"],
+                health_score=r["health_score"],
+                total_checks=r["total_checks"],
+                passed_checks=r["passed_checks"],
                 failed_checks=r["failed_checks"],
                 details=json.loads(r["details_json"] or "{}"),
-                started_at=r["started_at"], completed_at=r["completed_at"],
+                started_at=r["started_at"],
+                completed_at=r["completed_at"],
             )
             for r in rows
         ]
@@ -302,16 +345,26 @@ class ProlongedValidator:
         with self._connect() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO signed_reports(report_id, window, report_json, checksum, created_at) VALUES (?, ?, ?, ?, ?)",
-                (report.report_id, report.window,
-                 json.dumps(report.to_dict(), ensure_ascii=False),
-                 report.checksum, report.created_at),
+                (
+                    report.report_id,
+                    report.window,
+                    json.dumps(report.to_dict(), ensure_ascii=False),
+                    report.checksum,
+                    report.created_at,
+                ),
             )
 
     def doctor(self) -> dict[str, Any]:
         with self._connect() as conn:
-            checkpoints = conn.execute("SELECT COUNT(*) as c FROM validation_checkpoints").fetchone()["c"]
-            dr_tests = conn.execute("SELECT COUNT(*) as c FROM disaster_recovery_tests").fetchone()["c"]
-            reports = conn.execute("SELECT COUNT(*) as c FROM signed_reports").fetchone()["c"]
+            checkpoints = conn.execute(
+                "SELECT COUNT(*) as c FROM validation_checkpoints"
+            ).fetchone()["c"]
+            dr_tests = conn.execute(
+                "SELECT COUNT(*) as c FROM disaster_recovery_tests"
+            ).fetchone()["c"]
+            reports = conn.execute(
+                "SELECT COUNT(*) as c FROM signed_reports"
+            ).fetchone()["c"]
         return {
             "checkpoints_recorded": checkpoints,
             "disaster_recovery_tests": dr_tests,

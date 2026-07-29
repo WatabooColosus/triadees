@@ -47,21 +47,30 @@ NEURON_STATUS_EFFECTS: dict[str, tuple[AllowedEffect, ...]] = {
     "experimental": ("observe", "diagnose", "propose_learning"),
     "active_assistant": ("observe", "diagnose", "propose_learning", "influence_plan"),
     "trusted_worker": (
-        "observe", "diagnose", "propose_learning",
-        "influence_plan", "influence_response",
+        "observe",
+        "diagnose",
+        "propose_learning",
+        "influence_plan",
+        "influence_response",
         "write_experimental_memory",
     ),
     "stable": (
-        "observe", "diagnose", "propose_learning",
-        "influence_plan", "influence_response",
-        "write_experimental_memory", "request_stable_promotion",
+        "observe",
+        "diagnose",
+        "propose_learning",
+        "influence_plan",
+        "influence_response",
+        "write_experimental_memory",
+        "request_stable_promotion",
     ),
 }
 
-IDENTITY_CORE_FORBIDDEN_EFFECTS: frozenset[str] = frozenset({
-    "write_experimental_memory",
-    "request_stable_promotion",
-})
+IDENTITY_CORE_FORBIDDEN_EFFECTS: frozenset[str] = frozenset(
+    {
+        "write_experimental_memory",
+        "request_stable_promotion",
+    }
+)
 
 
 def utc_now() -> str:

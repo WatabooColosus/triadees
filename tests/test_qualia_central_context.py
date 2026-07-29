@@ -8,9 +8,13 @@ from pathlib import Path
 from triade.core.runner import TriadeRunner
 
 
-def test_runner_plan_dict_includes_qualia_hypothesis(tmp_path: Path, monkeypatch) -> None:
+def test_runner_plan_dict_includes_qualia_hypothesis(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TRIADE_POST_RUN_LEARNING", "1")
-    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+    runner = TriadeRunner(
+        runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False
+    )
     result = runner.run("Test qualia hypothesis integration")
     run_path = Path(result["run_path"])
     plan_path = run_path / "plan.json"
@@ -22,9 +26,13 @@ def test_runner_plan_dict_includes_qualia_hypothesis(tmp_path: Path, monkeypatch
         assert "policy" in hyp
 
 
-def test_runner_qualia_hypothesis_unavailable_without_data(tmp_path: Path, monkeypatch) -> None:
+def test_runner_qualia_hypothesis_unavailable_without_data(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TRIADE_POST_RUN_LEARNING", "1")
-    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+    runner = TriadeRunner(
+        runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False
+    )
     result = runner.run("Input sin datos qualia previos")
     run_path = Path(result["run_path"])
     plan_path = run_path / "plan.json"
@@ -36,7 +44,9 @@ def test_runner_qualia_hypothesis_unavailable_without_data(tmp_path: Path, monke
 
 def test_runner_qualia_hypothesis_in_integrity(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("TRIADE_POST_RUN_LEARNING", "1")
-    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+    runner = TriadeRunner(
+        runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False
+    )
     result = runner.run("Verificar qualia en integrity")
     run_path = Path(result["run_path"])
     integrity_path = run_path / "integrity.json"
@@ -47,7 +57,9 @@ def test_runner_qualia_hypothesis_in_integrity(tmp_path: Path, monkeypatch) -> N
 
 def test_runner_memory_diff_has_qualia_fields(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("TRIADE_POST_RUN_LEARNING", "1")
-    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+    runner = TriadeRunner(
+        runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False
+    )
     result = runner.run("Campos qualia en memory diff")
     md = result["memory_diff"]
     assert "qualia_experiences_count" in md

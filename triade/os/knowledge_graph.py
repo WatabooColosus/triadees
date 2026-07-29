@@ -36,7 +36,12 @@ class KnowledgeGraph:
         return conn
 
     def _ensure_schema(self) -> None:
-        migration = Path(__file__).resolve().parents[1] / "memory" / "migrations" / "005_triade_os.sql"
+        migration = (
+            Path(__file__).resolve().parents[1]
+            / "memory"
+            / "migrations"
+            / "005_triade_os.sql"
+        )
         if migration.exists():
             with self._connect() as conn:
                 conn.executescript(migration.read_text(encoding="utf-8"))
@@ -95,10 +100,14 @@ class KnowledgeGraph:
 
     def get_node(self, node_id: int) -> KGNode | None:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM kg_nodes WHERE id = ?", (node_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM kg_nodes WHERE id = ?", (node_id,)
+            ).fetchone()
         return self._row_to_node(row) if row else None
 
-    def update_node_evidence(self, node_id: int, evidence_level: str, confidence: float | None = None) -> bool:
+    def update_node_evidence(
+        self, node_id: int, evidence_level: str, confidence: float | None = None
+    ) -> bool:
         now = utc_now()
         with self._connect() as conn:
             if confidence is not None:
@@ -147,7 +156,9 @@ class KnowledgeGraph:
     def count_nodes(self, domain: str | None = None) -> int:
         with self._connect() as conn:
             if domain:
-                row = conn.execute("SELECT COUNT(*) AS c FROM kg_nodes WHERE domain = ?", (domain,)).fetchone()
+                row = conn.execute(
+                    "SELECT COUNT(*) AS c FROM kg_nodes WHERE domain = ?", (domain,)
+                ).fetchone()
             else:
                 row = conn.execute("SELECT COUNT(*) AS c FROM kg_nodes").fetchone()
         return int(row["c"]) if row else 0
@@ -175,12 +186,17 @@ class KnowledgeGraph:
     def get_edges(self, node_id: int, direction: str = "both") -> list[KGEdge]:
         with self._connect() as conn:
             if direction == "out":
-                rows = conn.execute("SELECT * FROM kg_edges WHERE source_id = ?", (node_id,)).fetchall()
+                rows = conn.execute(
+                    "SELECT * FROM kg_edges WHERE source_id = ?", (node_id,)
+                ).fetchall()
             elif direction == "in":
-                rows = conn.execute("SELECT * FROM kg_edges WHERE target_id = ?", (node_id,)).fetchall()
+                rows = conn.execute(
+                    "SELECT * FROM kg_edges WHERE target_id = ?", (node_id,)
+                ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT * FROM kg_edges WHERE source_id = ? OR target_id = ?", (node_id, node_id)
+                    "SELECT * FROM kg_edges WHERE source_id = ? OR target_id = ?",
+                    (node_id, node_id),
                 ).fetchall()
         return [self._row_to_edge(r) for r in rows]
 
@@ -266,11 +282,18 @@ class KnowledgeGraph:
             new_contradictions: list[KGContradiction] = []
             now = utc_now()
             for edge in contradict_edges:
-                pair = (min(edge["source_id"], edge["target_id"]), max(edge["source_id"], edge["target_id"]))
+                pair = (
+                    min(edge["source_id"], edge["target_id"]),
+                    max(edge["source_id"], edge["target_id"]),
+                )
                 if pair in existing:
                     continue
-                a = conn.execute("SELECT content, domain FROM kg_nodes WHERE id = ?", (pair[0],)).fetchone()
-                b = conn.execute("SELECT content, domain FROM kg_nodes WHERE id = ?", (pair[1],)).fetchone()
+                a = conn.execute(
+                    "SELECT content, domain FROM kg_nodes WHERE id = ?", (pair[0],)
+                ).fetchone()
+                b = conn.execute(
+                    "SELECT content, domain FROM kg_nodes WHERE id = ?", (pair[1],)
+                ).fetchone()
                 if not a or not b:
                     continue
                 desc = f"Contradicción: '{a['content'][:80]}' vs '{b['content'][:80]}'"
@@ -291,7 +314,9 @@ class KnowledgeGraph:
                 existing.add(pair)
             return new_contradictions
 
-    def list_contradictions(self, status: str | None = None, limit: int = 50) -> list[KGContradiction]:
+    def list_contradictions(
+        self, status: str | None = None, limit: int = 50
+    ) -> list[KGContradiction]:
         with self._connect() as conn:
             if status:
                 rows = conn.execute(
@@ -349,7 +374,9 @@ class KnowledgeGraph:
                     ).fetchone()["w"]
                 )
 
-                new_conf = max(0.0, min(1.0, base + (support_weight * 0.1) - (contra_weight * 0.2)))
+                new_conf = max(
+                    0.0, min(1.0, base + (support_weight * 0.1) - (contra_weight * 0.2))
+                )
 
                 if abs(new_conf - base) > 0.05:
                     new_level = self._confidence_to_level(new_conf)
@@ -389,7 +416,9 @@ class KnowledgeGraph:
                     (domain,),
                 ).fetchone()["c"]
             else:
-                node_count = conn.execute("SELECT COUNT(*) AS c FROM kg_nodes").fetchone()["c"]
+                node_count = conn.execute(
+                    "SELECT COUNT(*) AS c FROM kg_nodes"
+                ).fetchone()["c"]
                 by_type = conn.execute(
                     "SELECT node_type, COUNT(*) AS c FROM kg_nodes GROUP BY node_type"
                 ).fetchall()
@@ -400,7 +429,9 @@ class KnowledgeGraph:
                     "SELECT COUNT(*) AS c FROM kg_contradictions WHERE resolution_status != 'resolved'"
                 ).fetchone()["c"]
 
-            edge_count = conn.execute("SELECT COUNT(*) AS c FROM kg_edges").fetchone()["c"]
+            edge_count = conn.execute("SELECT COUNT(*) AS c FROM kg_edges").fetchone()[
+                "c"
+            ]
 
         return {
             "domain": domain,

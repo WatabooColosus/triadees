@@ -29,7 +29,9 @@ def make_run(evaluation_id: str, score: float) -> EvaluationRun:
     )
 
 
-def test_regression_snapshot_tolerates_existing_partial_database(tmp_path: Path) -> None:
+def test_regression_snapshot_tolerates_existing_partial_database(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     with sqlite3.connect(db_path) as conn:
         conn.execute("CREATE TABLE unrelated (id INTEGER PRIMARY KEY)")
@@ -55,7 +57,9 @@ def test_unified_observability_exposes_regression_gate(tmp_path: Path) -> None:
     assert "regression_gate" not in payload["degraded_sources"]
 
 
-def test_unified_observability_degrades_on_active_regression_failure(tmp_path: Path) -> None:
+def test_unified_observability_degrades_on_active_regression_failure(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     gate = RegressionGate(db_path)
     baseline = make_run("baseline", 1.0)
@@ -79,4 +83,6 @@ def test_unified_observability_degrades_on_active_regression_failure(tmp_path: P
     assert payload["regression_gate"]["status"] == "attention"
     assert payload["regression_gate"]["quarantine"]["active"] == 1
     assert payload["status"] == "degraded"
-    assert any("Regression Gate requiere atención" in item for item in payload["warnings"])
+    assert any(
+        "Regression Gate requiere atención" in item for item in payload["warnings"]
+    )

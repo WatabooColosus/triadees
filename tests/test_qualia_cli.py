@@ -55,8 +55,12 @@ def test_qualia_publish_test_command(tmp_path: Path) -> None:
 def test_qualia_publish_test_with_learning(tmp_path: Path) -> None:
     db = tmp_path / "triade.db"
     result = run_cli(
-        "qualia", "--db", str(db), "publish-test",
-        "--proposed-learning", "Aprendizaje de prueba CLI.",
+        "qualia",
+        "--db",
+        str(db),
+        "publish-test",
+        "--proposed-learning",
+        "Aprendizaje de prueba CLI.",
     )
     assert result.returncode == 0
     payload = json.loads(result.stdout)

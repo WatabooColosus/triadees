@@ -5,13 +5,13 @@ import json
 import sqlite3
 import time
 from datetime import datetime, timezone
-from typing import Any
 
 from triade.core.contracts import utc_now
 
 
 def _gen_id(prefix: str) -> str:
     import hashlib
+
     return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(timezone.utc).timestamp()).encode()).hexdigest()[:6]}"
 
 
@@ -45,7 +45,9 @@ CREATE INDEX IF NOT EXISTS idx_it_run ON integration_tests(run_id);
 class IntegrationValidator:
     """Validación end-to-end de todos los subsistemas de Tríade Ω."""
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
@@ -102,9 +104,12 @@ class IntegrationValidator:
                 failed += 1
 
             result = {
-                "test_id": test_id, "name": test_name,
-                "subsystem": subsystem, "status": status,
-                "duration_ms": round(dur, 2), "details": details,
+                "test_id": test_id,
+                "name": test_name,
+                "subsystem": subsystem,
+                "status": status,
+                "duration_ms": round(dur, 2),
+                "details": details,
             }
             results.append(result)
 
@@ -113,8 +118,16 @@ class IntegrationValidator:
                    (test_id, run_id, test_name, subsystem, status,
                     duration_ms, details_json, created_at)
                    VALUES (?,?,?,?,?,?,?,?)""",
-                (test_id, run_id, test_name, subsystem, status,
-                 round(dur, 2), json.dumps(details, default=str), utc_now()),
+                (
+                    test_id,
+                    run_id,
+                    test_name,
+                    subsystem,
+                    status,
+                    round(dur, 2),
+                    json.dumps(details, default=str),
+                    utc_now(),
+                ),
             )
 
         total_dur = (time.time() - t0) * 1000
@@ -126,16 +139,28 @@ class IntegrationValidator:
                SET status=?, finished_at=?, tests_total=?, tests_passed=?,
                    tests_failed=?, results_json=?, summary=?, duration_ms=?
                WHERE run_id=?""",
-            (overall, utc_now(), len(tests), passed, failed,
-             json.dumps(results, default=str), summary,
-             round(total_dur, 2), run_id),
+            (
+                overall,
+                utc_now(),
+                len(tests),
+                passed,
+                failed,
+                json.dumps(results, default=str),
+                summary,
+                round(total_dur, 2),
+                run_id,
+            ),
         )
         self._conn.commit()
 
         return {
-            "run_id": run_id, "status": overall,
-            "total": len(tests), "passed": passed, "failed": failed,
-            "duration_ms": round(total_dur, 2), "results": results,
+            "run_id": run_id,
+            "status": overall,
+            "total": len(tests),
+            "passed": passed,
+            "failed": failed,
+            "duration_ms": round(total_dur, 2),
+            "results": results,
         }
 
     def get_run(self, run_id: str) -> dict | None:
@@ -151,14 +176,19 @@ class IntegrationValidator:
         return [dict(r) for r in rows]
 
     def doctor(self) -> dict:
-        runs = self._conn.execute("SELECT COUNT(*) as c FROM integration_runs").fetchone()["c"]
-        passed = self._conn.execute("SELECT COUNT(*) as c FROM integration_runs WHERE status='passed'").fetchone()["c"]
+        runs = self._conn.execute(
+            "SELECT COUNT(*) as c FROM integration_runs"
+        ).fetchone()["c"]
+        passed = self._conn.execute(
+            "SELECT COUNT(*) as c FROM integration_runs WHERE status='passed'"
+        ).fetchone()["c"]
         return {"total_runs": runs, "passed": passed, "failed": runs - passed}
 
     # ─── individual tests ───
 
     def _test_constitution(self) -> dict:
         from triade.constitution.enforcer import ConstitutionEnforcer, SYSTEM_COMPONENTS
+
         ce = ConstitutionEnforcer()
         result = ce.check_article("central", 1, {"modifies_identity": False})
         assert result["status"] == "pass", f"Constitution check failed: {result}"
@@ -170,20 +200,28 @@ class IntegrationValidator:
 
     def _test_monitor(self) -> dict:
         from triade.core.system_monitor import SystemMonitor
+
         mon = SystemMonitor()
-        snap = mon.snapshot({"cpu_percent": 50.0, "ram_percent": 60.0, "disk_percent": 40.0})
+        snap = mon.snapshot(
+            {"cpu_percent": 50.0, "ram_percent": 60.0, "disk_percent": 40.0}
+        )
         assert snap["snapshot_id"].startswith("snap-")
         return {"snapshot": snap["snapshot_id"]}
 
     def _test_scheduler(self) -> dict:
         from triade.workers.advanced_scheduler import AdvancedScheduler
+
         sch = AdvancedScheduler()
         q = sch.check_quota("pulse_check")
         assert q["allowed"]
         return {"quota_ok": True}
 
     def _test_tool_registry(self) -> dict:
-        from triade.sandbox.enhanced_tool_registry import EnhancedToolRegistry, ToolContract
+        from triade.sandbox.enhanced_tool_registry import (
+            EnhancedToolRegistry,
+            ToolContract,
+        )
+
         etr = EnhancedToolRegistry()
         tc = ToolContract(tool_id="test_int", name="IntTest", category="system")
         etr.register(tc)
@@ -193,6 +231,7 @@ class IntegrationValidator:
 
     def _test_federation(self) -> dict:
         from triade.federation.federation_advanced import FederationAdvanced
+
         fed = FederationAdvanced()
         trust = fed.update_trust("test_node", success=True, latency_ms=50.0)
         assert trust["trust_score"] > 0.4
@@ -200,6 +239,7 @@ class IntegrationValidator:
 
     def _test_model_router(self) -> dict:
         from triade.models.smart_router import SmartModelRouter
+
         router = SmartModelRouter()
         decision = router.select("central", difficulty="medium", available_ram_gb=31.0)
         assert decision["model"]
@@ -207,16 +247,23 @@ class IntegrationValidator:
 
     def _test_neuron_training(self) -> dict:
         from triade.neuron_factory.training import TrainingPipeline
+
         tp = TrainingPipeline()
-        ds = tp.create_dataset("int_test", "test", "int-ds", [
-            {"input": {"x": 1}, "expected": {"x": 1}},
-        ])
+        ds = tp.create_dataset(
+            "int_test",
+            "test",
+            "int-ds",
+            [
+                {"input": {"x": 1}, "expected": {"x": 1}},
+            ],
+        )
         run = tp.run_episodes(ds["dataset_id"], "int_test")
         assert run["avg_score"] >= 0.0
         return {"avg_score": run["avg_score"]}
 
     def _test_causal_learning(self) -> dict:
         from triade.learning.causal_learning import CausalLearningEngine
+
         cle = CausalLearningEngine()
         n = cle.add_node("test_event", "event", "test")
         assert n["node_id"]
@@ -224,17 +271,25 @@ class IntegrationValidator:
 
     def _test_quality(self) -> dict:
         from triade.evaluation.advanced_evaluation import QualityCompositor
+
         qc = QualityCompositor()
-        r = qc.evaluate("int_test", {
-            "correctness": 0.9, "completeness": 0.8,
-            "performance": 0.8, "security": 0.9,
-            "maintainability": 0.8, "documentation": 0.7,
-        })
+        r = qc.evaluate(
+            "int_test",
+            {
+                "correctness": 0.9,
+                "completeness": 0.8,
+                "performance": 0.8,
+                "security": 0.9,
+                "maintainability": 0.8,
+                "documentation": 0.7,
+            },
+        )
         assert r["overall_score"] > 0.5
         return {"score": r["overall_score"]}
 
     def _test_triadeos(self) -> dict:
         from triade.os.triadeos_complete import TriadeOSComplete
+
         os = TriadeOSComplete()
         cycle = os.start_cycle()
         result = os.run_full_check(cycle["cycle_id"])
@@ -243,6 +298,7 @@ class IntegrationValidator:
 
     def _test_autonomous(self) -> dict:
         from triade.os.autonomous_routines import AutonomousRoutines
+
         ar = AutonomousRoutines()
         routine = ar.create_routine("health_maintenance")
         result = ar.execute_routine(routine["routine_id"])
@@ -251,24 +307,35 @@ class IntegrationValidator:
 
     def _test_central_planning(self) -> dict:
         from triade.core.central import Central
+
         c = Central()
-        assert hasattr(c, 'plan')
-        assert hasattr(c, 'respond')
-        assert hasattr(c, 'replan')
-        return {"central_active": True, "has_plan": True,
-                "has_respond": True, "has_replan": True}
+        assert hasattr(c, "plan")
+        assert hasattr(c, "respond")
+        assert hasattr(c, "replan")
+        return {
+            "central_active": True,
+            "has_plan": True,
+            "has_respond": True,
+            "has_replan": True,
+        }
 
     def _test_hypothalamus(self) -> dict:
         from triade.hypothalamus.vice_virtue import ViceVirtueState
+
         vvs = ViceVirtueState()
         virtue_name, virtue_score = vvs.dominant_virtue
         sin_name, sin_score = vvs.dominant_sin
         assert virtue_name is not None
-        return {"dominant_virtue": virtue_name, "virtue_score": virtue_score,
-                "dominant_sin": sin_name, "sin_score": sin_score}
+        return {
+            "dominant_virtue": virtue_name,
+            "virtue_score": virtue_score,
+            "dominant_sin": sin_name,
+            "sin_score": sin_score,
+        }
 
     def _test_crystal_qualia(self) -> dict:
         from triade.qualia.continuity import ContinuityEngine
+
         ce = ContinuityEngine()
         history = ce.get_history(limit=5)
         assert isinstance(history, list)
@@ -276,6 +343,7 @@ class IntegrationValidator:
 
     def _test_bodega(self) -> dict:
         from triade.memory.semantic_store import SemanticMemoryStore
+
         ss = SemanticMemoryStore()
         result = ss.doctor()
         assert result is not None
@@ -283,6 +351,7 @@ class IntegrationValidator:
 
     def _test_creadora(self) -> dict:
         from triade.neuron_factory.design import DesignEngine
+
         de = DesignEngine()
         spec = de.design("test_neuron", "general", "Integration test neuron")
         assert spec is not None
@@ -290,10 +359,16 @@ class IntegrationValidator:
 
     def _test_formadora(self) -> dict:
         from triade.neuron_factory.training import TrainingPipeline
+
         tp = TrainingPipeline()
-        ds = tp.create_dataset("formadora_test", "test", "ft-ds", [
-            {"input": {"x": 1}, "expected": {"x": 1}},
-        ])
+        ds = tp.create_dataset(
+            "formadora_test",
+            "test",
+            "ft-ds",
+            [
+                {"input": {"x": 1}, "expected": {"x": 1}},
+            ],
+        )
         run = tp.run_episodes(ds["dataset_id"], "formadora_test")
         assert run["avg_score"] >= 0.0
         return {"formadora_active": True, "avg_score": run["avg_score"]}

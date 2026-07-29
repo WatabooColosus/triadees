@@ -14,7 +14,17 @@ INTENT_CLASSIFICATION = {
     "move": {"actions": ["move"], "risk": 0.4},
     "delete": {"actions": ["delete_to_trash"], "risk": 0.5},
     "organize": {"actions": ["move", "create", "delete_to_trash"], "risk": 0.5},
-    "refactor": {"actions": ["patch", "move", "create", "delete_to_trash", "run_tests", "run_build"], "risk": 0.7},
+    "refactor": {
+        "actions": [
+            "patch",
+            "move",
+            "create",
+            "delete_to_trash",
+            "run_tests",
+            "run_build",
+        ],
+        "risk": 0.7,
+    },
     "test": {"actions": ["run_tests"], "risk": 0.3},
     "build": {"actions": ["run_build"], "risk": 0.3},
     "read_only": {"actions": ["read"], "risk": 0.0},
@@ -30,7 +40,9 @@ def _classify_intent(intent: str) -> dict[str, Any]:
 
 
 def plan_delegated_action(
-    intent: str, requested_paths: list[str], autonomy_level: str,
+    intent: str,
+    requested_paths: list[str],
+    autonomy_level: str,
 ) -> dict[str, Any]:
     """Planea una acción delegada sin ejecutarla.
 
@@ -85,7 +97,10 @@ def plan_delegated_action(
         human_approval_required = True
 
     if len(requested_paths) > budget.get("max_files_per_cycle", 0):
-        blocked_reason = blocked_reason or f"Supera máximo de archivos por ciclo ({budget['max_files_per_cycle']})"
+        blocked_reason = (
+            blocked_reason
+            or f"Supera máximo de archivos por ciclo ({budget['max_files_per_cycle']})"
+        )
 
     risk_score = intent_info["risk"]
     if red:

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -136,52 +136,68 @@ class VerificationCouncil:
         if "safety" in verifier_id.lower():
             if critical_issues:
                 return VerifierOpinion(
-                    verifier_id=verifier_id, verifier_type="safety",
-                    verdict="rejected", confidence=0.9,
+                    verifier_id=verifier_id,
+                    verifier_type="safety",
+                    verdict="rejected",
+                    confidence=0.9,
                     reasoning=f"Problemas críticos detectados: {critical_issues}",
                 )
             return VerifierOpinion(
-                verifier_id=verifier_id, verifier_type="safety",
+                verifier_id=verifier_id,
+                verifier_type="safety",
                 verdict="approved" if has_rollback else "conditional",
                 confidence=0.8 if has_rollback else 0.6,
-                reasoning="Sin problemas críticos." + (" Rollback registrado." if has_rollback else " Falta rollback."),
+                reasoning="Sin problemas críticos."
+                + (" Rollback registrado." if has_rollback else " Falta rollback."),
                 conditions=() if has_rollback else ("Registrar rollback.",),
             )
         if "regression" in verifier_id.lower():
             if regression_pass is False:
                 return VerifierOpinion(
-                    verifier_id=verifier_id, verifier_type="regression",
-                    verdict="rejected", confidence=0.95,
+                    verifier_id=verifier_id,
+                    verifier_type="regression",
+                    verdict="rejected",
+                    confidence=0.95,
                     reasoning="Regression Gate reporta fallo.",
                 )
             if regression_pass is True:
                 return VerifierOpinion(
-                    verifier_id=verifier_id, verifier_type="regression",
-                    verdict="approved", confidence=0.9,
+                    verifier_id=verifier_id,
+                    verifier_type="regression",
+                    verdict="approved",
+                    confidence=0.9,
                     reasoning="Regression Gate reporta pass.",
                 )
             return VerifierOpinion(
-                verdict="conditional", confidence=0.5,
-                verifier_id=verifier_id, verifier_type="regression",
+                verdict="conditional",
+                confidence=0.5,
+                verifier_id=verifier_id,
+                verifier_type="regression",
                 reasoning="Sin evidencia de Regression Gate.",
                 conditions=("Ejecutar Regression Gate.",),
             )
         if "evidence" in verifier_id.lower():
             if has_baseline:
                 return VerifierOpinion(
-                    verifier_id=verifier_id, verifier_type="evidence",
-                    verdict="approved", confidence=0.8,
+                    verifier_id=verifier_id,
+                    verifier_type="evidence",
+                    verdict="approved",
+                    confidence=0.8,
                     reasoning="Baseline existe para la capacidad.",
                 )
             return VerifierOpinion(
-                verifier_id=verifier_id, verifier_type="evidence",
-                verdict="conditional", confidence=0.5,
+                verifier_id=verifier_id,
+                verifier_type="evidence",
+                verdict="conditional",
+                confidence=0.5,
                 reasoning="Sin baseline registrado.",
                 conditions=("Crear baseline antes de promover.",),
             )
         return VerifierOpinion(
-            verifier_id=verifier_id, verifier_type="generic",
-            verdict="conditional", confidence=0.5,
+            verifier_id=verifier_id,
+            verifier_type="generic",
+            verdict="conditional",
+            confidence=0.5,
             reasoning=f"Verificador '{verifier_id}' sin reglas específicas.",
         )
 
@@ -205,7 +221,9 @@ class VerificationCouncil:
         return round(total / len(opinions), 3)
 
     @staticmethod
-    def _build_reasoning_summary(opinions: list[VerifierOpinion], final: Verdict) -> str:
+    def _build_reasoning_summary(
+        opinions: list[VerifierOpinion], final: Verdict
+    ) -> str:
         approved = sum(1 for o in opinions if o.verdict == "approved")
         rejected = sum(1 for o in opinions if o.verdict == "rejected")
         conditional = sum(1 for o in opinions if o.verdict == "conditional")
@@ -226,7 +244,9 @@ class VerificationCouncil:
                     decision.decision_id,
                     decision.target_capability,
                     decision.target_candidate,
-                    json.dumps([o.to_dict() for o in decision.opinions], ensure_ascii=False),
+                    json.dumps(
+                        [o.to_dict() for o in decision.opinions], ensure_ascii=False
+                    ),
                     decision.final_verdict,
                     decision.score,
                     decision.reasoning_summary,
@@ -265,9 +285,15 @@ class VerificationCouncil:
 
     def doctor(self) -> dict[str, Any]:
         with self._connect() as conn:
-            total = conn.execute("SELECT COUNT(*) as c FROM council_decisions").fetchone()["c"]
-            approved = conn.execute("SELECT COUNT(*) as c FROM council_decisions WHERE final_verdict='approved'").fetchone()["c"]
-            rejected = conn.execute("SELECT COUNT(*) as c FROM council_decisions WHERE final_verdict='rejected'").fetchone()["c"]
+            total = conn.execute(
+                "SELECT COUNT(*) as c FROM council_decisions"
+            ).fetchone()["c"]
+            approved = conn.execute(
+                "SELECT COUNT(*) as c FROM council_decisions WHERE final_verdict='approved'"
+            ).fetchone()["c"]
+            rejected = conn.execute(
+                "SELECT COUNT(*) as c FROM council_decisions WHERE final_verdict='rejected'"
+            ).fetchone()["c"]
         return {
             "total_decisions": total,
             "approved": approved,

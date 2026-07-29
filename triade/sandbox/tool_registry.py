@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Literal
 
@@ -102,14 +102,18 @@ class ToolRegistry:
                  permissions_json, timeout_seconds, max_memory_mb, sandbox_required, version, registered_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    definition.tool_id, definition.name, definition.category,
+                    definition.tool_id,
+                    definition.name,
+                    definition.category,
                     definition.description,
                     json.dumps(definition.input_schema, ensure_ascii=False),
                     json.dumps(definition.output_schema, ensure_ascii=False),
                     json.dumps(list(definition.permissions), ensure_ascii=False),
-                    definition.timeout_seconds, definition.max_memory_mb,
+                    definition.timeout_seconds,
+                    definition.max_memory_mb,
                     1 if definition.sandbox_required else 0,
-                    definition.version, utc_now(),
+                    definition.version,
+                    utc_now(),
                 ),
             )
 
@@ -162,33 +166,48 @@ class ToolRegistry:
 
     def execute(self, tool_id: str, payload: dict[str, Any]) -> ToolExecutionResult:
         import time
+
         start = time.perf_counter()
         validation = self.validate_input(tool_id, payload)
         if not validation["valid"]:
             return ToolExecutionResult(
-                tool_id=tool_id, success=False, output=None,
-                error=validation["error"], duration_ms=0, executed_at=utc_now(),
+                tool_id=tool_id,
+                success=False,
+                output=None,
+                error=validation["error"],
+                duration_ms=0,
+                executed_at=utc_now(),
             )
         handler = self._handlers.get(tool_id)
         if handler is None:
             return ToolExecutionResult(
-                tool_id=tool_id, success=False, output=None,
+                tool_id=tool_id,
+                success=False,
+                output=None,
                 error=f"No hay handler registrado para '{tool_id}'.",
-                duration_ms=0, executed_at=utc_now(),
+                duration_ms=0,
+                executed_at=utc_now(),
             )
         try:
             output = handler(payload)
             duration = (time.perf_counter() - start) * 1000
             result = ToolExecutionResult(
-                tool_id=tool_id, success=True, output=output,
-                error=None, duration_ms=round(duration, 2), executed_at=utc_now(),
+                tool_id=tool_id,
+                success=True,
+                output=output,
+                error=None,
+                duration_ms=round(duration, 2),
+                executed_at=utc_now(),
             )
         except Exception as exc:
             duration = (time.perf_counter() - start) * 1000
             result = ToolExecutionResult(
-                tool_id=tool_id, success=False, output=None,
+                tool_id=tool_id,
+                success=False,
+                output=None,
                 error=f"{type(exc).__name__}: {exc}",
-                duration_ms=round(duration, 2), executed_at=utc_now(),
+                duration_ms=round(duration, 2),
+                executed_at=utc_now(),
             )
         self._log_execution(result)
         return result
@@ -198,21 +217,30 @@ class ToolRegistry:
             with self._connect() as conn:
                 conn.execute(
                     "INSERT INTO tool_executions(tool_id, success, output_preview, error, duration_ms, executed_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (result.tool_id, 1 if result.success else 0,
-                     str(result.output)[:500] if result.output else None,
-                     result.error, result.duration_ms, result.executed_at),
+                    (
+                        result.tool_id,
+                        1 if result.success else 0,
+                        str(result.output)[:500] if result.output else None,
+                        result.error,
+                        result.duration_ms,
+                        result.executed_at,
+                    ),
                 )
         except sqlite3.OperationalError:
             pass
 
     def doctor(self) -> dict[str, Any]:
         with self._connect() as conn:
-            total = conn.execute("SELECT COUNT(*) as c FROM tool_registry").fetchone()["c"]
+            total = conn.execute("SELECT COUNT(*) as c FROM tool_registry").fetchone()[
+                "c"
+            ]
             recent = conn.execute(
                 "SELECT tool_id, SUM(CASE WHEN success THEN 1 ELSE 0 END) as ok, COUNT(*) as total FROM tool_executions GROUP BY tool_id"
             ).fetchall()
         return {
             "registered_tools": total,
             "handlers_loaded": len(self._handlers),
-            "execution_stats": {r["tool_id"]: {"ok": r["ok"], "total": r["total"]} for r in recent},
+            "execution_stats": {
+                r["tool_id"]: {"ok": r["ok"], "total": r["total"]} for r in recent
+            },
         }

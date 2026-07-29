@@ -10,35 +10,39 @@ from triade.core.contracts import utc_now
 from triade.services.event_bus import publish_event
 
 
-ALWAYS_ON_ALLOWED_ACTIONS = frozenset({
-    "heartbeat",
-    "resource_probe",
-    "ollama_blood_check",
-    "bodega_review",
-    "learning_journal",
-    "neuron_nutrition_observe",
-    "neuron_nutrition_execute_if_governor_allows",
-    "mission_readiness_audit",
-    "integrity_snapshot_read_only",
-    "technical_debt_audit",
-    "self_test_cycle",
-    "edge_context_fallback_test",
-    "semantic_embedding_if_governor_allows",
-    "learning_evaluation_if_governor_allows",
-})
+ALWAYS_ON_ALLOWED_ACTIONS = frozenset(
+    {
+        "heartbeat",
+        "resource_probe",
+        "ollama_blood_check",
+        "bodega_review",
+        "learning_journal",
+        "neuron_nutrition_observe",
+        "neuron_nutrition_execute_if_governor_allows",
+        "mission_readiness_audit",
+        "integrity_snapshot_read_only",
+        "technical_debt_audit",
+        "self_test_cycle",
+        "edge_context_fallback_test",
+        "semantic_embedding_if_governor_allows",
+        "learning_evaluation_if_governor_allows",
+    }
+)
 
-ALWAYS_ON_BLOCKED_ACTIONS = frozenset({
-    "direct_delete",
-    "repo_write_without_approval",
-    "shell_freeform",
-    "git_push",
-    "git_reset",
-    "package_install",
-    "identity_core_modify",
-    ".git_modify",
-    ".env_modify",
-    "red_zone_write",
-})
+ALWAYS_ON_BLOCKED_ACTIONS = frozenset(
+    {
+        "direct_delete",
+        "repo_write_without_approval",
+        "shell_freeform",
+        "git_push",
+        "git_reset",
+        "package_install",
+        "identity_core_modify",
+        ".git_modify",
+        ".env_modify",
+        "red_zone_write",
+    }
+)
 
 
 def run_self_test_cycle(
@@ -59,6 +63,7 @@ def run_self_test_cycle(
     # ── 1. Ollama Blood ──
     try:
         from triade.core.ollama_blood import check_ollama_blood
+
         blood = check_ollama_blood()
         checks["ollama_blood"] = {
             "status": blood.get("status"),
@@ -72,6 +77,7 @@ def run_self_test_cycle(
     # ── 2. Runtime Heartbeat ──
     try:
         from triade.core.internal_runtime import build_runtime_heartbeat
+
         hb = build_runtime_heartbeat(db_path=db_path, runs_dir=runs_dir)
         checks["heartbeat"] = {
             "status": hb.get("status"),
@@ -85,6 +91,7 @@ def run_self_test_cycle(
     # ── 3. Learning Journal ──
     try:
         from triade.core.learning_journal import build_learning_journal
+
         journal = build_learning_journal(db_path=db_path, limit=10)
         checks["learning_journal"] = {
             "status": journal.get("status"),
@@ -97,10 +104,13 @@ def run_self_test_cycle(
     # ── 4. Neuron Nutrition (safe) ──
     try:
         from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
+
         nutrition_mode = "observe_only"
         if mode == "full":
             nutrition_mode = "execute_missions"
-        nutrition = run_neuron_nutrition_cycle(db_path=db_path, runs_dir=runs_dir, mode=nutrition_mode, limit=3)
+        nutrition = run_neuron_nutrition_cycle(
+            db_path=db_path, runs_dir=runs_dir, mode=nutrition_mode, limit=3
+        )
         checks["neuron_nutrition"] = {
             "status": nutrition.get("status"),
             "cognitive_blood_active": nutrition.get("cognitive_blood_active"),
@@ -119,7 +129,10 @@ def run_self_test_cycle(
     # ── 5. Bodega Global Context ──
     try:
         from triade.core.bodega_global_context import build_bodega_global_context
-        bodega = build_bodega_global_context("self test", db_path=db_path, runs_dir=runs_dir, limit=5)
+
+        bodega = build_bodega_global_context(
+            "self test", db_path=db_path, runs_dir=runs_dir, limit=5
+        )
         checks["bodega_global"] = {
             "status": bodega.get("status"),
             "memory_confidence": bodega.get("memory_confidence"),
@@ -131,6 +144,7 @@ def run_self_test_cycle(
     # ── 6. Technical Debt ──
     try:
         from triade.core.technical_debt_audit import build_technical_debt_audit
+
         debt = build_technical_debt_audit()
         checks["technical_debt"] = {
             "status": debt.get("status"),
@@ -143,6 +157,7 @@ def run_self_test_cycle(
     # ── 7. Integrity Snapshot (read-only) ──
     try:
         from triade.core.integrity_verifier import build_integrity_snapshot
+
         integrity = build_integrity_snapshot(paths=["./triade", "./apps", "./tests"])
         checks["integrity_snapshot"] = {
             "status": "ok",
@@ -155,6 +170,7 @@ def run_self_test_cycle(
     # ── 8. Resource Probe ──
     try:
         from triade.core.resource_probe import build_resource_probe
+
         probe = build_resource_probe()
         checks["resource_probe"] = {
             "status": probe.get("status"),
@@ -168,6 +184,7 @@ def run_self_test_cycle(
     # ── 9. Edge context fallback test ──
     try:
         import json
+
         bad_json = ""
         fallback = bad_json or "{}"
         parsed = json.loads(fallback)

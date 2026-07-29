@@ -27,7 +27,9 @@ class NeuronLifecycleExporter:
         candidate = self.candidates.get(candidate_id)
         if candidate is None:
             raise KeyError(f"candidato no registrado: {candidate_id}")
-        specification = self.specifications.get(candidate["neuron_id"], candidate["version"])
+        specification = self.specifications.get(
+            candidate["neuron_id"], candidate["version"]
+        )
         if specification is None:
             raise KeyError("especificación no encontrada")
         with sqlite3.connect(self.db_path) as conn:
@@ -43,7 +45,8 @@ class NeuronLifecycleExporter:
         capabilities = [
             item
             for capability_id in specification.get("provides_capabilities", [])
-            if (item := self.capabilities.get(capability_id, specification["version"])) is not None
+            if (item := self.capabilities.get(capability_id, specification["version"]))
+            is not None
         ]
         document = {
             "schema_version": "1.0.0",

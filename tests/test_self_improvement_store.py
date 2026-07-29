@@ -3,7 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from triade.self_improvement import ImprovementProposal, ImprovementSignal, ImprovementStore
+from triade.self_improvement import (
+    ImprovementProposal,
+    ImprovementSignal,
+    ImprovementStore,
+)
 
 
 class Clock:
@@ -28,7 +32,9 @@ def signal(*, risk_level: str = "low") -> ImprovementSignal:
     )
 
 
-def proposal(proposal_id: str = "proposal-1", *, approval: bool = False) -> ImprovementProposal:
+def proposal(
+    proposal_id: str = "proposal-1", *, approval: bool = False
+) -> ImprovementProposal:
     return ImprovementProposal(
         proposal_id=proposal_id,
         signal_id="signal-quality",
@@ -47,7 +53,9 @@ def test_signal_is_persisted_with_history(tmp_path: Path) -> None:
 
     assert registered["status"] == "open"
     assert registered["priority"] > 0
-    assert [event["action"] for event in store.history("signal-quality")] == ["registered"]
+    assert [event["action"] for event in store.history("signal-quality")] == [
+        "registered"
+    ]
 
 
 def test_duplicate_open_signal_is_rejected(tmp_path: Path) -> None:

@@ -7,7 +7,6 @@ Transiciones inválidas son rechazadas y auditadas.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -15,7 +14,9 @@ from typing import Any, Literal
 
 from triade.core.contracts import utc_now
 
-WorkerStatus = Literal["created", "queued", "claimed", "running", "completed", "failed", "cancelled"]
+WorkerStatus = Literal[
+    "created", "queued", "claimed", "running", "completed", "failed", "cancelled"
+]
 
 VALID_TRANSITIONS: dict[WorkerStatus, set[WorkerStatus]] = {
     "created": {"queued", "cancelled"},
@@ -109,7 +110,9 @@ class WorkerStateMachine:
             )
         return record
 
-    def force_status(self, task_id: str, to_status: WorkerStatus, *, reason: str = "admin_override") -> TransitionRecord:
+    def force_status(
+        self, task_id: str, to_status: WorkerStatus, *, reason: str = "admin_override"
+    ) -> TransitionRecord:
         current = self.get_status(task_id)
         now = utc_now()
         record = TransitionRecord(
@@ -153,14 +156,16 @@ class WorkerStateMachine:
                 AND id IN (SELECT MAX(id) FROM worker_transitions GROUP BY task_id)"""
             ).fetchall()
         stuck = []
-        now = utc_now()
+        utc_now()
         for row in rows:
             stuck.append({"task_id": row["task_id"], "since": row["recorded_at"]})
         return stuck
 
     def doctor(self) -> dict[str, Any]:
         with self._connect() as conn:
-            total = conn.execute("SELECT COUNT(DISTINCT task_id) as c FROM worker_transitions").fetchone()["c"]
+            total = conn.execute(
+                "SELECT COUNT(DISTINCT task_id) as c FROM worker_transitions"
+            ).fetchone()["c"]
             by_status = conn.execute(
                 """SELECT to_status, COUNT(DISTINCT task_id) as c FROM worker_transitions
                 WHERE id IN (SELECT MAX(id) FROM worker_transitions GROUP BY task_id)

@@ -11,6 +11,7 @@ from triade.core.contracts import utc_now
 
 def _gen_id(prefix: str) -> str:
     import hashlib
+
     return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(timezone.utc).timestamp()).encode()).hexdigest()[:6]}"
 
 
@@ -45,7 +46,9 @@ class QualityMetrics:
         "security": 0.10,
     }
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(self.SCHEMA_SQL)
@@ -91,7 +94,10 @@ class QualityMetrics:
                 overall,
                 passed,
                 failed,
-                json.dumps({"duration_ms": duration_ms, "memory_bytes": memory_bytes}, default=str),
+                json.dumps(
+                    {"duration_ms": duration_ms, "memory_bytes": memory_bytes},
+                    default=str,
+                ),
                 now,
             ),
         )
@@ -132,6 +138,7 @@ class QualityMetrics:
 
 
 # ---------- dimension scorers ----------
+
 
 def _completeness(output: dict, expected: dict | None) -> float:
     if not expected:
@@ -178,8 +185,16 @@ def _contract_check(output: dict, contract: dict | None) -> float:
 
 
 def _performance_score(duration_ms: float, memory_bytes: int) -> float:
-    time_score = 1.0 if duration_ms < 100 else (0.8 if duration_ms < 500 else (0.5 if duration_ms < 2000 else 0.2))
-    mem_score = 1.0 if memory_bytes < 10_000_000 else (0.7 if memory_bytes < 100_000_000 else 0.3)
+    time_score = (
+        1.0
+        if duration_ms < 100
+        else (0.8 if duration_ms < 500 else (0.5 if duration_ms < 2000 else 0.2))
+    )
+    mem_score = (
+        1.0
+        if memory_bytes < 10_000_000
+        else (0.7 if memory_bytes < 100_000_000 else 0.3)
+    )
     return round(0.6 * time_score + 0.4 * mem_score, 4)
 
 

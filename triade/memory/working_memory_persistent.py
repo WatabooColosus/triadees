@@ -6,7 +6,6 @@ para sobrevivir reinicios. Mantiene la misma interfaz push/peek/get_context.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,12 +29,15 @@ class PersistentWorkingItem:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "text": self.text, "source": self.source,
+            "text": self.text,
+            "source": self.source,
             "relevance": round(self.relevance, 4),
             "emotional_valence": round(self.emotional_valence, 4),
-            "urgency": round(self.urgency, 4), "novelty": round(self.novelty, 4),
+            "urgency": round(self.urgency, 4),
+            "novelty": round(self.novelty, 4),
             "confidence": round(self.confidence, 4),
-            "timestamp": self.timestamp, "access_count": self.access_count,
+            "timestamp": self.timestamp,
+            "access_count": self.access_count,
             "item_id": self.item_id,
         }
 
@@ -70,6 +72,7 @@ class WorkingMemoryPersistent:
         confidence: float = 0.5,
     ) -> PersistentWorkingItem:
         import uuid
+
         item_id = f"ww-{uuid.uuid4().hex[:8]}"
         now = utc_now()
         with self._connect() as conn:
@@ -77,15 +80,29 @@ class WorkingMemoryPersistent:
                 """INSERT INTO working_memory_persistent
                 (item_id, text, source, relevance, emotional_valence, urgency, novelty, confidence, timestamp, access_count)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
-                (item_id, text, source, max(0, min(1, relevance)),
-                 max(-1, min(1, emotional_valence)), max(0, min(1, urgency)),
-                 max(0, min(1, novelty)), max(0, min(1, confidence)), now),
+                (
+                    item_id,
+                    text,
+                    source,
+                    max(0, min(1, relevance)),
+                    max(-1, min(1, emotional_valence)),
+                    max(0, min(1, urgency)),
+                    max(0, min(1, novelty)),
+                    max(0, min(1, confidence)),
+                    now,
+                ),
             )
             self._prune(conn)
         return PersistentWorkingItem(
-            text=text, source=source, relevance=relevance,
-            emotional_valence=emotional_valence, urgency=urgency,
-            novelty=novelty, confidence=confidence, timestamp=now, item_id=item_id,
+            text=text,
+            source=source,
+            relevance=relevance,
+            emotional_valence=emotional_valence,
+            urgency=urgency,
+            novelty=novelty,
+            confidence=confidence,
+            timestamp=now,
+            item_id=item_id,
         )
 
     def peek(self, limit: int = 10) -> list[dict[str, Any]]:
@@ -116,7 +133,9 @@ class WorkingMemoryPersistent:
 
     def count(self) -> int:
         with self._connect() as conn:
-            return conn.execute("SELECT COUNT(*) as c FROM working_memory_persistent").fetchone()["c"]
+            return conn.execute(
+                "SELECT COUNT(*) as c FROM working_memory_persistent"
+            ).fetchone()["c"]
 
     def recent(self, limit: int = 20) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -127,7 +146,9 @@ class WorkingMemoryPersistent:
         return [dict(r) for r in rows]
 
     def _prune(self, conn: sqlite3.Connection) -> None:
-        count = conn.execute("SELECT COUNT(*) as c FROM working_memory_persistent").fetchone()["c"]
+        count = conn.execute(
+            "SELECT COUNT(*) as c FROM working_memory_persistent"
+        ).fetchone()["c"]
         if count > self.max_size:
             excess = count - self.max_size
             conn.execute(
@@ -141,7 +162,9 @@ class WorkingMemoryPersistent:
     def doctor(self) -> dict[str, Any]:
         count = self.count()
         with self._connect() as conn:
-            avg_rel = conn.execute("SELECT AVG(relevance) as a FROM working_memory_persistent").fetchone()
+            avg_rel = conn.execute(
+                "SELECT AVG(relevance) as a FROM working_memory_persistent"
+            ).fetchone()
         return {
             "count": count,
             "max_size": self.max_size,

@@ -19,7 +19,9 @@ def _env() -> dict[str, str]:
     return env
 
 
-def write_activity(run_path: Path, *, name: str = "neurona-test-stable", marker: int = 1) -> None:
+def write_activity(
+    run_path: Path, *, name: str = "neurona-test-stable", marker: int = 1
+) -> None:
     run_path.mkdir(parents=True, exist_ok=True)
     activity = {
         "active": True,
@@ -45,16 +47,20 @@ def write_activity(run_path: Path, *, name: str = "neurona-test-stable", marker:
     )
 
 
-def seed_neuron(db_path: Path, *, name: str = "neurona-test-stable", status: str = "experimental") -> None:
+def seed_neuron(
+    db_path: Path, *, name: str = "neurona-test-stable", status: str = "experimental"
+) -> None:
     registry = NeuronRegistry(db_path=db_path)
-    registry.register(NeuronSpec(
-        name=name,
-        mission="Probar promoción estable controlada.",
-        domain="system_governance",
-        rules=["Solo promoción con evidencia y humano."],
-        status=status,
-        created_by="test",
-    ))
+    registry.register(
+        NeuronSpec(
+            name=name,
+            mission="Probar promoción estable controlada.",
+            domain="system_governance",
+            rules=["Solo promoción con evidencia y humano."],
+            status=status,
+            created_by="test",
+        )
+    )
 
 
 def run_promote(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -76,12 +82,17 @@ def test_stable_promotion_requires_human_confirmation(tmp_path: Path) -> None:
     for i in range(5):
         write_activity(runs_dir / f"run-test-{i:03d}", marker=i)
 
-    result = run_promote([
-        "neurona-test-stable",
-        "--db-path", str(db_path),
-        "--runs-dir", str(runs_dir),
-        "--decisions-path", str(decisions_path),
-    ])
+    result = run_promote(
+        [
+            "neurona-test-stable",
+            "--db-path",
+            str(db_path),
+            "--runs-dir",
+            str(runs_dir),
+            "--decisions-path",
+            str(decisions_path),
+        ]
+    )
 
     assert result.returncode != 0
     assert "requiere --confirm-human" in (result.stderr + result.stdout)
@@ -99,14 +110,20 @@ def test_stable_promotion_blocks_when_not_ready(tmp_path: Path) -> None:
     seed_neuron(db_path)
     write_activity(runs_dir / "run-test-001")
 
-    result = run_promote([
-        "neurona-test-stable",
-        "--db-path", str(db_path),
-        "--runs-dir", str(runs_dir),
-        "--decisions-path", str(decisions_path),
-        "--confirm-human",
-        "--reason", "Intento de prueba sin evidencia suficiente.",
-    ])
+    result = run_promote(
+        [
+            "neurona-test-stable",
+            "--db-path",
+            str(db_path),
+            "--runs-dir",
+            str(runs_dir),
+            "--decisions-path",
+            str(decisions_path),
+            "--confirm-human",
+            "--reason",
+            "Intento de prueba sin evidencia suficiente.",
+        ]
+    )
 
     assert result.returncode == 2
     payload = json.loads(result.stdout)
@@ -132,16 +149,24 @@ def test_stable_promotion_blocks_non_experimental_status(tmp_path: Path) -> None
     for i in range(5):
         write_activity(runs_dir / f"run-test-{i:03d}", marker=i)
 
-    result = run_promote([
-        "neurona-test-stable",
-        "--db-path", str(db_path),
-        "--runs-dir", str(runs_dir),
-        "--decisions-path", str(decisions_path),
-        "--confirm-human",
-    ])
+    result = run_promote(
+        [
+            "neurona-test-stable",
+            "--db-path",
+            str(db_path),
+            "--runs-dir",
+            str(runs_dir),
+            "--decisions-path",
+            str(decisions_path),
+            "--confirm-human",
+        ]
+    )
 
     assert result.returncode != 0
-    assert "solo se promueven neuronas experimental" in (result.stderr + result.stdout).lower()
+    assert (
+        "solo se promueven neuronas experimental"
+        in (result.stderr + result.stdout).lower()
+    )
 
     neuron = NeuronRegistry(db_path=db_path).get_neuron("neurona-test-stable")
     assert neuron is not None
@@ -157,14 +182,20 @@ def test_stable_promotion_succeeds_when_ready_and_confirmed(tmp_path: Path) -> N
     for i in range(5):
         write_activity(runs_dir / f"run-test-{i:03d}", marker=i)
 
-    result = run_promote([
-        "neurona-test-stable",
-        "--db-path", str(db_path),
-        "--runs-dir", str(runs_dir),
-        "--decisions-path", str(decisions_path),
-        "--confirm-human",
-        "--reason", "Evidencia suficiente y revisión humana aprobada.",
-    ])
+    result = run_promote(
+        [
+            "neurona-test-stable",
+            "--db-path",
+            str(db_path),
+            "--runs-dir",
+            str(runs_dir),
+            "--decisions-path",
+            str(decisions_path),
+            "--confirm-human",
+            "--reason",
+            "Evidencia suficiente y revisión humana aprobada.",
+        ]
+    )
 
     assert result.returncode == 0, result.stderr or result.stdout
     payload = json.loads(result.stdout)
@@ -179,4 +210,7 @@ def test_stable_promotion_succeeds_when_ready_and_confirmed(tmp_path: Path) -> N
 
     decisions = json.loads(decisions_path.read_text(encoding="utf-8"))
     assert decisions[-1]["decision"] == "promote_to_stable"
-    assert decisions[-1]["policy"] == "stable_requires_evidence_and_explicit_human_confirmation"
+    assert (
+        decisions[-1]["policy"]
+        == "stable_requires_evidence_and_explicit_human_confirmation"
+    )

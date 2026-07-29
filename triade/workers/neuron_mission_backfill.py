@@ -17,12 +17,23 @@ SAFE_STABLE_ACTIONS = [*SAFE_ALLOWED_ACTIONS, "request_stable_promotion"]
 ACTIVE_NEURON_STATUSES = {"experimental", "stable"}
 
 
-def build_neuron_mission_contract(neuron: dict[str, Any], mission_status: str, ready_for_stable_review: bool) -> NeuronMission:
+def build_neuron_mission_contract(
+    neuron: dict[str, Any], mission_status: str, ready_for_stable_review: bool
+) -> NeuronMission:
     name = str(neuron.get("name") or f"neuron-{neuron.get('id') or 'unknown'}").strip()
-    mission_text = str(neuron.get("mission") or "").strip() or f"Trabajar la neurona {name} con evidencia local."
+    mission_text = (
+        str(neuron.get("mission") or "").strip()
+        or f"Trabajar la neurona {name} con evidencia local."
+    )
     domain = str(neuron.get("domain") or "general").strip() or "general"
-    status = "stable" if mission_status == "stable" and ready_for_stable_review else "experimental"
-    allowed_actions = SAFE_STABLE_ACTIONS if status == "stable" else SAFE_ALLOWED_ACTIONS
+    status = (
+        "stable"
+        if mission_status == "stable" and ready_for_stable_review
+        else "experimental"
+    )
+    allowed_actions = (
+        SAFE_STABLE_ACTIONS if status == "stable" else SAFE_ALLOWED_ACTIONS
+    )
     return NeuronMission(
         neuron_id=int(neuron.get("id")) if neuron.get("id") is not None else None,
         title=name,
@@ -49,8 +60,12 @@ def _stable_mission_ready(
 ) -> tuple[bool, dict[str, Any]]:
     name = str(neuron.get("name") or "")
     neuron_id = int(neuron.get("id") or 0)
-    training_count = len(registry.list_training(neuron_id, limit=20)) if neuron_id else 0
-    activity_count = len(activity_store.list_activity(name=name, limit=20)) if name else 0
+    training_count = (
+        len(registry.list_training(neuron_id, limit=20)) if neuron_id else 0
+    )
+    activity_count = (
+        len(activity_store.list_activity(name=name, limit=20)) if name else 0
+    )
     readiness = readiness_by_name.get(name) or {}
     ready_for_stable_review = bool(readiness.get("ready_for_stable_review"))
     ready = bool(
@@ -78,7 +93,9 @@ def backfill_neuron_missions(
         for neuron in registry.list_neurons(limit=limit)
         if str(neuron.get("status") or "") in ACTIVE_NEURON_STATUSES
     ]
-    readiness = evaluate_stable_readiness(runs_dir=runs_dir, limit=limit, db_path=db_path, prefer_db=True)
+    readiness = evaluate_stable_readiness(
+        runs_dir=runs_dir, limit=limit, db_path=db_path, prefer_db=True
+    )
     readiness_by_name = {
         str(item.get("name")): item
         for item in readiness.get("neurons") or []
@@ -93,11 +110,13 @@ def backfill_neuron_missions(
         name = str(neuron.get("name") or "")
         existing = store.get_missions_by_neuron(int(neuron["id"]))
         if existing:
-            skipped_existing.append({
-                "neuron_id": neuron.get("id"),
-                "name": name,
-                "existing_missions": len(existing),
-            })
+            skipped_existing.append(
+                {
+                    "neuron_id": neuron.get("id"),
+                    "name": name,
+                    "existing_missions": len(existing),
+                }
+            )
             continue
 
         ready_for_stable, stable_metrics = _stable_mission_ready(
@@ -109,13 +128,19 @@ def backfill_neuron_missions(
         target_status = "stable" if ready_for_stable else "experimental"
 
         mission = build_neuron_mission_contract(neuron, target_status, ready_for_stable)
-        mission.metrics.update({
-            "training_count": stable_metrics["training_count"],
-            "activity_count": stable_metrics["activity_count"],
-            "ready_for_stable_review": stable_metrics["ready_for_stable_review"],
-        })
+        mission.metrics.update(
+            {
+                "training_count": stable_metrics["training_count"],
+                "activity_count": stable_metrics["activity_count"],
+                "ready_for_stable_review": stable_metrics["ready_for_stable_review"],
+            }
+        )
         mission_id = store.create_mission(mission)
-        created.append(store.get_mission(mission_id).to_dict() if store.get_mission(mission_id) else {"id": mission_id})
+        created.append(
+            store.get_mission(mission_id).to_dict()
+            if store.get_mission(mission_id)
+            else {"id": mission_id}
+        )
 
     if not neurons:
         skipped_ineligible.append({"reason": "no_experimental_or_stable_neurons_found"})
@@ -154,8 +179,16 @@ def neuron_missions_doctor(
     store = NeuronMissionStore(db_path=db_path)
     registry = NeuronRegistry(db_path=db_path)
     missions = store.list_missions(limit=limit)
-    cycles_by_mission = {int(m.id): store.list_cycles(int(m.id), limit=1) for m in missions if m.id is not None}
-    evidence_by_mission = {int(m.id): store.list_evidence(int(m.id), limit=1) for m in missions if m.id is not None}
+    cycles_by_mission = {
+        int(m.id): store.list_cycles(int(m.id), limit=1)
+        for m in missions
+        if m.id is not None
+    }
+    evidence_by_mission = {
+        int(m.id): store.list_evidence(int(m.id), limit=1)
+        for m in missions
+        if m.id is not None
+    }
     ready_to_execute = [m for m in missions if m.status in {"experimental", "stable"}]
 
     learning_candidates: list[dict[str, Any]] = []

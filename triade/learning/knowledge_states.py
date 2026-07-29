@@ -16,8 +16,14 @@ from typing import Any, Literal
 from triade.core.contracts import utc_now
 
 KnowledgeState = Literal[
-    "unknown", "candidate", "experimental", "validated",
-    "stable", "deprecated", "quarantined", "rejected",
+    "unknown",
+    "candidate",
+    "experimental",
+    "validated",
+    "stable",
+    "deprecated",
+    "quarantined",
+    "rejected",
 ]
 
 VALID_KNOWLEDGE_TRANSITIONS: dict[KnowledgeState, set[KnowledgeState]] = {
@@ -109,8 +115,14 @@ class KnowledgeStateMachine:
         with self._connect() as conn:
             conn.execute(
                 "INSERT INTO knowledge_transitions(knowledge_id, from_state, to_state, reason, evidence_json, recorded_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (knowledge_id, current, to_state, reason,
-                 json.dumps(record.evidence, ensure_ascii=False), now),
+                (
+                    knowledge_id,
+                    current,
+                    to_state,
+                    reason,
+                    json.dumps(record.evidence, ensure_ascii=False),
+                    now,
+                ),
             )
         return record
 
@@ -155,5 +167,7 @@ class KnowledgeStateMachine:
         return {
             "total_knowledge_items": total,
             "by_state": {r["to_state"]: r["c"] for r in by_state},
-            "valid_transitions": {k: sorted(v) for k, v in VALID_KNOWLEDGE_TRANSITIONS.items()},
+            "valid_transitions": {
+                k: sorted(v) for k, v in VALID_KNOWLEDGE_TRANSITIONS.items()
+            },
         }

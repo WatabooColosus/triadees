@@ -59,11 +59,17 @@ def audit_stable_neurons(
 
         blockers: list[str] = []
         if activation_count < thresholds["min_activations"]:
-            blockers.append(f"activation_count {activation_count} < {thresholds['min_activations']}")
+            blockers.append(
+                f"activation_count {activation_count} < {thresholds['min_activations']}"
+            )
         if diagnosis_count < thresholds["min_diagnosis"]:
-            blockers.append(f"diagnosis_count {diagnosis_count} < {thresholds['min_diagnosis']}")
+            blockers.append(
+                f"diagnosis_count {diagnosis_count} < {thresholds['min_diagnosis']}"
+            )
         if test_plan_count < thresholds["min_test_plan"]:
-            blockers.append(f"test_plan_count {test_plan_count} < {thresholds['min_test_plan']}")
+            blockers.append(
+                f"test_plan_count {test_plan_count} < {thresholds['min_test_plan']}"
+            )
 
         if blockers:
             if activation_count < 2 or diagnosis_count < 2 or test_plan_count < 1:
@@ -73,20 +79,22 @@ def audit_stable_neurons(
         else:
             recommended_action = "keep_stable"
 
-        rows.append({
-            "name": name,
-            "status": "stable",
-            "activation_count": activation_count,
-            "diagnosis_count": diagnosis_count,
-            "test_plan_count": test_plan_count,
-            "activity_count": activity_count,
-            "blockers": blockers,
-            "recommended_action": recommended_action,
-            "apply_allowed": False,
-            "last_run_id": evidence.get("last_run_id"),
-            "last_policy": evidence.get("last_policy"),
-            "evidence_source": evidence.get("source"),
-        })
+        rows.append(
+            {
+                "name": name,
+                "status": "stable",
+                "activation_count": activation_count,
+                "diagnosis_count": diagnosis_count,
+                "test_plan_count": test_plan_count,
+                "activity_count": activity_count,
+                "blockers": blockers,
+                "recommended_action": recommended_action,
+                "apply_allowed": False,
+                "last_run_id": evidence.get("last_run_id"),
+                "last_policy": evidence.get("last_policy"),
+                "evidence_source": evidence.get("source"),
+            }
+        )
 
     total_stable = len(rows)
     with_enough = sum(1 for row in rows if row["recommended_action"] == "keep_stable")
@@ -136,7 +144,11 @@ def apply_stable_neuron_audit(
         recommended_action = str(neuron.get("recommended_action") or "")
         if recommended_action == "keep_stable":
             continue
-        target_status = "experimental" if recommended_action == "demote_to_experimental" else "needs_review"
+        target_status = (
+            "experimental"
+            if recommended_action == "demote_to_experimental"
+            else "needs_review"
+        )
         name = str(neuron.get("name") or "")
         if not name:
             continue
@@ -155,12 +167,14 @@ def apply_stable_neuron_audit(
             severity="warning" if target_status == "needs_review" else "important",
             db_path=db_path,
         )
-        applied_changes.append({
-            "name": name,
-            "updated_status": updated.get("status"),
-            "event": event,
-            "recommended_action": recommended_action,
-        })
+        applied_changes.append(
+            {
+                "name": name,
+                "updated_status": updated.get("status"),
+                "event": event,
+                "recommended_action": recommended_action,
+            }
+        )
 
     report["applied"] = True
     report["applied_count"] = len(applied_changes)
@@ -185,7 +199,9 @@ def _activity_by_name(
     return grouped
 
 
-def _list_stable_neurons(*, registry: NeuronRegistry, limit: int) -> list[dict[str, Any]]:
+def _list_stable_neurons(
+    *, registry: NeuronRegistry, limit: int
+) -> list[dict[str, Any]]:
     with registry._connect() as conn:
         rows = conn.execute(
             """

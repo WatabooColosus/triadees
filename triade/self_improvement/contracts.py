@@ -22,7 +22,9 @@ class ImprovementSignal:
     source_ref: str | None = None
 
     def validate(self) -> None:
-        if not all((self.signal_id.strip(), self.capability_id.strip(), self.metric_id.strip())):
+        if not all(
+            (self.signal_id.strip(), self.capability_id.strip(), self.metric_id.strip())
+        ):
             raise ValueError("signal_id, capability_id y metric_id son obligatorios")
         if self.risk_level not in VALID_RISK_LEVELS:
             raise ValueError(f"nivel de riesgo inválido: {self.risk_level}")
@@ -38,8 +40,12 @@ class ImprovementSignal:
     def priority(self) -> float:
         self.validate()
         gap = self.target_score - self.observed_score
-        risk_penalty = {"low": 1.0, "medium": 0.8, "high": 0.5, "critical": 0.2}[self.risk_level]
-        return (gap * self.impact * self.confidence * risk_penalty) / self.estimated_cost
+        risk_penalty = {"low": 1.0, "medium": 0.8, "high": 0.5, "critical": 0.2}[
+            self.risk_level
+        ]
+        return (
+            gap * self.impact * self.confidence * risk_penalty
+        ) / self.estimated_cost
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -58,7 +64,12 @@ class ImprovementProposal:
     cooldown_seconds: int = 3600
 
     def validate(self) -> None:
-        required = (self.proposal_id, self.signal_id, self.hypothesis, self.requested_capability)
+        required = (
+            self.proposal_id,
+            self.signal_id,
+            self.hypothesis,
+            self.requested_capability,
+        )
         if not all(value.strip() for value in required):
             raise ValueError("campos obligatorios incompletos")
         if self.max_candidates < 1:

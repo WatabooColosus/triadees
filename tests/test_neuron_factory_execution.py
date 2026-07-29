@@ -36,7 +36,9 @@ def prepare_candidate(db_path: Path) -> tuple[NeuronSpecificationStore, dict]:
     )
     store.register(specification)
     store.transition(specification.neuron_id, specification.version, "specified")
-    candidate = NeuronCandidateFactory(db_path).create(specification.neuron_id, specification.version)
+    candidate = NeuronCandidateFactory(db_path).create(
+        specification.neuron_id, specification.version
+    )
     return store, candidate
 
 
@@ -56,7 +58,10 @@ def test_configuration_execution_creates_auditable_artifact(tmp_path: Path) -> N
     assert engine.get_execution(artifact["execution_id"]) == artifact
     assert engine.list_for_candidate(candidate["candidate_id"]) == [artifact]
     assert store.get("neuron.research", "1.0.0")["state"] == "evaluated"
-    assert NeuronCandidateFactory(db_path).get(candidate["candidate_id"])["status"] == "executed"
+    assert (
+        NeuronCandidateFactory(db_path).get(candidate["candidate_id"])["status"]
+        == "executed"
+    )
 
 
 def test_execution_rejects_empty_configuration(tmp_path: Path) -> None:
@@ -64,7 +69,9 @@ def test_execution_rejects_empty_configuration(tmp_path: Path) -> None:
     _, candidate = prepare_candidate(db_path)
 
     with pytest.raises(ValueError, match="objeto no vacío"):
-        SandboxExecutionEngine(db_path).execute_configuration(candidate["candidate_id"], {})
+        SandboxExecutionEngine(db_path).execute_configuration(
+            candidate["candidate_id"], {}
+        )
 
 
 def test_candidate_cannot_execute_twice(tmp_path: Path) -> None:
@@ -83,4 +90,6 @@ def test_storage_budget_is_enforced(tmp_path: Path) -> None:
     oversized = {"payload": "x" * (1024 * 1024 + 1)}
 
     with pytest.raises(ValueError, match="presupuesto de almacenamiento"):
-        SandboxExecutionEngine(db_path).execute_configuration(candidate["candidate_id"], oversized)
+        SandboxExecutionEngine(db_path).execute_configuration(
+            candidate["candidate_id"], oversized
+        )

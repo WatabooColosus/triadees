@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from .neuron_creator import NeuronCreator, NeuronSpec
-from .neuron_trainer import NeuronTrainer, NeuronTrainingResult
+from .neuron_trainer import NeuronTrainer
 
 
 FORBIDDEN_ACTIONS = [
@@ -47,7 +47,9 @@ def build_primary_neuron_package(
 ) -> dict[str, Any]:
     """Construye una propuesta primaria completa sin activarla."""
     context = context or {}
-    domain = infer_primary_domain(name=name, mission=mission, domain=domain, intent=intent, context=context)
+    domain = infer_primary_domain(
+        name=name, mission=mission, domain=domain, intent=intent, context=context
+    )
 
     spec = NeuronCreator().create(
         name=name,
@@ -116,20 +118,26 @@ def build_primary_neuron_package(
     }
 
 
-def infer_primary_domain(name: str, mission: str, domain: str, intent: str, context: dict[str, Any]) -> str:
-    text = " ".join([
-        name or "",
-        mission or "",
-        domain or "",
-        intent or "",
-        str(context.get("domain") or ""),
-        str(context.get("project_id") or ""),
-        str(context.get("active_neuron") or ""),
-    ]).lower()
+def infer_primary_domain(
+    name: str, mission: str, domain: str, intent: str, context: dict[str, Any]
+) -> str:
+    text = " ".join(
+        [
+            name or "",
+            mission or "",
+            domain or "",
+            intent or "",
+            str(context.get("domain") or ""),
+            str(context.get("project_id") or ""),
+            str(context.get("active_neuron") or ""),
+        ]
+    ).lower()
 
     if any(x in text for x in ["android", "apk", "nodo", "feder"]):
         return "federation_android_edge"
-    if any(x in text for x in ["pulso", "estado", "verifica", "audit", "audita", "health"]):
+    if any(
+        x in text for x in ["pulso", "estado", "verifica", "audit", "audita", "health"]
+    ):
         return "system_governance"
     if any(x in text for x in ["modelo", "ollama", "llm"]):
         return "model_runtime"
@@ -151,13 +159,21 @@ def build_rules(domain: str) -> list[str]:
     ]
 
     if domain == "system_governance":
-        rules.append("Comparar pulso, artifacts del run y auditorías antes de emitir diagnóstico.")
+        rules.append(
+            "Comparar pulso, artifacts del run y auditorías antes de emitir diagnóstico."
+        )
     elif domain == "federation_android_edge":
-        rules.append("Contrastar edge_usage, pulse_context y resource lease antes de afirmar deuda federada.")
+        rules.append(
+            "Contrastar edge_usage, pulse_context y resource lease antes de afirmar deuda federada."
+        )
     elif domain == "model_runtime":
-        rules.append("Separar fallos de modelo, latencia, fallback y ausencia de backend.")
+        rules.append(
+            "Separar fallos de modelo, latencia, fallback y ausencia de backend."
+        )
     elif domain == "memory_governance":
-        rules.append("Distinguir memoria estable, experimental, episódica y semántica antes de consolidar.")
+        rules.append(
+            "Distinguir memoria estable, experimental, episódica y semántica antes de consolidar."
+        )
 
     return rules
 
@@ -169,13 +185,33 @@ def build_triggers(domain: str, intent: str, user_text: str) -> list[str]:
     ]
 
     if domain == "system_governance":
-        base.extend(["pulse_audit_requested", "run_health_check_requested", "candidate_state_review"])
+        base.extend(
+            [
+                "pulse_audit_requested",
+                "run_health_check_requested",
+                "candidate_state_review",
+            ]
+        )
     elif domain == "federation_android_edge":
-        base.extend(["android_node_state_changed", "edge_context_failure", "llm_host_detection_changed"])
+        base.extend(
+            [
+                "android_node_state_changed",
+                "edge_context_failure",
+                "llm_host_detection_changed",
+            ]
+        )
     elif domain == "model_runtime":
-        base.extend(["model_fallback_high", "ollama_unavailable", "latency_threshold_exceeded"])
+        base.extend(
+            ["model_fallback_high", "ollama_unavailable", "latency_threshold_exceeded"]
+        )
     elif domain == "memory_governance":
-        base.extend(["semantic_recall_inconsistent", "memory_diff_requires_review", "stable_memory_write_requested"])
+        base.extend(
+            [
+                "semantic_recall_inconsistent",
+                "memory_diff_requires_review",
+                "stable_memory_write_requested",
+            ]
+        )
     else:
         base.append("domain_specific_need_detected")
 
@@ -197,11 +233,17 @@ def build_inputs_allowed(domain: str) -> list[str]:
     ]
 
     if domain == "system_governance":
-        inputs.extend(["audit_reports", "integrity_json", "background_neuron_candidates"])
+        inputs.extend(
+            ["audit_reports", "integrity_json", "background_neuron_candidates"]
+        )
     elif domain == "federation_android_edge":
-        inputs.extend(["edge_context", "edge_usage", "resource_lease", "android_model_doctor"])
+        inputs.extend(
+            ["edge_context", "edge_usage", "resource_lease", "android_model_doctor"]
+        )
     elif domain == "model_runtime":
-        inputs.extend(["ollama_status", "model_selection", "model_capacity", "model_events"])
+        inputs.extend(
+            ["ollama_status", "model_selection", "model_capacity", "model_events"]
+        )
     elif domain == "memory_governance":
         inputs.extend(["semantic_recall", "semantic_continuity", "governance_report"])
 
@@ -265,11 +307,19 @@ def build_evidence_required(domain: str) -> list[str]:
     if domain == "system_governance":
         evidence.extend(["system_pulse_summary", "integrity_json", "audit_output"])
     elif domain == "federation_android_edge":
-        evidence.extend(["edge_context_json", "pulse_llm_android_host_check", "android_model_doctor_result"])
+        evidence.extend(
+            [
+                "edge_context_json",
+                "pulse_llm_android_host_check",
+                "android_model_doctor_result",
+            ]
+        )
     elif domain == "model_runtime":
         evidence.extend(["model_event", "ollama_health", "latency_measurement"])
     elif domain == "memory_governance":
-        evidence.extend(["memory_diff", "semantic_recall_report", "governance_decision"])
+        evidence.extend(
+            ["memory_diff", "semantic_recall_report", "governance_decision"]
+        )
 
     return sorted(set(evidence))
 

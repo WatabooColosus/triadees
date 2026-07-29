@@ -37,7 +37,14 @@ def make_reflection_db(tmp_path: Path) -> Path:
                 """INSERT INTO crystal_states
                 (run_id, q_crystal, stability, q_delta, stability_delta, temporal_status)
                 VALUES (?, ?, ?, ?, ?, ?)""",
-                (run_id, 0.55, 0.8, -0.06 if index == 2 else 0.0, 0.0, "degrading" if index == 2 else "stable"),
+                (
+                    run_id,
+                    0.55,
+                    0.8,
+                    -0.06 if index == 2 else 0.0,
+                    0.0,
+                    "degrading" if index == 2 else "stable",
+                ),
             )
             conn.execute(
                 """INSERT INTO verification_reports
@@ -59,32 +66,54 @@ def make_reflection_db(tmp_path: Path) -> Path:
             )
             conn.execute(
                 "INSERT INTO episodic_memory (run_id, title, content, summary, tags) VALUES (?, ?, ?, ?, ?)",
-                (run_id, "Run", "Usuario privado\nRespuesta", "Resumen", "triade,mvp,run"),
+                (
+                    run_id,
+                    "Run",
+                    "Usuario privado\nRespuesta",
+                    "Resumen",
+                    "triade,mvp,run",
+                ),
             )
     return db_path
 
 
-def test_self_reflection_proposes_neurons_without_writing_by_default(tmp_path: Path) -> None:
+def test_self_reflection_proposes_neurons_without_writing_by_default(
+    tmp_path: Path,
+) -> None:
     db_path = make_reflection_db(tmp_path)
-    before = sqlite3.connect(db_path).execute("SELECT COUNT(*) FROM neurons").fetchone()[0]
+    before = (
+        sqlite3.connect(db_path).execute("SELECT COUNT(*) FROM neurons").fetchone()[0]
+    )
 
     payload = SelfReflectionEngine(db_path=db_path).reflect(limit=10)
 
-    after = sqlite3.connect(db_path).execute("SELECT COUNT(*) FROM neurons").fetchone()[0]
+    after = (
+        sqlite3.connect(db_path).execute("SELECT COUNT(*) FROM neurons").fetchone()[0]
+    )
     assert before == after
     assert payload["status"] == "ok"
     assert payload["policy"]["neuron_registration"] == "proposal_only"
     assert payload["policy"]["auto_learning_consolidation"] is False
-    assert "neurona_diagnostico_modelos" in {item["name"] for item in payload["neuron_proposals"]}
+    assert "neurona_diagnostico_modelos" in {
+        item["name"] for item in payload["neuron_proposals"]
+    }
     assert payload["self_improvement_loop"][0]["stage"] == "observe"
 
 
-def test_self_reflection_can_register_candidate_neurons_explicitly(tmp_path: Path) -> None:
+def test_self_reflection_can_register_candidate_neurons_explicitly(
+    tmp_path: Path,
+) -> None:
     db_path = make_reflection_db(tmp_path)
 
-    payload = SelfReflectionEngine(db_path=db_path).reflect(limit=10, register_neuron_candidates=True)
+    payload = SelfReflectionEngine(db_path=db_path).reflect(
+        limit=10, register_neuron_candidates=True
+    )
 
-    rows = sqlite3.connect(db_path).execute("SELECT name, status, created_by FROM neurons").fetchall()
+    rows = (
+        sqlite3.connect(db_path)
+        .execute("SELECT name, status, created_by FROM neurons")
+        .fetchall()
+    )
     assert payload["policy"]["neuron_registration"] == "candidate_only"
     assert payload["registered_neuron_candidates"]
     assert rows

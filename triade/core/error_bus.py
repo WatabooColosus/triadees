@@ -50,10 +50,14 @@ def record_internal_error(
     error_str = str(error)
     tb_str = ""
     if isinstance(error, BaseException):
-        tb_str = "".join(traceback.format_exception(type(error), error, error.__traceback__))[-2000:]
+        tb_str = "".join(
+            traceback.format_exception(type(error), error, error.__traceback__)
+        )[-2000:]
 
     event_payload = {
-        "error_type": type(error).__name__ if isinstance(error, BaseException) else "string",
+        "error_type": type(error).__name__
+        if isinstance(error, BaseException)
+        else "string",
         "error_message": error_str[:1000],
         "traceback": tb_str,
         "scope": scope,
@@ -131,7 +135,9 @@ def prune_worker_events(conn: sqlite3.Connection, keep_limit: int | None = None)
     """
     if keep_limit is None:
         try:
-            keep_limit = int(os.environ.get("TRIADE_WORKER_EVENTS_RETENTION", "5000") or "5000")
+            keep_limit = int(
+                os.environ.get("TRIADE_WORKER_EVENTS_RETENTION", "5000") or "5000"
+            )
         except ValueError:
             keep_limit = 5000
     if keep_limit <= 0:
@@ -154,7 +160,10 @@ def _normalize_severity(severity: str | None, scope: str, message: str) -> str:
         if clean in ERROR_SEVERITY_POLICY:
             return clean
     lowered = f"{scope} {message}".lower()
-    if any(flag in lowered for flag in ("identity_core", "stable memory", "memoria estable", "safety")):
+    if any(
+        flag in lowered
+        for flag in ("identity_core", "stable memory", "memoria estable", "safety")
+    ):
         return "critical"
     if any(flag in lowered for flag in ("degraded", "fallback", "timeout")):
         return "warning"

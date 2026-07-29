@@ -49,7 +49,12 @@ class SemanticEmbedding:
 class SemanticMemoryStore:
     VALID_DOCUMENT_STATUSES = {"candidate", "experimental", "stable", "rejected"}
 
-    def __init__(self, db_path: str | Path = "triade/memory/triade.db", migration_path: str | Path = "triade/memory/migrations/001_9A_semantic_memory.sql") -> None:
+    def __init__(
+        self,
+        db_path: str | Path = "triade/memory/triade.db",
+        migration_path: str
+        | Path = "triade/memory/migrations/001_9A_semantic_memory.sql",
+    ) -> None:
         self.db_path = Path(db_path)
         self.migration_path = Path(migration_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -63,13 +68,22 @@ class SemanticMemoryStore:
 
     def _init_db(self) -> None:
         if not self.migration_path.exists():
-            raise FileNotFoundError(f"No existe migración semántica: {self.migration_path}")
+            raise FileNotFoundError(
+                f"No existe migración semántica: {self.migration_path}"
+            )
         with self._connect() as conn:
             conn.executescript(self.migration_path.read_text(encoding="utf-8"))
 
-    def upsert_document(self, content: str, domain: str = "general", source_type: str = "manual",
-                        source_ref: str | None = None, metadata: dict[str, Any] | None = None,
-                        status: str = "candidate", document_id: str | None = None) -> SemanticDocument:
+    def upsert_document(
+        self,
+        content: str,
+        domain: str = "general",
+        source_type: str = "manual",
+        source_ref: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        status: str = "candidate",
+        document_id: str | None = None,
+    ) -> SemanticDocument:
 
         normalized = self.normalize_content(content)
         if not normalized:
@@ -100,8 +114,13 @@ class SemanticMemoryStore:
                 effective_status = str(duplicate["status"] or "candidate")
             elif current:
                 current_status = str(current["status"] or "candidate")
-                if str(current["content_hash"]) != content_hash and current_status != "candidate":
-                    raise ValueError("No se puede sobrescribir contenido de una memoria gobernada; cree un nuevo documento candidato.")
+                if (
+                    str(current["content_hash"]) != content_hash
+                    and current_status != "candidate"
+                ):
+                    raise ValueError(
+                        "No se puede sobrescribir contenido de una memoria gobernada; cree un nuevo documento candidato."
+                    )
                 effective_status = current_status
 
             conn.execute(
@@ -146,7 +165,13 @@ class SemanticMemoryStore:
             status=effective_status,
         )
 
-    def store_embedding(self, document_id: str, embedding_model: str, vector: Iterable[float], status: str = "stored") -> SemanticEmbedding:
+    def store_embedding(
+        self,
+        document_id: str,
+        embedding_model: str,
+        vector: Iterable[float],
+        status: str = "stored",
+    ) -> SemanticEmbedding:
         values = [float(v) for v in vector]
         if not values:
             raise ValueError("El vector de embedding no puede estar vacío.")
@@ -156,7 +181,10 @@ class SemanticMemoryStore:
             raise ValueError("El vector de embedding no puede tener norma cero.")
 
         with self._connect() as conn:
-            exists = conn.execute("SELECT document_id FROM semantic_documents WHERE document_id = ?", (document_id,)).fetchone()
+            exists = conn.execute(
+                "SELECT document_id FROM semantic_documents WHERE document_id = ?",
+                (document_id,),
+            ).fetchone()
             if not exists:
                 raise KeyError(f"No existe documento semántico: {document_id}")
 
@@ -172,19 +200,42 @@ class SemanticMemoryStore:
                     status = excluded.status,
                     updated_at = CURRENT_TIMESTAMP
                 """,
-                (document_id, embedding_model.strip(), json.dumps(values), len(values), norm, status),
+                (
+                    document_id,
+                    embedding_model.strip(),
+                    json.dumps(values),
+                    len(values),
+                    norm,
+                    status,
+                ),
             )
 
-        return SemanticEmbedding(document_id, embedding_model.strip(), values, len(values), round(norm, 8), status)
+        return SemanticEmbedding(
+            document_id,
+            embedding_model.strip(),
+            values,
+            len(values),
+            round(norm, 8),
+            status,
+        )
 
     def delete_document(self, document_id: str) -> bool:
         with self._connect() as conn:
-            conn.execute("DELETE FROM semantic_governance_events WHERE document_id = ?", (document_id,))
-            conn.execute("DELETE FROM semantic_embeddings WHERE document_id = ?", (document_id,))
-            cursor = conn.execute("DELETE FROM semantic_documents WHERE document_id = ?", (document_id,))
+            conn.execute(
+                "DELETE FROM semantic_governance_events WHERE document_id = ?",
+                (document_id,),
+            )
+            conn.execute(
+                "DELETE FROM semantic_embeddings WHERE document_id = ?", (document_id,)
+            )
+            cursor = conn.execute(
+                "DELETE FROM semantic_documents WHERE document_id = ?", (document_id,)
+            )
             return cursor.rowcount > 0
 
-    def delete_embedding(self, document_id: str, embedding_model: str | None = None) -> int:
+    def delete_embedding(
+        self, document_id: str, embedding_model: str | None = None
+    ) -> int:
         with self._connect() as conn:
             if embedding_model:
                 cursor = conn.execute(
@@ -231,9 +282,7 @@ class SemanticMemoryStore:
                     (document_id,),
                 ).fetchall()
             else:
-                rows = conn.execute(
-                    "SELECT * FROM semantic_embeddings"
-                ).fetchall()
+                rows = conn.execute("SELECT * FROM semantic_embeddings").fetchall()
         return [self._decode_embedding(dict(row)) for row in rows]
 
     @staticmethod
@@ -256,8 +305,12 @@ class SemanticMemoryStore:
 
     def doctor(self) -> dict[str, Any]:
         with self._connect() as conn:
-            documents = conn.execute("SELECT COUNT(*) AS c FROM semantic_documents").fetchone()["c"]
-            embeddings = conn.execute("SELECT COUNT(*) AS c FROM semantic_embeddings").fetchone()["c"]
+            documents = conn.execute(
+                "SELECT COUNT(*) AS c FROM semantic_documents"
+            ).fetchone()["c"]
+            embeddings = conn.execute(
+                "SELECT COUNT(*) AS c FROM semantic_embeddings"
+            ).fetchone()["c"]
 
             docs_without_emb = conn.execute("""
                 SELECT COUNT(*) as c

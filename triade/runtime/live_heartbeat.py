@@ -46,11 +46,21 @@ class LiveHeartbeat:
                 cycle=excluded.cycle,wall_timestamp=excluded.wall_timestamp,
                 monotonic_timestamp=excluded.monotonic_timestamp,duration_ms=excluded.duration_ms,
                 pid=excluded.pid,ram_available_mb=excluded.ram_available_mb,updated_at=CURRENT_TIMESTAMP""",
-                (self.cycle, wall, started, 0.0, os.getpid(), memory.available / 1024 / 1024),
+                (
+                    self.cycle,
+                    wall,
+                    started,
+                    0.0,
+                    os.getpid(),
+                    memory.available / 1024 / 1024,
+                ),
             )
         duration_ms = (time.monotonic() - started) * 1000.0
         with self._connect() as conn:
-            conn.execute("UPDATE live_runtime_heartbeat SET duration_ms=? WHERE singleton=1", (duration_ms,))
+            conn.execute(
+                "UPDATE live_runtime_heartbeat SET duration_ms=? WHERE singleton=1",
+                (duration_ms,),
+            )
         return {
             "event": "heartbeat",
             "cycle": self.cycle,
@@ -63,11 +73,17 @@ class LiveHeartbeat:
     def snapshot(self) -> dict[str, Any]:
         with self._connect() as conn:
             conn.row_factory = sqlite3.Row
-            row = conn.execute("SELECT * FROM live_runtime_heartbeat WHERE singleton=1").fetchone()
+            row = conn.execute(
+                "SELECT * FROM live_runtime_heartbeat WHERE singleton=1"
+            ).fetchone()
         if row is None:
             return {"status": "not_started"}
         payload = dict(row)
-        payload["heartbeat_age_ms"] = max(0.0, (time.time() - float(row["wall_timestamp"])) * 1000.0)
-        payload["status"] = "healthy" if payload["heartbeat_age_ms"] < 15_000 else "stalled"
+        payload["heartbeat_age_ms"] = max(
+            0.0, (time.time() - float(row["wall_timestamp"])) * 1000.0
+        )
+        payload["status"] = (
+            "healthy" if payload["heartbeat_age_ms"] < 15_000 else "stalled"
+        )
         payload["llm_invocations"] = 0
         return payload

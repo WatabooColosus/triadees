@@ -20,9 +20,19 @@ def _seed_runtime_mission(db_path: Path) -> None:
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             "INSERT INTO neurons (name, mission, domain, status, created_by) VALUES (?, ?, ?, ?, ?)",
-            ("bg-neuron", "Producir aprendizaje sin chat.", "runtime", "experimental", "test"),
+            (
+                "bg-neuron",
+                "Producir aprendizaje sin chat.",
+                "runtime",
+                "experimental",
+                "test",
+            ),
         )
-        neuron_id = int(conn.execute("SELECT id FROM neurons WHERE name = ?", ("bg-neuron",)).fetchone()[0])
+        neuron_id = int(
+            conn.execute(
+                "SELECT id FROM neurons WHERE name = ?", ("bg-neuron",)
+            ).fetchone()[0]
+        )
     store = NeuronMissionStore(db_path=db_path)
     store.create_mission(
         NeuronMission(
@@ -48,12 +58,17 @@ def test_runtime_runs_without_chat_and_reports_live_thinking(tmp_path):
     report = build_living_report(db_path=db_path, runs_dir=runs_dir, limit=10)
 
     with sqlite3.connect(db_path) as conn:
-        identity_rows = int(conn.execute("SELECT COUNT(*) FROM identity_core").fetchone()[0])
-        stable_memory_rows = int(conn.execute("SELECT COUNT(*) FROM semantic_memory WHERE status = 'stable'").fetchone()[0])
+        identity_rows = int(
+            conn.execute("SELECT COUNT(*) FROM identity_core").fetchone()[0]
+        )
+        stable_memory_rows = int(
+            conn.execute(
+                "SELECT COUNT(*) FROM semantic_memory WHERE status = 'stable'"
+            ).fetchone()[0]
+        )
 
     assert result["status"] == "ok"
     assert report["is_thinking_without_chat"] is True
     assert report["runtime_enabled"] is False
     assert identity_rows >= 0
     assert stable_memory_rows >= 0
-

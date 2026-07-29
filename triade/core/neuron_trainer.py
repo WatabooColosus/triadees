@@ -71,7 +71,9 @@ class NeuronTrainer:
         else:
             warnings.append("Faltan entradas/salidas permitidas.")
 
-        if spec.forbidden_actions and any("bypass_safety" in x for x in spec.forbidden_actions):
+        if spec.forbidden_actions and any(
+            "bypass_safety" in x for x in spec.forbidden_actions
+        ):
             score += 0.12
             strengths.append("Acciones prohibidas críticas presentes.")
         else:
@@ -89,44 +91,66 @@ class NeuronTrainer:
         else:
             warnings.append("Sin evidencia requerida.")
 
-        mission_text = " ".join([
-            spec.name or "",
-            spec.mission or "",
-            spec.domain or "",
-        ]).lower()
+        mission_text = " ".join(
+            [
+                spec.name or "",
+                spec.mission or "",
+                spec.domain or "",
+            ]
+        ).lower()
         if self._looks_like_literal_question(mission_text):
             score -= 0.20
-            warnings.append("La misión parece una pregunta factual simple; no debe convertirse en neurona literal.")
-            recommendations.append("Reformular como necesidad operativa repetible o misión de aprendizaje.")
+            warnings.append(
+                "La misión parece una pregunta factual simple; no debe convertirse en neurona literal."
+            )
+            recommendations.append(
+                "Reformular como necesidad operativa repetible o misión de aprendizaje."
+            )
         if self._looks_like_feedback(mission_text):
             score -= 0.25
-            warnings.append("La misión parece feedback, agradecimiento o cierre; no es material para neurona.")
-            recommendations.append("Mover este contenido a Qualia o learning_candidate, no a una neurona.")
+            warnings.append(
+                "La misión parece feedback, agradecimiento o cierre; no es material para neurona."
+            )
+            recommendations.append(
+                "Mover este contenido a Qualia o learning_candidate, no a una neurona."
+            )
         if len(spec.mission.strip()) < 30:
             score -= 0.10
             warnings.append("Misión demasiado corta para uso operativo repetible.")
-            recommendations.append("Agregar utilidad futura, dominio y evidencia mínima.")
+            recommendations.append(
+                "Agregar utilidad futura, dominio y evidencia mínima."
+            )
         if not self._looks_like_operational_need(mission_text):
             score -= 0.08
             warnings.append("No se detecta necesidad operacional repetible.")
-            recommendations.append("Explicar la repetición, el dominio y el impacto esperado.")
+            recommendations.append(
+                "Explicar la repetición, el dominio y el impacto esperado."
+            )
 
         score = round(max(0.0, min(score, 1.0)), 2)
 
         # Regla de seguridad: nunca estable automáticamente.
         if score >= 0.80:
             status = "experimental_candidate"
-            recommendations.append("Puede pasar a revisión humana antes de operar como experimental.")
+            recommendations.append(
+                "Puede pasar a revisión humana antes de operar como experimental."
+            )
         elif score >= 0.55:
             status = "candidate"
-            recommendations.append("Mantener como candidata y completar evidencia/pruebas.")
+            recommendations.append(
+                "Mantener como candidata y completar evidencia/pruebas."
+            )
         elif score >= 0.30:
             status = "weak_candidate"
-            recommendations.append("Reformular misión, triggers y métricas antes de usar.")
+            recommendations.append(
+                "Reformular misión, triggers y métricas antes de usar."
+            )
         else:
             status = "rejected"
 
-        recommendations.append("No consolidar como estable sin pruebas y evidencia repetida.")
+        recommendations.append(
+            "No consolidar como estable sin pruebas y evidencia repetida."
+        )
 
         return NeuronTrainingResult(
             name=spec.name,

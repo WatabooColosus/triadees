@@ -34,7 +34,11 @@ def get_internal_runtime_supervisor(
 ) -> InternalRuntimeSupervisor:
     global _SUPERVISOR
     with _LOCK:
-        if _SUPERVISOR is None or Path(db_path) != _SUPERVISOR.db_path or Path(runs_dir) != _SUPERVISOR.runs_dir:
+        if (
+            _SUPERVISOR is None
+            or Path(db_path) != _SUPERVISOR.db_path
+            or Path(runs_dir) != _SUPERVISOR.runs_dir
+        ):
             _SUPERVISOR = InternalRuntimeSupervisor(db_path=db_path, runs_dir=runs_dir)
         return _SUPERVISOR
 
@@ -62,7 +66,12 @@ def start_internal_runtime_background(
                 "message": f"Runtime ya está activo en modo {snap.get('mode')}. No se creó duplicado.",
                 "snapshot": snap,
             }
-        supervisor.configure(mode=mode, enabled=True, interval_seconds=interval_seconds, max_cycles=max_cycles)
+        supervisor.configure(
+            mode=mode,
+            enabled=True,
+            interval_seconds=interval_seconds,
+            max_cycles=max_cycles,
+        )
         supervisor.stop_file.unlink(missing_ok=True)
         thread = threading.Thread(
             target=supervisor.run_forever,
@@ -103,6 +112,7 @@ def stop_internal_runtime_background(
             thread.join(timeout=2)
         _BACKGROUND_THREAD = None
     from datetime import datetime, timezone
+
     return {
         "status": result.get("status", "stopped"),
         "runtime_enabled": False,
@@ -141,7 +151,7 @@ def build_internal_context_snapshot(
     db_path: str | Path = "triade/memory/triade.db",
     runs_dir: str | Path = "runs/background",
 ) -> dict[str, Any]:
-    supervisor = get_internal_runtime_supervisor(db_path=db_path, runs_dir=runs_dir)
+    get_internal_runtime_supervisor(db_path=db_path, runs_dir=runs_dir)
     runtime_state = get_internal_runtime_state(db_path=db_path, runs_dir=runs_dir)
     events = build_context_from_events(limit=limit, db_path=db_path)
     snapshot = {
@@ -181,7 +191,9 @@ def runtime_background_status() -> dict[str, Any]:
     supervisor = get_internal_runtime_supervisor()
     return {
         "snapshot": supervisor.snapshot(),
-        "background_thread_alive": bool(_BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive()),
+        "background_thread_alive": bool(
+            _BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive()
+        ),
         "last_context_snapshot": _LAST_CONTEXT_SNAPSHOT,
     }
 
@@ -203,7 +215,9 @@ def build_runtime_heartbeat(
     from triade.core.worker_autostart import build_workers_always_on_status
 
     runtime_state = get_internal_runtime_state(db_path=db_path, runs_dir=runs_dir)
-    learning_journal = build_learning_journal(db_path=db_path, since_hours=since_hours, limit=limit)
+    learning_journal = build_learning_journal(
+        db_path=db_path, since_hours=since_hours, limit=limit
+    )
     living_context = build_living_context_for_chat(
         user_input="pulso vivo",
         db_path=db_path,
@@ -211,13 +225,23 @@ def build_runtime_heartbeat(
         limit=limit,
     )
     worker_status = WorkerBackgroundService(db_path=db_path, runs_dir=runs_dir).status()
-    workers_always_on_status = build_workers_always_on_status(db_path=db_path, runs_dir=runs_dir)
-    recent_events = list_recent_runtime_events(limit=max(limit * 2, 100), db_path=db_path)
+    workers_always_on_status = build_workers_always_on_status(
+        db_path=db_path, runs_dir=runs_dir
+    )
+    recent_events = list_recent_runtime_events(
+        limit=max(limit * 2, 100), db_path=db_path
+    )
     last_cycle_at = _last_timestamp(recent_events, RUNTIME_CYCLE_EVENTS)
     latest_event = recent_events[0] if recent_events else None
-    latest_error = _latest_noncritical_filtered_error(query_internal_errors(limit=20, db_path=db_path), db_path=db_path)
-    edge_context_health = build_edge_context_health(since_hours=since_hours, limit=max(limit * 4, 200), db_path=db_path)
-    active_missions = int((living_context.get("mission_context") or {}).get("active_missions", 0))
+    latest_error = _latest_noncritical_filtered_error(
+        query_internal_errors(limit=20, db_path=db_path), db_path=db_path
+    )
+    edge_context_health = build_edge_context_health(
+        since_hours=since_hours, limit=max(limit * 4, 200), db_path=db_path
+    )
+    active_missions = int(
+        (living_context.get("mission_context") or {}).get("active_missions", 0)
+    )
     ollama_blood = check_ollama_blood()
     blood_nutrition_policy = ollama_blood_policy("neuron_nutrition", ollama_blood)
     blood_evaluation_policy = ollama_blood_policy("learning_evaluation", ollama_blood)
@@ -241,19 +265,26 @@ def build_runtime_heartbeat(
         | set(blood_stable_policy.get("blocked_actions", []))
         | set(blood_semantic_policy.get("blocked_actions", []))
     )
-    fallback_message = "Tríade respira en fallback, pero no tiene sangre cognitiva activa."
+    fallback_message = (
+        "Tríade respira en fallback, pero no tiene sangre cognitiva activa."
+    )
     cycles_last_hour = _count_recent(recent_events, RUNTIME_CYCLE_EVENTS, hours=1)
     cycles_last_24h = _count_recent(recent_events, RUNTIME_CYCLE_EVENTS, hours=24)
     bg_alive = bool(_BACKGROUND_THREAD and _BACKGROUND_THREAD.is_alive())
     runtime_enabled = bool(runtime_state.get("enabled") or bg_alive)
-    workers_active = bool(worker_status.get("running") or workers_always_on_status.get("active"))
+    workers_active = bool(
+        worker_status.get("running") or workers_always_on_status.get("active")
+    )
     ollama_degraded = ollama_blood.get("status") == "degraded_no_ollama"
 
     always_on_status = build_always_on_status()
     always_on_enabled = always_on_status.get("enabled", False)
     always_on_state = always_on_status.get("status", "disabled")
     supervisor_enabled = bool(runtime_state.get("enabled"))
-    has_recent_activity = cycles_last_hour > 0 or int(learning_journal.get("missions_executed", 0) or 0) > 0
+    has_recent_activity = (
+        cycles_last_hour > 0
+        or int(learning_journal.get("missions_executed", 0) or 0) > 0
+    )
 
     if has_recent_activity and not runtime_enabled and not bg_alive:
         runtime_activity_state = "recent_activity_supervisor_off"
@@ -266,20 +297,32 @@ def build_runtime_heartbeat(
     elif ollama_degraded:
         runtime_activity_state = "degraded_no_ollama"
     elif bg_alive:
-        runtime_activity_state = "always_on_enabled_background_running" if always_on_enabled else "active_background"
+        runtime_activity_state = (
+            "always_on_enabled_background_running"
+            if always_on_enabled
+            else "active_background"
+        )
     else:
         runtime_activity_state = "idle_supervisor_off"
 
     configured_mode = str(always_on_status.get("configured_mode", "observe_only"))
     effective_mode = str(always_on_status.get("effective_mode", "observe_only"))
-    degraded_by_governor = bool(always_on_status.get("degraded_by_governor") or workers_always_on_status.get("degraded_by_governor"))
-    degradation_reason = always_on_status.get("degradation_reason") or workers_always_on_status.get("degradation_reason")
+    degraded_by_governor = bool(
+        always_on_status.get("degraded_by_governor")
+        or workers_always_on_status.get("degraded_by_governor")
+    )
+    degradation_reason = always_on_status.get(
+        "degradation_reason"
+    ) or workers_always_on_status.get("degradation_reason")
 
     if always_on_enabled and bg_alive and workers_active:
         truth = "ALWAYS-ON activo · Workers vivos · Tríade en proceso continuo"
     elif always_on_enabled and bg_alive and not workers_active:
         truth = "ALWAYS-ON activo · Workers inactivos: revisar autostart/watchdog"
-    elif configured_mode == "full_local_guarded" and effective_mode != "full_local_guarded":
+    elif (
+        configured_mode == "full_local_guarded"
+        and effective_mode != "full_local_guarded"
+    ):
         truth = f"Autonomía full_local_guarded configurada · degradada a {effective_mode} por gobernador"
     elif always_on_enabled and bg_alive:
         truth = "ALWAYS-ON activo · Tríade en proceso continuo"
@@ -310,11 +353,17 @@ def build_runtime_heartbeat(
         "mode": (
             runtime_state.get("mode")
             if runtime_state.get("enabled")
-            else (always_on_status.get("effective_mode") if bg_alive else runtime_state.get("mode"))
+            else (
+                always_on_status.get("effective_mode")
+                if bg_alive
+                else runtime_state.get("mode")
+            )
         ),
         "last_cycle_at": last_cycle_at,
         "cycles_last_hour": cycles_last_hour,
-        "cycles_last_24h": max(cycles_last_24h, int(learning_journal.get("cycles_last_24h", 0) or 0)),
+        "cycles_last_24h": max(
+            cycles_last_24h, int(learning_journal.get("cycles_last_24h", 0) or 0)
+        ),
         "is_thinking_without_chat": bool(
             (learning_journal.get("cycles_last_24h", 0) or 0)
             or (learning_journal.get("missions_executed", 0) or 0)
@@ -331,11 +380,14 @@ def build_runtime_heartbeat(
         "latest_action": (
             fallback_message
             if ollama_blood.get("status") == "degraded_no_ollama"
-            else (latest_event or {}).get("event_type") or _first_event_type(runtime_state.get("last_events"))
+            else (latest_event or {}).get("event_type")
+            or _first_event_type(runtime_state.get("last_events"))
         ),
         # Los eventos informativos recientes pertenecen a ``latest_action``;
         # no deben aparecer como errores cuando Error Bus está vacío.
-        "latest_error": latest_error.get("message") or latest_error.get("error") or None,
+        "latest_error": latest_error.get("message")
+        or latest_error.get("error")
+        or None,
         "active_workers": bool(worker_status.get("running")),
         "active_missions": active_missions,
         "ollama_health": ollama_health,
@@ -346,12 +398,20 @@ def build_runtime_heartbeat(
         "can_reason": bool(ollama_blood.get("can_reason")),
         "can_embed": bool(ollama_blood.get("can_embed")),
         "fallback_mode": bool(ollama_blood.get("fallback_mode")),
-        "cognitive_model_status": "full_local" if model_available and embedding_available else ("degraded_no_ollama" if not ollama_blood.get("ollama_ok") else "partial_local"),
+        "cognitive_model_status": "full_local"
+        if model_available and embedding_available
+        else (
+            "degraded_no_ollama"
+            if not ollama_blood.get("ollama_ok")
+            else "partial_local"
+        ),
         "degraded_components": degraded_components,
         "blocked_learning_actions": blocked_learning_actions,
         "can_nourish_neurons": bool(ollama_blood.get("can_nourish_neurons")),
         "can_evaluate_learning": bool(ollama_blood.get("can_evaluate_learning")),
-        "can_consolidate_stable_memory": bool(ollama_blood.get("can_consolidate_stable")),
+        "can_consolidate_stable_memory": bool(
+            ollama_blood.get("can_consolidate_stable")
+        ),
         "can_consolidate_stable": bool(ollama_blood.get("can_consolidate_stable")),
         "model_policies": {
             "neuron_nutrition": blood_nutrition_policy,
@@ -365,14 +425,20 @@ def build_runtime_heartbeat(
             "candidates_created": learning_journal.get("candidates_created", 0),
             "candidates_evaluated": learning_journal.get("candidates_evaluated", 0),
             "candidates_verified": learning_journal.get("candidates_verified", 0),
-            "candidates_consolidated": learning_journal.get("candidates_consolidated", 0),
+            "candidates_consolidated": learning_journal.get(
+                "candidates_consolidated", 0
+            ),
             "candidates_rejected": learning_journal.get("candidates_rejected", 0),
             "neurons_nourished": learning_journal.get("neurons_nourished", 0),
-            "ollama_blood_message": fallback_message if ollama_blood.get("status") == "degraded_no_ollama" else "Sangre cognitiva activa o parcial.",
+            "ollama_blood_message": fallback_message
+            if ollama_blood.get("status") == "degraded_no_ollama"
+            else "Sangre cognitiva activa o parcial.",
         },
         "neurons_nourished_last_24h": learning_journal.get("neurons_nourished", 0),
         "latest_contradiction": _latest_contradiction(living_context),
-        "latest_learning_candidate": (learning_journal.get("latest_learning_candidates") or [{}])[0],
+        "latest_learning_candidate": (
+            learning_journal.get("latest_learning_candidates") or [{}]
+        )[0],
         "latest_rejection": (learning_journal.get("latest_rejections") or [{}])[0],
         "learning_journal": learning_journal,
         "living_context": living_context,
@@ -409,15 +475,25 @@ def build_runtime_heartbeat(
         "always_on_status": always_on_state,
         "always_on_background_thread_alive": bg_alive,
         "always_on_config_source": always_on_status.get("config_source", "default"),
-        "always_on_effective_mode": always_on_status.get("effective_mode", "observe_only"),
+        "always_on_effective_mode": always_on_status.get(
+            "effective_mode", "observe_only"
+        ),
         "always_on_detail": always_on_status,
-        "self_test_last_status": getattr(get_internal_runtime_supervisor(db_path=db_path, runs_dir=runs_dir), "last_self_test_result", None),
+        "self_test_last_status": getattr(
+            get_internal_runtime_supervisor(db_path=db_path, runs_dir=runs_dir),
+            "last_self_test_result",
+            None,
+        ),
     }
     return heartbeat
 
 
-def list_recent_runtime_events(limit: int = 100, db_path: str | Path = "triade/memory/triade.db") -> list[dict[str, Any]]:
-    return build_context_from_events(limit=limit, db_path=db_path).get("recent_events", [])
+def list_recent_runtime_events(
+    limit: int = 100, db_path: str | Path = "triade/memory/triade.db"
+) -> list[dict[str, Any]]:
+    return build_context_from_events(limit=limit, db_path=db_path).get(
+        "recent_events", []
+    )
 
 
 def _latest_noncritical_filtered_error(
@@ -435,7 +511,9 @@ def _latest_noncritical_filtered_error(
     return {}
 
 
-def _is_resolved_foreign_key_signal(err: dict[str, Any], *, db_path: str | Path) -> bool:
+def _is_resolved_foreign_key_signal(
+    err: dict[str, Any], *, db_path: str | Path
+) -> bool:
     import sqlite3
 
     text = " ".join(
@@ -451,7 +529,10 @@ def _is_resolved_foreign_key_signal(err: dict[str, Any], *, db_path: str | Path)
         return False
     try:
         with sqlite3.connect(db_path) as conn:
-            return conn.execute("PRAGMA foreign_key_check('neuron_activity')").fetchone() is None
+            return (
+                conn.execute("PRAGMA foreign_key_check('neuron_activity')").fetchone()
+                is None
+            )
     except sqlite3.Error:
         return False
 
@@ -466,13 +547,10 @@ def _is_expected_edge_parse_signal(err: dict[str, Any]) -> bool:
             ((err.get("payload") or {}).get("context") or {}).get("operation"),
         )
     ).lower()
-    return (
-        "edge_context.parse_model_output" in text
-        and (
-            "expecting value" in text
-            or "jsondecodeerror" in text
-            or "parse_model_json" in text
-        )
+    return "edge_context.parse_model_output" in text and (
+        "expecting value" in text
+        or "jsondecodeerror" in text
+        or "parse_model_json" in text
     )
 
 
@@ -481,7 +559,8 @@ def _is_expected_measurement_gate_signal(err: dict[str, Any]) -> bool:
     text = " ".join(
         str(part or "")
         for part in (
-            err.get("task_type"), err.get("message"),
+            err.get("task_type"),
+            err.get("message"),
             (err.get("payload") or {}).get("error_message"),
         )
     ).lower()
@@ -543,7 +622,9 @@ def _heartbeat_continuity_score(
 
 
 def _latest_contradiction(living_context: dict[str, Any]) -> str | None:
-    contradictions = (living_context.get("bodega_global_context") or {}).get("contradictions") or []
+    contradictions = (living_context.get("bodega_global_context") or {}).get(
+        "contradictions"
+    ) or []
     if contradictions:
         return str(contradictions[0])
     bodega_summary = living_context.get("bodega_global_context") or {}

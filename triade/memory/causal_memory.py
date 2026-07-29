@@ -30,10 +30,16 @@ class CausalNode:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "id": self.id, "node_type": self.node_type, "content": self.content,
-            "domain": self.domain, "evidence_level": self.evidence_level,
-            "confidence": round(self.confidence, 4), "source_ref": self.source_ref,
-            "neuron_id": self.neuron_id, "created_at": self.created_at, "updated_at": self.updated_at,
+            "id": self.id,
+            "node_type": self.node_type,
+            "content": self.content,
+            "domain": self.domain,
+            "evidence_level": self.evidence_level,
+            "confidence": round(self.confidence, 4),
+            "source_ref": self.source_ref,
+            "neuron_id": self.neuron_id,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
         }
 
 
@@ -49,9 +55,13 @@ class CausalEdge:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "id": self.id, "source_id": self.source_id, "target_id": self.target_id,
-            "relation_type": self.relation_type, "weight": round(self.weight, 4),
-            "evidence_refs": list(self.evidence_refs), "created_at": self.created_at,
+            "id": self.id,
+            "source_id": self.source_id,
+            "target_id": self.target_id,
+            "relation_type": self.relation_type,
+            "weight": round(self.weight, 4),
+            "evidence_refs": list(self.evidence_refs),
+            "created_at": self.created_at,
         }
 
 
@@ -59,8 +69,21 @@ class CausalMemory:
     """Gestor de memoria causal sobre kg_nodes/kg_edges existentes."""
 
     VALID_NODE_TYPES = {"fact", "concept", "entity", "claim", "hypothesis"}
-    VALID_EVIDENCE_LEVELS = {"candidate", "contested", "corroborated", "established", "canonical"}
-    VALID_RELATIONS = {"supports", "contradicts", "refines", "depends_on", "originates_from", "related_to"}
+    VALID_EVIDENCE_LEVELS = {
+        "candidate",
+        "contested",
+        "corroborated",
+        "established",
+        "canonical",
+    }
+    VALID_RELATIONS = {
+        "supports",
+        "contradicts",
+        "refines",
+        "depends_on",
+        "originates_from",
+        "related_to",
+    }
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
@@ -88,13 +111,29 @@ class CausalMemory:
             cur = conn.execute(
                 """INSERT INTO kg_nodes (node_type, content, domain, evidence_level, confidence, source_ref, neuron_id, created_at, updated_at)
                 VALUES (?, ?, ?, 'candidate', ?, ?, ?, ?, ?)""",
-                (node_type, content, domain, max(0, min(1, confidence)), source_ref, neuron_id, now, now),
+                (
+                    node_type,
+                    content,
+                    domain,
+                    max(0, min(1, confidence)),
+                    source_ref,
+                    neuron_id,
+                    now,
+                    now,
+                ),
             )
             node_id = str(cur.lastrowid)
         return CausalNode(
-            id=node_id, node_type=node_type, content=content, domain=domain,
-            evidence_level="candidate", confidence=confidence, source_ref=source_ref,
-            neuron_id=str(neuron_id), created_at=now, updated_at=now,
+            id=node_id,
+            node_type=node_type,
+            content=content,
+            domain=domain,
+            evidence_level="candidate",
+            confidence=confidence,
+            source_ref=source_ref,
+            neuron_id=str(neuron_id),
+            created_at=now,
+            updated_at=now,
         )
 
     def add_edge(
@@ -107,29 +146,45 @@ class CausalMemory:
         evidence_refs: list[str] | None = None,
     ) -> CausalEdge:
         now = utc_now()
-        relation_type = relation_type if relation_type in self.VALID_RELATIONS else "related_to"
+        relation_type = (
+            relation_type if relation_type in self.VALID_RELATIONS else "related_to"
+        )
         with self._connect() as conn:
             cur = conn.execute(
                 """INSERT INTO kg_edges (source_id, target_id, relation_type, weight, evidence_refs, created_at)
                 VALUES (?, ?, ?, ?, ?, ?)""",
-                (int(source_id), int(target_id), relation_type, max(0, min(1, weight)),
-                 json.dumps(evidence_refs or [], ensure_ascii=False), now),
+                (
+                    int(source_id),
+                    int(target_id),
+                    relation_type,
+                    max(0, min(1, weight)),
+                    json.dumps(evidence_refs or [], ensure_ascii=False),
+                    now,
+                ),
             )
             edge_id = str(cur.lastrowid)
         return CausalEdge(
-            id=edge_id, source_id=source_id, target_id=target_id,
-            relation_type=relation_type, weight=weight,
-            evidence_refs=evidence_refs or [], created_at=now,
+            id=edge_id,
+            source_id=source_id,
+            target_id=target_id,
+            relation_type=relation_type,
+            weight=weight,
+            evidence_refs=evidence_refs or [],
+            created_at=now,
         )
 
     def get_node(self, node_id: str) -> CausalNode | None:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM kg_nodes WHERE id = ?", (node_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM kg_nodes WHERE id = ?", (node_id,)
+            ).fetchone()
             if row is None:
                 return None
             return CausalNode(
-                id=str(row["id"]), node_type=str(row["node_type"]),
-                content=str(row["content"]), domain=str(row["domain"]),
+                id=str(row["id"]),
+                node_type=str(row["node_type"]),
+                content=str(row["content"]),
+                domain=str(row["domain"]),
                 evidence_level=str(row["evidence_level"]),
                 confidence=float(row["confidence"] or 0),
                 source_ref=str(row["source_ref"] or ""),
@@ -138,7 +193,9 @@ class CausalMemory:
                 updated_at=str(row["updated_at"] or ""),
             )
 
-    def get_edges_from(self, node_id: str, relation_type: str | None = None) -> list[CausalEdge]:
+    def get_edges_from(
+        self, node_id: str, relation_type: str | None = None
+    ) -> list[CausalEdge]:
         with self._connect() as conn:
             if relation_type:
                 rows = conn.execute(
@@ -146,10 +203,14 @@ class CausalMemory:
                     (node_id, relation_type),
                 ).fetchall()
             else:
-                rows = conn.execute("SELECT * FROM kg_edges WHERE source_id = ?", (node_id,)).fetchall()
+                rows = conn.execute(
+                    "SELECT * FROM kg_edges WHERE source_id = ?", (node_id,)
+                ).fetchall()
         return [self._row_to_edge(r) for r in rows]
 
-    def get_edges_to(self, node_id: str, relation_type: str | None = None) -> list[CausalEdge]:
+    def get_edges_to(
+        self, node_id: str, relation_type: str | None = None
+    ) -> list[CausalEdge]:
         with self._connect() as conn:
             if relation_type:
                 rows = conn.execute(
@@ -157,7 +218,9 @@ class CausalMemory:
                     (node_id, relation_type),
                 ).fetchall()
             else:
-                rows = conn.execute("SELECT * FROM kg_edges WHERE target_id = ?", (node_id,)).fetchall()
+                rows = conn.execute(
+                    "SELECT * FROM kg_edges WHERE target_id = ?", (node_id,)
+                ).fetchall()
         return [self._row_to_edge(r) for r in rows]
 
     def propagate_confidence(self, node_id: str) -> float:
@@ -168,7 +231,9 @@ class CausalMemory:
         contradicts = self.get_edges_to(node_id, "contradicts")
         support_boost = sum(e.weight * 0.1 for e in supports)
         contradiction_penalty = sum(e.weight * 0.15 for e in contradicts)
-        new_conf = max(0, min(1, node.confidence + support_boost - contradiction_penalty))
+        new_conf = max(
+            0, min(1, node.confidence + support_boost - contradiction_penalty)
+        )
         if abs(new_conf - node.confidence) > 0.01:
             with self._connect() as conn:
                 conn.execute(
@@ -199,16 +264,22 @@ class CausalMemory:
         for edge in edges:
             source = self.get_node(edge.source_id)
             if source:
-                results.append({
-                    "contradictor": source.to_dict(),
-                    "edge": edge.to_dict(),
-                })
+                results.append(
+                    {
+                        "contradictor": source.to_dict(),
+                        "edge": edge.to_dict(),
+                    }
+                )
         return results
 
     def summary(self) -> dict[str, Any]:
         with self._connect() as conn:
-            node_count = conn.execute("SELECT COUNT(*) as c FROM kg_nodes").fetchone()["c"]
-            edge_count = conn.execute("SELECT COUNT(*) as c FROM kg_edges").fetchone()["c"]
+            node_count = conn.execute("SELECT COUNT(*) as c FROM kg_nodes").fetchone()[
+                "c"
+            ]
+            edge_count = conn.execute("SELECT COUNT(*) as c FROM kg_edges").fetchone()[
+                "c"
+            ]
             types = conn.execute(
                 "SELECT node_type, COUNT(*) as c FROM kg_nodes GROUP BY node_type"
             ).fetchall()
@@ -225,8 +296,10 @@ class CausalMemory:
     @staticmethod
     def _row_to_node(row: sqlite3.Row) -> CausalNode:
         return CausalNode(
-            id=str(row["id"]), node_type=str(row["node_type"]),
-            content=str(row["content"]), domain=str(row["domain"]),
+            id=str(row["id"]),
+            node_type=str(row["node_type"]),
+            content=str(row["content"]),
+            domain=str(row["domain"]),
             evidence_level=str(row["evidence_level"]),
             confidence=float(row["confidence"] or 0),
             source_ref=str(row["source_ref"] or ""),
@@ -243,7 +316,8 @@ class CausalMemory:
         except (json.JSONDecodeError, TypeError):
             pass
         return CausalEdge(
-            id=str(row["id"]), source_id=str(row["source_id"]),
+            id=str(row["id"]),
+            source_id=str(row["source_id"]),
             target_id=str(row["target_id"]),
             relation_type=str(row["relation_type"]),
             weight=float(row["weight"] or 0),

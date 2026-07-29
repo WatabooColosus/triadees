@@ -13,13 +13,10 @@ Cubre el ciclo completo:
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 
-import pytest
 
 from triade.core.neuron_missions import (
     NeuronMission,
@@ -93,6 +90,7 @@ def make_db(tmp_path: Path) -> Path:
 
 # ── Step 1: Create experimental neuron mission ──────────────────────────────
 
+
 def test_e2e_create_mission(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
     store = NeuronMissionStore(db_path=db_path)
@@ -115,6 +113,7 @@ def test_e2e_create_mission(tmp_path: Path) -> None:
 
 
 # ── Step 2: Ingest and verify learning candidate ────────────────────────────
+
 
 def test_e2e_learning_candidate_pipeline(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
@@ -148,6 +147,7 @@ def test_e2e_learning_candidate_pipeline(tmp_path: Path) -> None:
 
 
 # ── Step 3: Record learning usage with explicit match ────────────────────────
+
 
 def test_e2e_usage_explicit_match(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
@@ -190,7 +190,9 @@ def test_e2e_usage_explicit_match(tmp_path: Path) -> None:
 
     assert result["candidates_marked"] >= 1
     trace = result.get("trace", [])
-    explicit_matches = [t for t in trace if t.get("match_source") == "explicit_candidate_id"]
+    explicit_matches = [
+        t for t in trace if t.get("match_source") == "explicit_candidate_id"
+    ]
     assert len(explicit_matches) >= 1
 
     # Verify run_use_count increased
@@ -198,18 +200,22 @@ def test_e2e_usage_explicit_match(tmp_path: Path) -> None:
     assert c["run_use_count"] >= 1
 
 
-def test_e2e_traceability_learning_mission_evidence_no_internal_errors(tmp_path: Path) -> None:
+def test_e2e_traceability_learning_mission_evidence_no_internal_errors(
+    tmp_path: Path,
+) -> None:
     db_path = make_db(tmp_path)
     mission_store = NeuronMissionStore(db_path=db_path)
     pipeline = LearningPipeline(db_path=db_path)
 
-    mission_id = mission_store.create_mission(NeuronMission(
-        neuron_id=7,
-        title="Aprendizaje verificable",
-        mission="Trazar aprendizaje usado por outputs",
-        domain="observability",
-        status="experimental",
-    ))
+    mission_id = mission_store.create_mission(
+        NeuronMission(
+            neuron_id=7,
+            title="Aprendizaje verificable",
+            mission="Trazar aprendizaje usado por outputs",
+            domain="observability",
+            status="experimental",
+        )
+    )
     candidate = pipeline.ingest(
         content="La trazabilidad debe registrar candidate ids semantic docs evidence refs y heuristicas",
         source_type="conversation",
@@ -244,22 +250,26 @@ def test_e2e_traceability_learning_mission_evidence_no_internal_errors(tmp_path:
         memory_packet=memory,
         db_path=db_path,
     )
-    mission_store.record_evidence(NeuronEvidence(
-        mission_id=mission_id,
-        neuron_id=7,
-        evidence_type="learning_used",
-        source="run",
-        content="Output usó aprendizaje verificado con referencias auditables.",
-        refs=["e2e-observability-run", cid, "semantic-doc-obs-1"],
-        score=0.9,
-    ))
+    mission_store.record_evidence(
+        NeuronEvidence(
+            mission_id=mission_id,
+            neuron_id=7,
+            evidence_type="learning_used",
+            source="run",
+            content="Output usó aprendizaje verificado con referencias auditables.",
+            refs=["e2e-observability-run", cid, "semantic-doc-obs-1"],
+            score=0.9,
+        )
+    )
 
     traceability = _build_traceability(
         run_id="e2e-observability-run",
         output=output,
         memory=memory,
         learning_usage_result=usage,
-        neuron_orchestration={"experimental_neuron_activity": [{"mission_id": mission_id}]},
+        neuron_orchestration={
+            "experimental_neuron_activity": [{"mission_id": mission_id}]
+        },
         experimental_neuron_activity=[],
     )
 
@@ -275,6 +285,7 @@ def test_e2e_traceability_learning_mission_evidence_no_internal_errors(tmp_path:
 
 
 # ── Step 4: Record learning usage with heuristic fallback ────────────────────
+
 
 def test_e2e_usage_heuristic_fallback(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
@@ -318,6 +329,7 @@ def test_e2e_usage_heuristic_fallback(tmp_path: Path) -> None:
 
 # ── Step 5: Record mission work cycle and evidence ──────────────────────────
 
+
 def test_e2e_mission_work_cycle_and_evidence(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
     store = NeuronMissionStore(db_path=db_path)
@@ -347,7 +359,9 @@ def test_e2e_mission_work_cycle_and_evidence(tmp_path: Path) -> None:
 
     cycles = store.list_cycles(mission_id)
     assert len(cycles) >= 1
-    assert cycles[0].output_summary == "Calidad promedio: 0.78, 2 respuestas bajo umbral"
+    assert (
+        cycles[0].output_summary == "Calidad promedio: 0.78, 2 respuestas bajo umbral"
+    )
 
     # Record evidence
     evidence = NeuronEvidence(
@@ -383,6 +397,7 @@ def test_e2e_mission_work_cycle_and_evidence(tmp_path: Path) -> None:
 
 # ── Step 6: Confirm no consolidation without gates ─────────────────────────
 
+
 def test_e2e_no_consolidation_without_gates(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
     pipeline = LearningPipeline(db_path=db_path)
@@ -412,7 +427,7 @@ def test_e2e_no_consolidation_without_gates(tmp_path: Path) -> None:
     )
     memory = SimpleNamespace(verification_status="ok", semantic_recall={})
 
-    result = record_learning_usage_from_output(
+    record_learning_usage_from_output(
         run_id="e2e-run-003",
         output_packet=output,
         memory_packet=memory,
@@ -426,6 +441,7 @@ def test_e2e_no_consolidation_without_gates(tmp_path: Path) -> None:
 
 
 # ── Step 7: Confirm consolidation after gates met ───────────────────────────
+
 
 def test_e2e_consolidation_after_gates(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
@@ -459,7 +475,7 @@ def test_e2e_consolidation_after_gates(tmp_path: Path) -> None:
     # Use 3 times with good scores
     for i in range(3):
         result = record_learning_usage_from_output(
-            run_id=f"e2e-run-{4+i}",
+            run_id=f"e2e-run-{4 + i}",
             output_packet=output,
             memory_packet=memory,
             db_path=db_path,
@@ -476,6 +492,7 @@ def test_e2e_consolidation_after_gates(tmp_path: Path) -> None:
 
 # ── Step 8: MissionPlanner reads real state ─────────────────────────────────
 
+
 def test_e2e_mission_planner_responds_to_state(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
     planner = MissionPlanner(db_path=db_path)
@@ -487,7 +504,7 @@ def test_e2e_mission_planner_responds_to_state(tmp_path: Path) -> None:
 
     # Add a learning candidate
     pipeline = LearningPipeline(db_path=db_path)
-    candidate = pipeline.ingest(
+    pipeline.ingest(
         content="Test content for planner",
         source_type="conversation",
         source_ref="run:test-001",
@@ -507,6 +524,7 @@ def test_e2e_mission_planner_responds_to_state(tmp_path: Path) -> None:
 
 
 # ── Step 9: Traceability in run output ──────────────────────────────────────
+
 
 def test_e2e_traceability_output(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
@@ -562,6 +580,7 @@ def test_e2e_traceability_output(tmp_path: Path) -> None:
 
 
 # ── Step 10: Error bus records internal errors ──────────────────────────────
+
 
 def test_e2e_error_bus_records_errors(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)

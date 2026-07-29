@@ -20,7 +20,9 @@ def test_mobile_agent_requires_token_and_runs_job() -> None:
     assert blocked.status_code == 401
 
     headers = {"Authorization": "Bearer test-token"}
-    config = client.post("/config", headers=headers, json={"target_usage_percent": 60, "max_workers": 1})
+    config = client.post(
+        "/config", headers=headers, json={"target_usage_percent": 60, "max_workers": 1}
+    )
     assert config.status_code == 200
     assert config.json()["target_usage_percent"] == 60
 
@@ -28,7 +30,11 @@ def test_mobile_agent_requires_token_and_runs_job() -> None:
     assert capabilities.status_code == 200
     assert capabilities.json()["target_usage_percent"] == 60
 
-    submitted = client.post("/jobs", headers=headers, json={"task": "sha256", "payload": {"hello": "triade"}})
+    submitted = client.post(
+        "/jobs",
+        headers=headers,
+        json={"task": "sha256", "payload": {"hello": "triade"}},
+    )
     assert submitted.status_code == 200
     job_id = submitted.json()["job_id"]
 
@@ -65,7 +71,9 @@ def test_mobile_agent_admin_is_token_scoped_and_root_limited(tmp_path) -> None:
     assert read.status_code == 200
     assert read.json()["content"] == "hola triade"
 
-    escape = client.get("/admin/files/read", params={"path": "../outside.txt"}, headers=headers)
+    escape = client.get(
+        "/admin/files/read", params={"path": "../outside.txt"}, headers=headers
+    )
     assert escape.status_code == 400
 
     blocked = client.post("/admin/commands/not_allowed", headers=headers)

@@ -40,7 +40,9 @@ def _hash_file(path: Path) -> str:
 
 
 def trash_path(
-    path: str, reason: str, run_ref: str | None = None,
+    path: str,
+    reason: str,
+    run_ref: str | None = None,
 ) -> dict[str, Any]:
     """Mueve un archivo a .triade_trash y crea manifest.
 
@@ -58,9 +60,17 @@ def trash_path(
 
     info = classify_path(str(dst))
     if info["zone"] == "forbidden":
-        return {"status": "blocked_forbidden_zone", "message": "Zona prohibida. No se puede mover a papelera.", "classification": info}
+        return {
+            "status": "blocked_forbidden_zone",
+            "message": "Zona prohibida. No se puede mover a papelera.",
+            "classification": info,
+        }
     if info["zone"] == "red" and not info["can_delete_to_trash"]:
-        return {"status": "requires_human_approval", "message": "Zona roja. Se requiere aprobación humana.", "classification": info}
+        return {
+            "status": "requires_human_approval",
+            "message": "Zona roja. Se requiere aprobación humana.",
+            "classification": info,
+        }
 
     try:
         rel = str(dst.relative_to(REPO_ROOT))
@@ -109,7 +119,10 @@ def restore_trash_item(manifest_path: str) -> dict[str, Any]:
     """Restaura un archivo desde la papelera usando su manifest."""
     mp = REPO_ROOT / manifest_path
     if not mp.exists():
-        return {"status": "error", "message": f"Manifest no encontrado: {manifest_path}"}
+        return {
+            "status": "error",
+            "message": f"Manifest no encontrado: {manifest_path}",
+        }
 
     with open(mp) as f:
         manifest = json.load(f)

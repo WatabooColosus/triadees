@@ -95,94 +95,112 @@ class AutonomousSupervisorService:
                     AND id IN (SELECT MAX(id) FROM worker_transitions GROUP BY task_id)"""
                 ).fetchall()
             if len(stuck) > 3:
-                alerts.append(SupervisorAlert(
-                    alert_id=f"alert-workers-{int(_time.time())}",
-                    severity="warning",
-                    source="worker_monitor",
-                    message=f"{len(stuck)} workers posiblemente stuck",
-                    details={"stuck_count": len(stuck)},
-                    created_at=utc_now(),
-                ))
+                alerts.append(
+                    SupervisorAlert(
+                        alert_id=f"alert-workers-{int(_time.time())}",
+                        severity="warning",
+                        source="worker_monitor",
+                        message=f"{len(stuck)} workers posiblemente stuck",
+                        details={"stuck_count": len(stuck)},
+                        created_at=utc_now(),
+                    )
+                )
         except Exception as exc:
-            alerts.append(SupervisorAlert(
-                alert_id=f"alert-worker-check-{int(_time.time())}",
-                severity="critical",
-                source="worker_monitor",
-                message=f"Error verificando workers: {exc}",
-                details={"error": str(exc)},
-                created_at=utc_now(),
-            ))
+            alerts.append(
+                SupervisorAlert(
+                    alert_id=f"alert-worker-check-{int(_time.time())}",
+                    severity="critical",
+                    source="worker_monitor",
+                    message=f"Error verificando workers: {exc}",
+                    details={"error": str(exc)},
+                    created_at=utc_now(),
+                )
+            )
         return alerts
 
     def check_pulse(self) -> list[SupervisorAlert]:
         alerts: list[SupervisorAlert] = []
         try:
             from triade.core.hierarchical_pulse import HierarchicalPulseEngine
+
             engine = HierarchicalPulseEngine(db_path=self.db_path)
             reading = engine.hierarchical_reading()
             if reading.overall_health == "critical":
-                alerts.append(SupervisorAlert(
-                    alert_id=f"alert-pulse-{int(_time.time())}",
-                    severity="critical",
-                    source="pulse_monitor",
-                    message=f"Pulso global en estado crítico. Interocepción={reading.interoception_score}",
-                    details=reading.to_dict(),
-                    created_at=utc_now(),
-                ))
+                alerts.append(
+                    SupervisorAlert(
+                        alert_id=f"alert-pulse-{int(_time.time())}",
+                        severity="critical",
+                        source="pulse_monitor",
+                        message=f"Pulso global en estado crítico. Interocepción={reading.interoception_score}",
+                        details=reading.to_dict(),
+                        created_at=utc_now(),
+                    )
+                )
             elif reading.overall_health == "degraded":
-                alerts.append(SupervisorAlert(
-                    alert_id=f"alert-pulse-{int(_time.time())}",
+                alerts.append(
+                    SupervisorAlert(
+                        alert_id=f"alert-pulse-{int(_time.time())}",
+                        severity="warning",
+                        source="pulse_monitor",
+                        message=f"Pulso global degradado. Interocepción={reading.interoception_score}",
+                        details=reading.to_dict(),
+                        created_at=utc_now(),
+                    )
+                )
+        except Exception as exc:
+            alerts.append(
+                SupervisorAlert(
+                    alert_id=f"alert-pulse-check-{int(_time.time())}",
                     severity="warning",
                     source="pulse_monitor",
-                    message=f"Pulso global degradado. Interocepción={reading.interoception_score}",
-                    details=reading.to_dict(),
+                    message=f"Error verificando pulso: {exc}",
+                    details={"error": str(exc)},
                     created_at=utc_now(),
-                ))
-        except Exception as exc:
-            alerts.append(SupervisorAlert(
-                alert_id=f"alert-pulse-check-{int(_time.time())}",
-                severity="warning",
-                source="pulse_monitor",
-                message=f"Error verificando pulso: {exc}",
-                details={"error": str(exc)},
-                created_at=utc_now(),
-            ))
+                )
+            )
         return alerts
 
     def check_capabilities(self) -> list[SupervisorAlert]:
         alerts: list[SupervisorAlert] = []
         try:
             from triade.capabilities.matrix import CapabilityMatrix
+
             matrix = CapabilityMatrix(db_path=self.db_path)
             result = matrix.build()
             health = result.get("health", {})
             if health.get("critical_without_baseline", 0) > 0:
-                alerts.append(SupervisorAlert(
-                    alert_id=f"alert-cap-{int(_time.time())}",
-                    severity="critical",
-                    source="capability_matrix",
-                    message=f"{health['critical_without_baseline']} capacidades críticas sin baseline",
-                    details=health,
-                    created_at=utc_now(),
-                ))
+                alerts.append(
+                    SupervisorAlert(
+                        alert_id=f"alert-cap-{int(_time.time())}",
+                        severity="critical",
+                        source="capability_matrix",
+                        message=f"{health['critical_without_baseline']} capacidades críticas sin baseline",
+                        details=health,
+                        created_at=utc_now(),
+                    )
+                )
             if health.get("blocked", 0) > 0:
-                alerts.append(SupervisorAlert(
-                    alert_id=f"alert-cap-blocked-{int(_time.time())}",
+                alerts.append(
+                    SupervisorAlert(
+                        alert_id=f"alert-cap-blocked-{int(_time.time())}",
+                        severity="warning",
+                        source="capability_matrix",
+                        message=f"{health['blocked']} capacidades bloqueadas",
+                        details=health,
+                        created_at=utc_now(),
+                    )
+                )
+        except Exception as exc:
+            alerts.append(
+                SupervisorAlert(
+                    alert_id=f"alert-cap-check-{int(_time.time())}",
                     severity="warning",
                     source="capability_matrix",
-                    message=f"{health['blocked']} capacidades bloqueadas",
-                    details=health,
+                    message=f"Error verificando capacidades: {exc}",
+                    details={"error": str(exc)},
                     created_at=utc_now(),
-                ))
-        except Exception as exc:
-            alerts.append(SupervisorAlert(
-                alert_id=f"alert-cap-check-{int(_time.time())}",
-                severity="warning",
-                source="capability_matrix",
-                message=f"Error verificando capacidades: {exc}",
-                details={"error": str(exc)},
-                created_at=utc_now(),
-            ))
+                )
+            )
         return alerts
 
     def run_check(self) -> SupervisorReport:
@@ -216,8 +234,14 @@ class AutonomousSupervisorService:
             with self._connect() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO supervisor_alerts(alert_id, severity, source, message, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (alert.alert_id, alert.severity, alert.source, alert.message,
-                     json.dumps(alert.details, ensure_ascii=False), alert.created_at),
+                    (
+                        alert.alert_id,
+                        alert.severity,
+                        alert.source,
+                        alert.message,
+                        json.dumps(alert.details, ensure_ascii=False),
+                        alert.created_at,
+                    ),
                 )
         except sqlite3.OperationalError:
             pass

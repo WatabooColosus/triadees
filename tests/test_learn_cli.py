@@ -44,17 +44,26 @@ def write_run(run_path: Path) -> None:
             {
                 "run_id": run_id,
                 "response": "Tríade crea candidatos, evalúa utilidad y exige verificación antes de consolidar.",
-                "actions_taken": ["plan_created", "template_fallback_response_generated"],
+                "actions_taken": [
+                    "plan_created",
+                    "template_fallback_response_generated",
+                ],
             },
             ensure_ascii=False,
         ),
         encoding="utf-8",
     )
-    (run_path / "report.json").write_text(json.dumps({"status": "ok"}), encoding="utf-8")
-    (run_path / "safety.json").write_text(json.dumps({"risk_level": "low"}), encoding="utf-8")
+    (run_path / "report.json").write_text(
+        json.dumps({"status": "ok"}), encoding="utf-8"
+    )
+    (run_path / "safety.json").write_text(
+        json.dumps({"risk_level": "low"}), encoding="utf-8"
+    )
 
 
-def test_learn_from_run_creates_evaluates_and_verifies_candidate(tmp_path: Path) -> None:
+def test_learn_from_run_creates_evaluates_and_verifies_candidate(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
     run_path = runs_dir / "run-test-learning"
@@ -83,5 +92,14 @@ def test_learn_from_run_creates_evaluates_and_verifies_candidate(tmp_path: Path)
     verified = run_cli("learn", "--db", str(db_path), "verify", candidate_id)
     assert verified["status"] == "internally_checked"
 
-    listed = run_cli("learn", "--db", str(db_path), "list", "--status", "internally_checked", "--limit", "5")
+    listed = run_cli(
+        "learn",
+        "--db",
+        str(db_path),
+        "list",
+        "--status",
+        "internally_checked",
+        "--limit",
+        "5",
+    )
     assert any(item["candidate_id"] == candidate_id for item in listed["candidates"])

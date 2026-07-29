@@ -51,7 +51,9 @@ def test_runner_creates_auditable_run(tmp_path: Path) -> None:
 
 
 def test_recall_returns_recent_episode(tmp_path: Path) -> None:
-    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+    runner = TriadeRunner(
+        runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False
+    )
     runner.run("Guardar episodio de prueba sobre memoria viva")
 
     recalled = runner.recall("memoria", limit=5)
@@ -61,7 +63,9 @@ def test_recall_returns_recent_episode(tmp_path: Path) -> None:
 
 
 def test_doctor_reports_full_persistence_counts(tmp_path: Path) -> None:
-    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+    runner = TriadeRunner(
+        runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False
+    )
     runner.run("Doctor debe detectar persistencia completa")
 
     report = runner.doctor()
@@ -87,7 +91,9 @@ def test_doctor_reports_full_persistence_counts(tmp_path: Path) -> None:
 
 
 def test_runner_records_model_metadata(tmp_path: Path) -> None:
-    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+    runner = TriadeRunner(
+        runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False
+    )
     result = runner.run("Registrar modelo usado por el run")
 
     assert result["model"]["provider"] == "template"
@@ -106,9 +112,13 @@ def test_runner_records_model_metadata(tmp_path: Path) -> None:
     assert result["memory_diff"]["central_model_event_id"] is not None
 
 
-def test_runner_post_run_learning_creates_candidate_only(tmp_path: Path, monkeypatch) -> None:
+def test_runner_post_run_learning_creates_candidate_only(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TRIADE_POST_RUN_LEARNING", "1")
-    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+    runner = TriadeRunner(
+        runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False
+    )
 
     result = runner.run("Aprendizaje post-run controlado")
 

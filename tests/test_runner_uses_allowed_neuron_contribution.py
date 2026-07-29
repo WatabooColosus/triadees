@@ -1,7 +1,5 @@
 """Tests del procesamiento de contribuciones neuronales en Runner."""
 
-from types import SimpleNamespace
-
 from triade.core.runner import _process_neuron_contributions
 
 
@@ -54,7 +52,10 @@ def test_contribution_ignored_low_confidence():
     result = _process_neuron_contributions([contrib], FakeSafety())
     assert result["used"] == 0
     assert result["ignored"] == 1
-    assert result["ignored_contributions"][0]["ignore_reason"] == "confidence_below_threshold"
+    assert (
+        result["ignored_contributions"][0]["ignore_reason"]
+        == "confidence_below_threshold"
+    )
 
 
 def test_contribution_blocked_safety():
@@ -82,7 +83,10 @@ def test_contribution_ignored_propose_learning_not_allowed():
     result = _process_neuron_contributions([contrib], FakeSafety())
     assert result["used"] == 0
     assert result["ignored"] == 1
-    assert result["ignored_contributions"][0]["ignore_reason"] == "propose_learning_not_allowed"
+    assert (
+        result["ignored_contributions"][0]["ignore_reason"]
+        == "propose_learning_not_allowed"
+    )
 
 
 def test_contribution_ignored_influence_response_not_allowed():
@@ -97,7 +101,10 @@ def test_contribution_ignored_influence_response_not_allowed():
     result = _process_neuron_contributions([contrib], FakeSafety())
     assert result["used"] == 0
     assert result["ignored"] == 1
-    assert result["ignored_contributions"][0]["ignore_reason"] == "influence_response_not_allowed"
+    assert (
+        result["ignored_contributions"][0]["ignore_reason"]
+        == "influence_response_not_allowed"
+    )
 
 
 def test_contribution_blocked_identity_core():
@@ -113,14 +120,31 @@ def test_contribution_blocked_identity_core():
     result = _process_neuron_contributions([contrib], FakeSafety())
     assert result["used"] == 0
     assert result["blocked"] == 1
-    assert result["blocked_contributions"][0]["block_reason"] == "identity_core_violation"
+    assert (
+        result["blocked_contributions"][0]["block_reason"] == "identity_core_violation"
+    )
 
 
 def test_mixed_contributions():
     contribs = [
-        {"neuron_name": "a", "risk": "low", "confidence": 0.80, "allowed_effects": ["observe", "diagnose"]},
-        {"neuron_name": "b", "risk": "critical", "confidence": 0.90, "allowed_effects": ["observe"]},
-        {"neuron_name": "c", "risk": "low", "confidence": 0.30, "allowed_effects": ["observe"]},
+        {
+            "neuron_name": "a",
+            "risk": "low",
+            "confidence": 0.80,
+            "allowed_effects": ["observe", "diagnose"],
+        },
+        {
+            "neuron_name": "b",
+            "risk": "critical",
+            "confidence": 0.90,
+            "allowed_effects": ["observe"],
+        },
+        {
+            "neuron_name": "c",
+            "risk": "low",
+            "confidence": 0.30,
+            "allowed_effects": ["observe"],
+        },
     ]
     result = _process_neuron_contributions(contribs, FakeSafety())
     assert result["total"] == 3

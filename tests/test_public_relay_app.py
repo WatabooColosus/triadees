@@ -34,7 +34,11 @@ def test_public_relay_registers_node_and_completes_job(tmp_path, monkeypatch) ->
     created = client.post(
         "/api/jobs",
         headers=headers,
-        json={"node_id": node["node_id"], "task": "echo", "payload": {"hello": "triade"}},
+        json={
+            "node_id": node["node_id"],
+            "task": "echo",
+            "payload": {"hello": "triade"},
+        },
     )
     assert created.status_code == 200
     job_id = created.json()["job_id"]
@@ -64,7 +68,9 @@ def test_public_relay_registers_node_and_completes_job(tmp_path, monkeypatch) ->
     assert node["node_token"] not in jobs.text
 
     with public_relay_app.connect() as conn:
-        audit = conn.execute("SELECT * FROM relay_job_audit WHERE job_id = ?", (job_id,)).fetchone()
+        audit = conn.execute(
+            "SELECT * FROM relay_job_audit WHERE job_id = ?", (job_id,)
+        ).fetchone()
     assert audit is not None
     assert audit["node_id"] == node["node_id"]
     assert audit["task"] == "echo"
@@ -83,14 +89,19 @@ def test_public_relay_requires_configured_tokens(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(public_relay_app, "ADMIN_TOKEN", "")
     client = TestClient(app)
 
-    registered = client.post("/api/register", json={"pairing_token": "pair", "display_name": "Nodo", "capabilities": {}})
+    registered = client.post(
+        "/api/register",
+        json={"pairing_token": "pair", "display_name": "Nodo", "capabilities": {}},
+    )
     nodes = client.get("/api/nodes", headers={"Authorization": "Bearer admin"})
 
     assert registered.status_code == 503
     assert nodes.status_code == 503
 
 
-def test_public_relay_rejects_invalid_bearer_for_next_job(tmp_path, monkeypatch) -> None:
+def test_public_relay_rejects_invalid_bearer_for_next_job(
+    tmp_path, monkeypatch
+) -> None:
     monkeypatch.setattr(public_relay_app, "DB_PATH", tmp_path / "relay.db")
     monkeypatch.setattr(public_relay_app, "PAIRING_TOKEN", "pair")
     monkeypatch.setattr(public_relay_app, "ADMIN_TOKEN", "admin")
@@ -119,18 +130,29 @@ def test_public_relay_accepts_preprocess_text_job(tmp_path, monkeypatch) -> None
 
     node = client.post(
         "/api/register",
-        json={"pairing_token": "pair", "display_name": "Tablet", "capabilities": {"hardware_concurrency": 8}},
+        json={
+            "pairing_token": "pair",
+            "display_name": "Tablet",
+            "capabilities": {"hardware_concurrency": 8},
+        },
     ).json()
     headers = {"Authorization": "Bearer admin"}
 
     created = client.post(
         "/api/jobs",
         headers=headers,
-        json={"node_id": node["node_id"], "task": "preprocess_text", "payload": {"text": "hola triade"}},
+        json={
+            "node_id": node["node_id"],
+            "task": "preprocess_text",
+            "payload": {"text": "hola triade"},
+        },
     )
 
     assert created.status_code == 200
-    next_job = client.get("/api/jobs/next", params={"node_id": node["node_id"], "node_token": node["node_token"]})
+    next_job = client.get(
+        "/api/jobs/next",
+        params={"node_id": node["node_id"], "node_token": node["node_token"]},
+    )
     assert next_job.json()["job"]["task"] == "preprocess_text"
     assert node["node_token"] not in next_job.text
 

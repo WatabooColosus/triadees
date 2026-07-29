@@ -6,7 +6,6 @@ import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any
 
 from triade.core.contracts import utc_now
 
@@ -63,35 +62,60 @@ CREATE TABLE IF NOT EXISTS knowledge_compressions (
 
 
 GRANULAR_STATES = {
-    "candidate", "experimental", "validated", "stable",
-    "deprecated", "archived", "retired", "quarantined",
+    "candidate",
+    "experimental",
+    "validated",
+    "stable",
+    "deprecated",
+    "archived",
+    "retired",
+    "quarantined",
 }
 
 
 class CausalLearningEngine:
     """Aprende relaciones causa-efecto entre eventos/conocimiento."""
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
 
-    def add_node(self, label: str, node_type: str = "event",
-                 domain: str = "", metadata: dict | None = None) -> dict:
+    def add_node(
+        self,
+        label: str,
+        node_type: str = "event",
+        domain: str = "",
+        metadata: dict | None = None,
+    ) -> dict:
         node_id = _gen_id("cnode")
         now = utc_now()
         self._conn.execute(
             """INSERT INTO causal_nodes (node_id, label, node_type, domain, metadata_json, created_at)
                VALUES (?,?,?,?,?,?)""",
-            (node_id, label, node_type, domain,
-             json.dumps(metadata or {}, default=str), now),
+            (
+                node_id,
+                label,
+                node_type,
+                domain,
+                json.dumps(metadata or {}, default=str),
+                now,
+            ),
         )
         self._conn.commit()
         return {"node_id": node_id, "label": label, "type": node_type}
 
-    def add_edge(self, cause_id: str, effect_id: str,
-                 relation_type: str = "direct", confidence: float = 0.5,
-                 evidence: list | None = None, domain: str = "") -> dict:
+    def add_edge(
+        self,
+        cause_id: str,
+        effect_id: str,
+        relation_type: str = "direct",
+        confidence: float = 0.5,
+        evidence: list | None = None,
+        domain: str = "",
+    ) -> dict:
         edge_id = _gen_id("cedge")
         now = utc_now()
         self._conn.execute(
@@ -99,13 +123,25 @@ class CausalLearningEngine:
                (edge_id, cause_id, effect_id, relation_type,
                 confidence, evidence_json, domain, status, created_at)
                VALUES (?,?,?,?,?,?,?,?,?)""",
-            (edge_id, cause_id, effect_id, relation_type,
-             _clamp(confidence), json.dumps(evidence or [], default=str),
-             domain, "active", now),
+            (
+                edge_id,
+                cause_id,
+                effect_id,
+                relation_type,
+                _clamp(confidence),
+                json.dumps(evidence or [], default=str),
+                domain,
+                "active",
+                now,
+            ),
         )
         self._conn.commit()
-        return {"edge_id": edge_id, "cause": cause_id, "effect": effect_id,
-                "confidence": round(confidence, 3)}
+        return {
+            "edge_id": edge_id,
+            "cause": cause_id,
+            "effect": effect_id,
+            "confidence": round(confidence, 3),
+        }
 
     def strengthen(self, edge_id: str, amount: float = 0.1) -> dict:
         row = self._conn.execute(
@@ -164,16 +200,27 @@ class CausalLearningEngine:
             "SELECT COUNT(*) as c FROM causal_edges WHERE domain=? AND status='active'",
             (domain,),
         ).fetchone()["c"]
-        avg_conf = self._conn.execute(
-            "SELECT AVG(confidence) as a FROM causal_edges WHERE domain=? AND status='active'",
-            (domain,),
-        ).fetchone()["a"] or 0.0
-        return {"domain": domain, "nodes": nodes, "edges": edges,
-                "avg_confidence": round(avg_conf, 3)}
+        avg_conf = (
+            self._conn.execute(
+                "SELECT AVG(confidence) as a FROM causal_edges WHERE domain=? AND status='active'",
+                (domain,),
+            ).fetchone()["a"]
+            or 0.0
+        )
+        return {
+            "domain": domain,
+            "nodes": nodes,
+            "edges": edges,
+            "avg_confidence": round(avg_conf, 3),
+        }
 
     def doctor(self) -> dict:
-        nodes = self._conn.execute("SELECT COUNT(*) as c FROM causal_nodes").fetchone()["c"]
-        edges = self._conn.execute("SELECT COUNT(*) as c FROM causal_edges WHERE status='active'").fetchone()["c"]
+        nodes = self._conn.execute("SELECT COUNT(*) as c FROM causal_nodes").fetchone()[
+            "c"
+        ]
+        edges = self._conn.execute(
+            "SELECT COUNT(*) as c FROM causal_edges WHERE status='active'"
+        ).fetchone()["c"]
         return {"nodes": nodes, "active_edges": edges}
 
 
@@ -191,13 +238,16 @@ class KnowledgeGranularStates:
         "quarantined": {"candidate", "experimental", "deprecated", "retired"},
     }
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
 
-    def transition(self, item_id: str, new_state: str, reason: str = "",
-                   actor: str = "system") -> dict:
+    def transition(
+        self, item_id: str, new_state: str, reason: str = "", actor: str = "system"
+    ) -> dict:
         if new_state not in GRANULAR_STATES:
             raise ValueError(f"Invalid state: {new_state}")
 
@@ -218,8 +268,19 @@ class KnowledgeGranularStates:
                VALUES (?,?,?,?,?,?)
                ON CONFLICT(item_id) DO UPDATE SET
                  current_state=?, previous_state=?, reason=?, actor=?, changed_at=?""",
-            (item_id, new_state, current, reason, actor, now,
-             new_state, current, reason, actor, now),
+            (
+                item_id,
+                new_state,
+                current,
+                reason,
+                actor,
+                now,
+                new_state,
+                current,
+                reason,
+                actor,
+                now,
+            ),
         )
         self._conn.commit()
         return {"item_id": item_id, "from": current, "to": new_state, "reason": reason}
@@ -247,7 +308,9 @@ class KnowledgeGranularStates:
 class KnowledgeCompressor:
     """Comprime conocimiento acumulado en resúmenes concisos."""
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
@@ -271,8 +334,15 @@ class KnowledgeCompressor:
                (compression_id, source_items_json, compressed_summary,
                 domain, items_count, compression_ratio, created_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (compression_id, json.dumps(items, default=str), summary,
-             domain, len(items), round(ratio, 4), now),
+            (
+                compression_id,
+                json.dumps(items, default=str),
+                summary,
+                domain,
+                len(items),
+                round(ratio, 4),
+                now,
+            ),
         )
         self._conn.commit()
         return {

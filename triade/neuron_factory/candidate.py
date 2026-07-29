@@ -83,9 +83,13 @@ class NeuronCandidateFactory:
             if capability.get("state") in {"blocked", "deprecated"}:
                 unavailable.append(capability_id)
         if missing:
-            raise ValueError(f"capacidades requeridas inexistentes: {', '.join(sorted(missing))}")
+            raise ValueError(
+                f"capacidades requeridas inexistentes: {', '.join(sorted(missing))}"
+            )
         if unavailable:
-            raise ValueError(f"capacidades requeridas no disponibles: {', '.join(sorted(unavailable))}")
+            raise ValueError(
+                f"capacidades requeridas no disponibles: {', '.join(sorted(unavailable))}"
+            )
 
         exported = self.specifications.export(neuron_id, version)
         candidate = NeuronCandidate(
@@ -130,7 +134,9 @@ class NeuronCandidateFactory:
             ).fetchone()
         return json.loads(row["manifest_json"]) if row else None
 
-    def list_for_neuron(self, neuron_id: str, version: str | None = None) -> list[dict[str, Any]]:
+    def list_for_neuron(
+        self, neuron_id: str, version: str | None = None
+    ) -> list[dict[str, Any]]:
         sql = "SELECT manifest_json FROM neuron_candidates WHERE neuron_id = ?"
         params: list[Any] = [neuron_id]
         if version:

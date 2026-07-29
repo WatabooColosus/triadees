@@ -15,7 +15,11 @@ from .worker_loop import WorkerLoop
 
 
 class WorkerBackgroundService:
-    def __init__(self, db_path: str | Path = "triade/memory/triade.db", runs_dir: str | Path = "runs/background") -> None:
+    def __init__(
+        self,
+        db_path: str | Path = "triade/memory/triade.db",
+        runs_dir: str | Path = "runs/background",
+    ) -> None:
         self.db_path = Path(db_path)
         self.runs_dir = Path(runs_dir)
         self.lock_file = self.runs_dir / ".triade_workers.lock"
@@ -23,19 +27,63 @@ class WorkerBackgroundService:
         self.store = WorkerStateStore(db_path=self.db_path)
         self.queue = WorkerTaskQueue(db_path=self.db_path)
 
-    def run_once(self, *, dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
-        loop = WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir, lock_file=self.lock_file, stop_file=self.stop_file)
-        config = WorkerRunConfig(max_iterations=1, sleep_seconds=0.0, task_timeout=task_timeout, dry_run=dry_run, once=True, daemon=False, runs_dir=str(self.runs_dir), lock_file=str(self.lock_file), stop_file=str(self.stop_file))
+    def run_once(
+        self, *, dry_run: bool = False, task_timeout: float = 30.0
+    ) -> dict[str, Any]:
+        loop = WorkerLoop(
+            db_path=self.db_path,
+            runs_dir=self.runs_dir,
+            lock_file=self.lock_file,
+            stop_file=self.stop_file,
+        )
+        config = WorkerRunConfig(
+            max_iterations=1,
+            sleep_seconds=0.0,
+            task_timeout=task_timeout,
+            dry_run=dry_run,
+            once=True,
+            daemon=False,
+            runs_dir=str(self.runs_dir),
+            lock_file=str(self.lock_file),
+            stop_file=str(self.stop_file),
+        )
         return loop.run(config)
 
-    def start(self, *, max_iterations: int = 5, sleep_seconds: float = 2.0, dry_run: bool = False, task_timeout: float = 30.0) -> dict[str, Any]:
-        loop = WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir, lock_file=self.lock_file, stop_file=self.stop_file)
+    def start(
+        self,
+        *,
+        max_iterations: int = 5,
+        sleep_seconds: float = 2.0,
+        dry_run: bool = False,
+        task_timeout: float = 30.0,
+    ) -> dict[str, Any]:
+        loop = WorkerLoop(
+            db_path=self.db_path,
+            runs_dir=self.runs_dir,
+            lock_file=self.lock_file,
+            stop_file=self.stop_file,
+        )
         loop.clear_stop()
-        config = WorkerRunConfig(max_iterations=max_iterations, sleep_seconds=sleep_seconds, task_timeout=task_timeout, dry_run=dry_run, once=False, daemon=True, runs_dir=str(self.runs_dir), lock_file=str(self.lock_file), stop_file=str(self.stop_file))
+        config = WorkerRunConfig(
+            max_iterations=max_iterations,
+            sleep_seconds=sleep_seconds,
+            task_timeout=task_timeout,
+            dry_run=dry_run,
+            once=False,
+            daemon=True,
+            runs_dir=str(self.runs_dir),
+            lock_file=str(self.lock_file),
+            stop_file=str(self.stop_file),
+        )
         return loop.run(config)
 
     def stop(self) -> dict[str, Any]:
-        return WorkerLoop(db_path=self.db_path, runs_dir=self.runs_dir, lock_file=self.lock_file, stop_file=self.stop_file).request_stop()
+        return WorkerLoop(
+            db_path=self.db_path,
+            runs_dir=self.runs_dir,
+            lock_file=self.lock_file,
+            stop_file=self.stop_file,
+        ).request_stop()
 
     def status(self) -> dict[str, Any]:
         payload = self.store.status()
@@ -57,13 +105,16 @@ class WorkerBackgroundService:
             return False
         try:
             import os
+
             pid = int(self.lock_file.read_text(encoding="utf-8").strip())
             os.kill(pid, 0)
             return True
         except (OSError, ValueError):
             return False
 
-    def queue_status(self, status: str | None = None, limit: int = 50) -> dict[str, Any]:
+    def queue_status(
+        self, status: str | None = None, limit: int = 50
+    ) -> dict[str, Any]:
         tasks = self.queue.list(status=status, limit=limit)
         return {"status": "ok", "count": len(tasks), "tasks": tasks}
 
@@ -73,6 +124,10 @@ class WorkerBackgroundService:
 
     def doctor(self) -> dict[str, Any]:
         payload = self.store.doctor()
-        payload["service"] = {"runs_dir": str(self.runs_dir), "safe_loop": True, "daemon_is_bounded": True}
+        payload["service"] = {
+            "runs_dir": str(self.runs_dir),
+            "safe_loop": True,
+            "daemon_is_bounded": True,
+        }
         payload["ollama_blood"] = check_ollama_blood()
         return payload

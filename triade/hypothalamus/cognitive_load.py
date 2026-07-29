@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -85,7 +84,9 @@ class CognitiveLoad:
         self.fatigue = _clamp((cpu + ram + gpu + vram) / 400.0)
         self.resource_pressure = _clamp(max(cpu, ram, gpu, vram) / 100.0)
         self.cognitive_risk = _clamp(task_criticality * 0.6 + error_rate * 0.4)
-        self.accumulated_error_rate = _clamp(error_rate * 0.9 + self.accumulated_error_rate * 0.1)
+        self.accumulated_error_rate = _clamp(
+            error_rate * 0.9 + self.accumulated_error_rate * 0.1
+        )
 
         self._dimensions = {
             "curiosity": self.curiosity,
@@ -98,8 +99,14 @@ class CognitiveLoad:
 
     @property
     def overall(self) -> float:
-        vals = [self.curiosity, self.uncertainty, self.fatigue,
-                self.resource_pressure, self.cognitive_risk, self.accumulated_error_rate]
+        vals = [
+            self.curiosity,
+            self.uncertainty,
+            self.fatigue,
+            self.resource_pressure,
+            self.cognitive_risk,
+            self.accumulated_error_rate,
+        ]
         return round(sum(vals) / max(len(vals), 1), 4)
 
     @property
@@ -148,9 +155,17 @@ class CognitiveLoad:
                (run_id, curiosity, uncertainty, fatigue, resource_pressure,
                 cognitive_risk, accumulated_error_rate, dimensions_json, created_at)
                VALUES (?,?,?,?,?,?,?,?,?)""",
-            (self._run_id, self.curiosity, self.uncertainty, self.fatigue,
-             self.resource_pressure, self.cognitive_risk, self.accumulated_error_rate,
-             json.dumps(self._dimensions, default=str), self._created_at),
+            (
+                self._run_id,
+                self.curiosity,
+                self.uncertainty,
+                self.fatigue,
+                self.resource_pressure,
+                self.cognitive_risk,
+                self.accumulated_error_rate,
+                json.dumps(self._dimensions, default=str),
+                self._created_at,
+            ),
         )
         self._conn.commit()
 
@@ -211,10 +226,16 @@ class CognitiveLoad:
         curiosity = round(_clamp(query_novelty * 0.8 + (1.0 - err) * 0.2), 4)
         uncertainty = round(_clamp((1.0 - recent_confidence) * 0.7 + err * 0.3), 4)
         fatigue = round(_clamp((cpu_p + ram_p + gpu_p) / 3.0), 4)
-        overall = round(_clamp((cpu_p + ram_p + gpu_p + curiosity + uncertainty + fatigue) / 6.0), 4)
+        overall = round(
+            _clamp((cpu_p + ram_p + gpu_p + curiosity + uncertainty + fatigue) / 6.0), 4
+        )
         return CognitiveSnapshot(
-            cpu_pressure=cpu_p, ram_pressure=ram_p, gpu_pressure=gpu_p,
-            curiosity=curiosity, uncertainty=uncertainty, fatigue=fatigue,
+            cpu_pressure=cpu_p,
+            ram_pressure=ram_p,
+            gpu_pressure=gpu_p,
+            curiosity=curiosity,
+            uncertainty=uncertainty,
+            fatigue=fatigue,
             overall_load=overall,
         )
 

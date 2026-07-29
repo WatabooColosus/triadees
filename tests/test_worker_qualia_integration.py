@@ -71,7 +71,10 @@ def test_worker_qualia_experience_handles_error_gracefully(tmp_path: Path) -> No
     db = tmp_path / "triade.db"
     loop = WorkerLoop(db_path=db, runs_dir=tmp_path / "runs")
 
-    with patch("triade.workers.worker_loop.QualiaBus.publish_experience", side_effect=RuntimeError("DB locked")):
+    with patch(
+        "triade.workers.worker_loop.QualiaBus.publish_experience",
+        side_effect=RuntimeError("DB locked"),
+    ):
         qualia = loop._publish_qualia_experience(
             run_ref="test-run-err",
             task_type="test",
@@ -86,10 +89,19 @@ def test_worker_qualia_experience_handles_error_gracefully(tmp_path: Path) -> No
 def test_idle_worker_run_does_not_fabricate_qualia(tmp_path: Path) -> None:
     db = tmp_path / "triade.db"
     from triade.workers.background_service import WorkerBackgroundService
+
     service = WorkerBackgroundService(db_path=db, runs_dir=str(tmp_path / "runs"))
     result = service.run_once(dry_run=False, task_timeout=10.0)
-    assert result["status"] in {"completed", "completed_with_errors", "locked", "stopped"}
+    assert result["status"] in {
+        "completed",
+        "completed_with_errors",
+        "locked",
+        "stopped",
+    }
     store = QualiaStore(db_path=db)
     total = store.counts()
-    qualia_total = sum(total.get(f"qualia_{t}", 0) for t in ["experiences", "signals", "central_packets", "storage_packets"])
+    qualia_total = sum(
+        total.get(f"qualia_{t}", 0)
+        for t in ["experiences", "signals", "central_packets", "storage_packets"]
+    )
     assert qualia_total == 0

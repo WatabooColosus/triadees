@@ -80,7 +80,8 @@ def response_for(
                 "job_id": request.payload["job_id"],
                 "status": "completed",
                 "evidence": evidence or {"score": 0.92, "suite": "remote-suite@1"},
-                "usage": usage or {
+                "usage": usage
+                or {
                     "cpu_seconds": 4.0,
                     "memory_mb": 128,
                     "network_kb": 100,

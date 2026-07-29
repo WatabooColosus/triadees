@@ -29,10 +29,18 @@ def _setup_verified_candidates(tmp_path: Path, count: int = 3) -> list[str]:
 
 
 def test_stable_consolidation_review_consolidates_eligible(tmp_path: Path) -> None:
-    cids = _setup_verified_candidates(tmp_path, 2)
+    _setup_verified_candidates(tmp_path, 2)
     loop = WorkerLoop(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs")
     result = loop._stable_consolidation_review(
-        type("FakeTask", (), {"id": 1, "task_type": "stable_consolidation_review", "to_dict": lambda: {}})(),
+        type(
+            "FakeTask",
+            (),
+            {
+                "id": 1,
+                "task_type": "stable_consolidation_review",
+                "to_dict": lambda: {},
+            },
+        )(),
         "run-test-stable",
         tmp_path / "runs" / "stable-test",
         type("FakeConfig", (), {"task_timeout": 30.0, "dry_run": False})(),
@@ -57,7 +65,15 @@ def test_stable_consolidation_review_skips_unvalidated(tmp_path: Path) -> None:
 
     loop = WorkerLoop(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs")
     result = loop._stable_consolidation_review(
-        type("FakeTask", (), {"id": 1, "task_type": "stable_consolidation_review", "to_dict": lambda: {}})(),
+        type(
+            "FakeTask",
+            (),
+            {
+                "id": 1,
+                "task_type": "stable_consolidation_review",
+                "to_dict": lambda: {},
+            },
+        )(),
         "run-test-no-uses",
         tmp_path / "runs" / "no-uses-test",
         type("FakeConfig", (), {"task_timeout": 30.0, "dry_run": False})(),
@@ -81,7 +97,15 @@ def test_memory_consolidation_review_marks_used(tmp_path: Path) -> None:
 
     loop = WorkerLoop(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs")
     result = loop._memory_consolidation_review(
-        type("FakeTask", (), {"id": 1, "task_type": "memory_consolidation_review", "to_dict": lambda: {}})(),
+        type(
+            "FakeTask",
+            (),
+            {
+                "id": 1,
+                "task_type": "memory_consolidation_review",
+                "to_dict": lambda: {},
+            },
+        )(),
         "run-test-tracking",
         tmp_path / "runs" / "tracking-test",
         type("FakeConfig", (), {"task_timeout": 30.0, "dry_run": False})(),

@@ -9,8 +9,12 @@ from typing import Any, Literal
 # ── Knowledge Graph ──────────────────────────────────────────
 
 KGNodeType = Literal["fact", "concept", "entity", "claim", "hypothesis"]
-KGEvidenceLevel = Literal["candidate", "contested", "corroborated", "established", "canonical"]
-KGRelationType = Literal["supports", "contradicts", "refines", "depends_on", "originates_from", "related_to"]
+KGEvidenceLevel = Literal[
+    "candidate", "contested", "corroborated", "established", "canonical"
+]
+KGRelationType = Literal[
+    "supports", "contradicts", "refines", "depends_on", "originates_from", "related_to"
+]
 KGResolutionStatus = Literal["unresolved", "investigating", "resolved", "accepted"]
 
 
@@ -90,6 +94,7 @@ class KGContradiction:
 
 # ── Event Engine ─────────────────────────────────────────────
 
+
 @dataclass(slots=True)
 class EventRule:
     event_type_pattern: str
@@ -116,6 +121,7 @@ SEVERITY_ORDER = {"ok": 0, "info": 1, "warning": 2, "error": 3, "critical": 4}
 
 
 # ── Neuron Scheduler ─────────────────────────────────────────
+
 
 @dataclass(slots=True)
 class NeuronPriority:
@@ -144,6 +150,7 @@ class NeuronPriority:
 
 
 # ── TriadeOS Config ──────────────────────────────────────────
+
 
 @dataclass(slots=True)
 class TriadeOSConfig:

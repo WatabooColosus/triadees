@@ -7,7 +7,7 @@ estado actual, cobertura de evaluación y puntos de fallo.
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -70,7 +70,10 @@ class CapabilityMatrix:
             domain_map.setdefault(node.domain, []).append(node.capability_id)
         return {
             "nodes": [self._node_to_dict(n) for n in nodes],
-            "edges": [{"source": e.source, "target": e.target, "type": e.edge_type} for e in edges],
+            "edges": [
+                {"source": e.source, "target": e.target, "type": e.edge_type}
+                for e in edges
+            ],
             "domains": domain_map,
             "cycles": [list(c) for c in cycles],
             "health": self._health_to_dict(health),
@@ -91,21 +94,24 @@ class CapabilityMatrix:
 
         for row in rows:
             import json
+
             payload = json.loads(row["payload_json"])
             cap_id = payload.get("capability_id", row["capability_id"])
             target = gate.rollback_target(cap_id)
             has_baseline = target is not None
-            nodes.append(CapabilityNode(
-                capability_id=cap_id,
-                name=payload.get("name", cap_id),
-                domain=payload.get("domain", "unknown"),
-                state=payload.get("state", "experimental"),
-                critical=payload.get("critical", False),
-                dependencies=tuple(payload.get("dependencies", [])),
-                evaluation_suites=tuple(payload.get("evaluation_suites", [])),
-                rollback_policy=payload.get("rollback_policy"),
-                has_baseline=has_baseline,
-            ))
+            nodes.append(
+                CapabilityNode(
+                    capability_id=cap_id,
+                    name=payload.get("name", cap_id),
+                    domain=payload.get("domain", "unknown"),
+                    state=payload.get("state", "experimental"),
+                    critical=payload.get("critical", False),
+                    dependencies=tuple(payload.get("dependencies", [])),
+                    evaluation_suites=tuple(payload.get("evaluation_suites", [])),
+                    rollback_policy=payload.get("rollback_policy"),
+                    has_baseline=has_baseline,
+                )
+            )
         return nodes
 
     def _build_edges(self, nodes: list[CapabilityNode]) -> list[DependencyEdge]:
@@ -138,7 +144,9 @@ class CapabilityMatrix:
             dfs(node.capability_id, [], set())
         return cycles
 
-    def _compute_health(self, nodes: list[CapabilityNode], cycles: list[tuple[str, ...]]) -> MatrixHealth:
+    def _compute_health(
+        self, nodes: list[CapabilityNode], cycles: list[tuple[str, ...]]
+    ) -> MatrixHealth:
         active = sum(1 for n in nodes if n.state == "active")
         experimental = sum(1 for n in nodes if n.state == "experimental")
         deprecated = sum(1 for n in nodes if n.state == "deprecated")
@@ -147,11 +155,18 @@ class CapabilityMatrix:
         critical_without = sum(1 for n in critical if not n.has_baseline)
         without_rollback = sum(1 for n in nodes if n.critical and not n.rollback_policy)
         quarantined = sum(1 for n in nodes if n.quarantined)
-        total = len(nodes) or 1
+        len(nodes) or 1
         cycle_penalty = min(1.0, len(cycles) * 0.25)
         block_penalty = min(1.0, blocked * 0.2)
         critical_penalty = min(1.0, critical_without * 0.15)
-        score = max(0.0, 1.0 - cycle_penalty - block_penalty - critical_penalty - (quarantined * 0.1))
+        score = max(
+            0.0,
+            1.0
+            - cycle_penalty
+            - block_penalty
+            - critical_penalty
+            - (quarantined * 0.1),
+        )
         return MatrixHealth(
             total_capabilities=len(nodes),
             active=active,

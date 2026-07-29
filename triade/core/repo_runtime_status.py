@@ -52,11 +52,13 @@ def build_repo_runtime_status() -> dict[str, Any]:
         for line in raw_log.splitlines():
             parts = line.split("|", 2)
             if len(parts) == 3:
-                recent_commits.append({
-                    "hash": parts[0],
-                    "date": parts[1],
-                    "message": parts[2],
-                })
+                recent_commits.append(
+                    {
+                        "hash": parts[0],
+                        "date": parts[1],
+                        "message": parts[2],
+                    }
+                )
 
     if branch is None and commit is None:
         return {

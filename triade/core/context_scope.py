@@ -7,7 +7,13 @@ from typing import Any
 from .contracts import InputPacket
 
 
-VALID_CONTEXT_SCOPES = {"source_intent", "session", "project", "neuron", "project_neuron"}
+VALID_CONTEXT_SCOPES = {
+    "source_intent",
+    "session",
+    "project",
+    "neuron",
+    "project_neuron",
+}
 
 
 def build_comparison_basis(input_packet: InputPacket, intent: str) -> dict[str, Any]:
@@ -40,7 +46,9 @@ def build_comparison_basis(input_packet: InputPacket, intent: str) -> dict[str, 
 
     fields: list[tuple[str, str]] = [("intent", intent)]
     if scope == "project_neuron":
-        fields.extend([("project_id", project_id or ""), ("active_neuron", active_neuron or "")])
+        fields.extend(
+            [("project_id", project_id or ""), ("active_neuron", active_neuron or "")]
+        )
     elif scope == "neuron":
         fields.append(("active_neuron", active_neuron or ""))
     elif scope == "project":

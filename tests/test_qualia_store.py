@@ -1,16 +1,32 @@
 from pathlib import Path
 
-from triade.qualia.contracts import NeuronExperience, QualiaSignal, CentralKnowledgePacket, StorageMemoryPacket, QualiaState
+from triade.qualia.contracts import (
+    NeuronExperience,
+    QualiaSignal,
+    CentralKnowledgePacket,
+    StorageMemoryPacket,
+    QualiaState,
+)
 from triade.qualia.router import QualiaRouter
 from triade.qualia.store import QualiaStore
 
 
 def test_store_persists_full_bundle(tmp_path: Path) -> None:
     store = QualiaStore(db_path=tmp_path / "triade.db")
-    exp = NeuronExperience(run_id="run-store", observation="obs", proposed_learning="learn")
+    exp = NeuronExperience(
+        run_id="run-store", observation="obs", proposed_learning="learn"
+    )
     bundle = QualiaRouter().route(exp)
     ids = store.persist_bundle(bundle)
-    state_id = store.store_state(__import__("triade.qualia.state", fromlist=["compute_qualia_state"]).compute_qualia_state("run-store", store.list_signals("run-store"), store.list_experiences("run-store")))
+    state_id = store.store_state(
+        __import__(
+            "triade.qualia.state", fromlist=["compute_qualia_state"]
+        ).compute_qualia_state(
+            "run-store",
+            store.list_signals("run-store"),
+            store.list_experiences("run-store"),
+        )
+    )
     assert ids["experience_id"] == exp.id
     assert state_id >= 1
     assert store.counts("run-store")["qualia_experiences"] == 1
@@ -38,7 +54,9 @@ def test_store_signal_crud(tmp_path: Path) -> None:
 
 def test_store_central_packet_crud(tmp_path: Path) -> None:
     store = QualiaStore(db_path=tmp_path / "triade.db")
-    pkt = CentralKnowledgePacket(run_id="run-cen", claim="claim test", hypothesis="hyp test")
+    pkt = CentralKnowledgePacket(
+        run_id="run-cen", claim="claim test", hypothesis="hyp test"
+    )
     store.store_central_packet(pkt)
     rows = store.list_central_packets(run_id="run-cen")
     assert len(rows) == 1
@@ -47,7 +65,9 @@ def test_store_central_packet_crud(tmp_path: Path) -> None:
 
 def test_store_storage_packet_crud(tmp_path: Path) -> None:
     store = QualiaStore(db_path=tmp_path / "triade.db")
-    pkt = StorageMemoryPacket(run_id="run-sto", content="content test", content_hash="abc123")
+    pkt = StorageMemoryPacket(
+        run_id="run-sto", content="content test", content_hash="abc123"
+    )
     store.store_storage_packet(pkt)
     rows = store.list_storage_packets(run_id="run-sto")
     assert len(rows) == 1
@@ -56,7 +76,9 @@ def test_store_storage_packet_crud(tmp_path: Path) -> None:
 
 def test_store_state_persistence(tmp_path: Path) -> None:
     store = QualiaStore(db_path=tmp_path / "triade.db")
-    state = QualiaState(run_id="run-state", curiosity=0.7, risk=0.3, recommended_action="observe")
+    state = QualiaState(
+        run_id="run-state", curiosity=0.7, risk=0.3, recommended_action="observe"
+    )
     store.store_state(state)
     latest = store.latest_state(run_id="run-state")
     assert latest is not None

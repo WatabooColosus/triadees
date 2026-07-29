@@ -1,7 +1,11 @@
 from pathlib import Path
 
 from triade.evaluation import EvaluationRun, MetricResult
-from triade.neuron_factory import NeuronSpecification, NeuronSpecificationStore, ResourceBudget
+from triade.neuron_factory import (
+    NeuronSpecification,
+    NeuronSpecificationStore,
+    ResourceBudget,
+)
 from triade.regression import MetricPolicy
 from triade.self_improvement.bridge import ImprovementNeuronFactoryBridge
 from triade.self_improvement.contracts import ImprovementProposal, ImprovementSignal
@@ -53,7 +57,9 @@ def prepare(db_path: Path) -> None:
         resource_budget=ResourceBudget(256, 60, 16),
     )
     specifications.register(specification)
-    specifications.transition(specification.neuron_id, specification.version, "specified")
+    specifications.transition(
+        specification.neuron_id, specification.version, "specified"
+    )
 
 
 def run(candidate_id: str, score: float, evaluation_id: str) -> EvaluationRun:

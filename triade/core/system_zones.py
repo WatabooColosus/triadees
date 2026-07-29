@@ -7,9 +7,32 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-GREEN_PREFIXES = ["runs/", "artifacts/", "reports/", "logs/", "tmp/", "cache/", ".triade_trash/"]
-YELLOW_PREFIXES = ["docs/", "tests/", "frontend/src/", "apps/routes/", "triade/core/", "triade/workers/", "triade/models/"]
-RED_PREFIXES = ["triade/memory/", "config/", "migrations/", "pyproject.toml", "package.json", "package-lock.json"]
+GREEN_PREFIXES = [
+    "runs/",
+    "artifacts/",
+    "reports/",
+    "logs/",
+    "tmp/",
+    "cache/",
+    ".triade_trash/",
+]
+YELLOW_PREFIXES = [
+    "docs/",
+    "tests/",
+    "frontend/src/",
+    "apps/routes/",
+    "triade/core/",
+    "triade/workers/",
+    "triade/models/",
+]
+RED_PREFIXES = [
+    "triade/memory/",
+    "config/",
+    "migrations/",
+    "pyproject.toml",
+    "package.json",
+    "package-lock.json",
+]
 FORBIDDEN_PATHS = [".git/", ".env", "secrets", "identity_core", "private_keys"]
 
 ZONE_ORDER = ["green", "yellow", "red", "forbidden"]
@@ -22,7 +45,7 @@ def classify_path(path: str) -> dict[str, Any]:
     """
     raw = Path(path)
     norm = (raw if raw.is_absolute() else REPO_ROOT / raw).resolve()
-    repo_str = str(REPO_ROOT.resolve())
+    str(REPO_ROOT.resolve())
 
     # Path traversal / absoluto fuera del repo
     try:
@@ -33,8 +56,11 @@ def classify_path(path: str) -> dict[str, Any]:
             "normalized_path": str(norm),
             "zone": "forbidden",
             "reason": "Ruta fuera del repositorio.",
-            "can_read": False, "can_create": False, "can_modify": False,
-            "can_move": False, "can_delete_to_trash": False,
+            "can_read": False,
+            "can_create": False,
+            "can_modify": False,
+            "can_move": False,
+            "can_delete_to_trash": False,
             "requires_human_approval": False,
         }
 
@@ -44,20 +70,30 @@ def classify_path(path: str) -> dict[str, Any]:
     for fb in FORBIDDEN_PATHS:
         if fb in rel or rel.startswith(fb):
             return {
-                "path": path, "normalized_path": str(norm), "zone": "forbidden",
+                "path": path,
+                "normalized_path": str(norm),
+                "zone": "forbidden",
                 "reason": f"Ruta prohibida: {fb}.",
-                "can_read": False, "can_create": False, "can_modify": False,
-                "can_move": False, "can_delete_to_trash": False,
+                "can_read": False,
+                "can_create": False,
+                "can_modify": False,
+                "can_move": False,
+                "can_delete_to_trash": False,
                 "requires_human_approval": False,
             }
 
     # Identity core check
     if "identity_core" in rel.lower():
         return {
-            "path": path, "normalized_path": str(norm), "zone": "forbidden",
+            "path": path,
+            "normalized_path": str(norm),
+            "zone": "forbidden",
             "reason": "Zona identity_core prohibida.",
-            "can_read": False, "can_create": False, "can_modify": False,
-            "can_move": False, "can_delete_to_trash": False,
+            "can_read": False,
+            "can_create": False,
+            "can_modify": False,
+            "can_move": False,
+            "can_delete_to_trash": False,
             "requires_human_approval": False,
         }
 
@@ -65,10 +101,15 @@ def classify_path(path: str) -> dict[str, Any]:
     for red in RED_PREFIXES:
         if rel == red or rel.startswith(red):
             return {
-                "path": path, "normalized_path": str(norm), "zone": "red",
+                "path": path,
+                "normalized_path": str(norm),
+                "zone": "red",
                 "reason": f"Zona roja: {red}. Solo lectura sin aprobación humana.",
-                "can_read": True, "can_create": False, "can_modify": False,
-                "can_move": False, "can_delete_to_trash": False,
+                "can_read": True,
+                "can_create": False,
+                "can_modify": False,
+                "can_move": False,
+                "can_delete_to_trash": False,
                 "requires_human_approval": True,
             }
 
@@ -76,10 +117,15 @@ def classify_path(path: str) -> dict[str, Any]:
     for yl in YELLOW_PREFIXES:
         if rel == yl or rel.startswith(yl):
             return {
-                "path": path, "normalized_path": str(norm), "zone": "yellow",
+                "path": path,
+                "normalized_path": str(norm),
+                "zone": "yellow",
                 "reason": f"Zona amarilla: {yl}. Requiere dry-run y verificación.",
-                "can_read": True, "can_create": True, "can_modify": True,
-                "can_move": True, "can_delete_to_trash": True,
+                "can_read": True,
+                "can_create": True,
+                "can_modify": True,
+                "can_move": True,
+                "can_delete_to_trash": True,
                 "requires_human_approval": False,
             }
 
@@ -87,18 +133,28 @@ def classify_path(path: str) -> dict[str, Any]:
     for gr in GREEN_PREFIXES:
         if rel == gr or rel.startswith(gr):
             return {
-                "path": path, "normalized_path": str(norm), "zone": "green",
+                "path": path,
+                "normalized_path": str(norm),
+                "zone": "green",
                 "reason": f"Zona verde: {gr}. Operaciones permitidas dentro del presupuesto.",
-                "can_read": True, "can_create": True, "can_modify": True,
-                "can_move": True, "can_delete_to_trash": True,
+                "can_read": True,
+                "can_create": True,
+                "can_modify": True,
+                "can_move": True,
+                "can_delete_to_trash": True,
                 "requires_human_approval": False,
             }
 
     # Unknown — dentro del repo pero sin zona explícita
     return {
-        "path": path, "normalized_path": str(norm), "zone": "yellow_unknown",
+        "path": path,
+        "normalized_path": str(norm),
+        "zone": "yellow_unknown",
         "reason": "Zona desconocida. Solo lectura sin aprobación humana o dry-run.",
-        "can_read": True, "can_create": False, "can_modify": False,
-        "can_move": False, "can_delete_to_trash": False,
+        "can_read": True,
+        "can_create": False,
+        "can_modify": False,
+        "can_move": False,
+        "can_delete_to_trash": False,
         "requires_human_approval": True,
     }

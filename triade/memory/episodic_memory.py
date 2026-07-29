@@ -88,7 +88,9 @@ class EpisodicEntry:
 class EpisodicMemory:
     """Gestiona experiencias episódicas con versionado, olvido reversible, y Qualia."""
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._ensure_schema()
@@ -117,9 +119,14 @@ class EpisodicMemory:
                     raise
 
     def store(
-        self, content: str, run_id: str = "", title: str = "",
-        summary: str = "", tags: list[str] | None = None,
-        importance: float = 0.5, confidence: float = 0.8,
+        self,
+        content: str,
+        run_id: str = "",
+        title: str = "",
+        summary: str = "",
+        tags: list[str] | None = None,
+        importance: float = 0.5,
+        confidence: float = 0.8,
         qualia_packet_id: str = "",
     ) -> dict[str, Any]:
         importance = _clamp(importance)
@@ -131,29 +138,64 @@ class EpisodicMemory:
                (run_id, title, content, summary, tags, importance, confidence,
                 qualia_packet_id, version, status, created_at, updated_at)
                VALUES (?,?,?,?,?,?,?,?,1,'active',?,?)""",
-            (run_id, title, content, summary, tags_str, importance, confidence,
-             qualia_packet_id, now, now),
+            (
+                run_id,
+                title,
+                content,
+                summary,
+                tags_str,
+                importance,
+                confidence,
+                qualia_packet_id,
+                now,
+                now,
+            ),
         )
         entry_id = cur.lastrowid
         self._conn.commit()
-        return {"entry_id": entry_id, "title": title, "importance": importance, "confidence": confidence}
+        return {
+            "entry_id": entry_id,
+            "title": title,
+            "importance": importance,
+            "confidence": confidence,
+        }
 
-    def update(self, entry_id: int, content: str | None = None, importance: float | None = None,
-               confidence: float | None = None, tags: list[str] | None = None,
-               change_reason: str = "") -> dict[str, Any]:
-        row = self._conn.execute("SELECT * FROM episodic_memory WHERE id=?", (entry_id,)).fetchone()
+    def update(
+        self,
+        entry_id: int,
+        content: str | None = None,
+        importance: float | None = None,
+        confidence: float | None = None,
+        tags: list[str] | None = None,
+        change_reason: str = "",
+    ) -> dict[str, Any]:
+        row = self._conn.execute(
+            "SELECT * FROM episodic_memory WHERE id=?", (entry_id,)
+        ).fetchone()
         if not row:
             return {"error": "not_found"}
         self._conn.execute(
             """INSERT INTO episodic_memory_history
                (entry_id, version, content, importance, confidence, tags, change_reason, created_at)
                VALUES (?,?,?,?,?,?,?,?)""",
-            (entry_id, row["version"], row["content"], row["importance"],
-             row["confidence"], row["tags"], change_reason, utc_now()),
+            (
+                entry_id,
+                row["version"],
+                row["content"],
+                row["importance"],
+                row["confidence"],
+                row["tags"],
+                change_reason,
+                utc_now(),
+            ),
         )
         new_content = content if content is not None else row["content"]
-        new_importance = _clamp(importance) if importance is not None else row["importance"]
-        new_confidence = _clamp(confidence) if confidence is not None else row["confidence"]
+        new_importance = (
+            _clamp(importance) if importance is not None else row["importance"]
+        )
+        new_confidence = (
+            _clamp(confidence) if confidence is not None else row["confidence"]
+        )
         new_tags = json.dumps(tags, default=str) if tags is not None else row["tags"]
         new_version = row["version"] + 1
         self._conn.execute(
@@ -161,19 +203,32 @@ class EpisodicMemory:
                SET content=?, importance=?, confidence=?, tags=?,
                    version=?, updated_at=?
                WHERE id=?""",
-            (new_content, new_importance, new_confidence, new_tags,
-             new_version, utc_now(), entry_id),
+            (
+                new_content,
+                new_importance,
+                new_confidence,
+                new_tags,
+                new_version,
+                utc_now(),
+                entry_id,
+            ),
         )
         self._conn.commit()
         return {"entry_id": entry_id, "new_version": new_version}
 
-    def forget(self, entry_id: int, reason: str = "", policy: str = "manual") -> dict[str, Any]:
-        row = self._conn.execute("SELECT * FROM episodic_memory WHERE id=?", (entry_id,)).fetchone()
+    def forget(
+        self, entry_id: int, reason: str = "", policy: str = "manual"
+    ) -> dict[str, Any]:
+        row = self._conn.execute(
+            "SELECT * FROM episodic_memory WHERE id=?", (entry_id,)
+        ).fetchone()
         if not row:
             return {"error": "not_found"}
         snapshot = {
-            "content": row["content"], "importance": row["importance"],
-            "confidence": row["confidence"], "tags": row["tags"],
+            "content": row["content"],
+            "importance": row["importance"],
+            "confidence": row["confidence"],
+            "tags": row["tags"],
             "version": row["version"],
         }
         now = utc_now()
@@ -188,7 +243,9 @@ class EpisodicMemory:
         return {"entry_id": entry_id, "forgotten": True, "reason": reason}
 
     def restore(self, entry_id: int) -> dict[str, Any]:
-        row = self._conn.execute("SELECT * FROM episodic_memory WHERE id=?", (entry_id,)).fetchone()
+        row = self._conn.execute(
+            "SELECT * FROM episodic_memory WHERE id=?", (entry_id,)
+        ).fetchone()
         if not row:
             return {"error": "not_found"}
         if row["status"] != "forgotten":
@@ -239,13 +296,29 @@ class EpisodicMemory:
         return [dict(r) for r in rows]
 
     def summary(self) -> dict[str, Any]:
-        total = self._conn.execute("SELECT COUNT(*) as c FROM episodic_memory WHERE status='active'").fetchone()["c"]
-        forgotten = self._conn.execute("SELECT COUNT(*) as c FROM episodic_memory WHERE status='forgotten'").fetchone()["c"]
-        avg_imp = self._conn.execute("SELECT AVG(importance) as a FROM episodic_memory WHERE status='active'").fetchone()["a"] or 0
-        avg_conf = self._conn.execute("SELECT AVG(confidence) as a FROM episodic_memory WHERE status='active'").fetchone()["a"] or 0
+        total = self._conn.execute(
+            "SELECT COUNT(*) as c FROM episodic_memory WHERE status='active'"
+        ).fetchone()["c"]
+        forgotten = self._conn.execute(
+            "SELECT COUNT(*) as c FROM episodic_memory WHERE status='forgotten'"
+        ).fetchone()["c"]
+        avg_imp = (
+            self._conn.execute(
+                "SELECT AVG(importance) as a FROM episodic_memory WHERE status='active'"
+            ).fetchone()["a"]
+            or 0
+        )
+        avg_conf = (
+            self._conn.execute(
+                "SELECT AVG(confidence) as a FROM episodic_memory WHERE status='active'"
+            ).fetchone()["a"]
+            or 0
+        )
         return {
-            "total_entries": total, "forgotten": forgotten,
-            "avg_importance": round(avg_imp, 3), "avg_confidence": round(avg_conf, 3),
+            "total_entries": total,
+            "forgotten": forgotten,
+            "avg_importance": round(avg_imp, 3),
+            "avg_confidence": round(avg_conf, 3),
         }
 
     def doctor(self) -> dict[str, Any]:

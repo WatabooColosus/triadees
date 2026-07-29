@@ -20,7 +20,6 @@ from typing import Any
 from .contracts import (
     NeuronContributionPacket,
     NEURON_STATUS_EFFECTS,
-    IDENTITY_CORE_FORBIDDEN_EFFECTS,
 )
 from .neuron_registry import NeuronRegistry
 
@@ -39,41 +38,61 @@ def run_experimental_neurons(
     """Ejecuta neuronas activas y produce NeuronContributionPackets."""
     registry = NeuronRegistry(db_path=db_path)
     neurons = [
-        n for n in registry.list_neurons(limit=limit)
-        if str(n.get("status")) in {
-            "candidate", "experimental", "active_assistant",
-            "trusted_worker", "stable",
+        n
+        for n in registry.list_neurons(limit=limit)
+        if str(n.get("status"))
+        in {
+            "candidate",
+            "experimental",
+            "active_assistant",
+            "trusted_worker",
+            "stable",
         }
     ]
 
     activations: list[dict[str, Any]] = []
     contributions: list[NeuronContributionPacket] = []
     for neuron in neurons:
-        match = should_activate(neuron, user_input=user_input, context=context, signals=signals, edge_usage=edge_usage)
+        match = should_activate(
+            neuron,
+            user_input=user_input,
+            context=context,
+            signals=signals,
+            edge_usage=edge_usage,
+        )
         if not match["active"]:
             continue
 
         contribution = build_contribution(
-            neuron, run_id=run_id, user_input=user_input,
-            context=context, signals=signals, edge_usage=edge_usage,
+            neuron,
+            run_id=run_id,
+            user_input=user_input,
+            context=context,
+            signals=signals,
+            edge_usage=edge_usage,
             system_events=system_events,
         )
         contributions.append(contribution)
 
-        activations.append({
-            "neuron_id": neuron.get("id"),
-            "name": neuron.get("name"),
-            "status": neuron.get("status"),
-            "domain": neuron.get("domain"),
-            "active": True,
-            "match": match,
-            "inputs_used": [
-                "user_input", "signals.intent", "edge_usage",
-                "system_events", "context",
-            ],
-            "contribution": contribution.to_dict(),
-            "policy": f"neuron_status_{neuron.get('status')}_effects_limited",
-        })
+        activations.append(
+            {
+                "neuron_id": neuron.get("id"),
+                "name": neuron.get("name"),
+                "status": neuron.get("status"),
+                "domain": neuron.get("domain"),
+                "active": True,
+                "match": match,
+                "inputs_used": [
+                    "user_input",
+                    "signals.intent",
+                    "edge_usage",
+                    "system_events",
+                    "context",
+                ],
+                "contribution": contribution.to_dict(),
+                "policy": f"neuron_status_{neuron.get('status')}_effects_limited",
+            }
+        )
 
     return {
         "active": bool(activations),
@@ -82,7 +101,9 @@ def run_experimental_neurons(
         "contributions": [c.to_dict() for c in contributions],
         "contributions_count": len(contributions),
         "policy": {
-            "can_modify_response": any(c.has_effect("influence_response") for c in contributions),
+            "can_modify_response": any(
+                c.has_effect("influence_response") for c in contributions
+            ),
             "can_modify_repo": False,
             "can_write_stable_memory": False,
             "can_execute_external_actions": False,
@@ -100,30 +121,44 @@ def should_activate(
     signals: Any,
     edge_usage: dict[str, Any],
 ) -> dict[str, Any]:
-    text = " ".join([
-        user_input or "",
-        str(context.get("domain") or ""),
-        str(context.get("active_neuron") or ""),
-        str(getattr(signals, "intent", "") or ""),
-        str(edge_usage.get("intent") or ""),
-        " ".join(edge_usage.get("keywords") or []),
-    ]).lower()
+    text = " ".join(
+        [
+            user_input or "",
+            str(context.get("domain") or ""),
+            str(context.get("active_neuron") or ""),
+            str(getattr(signals, "intent", "") or ""),
+            str(edge_usage.get("intent") or ""),
+            " ".join(edge_usage.get("keywords") or []),
+        ]
+    ).lower()
 
     domain = str(neuron.get("domain") or "").lower()
     name = str(neuron.get("name") or "").lower()
 
     reasons: list[str] = []
 
-    if domain == "federation_android_edge" and any(x in text for x in ["android", "apk", "nodo", "edge", "feder", "pulso"]):
+    if domain == "federation_android_edge" and any(
+        x in text for x in ["android", "apk", "nodo", "edge", "feder", "pulso"]
+    ):
         reasons.append("domain:federation_android_edge matched input/context")
-    elif domain == "system_governance" and any(x in text for x in ["estado", "verifica", "audita", "pulso", "neuron"]):
+    elif domain == "system_governance" and any(
+        x in text for x in ["estado", "verifica", "audita", "pulso", "neuron"]
+    ):
         reasons.append("domain:system_governance matched input/context")
-    elif domain == "model_runtime" and any(x in text for x in ["modelo", "ollama", "llm", "latencia"]):
+    elif domain == "model_runtime" and any(
+        x in text for x in ["modelo", "ollama", "llm", "latencia"]
+    ):
         reasons.append("domain:model_runtime matched input/context")
-    elif domain == "memory_governance" and any(x in text for x in ["memoria", "semantic", "bodega"]):
+    elif domain == "memory_governance" and any(
+        x in text for x in ["memoria", "semantic", "bodega"]
+    ):
         reasons.append("domain:memory_governance matched input/context")
 
-    if name and any(part in text for part in name.replace("neurona-", "").split("-") if len(part) >= 5):
+    if name and any(
+        part in text
+        for part in name.replace("neurona-", "").split("-")
+        if len(part) >= 5
+    ):
         reasons.append("name token matched input/context")
 
     return {
@@ -192,7 +227,9 @@ def build_contribution(
     )
 
 
-def _build_diagnosis(domain: str, user_input: str, edge_usage: dict, system_events: list) -> str:
+def _build_diagnosis(
+    domain: str, user_input: str, edge_usage: dict, system_events: list
+) -> str:
     parts = []
     if domain == "federation_android_edge":
         parts.append(f"Revisar coherencia edge_usage={edge_usage.get('accepted')}")

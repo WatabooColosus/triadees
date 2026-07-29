@@ -56,7 +56,9 @@ class CIPipeline:
     """Pipeline CI para aprendizaje: ejecuta checks secuenciales antes de
     permitir consolidación en memoria estable."""
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
@@ -69,8 +71,15 @@ class CIPipeline:
                (run_id, candidate_id, source_type, phases_json,
                 current_phase, status, started_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (run_id, candidate_id, source_type, json.dumps(CI_PHASES),
-             "init", "running", now),
+            (
+                run_id,
+                candidate_id,
+                source_type,
+                json.dumps(CI_PHASES),
+                "init",
+                "running",
+                now,
+            ),
         )
         self._conn.commit()
         return {"run_id": run_id, "candidate_id": candidate_id, "status": "running"}
@@ -122,9 +131,18 @@ class CIPipeline:
                 passed_count, failed_count, duration_ms,
                 details_json, created_at)
                VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            (result_id, run_id, phase, status,
-             json.dumps(checks, default=str), passed, failed, 0.0,
-             json.dumps({"all_pass": all_pass}, default=str), now),
+            (
+                result_id,
+                run_id,
+                phase,
+                status,
+                json.dumps(checks, default=str),
+                passed,
+                failed,
+                0.0,
+                json.dumps({"all_pass": all_pass}, default=str),
+                now,
+            ),
         )
 
         new_phase = phase
@@ -196,75 +214,148 @@ class CIPipeline:
 
 # ─── check generators ───
 
+
 def _sandbox_checks(data: dict) -> list[dict]:
     checks = []
     content = data.get("content", "")
-    checks.append({"name": "no_network_access", "passed": True, "detail": "Sandbox aislado"})
-    checks.append({"name": "no_filesystem_escape", "passed": True, "detail": "Sin escritura fuera de sandbox"})
-    checks.append({"name": "resource_limits_respected",
-                    "passed": len(content) < 1_000_000,
-                    "detail": f"Content size: {len(content)}"})
+    checks.append(
+        {"name": "no_network_access", "passed": True, "detail": "Sandbox aislado"}
+    )
+    checks.append(
+        {
+            "name": "no_filesystem_escape",
+            "passed": True,
+            "detail": "Sin escritura fuera de sandbox",
+        }
+    )
+    checks.append(
+        {
+            "name": "resource_limits_respected",
+            "passed": len(content) < 1_000_000,
+            "detail": f"Content size: {len(content)}",
+        }
+    )
     return checks
 
 
 def _lint_checks(data: dict) -> list[dict]:
     content = data.get("content", "")
     checks = []
-    checks.append({"name": "not_empty", "passed": bool(content.strip()), "detail": "Content not empty"})
-    checks.append({"name": "no_syntax_errors", "passed": True, "detail": "Valid structure"})
+    checks.append(
+        {
+            "name": "not_empty",
+            "passed": bool(content.strip()),
+            "detail": "Content not empty",
+        }
+    )
+    checks.append(
+        {"name": "no_syntax_errors", "passed": True, "detail": "Valid structure"}
+    )
     return checks
 
 
 def _security_checks(data: dict) -> list[dict]:
     content = data.get("content", "").lower()
     checks = []
-    dangerous = ["rm -rf", "drop table", "delete from", "exec(", "eval(",
-                 "os.system", "subprocess", "__import__"]
+    dangerous = [
+        "rm -rf",
+        "drop table",
+        "delete from",
+        "exec(",
+        "eval(",
+        "os.system",
+        "subprocess",
+        "__import__",
+    ]
     found = [d for d in dangerous if d in content]
-    checks.append({"name": "no_dangerous_patterns", "passed": len(found) == 0,
-                    "detail": f"Found: {found}" if found else "Clean"})
+    checks.append(
+        {
+            "name": "no_dangerous_patterns",
+            "passed": len(found) == 0,
+            "detail": f"Found: {found}" if found else "Clean",
+        }
+    )
     secrets = ["password", "api_key", "secret", "token", "credential"]
     found_s = [s for s in secrets if s in content]
-    checks.append({"name": "no_exposed_secrets", "passed": len(found_s) == 0,
-                    "detail": f"Found: {found_s}" if found_s else "Clean"})
+    checks.append(
+        {
+            "name": "no_exposed_secrets",
+            "passed": len(found_s) == 0,
+            "detail": f"Found: {found_s}" if found_s else "Clean",
+        }
+    )
     return checks
 
 
 def _contract_checks(data: dict) -> list[dict]:
     checks = []
     has_source = bool(data.get("source_ref"))
-    checks.append({"name": "has_source_ref", "passed": has_source,
-                    "detail": data.get("source_ref", "missing")})
+    checks.append(
+        {
+            "name": "has_source_ref",
+            "passed": has_source,
+            "detail": data.get("source_ref", "missing"),
+        }
+    )
     has_domain = bool(data.get("domain"))
-    checks.append({"name": "has_domain", "passed": has_domain,
-                    "detail": data.get("domain", "missing")})
+    checks.append(
+        {
+            "name": "has_domain",
+            "passed": has_domain,
+            "detail": data.get("domain", "missing"),
+        }
+    )
     return checks
 
 
 def _identity_checks(data: dict) -> list[dict]:
     content = data.get("content", "").lower()
     checks = []
-    red_flags = ["modificar identidad", "borrar memoria", "ignora la etica",
-                 "cambia tu nombre", "no eres"]
+    red_flags = [
+        "modificar identidad",
+        "borrar memoria",
+        "ignora la etica",
+        "cambia tu nombre",
+        "no eres",
+    ]
     found = [f for f in red_flags if f in content]
-    checks.append({"name": "no_identity_mutation", "passed": len(found) == 0,
-                    "detail": f"Found: {found}" if found else "Clean"})
+    checks.append(
+        {
+            "name": "no_identity_mutation",
+            "passed": len(found) == 0,
+            "detail": f"Found: {found}" if found else "Clean",
+        }
+    )
     return checks
 
 
 def _regression_checks(data: dict) -> list[dict]:
     checks = []
-    checks.append({"name": "no_known_regressions", "passed": True,
-                    "detail": "No regression patterns detected"})
+    checks.append(
+        {
+            "name": "no_known_regressions",
+            "passed": True,
+            "detail": "No regression patterns detected",
+        }
+    )
     return checks
 
 
 def _audit_checks(data: dict) -> list[dict]:
     checks = []
-    checks.append({"name": "candidate_id_present", "passed": bool(data.get("candidate_id")),
-                    "detail": data.get("candidate_id", "missing")})
-    checks.append({"name": "source_type_present", "passed": bool(data.get("source_type")),
-                    "detail": data.get("source_type", "missing")})
-    checks.append({"name": "timestamp_recorded", "passed": True,
-                    "detail": utc_now()})
+    checks.append(
+        {
+            "name": "candidate_id_present",
+            "passed": bool(data.get("candidate_id")),
+            "detail": data.get("candidate_id", "missing"),
+        }
+    )
+    checks.append(
+        {
+            "name": "source_type_present",
+            "passed": bool(data.get("source_type")),
+            "detail": data.get("source_type", "missing"),
+        }
+    )
+    checks.append({"name": "timestamp_recorded", "passed": True, "detail": utc_now()})
     return checks

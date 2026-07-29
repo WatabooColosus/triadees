@@ -28,12 +28,20 @@ FORBIDDEN_DUMPS = (
 
 
 def _runner(tmp_path: Path) -> TriadeRunner:
-    return TriadeRunner(runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False)
+    return TriadeRunner(
+        runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False
+    )
 
 
-def _wire(monkeypatch, runner: TriadeRunner, *, response: str, intent: str = "conversation") -> None:
+def _wire(
+    monkeypatch, runner: TriadeRunner, *, response: str, intent: str = "conversation"
+) -> None:
     def analyze(input_packet: InputPacket) -> SignalPacket:
-        runner.hypothalamus.last_model_result = {"ok": True, "name": "hypothalamus-test", "provider": "template"}
+        runner.hypothalamus.last_model_result = {
+            "ok": True,
+            "name": "hypothalamus-test",
+            "provider": "template",
+        }
         return SignalPacket(
             run_id=input_packet.run_id,
             intent=intent,
@@ -52,7 +60,9 @@ def _wire(monkeypatch, runner: TriadeRunner, *, response: str, intent: str = "co
             confidence=0.2,
         )
 
-    def regulate(signals: SignalPacket, memory: MemoryPacket, **_: object) -> CrystalPacket:
+    def regulate(
+        signals: SignalPacket, memory: MemoryPacket, **_: object
+    ) -> CrystalPacket:
         return CrystalPacket(
             run_id=signals.run_id,
             q_crystal=0.6,
@@ -63,13 +73,37 @@ def _wire(monkeypatch, runner: TriadeRunner, *, response: str, intent: str = "co
             comparison_basis={"context_key": "test"},
         )
 
-    def plan(input_packet: InputPacket, signals: SignalPacket, memory: MemoryPacket, crystal: CrystalPacket) -> PlanPacket:
-        return PlanPacket(run_id=input_packet.run_id, goal="test", steps=["one"], tools=[], safety_required=True)
+    def plan(
+        input_packet: InputPacket,
+        signals: SignalPacket,
+        memory: MemoryPacket,
+        crystal: CrystalPacket,
+    ) -> PlanPacket:
+        return PlanPacket(
+            run_id=input_packet.run_id,
+            goal="test",
+            steps=["one"],
+            tools=[],
+            safety_required=True,
+        )
 
-    def review(signals: SignalPacket, plan: PlanPacket, crystal: CrystalPacket, memory: MemoryPacket) -> SafetyPacket:
-        return SafetyPacket(run_id=signals.run_id, status="approved", risk_level="low", reason="ok")
+    def review(
+        signals: SignalPacket,
+        plan: PlanPacket,
+        crystal: CrystalPacket,
+        memory: MemoryPacket,
+    ) -> SafetyPacket:
+        return SafetyPacket(
+            run_id=signals.run_id, status="approved", risk_level="low", reason="ok"
+        )
 
-    def respond(input_packet: InputPacket, signals: SignalPacket, memory: MemoryPacket, crystal: CrystalPacket, plan: PlanPacket) -> OutputPacket:
+    def respond(
+        input_packet: InputPacket,
+        signals: SignalPacket,
+        memory: MemoryPacket,
+        crystal: CrystalPacket,
+        plan: PlanPacket,
+    ) -> OutputPacket:
         return OutputPacket(
             run_id=input_packet.run_id,
             response=response,
@@ -81,7 +115,12 @@ def _wire(monkeypatch, runner: TriadeRunner, *, response: str, intent: str = "co
             model_ok=False,
         )
 
-    def verify(output: OutputPacket, safety: SafetyPacket, crystal: CrystalPacket, memory: MemoryPacket) -> VerificationReport:
+    def verify(
+        output: OutputPacket,
+        safety: SafetyPacket,
+        crystal: CrystalPacket,
+        memory: MemoryPacket,
+    ) -> VerificationReport:
         return VerificationReport(
             run_id=output.run_id,
             status="ok",
@@ -93,7 +132,9 @@ def _wire(monkeypatch, runner: TriadeRunner, *, response: str, intent: str = "co
         )
 
     monkeypatch.setattr(runner.hypothalamus, "analyze", analyze)
-    monkeypatch.setattr(runner.hypothalamus, "apply_qualia_signals", lambda signals, recent: signals)
+    monkeypatch.setattr(
+        runner.hypothalamus, "apply_qualia_signals", lambda signals, recent: signals
+    )
     monkeypatch.setattr(runner.bodega, "recall", recall)
     monkeypatch.setattr(runner.crystal, "regulate", regulate)
     monkeypatch.setattr(runner.central, "plan", plan)
@@ -159,7 +200,9 @@ def test_factual_question_no_triade_dump(tmp_path: Path, monkeypatch) -> None:
     assert "sustentación" in result["response"].lower()
 
 
-def test_diagnostic_question_allows_summary_not_raw_dump(tmp_path: Path, monkeypatch) -> None:
+def test_diagnostic_question_allows_summary_not_raw_dump(
+    tmp_path: Path, monkeypatch
+) -> None:
     raw = (
         "Estado actual del sistema:\n"
         "runtime: activo\nworkers: vivos\nAlways-On: activo\n"
@@ -172,13 +215,18 @@ def test_diagnostic_question_allows_summary_not_raw_dump(tmp_path: Path, monkeyp
 
     result = runner.run("verifica sistema")
 
-    assert "runtime" in result["response"].lower() or "workers" in result["response"].lower()
+    assert (
+        "runtime" in result["response"].lower()
+        or "workers" in result["response"].lower()
+    )
     assert "memory_trace" not in result["response"]
     assert "QualiaBus" not in result["response"]
     assert len(result["response"]) < 900
 
 
-def test_learning_pipeline_still_records_internal_evidence(tmp_path: Path, monkeypatch) -> None:
+def test_learning_pipeline_still_records_internal_evidence(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TRIADE_POST_RUN_LEARNING", "1")
     raw = "Bodega Global Context: {...}\nQualiaBus: {...}\nPropongo revisar un patrón útil."
     runner = _runner(tmp_path)

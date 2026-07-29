@@ -13,22 +13,34 @@ from triade.runtime.task_leases import AutonomousTaskStore
 
 
 class RuntimeRecovery:
-    def __init__(self, db_path: str | Path = "triade/memory/triade.db", snapshot_dir: str | Path = "artifacts/recovery") -> None:
+    def __init__(
+        self,
+        db_path: str | Path = "triade/memory/triade.db",
+        snapshot_dir: str | Path = "artifacts/recovery",
+    ) -> None:
         self.db_path = Path(db_path)
         self.snapshot_dir = Path(snapshot_dir)
         self.snapshot_dir.mkdir(parents=True, exist_ok=True)
         self.tasks = AutonomousTaskStore(self.db_path)
 
-    def recover(self, cause: str, *, stop_workers: Callable[[], Any] | None = None,
-                start_workers: Callable[[], Any] | None = None, verify_heartbeat: Callable[[], bool] | None = None) -> dict[str, Any]:
+    def recover(
+        self,
+        cause: str,
+        *,
+        stop_workers: Callable[[], Any] | None = None,
+        start_workers: Callable[[], Any] | None = None,
+        verify_heartbeat: Callable[[], bool] | None = None,
+    ) -> dict[str, Any]:
         recovery_id = f"recovery-{uuid4().hex[:16]}"
         created = datetime.now(timezone.utc).isoformat()
         actions: list[dict[str, Any]] = []
         snapshot = self._snapshot(recovery_id)
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""INSERT INTO runtime_recovery_events
+            conn.execute(
+                """INSERT INTO runtime_recovery_events
                 (recovery_id,cause,state,snapshot_ref,actions_json,created_at) VALUES(?,?,'recovering',?,? ,?)""",
-                (recovery_id, cause, snapshot, "[]", created))
+                (recovery_id, cause, snapshot, "[]", created),
+            )
         try:
             if stop_workers:
                 actions.append({"action": "stop_workers", "result": stop_workers()})
@@ -50,10 +62,24 @@ class RuntimeRecovery:
             state, error = "critical", f"{type(exc).__name__}: {exc}"
         finished = datetime.now(timezone.utc).isoformat()
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("UPDATE runtime_recovery_events SET state=?,actions_json=?,error=?,finished_at=? WHERE recovery_id=?",
-                         (state, json.dumps(actions, ensure_ascii=False, default=str), error, finished, recovery_id))
-        return {"recovery_id": recovery_id, "state": state, "snapshot_ref": snapshot, "actions": actions,
-                "error": error, "rollback": {"database_snapshot": snapshot}}
+            conn.execute(
+                "UPDATE runtime_recovery_events SET state=?,actions_json=?,error=?,finished_at=? WHERE recovery_id=?",
+                (
+                    state,
+                    json.dumps(actions, ensure_ascii=False, default=str),
+                    error,
+                    finished,
+                    recovery_id,
+                ),
+            )
+        return {
+            "recovery_id": recovery_id,
+            "state": state,
+            "snapshot_ref": snapshot,
+            "actions": actions,
+            "error": error,
+            "rollback": {"database_snapshot": snapshot},
+        }
 
     def _snapshot(self, recovery_id: str) -> str:
         output = self.snapshot_dir / f"{recovery_id}.db"

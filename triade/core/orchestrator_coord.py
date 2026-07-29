@@ -8,12 +8,9 @@ para garantizar que solo un subsistema ejecuta cada tipo de operación.
 
 from __future__ import annotations
 
-import os
 import sqlite3
-import threading
 import time
 from pathlib import Path
-from typing import Any
 
 _LOCK_TABLE = """
 CREATE TABLE IF NOT EXISTS orchestrator_locks (
@@ -41,7 +38,9 @@ class CoordinationLock:
         self.db_path = Path(db_path)
         _ensure_table(self.db_path)
 
-    def try_acquire(self, lock_key: str, owner: str, ttl_seconds: float = 120.0) -> bool:
+    def try_acquire(
+        self, lock_key: str, owner: str, ttl_seconds: float = 120.0
+    ) -> bool:
         """Intenta tomar un lock. Retorna True si lo consiguió."""
         now = time.time()
         expires = now + ttl_seconds
@@ -86,6 +85,7 @@ class CoordinationLock:
 
 
 # ── Coordinador global ───────────────────────────────────────────────────
+
 
 class OrchestratorCoordinator:
     """Coordina las responsabilidades entre Supervisor, Workers y LifePulse.

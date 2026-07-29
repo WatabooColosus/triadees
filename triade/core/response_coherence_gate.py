@@ -101,17 +101,36 @@ def evaluate_response_coherence(
 
     detected_input_type = _detect_input_type(text, previous_user)
     should_reuse_previous_answer = detected_input_type == "follow_up"
-    should_acknowledge_feedback = detected_input_type in {"positive_feedback", "thanks", "acknowledgement", "emotional_feedback"}
-    should_answer_factually = detected_input_type in {"factual_question", "follow_up", "command", "new_topic"}
+    should_acknowledge_feedback = detected_input_type in {
+        "positive_feedback",
+        "thanks",
+        "acknowledgement",
+        "emotional_feedback",
+    }
+    should_answer_factually = detected_input_type in {
+        "factual_question",
+        "follow_up",
+        "command",
+        "new_topic",
+    }
 
-    repeated_previous_answer = bool(previous_answer) and _response_repeats_previous_answer(response, previous_answer)
-    coherence_score = _base_score(detected_input_type, response, previous_answer, memory_context, neuron_context)
+    repeated_previous_answer = bool(
+        previous_answer
+    ) and _response_repeats_previous_answer(response, previous_answer)
+    coherence_score = _base_score(
+        detected_input_type, response, previous_answer, memory_context, neuron_context
+    )
     warnings: list[str] = []
     reason = "coherent"
     status = "ok"
     final_response = response
 
-    if detected_input_type in {"positive_feedback", "thanks", "acknowledgement", "emotional_feedback"}:
+    if detected_input_type in {
+        "positive_feedback",
+        "thanks",
+        "acknowledgement",
+        "emotional_feedback",
+    }:
         final_response = _acknowledge_feedback(detected_input_type)
         status = "rewritten"
         reason = "feedback_acknowledged_without_repeating_previous_answer"
@@ -137,17 +156,29 @@ def evaluate_response_coherence(
     elif detected_input_type == "follow_up":
         if repeated_previous_answer and previous_answer:
             coherence_score = min(coherence_score, 0.48)
-            warnings.append("Proposed response repeated the previous answer; follow-up should advance context.")
+            warnings.append(
+                "Proposed response repeated the previous answer; follow-up should advance context."
+            )
             reason = "follow_up_requires_progress_not_repetition"
-            status = "blocked" if _looks_like_stuck_repetition(response, previous_answer) else "rewritten"
-            final_response = _follow_up_progress_response(response, previous_answer, previous_user)
+            status = (
+                "blocked"
+                if _looks_like_stuck_repetition(response, previous_answer)
+                else "rewritten"
+            )
+            final_response = _follow_up_progress_response(
+                response, previous_answer, previous_user
+            )
         else:
             coherence_score = max(coherence_score, 0.84)
-            final_response = response or _follow_up_progress_response(response, previous_answer, previous_user)
+            final_response = response or _follow_up_progress_response(
+                response, previous_answer, previous_user
+            )
 
     elif detected_input_type == "factual_question":
         if repeated_previous_answer and previous_answer:
-            warnings.append("Response repeated the previous answer for a factual question.")
+            warnings.append(
+                "Response repeated the previous answer for a factual question."
+            )
             coherence_score = min(coherence_score, 0.52)
             reason = "blocked_repeated_previous_answer_for_new_question"
             status = "blocked"
@@ -170,7 +201,9 @@ def evaluate_response_coherence(
     else:
         if repeated_previous_answer and previous_answer:
             coherence_score = min(coherence_score, 0.50)
-            warnings.append("Low-confidence coherence: response resembles the previous answer.")
+            warnings.append(
+                "Low-confidence coherence: response resembles the previous answer."
+            )
             status = "blocked"
             reason = "blocked_repeated_previous_answer_for_unclear_input"
             final_response = _fallback_response(text, previous_answer)
@@ -181,18 +214,37 @@ def evaluate_response_coherence(
         final_response = _acknowledge_feedback(detected_input_type)
 
     final_response = _clean_final_response(final_response)
-    if detected_input_type in {"positive_feedback", "thanks", "acknowledgement", "emotional_feedback"}:
+    if detected_input_type in {
+        "positive_feedback",
+        "thanks",
+        "acknowledgement",
+        "emotional_feedback",
+    }:
         final_response = _ensure_no_previous_answer(final_response, previous_answer)
 
-    if previous_answer and final_response and _response_repeats_previous_answer(final_response, previous_answer) and detected_input_type != "follow_up":
-        if detected_input_type in {"positive_feedback", "thanks", "acknowledgement", "emotional_feedback"}:
+    if (
+        previous_answer
+        and final_response
+        and _response_repeats_previous_answer(final_response, previous_answer)
+        and detected_input_type != "follow_up"
+    ):
+        if detected_input_type in {
+            "positive_feedback",
+            "thanks",
+            "acknowledgement",
+            "emotional_feedback",
+        }:
             final_response = _acknowledge_feedback(detected_input_type)
             status = "blocked" if repeated_previous_answer else "rewritten"
             reason = "blocked_repeated_previous_answer_for_feedback_input"
         else:
             final_response = _fallback_response(text, previous_answer)
             status = "blocked"
-            reason = "blocked_repeated_previous_answer_for_feedback_input" if should_acknowledge_feedback else reason
+            reason = (
+                "blocked_repeated_previous_answer_for_feedback_input"
+                if should_acknowledge_feedback
+                else reason
+            )
 
     return {
         "status": status,
@@ -229,14 +281,18 @@ def _detect_input_type(text: str, previous_user: str = "") -> str:
     if not text:
         return "unclear"
     plain = _strip_accents(text)
-    if any(phrase in text for phrase in CORRECTION_PHRASES) or any(phrase in plain for phrase in CORRECTION_PHRASES):
+    if any(phrase in text for phrase in CORRECTION_PHRASES) or any(
+        phrase in plain for phrase in CORRECTION_PHRASES
+    ):
         return "correction"
     if any(phrase == text or phrase in text for phrase in THANKS_PHRASES):
         return "thanks"
     if any(phrase == text or phrase in text for phrase in ACKNOWLEDGEMENT_PHRASES):
         if len(text.split()) <= 3 or plain.startswith(("ok ", "vale ", "listo ")):
             return "acknowledgement"
-    if plain.startswith(("ok ", "vale ", "listo ")) and any(phrase in text for phrase in POSITIVE_FEEDBACK_PHRASES):
+    if plain.startswith(("ok ", "vale ", "listo ")) and any(
+        phrase in text for phrase in POSITIVE_FEEDBACK_PHRASES
+    ):
         return "acknowledgement"
     if any(phrase == text or phrase in text for phrase in POSITIVE_FEEDBACK_PHRASES):
         return "positive_feedback"
@@ -259,7 +315,11 @@ def _looks_like_question(text: str) -> bool:
     plain = _strip_accents(text)
     if "?" in text:
         return True
-    return any(token in plain.split()[:4] for token in QUESTION_WORDS) or plain.startswith(("que ", "como ", "cuando ", "donde ", "quien ", "cual ", "cuanto "))
+    return any(
+        token in plain.split()[:4] for token in QUESTION_WORDS
+    ) or plain.startswith(
+        ("que ", "como ", "cuando ", "donde ", "quien ", "cual ", "cuanto ")
+    )
 
 
 def _looks_like_follow_up(text: str, previous_user: str) -> bool:
@@ -279,12 +339,24 @@ def _looks_like_follow_up(text: str, previous_user: str) -> bool:
 
 def _looks_like_command(text: str) -> bool:
     plain = _strip_accents(text)
-    return plain.startswith(("crea ", "haz ", "dame ", "muestra ", "explica ", "registra ", "necesito "))
+    return plain.startswith(
+        ("crea ", "haz ", "dame ", "muestra ", "explica ", "registra ", "necesito ")
+    )
 
 
 def _looks_like_emotional_feedback(text: str) -> bool:
     plain = _strip_accents(text)
-    return any(term in plain for term in ("felicit", "bien hecho", "excelente", "genial", "muy bien", "muy bine"))
+    return any(
+        term in plain
+        for term in (
+            "felicit",
+            "bien hecho",
+            "excelente",
+            "genial",
+            "muy bien",
+            "muy bine",
+        )
+    )
 
 
 def _looks_like_new_topic(text: str, previous_user: str) -> bool:
@@ -312,7 +384,10 @@ def _response_repeats_previous_answer(response: str, previous_response: str) -> 
 def _looks_like_stuck_repetition(response: str, previous_response: str) -> bool:
     if not response or not previous_response:
         return False
-    return _response_repeats_previous_answer(response, previous_response) and len(response.split()) <= len(previous_response.split()) + 12
+    return (
+        _response_repeats_previous_answer(response, previous_response)
+        and len(response.split()) <= len(previous_response.split()) + 12
+    )
 
 
 def _acknowledge_feedback(detected_input_type: str) -> str:
@@ -331,7 +406,9 @@ def _acknowledge_correction(previous_response: str) -> str:
     return "Entendido. Corrijo el contexto."
 
 
-def _follow_up_progress_response(response: str, previous_response: str, previous_user: str) -> str:
+def _follow_up_progress_response(
+    response: str, previous_response: str, previous_user: str
+) -> str:
     if response:
         return response
     if previous_response:
@@ -374,7 +451,9 @@ def _base_score(
         "new_topic": 0.76,
         "unclear": 0.60,
     }.get(detected_input_type, 0.70)
-    if previous_response and _response_repeats_previous_answer(response, previous_response):
+    if previous_response and _response_repeats_previous_answer(
+        response, previous_response
+    ):
         score -= 0.35
     if memory_context.get("qualia_bus"):
         score += 0.02

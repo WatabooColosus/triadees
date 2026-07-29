@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import json
 
-from triade.evaluation import BenchmarkCase, BenchmarkSuite, EvaluationRunner, compare_evaluations
+from triade.evaluation import (
+    BenchmarkCase,
+    BenchmarkSuite,
+    EvaluationRunner,
+    compare_evaluations,
+)
 from triade.evaluation.suites import core_safety_suite, evaluate_core_safety_case
 
 
@@ -18,21 +23,30 @@ def test_runner_persists_weighted_evaluation_and_baseline(tmp_path) -> None:
         ),
     )
 
-    run = runner.run(suite, subject_id="subject-v1", evaluator=lambda case: case.case_id == "case-a")
+    run = runner.run(
+        suite, subject_id="subject-v1", evaluator=lambda case: case.case_id == "case-a"
+    )
     baseline = runner.create_baseline(suite.capability, run)
 
     assert run.aggregate_score == 1.0
     run_dir = tmp_path / "evaluations" / run.evaluation_id
-    assert json.loads((run_dir / "evaluation.json").read_text())["aggregate_score"] == 1.0
+    assert (
+        json.loads((run_dir / "evaluation.json").read_text())["aggregate_score"] == 1.0
+    )
     assert json.loads((run_dir / "suite.json").read_text())["suite_id"] == "weighted"
-    assert json.loads((run_dir / "baseline.json").read_text())["baseline_id"] == baseline.baseline_id
+    assert (
+        json.loads((run_dir / "baseline.json").read_text())["baseline_id"]
+        == baseline.baseline_id
+    )
 
 
 def test_core_safety_suite_executes_without_external_dependencies(tmp_path) -> None:
     runner = EvaluationRunner(tmp_path / "evaluations")
     suite = core_safety_suite()
 
-    run = runner.run(suite, subject_id="triade-main", evaluator=evaluate_core_safety_case)
+    run = runner.run(
+        suite, subject_id="triade-main", evaluator=evaluate_core_safety_case
+    )
 
     assert run.aggregate_score == 1.0
     assert all(result.passed for result in run.results)

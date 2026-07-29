@@ -18,7 +18,11 @@ def test_core_capability_bootstrap_is_idempotent(tmp_path: Path) -> None:
     registry = CapabilityRegistry(db_path)
     assert registry.get("identity_core")["state"] == "active"
     assert registry.get("semantic_memory")["dependencies"] == ["identity_core"]
-    assert registry.get("learning_promotion")["permissions"] == ["read", "execute", "promote"]
+    assert registry.get("learning_promotion")["permissions"] == [
+        "read",
+        "execute",
+        "promote",
+    ]
 
 
 def test_learning_promotion_core_capability_allows_promotion(tmp_path: Path) -> None:
@@ -31,7 +35,9 @@ def test_learning_promotion_core_capability_allows_promotion(tmp_path: Path) -> 
     assert decision.reason == "permitido"
 
 
-def test_deprecating_learning_promotion_blocks_future_promotions(tmp_path: Path) -> None:
+def test_deprecating_learning_promotion_blocks_future_promotions(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     bootstrap_core_capabilities(db_path)
     registry = CapabilityRegistry(db_path)

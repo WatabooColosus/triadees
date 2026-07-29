@@ -66,7 +66,9 @@ class SelfImprovementOrchestrator:
                 artifact_ref=artifact["execution_id"],
             )
             if not evidence["promotable"]:
-                self.evaluation.quarantine(candidate_id, "evidencia insuficiente o regresión")
+                self.evaluation.quarantine(
+                    candidate_id, "evidencia insuficiente o regresión"
+                )
                 self.bridge.release_candidate(candidate_id, outcome="rejected")
                 return self._result(
                     proposal_id,
@@ -170,13 +172,17 @@ class SelfImprovementOrchestrator:
             raise KeyError(f"propuesta no registrada: {proposal_id}")
         return {**json.loads(row["payload_json"]), "status": row["status"]}
 
-    def _result(self, proposal_id: str, candidate_id: str, status: str, **parts: Any) -> dict[str, Any]:
+    def _result(
+        self, proposal_id: str, candidate_id: str, status: str, **parts: Any
+    ) -> dict[str, Any]:
         result = {
             "proposal_id": proposal_id,
             "candidate_id": candidate_id,
             "status": status,
             **parts,
         }
-        canonical = json.dumps(result, sort_keys=True, separators=(",", ":"), default=str)
+        canonical = json.dumps(
+            result, sort_keys=True, separators=(",", ":"), default=str
+        )
         result["sha256"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
         return result

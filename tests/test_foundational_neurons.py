@@ -18,7 +18,9 @@ def test_foundational_neurons_are_idempotent_and_missioned(tmp_path):
 
     missions = NeuronMissionStore(db_path).list_missions(limit=20)
     assert len(missions) == 10
-    assert all(m.status == "stable" and m.schedule_hint == "every_session" for m in missions)
+    assert all(
+        m.status == "stable" and m.schedule_hint == "every_session" for m in missions
+    )
 
 
 def test_emotional_drives_are_governed(tmp_path):
@@ -29,4 +31,6 @@ def test_emotional_drives_are_governed(tmp_path):
 
     assert len(drives) == 7
     assert all("bypass_safety" in n["forbidden_actions"] for n in drives)
-    assert all("external_action_without_permission" in n["forbidden_actions"] for n in drives)
+    assert all(
+        "external_action_without_permission" in n["forbidden_actions"] for n in drives
+    )

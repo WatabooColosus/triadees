@@ -77,7 +77,12 @@ def test_observe_only_never_executes_safe_mission(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         "triade.core.neuron_nutrition.ollama_blood_policy",
-        lambda *_: {"allowed": False, "degraded": True, "reason": "Ollama no disponible", "model_used": None},
+        lambda *_: {
+            "allowed": False,
+            "degraded": True,
+            "reason": "Ollama no disponible",
+            "model_used": None,
+        },
     )
     monkeypatch.setattr(
         "triade.core.neuron_nutrition.check_ollama_cognitive_health",

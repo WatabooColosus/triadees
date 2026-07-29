@@ -6,7 +6,9 @@ from triade.core.output_gate import sanitize_user_response
 
 
 def test_output_gate_keeps_clean_response() -> None:
-    result = sanitize_user_response("Respuesta natural para el usuario.", "hola", "conversation")
+    result = sanitize_user_response(
+        "Respuesta natural para el usuario.", "hola", "conversation"
+    )
 
     assert result == {
         "response": "Respuesta natural para el usuario.",
@@ -32,7 +34,9 @@ def test_output_gate_blocks_internal_report_leak() -> None:
 
     assert result["modified"] is True
     assert result["reason"] == "internal_leak_detected"
-    assert result["response"] == "Hola, soy Tríade Ω. Estoy contigo y listo para ayudarte."
+    assert (
+        result["response"] == "Hola, soy Tríade Ω. Estoy contigo y listo para ayudarte."
+    )
 
 
 def test_output_gate_allows_operational_awareness_when_requested() -> None:

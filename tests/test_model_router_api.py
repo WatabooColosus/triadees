@@ -24,7 +24,9 @@ def test_model_router_api_health() -> None:
 
 
 def test_model_router_api_doctor() -> None:
-    response = client.get("/api/models/doctor", params={"intent": "analyze", "urgency": "medium"})
+    response = client.get(
+        "/api/models/doctor", params={"intent": "analyze", "urgency": "medium"}
+    )
 
     assert response.status_code == 200
     payload = response.json()

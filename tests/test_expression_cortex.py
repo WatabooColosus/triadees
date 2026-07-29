@@ -3,11 +3,9 @@
 Estos tests verifican principios generales de expresión, no respuestas fijas.
 """
 
-import json
-import pytest
-
 
 # ── Tests unitarios de ExpressionCortex ─────────────────────────────────────
+
 
 class TestExpressionCortexHidesInternalDumps:
     """FASE 7 — Test 1: La respuesta final no contiene dumps crudos."""
@@ -97,7 +95,7 @@ class TestExpressionCortexHidesInternalDumps:
 
         raw = (
             "Resultado del análisis:\n\n"
-            "```json\n{\"score\": 0.85, \"issues\": [\"memory leak\"]}\n```\n\n"
+            '```json\n{"score": 0.85, "issues": ["memory leak"]}\n```\n\n'
             "Sugiero corregir el memory leak primero."
         )
         result = ExpressionCortex().shape_response(
@@ -135,7 +133,10 @@ class TestCasualQuestionGetsNaturalSynthesis:
         )
         assert result["expression_mode"] == "self_state"
         assert len(result["visible_modular_trace"]) > 0
-        assert "Central" in result["visible_modular_trace"] or "Hipotálamo" in result["visible_modular_trace"]
+        assert (
+            "Central" in result["visible_modular_trace"]
+            or "Hipotálamo" in result["visible_modular_trace"]
+        )
 
     def test_casual_question_no_candidates_list(self):
         """Respuesta natural no lista candidatos ni políticas."""
@@ -333,8 +334,8 @@ class TestFactualQuestionStaysFactual:
         result = ExpressionCortex().shape_response(
             user_input="cómo vuela un ave",
             raw_response="Las aves vuelan gracias a la forma de sus alas, que generan sustentación. "
-                         "El aire pasa más rápido por la parte superior del ala, creando presión "
-                         "diferencial que las eleva.",
+            "El aire pasa más rápido por la parte superior del ala, creando presión "
+            "diferencial que las eleva.",
             intent="conversation",
             signals={},
             memory={},
@@ -428,13 +429,24 @@ class TestExpressionModeDetection:
     def test_diagnostic_keyword_detection(self):
         from triade.core.expression_cortex import ExpressionCortex
 
-        for keyword in ["audita", "diagnóstico", "verifica", "status", "health", "revisa"]:
+        for keyword in [
+            "audita",
+            "diagnóstico",
+            "verifica",
+            "status",
+            "health",
+            "revisa",
+        ]:
             result = ExpressionCortex().shape_response(
                 user_input=f"{keyword} el sistema",
                 raw_response="Todo funciona correctamente.",
                 intent="conversation",
-                signals={}, memory={}, crystal={}, qualia={},
-                bodega_context={}, learning_context={},
+                signals={},
+                memory={},
+                crystal={},
+                qualia={},
+                bodega_context={},
+                learning_context={},
             )
             assert result["expression_mode"] == "diagnostic", (
                 f"'{keyword}' debería detectarse como diagnostic"
@@ -448,8 +460,12 @@ class TestExpressionModeDetection:
                 user_input=f"{keyword} un motor eléctrico",
                 raw_response="Un motor eléctrico funciona mediante...",
                 intent="conversation",
-                signals={}, memory={}, crystal={}, qualia={},
-                bodega_context={}, learning_context={},
+                signals={},
+                memory={},
+                crystal={},
+                qualia={},
+                bodega_context={},
+                learning_context={},
             )
             assert result["expression_mode"] == "technical_summary", (
                 f"'{keyword}' debería detectarse como technical_summary"
@@ -463,8 +479,12 @@ class TestExpressionModeDetection:
                 user_input=f"{keyword} una historia",
                 raw_response="Aquí tienes una idea creativa...",
                 intent="conversation",
-                signals={}, memory={}, crystal={}, qualia={},
-                bodega_context={}, learning_context={},
+                signals={},
+                memory={},
+                crystal={},
+                qualia={},
+                bodega_context={},
+                learning_context={},
             )
             assert result["expression_mode"] == "creative", (
                 f"'{keyword}' debería detectarse como creative"

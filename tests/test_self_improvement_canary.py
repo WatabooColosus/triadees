@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from triade.neuron_factory import NeuronSpecification, NeuronSpecificationStore, ResourceBudget
+from triade.neuron_factory import (
+    NeuronSpecification,
+    NeuronSpecificationStore,
+    ResourceBudget,
+)
 from triade.self_improvement.canary import CanaryMonitor
 
 
@@ -112,14 +116,19 @@ def test_canary_rolls_back_after_confirmed_degradation(tmp_path: Path) -> None:
     assert result["status"] == "rolled_back"
     assert result["rollback"]["status"] == "rolled_back"
     assert monitor.lifecycle.candidates.get(candidate_id)["status"] == "rolled_back"
-    assert monitor.lifecycle.specifications.get("neuron.canary", "1.0.0")["state"] == "quarantined"
+    assert (
+        monitor.lifecycle.specifications.get("neuron.canary", "1.0.0")["state"]
+        == "quarantined"
+    )
 
 
 def test_finished_canary_rejects_more_observations(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     candidate_id = prepare_promoted_candidate(db_path)
     monitor = CanaryMonitor(db_path)
-    canary = monitor.start(candidate_id, baseline_score=0.8, min_observations=1, max_observations=1)
+    canary = monitor.start(
+        candidate_id, baseline_score=0.8, min_observations=1, max_observations=1
+    )
     monitor.observe(canary["canary_id"], score=0.8)
 
     with pytest.raises(ValueError, match="ya terminó"):

@@ -90,59 +90,63 @@ def build_neuron_dashboard(
 
         audit_for_neuron = stable_audit_by_name.get(name, {})
 
-        enriched.append({
-            "id": neuron.get("id"),
-            "name": name,
-            "mission": neuron.get("mission"),
-            "domain": neuron.get("domain"),
-            "status": neuron.get("status"),
-            "created_by": neuron.get("created_by"),
-            "created_at": neuron.get("created_at"),
-            "updated_at": neuron.get("updated_at"),
-            "progress": progress,
-            "contract": {
-                "rules": neuron.get("rules") or [],
-                "triggers": neuron.get("triggers") or [],
-                "inputs_allowed": neuron.get("inputs_allowed") or [],
-                "outputs_allowed": neuron.get("outputs_allowed") or [],
-                "forbidden_actions": neuron.get("forbidden_actions") or [],
-                "success_metrics": neuron.get("success_metrics") or [],
-                "evidence_required": neuron.get("evidence_required") or [],
-                "activation_policy": neuron.get("activation_policy") or {},
-                "contract_json": neuron.get("contract_json") or {},
-            },
-            "evidence": {
-                "activation_count": ev.get("activation_count", 0),
-                "diagnosis_count": ev.get("diagnosis_count", 0),
-                "test_plan_count": ev.get("test_plan_count", 0),
-                "last_run_id": ev.get("last_run_id"),
-                "last_policy": ev.get("last_policy"),
-                "source": ev.get("source"),
-            },
-            "readiness": {
-                "ready_for_stable_review": bool(rd.get("ready_for_stable_review")),
-                "blockers": rd.get("blockers", []),
-                "required_human_decision": rd.get("required_human_decision", True),
-            },
-            "stable_audit": {
-                "recommended_action": audit_for_neuron.get("recommended_action"),
-                "blockers": audit_for_neuron.get("blockers", []),
-                "evidence_source": audit_for_neuron.get("evidence_source"),
-                "last_run_id": audit_for_neuron.get("last_run_id"),
-            } if audit_for_neuron else None,
-            "recent_activity": [
-                {
-                    "id": a.get("id"),
-                    "run_id": a.get("run_id"),
-                    "diagnosis_count": a.get("diagnosis_count"),
-                    "test_plan_count": a.get("test_plan_count"),
-                    "policy": a.get("policy"),
-                    "created_at": a.get("created_at"),
+        enriched.append(
+            {
+                "id": neuron.get("id"),
+                "name": name,
+                "mission": neuron.get("mission"),
+                "domain": neuron.get("domain"),
+                "status": neuron.get("status"),
+                "created_by": neuron.get("created_by"),
+                "created_at": neuron.get("created_at"),
+                "updated_at": neuron.get("updated_at"),
+                "progress": progress,
+                "contract": {
+                    "rules": neuron.get("rules") or [],
+                    "triggers": neuron.get("triggers") or [],
+                    "inputs_allowed": neuron.get("inputs_allowed") or [],
+                    "outputs_allowed": neuron.get("outputs_allowed") or [],
+                    "forbidden_actions": neuron.get("forbidden_actions") or [],
+                    "success_metrics": neuron.get("success_metrics") or [],
+                    "evidence_required": neuron.get("evidence_required") or [],
+                    "activation_policy": neuron.get("activation_policy") or {},
+                    "contract_json": neuron.get("contract_json") or {},
+                },
+                "evidence": {
+                    "activation_count": ev.get("activation_count", 0),
+                    "diagnosis_count": ev.get("diagnosis_count", 0),
+                    "test_plan_count": ev.get("test_plan_count", 0),
+                    "last_run_id": ev.get("last_run_id"),
+                    "last_policy": ev.get("last_policy"),
+                    "source": ev.get("source"),
+                },
+                "readiness": {
+                    "ready_for_stable_review": bool(rd.get("ready_for_stable_review")),
+                    "blockers": rd.get("blockers", []),
+                    "required_human_decision": rd.get("required_human_decision", True),
+                },
+                "stable_audit": {
+                    "recommended_action": audit_for_neuron.get("recommended_action"),
+                    "blockers": audit_for_neuron.get("blockers", []),
+                    "evidence_source": audit_for_neuron.get("evidence_source"),
+                    "last_run_id": audit_for_neuron.get("last_run_id"),
                 }
-                for a in acts[:5]
-            ],
-            "ui_actions": allowed_ui_actions(neuron, rd),
-        })
+                if audit_for_neuron
+                else None,
+                "recent_activity": [
+                    {
+                        "id": a.get("id"),
+                        "run_id": a.get("run_id"),
+                        "diagnosis_count": a.get("diagnosis_count"),
+                        "test_plan_count": a.get("test_plan_count"),
+                        "policy": a.get("policy"),
+                        "created_at": a.get("created_at"),
+                    }
+                    for a in acts[:5]
+                ],
+                "ui_actions": allowed_ui_actions(neuron, rd),
+            }
+        )
 
     counts: dict[str, int] = {}
     for neuron in enriched:
@@ -155,11 +159,17 @@ def build_neuron_dashboard(
         "summary": {
             "total_neurons": len(enriched),
             "by_status": counts,
-            "experimental_with_evidence": (evidence.get("summary") or {}).get("experimental_neurons_with_evidence", 0),
-            "ready_for_stable_review": (readiness.get("summary") or {}).get("ready_for_stable_review", 0),
+            "experimental_with_evidence": (evidence.get("summary") or {}).get(
+                "experimental_neurons_with_evidence", 0
+            ),
+            "ready_for_stable_review": (readiness.get("summary") or {}).get(
+                "ready_for_stable_review", 0
+            ),
             "stable_audit": {
                 "total_stable_neurons": stable_audit_raw.get("total_stable_neurons", 0),
-                "stable_with_enough_evidence": stable_audit_raw.get("stable_with_enough_evidence", 0),
+                "stable_with_enough_evidence": stable_audit_raw.get(
+                    "stable_with_enough_evidence", 0
+                ),
                 "stable_needs_review": stable_audit_raw.get("stable_needs_review", 0),
             },
         },
@@ -168,7 +178,9 @@ def build_neuron_dashboard(
     }
 
 
-def allowed_ui_actions(neuron: dict[str, Any], readiness: dict[str, Any]) -> list[dict[str, Any]]:
+def allowed_ui_actions(
+    neuron: dict[str, Any], readiness: dict[str, Any]
+) -> list[dict[str, Any]]:
     """Define acciones que la UI puede mostrar según estado real.
 
     Importante: solo describe acciones. No ejecuta nada.
@@ -178,67 +190,80 @@ def allowed_ui_actions(neuron: dict[str, Any], readiness: dict[str, Any]) -> lis
     actions: list[dict[str, Any]] = []
 
     if status == "candidate":
-        actions.extend([
-            {
-                "id": "approve_experimental",
-                "label": "Aprobar como experimental",
-                "enabled": True,
-                "requires_confirmation": True,
-                "endpoint": "/api/system/neurons/decision",
-            },
-            {
-                "id": "reject",
-                "label": "Rechazar",
-                "enabled": True,
-                "requires_confirmation": True,
-                "endpoint": "/api/system/neurons/decision",
-            },
-            {
-                "id": "request_changes",
-                "label": "Pedir cambios",
-                "enabled": True,
-                "requires_confirmation": True,
-                "endpoint": "/api/system/neurons/decision",
-            },
-        ])
+        actions.extend(
+            [
+                {
+                    "id": "approve_experimental",
+                    "label": "Aprobar como experimental",
+                    "enabled": True,
+                    "requires_confirmation": True,
+                    "endpoint": "/api/system/neurons/decision",
+                },
+                {
+                    "id": "reject",
+                    "label": "Rechazar",
+                    "enabled": True,
+                    "requires_confirmation": True,
+                    "endpoint": "/api/system/neurons/decision",
+                },
+                {
+                    "id": "request_changes",
+                    "label": "Pedir cambios",
+                    "enabled": True,
+                    "requires_confirmation": True,
+                    "endpoint": "/api/system/neurons/decision",
+                },
+            ]
+        )
 
     elif status == "experimental":
         ready = bool(readiness.get("ready_for_stable_review"))
-        actions.append({
-            "id": "promote_stable",
-            "label": "Promover a stable",
-            "enabled": ready,
-            "requires_confirmation": True,
-            "endpoint": "/api/system/neurons/promote-stable",
-            "disabled_reason": None if ready else "Falta evidencia suficiente para revisión stable.",
-        })
+        actions.append(
+            {
+                "id": "promote_stable",
+                "label": "Promover a stable",
+                "enabled": ready,
+                "requires_confirmation": True,
+                "endpoint": "/api/system/neurons/promote-stable",
+                "disabled_reason": None
+                if ready
+                else "Falta evidencia suficiente para revisión stable.",
+            }
+        )
 
     elif status == "stable":
-        actions.append({
-            "id": "view_only",
-            "label": "Stable: solo lectura",
-            "enabled": False,
-            "requires_confirmation": False,
-            "endpoint": None,
-            "disabled_reason": "Las neuronas stable no se modifican desde acciones rápidas.",
-        })
+        actions.append(
+            {
+                "id": "view_only",
+                "label": "Stable: solo lectura",
+                "enabled": False,
+                "requires_confirmation": False,
+                "endpoint": None,
+                "disabled_reason": "Las neuronas stable no se modifican desde acciones rápidas.",
+            }
+        )
 
     else:
-        actions.append({
-            "id": "view_only",
-            "label": "Solo lectura",
-            "enabled": False,
-            "requires_confirmation": False,
-            "endpoint": None,
-            "disabled_reason": f"Estado no accionable: {status}",
-        })
+        actions.append(
+            {
+                "id": "view_only",
+                "label": "Solo lectura",
+                "enabled": False,
+                "requires_confirmation": False,
+                "endpoint": None,
+                "disabled_reason": f"Estado no accionable: {status}",
+            }
+        )
 
     return actions
 
 
-def _load_latest_training_scores(registry: NeuronRegistry, neurons: list[dict[str, Any]]) -> dict[str, float]:
+def _load_latest_training_scores(
+    registry: NeuronRegistry, neurons: list[dict[str, Any]]
+) -> dict[str, float]:
     """Carga el último training score por neurona en batch."""
     import sqlite3
+
     ids = [str(n.get("id")) for n in neurons if n.get("id")]
     if not ids:
         return {}
@@ -249,7 +274,7 @@ def _load_latest_training_scores(registry: NeuronRegistry, neurons: list[dict[st
                 SELECT n.name, nt.score
                 FROM neuron_training nt
                 JOIN neurons n ON n.id = nt.neuron_id
-                WHERE nt.neuron_id IN ({','.join('?' for _ in ids)})
+                WHERE nt.neuron_id IN ({",".join("?" for _ in ids)})
                 AND nt.id = (
                     SELECT MAX(t2.id) FROM neuron_training t2
                     WHERE t2.neuron_id = nt.neuron_id
@@ -262,18 +287,47 @@ def _load_latest_training_scores(registry: NeuronRegistry, neurons: list[dict[st
         return {}
 
 
-def _compute_progress(neuron: dict[str, Any], evidence: dict[str, Any], readiness: dict[str, Any], score: float) -> dict[str, Any]:
+def _compute_progress(
+    neuron: dict[str, Any],
+    evidence: dict[str, Any],
+    readiness: dict[str, Any],
+    score: float,
+) -> dict[str, Any]:
     status = (neuron.get("status") or "").strip().lower()
     if status in ("stable", "rejected"):
-        return {"phase": status, "progress": 1.0, "label": "Completado" if status == "stable" else "Rechazado"}
+        return {
+            "phase": status,
+            "progress": 1.0,
+            "label": "Completado" if status == "stable" else "Rechazado",
+        }
     if status in ("candidate", "candidate_reviewable"):
         threshold = 0.65
         p = min(score / threshold, 1.0) if score > 0 else 0.0
-        return {"phase": "candidate", "progress": p, "score": score, "threshold": threshold, "target": "experimental", "label": f"{score:.0%} hacia experimental"}
+        return {
+            "phase": "candidate",
+            "progress": p,
+            "score": score,
+            "threshold": threshold,
+            "target": "experimental",
+            "label": f"{score:.0%} hacia experimental",
+        }
     if status == "experimental":
         a = min(int(evidence.get("activation_count", 0)) / 5, 1.0)
         d = min(int(evidence.get("diagnosis_count", 0)) / 5, 1.0)
         t = min(int(evidence.get("test_plan_count", 0)) / 3, 1.0)
         p = round((a + d + t) / 3, 4)
-        return {"phase": "experimental", "progress": p, "activation_progress": a, "diagnosis_progress": d, "test_plan_progress": t, "thresholds": {"min_activations": 5, "min_diagnosis": 5, "min_test_plan": 3}, "target": "stable", "label": f"{p:.0%} hacia stable"}
+        return {
+            "phase": "experimental",
+            "progress": p,
+            "activation_progress": a,
+            "diagnosis_progress": d,
+            "test_plan_progress": t,
+            "thresholds": {
+                "min_activations": 5,
+                "min_diagnosis": 5,
+                "min_test_plan": 3,
+            },
+            "target": "stable",
+            "label": f"{p:.0%} hacia stable",
+        }
     return {"phase": status, "progress": 0.0, "label": "En espera"}

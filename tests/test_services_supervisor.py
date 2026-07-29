@@ -20,9 +20,19 @@ def _seed_runtime_mission(db_path: Path) -> int:
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             "INSERT INTO neurons (name, mission, domain, status, created_by) VALUES (?, ?, ?, ?, ?)",
-            ("service-neuron", "Supervisar estado interno.", "runtime", "experimental", "test"),
+            (
+                "service-neuron",
+                "Supervisar estado interno.",
+                "runtime",
+                "experimental",
+                "test",
+            ),
         )
-        neuron_id = int(conn.execute("SELECT id FROM neurons WHERE name = ?", ("service-neuron",)).fetchone()[0])
+        neuron_id = int(
+            conn.execute(
+                "SELECT id FROM neurons WHERE name = ?", ("service-neuron",)
+            ).fetchone()[0]
+        )
     store = NeuronMissionStore(db_path=db_path)
     return store.create_mission(
         NeuronMission(

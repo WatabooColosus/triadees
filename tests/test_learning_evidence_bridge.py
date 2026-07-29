@@ -110,7 +110,9 @@ def test_bridge_blocks_neutral_regressed_and_wrong_subject(tmp_path) -> None:
         critical_regressions=(),
         decision="neutral",
     )
-    bridge.record_comparison("learn-2", baseline=baseline, candidate=candidate, comparison=neutral)
+    bridge.record_comparison(
+        "learn-2", baseline=baseline, candidate=candidate, comparison=neutral
+    )
 
     with pytest.raises(ValueError, match="no demuestra mejora"):
         bridge.require_improvement("learn-2")

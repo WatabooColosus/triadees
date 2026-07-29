@@ -2,9 +2,18 @@
 
 from .dispatch import FederatedDispatcher, FederatedWorkBudget
 from .evidence_gate import FederatedEvidenceGate
-from .exchange import FederatedEnvelope, FederatedExchangeStore, HMACEnvelopeAuthenticator
+from .exchange import (
+    FederatedEnvelope,
+    FederatedExchangeStore,
+    HMACEnvelopeAuthenticator,
+)
 from .federation import Federation
-from .registry import FederatedNodeIdentity, FederatedNodeRegistry, VALID_PERMISSIONS, VALID_STATES
+from .registry import (
+    FederatedNodeIdentity,
+    FederatedNodeRegistry,
+    VALID_PERMISSIONS,
+    VALID_STATES,
+)
 
 __all__ = [
     "Federation",

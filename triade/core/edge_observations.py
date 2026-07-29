@@ -31,7 +31,9 @@ def record_edge_observation(
     *,
     db_path: str | Path = "triade/memory/triade.db",
 ) -> dict[str, Any]:
-    severity = "info" if observation_type in {"valid_json", "local_heuristic"} else "warning"
+    severity = (
+        "info" if observation_type in {"valid_json", "local_heuristic"} else "warning"
+    )
     payload = {
         "parser_name": parser_name,
         "observation_type": observation_type,
@@ -69,18 +71,33 @@ def build_edge_context_health(
     limit: int = 200,
     db_path: str | Path = "triade/memory/triade.db",
 ) -> dict[str, Any]:
-    observations = _recent_edge_observations(since_hours=since_hours, limit=limit, db_path=db_path)
+    observations = _recent_edge_observations(
+        since_hours=since_hours, limit=limit, db_path=db_path
+    )
     total = len(observations)
     fallback_count = sum(1 for obs in observations if obs.get("fallback_used"))
-    empty_count = sum(1 for obs in observations if obs.get("observation_type") == "empty_response")
-    malformed_count = sum(1 for obs in observations if obs.get("observation_type") == "malformed_json")
-    non_json_count = sum(1 for obs in observations if obs.get("observation_type") == "non_json_response")
+    empty_count = sum(
+        1 for obs in observations if obs.get("observation_type") == "empty_response"
+    )
+    malformed_count = sum(
+        1 for obs in observations if obs.get("observation_type") == "malformed_json"
+    )
+    non_json_count = sum(
+        1 for obs in observations if obs.get("observation_type") == "non_json_response"
+    )
     degraded_count = empty_count + malformed_count + non_json_count
     last = observations[0] if observations else {}
 
-    latest_is_healthy = last.get("observation_type") in {"valid_json", "local_heuristic"}
+    latest_is_healthy = last.get("observation_type") in {
+        "valid_json",
+        "local_heuristic",
+    }
     if latest_is_healthy and degraded_count:
-        status = "recovered_local" if last.get("observation_type") == "local_heuristic" else "recovered"
+        status = (
+            "recovered_local"
+            if last.get("observation_type") == "local_heuristic"
+            else "recovered"
+        )
         recommendation = "Recuperado; conservar fallas históricas para auditoría y vigilar nuevos nodos federados."
     elif empty_count >= REPEATED_EDGE_SIGNAL_THRESHOLD:
         status = "empty_response_repeated"
@@ -127,10 +144,12 @@ def maybe_create_edge_learning_candidate(
         title = f"edge_context {parser_name} {observation_type}"
         existing = next(
             (
-                c for c in pipeline.list_candidates(limit=100)
+                c
+                for c in pipeline.list_candidates(limit=100)
                 if c.get("domain") == "system_edge_context"
                 and c.get("title") == title
-                and c.get("status") in {"candidate", "evaluated", "internally_checked", "validated_in_runs"}
+                and c.get("status")
+                in {"candidate", "evaluated", "internally_checked", "validated_in_runs"}
             ),
             None,
         )
@@ -146,7 +165,9 @@ def maybe_create_edge_learning_candidate(
                 "fallback heurístico permitió continuar, pero se requiere diagnóstico del prompt/modelo JSON."
             ),
             source_type="tool",
-            source_ref=f"worker_events:{event_id}" if event_id else "worker_events:edge_context",
+            source_ref=f"worker_events:{event_id}"
+            if event_id
+            else "worker_events:edge_context",
             title=title,
             domain="system_edge_context",
             risk_level="low",
@@ -166,14 +187,22 @@ def maybe_create_edge_learning_candidate(
             db_path=db_path,
             task_type="edge_context",
         )
-        return {"status": "candidate_created", "candidate_id": candidate.get("candidate_id"), "count_24h": repeated}
+        return {
+            "status": "candidate_created",
+            "candidate_id": candidate.get("candidate_id"),
+            "count_24h": repeated,
+        }
     except Exception as exc:
         from triade.core.error_bus import record_internal_error
 
         record_internal_error(
             "edge_context.learning_candidate",
             exc,
-            payload={"parser_name": parser_name, "observation_type": observation_type, "event_id": event_id},
+            payload={
+                "parser_name": parser_name,
+                "observation_type": observation_type,
+                "event_id": event_id,
+            },
             db_path=db_path,
             severity="warning",
         )
@@ -186,8 +215,12 @@ def _count_recent_observation(
     db_path: str | Path,
     since_hours: int = 24,
 ) -> int:
-    observations = _recent_edge_observations(since_hours=since_hours, limit=500, db_path=db_path)
-    return sum(1 for obs in observations if obs.get("observation_type") == observation_type)
+    observations = _recent_edge_observations(
+        since_hours=since_hours, limit=500, db_path=db_path
+    )
+    return sum(
+        1 for obs in observations if obs.get("observation_type") == observation_type
+    )
 
 
 def _recent_edge_observations(
@@ -206,17 +239,23 @@ def _recent_edge_observations(
         if created_at and created_at < cutoff:
             continue
         event_payload = row.get("payload") or {}
-        payload = event_payload.get("payload") if isinstance(event_payload.get("payload"), dict) else event_payload
-        observations.append({
-            "event_id": row.get("id"),
-            "created_at": row.get("created_at"),
-            "parser_name": payload.get("parser_name"),
-            "observation_type": payload.get("observation_type"),
-            "signal_quality": payload.get("signal_quality"),
-            "fallback_used": bool(payload.get("fallback_used")),
-            "node_id": payload.get("node_id"),
-            "model_name": payload.get("model_name"),
-        })
+        payload = (
+            event_payload.get("payload")
+            if isinstance(event_payload.get("payload"), dict)
+            else event_payload
+        )
+        observations.append(
+            {
+                "event_id": row.get("id"),
+                "created_at": row.get("created_at"),
+                "parser_name": payload.get("parser_name"),
+                "observation_type": payload.get("observation_type"),
+                "signal_quality": payload.get("signal_quality"),
+                "fallback_used": bool(payload.get("fallback_used")),
+                "node_id": payload.get("node_id"),
+                "model_name": payload.get("model_name"),
+            }
+        )
     return observations
 
 

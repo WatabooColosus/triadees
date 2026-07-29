@@ -13,6 +13,18 @@ versiones anteriores son históricos.
   `TRIADE_BACKUP_KEY`, retención y ejecutar simulacros periódicos en producción.
 - La promoción estable debe seguir exigiendo baseline, evidencia y reversibilidad.
 
+## P0 · Veracidad de ejecución
+
+- Central ya no usa `_simulate_step`: un paso sin ejecutor gobernado queda `blocked`,
+  no consume presupuesto inventado y no puede cerrar como completado.
+- Las rutinas autónomas legacy de mejora, creación/formación/verificación neuronal,
+  documentación e investigación quedaron en cuarentena lógica (`blocked`) hasta que
+  se conecten a sus pipelines gobernados. No crean artefactos ni aprendizaje falso.
+- La rutina legacy de aprendizaje solo observa el número de nodos causales: no infiere
+  causalidad por proximidad y no comprime memoria automáticamente.
+- Pendiente: reemplazar esas rutas legacy por adaptadores explícitos a tareas con lease,
+  evidencia, baseline, evaluación independiente y rollback.
+
 ## P0 · Operación pública y seguridad
 
 - El modo público sin API key bloquea administración, pero no sustituye autenticación,
@@ -22,9 +34,14 @@ versiones anteriores son históricos.
 
 ## P1 · Always-On y scheduler adaptativo
 
-- `AdaptiveScheduler` ya limita frecuencia y separa investigación de heartbeat;
-  falta una contabilidad unificada de GPU, red, CPU y almacenamiento por día.
-- Falta watchdog explícito para recuperar el hilo Always-On si muere.
+- `AdaptiveScheduler` separa ritmos y el runtime dispone de heartbeat, watchdog,
+  leases y `ResourceLedger`; falta completar la atribución real de GPU, red, CPU y
+  almacenamiento para todos los workers legacy.
+- WorkerLoop conserva el productor legacy por compatibilidad, pero migra cada tarea
+  a `autonomous_tasks`, exige lease v2 antes de ejecutar y cierra o reintenta allí.
+  Falta retirar la tabla legacy después de una ventana productiva sin regresiones.
+- El watchdog y la recuperación existen; falta una prueba prolongada con fallos reales
+  de proceso, DB, Ollama y disco en el host de despliegue.
 - Existe deduplicación textual/Jaccard y novedad básica; sigue pendiente usar embeddings
   calibrados y medir utilidad causal, presión térmica y recursos.
 
@@ -43,7 +60,11 @@ versiones anteriores son históricos.
   fallos de coherencia, correcciones y repetición en evaluaciones de
   mejora reproducibles, no solo más candidatos.
 - La adquisición usa catálogo, resuelve el binario Ollama y persiste intentos, tamaños
-  esperados y digest de recibo. Verificar blobs completos sigue pendiente.
+  esperados y digest de recibo. Un timeout ahora cierra el intento original en vez de
+  dejarlo `running` y duplicarlo. Verificar blobs completos sigue pendiente.
+- Cada lección con material suficiente declara ahora una hipótesis pendiente en
+  `learning_evidence`. No se puede afirmar aprendizaje consolidado hasta registrar
+  evaluación independiente, aplicación, mejora contra baseline y ausencia de regresión.
 
 ## P1 · Instalación y LoRA gobernados
 
@@ -81,6 +102,9 @@ versiones anteriores son históricos.
 - Los contratos mezclan dataclasses y Pydantic.
 - Falta normalizar métricas históricas, latencias y causas de fallback por componente.
 - La ruta canónica es `runs/`; los scripts y defaults internos ya fueron migrados.
+- Ruff (reglas CI E/F/W) y `compileall` están verdes en el corte actual. Mypy global
+  aún reporta 160 errores y no debe presentarse como verde; se requiere una campaña
+  incremental por fronteras (DB, contratos, workers y seguridad).
 
 ## P2 · Serving y continuidad operativa cerrados
 
@@ -105,6 +129,9 @@ versiones anteriores son históricos.
 - React SPA single-port, tests, Safety, QualiaBus, Ollama y Model Router existen.
 - Central, Hipotálamo, Bodega, Cristal, Creadora y Formativa tienen implementación.
 - `identity_core` está protegido y la memoria candidata no influye como verdad estable.
+- Las operaciones seguras de archivos publican ahora en el bus operacional real y
+  fallan explícitamente si no pueden conservar la auditoría; el rollback usa el
+  manifiesto de backup correcto.
 
 ## Criterio para cerrar deuda
 

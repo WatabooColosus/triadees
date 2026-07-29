@@ -6,9 +6,8 @@ import json
 import os
 import sqlite3
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
 
 from triade.core.contracts import utc_now
 
@@ -33,7 +32,8 @@ class SandboxConfig:
 
     def to_dict(self) -> dict:
         return {
-            "rootless": self.rootless, "chroot_path": self.chroot_path,
+            "rootless": self.rootless,
+            "chroot_path": self.chroot_path,
             "read_only_paths": list(self.read_only_paths),
             "writable_paths": list(self.writable_paths),
             "network_policy": self.network_policy,
@@ -102,18 +102,33 @@ class SecureExecutor:
     network policy, GPU/disk limits."""
 
     BLOCKED_PATTERNS = (
-        "rm -rf", "rm -r /", "mkfs", "dd if=", "> /dev/sd",
-        "chmod 777", "chown", "mount", "umount",
-        "passwd", "shadow", "/etc/passwd",
-        "curl | sh", "wget | sh", "nc -e",
+        "rm -rf",
+        "rm -r /",
+        "mkfs",
+        "dd if=",
+        "> /dev/sd",
+        "chmod 777",
+        "chown",
+        "mount",
+        "umount",
+        "passwd",
+        "shadow",
+        "/etc/passwd",
+        "curl | sh",
+        "wget | sh",
+        "nc -e",
     )
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
 
-    def validate_command(self, command: str, config: SandboxConfig | None = None) -> dict:
+    def validate_command(
+        self, command: str, config: SandboxConfig | None = None
+    ) -> dict:
         issues = []
         cmd_lower = command.lower().strip()
         for pattern in self.BLOCKED_PATTERNS:
@@ -128,7 +143,9 @@ class SecureExecutor:
                     issues.append({"pattern": nc, "reason": "network_blocked"})
 
         if "sudo" in cmd_lower or "su " in cmd_lower:
-            issues.append({"pattern": "sudo/su", "reason": "privilege_escalation_blocked"})
+            issues.append(
+                {"pattern": "sudo/su", "reason": "privilege_escalation_blocked"}
+            )
 
         if cfg.gpu_enabled is False:
             gpu_cmds = ("nvidia-smi", "cuda", "nvcc")
@@ -165,9 +182,14 @@ class SecureExecutor:
 
         try:
             import subprocess
+
             result = subprocess.run(
-                command, shell=False, capture_output=True, text=True,
-                timeout=timeout_seconds, cwd=cfg.chroot_path if os.path.isdir(cfg.chroot_path) else None,
+                command,
+                shell=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                cwd=cfg.chroot_path if os.path.isdir(cfg.chroot_path) else None,
             )
             exit_code = result.returncode
             stdout = result.stdout[:50000]
@@ -187,10 +209,20 @@ class SecureExecutor:
                 stdout, stderr, exit_code, duration_ms,
                 memory_used_mb, disk_used_mb, created_at)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (exec_id, tool_id, command, json.dumps(cfg.to_dict(), default=str),
-             "completed" if exit_code == 0 else "failed",
-             stdout, stderr, exit_code, round(dur, 2),
-             mem_used, disk_used, now),
+            (
+                exec_id,
+                tool_id,
+                command,
+                json.dumps(cfg.to_dict(), default=str),
+                "completed" if exit_code == 0 else "failed",
+                stdout,
+                stderr,
+                exit_code,
+                round(dur, 2),
+                mem_used,
+                disk_used,
+                now,
+            ),
         )
         self._conn.commit()
 
@@ -205,17 +237,28 @@ class SecureExecutor:
 
     # ─── replay ───
 
-    def record_replay_step(self, exec_id: str, step_index: int, action: str,
-                           input_data: dict | None = None, output_data: dict | None = None) -> dict:
+    def record_replay_step(
+        self,
+        exec_id: str,
+        step_index: int,
+        action: str,
+        input_data: dict | None = None,
+        output_data: dict | None = None,
+    ) -> dict:
         replay_id = _gen_id("replay")
         self._conn.execute(
             """INSERT INTO replay_log
                (replay_id, exec_id, step_index, action, input_json, output_json, timestamp)
                VALUES (?,?,?,?,?,?,?)""",
-            (replay_id, exec_id, step_index, action,
-             json.dumps(input_data or {}, default=str),
-             json.dumps(output_data or {}, default=str),
-             utc_now()),
+            (
+                replay_id,
+                exec_id,
+                step_index,
+                action,
+                json.dumps(input_data or {}, default=str),
+                json.dumps(output_data or {}, default=str),
+                utc_now(),
+            ),
         )
         self._conn.commit()
         return {"replay_id": replay_id, "exec_id": exec_id, "step": step_index}
@@ -229,15 +272,24 @@ class SecureExecutor:
 
     # ─── filesystem isolation ───
 
-    def check_filesystem(self, exec_id: str, operation: str, path: str,
-                         config: SandboxConfig | None = None) -> dict:
+    def check_filesystem(
+        self,
+        exec_id: str,
+        operation: str,
+        path: str,
+        config: SandboxConfig | None = None,
+    ) -> dict:
         cfg = config or SandboxConfig()
         allowed = False
         reason = ""
 
-        if path in cfg.writable_paths or any(path.startswith(wp) for wp in cfg.writable_paths):
+        if path in cfg.writable_paths or any(
+            path.startswith(wp) for wp in cfg.writable_paths
+        ):
             allowed = True
-        elif path in cfg.read_only_paths or any(path.startswith(rp) for rp in cfg.read_only_paths):
+        elif path in cfg.read_only_paths or any(
+            path.startswith(rp) for rp in cfg.read_only_paths
+        ):
             if operation in ("read", "stat", "list"):
                 allowed = True
             else:
@@ -253,12 +305,23 @@ class SecureExecutor:
             (op_id, exec_id, operation, path, 1 if allowed else 0, reason, utc_now()),
         )
         self._conn.commit()
-        return {"allowed": allowed, "reason": reason, "operation": operation, "path": path}
+        return {
+            "allowed": allowed,
+            "reason": reason,
+            "operation": operation,
+            "path": path,
+        }
 
     # ─── network policy ───
 
-    def check_network(self, exec_id: str, operation: str, host: str, port: int = 0,
-                      config: SandboxConfig | None = None) -> dict:
+    def check_network(
+        self,
+        exec_id: str,
+        operation: str,
+        host: str,
+        port: int = 0,
+        config: SandboxConfig | None = None,
+    ) -> dict:
         cfg = config or SandboxConfig()
         allowed = False
         policy = cfg.network_policy
@@ -277,7 +340,16 @@ class SecureExecutor:
             """INSERT INTO network_operations
                (op_id, exec_id, operation, host, port, allowed, policy, created_at)
                VALUES (?,?,?,?,?,?,?,?)""",
-            (op_id, exec_id, operation, host, port, 1 if allowed else 0, policy, utc_now()),
+            (
+                op_id,
+                exec_id,
+                operation,
+                host,
+                port,
+                1 if allowed else 0,
+                policy,
+                utc_now(),
+            ),
         )
         self._conn.commit()
         return {"allowed": allowed, "policy": policy, "host": host, "port": port}
@@ -320,16 +392,41 @@ class SecureExecutor:
         return [dict(r) for r in rows]
 
     def stats(self) -> dict:
-        total = self._conn.execute("SELECT COUNT(*) as c FROM secure_executions").fetchone()["c"]
-        success = self._conn.execute("SELECT COUNT(*) as c FROM secure_executions WHERE exit_code=0").fetchone()["c"]
-        avg_dur = self._conn.execute("SELECT AVG(duration_ms) as a FROM secure_executions").fetchone()["a"] or 0
-        return {"total": total, "success": success, "failed": total - success,
-                "avg_duration_ms": round(avg_dur, 2)}
+        total = self._conn.execute(
+            "SELECT COUNT(*) as c FROM secure_executions"
+        ).fetchone()["c"]
+        success = self._conn.execute(
+            "SELECT COUNT(*) as c FROM secure_executions WHERE exit_code=0"
+        ).fetchone()["c"]
+        avg_dur = (
+            self._conn.execute(
+                "SELECT AVG(duration_ms) as a FROM secure_executions"
+            ).fetchone()["a"]
+            or 0
+        )
+        return {
+            "total": total,
+            "success": success,
+            "failed": total - success,
+            "avg_duration_ms": round(avg_dur, 2),
+        }
 
     def doctor(self) -> dict:
-        execs = self._conn.execute("SELECT COUNT(*) as c FROM secure_executions").fetchone()["c"]
-        replays = self._conn.execute("SELECT COUNT(*) as c FROM replay_log").fetchone()["c"]
-        fs_ops = self._conn.execute("SELECT COUNT(*) as c FROM filesystem_operations").fetchone()["c"]
-        net_ops = self._conn.execute("SELECT COUNT(*) as c FROM network_operations").fetchone()["c"]
-        return {"executions": execs, "replay_steps": replays,
-                "fs_operations": fs_ops, "net_operations": net_ops}
+        execs = self._conn.execute(
+            "SELECT COUNT(*) as c FROM secure_executions"
+        ).fetchone()["c"]
+        replays = self._conn.execute("SELECT COUNT(*) as c FROM replay_log").fetchone()[
+            "c"
+        ]
+        fs_ops = self._conn.execute(
+            "SELECT COUNT(*) as c FROM filesystem_operations"
+        ).fetchone()["c"]
+        net_ops = self._conn.execute(
+            "SELECT COUNT(*) as c FROM network_operations"
+        ).fetchone()["c"]
+        return {
+            "executions": execs,
+            "replay_steps": replays,
+            "fs_operations": fs_ops,
+            "net_operations": net_ops,
+        }

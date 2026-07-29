@@ -27,13 +27,19 @@ class CapabilityPolicyGuard:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.registry = CapabilityRegistry(db_path)
 
-    def decide(self, capability_id: str, action: str, version: str | None = None) -> CapabilityDecision:
+    def decide(
+        self, capability_id: str, action: str, version: str | None = None
+    ) -> CapabilityDecision:
         if action not in VALID_ACTIONS:
-            return CapabilityDecision(False, capability_id, version, action, "acción no soportada")
+            return CapabilityDecision(
+                False, capability_id, version, action, "acción no soportada"
+            )
 
         capability = self.registry.get(capability_id, version)
         if capability is None:
-            return CapabilityDecision(False, capability_id, version, action, "capacidad no registrada")
+            return CapabilityDecision(
+                False, capability_id, version, action, "capacidad no registrada"
+            )
 
         state = str(capability.get("state") or "experimental")
         permissions = set(capability.get("permissions") or ())
@@ -66,11 +72,17 @@ class CapabilityPolicyGuard:
                 "permiso no concedido",
                 capability,
             )
-        return CapabilityDecision(True, capability_id, resolved_version, action, "permitido", capability)
+        return CapabilityDecision(
+            True, capability_id, resolved_version, action, "permitido", capability
+        )
 
-    def require(self, capability_id: str, action: str, version: str | None = None) -> dict[str, Any]:
+    def require(
+        self, capability_id: str, action: str, version: str | None = None
+    ) -> dict[str, Any]:
         decision = self.decide(capability_id, action, version)
         if not decision.allowed:
-            raise PermissionError(f"{capability_id}:{action} rechazado: {decision.reason}")
+            raise PermissionError(
+                f"{capability_id}:{action} rechazado: {decision.reason}"
+            )
         assert decision.capability is not None
         return decision.capability

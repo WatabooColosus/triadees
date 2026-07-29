@@ -8,7 +8,9 @@ from triade.workers.background_service import WorkerBackgroundService
 
 
 def test_background_service_once_updates_status(tmp_path: Path) -> None:
-    service = WorkerBackgroundService(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs")
+    service = WorkerBackgroundService(
+        db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs"
+    )
 
     result = service.run_once()
     status = service.status()

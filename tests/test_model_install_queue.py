@@ -6,7 +6,9 @@ from triade.models.hardware_profile import HardwareProfile
 from triade.models.model_install_queue import ModelInstallQueue
 
 
-def hw(tier: str = "medium", available: float = 8.0, disk: float = 100.0) -> HardwareProfile:
+def hw(
+    tier: str = "medium", available: float = 8.0, disk: float = 100.0
+) -> HardwareProfile:
     return HardwareProfile(
         cpu_count=8,
         ram_total_gb=16.0,
@@ -28,7 +30,9 @@ def test_install_queue_has_policy() -> None:
 
 
 def test_install_queue_skips_installed_models() -> None:
-    queue = ModelInstallQueue(hw(), available_models=["qwen2.5:3b-instruct", "nomic-embed-text:latest"])
+    queue = ModelInstallQueue(
+        hw(), available_models=["qwen2.5:3b-instruct", "nomic-embed-text:latest"]
+    )
     payload = queue.build(include_allowed=True)
     models = {item["model"] for item in payload["candidates"]}
 

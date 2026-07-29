@@ -38,7 +38,12 @@ def evaluate_stable_readiness(
     prefer_db: bool = False,
 ) -> dict[str, Any]:
     thresholds = {**DEFAULT_THRESHOLDS, **(thresholds or {})}
-    ledger = build_experimental_evidence_ledger(runs_dir=runs_dir, limit=limit, db_path=db_path or "triade/memory/triade.db", prefer_db=prefer_db)
+    ledger = build_experimental_evidence_ledger(
+        runs_dir=runs_dir,
+        limit=limit,
+        db_path=db_path or "triade/memory/triade.db",
+        prefer_db=prefer_db,
+    )
 
     rows = []
     for neuron in ledger.get("neurons") or []:
@@ -50,23 +55,27 @@ def evaluate_stable_readiness(
         # Contar activaciones no sintéticas (policy distinto de experimental_light_pulse)
         runs = neuron.get("runs") or []
         non_synthetic_count = sum(
-            1 for r in runs
-            if str(r.get("policy") or "") not in SYNTHETIC_POLICIES
+            1 for r in runs if str(r.get("policy") or "") not in SYNTHETIC_POLICIES
         )
         # Contar verificaciones externas (runs con run_id que no sea pulse-*)
         external_verification_count = sum(
-            1 for r in runs
-            if str(r.get("run_id") or "").startswith("run-")
+            1 for r in runs if str(r.get("run_id") or "").startswith("run-")
         )
 
         blockers: list[str] = []
 
         if activation_count < thresholds["min_activations"]:
-            blockers.append(f"activation_count {activation_count} < {thresholds['min_activations']}")
+            blockers.append(
+                f"activation_count {activation_count} < {thresholds['min_activations']}"
+            )
         if diagnosis_count < thresholds["min_diagnosis"]:
-            blockers.append(f"diagnosis_count {diagnosis_count} < {thresholds['min_diagnosis']}")
+            blockers.append(
+                f"diagnosis_count {diagnosis_count} < {thresholds['min_diagnosis']}"
+            )
         if test_plan_count < thresholds["min_test_plan"]:
-            blockers.append(f"test_plan_count {test_plan_count} < {thresholds['min_test_plan']}")
+            blockers.append(
+                f"test_plan_count {test_plan_count} < {thresholds['min_test_plan']}"
+            )
         if external_actions_allowed:
             blockers.append("external_actions_allowed must be false")
         if str(neuron.get("status")) != "experimental":
@@ -84,22 +93,24 @@ def evaluate_stable_readiness(
 
         ready = not blockers
 
-        rows.append({
-            "name": neuron.get("name"),
-            "neuron_id": neuron.get("neuron_id"),
-            "status": neuron.get("status"),
-            "domain": neuron.get("domain"),
-            "ready_for_stable_review": ready,
-            "activation_count": activation_count,
-            "diagnosis_count": diagnosis_count,
-            "test_plan_count": test_plan_count,
-            "non_synthetic_activations": non_synthetic_count,
-            "external_verifications": external_verification_count,
-            "last_run_id": neuron.get("last_run_id"),
-            "blockers": blockers,
-            "required_human_decision": True,
-            "policy": "readiness_only_no_auto_stable",
-        })
+        rows.append(
+            {
+                "name": neuron.get("name"),
+                "neuron_id": neuron.get("neuron_id"),
+                "status": neuron.get("status"),
+                "domain": neuron.get("domain"),
+                "ready_for_stable_review": ready,
+                "activation_count": activation_count,
+                "diagnosis_count": diagnosis_count,
+                "test_plan_count": test_plan_count,
+                "non_synthetic_activations": non_synthetic_count,
+                "external_verifications": external_verification_count,
+                "last_run_id": neuron.get("last_run_id"),
+                "blockers": blockers,
+                "required_human_decision": True,
+                "policy": "readiness_only_no_auto_stable",
+            }
+        )
 
     summary = {
         "neurons_evaluated": len(rows),
@@ -123,7 +134,9 @@ def write_stable_readiness_report(
     limit: int = 300,
     thresholds: dict[str, int] | None = None,
 ) -> dict[str, Any]:
-    report = evaluate_stable_readiness(runs_dir=runs_dir, limit=limit, thresholds=thresholds)
+    report = evaluate_stable_readiness(
+        runs_dir=runs_dir, limit=limit, thresholds=thresholds
+    )
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

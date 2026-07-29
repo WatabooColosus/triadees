@@ -22,14 +22,37 @@ def test_qualia_api_endpoints_use_real_store(tmp_path: Path, monkeypatch) -> Non
     monkeypatch.setattr(routes_api, "QualiaStore", StoreFactory())
     monkeypatch.setattr(routes_api, "QualiaBus", BusFactory())
     client = TestClient(app)
-    response = client.post("/qualia/publish-test", json={"run_id": "run-api", "proposed_learning": "Aprender vía API Qualia."})
+    response = client.post(
+        "/qualia/publish-test",
+        json={"run_id": "run-api", "proposed_learning": "Aprender vía API Qualia."},
+    )
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert client.get("/qualia/experiences", params={"run_id": "run-api"}).json()["count"] == 1
-    assert client.get("/qualia/signals", params={"run_id": "run-api"}).json()["count"] == 1
-    assert client.get("/qualia/central-packets", params={"run_id": "run-api"}).json()["count"] == 1
-    assert client.get("/qualia/storage-packets", params={"run_id": "run-api"}).json()["count"] == 1
-    assert client.get("/qualia/state", params={"run_id": "run-api"}).json()["latest_state"]["run_id"] == "run-api"
+    assert (
+        client.get("/qualia/experiences", params={"run_id": "run-api"}).json()["count"]
+        == 1
+    )
+    assert (
+        client.get("/qualia/signals", params={"run_id": "run-api"}).json()["count"] == 1
+    )
+    assert (
+        client.get("/qualia/central-packets", params={"run_id": "run-api"}).json()[
+            "count"
+        ]
+        == 1
+    )
+    assert (
+        client.get("/qualia/storage-packets", params={"run_id": "run-api"}).json()[
+            "count"
+        ]
+        == 1
+    )
+    assert (
+        client.get("/qualia/state", params={"run_id": "run-api"}).json()[
+            "latest_state"
+        ]["run_id"]
+        == "run-api"
+    )
 
 
 def test_qualia_api_state_empty(tmp_path: Path, monkeypatch) -> None:

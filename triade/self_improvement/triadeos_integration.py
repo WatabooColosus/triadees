@@ -6,7 +6,6 @@ import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any
 
 from triade.core.contracts import utc_now
 
@@ -90,7 +89,9 @@ class TriadeOSIntegration:
     """Integra el modification pipeline con TriadeOS para auto-mejora
     autónoma con ciclos, aprobación automática y supervisión."""
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
@@ -147,12 +148,20 @@ class TriadeOSIntegration:
                 auto_mode, approval_required, approved_by, status,
                 metadata_json, created_at)
                VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            (integration_id, proposal_id, cycle_id,
-             "detected" if not auto_approved else "auto_approved",
-             1 if auto_mode else 0, approval_required, approved_by,
-             "pending" if not auto_approved else "approved",
-             json.dumps({"risk_level": risk_level, "rule": approval_rule}, default=str),
-             now),
+            (
+                integration_id,
+                proposal_id,
+                cycle_id,
+                "detected" if not auto_approved else "auto_approved",
+                1 if auto_mode else 0,
+                approval_required,
+                approved_by,
+                "pending" if not auto_approved else "approved",
+                json.dumps(
+                    {"risk_level": risk_level, "rule": approval_rule}, default=str
+                ),
+                now,
+            ),
         )
 
         if auto_approved:
@@ -160,8 +169,14 @@ class TriadeOSIntegration:
                 """INSERT INTO triadeos_auto_approvals
                    (approval_id, integration_id, rule, reason, auto_approved, created_at)
                    VALUES (?,?,?,?,?,?)""",
-                (_gen_id("aapp"), integration_id, approval_rule,
-                 f"Auto-approved by rule: {approval_rule}", 1, now),
+                (
+                    _gen_id("aapp"),
+                    integration_id,
+                    approval_rule,
+                    f"Auto-approved by rule: {approval_rule}",
+                    1,
+                    now,
+                ),
             )
 
         self._conn.commit()
@@ -194,14 +209,21 @@ class TriadeOSIntegration:
                SET finished_at=?, status='completed',
                    summary_json=?
                WHERE cycle_id=?""",
-            (now, json.dumps({"total": len(mods), "completed": completed,
-                              "failed": failed}, default=str), cycle_id),
+            (
+                now,
+                json.dumps(
+                    {"total": len(mods), "completed": completed, "failed": failed},
+                    default=str,
+                ),
+                cycle_id,
+            ),
         )
         self._conn.commit()
         return {
             "cycle_id": cycle_id,
             "total_modifications": len(mods),
-            "completed": completed, "failed": failed,
+            "completed": completed,
+            "failed": failed,
         }
 
     def pending_approvals(self) -> list[dict]:
@@ -246,9 +268,7 @@ class TriadeOSIntegration:
         steps = ["lint", "test", "canary", "deploy"]
         passed = 0
         failed = 0
-        current_phase = "lint"
         for step in steps:
-            current_phase = step
             passed += 1
 
         self._conn.execute(
@@ -256,12 +276,27 @@ class TriadeOSIntegration:
                (ci_id, proposal_id, phase, status, steps_json,
                 passed, failed, started_at, finished_at)
                VALUES (?,?,?,?,?,?,?,?,?)""",
-            (ci_id, proposal_id, "completed", "passed",
-             json.dumps(steps, default=str), passed, failed, now, utc_now()),
+            (
+                ci_id,
+                proposal_id,
+                "completed",
+                "passed",
+                json.dumps(steps, default=str),
+                passed,
+                failed,
+                now,
+                utc_now(),
+            ),
         )
         self._conn.commit()
-        return {"ci_id": ci_id, "proposal_id": proposal_id,
-                "status": "passed", "steps": steps, "passed": passed, "failed": failed}
+        return {
+            "ci_id": ci_id,
+            "proposal_id": proposal_id,
+            "status": "passed",
+            "steps": steps,
+            "passed": passed,
+            "failed": failed,
+        }
 
     def canary_deploy(self, proposal_id: str, pct: float = 10.0) -> dict:
         """Canary deployment: deploy to a percentage of traffic."""
@@ -275,24 +310,32 @@ class TriadeOSIntegration:
             (ci_id, proposal_id, "canary", "deployed", pct, 1, now, now),
         )
         self._conn.commit()
-        return {"ci_id": ci_id, "proposal_id": proposal_id,
-                "canary_pct": pct, "rollback_available": True}
+        return {
+            "ci_id": ci_id,
+            "proposal_id": proposal_id,
+            "canary_pct": pct,
+            "rollback_available": True,
+        }
 
     def snapshot_for_rollback(self, proposal_id: str, files: list[str]) -> dict:
         """Snapshot files before modification for rollback."""
         snap_id = _gen_id("rbsnap")
         import hashlib
+
         checksum = hashlib.md5(json.dumps(sorted(files)).encode()).hexdigest()
         self._conn.execute(
             """INSERT INTO triadeos_rollback_snapshots
                (snapshot_id, proposal_id, files_json, checksum, created_at)
                VALUES (?,?,?,?,?)""",
-            (snap_id, proposal_id, json.dumps(files, default=str),
-             checksum, utc_now()),
+            (snap_id, proposal_id, json.dumps(files, default=str), checksum, utc_now()),
         )
         self._conn.commit()
-        return {"snapshot_id": snap_id, "proposal_id": proposal_id,
-                "files_count": len(files), "checksum": checksum}
+        return {
+            "snapshot_id": snap_id,
+            "proposal_id": proposal_id,
+            "files_count": len(files),
+            "checksum": checksum,
+        }
 
     def rollback_to_snapshot(self, snapshot_id: str) -> dict:
         """Rollback to a previous snapshot."""
@@ -302,8 +345,12 @@ class TriadeOSIntegration:
         ).fetchone()
         if not row:
             return {"error": "snapshot not found"}
-        return {"snapshot_id": snapshot_id, "proposal_id": row["proposal_id"],
-                "restored": True, "files": json.loads(row["files_json"])}
+        return {
+            "snapshot_id": snapshot_id,
+            "proposal_id": row["proposal_id"],
+            "restored": True,
+            "files": json.loads(row["files_json"]),
+        }
 
     def ci_history(self, proposal_id: str | None = None, limit: int = 10) -> list[dict]:
         if proposal_id:
@@ -319,11 +366,25 @@ class TriadeOSIntegration:
         return [dict(r) for r in rows]
 
     def doctor(self) -> dict:
-        total_mods = self._conn.execute("SELECT COUNT(*) as c FROM triadeos_modifications").fetchone()["c"]
-        total_cycles = self._conn.execute("SELECT COUNT(*) as c FROM triadeos_cycles").fetchone()["c"]
-        auto_approved = self._conn.execute("SELECT COUNT(*) as c FROM triadeos_auto_approvals").fetchone()["c"]
-        ci_runs = self._conn.execute("SELECT COUNT(*) as c FROM triadeos_ci_runs").fetchone()["c"]
-        snapshots = self._conn.execute("SELECT COUNT(*) as c FROM triadeos_rollback_snapshots").fetchone()["c"]
-        return {"total_modifications": total_mods, "total_cycles": total_cycles,
-                "auto_approvals": auto_approved, "ci_runs": ci_runs,
-                "rollback_snapshots": snapshots}
+        total_mods = self._conn.execute(
+            "SELECT COUNT(*) as c FROM triadeos_modifications"
+        ).fetchone()["c"]
+        total_cycles = self._conn.execute(
+            "SELECT COUNT(*) as c FROM triadeos_cycles"
+        ).fetchone()["c"]
+        auto_approved = self._conn.execute(
+            "SELECT COUNT(*) as c FROM triadeos_auto_approvals"
+        ).fetchone()["c"]
+        ci_runs = self._conn.execute(
+            "SELECT COUNT(*) as c FROM triadeos_ci_runs"
+        ).fetchone()["c"]
+        snapshots = self._conn.execute(
+            "SELECT COUNT(*) as c FROM triadeos_rollback_snapshots"
+        ).fetchone()["c"]
+        return {
+            "total_modifications": total_mods,
+            "total_cycles": total_cycles,
+            "auto_approvals": auto_approved,
+            "ci_runs": ci_runs,
+            "rollback_snapshots": snapshots,
+        }

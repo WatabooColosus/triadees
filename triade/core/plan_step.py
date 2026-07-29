@@ -82,8 +82,17 @@ class PlanStep:
         return False
 
     def is_ready(self, completed_ids: set[str]) -> bool:
-        return self.status == "pending" and all(d in completed_ids for d in self.dependencies)
+        return self.status == "pending" and all(
+            d in completed_ids for d in self.dependencies
+        )
 
 
-STEP_TYPES = {"action", "analysis", "delegation", "verification", "rollback", "observation"}
+STEP_TYPES = {
+    "action",
+    "analysis",
+    "delegation",
+    "verification",
+    "rollback",
+    "observation",
+}
 STEP_STATUSES = {"pending", "running", "completed", "failed", "skipped"}

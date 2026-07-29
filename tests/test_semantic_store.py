@@ -13,13 +13,20 @@ MIGRATION = "triade/memory/migrations/001_9A_semantic_memory.sql"
 
 
 def store(tmp_path) -> SemanticMemoryStore:
-    return SemanticMemoryStore(db_path=tmp_path / "semantic.db", migration_path=MIGRATION)
+    return SemanticMemoryStore(
+        db_path=tmp_path / "semantic.db", migration_path=MIGRATION
+    )
 
 
 def test_semantic_store_initializes_tables(tmp_path) -> None:
     memory = store(tmp_path)
     with memory._connect() as conn:
-        tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        tables = {
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
 
     assert "semantic_documents" in tables
     assert "semantic_embeddings" in tables
@@ -54,7 +61,9 @@ def test_upsert_document_deduplicates_same_normalized_content(tmp_path) -> None:
 def test_store_embedding_validates_and_persists_vector(tmp_path) -> None:
     memory = store(tmp_path)
     document = memory.upsert_document("Documento para vector", domain="memory")
-    embedding = memory.store_embedding(document.document_id, "test-embedding", [0.3, 0.4])
+    embedding = memory.store_embedding(
+        document.document_id, "test-embedding", [0.3, 0.4]
+    )
     rows = memory.list_embeddings(document.document_id)
 
     assert embedding.dimensions == 2

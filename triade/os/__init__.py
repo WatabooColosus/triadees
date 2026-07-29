@@ -68,28 +68,34 @@ class TriadeOS:
 
         if self.config.event_engine_enabled:
             tasks = self.event_engine.scan()
-            result["actions"].append({
-                "type": "event_engine_scan",
-                "tasks_created": len(tasks),
-            })
+            result["actions"].append(
+                {
+                    "type": "event_engine_scan",
+                    "tasks_created": len(tasks),
+                }
+            )
 
         if self.config.scheduler_enabled:
             wakeups = self.neuron_scheduler.schedule_wakeups(
                 max_wakeups=self.config.max_wakeups_per_cycle,
             )
-            result["actions"].append({
-                "type": "neuron_schedule",
-                "wakeup_count": len(wakeups),
-                "wakeup_details": wakeups,
-            })
+            result["actions"].append(
+                {
+                    "type": "neuron_schedule",
+                    "wakeup_count": len(wakeups),
+                    "wakeup_details": wakeups,
+                }
+            )
 
         if self.config.knowledge_graph_enabled:
             self.knowledge_graph.propagate_confidence()
             contradictions = self.knowledge_graph.detect_contradictions()
-            result["actions"].append({
-                "type": "knowledge_graph_maintenance",
-                "contradictions_found": len(contradictions),
-            })
+            result["actions"].append(
+                {
+                    "type": "knowledge_graph_maintenance",
+                    "contradictions_found": len(contradictions),
+                }
+            )
 
         result["summary"] = self._build_summary(result["actions"])
         return result
@@ -150,7 +156,9 @@ def get_triadeos(db_path: str | Path = "triade/memory/triade.db") -> TriadeOS:
     return _triadeos
 
 
-def configure_triadeos(config: TriadeOSConfig, db_path: str | Path = "triade/memory/triade.db") -> TriadeOS:
+def configure_triadeos(
+    config: TriadeOSConfig, db_path: str | Path = "triade/memory/triade.db"
+) -> TriadeOS:
     global _triadeos
     _triadeos = TriadeOS(db_path=db_path, config=config)
     return _triadeos

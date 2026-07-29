@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from triade.memory.hypothalamus_store import HypothalamusStateStore, EmotionalState, mood_from_signals
+from triade.memory.hypothalamus_store import HypothalamusStateStore, EmotionalState
 from triade.models.ollama_client import OllamaClient
 from triade.hypothalamus.vice_virtue import ViceVirtueState
 from triade.hypothalamus.senses import SystemSenses, SystemSnapshot
@@ -122,7 +122,9 @@ class Hypothalamus:
             self.capture_system_senses()
         snapshot = self._last_snapshot or SystemSnapshot()
         cognitive = CognitiveLoad.compute_with_context(
-            snapshot, query_novelty=query_novelty, recent_confidence=recent_confidence,
+            snapshot,
+            query_novelty=query_novelty,
+            recent_confidence=recent_confidence,
         )
         self._last_cognitive = cognitive
         return cognitive
@@ -134,10 +136,9 @@ class Hypothalamus:
     def analyze(self, packet: InputPacket) -> SignalPacket:
         # PV-14: Capturar senses del sistema y calcular carga cognitiva
         try:
-            snapshot = self.capture_system_senses()
+            self.capture_system_senses()
             cognitive = self.compute_cognitive_load()
         except Exception:
-            snapshot = None
             cognitive = None
 
         current_mood = self.load_mood()
@@ -153,12 +154,15 @@ class Hypothalamus:
             if cognitive.curiosity > 0.5:
                 fallback.notes.append(f"Curiosidad alta: {cognitive.curiosity:.2f}")
             if cognitive.uncertainty > 0.5:
-                fallback.notes.append(f"Incertidumbre alta: {cognitive.uncertainty:.2f}")
+                fallback.notes.append(
+                    f"Incertidumbre alta: {cognitive.uncertainty:.2f}"
+                )
 
         # PV-14: Actualizar ViceVirtueState con decaimiento temporal
         if current_mood and current_mood.last_active_at:
             try:
                 from datetime import datetime, timezone
+
                 last = datetime.fromisoformat(current_mood.last_active_at)
                 now = datetime.now(timezone.utc)
                 elapsed = (now - last).total_seconds()
@@ -169,7 +173,9 @@ class Hypothalamus:
 
         # PV-14: Ajustar urgencia si carga cognitiva es alta
         if cognitive and cognitive.overall_load > 0.85 and fallback.urgency == "high":
-            fallback.notes.append("Carga cognitiva crítica: urgencia regulada por Hipotálamo.")
+            fallback.notes.append(
+                "Carga cognitiva crítica: urgencia regulada por Hipotálamo."
+            )
 
         if self.model_client is None:
             self.last_model_result = {
@@ -178,7 +184,9 @@ class Hypothalamus:
                 "ok": False,
                 "error": None,
             }
-            return self._save_and_return(packet.run_id, fallback, current_mood, packet.user_input)
+            return self._save_and_return(
+                packet.run_id, fallback, current_mood, packet.user_input
+            )
 
         system = (
             "Eres el Hipotálamo Emocional de Tríade. "
@@ -191,7 +199,9 @@ class Hypothalamus:
             "Analiza esta entrada del usuario y genera señales afectivo-cognitivas para Tríade.\n\n"
             f"Entrada: {packet.user_input}"
         )
-        result = self.model_client.generate(self.model_name, prompt=prompt, system=system)
+        result = self.model_client.generate(
+            self.model_name, prompt=prompt, system=system
+        )
 
         if not result.ok or not result.text:
             self.last_model_result = {
@@ -200,8 +210,12 @@ class Hypothalamus:
                 "ok": False,
                 "error": result.error,
             }
-            fallback.notes.append("Hipotálamo usó fallback por reglas porque Ollama no generó señales.")
-            return self._save_and_return(packet.run_id, fallback, current_mood, packet.user_input)
+            fallback.notes.append(
+                "Hipotálamo usó fallback por reglas porque Ollama no generó señales."
+            )
+            return self._save_and_return(
+                packet.run_id, fallback, current_mood, packet.user_input
+            )
 
         parsed = self._parse_model_json(result.text)
         if parsed is None:
@@ -211,8 +225,12 @@ class Hypothalamus:
                 "ok": False,
                 "error": "Respuesta del modelo no fue JSON válido para señales.",
             }
-            fallback.notes.append("Hipotálamo usó fallback por reglas porque el JSON del modelo no fue válido.")
-            return self._save_and_return(packet.run_id, fallback, current_mood, packet.user_input)
+            fallback.notes.append(
+                "Hipotálamo usó fallback por reglas porque el JSON del modelo no fue válido."
+            )
+            return self._save_and_return(
+                packet.run_id, fallback, current_mood, packet.user_input
+            )
 
         self.last_model_result = {
             "provider": "ollama",
@@ -228,19 +246,34 @@ class Hypothalamus:
             urgency=self._safe_urgency(parsed.get("urgency"), fallback.urgency),
             risk=self._safe_risk(parsed.get("risk"), fallback.risk),
             pv7=self._safe_pv7(parsed.get("pv7"), fallback.pv7),
-            notes=self._safe_notes(parsed.get("notes")) + ["Señales generadas por Hipotálamo con modelo local Ollama."],
+            notes=self._safe_notes(parsed.get("notes"))
+            + ["Señales generadas por Hipotálamo con modelo local Ollama."],
         )
-        return self._save_and_return(packet.run_id, signals, current_mood, packet.user_input)
+        return self._save_and_return(
+            packet.run_id, signals, current_mood, packet.user_input
+        )
 
-
-    def apply_qualia_signals(self, signals: SignalPacket, qualia_signals: list[dict[str, Any]], threshold: float = 0.65) -> SignalPacket:
+    def apply_qualia_signals(
+        self,
+        signals: SignalPacket,
+        qualia_signals: list[dict[str, Any]],
+        threshold: float = 0.65,
+    ) -> SignalPacket:
         """Modula señales de usuario con señales internas Qualia sin reemplazar análisis primario."""
-        relevant = [item for item in qualia_signals if isinstance(item, dict) and float(item.get("intensity") or 0.0) >= threshold]
+        relevant = [
+            item
+            for item in qualia_signals
+            if isinstance(item, dict)
+            and float(item.get("intensity") or 0.0) >= threshold
+        ]
         if not relevant:
             return signals
         max_risk = max(float(item.get("risk") or 0.0) for item in relevant)
         max_urgency = max(float(item.get("urgency") or 0.0) for item in relevant)
-        tone_hint = next((str(item.get("tone_hint")) for item in relevant if item.get("tone_hint")), signals.tone)
+        tone_hint = next(
+            (str(item.get("tone_hint")) for item in relevant if item.get("tone_hint")),
+            signals.tone,
+        )
 
         risk = signals.risk
         urgency = signals.urgency
@@ -270,7 +303,13 @@ class Hypothalamus:
             timestamp=signals.timestamp,
         )
 
-    def _save_and_return(self, run_id: str, signals: SignalPacket, previous_mood: EmotionalState | None, user_input: str = "") -> SignalPacket:
+    def _save_and_return(
+        self,
+        run_id: str,
+        signals: SignalPacket,
+        previous_mood: EmotionalState | None,
+        user_input: str = "",
+    ) -> SignalPacket:
         if self.state_store is not None:
             # PV-14: Preparar cognitive snapshot para persistencia
             cognitive_data = {}
@@ -279,7 +318,12 @@ class Hypothalamus:
             elif self._last_snapshot:
                 cognitive_data = self._last_snapshot.to_dict()
 
-            self.state_store.save(run_id, signals, previous=previous_mood, cognitive_snapshot=cognitive_data or None)
+            self.state_store.save(
+                run_id,
+                signals,
+                previous=previous_mood,
+                cognitive_snapshot=cognitive_data or None,
+            )
             self._cached_mood = self.state_store.load_latest()
             try:
                 self.state_store.learn_pattern(
@@ -293,7 +337,9 @@ class Hypothalamus:
                 pass
         return signals
 
-    def _analyze_rules(self, packet: InputPacket, mood: EmotionalState | None = None) -> SignalPacket:
+    def _analyze_rules(
+        self, packet: InputPacket, mood: EmotionalState | None = None
+    ) -> SignalPacket:
         text = packet.user_input.lower().strip()
 
         pattern = None
@@ -309,10 +355,33 @@ class Hypothalamus:
             risk = str(pattern.get("risk", "low"))
             tone = str(pattern.get("tone", "constructive"))
         else:
-            urgency = "high" if any(word in text for word in ["urgente", "ya", "rápido", "error", "falló"]) else "medium"
-            risk = "medium" if any(word in text for word in ["borrar", "eliminar", "credencial", "token", "contraseña"]) else "low"
+            urgency = (
+                "high"
+                if any(
+                    word in text
+                    for word in ["urgente", "ya", "rápido", "error", "falló"]
+                )
+                else "medium"
+            )
+            risk = (
+                "medium"
+                if any(
+                    word in text
+                    for word in [
+                        "borrar",
+                        "eliminar",
+                        "credencial",
+                        "token",
+                        "contraseña",
+                    ]
+                )
+                else "low"
+            )
 
-            if any(word in text for word in ["crea", "crear", "construye", "avanza", "actualiza"]):
+            if any(
+                word in text
+                for word in ["crea", "crear", "construye", "avanza", "actualiza"]
+            ):
                 intent = "build_or_update"
             elif any(word in text for word in ["analiza", "revisa", "audita"]):
                 intent = "analyze"
@@ -339,9 +408,13 @@ class Hypothalamus:
             "PV-7 inclinado hacia virtudes operativas.",
         ]
         if pattern and float(pattern.get("confidence", 0)) >= 0.7:
-            notes.append(f"Patrón aprendido utilizado (confianza={float(pattern.get('confidence', 0)):.2f}).")
+            notes.append(
+                f"Patrón aprendido utilizado (confianza={float(pattern.get('confidence', 0)):.2f})."
+            )
         if mood:
-            notes.append(f"Mood activo: {mood.primary_emotion} (fatiga={mood.fatigue:.2f})")
+            notes.append(
+                f"Mood activo: {mood.primary_emotion} (fatiga={mood.fatigue:.2f})"
+            )
 
         return SignalPacket(
             run_id=packet.run_id,
@@ -366,7 +439,9 @@ class Hypothalamus:
             return "constructive"
         return "constructive"
 
-    def _mood_modulate_pv7(self, base: dict[str, float], mood: EmotionalState | None) -> dict[str, float]:
+    def _mood_modulate_pv7(
+        self, base: dict[str, float], mood: EmotionalState | None
+    ) -> dict[str, float]:
         if mood is None:
             return base
         mod = MOOD_PV7_MODULATION.get(mood.primary_emotion, {})
@@ -413,7 +488,15 @@ class Hypothalamus:
     def _safe_pv7(value: Any, fallback: dict[str, float]) -> dict[str, float]:
         if not isinstance(value, dict):
             return fallback
-        keys = ["humildad", "generosidad", "respeto", "paciencia", "templanza", "caridad", "diligencia"]
+        keys = [
+            "humildad",
+            "generosidad",
+            "respeto",
+            "paciencia",
+            "templanza",
+            "caridad",
+            "diligencia",
+        ]
         safe: dict[str, float] = {}
         for key in keys:
             try:

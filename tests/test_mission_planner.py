@@ -6,7 +6,11 @@ import sqlite3
 from pathlib import Path
 
 from triade.workers.mission_planner import MissionPlanner, PlannedTask
-from triade.core.neuron_missions import NeuronEvidence, NeuronMission, NeuronMissionStore
+from triade.core.neuron_missions import (
+    NeuronEvidence,
+    NeuronMission,
+    NeuronMissionStore,
+)
 from triade.core.error_bus import query_internal_errors
 
 
@@ -55,7 +59,18 @@ def test_plan_pending_learning(tmp_path: Path) -> None:
             """INSERT INTO learning_queue
             (candidate_id, title, content, source_type, risk_level, confidence, status, domain, source_ref, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("cand-001", "Test candidate", "content here", "conversation", "low", 0.8, "candidate", "test", "run:001", "2026-01-01"),
+            (
+                "cand-001",
+                "Test candidate",
+                "content here",
+                "conversation",
+                "low",
+                0.8,
+                "candidate",
+                "test",
+                "run:001",
+                "2026-01-01",
+            ),
         )
     planner = MissionPlanner(db_path=db_path)
     tasks = planner.plan_cycle()
@@ -73,7 +88,18 @@ def test_plan_priority_ordering(tmp_path: Path) -> None:
                 """INSERT INTO learning_queue
                 (candidate_id, title, content, source_type, risk_level, confidence, status, domain, source_ref, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (f"cand-{i:03d}", f"Cand {i}", "content", "conversation", "low", 0.9 - i * 0.1, "candidate", "test", "run:001", "2026-01-01"),
+                (
+                    f"cand-{i:03d}",
+                    f"Cand {i}",
+                    "content",
+                    "conversation",
+                    "low",
+                    0.9 - i * 0.1,
+                    "candidate",
+                    "test",
+                    "run:001",
+                    "2026-01-01",
+                ),
             )
     planner = MissionPlanner(db_path=db_path)
     tasks = planner.plan_cycle()
@@ -84,17 +110,26 @@ def test_plan_priority_ordering(tmp_path: Path) -> None:
 def test_plan_active_missions(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
     store = NeuronMissionStore(db_path=db_path)
-    mission_id = store.create_mission(NeuronMission(
-        neuron_id=1,
-        title="Active mission",
-        mission="Test",
-        domain="test",
-        status="experimental",
-    ))
-    store.record_evidence(NeuronEvidence(
-        mission_id=mission_id, neuron_id=1, evidence_type="user_run",
-        source="user_run", content="Evidencia nueva", refs=["run:user"], score=0.8,
-    ))
+    mission_id = store.create_mission(
+        NeuronMission(
+            neuron_id=1,
+            title="Active mission",
+            mission="Test",
+            domain="test",
+            status="experimental",
+        )
+    )
+    store.record_evidence(
+        NeuronEvidence(
+            mission_id=mission_id,
+            neuron_id=1,
+            evidence_type="user_run",
+            source="user_run",
+            content="Evidencia nueva",
+            refs=["run:user"],
+            score=0.8,
+        )
+    )
     planner = MissionPlanner(db_path=db_path)
     tasks = planner.plan_cycle()
     mission_tasks = [t for t in tasks if t.task_type == "experimental_neuron_activity"]
@@ -124,7 +159,18 @@ def test_plan_respects_limit(tmp_path: Path) -> None:
                 """INSERT INTO learning_queue
                 (candidate_id, title, content, source_type, risk_level, confidence, status, domain, source_ref, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (f"cand-limit-{i:03d}", f"Cand {i}", "content", "conversation", "low", 0.5, "candidate", "test", "run:001", "2026-01-01"),
+                (
+                    f"cand-limit-{i:03d}",
+                    f"Cand {i}",
+                    "content",
+                    "conversation",
+                    "low",
+                    0.5,
+                    "candidate",
+                    "test",
+                    "run:001",
+                    "2026-01-01",
+                ),
             )
     planner = MissionPlanner(db_path=db_path)
     tasks = planner.plan_cycle()

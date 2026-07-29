@@ -14,7 +14,6 @@ import json
 import logging
 import sqlite3
 import time
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
@@ -103,8 +102,13 @@ CREATE TABLE IF NOT EXISTS scheduler_load_snapshots (
 
 
 class CircuitBreaker:
-    def __init__(self, component: str, threshold: int = 5, reset_timeout: float = 60.0,
-                 conn: sqlite3.Connection | None = None):
+    def __init__(
+        self,
+        component: str,
+        threshold: int = 5,
+        reset_timeout: float = 60.0,
+        conn: sqlite3.Connection | None = None,
+    ):
         self.component = component
         self.threshold = threshold
         self.reset_timeout = reset_timeout
@@ -158,7 +162,11 @@ class CircuitBreaker:
             )
         else:
             new_count = state.get("success_count", 0) + 1
-            new_state = "closed" if state["state"] == "half_open" and new_count >= 2 else state["state"]
+            new_state = (
+                "closed"
+                if state["state"] == "half_open" and new_count >= 2
+                else state["state"]
+            )
             self._conn.execute(
                 """UPDATE circuit_breakers
                    SET state=?, success_count=?, last_success_at=?
@@ -174,24 +182,39 @@ class CircuitBreaker:
         state = self._get_state()
         bid = state.get("breaker_id", "")
         new_count = state.get("failure_count", 0) + 1
-        new_state = "open" if new_count >= self.threshold else state.get("state", "closed")
+        new_state = (
+            "open" if new_count >= self.threshold else state.get("state", "closed")
+        )
         if not bid:
             bid = _gen_id("cb")
             self._conn.execute(
                 """INSERT INTO circuit_breakers
                    (breaker_id, component, state, failure_count, last_failure_at, opened_at, threshold)
                    VALUES (?,?,?,?,?,?,?)""",
-                (bid, self.component, new_state, new_count, now,
-                 now if new_state == "open" else None, self.threshold),
+                (
+                    bid,
+                    self.component,
+                    new_state,
+                    new_count,
+                    now,
+                    now if new_state == "open" else None,
+                    self.threshold,
+                ),
             )
         else:
             self._conn.execute(
                 """UPDATE circuit_breakers
                    SET state=?, failure_count=?, last_failure_at=?, opened_at=?
                    WHERE breaker_id=?""",
-                (new_state, new_count, now,
-                 now if new_state == "open" and state.get("state") != "open" else state.get("opened_at"),
-                 bid),
+                (
+                    new_state,
+                    new_count,
+                    now,
+                    now
+                    if new_state == "open" and state.get("state") != "open"
+                    else state.get("opened_at"),
+                    bid,
+                ),
             )
         self._conn.commit()
 
@@ -209,7 +232,9 @@ class TaskLease:
     def __init__(self, conn: sqlite3.Connection):
         self._conn = conn
 
-    def acquire(self, task_id: str, worker_id: str, ttl_seconds: float = 300.0) -> dict[str, Any]:
+    def acquire(
+        self, task_id: str, worker_id: str, ttl_seconds: float = 300.0
+    ) -> dict[str, Any]:
         now = utc_now()
         try:
             expires_ts = datetime.fromisoformat(now).timestamp() + ttl_seconds
@@ -223,7 +248,11 @@ class TaskLease:
             try:
                 exp_ts = datetime.fromisoformat(existing["expires_at"]).timestamp()
                 if time.time() < exp_ts:
-                    return {"acquired": False, "reason": "already_leased", "by": existing["worker_id"]}
+                    return {
+                        "acquired": False,
+                        "reason": "already_leased",
+                        "by": existing["worker_id"],
+                    }
             except Exception:
                 pass
         lease_id = _gen_id("lease")
@@ -265,12 +294,14 @@ class TaskLease:
                 exp_ts = datetime.fromisoformat(r["expires_at"]).timestamp()
                 if now_ts >= exp_ts:
                     self._conn.execute(
-                        "UPDATE task_leases SET status='expired' WHERE lease_id=?", (r["lease_id"],)
+                        "UPDATE task_leases SET status='expired' WHERE lease_id=?",
+                        (r["lease_id"],),
                     )
                     expired += 1
             except Exception:
                 self._conn.execute(
-                    "UPDATE task_leases SET status='expired' WHERE lease_id=?", (r["lease_id"],)
+                    "UPDATE task_leases SET status='expired' WHERE lease_id=?",
+                    (r["lease_id"],),
                 )
                 expired += 1
         self._conn.commit()
@@ -282,15 +313,23 @@ class AdvancedScheduler:
     circuit breaker, DLQ y balanceo de carga."""
 
     TASK_TYPES = [
-        "pulse_check", "pending_learning_review",
-        "semantic_memory_governance", "neuron_candidate_formation",
-        "experimental_neuron_activity", "neuron_autopromotion",
-        "federation_inbox_review", "memory_consolidation_review",
-        "stable_consolidation_review", "system_debt_scan",
-        "bodega_global_review", "shell_execute",
+        "pulse_check",
+        "pending_learning_review",
+        "semantic_memory_governance",
+        "neuron_candidate_formation",
+        "experimental_neuron_activity",
+        "neuron_autopromotion",
+        "federation_inbox_review",
+        "memory_consolidation_review",
+        "stable_consolidation_review",
+        "system_debt_scan",
+        "bodega_global_review",
+        "shell_execute",
     ]
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
@@ -316,7 +355,9 @@ class AdvancedScheduler:
             self._breakers[component] = CircuitBreaker(component, conn=self._conn)
         return self._breakers[component]
 
-    def acquire_lease(self, task_id: str, worker_id: str, ttl_seconds: float = 300.0) -> dict[str, Any]:
+    def acquire_lease(
+        self, task_id: str, worker_id: str, ttl_seconds: float = 300.0
+    ) -> dict[str, Any]:
         return self._leases.acquire(task_id, worker_id, ttl_seconds)
 
     def release_lease(self, task_id: str, worker_id: str) -> dict[str, Any]:
@@ -328,8 +369,13 @@ class AdvancedScheduler:
     def cleanup_expired_leases(self) -> int:
         return self._leases.cleanup_expired()
 
-    def retry_with_backoff(self, func, max_retries: int = 3, base_delay: float = 1.0,
-                            component: str = "default") -> Any:
+    def retry_with_backoff(
+        self,
+        func,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+        component: str = "default",
+    ) -> Any:
         breaker = self.get_breaker(component)
         if not breaker.allows_request:
             raise RuntimeError(f"Circuit breaker OPEN for {component}")
@@ -342,10 +388,19 @@ class AdvancedScheduler:
             except Exception as exc:
                 last_exc = exc
                 breaker.record_failure()
-                delay = base_delay * (2 ** attempt)
-                log.warning("Retry %d/%d for %s after %.1fs: %s", attempt + 1, max_retries, component, delay, exc)
+                delay = base_delay * (2**attempt)
+                log.warning(
+                    "Retry %d/%d for %s after %.1fs: %s",
+                    attempt + 1,
+                    max_retries,
+                    component,
+                    delay,
+                    exc,
+                )
                 time.sleep(delay)
-        raise last_exc or RuntimeError(f"All {max_retries} retries failed for {component}")
+        raise last_exc or RuntimeError(
+            f"All {max_retries} retries failed for {component}"
+        )
 
     def boost_priority(self, task_type: str, amount: int = 2) -> dict[str, Any]:
         self._conn.execute(
@@ -357,7 +412,9 @@ class AdvancedScheduler:
 
     def decay_priorities(self) -> int:
         now = utc_now()
-        rows = self._conn.execute("SELECT task_type, current_priority, base_priority, decay_rate FROM scheduler_priorities").fetchall()
+        rows = self._conn.execute(
+            "SELECT task_type, current_priority, base_priority, decay_rate FROM scheduler_priorities"
+        ).fetchall()
         updated = 0
         for r in rows:
             cur = r["current_priority"]
@@ -375,16 +432,21 @@ class AdvancedScheduler:
 
     def _get_priority(self, task_type: str) -> int:
         row = self._conn.execute(
-            "SELECT current_priority FROM scheduler_priorities WHERE task_type=?", (task_type,)
+            "SELECT current_priority FROM scheduler_priorities WHERE task_type=?",
+            (task_type,),
         ).fetchone()
         return row["current_priority"] if row else 10
 
     def get_all_priorities(self) -> list[dict[str, Any]]:
-        rows = self._conn.execute("SELECT * FROM scheduler_priorities ORDER BY current_priority DESC").fetchall()
+        rows = self._conn.execute(
+            "SELECT * FROM scheduler_priorities ORDER BY current_priority DESC"
+        ).fetchall()
         return [dict(r) for r in rows]
 
     def check_quota(self, task_type: str) -> dict[str, Any]:
-        row = self._conn.execute("SELECT * FROM scheduler_quotas WHERE task_type=?", (task_type,)).fetchone()
+        row = self._conn.execute(
+            "SELECT * FROM scheduler_quotas WHERE task_type=?", (task_type,)
+        ).fetchone()
         if not row:
             return {"allowed": True, "reason": "no quota"}
         q = dict(row)
@@ -394,9 +456,13 @@ class AdvancedScheduler:
         day_ok = q["used_day"] < q["max_per_day"]
         return {
             "allowed": hour_ok and day_ok,
-            "used_hour": q["used_hour"], "max_per_hour": q["max_per_hour"],
-            "used_day": q["used_day"], "max_per_day": q["max_per_day"],
-            "reason": "" if (hour_ok and day_ok) else ("hourly" if not hour_ok else "daily"),
+            "used_hour": q["used_hour"],
+            "max_per_hour": q["max_per_hour"],
+            "used_day": q["used_day"],
+            "max_per_day": q["max_per_day"],
+            "reason": ""
+            if (hour_ok and day_ok)
+            else ("hourly" if not hour_ok else "daily"),
         }
 
     def consume_quota(self, task_type: str) -> dict[str, Any]:
@@ -408,15 +474,35 @@ class AdvancedScheduler:
         return self.check_quota(task_type)
 
     def _maybe_reset(self, q: dict, now: str) -> None:
-        if q["used_hour"] > 0 and q["hour_reset_at"] and q["hour_reset_at"][:13] < now[:13]:
-            self._conn.execute("UPDATE scheduler_quotas SET used_hour=0, hour_reset_at=? WHERE task_type=?", (now, q["task_type"]))
-        if q["used_day"] > 0 and q["day_reset_at"] and q["day_reset_at"][:10] < now[:10]:
-            self._conn.execute("UPDATE scheduler_quotas SET used_day=0, day_reset_at=? WHERE task_type=?", (now, q["task_type"]))
+        if (
+            q["used_hour"] > 0
+            and q["hour_reset_at"]
+            and q["hour_reset_at"][:13] < now[:13]
+        ):
+            self._conn.execute(
+                "UPDATE scheduler_quotas SET used_hour=0, hour_reset_at=? WHERE task_type=?",
+                (now, q["task_type"]),
+            )
+        if (
+            q["used_day"] > 0
+            and q["day_reset_at"]
+            and q["day_reset_at"][:10] < now[:10]
+        ):
+            self._conn.execute(
+                "UPDATE scheduler_quotas SET used_day=0, day_reset_at=? WHERE task_type=?",
+                (now, q["task_type"]),
+            )
         self._conn.commit()
 
-    def heartbeat(self, worker_id: str, status: str = "active",
-                  tasks_running: int = 0, cpu_pct: float = 0.0,
-                  mem_mb: float = 0.0, metadata: dict | None = None) -> dict[str, Any]:
+    def heartbeat(
+        self,
+        worker_id: str,
+        status: str = "active",
+        tasks_running: int = 0,
+        cpu_pct: float = 0.0,
+        mem_mb: float = 0.0,
+        metadata: dict | None = None,
+    ) -> dict[str, Any]:
         now = utc_now()
         meta = json.dumps(metadata or {}, default=str)
         self._conn.execute(
@@ -425,15 +511,30 @@ class AdvancedScheduler:
                VALUES (?,?,?,?,?,?,?)
                ON CONFLICT(worker_id) DO UPDATE SET
                  last_heartbeat=?, status=?, tasks_running=?, cpu_pct=?, mem_mb=?, metadata_json=?""",
-            (worker_id, now, status, tasks_running, cpu_pct, mem_mb, meta,
-             now, status, tasks_running, cpu_pct, mem_mb, meta),
+            (
+                worker_id,
+                now,
+                status,
+                tasks_running,
+                cpu_pct,
+                mem_mb,
+                meta,
+                now,
+                status,
+                tasks_running,
+                cpu_pct,
+                mem_mb,
+                meta,
+            ),
         )
         self._conn.commit()
         return {"worker_id": worker_id, "heartbeat": now}
 
     def stale_workers(self, timeout_seconds: int = 120) -> list[dict[str, Any]]:
         now = time.time()
-        rows = self._conn.execute("SELECT * FROM worker_heartbeats WHERE status != 'stopped'").fetchall()
+        rows = self._conn.execute(
+            "SELECT * FROM worker_heartbeats WHERE status != 'stopped'"
+        ).fetchall()
         stale: list[dict[str, Any]] = []
         for r in rows:
             try:
@@ -445,24 +546,41 @@ class AdvancedScheduler:
         return stale
 
     def active_workers(self) -> list[dict[str, Any]]:
-        rows = self._conn.execute("SELECT * FROM worker_heartbeats WHERE status='active' ORDER BY last_heartbeat DESC").fetchall()
+        rows = self._conn.execute(
+            "SELECT * FROM worker_heartbeats WHERE status='active' ORDER BY last_heartbeat DESC"
+        ).fetchall()
         return [dict(r) for r in rows]
 
-    def send_to_dlq(self, task_id: str, task_type: str, payload: dict,
-                    failure_reason: str, attempts: int) -> dict[str, Any]:
+    def send_to_dlq(
+        self,
+        task_id: str,
+        task_type: str,
+        payload: dict,
+        failure_reason: str,
+        attempts: int,
+    ) -> dict[str, Any]:
         dlq_id = _gen_id("dlq")
         self._conn.execute(
             """INSERT INTO dead_letter_queue
                (dlq_id, task_id, task_type, payload_json, failure_reason, attempts, created_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (dlq_id, task_id, task_type, json.dumps(payload, default=str),
-             failure_reason, attempts, utc_now()),
+            (
+                dlq_id,
+                task_id,
+                task_type,
+                json.dumps(payload, default=str),
+                failure_reason,
+                attempts,
+                utc_now(),
+            ),
         )
         self._conn.commit()
         return {"dlq_id": dlq_id, "task_id": task_id, "reason": failure_reason}
 
     def resolve_dlq(self, dlq_id: str) -> dict[str, Any]:
-        self._conn.execute("UPDATE dead_letter_queue SET resolved=1 WHERE dlq_id=?", (dlq_id,))
+        self._conn.execute(
+            "UPDATE dead_letter_queue SET resolved=1 WHERE dlq_id=?", (dlq_id,)
+        )
         self._conn.commit()
         return {"dlq_id": dlq_id, "resolved": True}
 
@@ -479,7 +597,11 @@ class AdvancedScheduler:
         avg_cpu = sum(w.get("cpu_pct", 0) for w in workers) / max(n_workers, 1)
         avg_mem = sum(w.get("mem_mb", 0) for w in workers) / max(n_workers, 1)
         tasks_running = sum(w.get("tasks_running", 0) for w in workers)
-        load_score = _clamp((avg_cpu / 100.0) * 0.5 + (tasks_running / max(n_workers * 3, 1)) * 0.3 + (avg_mem / 30000.0) * 0.2)
+        load_score = _clamp(
+            (avg_cpu / 100.0) * 0.5
+            + (tasks_running / max(n_workers * 3, 1)) * 0.3
+            + (avg_mem / 30000.0) * 0.2
+        )
         snap_id = _gen_id("loadsnap")
         self._conn.execute(
             """INSERT INTO scheduler_load_snapshots
@@ -488,7 +610,11 @@ class AdvancedScheduler:
             (snap_id, n_workers, 0, tasks_running, round(load_score, 4), utc_now()),
         )
         self._conn.commit()
-        return {"worker_count": n_workers, "tasks_running": tasks_running, "load_score": round(load_score, 4)}
+        return {
+            "worker_count": n_workers,
+            "tasks_running": tasks_running,
+            "load_score": round(load_score, 4),
+        }
 
     def should_throttle(self) -> bool:
         return self.snapshot_load()["load_score"] > 0.85
@@ -505,12 +631,25 @@ class AdvancedScheduler:
         return scored[0][0]
 
     def doctor(self) -> dict[str, Any]:
-        priorities = self._conn.execute("SELECT COUNT(*) as c FROM scheduler_priorities").fetchone()["c"]
-        heartbeats = self._conn.execute("SELECT COUNT(*) as c FROM worker_heartbeats").fetchone()["c"]
-        dlq = self._conn.execute("SELECT COUNT(*) as c FROM dead_letter_queue WHERE resolved=0").fetchone()["c"]
-        leases = self._conn.execute("SELECT COUNT(*) as c FROM task_leases WHERE status='active'").fetchone()["c"]
-        breakers = self._conn.execute("SELECT COUNT(*) as c FROM circuit_breakers WHERE state='open'").fetchone()["c"]
+        priorities = self._conn.execute(
+            "SELECT COUNT(*) as c FROM scheduler_priorities"
+        ).fetchone()["c"]
+        heartbeats = self._conn.execute(
+            "SELECT COUNT(*) as c FROM worker_heartbeats"
+        ).fetchone()["c"]
+        dlq = self._conn.execute(
+            "SELECT COUNT(*) as c FROM dead_letter_queue WHERE resolved=0"
+        ).fetchone()["c"]
+        leases = self._conn.execute(
+            "SELECT COUNT(*) as c FROM task_leases WHERE status='active'"
+        ).fetchone()["c"]
+        breakers = self._conn.execute(
+            "SELECT COUNT(*) as c FROM circuit_breakers WHERE state='open'"
+        ).fetchone()["c"]
         return {
-            "priorities": priorities, "heartbeats": heartbeats,
-            "dlq_pending": dlq, "active_leases": leases, "open_breakers": breakers,
+            "priorities": priorities,
+            "heartbeats": heartbeats,
+            "dlq_pending": dlq,
+            "active_leases": leases,
+            "open_breakers": breakers,
         }

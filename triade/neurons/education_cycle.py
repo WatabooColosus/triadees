@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from triade.learning.evidence_bridge import LearningEvidenceBridge
+
 from .competency_store import CompetencyStore, utc_now
 from .curriculum import relevant_material, source_domain
 from .spaced_repetition import next_review_for
@@ -12,7 +14,9 @@ from .spaced_repetition import next_review_for
 
 class NeuronEducationCycle:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
+        self.db_path = Path(db_path)
         self.store = CompetencyStore(db_path)
+        self.evidence = LearningEvidenceBridge(db_path)
 
     def run_once(self) -> dict[str, Any]:
         target = self._target()
@@ -21,55 +25,123 @@ class NeuronEducationCycle:
         neuron_id = int(target["id"])
         domain = str(target["domain"] or "general")
         objective = str(target["mission"] or target["name"])
-        competency = self.store.ensure_competency(neuron_id, domain, f"competencia:{domain}")
-        curriculum = self.store.ensure_curriculum(neuron_id, target.get("mission_id"), domain, objective)
+        competency = self.store.ensure_competency(
+            neuron_id, domain, f"competencia:{domain}"
+        )
+        curriculum = self.store.ensure_curriculum(
+            neuron_id, target.get("mission_id"), domain, objective
+        )
         materials = relevant_material(self._candidate_materials(), objective, domain)
-        independent = len({source_domain(str(item["source_ref"])) for item in materials})
+        independent = len(
+            {source_domain(str(item["source_ref"])) for item in materials}
+        )
         refs = [str(item["source_ref"]) for item in materials]
         if independent < 2:
             result = "insufficient_material"
             session = self.store.record_session(
-                curriculum_id=str(curriculum["curriculum_id"]), neuron_id=neuron_id,
-                competency_id=str(competency["competency_id"]), state="material_insufficient",
-                material_refs=refs, independent_sources=independent,
-                lesson={"objective": objective, "status": "not_created"}, exercise={},
-                evaluation={"passed": False, "reason": "two_independent_relevant_sources_required"}, result=result,
+                curriculum_id=str(curriculum["curriculum_id"]),
+                neuron_id=neuron_id,
+                competency_id=str(competency["competency_id"]),
+                state="material_insufficient",
+                material_refs=refs,
+                independent_sources=independent,
+                lesson={"objective": objective, "status": "not_created"},
+                exercise={},
+                evaluation={
+                    "passed": False,
+                    "reason": "two_independent_relevant_sources_required",
+                },
+                result=result,
             )
             self._schedule(str(competency["competency_id"]), result, success=False)
-            return {"status": "needs_research", "learned": False, "neuron": target["name"],
-                    "domain": domain, "independent_sources": independent, "material_refs": refs, **session}
+            return {
+                "status": "needs_research",
+                "learned": False,
+                "neuron": target["name"],
+                "domain": domain,
+                "independent_sources": independent,
+                "material_refs": refs,
+                **session,
+            }
 
-        lesson = {"objective": objective, "claims": [str(item["content"])[:280] for item in materials[:3]],
-                  "candidate_ids": [str(item["candidate_id"]) for item in materials[:3]],
-                  "provenance": refs, "truth_status": "candidate"}
-        exercise = {"type": "retrieval_and_application", "prompt": f"Explica y aplica: {objective}",
-                    "evaluation_role": "independent_required"}
+        lesson = {
+            "objective": objective,
+            "claims": [str(item["content"])[:280] for item in materials[:3]],
+            "candidate_ids": [str(item["candidate_id"]) for item in materials[:3]],
+            "provenance": refs,
+            "truth_status": "candidate",
+        }
+        exercise = {
+            "type": "retrieval_and_application",
+            "prompt": f"Explica y aplica: {objective}",
+            "evaluation_role": "independent_required",
+        }
         session = self.store.record_session(
-            curriculum_id=str(curriculum["curriculum_id"]), neuron_id=neuron_id,
-            competency_id=str(competency["competency_id"]), state="lesson_prepared",
-            material_refs=refs, independent_sources=independent, lesson=lesson, exercise=exercise,
-            evaluation={"passed": False, "reason": "independent_evaluation_and_run_application_pending"},
+            curriculum_id=str(curriculum["curriculum_id"]),
+            neuron_id=neuron_id,
+            competency_id=str(competency["competency_id"]),
+            state="lesson_prepared",
+            material_refs=refs,
+            independent_sources=independent,
+            lesson=lesson,
+            exercise=exercise,
+            evaluation={
+                "passed": False,
+                "reason": "independent_evaluation_and_run_application_pending",
+            },
             result="uncertain",
         )
+        evidence_candidate_id = f"neuron-education:{session['session_id']}"
+        evidence = self.evidence.declare_hypothesis(
+            evidence_candidate_id,
+            hypothesis=f"La lección mejora la competencia de la neurona en {domain}",
+            capability=f"neuron:{neuron_id}:{domain}",
+            subject_id=str(neuron_id),
+            require_regression=True,
+        )
         self._schedule(str(competency["competency_id"]), "uncertain", success=False)
-        return {"status": "lesson_prepared", "learned": False, "neuron": target["name"], "domain": domain,
-                "independent_sources": independent, "material_refs": refs, **session}
+        return {
+            "status": "lesson_prepared",
+            "learned": False,
+            "neuron": target["name"],
+            "domain": domain,
+            "independent_sources": independent,
+            "material_refs": refs,
+            "learning_evidence_id": evidence.get("id"),
+            "learning_evidence_candidate_id": evidence_candidate_id,
+            "truth_status": "hypothesis_pending_independent_evaluation",
+            **session,
+        }
 
     def status(self) -> dict[str, Any]:
         with self.store.connect() as conn:
-            counts = {str(row["state"]): int(row["count"]) for row in conn.execute(
-                "SELECT state,COUNT(*) count FROM neuron_education_sessions GROUP BY state"
-            )}
-            recent = [dict(row) for row in conn.execute(
-                """SELECT session_id,neuron_id,state,independent_source_count,result,created_at
+            counts = {
+                str(row["state"]): int(row["count"])
+                for row in conn.execute(
+                    "SELECT state,COUNT(*) count FROM neuron_education_sessions GROUP BY state"
+                )
+            }
+            recent = [
+                dict(row)
+                for row in conn.execute(
+                    """SELECT session_id,neuron_id,state,independent_source_count,result,created_at
                 FROM neuron_education_sessions ORDER BY created_at DESC LIMIT 20"""
-            )]
-            due = int(conn.execute(
-                "SELECT COUNT(*) FROM neuron_competencies WHERE next_review IS NULL OR next_review<=?", (utc_now(),)
-            ).fetchone()[0])
-        return {"status": "ok", "mode": "governed_continuous_education", "session_counts": counts,
-                "due_competencies": due, "recent_sessions": recent,
-                "truth_policy": "learned_requires_independent_evaluation_run_application_and_measured_improvement"}
+                )
+            ]
+            due = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM neuron_competencies WHERE next_review IS NULL OR next_review<=?",
+                    (utc_now(),),
+                ).fetchone()[0]
+            )
+        return {
+            "status": "ok",
+            "mode": "governed_continuous_education",
+            "session_counts": counts,
+            "due_competencies": due,
+            "recent_sessions": recent,
+            "truth_policy": "learned_requires_independent_evaluation_run_application_and_measured_improvement",
+        }
 
     def _target(self) -> dict[str, Any] | None:
         with self.store.connect() as conn:
@@ -100,5 +172,12 @@ class NeuronEducationCycle:
             conn.execute(
                 """UPDATE neuron_competencies SET last_reviewed=?,next_review=?,
                 success_count=success_count+?,failure_count=failure_count+?,updated_at=? WHERE competency_id=?""",
-                (utc_now(), review, int(success), int(not success), utc_now(), competency_id),
+                (
+                    utc_now(),
+                    review,
+                    int(success),
+                    int(not success),
+                    utc_now(),
+                    competency_id,
+                ),
             )

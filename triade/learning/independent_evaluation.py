@@ -5,7 +5,6 @@ evaluación por desempeño, olvido y degradación controlados.
 from __future__ import annotations
 
 import json
-import math
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -13,7 +12,9 @@ from typing import Any, Literal
 
 from triade.core.contracts import utc_now
 
-EvaluationMode = Literal["spaced_retrieval", "contradiction_check", "performance", "forgetting"]
+EvaluationMode = Literal[
+    "spaced_retrieval", "contradiction_check", "performance", "forgetting"
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,12 +114,18 @@ class LearningEvaluator:
                 )"""
             )
 
-    def spaced_retrieval_register(self, item_id: str, content_hash: str) -> SpacedRetrievalItem:
+    def spaced_retrieval_register(
+        self, item_id: str, content_hash: str
+    ) -> SpacedRetrievalItem:
         now = utc_now()
         item = SpacedRetrievalItem(
-            item_id=item_id, content_hash=content_hash,
-            last_recalled_at=None, recall_count=0,
-            ease_factor=2.5, next_review_at=now, interval_days=1.0,
+            item_id=item_id,
+            content_hash=content_hash,
+            last_recalled_at=None,
+            recall_count=0,
+            ease_factor=2.5,
+            next_review_at=now,
+            interval_days=1.0,
         )
         with self._connect() as conn:
             conn.execute(
@@ -129,7 +136,9 @@ class LearningEvaluator:
             )
         return item
 
-    def spaced_retrieval_review(self, item_id: str, quality: float) -> SpacedRetrievalItem:
+    def spaced_retrieval_review(
+        self, item_id: str, quality: float
+    ) -> SpacedRetrievalItem:
         if not 0.0 <= quality <= 1.0:
             raise ValueError("quality debe estar entre 0.0 y 1.0")
         with self._connect() as conn:
@@ -150,53 +159,83 @@ class LearningEvaluator:
                 new_interval = 1.0
                 new_count = count
             from datetime import datetime, timedelta
+
             next_review = (datetime.utcnow() + timedelta(days=new_interval)).isoformat()
             conn.execute(
                 """UPDATE spaced_retrieval SET
                 last_recalled_at=?, recall_count=?, ease_factor=?,
                 next_review_at=?, interval_days=?
                 WHERE item_id=?""",
-                (utc_now(), new_count, round(new_ease, 3),
-                 next_review, round(new_interval, 2), item_id),
+                (
+                    utc_now(),
+                    new_count,
+                    round(new_ease, 3),
+                    next_review,
+                    round(new_interval, 2),
+                    item_id,
+                ),
             )
         return SpacedRetrievalItem(
-            item_id=item_id, content_hash=row["content_hash"],
-            last_recalled_at=utc_now(), recall_count=new_count,
-            ease_factor=round(new_ease, 3), next_review_at=next_review,
+            item_id=item_id,
+            content_hash=row["content_hash"],
+            last_recalled_at=utc_now(),
+            recall_count=new_count,
+            ease_factor=round(new_ease, 3),
+            next_review_at=next_review,
             interval_days=round(new_interval, 2),
         )
 
     def detect_contradiction(
-        self, knowledge_a: str, knowledge_b: str,
+        self,
+        knowledge_a: str,
+        knowledge_b: str,
         contradiction_type: str = "semantic",
         severity: str = "medium",
     ) -> ContradictionReport:
-        report_id = f"contradiction-{int(__import__('time').time()*1000)}"
+        report_id = f"contradiction-{int(__import__('time').time() * 1000)}"
         report = ContradictionReport(
-            report_id=report_id, knowledge_a=knowledge_a,
-            knowledge_b=knowledge_b, contradiction_type=contradiction_type,
-            severity=severity, resolution="pending", detected_at=utc_now(),
+            report_id=report_id,
+            knowledge_a=knowledge_a,
+            knowledge_b=knowledge_b,
+            contradiction_type=contradiction_type,
+            severity=severity,
+            resolution="pending",
+            detected_at=utc_now(),
         )
         with self._connect() as conn:
             conn.execute(
                 """INSERT INTO contradiction_reports
                 (report_id, knowledge_a, knowledge_b, contradiction_type, severity, resolution, detected_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (report_id, knowledge_a, knowledge_b, contradiction_type,
-                 severity, "pending", utc_now()),
+                (
+                    report_id,
+                    knowledge_a,
+                    knowledge_b,
+                    contradiction_type,
+                    severity,
+                    "pending",
+                    utc_now(),
+                ),
             )
         return report
 
     def evaluate_performance(
-        self, knowledge_id: str, score: float,
+        self,
+        knowledge_id: str,
+        score: float,
         evaluation_type: str = "retention",
         details: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         with self._connect() as conn:
             conn.execute(
                 "INSERT INTO performance_evaluations(knowledge_id, score, evaluation_type, details_json, evaluated_at) VALUES (?, ?, ?, ?, ?)",
-                (knowledge_id, score, evaluation_type,
-                 json.dumps(details or {}, ensure_ascii=False), utc_now()),
+                (
+                    knowledge_id,
+                    score,
+                    evaluation_type,
+                    json.dumps(details or {}, ensure_ascii=False),
+                    utc_now(),
+                ),
             )
         return {
             "knowledge_id": knowledge_id,
@@ -206,7 +245,9 @@ class LearningEvaluator:
         }
 
     def apply_forgetting(
-        self, item_id: str, reason: str = "decay",
+        self,
+        item_id: str,
+        reason: str = "decay",
         threshold: float = 0.1,
     ) -> ForgettingRecord | None:
         with self._connect() as conn:
@@ -220,8 +261,10 @@ class LearningEvaluator:
             if current_score > threshold:
                 return None
             record = ForgettingRecord(
-                item_id=item_id, original_strength=1.0,
-                current_strength=current_score, reason=reason,
+                item_id=item_id,
+                original_strength=1.0,
+                current_strength=current_score,
+                reason=reason,
                 forgotten_at=utc_now(),
             )
             conn.execute(
@@ -232,12 +275,18 @@ class LearningEvaluator:
 
     def doctor(self) -> dict[str, Any]:
         with self._connect() as conn:
-            sr = conn.execute("SELECT COUNT(*) as c FROM spaced_retrieval").fetchone()["c"]
+            sr = conn.execute("SELECT COUNT(*) as c FROM spaced_retrieval").fetchone()[
+                "c"
+            ]
             contradictions = conn.execute(
                 "SELECT COUNT(*) as c FROM contradiction_reports WHERE resolution='pending'"
             ).fetchone()["c"]
-            forgotten = conn.execute("SELECT COUNT(*) as c FROM forgetting_log").fetchone()["c"]
-            evaluations = conn.execute("SELECT COUNT(*) as c FROM performance_evaluations").fetchone()["c"]
+            forgotten = conn.execute(
+                "SELECT COUNT(*) as c FROM forgetting_log"
+            ).fetchone()["c"]
+            evaluations = conn.execute(
+                "SELECT COUNT(*) as c FROM performance_evaluations"
+            ).fetchone()["c"]
         return {
             "spaced_retrieval_items": sr,
             "pending_contradictions": contradictions,

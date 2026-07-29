@@ -16,8 +16,17 @@ REASONING_PREFERENCES = [
     "qwen2.5-coder:7b",
     "qwen2.5-coder:3b",
 ]
-EMBEDDING_PREFERENCES = ["nomic-embed-text:latest", "nomic-embed-text", "qwen3-embedding:0.6b"]
-CODER_PREFERENCES = ["qwen2.5-coder:7b", "qwen2.5-coder:3b", "deepseek-coder-v2:16b", "qwen2.5-coder:1.5b-base"]
+EMBEDDING_PREFERENCES = [
+    "nomic-embed-text:latest",
+    "nomic-embed-text",
+    "qwen3-embedding:0.6b",
+]
+CODER_PREFERENCES = [
+    "qwen2.5-coder:7b",
+    "qwen2.5-coder:3b",
+    "deepseek-coder-v2:16b",
+    "qwen2.5-coder:1.5b-base",
+]
 
 
 def check_ollama_blood(
@@ -61,7 +70,15 @@ def check_ollama_blood(
         recommended_action = "Iniciar Ollama para activar sangre cognitiva local."
     else:
         if not can_reason:
-            degraded_components.extend(["neuron_nutrition", "learning_evaluation", "stable_consolidation", "memory_contradiction_check", "worker_cycle"])
+            degraded_components.extend(
+                [
+                    "neuron_nutrition",
+                    "learning_evaluation",
+                    "stable_consolidation",
+                    "memory_contradiction_check",
+                    "worker_cycle",
+                ]
+            )
         if not can_embed:
             degraded_components.append("semantic_embedding")
         status = "ok" if not degraded_components else "degraded_missing_models"
@@ -138,7 +155,9 @@ def ollama_blood_policy(role: str, blood_status: dict[str, Any]) -> dict[str, An
         allowed_actions.extend(["respond"])
         if degraded:
             reason = "Permitido en fallback: respiración mínima sin sangre cognitiva completa."
-            blocked_actions.extend(["deep_reasoning", "learning_write", "stable_memory_write"])
+            blocked_actions.extend(
+                ["deep_reasoning", "learning_write", "stable_memory_write"]
+            )
     elif clean_role == "semantic_embedding":
         model_required = True
         allowed = can_embed
@@ -155,9 +174,16 @@ def ollama_blood_policy(role: str, blood_status: dict[str, Any]) -> dict[str, An
         degraded = not can_reason
         model_used = reasoning_model
         stable_write_allowed = False
-        allowed_actions.extend(["keyword_recall", "diagnose_superficial" if degraded else "model_reasoned_diagnosis"])
+        allowed_actions.extend(
+            [
+                "keyword_recall",
+                "diagnose_superficial" if degraded else "model_reasoned_diagnosis",
+            ]
+        )
         if degraded:
-            reason = "Bodega puede diagnosticar de forma degradada, sin escritura stable."
+            reason = (
+                "Bodega puede diagnosticar de forma degradada, sin escritura stable."
+            )
             blocked_actions.extend(["stable_memory_write", "strong_semantic_diagnosis"])
     elif clean_role in {"neuron_nutrition", "learning_evaluation"}:
         model_required = True
@@ -168,7 +194,14 @@ def ollama_blood_policy(role: str, blood_status: dict[str, Any]) -> dict[str, An
         else:
             degraded = True
             reason = "Requiere modelo razonador en Ollama Blood."
-            blocked_actions.extend(["diagnose_deep", "propose_learning", "learning_write", "stable_memory_write"])
+            blocked_actions.extend(
+                [
+                    "diagnose_deep",
+                    "propose_learning",
+                    "learning_write",
+                    "stable_memory_write",
+                ]
+            )
     elif clean_role == "memory_contradiction_check":
         model_required = True
         allowed = can_reason
@@ -177,7 +210,9 @@ def ollama_blood_policy(role: str, blood_status: dict[str, Any]) -> dict[str, An
             allowed_actions.extend(["strong_contradiction_check"])
         else:
             degraded = True
-            reason = "Requiere modelo razonador para diagnóstico fuerte de contradicciones."
+            reason = (
+                "Requiere modelo razonador para diagnóstico fuerte de contradicciones."
+            )
             blocked_actions.append("strong_contradiction_check")
     elif clean_role == "stable_consolidation":
         model_required = True
@@ -185,7 +220,9 @@ def ollama_blood_policy(role: str, blood_status: dict[str, Any]) -> dict[str, An
         model_used = reasoning_model
         stable_write_allowed = can_reason
         if allowed:
-            allowed_actions.extend(["review_gates", "stable_consolidation_if_external_gates_pass"])
+            allowed_actions.extend(
+                ["review_gates", "stable_consolidation_if_external_gates_pass"]
+            )
         else:
             degraded = True
             reason = "Consolidación stable requiere Ollama Blood o aprobación humana explícita."
@@ -194,10 +231,14 @@ def ollama_blood_policy(role: str, blood_status: dict[str, Any]) -> dict[str, An
         allowed = True
         model_used = reasoning_model
         degraded = not can_reason
-        allowed_actions.extend(["observe", "read_only"] if degraded else ["diagnose", "propose_learning"])
+        allowed_actions.extend(
+            ["observe", "read_only"] if degraded else ["diagnose", "propose_learning"]
+        )
         if degraded:
             reason = "Worker cycle degradado: solo observe/read-only."
-            blocked_actions.extend(["propose_learning", "stable_memory_write", "deep_diagnosis"])
+            blocked_actions.extend(
+                ["propose_learning", "stable_memory_write", "deep_diagnosis"]
+            )
     else:
         allowed = can_reason
         degraded = not can_reason
@@ -221,7 +262,9 @@ def ollama_blood_policy(role: str, blood_status: dict[str, Any]) -> dict[str, An
     }
 
 
-def _select_model(models: list[str], preferred: str | None, defaults: list[str]) -> str | None:
+def _select_model(
+    models: list[str], preferred: str | None, defaults: list[str]
+) -> str | None:
     installed = set(models)
     if preferred and preferred in installed:
         return preferred

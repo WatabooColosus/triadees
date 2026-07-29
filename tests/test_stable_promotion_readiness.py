@@ -17,7 +17,10 @@ def write_activity(run_path: Path, activation_count_marker: int = 1) -> None:
                 "name": "neurona-verifica-estado-actual",
                 "status": "experimental",
                 "domain": "federation_android_edge",
-                "match": {"active": True, "reasons": [f"test-{activation_count_marker}"]},
+                "match": {
+                    "active": True,
+                    "reasons": [f"test-{activation_count_marker}"],
+                },
                 "output": {
                     "diagnosis": ["d1", "d2"],
                     "test_plan": ["t1"],

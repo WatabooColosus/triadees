@@ -68,7 +68,9 @@ def _attach_improvement(pipeline: LearningPipeline, candidate_id: str) -> None:
 
 
 def test_pipeline_blocks_validation_without_measurement_evidence(tmp_path) -> None:
-    pipeline = LearningPipeline(db_path=tmp_path / "triade.db", enforce_model_policy=False)
+    pipeline = LearningPipeline(
+        db_path=tmp_path / "triade.db", enforce_model_policy=False
+    )
     candidate = pipeline.ingest(
         "Patrón operativo suficientemente detallado para evaluación.",
         source_type="repo",
@@ -91,7 +93,9 @@ def test_pipeline_blocks_validation_without_measurement_evidence(tmp_path) -> No
 
 
 def test_pipeline_promotes_only_with_improved_evidence(tmp_path) -> None:
-    pipeline = LearningPipeline(db_path=tmp_path / "triade.db", enforce_model_policy=False)
+    pipeline = LearningPipeline(
+        db_path=tmp_path / "triade.db", enforce_model_policy=False
+    )
     candidate = pipeline.ingest(
         "Patrón operativo suficientemente detallado para evaluación.",
         source_type="repo",
@@ -108,11 +112,16 @@ def test_pipeline_promotes_only_with_improved_evidence(tmp_path) -> None:
 
     assert promoted["status"] == "validated_in_runs"
     assert promoted["measurement_evidence"]["decision"] == "improved"
-    assert promoted["verification_notes"]["validated_in_runs"]["measurement_decision"] == "improved"
+    assert (
+        promoted["verification_notes"]["validated_in_runs"]["measurement_decision"]
+        == "improved"
+    )
 
 
 def test_pipeline_blocks_neutral_evidence(tmp_path) -> None:
-    pipeline = LearningPipeline(db_path=tmp_path / "triade.db", enforce_model_policy=False)
+    pipeline = LearningPipeline(
+        db_path=tmp_path / "triade.db", enforce_model_policy=False
+    )
     candidate = pipeline.ingest(
         "Patrón operativo suficientemente detallado para evaluación.",
         source_type="repo",

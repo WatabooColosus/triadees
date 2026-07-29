@@ -11,7 +11,12 @@ from typing import Any, Literal
 
 NodeState = Literal["pending", "trusted", "quarantined", "revoked"]
 VALID_STATES = {"pending", "trusted", "quarantined", "revoked"}
-VALID_PERMISSIONS = {"discover", "submit_work", "return_evidence", "read_public_capabilities"}
+VALID_PERMISSIONS = {
+    "discover",
+    "submit_work",
+    "return_evidence",
+    "read_public_capabilities",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,8 +31,17 @@ class FederatedNodeIdentity:
     trust_score: float = 0.0
 
     def __post_init__(self) -> None:
-        if not all((self.node_id.strip(), self.display_name.strip(), self.endpoint.strip(), self.public_key.strip())):
-            raise ValueError("node_id, display_name, endpoint y public_key son obligatorios")
+        if not all(
+            (
+                self.node_id.strip(),
+                self.display_name.strip(),
+                self.endpoint.strip(),
+                self.public_key.strip(),
+            )
+        ):
+            raise ValueError(
+                "node_id, display_name, endpoint y public_key son obligatorios"
+            )
         if self.state not in VALID_STATES:
             raise ValueError("state inválido")
         if not 0.0 <= float(self.trust_score) <= 1.0:
@@ -88,7 +102,9 @@ class FederatedNodeRegistry:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def register(self, identity: FederatedNodeIdentity, *, actor: str = "local-system") -> dict[str, Any]:
+    def register(
+        self, identity: FederatedNodeIdentity, *, actor: str = "local-system"
+    ) -> dict[str, Any]:
         payload = identity.to_dict()
         with self._connect() as conn:
             try:
@@ -106,7 +122,9 @@ class FederatedNodeRegistry:
                 )
             except sqlite3.IntegrityError as exc:
                 raise ValueError("node_id o clave pública ya registrados") from exc
-            self._event(conn, identity.node_id, "registered", actor, "registro inicial", payload)
+            self._event(
+                conn, identity.node_id, "registered", actor, "registro inicial", payload
+            )
         return payload
 
     def get(self, node_id: str) -> dict[str, Any] | None:
@@ -167,7 +185,11 @@ class FederatedNodeRegistry:
         if permission not in VALID_PERMISSIONS:
             return False
         node = self.get(node_id)
-        if node is None or node["state"] != "trusted" or float(node["trust_score"]) < 0.5:
+        if (
+            node is None
+            or node["state"] != "trusted"
+            or float(node["trust_score"]) < 0.5
+        ):
             return False
         return capability in node["capabilities"] and permission in node["permissions"]
 

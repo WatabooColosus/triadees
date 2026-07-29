@@ -26,7 +26,7 @@ def load_config(path: str | Path = "triade.yml") -> dict[str, Any]:
     This avoids adding PyYAML during the MVP. It supports the current nested
     key/value shape only. If parsing fails, defaults are returned.
     """
-    config = DEFAULT_CONFIG.copy()
+    DEFAULT_CONFIG.copy()
     file_path = Path(path)
     if not file_path.exists():
         return DEFAULT_CONFIG

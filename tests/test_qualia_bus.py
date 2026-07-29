@@ -40,7 +40,8 @@ def test_bus_deduplicates_learning_candidate(tmp_path: Path) -> None:
     assert result2["status"] == "ok"
     pipe = LearningPipeline(db_path=db)
     candidates = [
-        c for c in pipe.list_candidates(status="candidate", limit=50)
+        c
+        for c in pipe.list_candidates(status="candidate", limit=50)
         if c.get("source_ref") == f"qualia:{exp.id}"
     ]
     assert len(candidates) == 1

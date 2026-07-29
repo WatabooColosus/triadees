@@ -25,7 +25,10 @@ def test_contribution_packet_creation():
 
 
 def test_contribution_has_effect():
-    p = NeuronContributionPacket(neuron_status="experimental", allowed_effects=["observe", "diagnose", "propose_learning"])
+    p = NeuronContributionPacket(
+        neuron_status="experimental",
+        allowed_effects=["observe", "diagnose", "propose_learning"],
+    )
     assert p.has_effect("observe") is True
     assert p.has_effect("diagnose") is True
     assert p.has_effect("propose_learning") is True

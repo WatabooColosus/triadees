@@ -15,7 +15,6 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from triade.core.contracts import utc_now
 
 IsolationLevel = Literal["none", "restricted", "container"]
 
@@ -66,15 +65,23 @@ class SandboxPolicy:
 
     LEVEL_CONFIGS: dict[IsolationLevel, SandboxLimits] = {
         "none": SandboxLimits(
-            cpu_seconds=60, memory_mb=1024, max_pids=100,
-            timeout_seconds=60, network_allowed=False,
-            filesystem_writes_allowed=False, isolation_level="none",
+            cpu_seconds=60,
+            memory_mb=1024,
+            max_pids=100,
+            timeout_seconds=60,
+            network_allowed=False,
+            filesystem_writes_allowed=False,
+            isolation_level="none",
         ),
         "restricted": SANDBOX_DEFAULTS,
         "container": SandboxLimits(
-            cpu_seconds=30, memory_mb=512, max_pids=30,
-            timeout_seconds=30, network_allowed=False,
-            filesystem_writes_allowed=False, isolation_level="container",
+            cpu_seconds=30,
+            memory_mb=512,
+            max_pids=30,
+            timeout_seconds=30,
+            network_allowed=False,
+            filesystem_writes_allowed=False,
+            isolation_level="container",
         ),
     }
 
@@ -123,13 +130,15 @@ class SandboxPolicy:
                      stdout_preview, stderr_preview, duration_ms, executed_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
-                        execution.execution_id, execution.task_type,
+                        execution.execution_id,
+                        execution.task_type,
                         execution.command,
                         json.dumps(execution.limits.to_dict(), ensure_ascii=False),
                         1 if execution.success else 0,
                         execution.stdout_preview[:500],
                         execution.stderr_preview[:500],
-                        execution.duration_ms, execution.executed_at,
+                        execution.duration_ms,
+                        execution.executed_at,
                     ),
                 )
         except sqlite3.OperationalError:
@@ -165,7 +174,9 @@ class SandboxPolicy:
 
     def doctor(self) -> dict[str, Any]:
         with self._connect() as conn:
-            total = conn.execute("SELECT COUNT(*) as c FROM sandbox_replay").fetchone()["c"]
+            total = conn.execute("SELECT COUNT(*) as c FROM sandbox_replay").fetchone()[
+                "c"
+            ]
             successful = conn.execute(
                 "SELECT COUNT(*) as c FROM sandbox_replay WHERE success = 1"
             ).fetchone()["c"]

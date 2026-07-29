@@ -125,7 +125,9 @@ class ImprovementStore:
                 raise ValueError("la señal no está abierta")
             signal_payload = json.loads(signal["payload_json"])
             if signal_payload["capability_id"] != proposal.requested_capability:
-                raise ValueError("la propuesta no corresponde a la capacidad de la señal")
+                raise ValueError(
+                    "la propuesta no corresponde a la capacidad de la señal"
+                )
 
             open_count = conn.execute(
                 "SELECT COUNT(*) AS total FROM improvement_proposals WHERE status = 'open'"
@@ -141,7 +143,10 @@ class ImprovementStore:
             if latest and now - float(latest["created_at"]) < proposal.cooldown_seconds:
                 raise ValueError("la señal está dentro del periodo de cooldown")
 
-            if signal_payload["risk_level"] in {"high", "critical"} and not proposal.requires_human_approval:
+            if (
+                signal_payload["risk_level"] in {"high", "critical"}
+                and not proposal.requires_human_approval
+            ):
                 raise ValueError("el riesgo alto o crítico requiere aprobación humana")
 
             try:
@@ -149,11 +154,18 @@ class ImprovementStore:
                     """INSERT INTO improvement_proposals
                     (proposal_id, signal_id, status, payload_json, created_at)
                     VALUES (?, ?, 'open', ?, ?)""",
-                    (proposal.proposal_id, proposal.signal_id, json.dumps(payload, sort_keys=True), now),
+                    (
+                        proposal.proposal_id,
+                        proposal.signal_id,
+                        json.dumps(payload, sort_keys=True),
+                        now,
+                    ),
                 )
             except sqlite3.IntegrityError as exc:
                 raise ValueError("proposal_id ya registrado") from exc
-            self._history(conn, "proposal", proposal.proposal_id, "created", payload, now)
+            self._history(
+                conn, "proposal", proposal.proposal_id, "created", payload, now
+            )
         return {**payload, "status": "open"}
 
     def close_proposal(self, proposal_id: str, *, outcome: str) -> dict[str, Any]:
@@ -207,5 +219,11 @@ class ImprovementStore:
             """INSERT INTO improvement_history
             (entity_type, entity_id, action, payload_json, created_at)
             VALUES (?, ?, ?, ?, ?)""",
-            (entity_type, entity_id, action, json.dumps(payload, sort_keys=True), created_at),
+            (
+                entity_type,
+                entity_id,
+                action,
+                json.dumps(payload, sort_keys=True),
+                created_at,
+            ),
         )

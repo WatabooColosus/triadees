@@ -36,7 +36,9 @@ class WorkingMemory:
         self._items.append(item)
         self._prune()
 
-    def get_relevant(self, min_relevance: float = 0.0, limit: int = 5) -> list[WorkingMemoryItem]:
+    def get_relevant(
+        self, min_relevance: float = 0.0, limit: int = 5
+    ) -> list[WorkingMemoryItem]:
         sorted_items = sorted(
             [it for it in self._items if it.salience.relevance >= min_relevance],
             key=lambda x: (x.salience.relevance, x.timestamp),
@@ -61,7 +63,9 @@ class WorkingMemory:
         parts = []
         for item in relevant:
             label = item.source.replace("_", " ").title()
-            parts.append(f"[{label} (saliencia={item.salience.relevance:.2f})]: {item.text[:200]}")
+            parts.append(
+                f"[{label} (saliencia={item.salience.relevance:.2f})]: {item.text[:200]}"
+            )
         text = "\n".join(parts)
         if len(text) > max_chars:
             text = text[:max_chars] + "..."
@@ -70,8 +74,10 @@ class WorkingMemory:
     def _prune(self) -> None:
         if len(self._items) <= self.max_size:
             return
-        self._items.sort(key=lambda x: (x.salience.relevance, x.timestamp), reverse=True)
-        self._items = self._items[:self.max_size]
+        self._items.sort(
+            key=lambda x: (x.salience.relevance, x.timestamp), reverse=True
+        )
+        self._items = self._items[: self.max_size]
 
     def doctor(self) -> dict[str, Any]:
         return {

@@ -50,7 +50,13 @@ def output(run_id: str = "run-safety") -> OutputPacket:
     return OutputPacket(
         run_id=run_id,
         response="Respuesta verificable de prueba.",
-        memory_diff={"stored": True, "episode_id": 1, "signal_id": 1, "crystal_id": 1, "safety_id": 1},
+        memory_diff={
+            "stored": True,
+            "episode_id": 1,
+            "signal_id": 1,
+            "crystal_id": 1,
+            "safety_id": 1,
+        },
     )
 
 
@@ -74,7 +80,9 @@ def test_safety_auto_approves_tools_during_degradation() -> None:
     assert safety.status == "approved_with_warning"
     assert safety.human_approval_required is False
     assert "cognitive_temporal" in safety.risk_types
-    assert any("precaución automatizada" in control for control in safety.required_controls)
+    assert any(
+        "precaución automatizada" in control for control in safety.required_controls
+    )
 
 
 def test_safety_raises_level_on_critical_crystal() -> None:

@@ -1,6 +1,5 @@
 """T-021 — Dashboard API: endpoints para todos los subsistemas de Tríade Ω."""
 
-import json
 from fastapi import APIRouter, HTTPException
 from triade.core.contracts import utc_now
 
@@ -16,20 +15,32 @@ def dashboard_status():
         "version": "1.0.0",
         "timestamp": utc_now(),
         "subsystems": {
-            "central": {"status": "active", "description": "Planificación y razonamiento"},
-            "hypothalamus": {"status": "active", "description": "Regulación emocional y prioridades"},
+            "central": {
+                "status": "active",
+                "description": "Planificación y razonamiento",
+            },
+            "hypothalamus": {
+                "status": "active",
+                "description": "Regulación emocional y prioridades",
+            },
             "crystal": {"status": "active", "description": "Identidad y continuidad"},
             "qualia": {"status": "active", "description": "Experiencia y significado"},
             "bodega": {"status": "active", "description": "Memoria y conocimiento"},
             "scheduler": {"status": "active", "description": "Ejecución de trabajo"},
             "workers": {"status": "active", "description": "Procesamiento paralelo"},
-            "neuron_factory": {"status": "active", "description": "Creación de neuronas"},
+            "neuron_factory": {
+                "status": "active",
+                "description": "Creación de neuronas",
+            },
             "learning": {"status": "active", "description": "Pipeline de aprendizaje"},
             "federation": {"status": "active", "description": "Multi-nodo"},
             "constitution": {"status": "active", "description": "Gobernanza"},
             "monitor": {"status": "active", "description": "Monitoreo del sistema"},
             "models": {"status": "active", "description": "Router de modelos"},
-            "triadeos": {"status": "active", "description": "Sistema operativo cognitivo"},
+            "triadeos": {
+                "status": "active",
+                "description": "Sistema operativo cognitivo",
+            },
         },
     }
 
@@ -40,6 +51,7 @@ def dashboard_metrics():
     metrics = {"timestamp": utc_now()}
     try:
         from triade.core.system_monitor import SystemMonitor
+
         mon = SystemMonitor()
         snap = mon.latest_snapshot()
         if snap:
@@ -55,6 +67,7 @@ def dashboard_metrics():
 
     try:
         from triade.workers.advanced_scheduler import AdvancedScheduler
+
         sch = AdvancedScheduler()
         metrics["scheduler"] = sch.doctor()
     except Exception:
@@ -62,6 +75,7 @@ def dashboard_metrics():
 
     try:
         from triade.constitution.enforcer import ConstitutionEnforcer
+
         ce = ConstitutionEnforcer()
         metrics["constitution"] = ce.doctor()
     except Exception:
@@ -76,26 +90,57 @@ def subsystem_status(name: str):
     try:
         if name == "central":
             from triade.core.central import Central
-            c = Central()
+
+            Central()
             return {"subsystem": "central", "status": "active", "info": {}}
         elif name == "scheduler":
             from triade.workers.advanced_scheduler import AdvancedScheduler
-            return {"subsystem": "scheduler", "status": "active", "info": AdvancedScheduler().doctor()}
+
+            return {
+                "subsystem": "scheduler",
+                "status": "active",
+                "info": AdvancedScheduler().doctor(),
+            }
         elif name == "constitution":
             from triade.constitution.enforcer import ConstitutionEnforcer
-            return {"subsystem": "constitution", "status": "active", "info": ConstitutionEnforcer().doctor()}
+
+            return {
+                "subsystem": "constitution",
+                "status": "active",
+                "info": ConstitutionEnforcer().doctor(),
+            }
         elif name == "monitor":
             from triade.core.system_monitor import SystemMonitor
-            return {"subsystem": "monitor", "status": "active", "info": SystemMonitor().doctor()}
+
+            return {
+                "subsystem": "monitor",
+                "status": "active",
+                "info": SystemMonitor().doctor(),
+            }
         elif name == "federation":
             from triade.federation.federation_advanced import FederationAdvanced
-            return {"subsystem": "federation", "status": "active", "info": FederationAdvanced().doctor()}
+
+            return {
+                "subsystem": "federation",
+                "status": "active",
+                "info": FederationAdvanced().doctor(),
+            }
         elif name == "models":
             from triade.models.smart_router import SmartModelRouter
-            return {"subsystem": "models", "status": "active", "info": SmartModelRouter().doctor()}
+
+            return {
+                "subsystem": "models",
+                "status": "active",
+                "info": SmartModelRouter().doctor(),
+            }
         elif name == "neuron_factory":
             from triade.neuron_factory.training import TrainingPipeline
-            return {"subsystem": "neuron_factory", "status": "active", "info": TrainingPipeline().doctor()}
+
+            return {
+                "subsystem": "neuron_factory",
+                "status": "active",
+                "info": TrainingPipeline().doctor(),
+            }
         else:
             raise HTTPException(status_code=404, detail=f"Unknown subsystem: {name}")
     except HTTPException:
@@ -109,6 +154,7 @@ def constitution_status():
     """Status de la constitución y violaciones."""
     try:
         from triade.constitution.enforcer import ConstitutionEnforcer
+
         ce = ConstitutionEnforcer()
         return {
             "doctor": ce.doctor(),
@@ -124,6 +170,7 @@ def pulse_status():
     """Pulso del sistema: heartbeat y métricas en tiempo real."""
     try:
         from triade.core.system_monitor import SystemMonitor
+
         mon = SystemMonitor()
         snap = mon.latest_snapshot()
         return {"pulse": "active", "last_snapshot": snap, "timestamp": utc_now()}
@@ -136,12 +183,18 @@ def hypothalamus_status():
     """Hipotálamo: regulación emocional y prioridades."""
     try:
         from triade.hypothalamus.vice_virtue import ViceVirtueState
+
         vvs = ViceVirtueState()
         virtue_name, virtue_score = vvs.dominant_virtue
         sin_name, sin_score = vvs.dominant_sin
-        return {"subsystem": "hypothalamus", "status": "active",
-                "dominant_virtue": virtue_name, "virtue_score": virtue_score,
-                "dominant_sin": sin_name, "sin_score": sin_score}
+        return {
+            "subsystem": "hypothalamus",
+            "status": "active",
+            "dominant_virtue": virtue_name,
+            "virtue_score": virtue_score,
+            "dominant_sin": sin_name,
+            "sin_score": sin_score,
+        }
     except Exception as e:
         return {"subsystem": "hypothalamus", "status": "error", "error": str(e)}
 
@@ -151,6 +204,7 @@ def crystal_status():
     """Cristal: identidad y continuidad."""
     try:
         from triade.qualia.continuity import ContinuityEngine
+
         ce = ContinuityEngine()
         return {"subsystem": "crystal", "status": "active", "doctor": ce.doctor()}
     except Exception as e:
@@ -162,6 +216,7 @@ def bodega_status():
     """Bodega: memoria y conocimiento."""
     try:
         from triade.memory.semantic_store import SemanticMemoryStore
+
         ss = SemanticMemoryStore()
         return {"subsystem": "bodega", "status": "active", "doctor": ss.doctor()}
     except Exception as e:
@@ -173,6 +228,7 @@ def workers_status():
     """Workers: procesamiento paralelo."""
     try:
         from triade.workers.worker_supervisor import WorkerSupervisor
+
         ws = WorkerSupervisor()
         return {"subsystem": "workers", "status": "active", "doctor": ws.doctor()}
     except Exception as e:
@@ -184,9 +240,13 @@ def recursos_status():
     """Recursos: compartidos entre nodos."""
     try:
         from triade.federation.federation_advanced import FederationAdvanced
+
         fed = FederationAdvanced()
-        return {"subsystem": "recursos", "status": "active",
-                "resources": fed.available_resources()}
+        return {
+            "subsystem": "recursos",
+            "status": "active",
+            "resources": fed.available_resources(),
+        }
     except Exception as e:
         return {"subsystem": "recursos", "status": "error", "error": str(e)}
 
@@ -196,6 +256,7 @@ def learning_status():
     """Aprendizaje: pipeline de aprendizaje continuo."""
     try:
         from triade.learning.causal_learning import CausalLearningEngine
+
         cle = CausalLearningEngine()
         return {"subsystem": "learning", "status": "active", "doctor": cle.doctor()}
     except Exception as e:
@@ -213,10 +274,15 @@ def events_status():
     """Eventos del sistema: event engine y reglas activas."""
     try:
         from triade.os.event_engine import EventEngine
+
         ee = EventEngine()
-        rules = ee.get_rules() if hasattr(ee, 'get_rules') else []
-        return {"subsystem": "events", "status": "active",
-                "rules_count": len(rules), "doctor": ee.doctor()}
+        rules = ee.get_rules() if hasattr(ee, "get_rules") else []
+        return {
+            "subsystem": "events",
+            "status": "active",
+            "rules_count": len(rules),
+            "doctor": ee.doctor(),
+        }
     except Exception as e:
         return {"subsystem": "events", "status": "error", "error": str(e)}
 
@@ -228,18 +294,21 @@ def audit_status():
         audit_data = {}
         try:
             from triade.constitution.enforcer import ConstitutionEnforcer
+
             ce = ConstitutionEnforcer()
             audit_data["constitution"] = ce.doctor()
         except Exception:
             pass
         try:
             from triade.sandbox.enhanced_tool_registry import EnhancedToolRegistry
+
             etr = EnhancedToolRegistry()
             audit_data["tool_audit"] = etr.audit_log(limit=20)
         except Exception:
             pass
         try:
             from triade.memory.replacement_tracker import ReplacementTracker
+
             rt = ReplacementTracker()
             audit_data["replacements"] = rt.rollback_history(limit=20)
         except Exception:

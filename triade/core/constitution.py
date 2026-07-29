@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -147,7 +147,8 @@ class Constitution:
     def _checksum(self) -> str:
         content = json.dumps(
             [{"id": a.article_id, "title": a.title, "text": a.text} for a in ARTICLES],
-            sort_keys=True, ensure_ascii=False,
+            sort_keys=True,
+            ensure_ascii=False,
         )
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
@@ -177,8 +178,18 @@ class Constitution:
         # Cualquier operación que afecte identity_core requiere aprobación explícita.
         # Se verifica con prefijos de acción concretos, no con substrings genéricos.
         if target_lower == "identity_core" or target_lower.startswith("identity_core."):
-            action_prefixes = ("modify", "update", "change", "replace", "delete", "overwrite")
-            if any(op_lower.startswith(prefix) or f".{prefix}" in op_lower for prefix in action_prefixes):
+            action_prefixes = (
+                "modify",
+                "update",
+                "change",
+                "replace",
+                "delete",
+                "overwrite",
+            )
+            if any(
+                op_lower.startswith(prefix) or f".{prefix}" in op_lower
+                for prefix in action_prefixes
+            ):
                 violations.append(
                     "Artículo I: Modificación de identity_core requiere aprobación humana explícita y rollback obligatorio."
                 )
@@ -196,7 +207,9 @@ class Constitution:
             )
 
         # Artículo VI: Shell explícita está prohibida.
-        if "shell" in op_lower or ("exec" in op_lower and "exec_python" not in op_lower):
+        if "shell" in op_lower or (
+            "exec" in op_lower and "exec_python" not in op_lower
+        ):
             violations.append("Artículo VI: Ejecución shell=True prohibida.")
 
         return {

@@ -19,6 +19,7 @@ from triade.core.contracts import utc_now
 def _new_qualia_id(prefix: str = "qpacket") -> str:
     import hashlib
     import time
+
     return f"{prefix}-{int(time.time() * 1000)}-{hashlib.md5(str(time.time()).encode()).hexdigest()[:6]}"
 
 

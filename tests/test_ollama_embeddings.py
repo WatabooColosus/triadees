@@ -69,7 +69,10 @@ def test_embed_rejects_empty_input_without_http_call() -> None:
 
 def test_embed_reports_invalid_response() -> None:
     client = OllamaClient()
-    with patch("urllib.request.urlopen", return_value=FakeResponse({"model": "nomic-embed-text:latest"})):
+    with patch(
+        "urllib.request.urlopen",
+        return_value=FakeResponse({"model": "nomic-embed-text:latest"}),
+    ):
         result = client.embed("nomic-embed-text:latest", "Texto")
 
     assert result.ok is False

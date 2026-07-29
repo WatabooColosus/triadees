@@ -185,7 +185,9 @@ class FederatedEvidenceGate:
             raise ValueError("evidence.policies debe contener al menos una política")
         return tuple(MetricPolicy(**item) for item in payload)
 
-    def _apply_reputation(self, node_id: str, decision: str, *, report_id: str) -> tuple[float, float, str]:
+    def _apply_reputation(
+        self, node_id: str, decision: str, *, report_id: str
+    ) -> tuple[float, float, str]:
         node = self.registry.get(node_id)
         if node is None:
             raise KeyError(f"nodo no registrado: {node_id}")
@@ -205,7 +207,9 @@ class FederatedEvidenceGate:
         self._update_trust(node_id, after, decision=decision, report_id=report_id)
         return before, after, state
 
-    def _update_trust(self, node_id: str, score: float, *, decision: str, report_id: str) -> None:
+    def _update_trust(
+        self, node_id: str, score: float, *, decision: str, report_id: str
+    ) -> None:
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT payload_json FROM federated_nodes_v2 WHERE node_id = ?",

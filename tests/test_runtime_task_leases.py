@@ -44,7 +44,10 @@ def test_expired_lease_is_recovered_and_reclaimed(tmp_path):
     assert store.claim("dead-worker", lease_seconds=30)
     expired = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
     with sqlite3.connect(path) as conn:
-        conn.execute("UPDATE autonomous_tasks SET lease_expires_at=? WHERE task_id=?", (expired, task["task_id"]))
+        conn.execute(
+            "UPDATE autonomous_tasks SET lease_expires_at=? WHERE task_id=?",
+            (expired, task["task_id"]),
+        )
     assert store.recover_expired() == [task["task_id"]]
     reclaimed = store.claim("new-worker")
     assert reclaimed and reclaimed["worker_id"] == "new-worker"
@@ -73,3 +76,17 @@ def test_non_owner_cannot_complete_or_renew(tmp_path):
     assert store.renew(task["task_id"], "intruder") is False
     assert store.complete(task["task_id"], "intruder", "x") is False
     assert store.complete(task["task_id"], "owner", "artifact:1") is True
+
+
+def test_claim_specific_task_is_atomic(tmp_path):
+    store = AutonomousTaskStore(tmp_path / "tasks.db")
+    first = store.enqueue("research", {"question": "one"}, idempotency_key="one")
+    second = store.enqueue("research", {"question": "two"}, idempotency_key="two")
+
+    claimed = store.claim_task(second["task_id"], "worker-a", lease_seconds=30)
+
+    assert claimed is not None
+    assert claimed["task_id"] == second["task_id"]
+    assert claimed["status"] == "leased"
+    assert store.claim_task(second["task_id"], "worker-b") is None
+    assert store.get(first["task_id"])["status"] == "pending"

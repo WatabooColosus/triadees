@@ -4,13 +4,13 @@ accedan a herramientas registradas y sus contratos de seguridad."""
 import json
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any
 
 from triade.core.contracts import utc_now
 
 
 def _gen_id(prefix: str) -> str:
     import hashlib
+
     return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(timezone.utc).timestamp()).encode()).hexdigest()[:6]}"
 
 
@@ -33,24 +33,36 @@ CREATE INDEX IF NOT EXISTS ntbr_neuron ON neuron_tool_bindings(neuron_id);
 class NeuronToolBindings:
     """Gestiona las herramientas disponibles para cada neurona y sus permisos."""
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
 
-    def bind_tool(self, neuron_id: str, tool_id: str,
-                  permissions: list[str] | None = None,
-                  risk_level: str = "low",
-                  max_invocations: int = 100) -> dict:
+    def bind_tool(
+        self,
+        neuron_id: str,
+        tool_id: str,
+        permissions: list[str] | None = None,
+        risk_level: str = "low",
+        max_invocations: int = 100,
+    ) -> dict:
         binding_id = _gen_id("ntbind")
         self._conn.execute(
             """INSERT INTO neuron_tool_bindings
                (binding_id, neuron_id, tool_id, permissions_json,
                 risk_level, max_invocations, created_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (binding_id, neuron_id, tool_id,
-             json.dumps(permissions or ["read"], default=str),
-             risk_level, max_invocations, utc_now()),
+            (
+                binding_id,
+                neuron_id,
+                tool_id,
+                json.dumps(permissions or ["read"], default=str),
+                risk_level,
+                max_invocations,
+                utc_now(),
+            ),
         )
         self._conn.commit()
         return {"binding_id": binding_id, "neuron_id": neuron_id, "tool_id": tool_id}
@@ -63,10 +75,17 @@ class NeuronToolBindings:
         if not row:
             return {"allowed": False, "reason": "no_binding"}
         if row["invocations"] >= row["max_invocations"]:
-            return {"allowed": False, "reason": "quota_exceeded",
-                    "invocations": row["invocations"], "max": row["max_invocations"]}
-        return {"allowed": True, "permissions": json.loads(row["permissions_json"]),
-                "risk_level": row["risk_level"]}
+            return {
+                "allowed": False,
+                "reason": "quota_exceeded",
+                "invocations": row["invocations"],
+                "max": row["max_invocations"],
+            }
+        return {
+            "allowed": True,
+            "permissions": json.loads(row["permissions_json"]),
+            "risk_level": row["risk_level"],
+        }
 
     def record_invocation(self, neuron_id: str, tool_id: str) -> dict:
         self._conn.execute(
@@ -99,6 +118,10 @@ class NeuronToolBindings:
         return [dict(r) for r in rows]
 
     def doctor(self) -> dict:
-        total = self._conn.execute("SELECT COUNT(*) as c FROM neuron_tool_bindings").fetchone()["c"]
-        enabled = self._conn.execute("SELECT COUNT(*) as c FROM neuron_tool_bindings WHERE enabled=1").fetchone()["c"]
+        total = self._conn.execute(
+            "SELECT COUNT(*) as c FROM neuron_tool_bindings"
+        ).fetchone()["c"]
+        enabled = self._conn.execute(
+            "SELECT COUNT(*) as c FROM neuron_tool_bindings WHERE enabled=1"
+        ).fetchone()["c"]
         return {"total_bindings": total, "enabled": enabled}

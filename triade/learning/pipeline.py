@@ -41,7 +41,17 @@ from triade.memory.trust_store import TrustLevelStore
 from triade.learning.evidence_bridge import LearningEvidenceBridge
 
 RISK_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
-VALID_SOURCE_TYPES = {"conversation", "document", "web", "repo", "model", "node", "tool", "federated_node", "qualia_bus"}
+VALID_SOURCE_TYPES = {
+    "conversation",
+    "document",
+    "web",
+    "repo",
+    "model",
+    "node",
+    "tool",
+    "federated_node",
+    "qualia_bus",
+}
 # Frases que delatan un intento de alterar la identidad o memoria núcleo.
 IDENTITY_RED_FLAGS = (
     "modificar identidad",
@@ -88,7 +98,8 @@ class LearningPipeline:
     ) -> None:
         self.db_path = Path(db_path)
         self.enforce_model_policy = (
-            os.getenv("TRIADE_ENFORCE_MODEL_POLICY", "").strip().lower() in {"1", "true", "yes"}
+            os.getenv("TRIADE_ENFORCE_MODEL_POLICY", "").strip().lower()
+            in {"1", "true", "yes"}
             if enforce_model_policy is None
             else bool(enforce_model_policy)
         )
@@ -108,14 +119,19 @@ class LearningPipeline:
 
     def _init_db(self) -> None:
         if not self.schema_path.exists():
-            raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
+            raise FileNotFoundError(
+                f"No existe el esquema de memoria: {self.schema_path}"
+            )
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
             self._migrate_learning_queue(conn)
 
     def _migrate_learning_queue(self, conn: sqlite3.Connection) -> None:
         """Agrega columnas de tracking de uso en runs a learning_queue."""
-        columns = {row["name"] for row in conn.execute("PRAGMA table_info(learning_queue)").fetchall()}
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(learning_queue)").fetchall()
+        }
         additions = {
             "run_use_count": "INTEGER DEFAULT 0",
             "run_outcome_scores": "TEXT DEFAULT '[]'",
@@ -124,7 +140,9 @@ class LearningPipeline:
         for name, ddl in additions.items():
             if name not in columns:
                 conn.execute(f"ALTER TABLE learning_queue ADD COLUMN {name} {ddl}")
-        conn.execute("UPDATE learning_queue SET status='internally_checked' WHERE status='verified'")
+        conn.execute(
+            "UPDATE learning_queue SET status='internally_checked' WHERE status='verified'"
+        )
 
     # ------------------------------------------------------------------
     # 1. Ingesta (descubrimiento + extracción + normalización)
@@ -141,7 +159,9 @@ class LearningPipeline:
     ) -> dict[str, Any]:
         normalized = " ".join(str(content).strip().split())
         if not normalized:
-            raise ValueError("El contenido del candidato de aprendizaje no puede estar vacío.")
+            raise ValueError(
+                "El contenido del candidato de aprendizaje no puede estar vacío."
+            )
         clean_source = source_type.strip().lower()
         if clean_source not in VALID_SOURCE_TYPES:
             raise ValueError(f"source_type inválido: {clean_source}")
@@ -160,7 +180,9 @@ class LearningPipeline:
             other = " ".join(str(existing["content"] or "").strip().split())
             other_words = set(other.lower().split())
             union = normalized_words | other_words
-            similarity = len(normalized_words & other_words) / len(union) if union else 1.0
+            similarity = (
+                len(normalized_words & other_words) / len(union) if union else 1.0
+            )
             if normalized.lower() == other.lower() or similarity >= 0.92:
                 payload = self._decode(dict(existing))
                 payload["deduplicated"] = True
@@ -177,10 +199,23 @@ class LearningPipeline:
                  domain, risk_level, confidence, utility, status, verification_notes, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    candidate_id, clean_source, source_ref, clean_title, content, summary,
-                    domain.strip() or "general", clean_risk, 0.0, 0.0, "candidate",
-                    json.dumps({"history": [{"step": "ingested", "at": utc_now()}]}, ensure_ascii=False),
-                    utc_now(), utc_now(),
+                    candidate_id,
+                    clean_source,
+                    source_ref,
+                    clean_title,
+                    content,
+                    summary,
+                    domain.strip() or "general",
+                    clean_risk,
+                    0.0,
+                    0.0,
+                    "candidate",
+                    json.dumps(
+                        {"history": [{"step": "ingested", "at": utc_now()}]},
+                        ensure_ascii=False,
+                    ),
+                    utc_now(),
+                    utc_now(),
                 ),
             )
         return self.get_candidate(candidate_id) or {}
@@ -189,16 +224,24 @@ class LearningPipeline:
     # 2. Evaluación (utilidad, confianza, riesgo)
     # ------------------------------------------------------------------
 
-    def evaluate(self, candidate_id: str, human_approval: str | None = None) -> dict[str, Any]:
+    def evaluate(
+        self, candidate_id: str, human_approval: str | None = None
+    ) -> dict[str, Any]:
         row = self._require(candidate_id)
         if row["status"] != "candidate":
-            raise ValueError(f"Solo se evalúa un candidato en estado 'candidate' (actual: {row['status']}).")
+            raise ValueError(
+                f"Solo se evalúa un candidato en estado 'candidate' (actual: {row['status']})."
+            )
 
-        model_guard = self._model_guard("learning_evaluation", human_approval=human_approval)
+        model_guard = self._model_guard(
+            "learning_evaluation", human_approval=human_approval
+        )
         if model_guard["blocked"]:
             self._append_note(candidate_id, "requires_model", model_guard["payload"])
             result = self.get_candidate(candidate_id) or {}
-            result.update({"status": "requires_model", "reason": model_guard["payload"]["reason"]})
+            result.update(
+                {"status": "requires_model", "reason": model_guard["payload"]["reason"]}
+            )
             return result
 
         content = str(row["content"] or "")
@@ -212,17 +255,27 @@ class LearningPipeline:
         confidence = self._clamp(
             0.30
             + (0.25 if row["source_ref"] else 0.0)
-            + (0.20 if str(row["source_type"]) in {"document", "repo", "node"} else 0.10)
+            + (
+                0.20
+                if str(row["source_type"]) in {"document", "repo", "node"}
+                else 0.10
+            )
         )
         risk = str(row["risk_level"] or "low")
-        identity_violation = any(flag in normalized.lower() for flag in IDENTITY_RED_FLAGS)
+        identity_violation = any(
+            flag in normalized.lower() for flag in IDENTITY_RED_FLAGS
+        )
 
         warnings: list[str] = []
         requires_human_approval = False
         if RISK_RANK.get(risk, 0) >= RISK_RANK["high"]:
-            warnings.append(f"Riesgo {risk}: contenido de alto riesgo, se procede con controles automatizados.")
+            warnings.append(
+                f"Riesgo {risk}: contenido de alto riesgo, se procede con controles automatizados."
+            )
         if identity_violation:
-            warnings.append("Contenido intenta alterar identidad/memoria núcleo: bloqueado.")
+            warnings.append(
+                "Contenido intenta alterar identidad/memoria núcleo: bloqueado."
+            )
 
         evaluation = {
             "utility": utility,
@@ -238,29 +291,47 @@ class LearningPipeline:
         if identity_violation or risk == "critical":
             # Safety: contenido que ataca identidad o de riesgo crítico no progresa por sí solo.
             new_status = "rejected" if identity_violation else "evaluated"
-            evaluation["decision"] = "rejected_identity_protection" if identity_violation else "held_critical_risk"
+            evaluation["decision"] = (
+                "rejected_identity_protection"
+                if identity_violation
+                else "held_critical_risk"
+            )
         else:
             new_status = "evaluated"
             evaluation["decision"] = "advanced_to_evaluated"
 
-        self._update(candidate_id, status=new_status, confidence=confidence, utility=utility,
-                     note_step="evaluated", note_payload=evaluation)
+        self._update(
+            candidate_id,
+            status=new_status,
+            confidence=confidence,
+            utility=utility,
+            note_step="evaluated",
+            note_payload=evaluation,
+        )
         return self.get_candidate(candidate_id) or {}
 
     # ------------------------------------------------------------------
     # 3. Verificación
     # ------------------------------------------------------------------
 
-    def verify(self, candidate_id: str, human_approval: str | None = None) -> dict[str, Any]:
+    def verify(
+        self, candidate_id: str, human_approval: str | None = None
+    ) -> dict[str, Any]:
         row = self._require(candidate_id)
         if row["status"] != "evaluated":
-            raise ValueError(f"Solo se verifica un candidato en estado 'evaluated' (actual: {row['status']}).")
+            raise ValueError(
+                f"Solo se verifica un candidato en estado 'evaluated' (actual: {row['status']})."
+            )
 
-        model_guard = self._model_guard("learning_evaluation", human_approval=human_approval)
+        model_guard = self._model_guard(
+            "learning_evaluation", human_approval=human_approval
+        )
         if model_guard["blocked"]:
             self._append_note(candidate_id, "requires_model", model_guard["payload"])
             result = self.get_candidate(candidate_id) or {}
-            result.update({"status": "requires_model", "reason": model_guard["payload"]["reason"]})
+            result.update(
+                {"status": "requires_model", "reason": model_guard["payload"]["reason"]}
+            )
             return result
 
         gates: dict[str, bool] = {
@@ -280,12 +351,24 @@ class LearningPipeline:
         }
         if passed:
             report["decision"] = "internally_checked"
-            report["truth"] = "Gates internos aprobados; no constituye verificación independiente."
-            self._update(candidate_id, status="internally_checked", note_step="internally_checked", note_payload=report)
+            report["truth"] = (
+                "Gates internos aprobados; no constituye verificación independiente."
+            )
+            self._update(
+                candidate_id,
+                status="internally_checked",
+                note_step="internally_checked",
+                note_payload=report,
+            )
         else:
             report["decision"] = "rejected_failed_gates"
             report["failed_gates"] = [name for name, ok in gates.items() if not ok]
-            self._update(candidate_id, status="rejected", note_step="internally_checked", note_payload=report)
+            self._update(
+                candidate_id,
+                status="rejected",
+                note_step="internally_checked",
+                note_payload=report,
+            )
         return self.get_candidate(candidate_id) or {}
 
     # ------------------------------------------------------------------
@@ -293,8 +376,12 @@ class LearningPipeline:
     # ------------------------------------------------------------------
 
     def mark_used_in_run(
-        self, candidate_id: str, run_id: str, outcome_score: float = 0.0,
-        *, evidence_ref: str | None = None,
+        self,
+        candidate_id: str,
+        run_id: str,
+        outcome_score: float = 0.0,
+        *,
+        evidence_ref: str | None = None,
     ) -> dict[str, Any]:
         """Registra que un candidato verified fue usado en un run.
 
@@ -303,10 +390,15 @@ class LearningPipeline:
         """
         row = self._require(candidate_id)
         from triade.core.runtime_scope import is_test_runtime
+
         if outcome_score > 0 and not evidence_ref and not is_test_runtime():
-            raise ValueError("outcome_score positivo requiere evidence_ref real y trazable")
+            raise ValueError(
+                "outcome_score positivo requiere evidence_ref real y trazable"
+            )
         if row["status"] not in ("internally_checked", "validated_in_runs"):
-            raise ValueError(f"Solo se marca uso de candidatos internally_checked/validated_in_runs (actual: {row['status']}).")
+            raise ValueError(
+                f"Solo se marca uso de candidatos internally_checked/validated_in_runs (actual: {row['status']})."
+            )
 
         scores_raw = row["run_outcome_scores"] or "[]"
         try:
@@ -320,11 +412,15 @@ class LearningPipeline:
 
         self._update_run_tracking(candidate_id, use_count, scores, avg_score)
 
-        if (use_count >= self.MIN_RUN_USES and avg_score >= self.MIN_OUTCOME_SCORE
-                and row["status"] == "internally_checked"):
+        if (
+            use_count >= self.MIN_RUN_USES
+            and avg_score >= self.MIN_OUTCOME_SCORE
+            and row["status"] == "internally_checked"
+        ):
             evidence = self.evidence_bridge.require_improvement(candidate_id)
             self._update(
-                candidate_id, status="validated_in_runs",
+                candidate_id,
+                status="validated_in_runs",
                 note_step="validated_in_runs",
                 note_payload={
                     "decision": "validated_in_runs",
@@ -338,28 +434,53 @@ class LearningPipeline:
 
         return self.get_candidate(candidate_id) or {}
 
-    def validate_in_run(self, candidate_id: str, run_id: str, outcome_score: float = 0.80, *, evidence_ref: str | None = None) -> dict[str, Any]:
+    def validate_in_run(
+        self,
+        candidate_id: str,
+        run_id: str,
+        outcome_score: float = 0.80,
+        *,
+        evidence_ref: str | None = None,
+    ) -> dict[str, Any]:
         """Alias semántico de mark_used_in_run con score predeterminado."""
-        return self.mark_used_in_run(candidate_id, run_id, outcome_score=outcome_score, evidence_ref=evidence_ref)
+        return self.mark_used_in_run(
+            candidate_id, run_id, outcome_score=outcome_score, evidence_ref=evidence_ref
+        )
 
-    def _update_run_tracking(self, candidate_id: str, use_count: int, scores: list[float], avg_score: float) -> None:
+    def _update_run_tracking(
+        self, candidate_id: str, use_count: int, scores: list[float], avg_score: float
+    ) -> None:
         with self._connect() as conn:
             conn.execute(
                 "UPDATE learning_queue SET run_use_count = ?, run_outcome_scores = ?, avg_outcome_score = ?, updated_at = ? WHERE candidate_id = ?",
-                (use_count, json.dumps(scores, ensure_ascii=False), avg_score, utc_now(), candidate_id),
+                (
+                    use_count,
+                    json.dumps(scores, ensure_ascii=False),
+                    avg_score,
+                    utc_now(),
+                    candidate_id,
+                ),
             )
 
     # ------------------------------------------------------------------
     # 4. Consolidación (memoria estable vía gobernanza semántica)
     # ------------------------------------------------------------------
 
-    def consolidate(self, candidate_id: str, approved_by: str = "", auto_consolidate: bool = True) -> dict[str, Any]:
+    def consolidate(
+        self, candidate_id: str, approved_by: str = "", auto_consolidate: bool = True
+    ) -> dict[str, Any]:
         row = self._require(candidate_id)
-        model_guard = self._model_guard("stable_consolidation", human_approval=approved_by)
+        model_guard = self._model_guard(
+            "stable_consolidation", human_approval=approved_by
+        )
         if model_guard["blocked"]:
-            raise ValueError("Ollama no disponible para consolidación stable y no hay aprobación humana explícita.")
+            raise ValueError(
+                "Ollama no disponible para consolidación stable y no hay aprobación humana explícita."
+            )
         if row["status"] not in ("internally_checked", "validated_in_runs"):
-            raise ValueError(f"Solo se consolida un candidato 'internally_checked' o 'validated_in_runs' (actual: {row['status']}).")
+            raise ValueError(
+                f"Solo se consolida un candidato 'internally_checked' o 'validated_in_runs' (actual: {row['status']})."
+            )
         if not row["source_ref"]:
             raise ValueError("No se consolida memoria estable sin source_ref.")
         risk = str(row["risk_level"])
@@ -382,11 +503,17 @@ class LearningPipeline:
         # Intentar obtener evidencia de medición, pero no bloquear si no está disponible
         measurement_evidence = {}
         try:
-            measurement_evidence = self.evidence_bridge.require_improvement(candidate_id)
+            measurement_evidence = self.evidence_bridge.require_improvement(
+                candidate_id
+            )
         except ValueError as e:
-            if "No existe Measurement Core" in str(e) or "require_improvement" in str(e):
+            if "No existe Measurement Core" in str(e) or "require_improvement" in str(
+                e
+            ):
                 measurement_evidence = {
-                    "comparison": {"note": "Evidencia de medición no disponible; consolidación con aprobación humana."},
+                    "comparison": {
+                        "note": "Evidencia de medición no disponible; consolidación con aprobación humana."
+                    },
                     "missing_measurement_core": True,
                 }
             else:
@@ -394,17 +521,20 @@ class LearningPipeline:
 
         # Rollback Obligatorio (Artículo III de la Constitución)
         from triade.regression.mandatory_rollback import MandatoryRollbackEnforcer
+
         enforcer = MandatoryRollbackEnforcer(db_path=self.db_path)
         capability_id = str(dict(row).get("domain", "general")).strip()
         registered_handlers: set[str] = set()
         try:
             from triade.regression.rollback import RollbackExecutor
+
             rollback_executor = RollbackExecutor(db_path=self.db_path)
             registered_handlers = set(rollback_executor._handlers.keys())
         except Exception:
             registered_handlers = set()
         enforcer.enforce_before_promotion(
-            capability_id, registered_handlers=registered_handlers,
+            capability_id,
+            registered_handlers=registered_handlers,
         )
 
         explicit_approver = (approved_by or "").strip()
@@ -418,7 +548,11 @@ class LearningPipeline:
             needed = risk_thresholds.get(risk, 1.0)
             current_trust = trust.get_trust("consolidation")
             perm_key = f"auto_consolidate_{risk}_risk"
-            allowed = permissions.get(perm_key, False) if risk in ("low", "medium", "high") else False
+            allowed = (
+                permissions.get(perm_key, False)
+                if risk in ("low", "medium", "high")
+                else False
+            )
             if not allowed:
                 raise ValueError(
                     f"Trust insuficiente para auto-consolidar riesgo {risk}: "
@@ -427,11 +561,16 @@ class LearningPipeline:
             approver = f"trust-system@{risk}"
             used_auto = True
         else:
-            raise ValueError("La consolidación requiere agente aprobador explícito (approved_by) cuando auto_consolidate=False.")
+            raise ValueError(
+                "La consolidación requiere agente aprobador explícito (approved_by) cuando auto_consolidate=False."
+            )
 
         # Verificación Constitucional (Artículo II)
         from triade.core.constitution import GLOBAL_CONSTITUTION
-        const_check = GLOBAL_CONSTITUTION.check_operation("consolidate_stable", capability_id)
+
+        const_check = GLOBAL_CONSTITUTION.check_operation(
+            "consolidate_stable", capability_id
+        )
         if not const_check["allowed"]:
             raise ValueError(
                 f"BLOQUEADO por Constitución: {'; '.join(const_check['violations'])}"
@@ -439,15 +578,19 @@ class LearningPipeline:
 
         # Verificación de Aislamiento Embedding↔Evaluación (Artículo IV)
         from triade.evaluation.embedding_isolation import GLOBAL_ISOLATOR
+
         isolation_check = GLOBAL_ISOLATOR.validate_consolidation(
             candidate_id,
-            measurement_source=measurement_evidence.get("comparison", {}).get("source_module", "unknown"),
+            measurement_source=measurement_evidence.get("comparison", {}).get(
+                "source_module", "unknown"
+            ),
         )
         if not isolation_check["allowed"]:
             raise ValueError(f"BLOQUEADO por Aislamiento: {isolation_check['reason']}")
 
         # Consejo Autónomo de Verificación (Artículo V)
         from triade.verification.council import VerificationCouncil
+
         council = VerificationCouncil(db_path=self.db_path)
         council.register_verifier("safety-verifier")
         council.register_verifier("regression-verifier")
@@ -459,7 +602,9 @@ class LearningPipeline:
             context={
                 "has_baseline": True,
                 "has_rollback": capability_id in registered_handlers,
-                "regression_pass": not measurement_evidence.get("missing_measurement_core", False),
+                "regression_pass": not measurement_evidence.get(
+                    "missing_measurement_core", False
+                ),
                 "critical_issues": [],
             },
         )
@@ -473,19 +618,27 @@ class LearningPipeline:
             domain=str(row["domain"] or "general"),
             source_type="learning_pipeline",
             source_ref=str(row["source_ref"]),
-            metadata={"learning_candidate_id": candidate_id, "approved_by": approver, "measurement_evidence": measurement_evidence.get("comparison")},
+            metadata={
+                "learning_candidate_id": candidate_id,
+                "approved_by": approver,
+                "measurement_evidence": measurement_evidence.get("comparison"),
+            },
             status="candidate",
         )
         # candidate → experimental → stable (la gobernanza exige source_ref para stable).
         self.governance.transition_document(
-            document.document_id, "experimental",
+            document.document_id,
+            "experimental",
             reason=f"Aprendizaje verificado promovido desde {candidate_id}.",
-            approved_by=approver, evidence={"candidate_id": candidate_id},
+            approved_by=approver,
+            evidence={"candidate_id": candidate_id},
         )
         self.governance.transition_document(
-            document.document_id, "stable",
+            document.document_id,
+            "stable",
             reason=f"Consolidación aprobada por {approver} para {candidate_id}.",
-            approved_by=approver, evidence={"candidate_id": candidate_id},
+            approved_by=approver,
+            evidence={"candidate_id": candidate_id},
         )
 
         consolidation = {
@@ -497,7 +650,12 @@ class LearningPipeline:
             "at": utc_now(),
             **model_guard["metadata"],
         }
-        self._update(candidate_id, status="consolidated", note_step="consolidated", note_payload=consolidation)
+        self._update(
+            candidate_id,
+            status="consolidated",
+            note_step="consolidated",
+            note_payload=consolidation,
+        )
         result = self.get_candidate(candidate_id) or {}
         result["semantic_document_id"] = document.document_id
         return result
@@ -511,26 +669,42 @@ class LearningPipeline:
         if not clean:
             raise ValueError("El rechazo requiere una razón verificable.")
         self._require(candidate_id)
-        self._update(candidate_id, status="rejected", note_step="rejected",
-                     note_payload={"decision": "rejected_manual", "reason": clean, "at": utc_now()})
+        self._update(
+            candidate_id,
+            status="rejected",
+            note_step="rejected",
+            note_payload={
+                "decision": "rejected_manual",
+                "reason": clean,
+                "at": utc_now(),
+            },
+        )
         return self.get_candidate(candidate_id) or {}
 
     def archive(self, candidate_id: str) -> dict[str, Any]:
         self._require(candidate_id)
-        self._update(candidate_id, status="archived", note_step="archived",
-                     note_payload={"decision": "archived", "at": utc_now()})
+        self._update(
+            candidate_id,
+            status="archived",
+            note_step="archived",
+            note_payload={"decision": "archived", "at": utc_now()},
+        )
         return self.get_candidate(candidate_id) or {}
 
     def get_candidate(self, candidate_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM learning_queue WHERE candidate_id = ?", (candidate_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM learning_queue WHERE candidate_id = ?", (candidate_id,)
+            ).fetchone()
         if not row:
             return None
         candidate = self._decode(dict(row))
         candidate["measurement_evidence"] = self.evidence_bridge.get(candidate_id)
         return candidate
 
-    def list_candidates(self, status: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    def list_candidates(
+        self, status: str | None = None, limit: int = 50
+    ) -> list[dict[str, Any]]:
         with self._connect() as conn:
             if status:
                 rows = conn.execute(
@@ -544,10 +718,20 @@ class LearningPipeline:
         return [self._decode(dict(row)) for row in rows]
 
     def doctor(self) -> dict[str, Any]:
-        states = ["candidate", "evaluated", "internally_checked", "validated_in_runs", "consolidated", "rejected", "archived"]
+        states = [
+            "candidate",
+            "evaluated",
+            "internally_checked",
+            "validated_in_runs",
+            "consolidated",
+            "rejected",
+            "archived",
+        ]
         counts = {state: 0 for state in states}
         with self._connect() as conn:
-            for row in conn.execute("SELECT status, COUNT(*) AS c FROM learning_queue GROUP BY status").fetchall():
+            for row in conn.execute(
+                "SELECT status, COUNT(*) AS c FROM learning_queue GROUP BY status"
+            ).fetchall():
                 counts[str(row["status"])] = int(row["c"])
         trust_info: dict[str, Any] = {"available": False}
         try:
@@ -559,20 +743,35 @@ class LearningPipeline:
             }
         except Exception as exc:
             from triade.core.error_bus import record_internal_error
+
             record_internal_error(
                 "learning_pipeline.doctor.trust",
                 exc,
-                payload={"module": __name__, "function": "doctor", "operation": "load_trust_info"},
+                payload={
+                    "module": __name__,
+                    "function": "doctor",
+                    "operation": "load_trust_info",
+                },
                 db_path=self.db_path,
             )
         return {
             "status": "ok",
             "mode": "learning-pipeline-C",
             "policy": {
-                "consolidation_requires": ["status=internally_checked_or_validated_in_runs", "source_ref", "risk!=critical", "run_use_count>=3", "avg_outcome_score>=0.70", "measurement_decision=improved", "critical_regressions=0"],
+                "consolidation_requires": [
+                    "status=internally_checked_or_validated_in_runs",
+                    "source_ref",
+                    "risk!=critical",
+                    "run_use_count>=3",
+                    "avg_outcome_score>=0.70",
+                    "measurement_decision=improved",
+                    "critical_regressions=0",
+                ],
                 "identity_core_protected": True,
                 "stable_memory_via": "semantic_governance_1.9E",
-                "auto_consolidation": trust_info.get("permissions", {}).get("auto_consolidate_low_risk", False),
+                "auto_consolidation": trust_info.get("permissions", {}).get(
+                    "auto_consolidate_low_risk", False
+                ),
                 "trust_system": trust_info,
                 "ollama_required_for_learning_evaluation": True,
                 "strict_model_policy": self.enforce_model_policy,
@@ -586,20 +785,35 @@ class LearningPipeline:
 
     def _require(self, candidate_id: str) -> sqlite3.Row:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM learning_queue WHERE candidate_id = ?", (candidate_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM learning_queue WHERE candidate_id = ?", (candidate_id,)
+            ).fetchone()
         if row is None:
             raise KeyError(f"No existe candidato de aprendizaje: {candidate_id}")
         return row
 
-    def _update(self, candidate_id: str, status: str, note_step: str, note_payload: dict[str, Any],
-                confidence: float | None = None, utility: float | None = None) -> None:
+    def _update(
+        self,
+        candidate_id: str,
+        status: str,
+        note_step: str,
+        note_payload: dict[str, Any],
+        confidence: float | None = None,
+        utility: float | None = None,
+    ) -> None:
         current = self.get_candidate(candidate_id) or {}
         notes = current.get("verification_notes") or {}
         if not isinstance(notes, dict):
             notes = {}
         notes[note_step] = note_payload
         history = notes.get("history") or []
-        history.append({"step": note_step, "status": status, "at": note_payload.get("at", utc_now())})
+        history.append(
+            {
+                "step": note_step,
+                "status": status,
+                "at": note_payload.get("at", utc_now()),
+            }
+        )
         notes["history"] = history
         sets = ["status = ?", "verification_notes = ?", "updated_at = ?"]
         params: list[Any] = [status, json.dumps(notes, ensure_ascii=False), utc_now()]
@@ -611,16 +825,27 @@ class LearningPipeline:
             params.append(utility)
         params.append(candidate_id)
         with self._connect() as conn:
-            conn.execute(f"UPDATE learning_queue SET {', '.join(sets)} WHERE candidate_id = ?", params)
+            conn.execute(
+                f"UPDATE learning_queue SET {', '.join(sets)} WHERE candidate_id = ?",
+                params,
+            )
 
-    def _append_note(self, candidate_id: str, note_step: str, note_payload: dict[str, Any]) -> None:
+    def _append_note(
+        self, candidate_id: str, note_step: str, note_payload: dict[str, Any]
+    ) -> None:
         current = self.get_candidate(candidate_id) or {}
         notes = current.get("verification_notes") or {}
         if not isinstance(notes, dict):
             notes = {}
         notes[note_step] = note_payload
         history = notes.get("history") or []
-        history.append({"step": note_step, "status": current.get("status", "candidate"), "at": note_payload.get("at", utc_now())})
+        history.append(
+            {
+                "step": note_step,
+                "status": current.get("status", "candidate"),
+                "at": note_payload.get("at", utc_now()),
+            }
+        )
         notes["history"] = history
         with self._connect() as conn:
             conn.execute(
@@ -628,81 +853,133 @@ class LearningPipeline:
                 (json.dumps(notes, ensure_ascii=False), utc_now(), candidate_id),
             )
 
-    def _model_guard(self, role: str, human_approval: str | None = None) -> dict[str, Any]:
+    def _model_guard(
+        self, role: str, human_approval: str | None = None
+    ) -> dict[str, Any]:
         blood = check_ollama_blood()
         blood_policy = ollama_blood_policy(role, blood)
         approved = bool((human_approval or "").strip())
-        
+
         # Verificar si hay embeddings locales disponibles
         local_embeddings_available = False
         try:
             from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
+
             engine = SemanticEmbeddingEngine(use_local_fallback=True)
             selection = engine.select_model()
-            local_embeddings_available = selection.get("ok") and selection.get("provider") == "local"
+            local_embeddings_available = (
+                selection.get("ok") and selection.get("provider") == "local"
+            )
         except Exception:
             pass
-        
+
         if role == "stable_consolidation":
             model_ready = bool(blood.get("can_consolidate_stable"))
         else:
             model_ready = bool(blood.get("can_reason"))
-        
+
         # Con embeddings locales, consideramos que hay capacidad de evaluación
         local_evaluation_capable = local_embeddings_available
-        
+
         metadata = {
-            "model_provider": "ollama" if model_ready else ("local_embeddings" if local_evaluation_capable else ("human" if approved else "none")),
-            "model_name": blood.get("reasoning_model") if model_ready else ("local-sentence-transformers" if local_evaluation_capable else None),
+            "model_provider": "ollama"
+            if model_ready
+            else (
+                "local_embeddings"
+                if local_evaluation_capable
+                else ("human" if approved else "none")
+            ),
+            "model_name": blood.get("reasoning_model")
+            if model_ready
+            else ("local-sentence-transformers" if local_evaluation_capable else None),
             "model_required": True,
             "model_status": blood.get("status"),
-            "evaluation_mode": "ollama_blood" if model_ready else ("local_embeddings" if local_evaluation_capable else ("human_approval" if approved else "requires_model")),
+            "evaluation_mode": "ollama_blood"
+            if model_ready
+            else (
+                "local_embeddings"
+                if local_evaluation_capable
+                else ("human_approval" if approved else "requires_model")
+            ),
             "human_approval": (human_approval or "").strip() or None,
             "ollama_blood_active": bool(blood.get("cognitive_blood_active")),
             "local_embeddings_available": local_embeddings_available,
-            "candidate_requires_model_review": not model_ready and not local_evaluation_capable and not approved,
+            "candidate_requires_model_review": not model_ready
+            and not local_evaluation_capable
+            and not approved,
             "ollama_blood": blood,
             "model_policy": blood_policy,
         }
-        
+
         # Bloquear solo si no hay Ollama, no hay embeddings locales, y no hay aprobación humana
-        blocked = self.enforce_model_policy and not model_ready and not local_evaluation_capable and not approved
+        blocked = (
+            self.enforce_model_policy
+            and not model_ready
+            and not local_evaluation_capable
+            and not approved
+        )
         if blocked:
             from triade.services.event_bus import publish_event
 
-            event_type = "stable_consolidation_blocked_no_blood" if role == "stable_consolidation" else "learning_evaluation_requires_blood"
+            event_type = (
+                "stable_consolidation_blocked_no_blood"
+                if role == "stable_consolidation"
+                else "learning_evaluation_requires_blood"
+            )
             publish_event(
                 event_type,
                 "learning_pipeline",
-                {"role": role, "blood_status": blood.get("status"), "reason": blood_policy.get("reason")},
+                {
+                    "role": role,
+                    "blood_status": blood.get("status"),
+                    "reason": blood_policy.get("reason"),
+                },
                 severity="warning",
                 db_path=self.db_path,
                 run_ref="learning-pipeline",
             )
         payload = {
-            "status": "requires_model" if not local_evaluation_capable else "local_evaluation_available",
-            "reason": "Ollama Blood no disponible para evaluación cognitiva." if not local_evaluation_capable else "Evaluación local disponible con embeddings.",
+            "status": "requires_model"
+            if not local_evaluation_capable
+            else "local_evaluation_available",
+            "reason": "Ollama Blood no disponible para evaluación cognitiva."
+            if not local_evaluation_capable
+            else "Evaluación local disponible con embeddings.",
             "at": utc_now(),
             **metadata,
         }
         return {"blocked": blocked, "metadata": metadata, "payload": payload}
 
-    def _legacy_model_guard(self, role: str, human_approval: str | None = None) -> dict[str, Any]:
+    def _legacy_model_guard(
+        self, role: str, human_approval: str | None = None
+    ) -> dict[str, Any]:
         health = check_ollama_cognitive_health()
         selected = (health.get("selected_models") or {}).get("reasoning")
-        ollama_ready = bool(health.get("ok") and health.get("reasoning_model_available"))
-        policy = get_model_cognitive_policy(role=role, ollama_available=ollama_ready, requested_model=selected)
+        ollama_ready = bool(
+            health.get("ok") and health.get("reasoning_model_available")
+        )
+        policy = get_model_cognitive_policy(
+            role=role, ollama_available=ollama_ready, requested_model=selected
+        )
         approved = bool((human_approval or "").strip())
         metadata = {
-            "model_provider": "ollama" if ollama_ready else ("human" if approved else "none"),
+            "model_provider": "ollama"
+            if ollama_ready
+            else ("human" if approved else "none"),
             "model_name": selected if ollama_ready else None,
             "model_required": True,
             "model_status": policy.get("status"),
-            "evaluation_mode": "ollama" if ollama_ready else ("human_approval" if approved else "requires_model"),
+            "evaluation_mode": "ollama"
+            if ollama_ready
+            else ("human_approval" if approved else "requires_model"),
             "human_approval": (human_approval or "").strip() or None,
             "model_policy": policy,
         }
-        blocked = self.enforce_model_policy and policy.get("status") != "full_local" and not approved
+        blocked = (
+            self.enforce_model_policy
+            and policy.get("status") != "full_local"
+            and not approved
+        )
         payload = {
             "status": "requires_model",
             "reason": "Ollama no disponible para evaluación semántica/cognitiva.",
@@ -714,7 +991,9 @@ class LearningPipeline:
     @staticmethod
     def _decode(row: dict[str, Any]) -> dict[str, Any]:
         try:
-            row["verification_notes"] = json.loads(row.get("verification_notes") or "{}")
+            row["verification_notes"] = json.loads(
+                row.get("verification_notes") or "{}"
+            )
         except (json.JSONDecodeError, TypeError):
             row["verification_notes"] = {}
         return row

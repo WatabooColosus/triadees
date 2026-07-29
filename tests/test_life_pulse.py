@@ -20,7 +20,15 @@ def make_life_db(tmp_path: Path) -> Path:
             """INSERT INTO runs
             (run_id, source, user_input, status, model_hypothalamus, model_central, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (run_id, "test", "pulso vida aprendizaje segundo plano", "ok", "rules-fallback", "template-fallback", "2026-06-05"),
+            (
+                run_id,
+                "test",
+                "pulso vida aprendizaje segundo plano",
+                "ok",
+                "rules-fallback",
+                "template-fallback",
+                "2026-06-05",
+            ),
         )
         conn.execute(
             "INSERT INTO signal_states (run_id, intent, tone, urgency, risk, pv7, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -44,14 +52,25 @@ def make_life_db(tmp_path: Path) -> Path:
         )
         conn.execute(
             "INSERT INTO episodic_memory (run_id, title, content, summary, tags) VALUES (?, ?, ?, ?, ?)",
-            (run_id, "Pulso", "Usuario privado\nRespuesta", "Resumen", "triade,mvp,run"),
+            (
+                run_id,
+                "Pulso",
+                "Usuario privado\nRespuesta",
+                "Resumen",
+                "triade,mvp,run",
+            ),
         )
     return db_path
 
 
 def test_life_pulse_tick_counts_integrity_and_reflection(tmp_path: Path) -> None:
     db_path = make_life_db(tmp_path)
-    engine = LifePulseEngine(db_path=db_path, runs_dir=tmp_path / "runs", interval_seconds=5, reflection_limit=10)
+    engine = LifePulseEngine(
+        db_path=db_path,
+        runs_dir=tmp_path / "runs",
+        interval_seconds=5,
+        reflection_limit=10,
+    )
 
     payload = engine.tick()
 
@@ -67,7 +86,9 @@ def test_life_pulse_tick_counts_integrity_and_reflection(tmp_path: Path) -> None
 
 def test_life_pulse_records_actions_without_db_write(tmp_path: Path) -> None:
     db_path = make_life_db(tmp_path)
-    engine = LifePulseEngine(db_path=db_path, runs_dir=tmp_path / "runs", interval_seconds=5)
+    engine = LifePulseEngine(
+        db_path=db_path, runs_dir=tmp_path / "runs", interval_seconds=5
+    )
 
     engine.record_action("doctor")
     engine.record_action("doctor")
@@ -88,12 +109,25 @@ def test_continuous_runner_records_controlled_error(tmp_path: Path) -> None:
         autonomy_level="form_candidates",
     )
 
-    with patch("triade.core.background_neurons.candidates_from_system_debt", side_effect=RuntimeError("boom candidate formation")), \
-            patch.object(engine._stop, "wait", return_value=True):
+    with (
+        patch(
+            "triade.core.background_neurons.candidates_from_system_debt",
+            side_effect=RuntimeError("boom candidate formation"),
+        ),
+        patch.object(engine._stop, "wait", return_value=True),
+    ):
         engine._continuous_loop()
 
-    errors = query_internal_errors(scope="life_pulse.continuous.candidate_formation", db_path=db_path)
+    errors = query_internal_errors(
+        scope="life_pulse.continuous.candidate_formation", db_path=db_path
+    )
     assert errors
-    assert errors[0]["payload"]["context"]["operation"] == "candidates_from_system_debt_and_form_candidates"
+    assert (
+        errors[0]["payload"]["context"]["operation"]
+        == "candidates_from_system_debt_and_form_candidates"
+    )
     assert errors[0]["payload"]["severity"] in ERROR_SEVERITY_POLICY
-    assert engine.snapshot()["continuous_runner"]["last_error"] == "boom candidate formation"
+    assert (
+        engine.snapshot()["continuous_runner"]["last_error"]
+        == "boom candidate formation"
+    )

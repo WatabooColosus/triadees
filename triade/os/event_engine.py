@@ -78,7 +78,12 @@ class EventEngine:
         return conn
 
     def _ensure_state_table(self) -> None:
-        migration = Path(__file__).resolve().parents[1] / "memory" / "migrations" / "005_triade_os.sql"
+        migration = (
+            Path(__file__).resolve().parents[1]
+            / "memory"
+            / "migrations"
+            / "005_triade_os.sql"
+        )
         if migration.exists():
             with self._connect() as conn:
                 conn.executescript(migration.read_text(encoding="utf-8"))
@@ -120,7 +125,7 @@ class EventEngine:
 
             event_type = event["event_type"] or ""
             severity = event["severity"] or "ok"
-            payload = self._decode_payload(event["payload_json"])
+            self._decode_payload(event["payload_json"])
 
             for rule in self._rules:
                 if self._matches_rule(event_type, severity, rule):
@@ -176,7 +181,11 @@ class EventEngine:
                 task = self._create_task(
                     rule.action,
                     rule.priority,
-                    {"trigger_event_id": event_id, "trigger_event_type": event_type, "triggered_by": "event_engine"},
+                    {
+                        "trigger_event_id": event_id,
+                        "trigger_event_type": event_type,
+                        "triggered_by": "event_engine",
+                    },
                 )
                 if task:
                     created.append(task)
@@ -205,6 +214,7 @@ class EventEngine:
             return False
         try:
             from datetime import datetime
+
             last = datetime.fromisoformat(last_str)
             now = datetime.fromisoformat(utc_now())
             return (now - last).total_seconds() < rule.cooldown_seconds
@@ -221,8 +231,9 @@ class EventEngine:
 
     # ── Task creation ────────────────────────────────────────
 
-    def _create_task(self, task_type: str, priority: int, payload: dict[str, Any]) -> dict[str, Any] | None:
-        from triade.os.contracts import SEVERITY_ORDER  # avoid circular at module level already imported
+    def _create_task(
+        self, task_type: str, priority: int, payload: dict[str, Any]
+    ) -> dict[str, Any] | None:
 
         now = utc_now()
         payload_json = __import__("json").dumps(payload, ensure_ascii=False)
@@ -233,7 +244,12 @@ class EventEngine:
                 (task_type, priority, payload_json, now),
             )
             task_id = int(cursor.lastrowid)
-        return {"task_id": task_id, "task_type": task_type, "priority": priority, "created_at": now}
+        return {
+            "task_id": task_id,
+            "task_type": task_type,
+            "priority": priority,
+            "created_at": now,
+        }
 
     def _record_trigger(self, rule: EventRule, event_type: str, event_id: int) -> None:
         now = utc_now()
@@ -264,7 +280,9 @@ class EventEngine:
     def doctor(self) -> dict[str, Any]:
         last_id = self._get_state("last_processed_event_id")
         with self._connect() as conn:
-            total_events = conn.execute("SELECT COUNT(*) AS c FROM worker_events").fetchone()["c"]
+            total_events = conn.execute(
+                "SELECT COUNT(*) AS c FROM worker_events"
+            ).fetchone()["c"]
             pending_tasks = conn.execute(
                 "SELECT COUNT(*) AS c FROM worker_tasks WHERE status = 'pending'"
             ).fetchone()["c"]
@@ -285,6 +303,7 @@ class EventEngine:
             return {}
         try:
             import json
+
             return json.loads(raw)
         except (json.JSONDecodeError, TypeError):
             return {}

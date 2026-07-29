@@ -27,14 +27,16 @@ def test_evidence_ledger_reads_db_first(tmp_path: Path) -> None:
     runs_dir = tmp_path / "runs"
 
     registry = NeuronRegistry(db_path=db_path)
-    registry.register(NeuronSpec(
-        name="neurona-db-ledger",
-        mission="Probar ledger DB.",
-        domain="system_governance",
-        rules=["Solo diagnóstico"],
-        status="experimental",
-        created_by="test",
-    ))
+    registry.register(
+        NeuronSpec(
+            name="neurona-db-ledger",
+            mission="Probar ledger DB.",
+            domain="system_governance",
+            rules=["Solo diagnóstico"],
+            status="experimental",
+            created_by="test",
+        )
+    )
     neuron = registry.get_neuron("neurona-db-ledger")
     assert neuron is not None
 

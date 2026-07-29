@@ -5,7 +5,6 @@ import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any
 
 from triade.core.contracts import utc_now
 
@@ -69,7 +68,9 @@ class FederationAdvanced:
     """Federación avanzada con trust scoring, worker federation,
     resource sharing y replication."""
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
         self._conn = conn or sqlite3.connect(db_path or ":memory:")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
@@ -77,7 +78,9 @@ class FederationAdvanced:
     # ─── trust scoring ───
 
     def update_trust(
-        self, node_id: str, success: bool = True,
+        self,
+        node_id: str,
+        success: bool = True,
         latency_ms: float = 0.0,
     ) -> dict:
         now = utc_now()
@@ -90,15 +93,28 @@ class FederationAdvanced:
             failed = r["failed_tasks"] + (0 if success else 1)
             success_rate = 1.0 - failed / max(total, 1)
             avg_lat = (r["latency_ms"] * r["total_tasks"] + latency_ms) / max(total, 1)
-            trust = _clamp(0.4 * success_rate + 0.3 * (1.0 - min(avg_lat / 1000, 1.0)) + 0.3 * r["uptime_pct"] / 100)
+            trust = _clamp(
+                0.4 * success_rate
+                + 0.3 * (1.0 - min(avg_lat / 1000, 1.0))
+                + 0.3 * r["uptime_pct"] / 100
+            )
             self._conn.execute(
                 """UPDATE federation_trust_scores
                    SET trust_score=?, reliability=?, latency_ms=?,
                        success_rate=?, total_tasks=?, failed_tasks=?,
                        last_seen=?, updated_at=?
                    WHERE node_id=?""",
-                (round(trust, 4), round(success_rate, 4), round(avg_lat, 2),
-                 round(success_rate, 4), total, failed, now, now, node_id),
+                (
+                    round(trust, 4),
+                    round(success_rate, 4),
+                    round(avg_lat, 2),
+                    round(success_rate, 4),
+                    total,
+                    failed,
+                    now,
+                    now,
+                    node_id,
+                ),
             )
         else:
             trust = 0.5 if success else 0.3
@@ -108,8 +124,17 @@ class FederationAdvanced:
                     success_rate, total_tasks, failed_tasks,
                     last_seen, updated_at)
                    VALUES (?,?,?,?,?,?,?,?,?)""",
-                (node_id, trust, trust, latency_ms, 1.0 if success else 0.0,
-                 1, 0 if success else 1, now, now),
+                (
+                    node_id,
+                    trust,
+                    trust,
+                    latency_ms,
+                    1.0 if success else 0.0,
+                    1,
+                    0 if success else 1,
+                    now,
+                    now,
+                ),
             )
         self._conn.commit()
         return {"node_id": node_id, "trust_score": round(trust, 4)}
@@ -137,8 +162,11 @@ class FederationAdvanced:
     # ─── worker federation ───
 
     def register_fed_worker(
-        self, local_worker_id: str, remote_node_id: str,
-        task_type: str, capabilities: list[str] | None = None,
+        self,
+        local_worker_id: str,
+        remote_node_id: str,
+        task_type: str,
+        capabilities: list[str] | None = None,
     ) -> dict:
         fed_id = _gen_id("fwd")
         now = utc_now()
@@ -147,8 +175,14 @@ class FederationAdvanced:
                (federation_id, local_worker_id, remote_node_id,
                 task_type, capability_json, created_at)
                VALUES (?,?,?,?,?,?)""",
-            (fed_id, local_worker_id, remote_node_id, task_type,
-             json.dumps(capabilities or [], default=str), now),
+            (
+                fed_id,
+                local_worker_id,
+                remote_node_id,
+                task_type,
+                json.dumps(capabilities or [], default=str),
+                now,
+            ),
         )
         self._conn.commit()
         return {"federation_id": fed_id, "remote_node": remote_node_id}
@@ -178,8 +212,11 @@ class FederationAdvanced:
     # ─── resource sharing ───
 
     def share_resource(
-        self, node_id: str, resource_type: str,
-        total_units: float, shared_units: float,
+        self,
+        node_id: str,
+        resource_type: str,
+        total_units: float,
+        shared_units: float,
     ) -> dict:
         share_id = _gen_id("fshare")
         self._conn.execute(
@@ -219,13 +256,20 @@ class FederationAdvanced:
             (new_used, share_id),
         )
         self._conn.commit()
-        return {"share_id": share_id, "used": new_used, "remaining": r["shared_units"] - new_used}
+        return {
+            "share_id": share_id,
+            "used": new_used,
+            "remaining": r["shared_units"] - new_used,
+        }
 
     # ─── replication ───
 
     def replicate(
-        self, source_node: str, target_node: str,
-        data_type: str, data_id: str,
+        self,
+        source_node: str,
+        target_node: str,
+        data_type: str,
+        data_id: str,
     ) -> dict:
         replica_id = _gen_id("frepl")
         self._conn.execute(
@@ -233,8 +277,15 @@ class FederationAdvanced:
                (replica_id, source_node, target_node, data_type,
                 data_id, status, created_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (replica_id, source_node, target_node, data_type,
-             data_id, "pending", utc_now()),
+            (
+                replica_id,
+                source_node,
+                target_node,
+                data_type,
+                data_id,
+                "pending",
+                utc_now(),
+            ),
         )
         self._conn.commit()
         return {"replica_id": replica_id, "source": source_node, "target": target_node}
@@ -254,9 +305,21 @@ class FederationAdvanced:
         return [dict(r) for r in rows]
 
     def doctor(self) -> dict:
-        nodes = self._conn.execute("SELECT COUNT(*) as c FROM federation_trust_scores").fetchone()["c"]
-        workers = self._conn.execute("SELECT COUNT(*) as c FROM federation_workers").fetchone()["c"]
-        resources = self._conn.execute("SELECT COUNT(*) as c FROM federation_resources WHERE status='available'").fetchone()["c"]
-        replicas = self._conn.execute("SELECT COUNT(*) as c FROM federation_replication WHERE status='pending'").fetchone()["c"]
-        return {"trusted_nodes": nodes, "federated_workers": workers,
-                "shared_resources": resources, "pending_replicas": replicas}
+        nodes = self._conn.execute(
+            "SELECT COUNT(*) as c FROM federation_trust_scores"
+        ).fetchone()["c"]
+        workers = self._conn.execute(
+            "SELECT COUNT(*) as c FROM federation_workers"
+        ).fetchone()["c"]
+        resources = self._conn.execute(
+            "SELECT COUNT(*) as c FROM federation_resources WHERE status='available'"
+        ).fetchone()["c"]
+        replicas = self._conn.execute(
+            "SELECT COUNT(*) as c FROM federation_replication WHERE status='pending'"
+        ).fetchone()["c"]
+        return {
+            "trusted_nodes": nodes,
+            "federated_workers": workers,
+            "shared_resources": resources,
+            "pending_replicas": replicas,
+        }

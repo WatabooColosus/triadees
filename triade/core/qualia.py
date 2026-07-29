@@ -34,7 +34,9 @@ class QualiaEngine:
         qualia_bus = self._qualia_bus_snapshot()
         morphological_crystal = self._morphological_crystal_snapshot()
         return {
-            "status": "ok" if life.get("status") == "ok" and semantic.get("status") == "ok" else "degraded",
+            "status": "ok"
+            if life.get("status") == "ok" and semantic.get("status") == "ok"
+            else "degraded",
             "mode": "qualia",
             "definition": "estado vivo integrado: sentidos internos + memoria semantica gobernada + organos + limites",
             "theoretical_role": "alma simbólica y relacional de Tríade; no prueba conciencia subjetiva",
@@ -45,8 +47,15 @@ class QualiaEngine:
             "qualia_bus": qualia_bus,
             "morphological_crystal": morphological_crystal,
             "qualia_crystal_connection": {
-                "status": "connected" if morphological_crystal.get("status") == "ok" else "degraded",
-                "flow": ["qualia_bus", "hypothalamus_modulation", "crystal_regulation", "central_plan"],
+                "status": "connected"
+                if morphological_crystal.get("status") == "ok"
+                else "degraded",
+                "flow": [
+                    "qualia_bus",
+                    "hypothalamus_modulation",
+                    "crystal_regulation",
+                    "central_plan",
+                ],
                 "policy": (
                     "Qualia aporta señales contextuales como hipótesis; el Hipotálamo las modula y "
                     "el Cristal Morfológico calcula regulación, estabilidad y Q_crystal."
@@ -104,7 +113,6 @@ class QualiaEngine:
         except sqlite3.Error as exc:
             return {"status": "unavailable", "latest": None, "error": str(exc)}
 
-
     def _qualia_bus_snapshot(self) -> dict[str, Any]:
         path = Path(self.db_path)
         if not path.exists():
@@ -118,6 +126,7 @@ class QualiaEngine:
             }
         try:
             from triade.qualia.store import QualiaStore
+
             store = QualiaStore(db_path=self.db_path)
             doctor = store.doctor()
             if doctor.get("status") == "missing_tables":
@@ -160,16 +169,24 @@ class QualiaEngine:
             conn.row_factory = sqlite3.Row
             tables = {
                 str(row["name"])
-                for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
             }
             if "identity_core" not in tables:
                 return {}
-            rows = conn.execute("SELECT key, value, category FROM identity_core ORDER BY id").fetchall()
+            rows = conn.execute(
+                "SELECT key, value, category FROM identity_core ORDER BY id"
+            ).fetchall()
         values = {str(row["key"]): str(row["value"]) for row in rows}
         auto_store = AutoIdentityStore(db_path=self.db_path)
         auto_traits = auto_store.load_active()
         evolved = {
-            t["trait_key"]: {"value": t["trait_value"], "confidence": t["confidence"], "evidence": t["evidence_count"]}
+            t["trait_key"]: {
+                "value": t["trait_value"],
+                "confidence": t["confidence"],
+                "evidence": t["evidence_count"],
+            }
             for t in auto_traits
         }
         return {
@@ -188,13 +205,20 @@ class QualiaEngine:
     def _semantic_alignment(self) -> dict[str, Any]:
         path = Path(self.db_path)
         if not path.exists():
-            return {"status": "missing_db", "db_exists": False, "documents_by_status": {}, "embeddings": 0}
+            return {
+                "status": "missing_db",
+                "db_exists": False,
+                "documents_by_status": {},
+                "embeddings": 0,
+            }
         uri = f"file:{path.resolve()}?mode=ro"
         with sqlite3.connect(uri, uri=True) as conn:
             conn.row_factory = sqlite3.Row
             tables = {
                 str(row["name"])
-                for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
             }
             documents = self._counts_by_status(conn, "semantic_documents", tables)
             semantic_memory = self._counts_by_status(conn, "semantic_memory", tables)
@@ -219,23 +243,29 @@ class QualiaEngine:
             "live_state_relation": (
                 "El pulso vivo funciona como sentidos internos: percibe lo que ocurre ahora; la memoria semantica consolida conocimiento aprobado."
             ),
-            "message_to_central": self._semantic_message(stable_documents, candidate_documents, embeddings),
+            "message_to_central": self._semantic_message(
+                stable_documents, candidate_documents, embeddings
+            ),
         }
 
     @staticmethod
-    def _semantic_message(stable_documents: int, candidate_documents: int, embeddings: int) -> str:
+    def _semantic_message(
+        stable_documents: int, candidate_documents: int, embeddings: int
+    ) -> str:
         if stable_documents:
             return f"Hay {stable_documents} memorias semanticas estables y {embeddings} embeddings disponibles."
         if candidate_documents:
             return f"Hay {candidate_documents} memorias semanticas candidatas; pueden informar como candidatos, no como verdad estable."
-        return (
-            "No hay memoria semantica estable en documentos; aun asi el pulso vivo y Qualia perciben el estado vital actual."
-        )
+        return "No hay memoria semantica estable en documentos; aun asi el pulso vivo y Qualia perciben el estado vital actual."
 
     @staticmethod
     def _senses(life: dict[str, Any], semantic: dict[str, Any]) -> dict[str, Any]:
-        counters = life.get("counters") if isinstance(life.get("counters"), dict) else {}
-        reflection = life.get("reflection") if isinstance(life.get("reflection"), dict) else {}
+        counters = (
+            life.get("counters") if isinstance(life.get("counters"), dict) else {}
+        )
+        reflection = (
+            life.get("reflection") if isinstance(life.get("reflection"), dict) else {}
+        )
         return {
             "mode": "internal_senses",
             "pulse": {
@@ -252,22 +282,52 @@ class QualiaEngine:
             "reflection": {
                 "meaning": "sentido interno de necesidad: detecta propuestas y candidatos",
                 "neuron_proposals": reflection.get("neuron_proposals", []),
-                "learning_candidate_count": reflection.get("learning_candidate_count", 0),
+                "learning_candidate_count": reflection.get(
+                    "learning_candidate_count", 0
+                ),
             },
         }
 
     @staticmethod
     def _organs(life: dict[str, Any], semantic: dict[str, Any]) -> list[dict[str, Any]]:
         integrity_ok = bool((life.get("integrity") or {}).get("ok"))
-        counters = life.get("counters") if isinstance(life.get("counters"), dict) else {}
-        reflection = life.get("reflection") if isinstance(life.get("reflection"), dict) else {}
+        counters = (
+            life.get("counters") if isinstance(life.get("counters"), dict) else {}
+        )
+        reflection = (
+            life.get("reflection") if isinstance(life.get("reflection"), dict) else {}
+        )
         return [
-            {"name": "Neurona Central", "status": "active", "signal": "responde con contexto de Qualia"},
-            {"name": "N Formadora", "status": "active", "signal": "evalua propuestas de neuronas"},
-            {"name": "N Creadora", "status": "active", "signal": "genera neuronas candidatas"},
-            {"name": "Hipotalamo", "status": "active", "signal": "produce intencion/riesgo/urgencia"},
-            {"name": "Vector emocional", "status": "active", "signal": "PV-7 dentro de signal_states"},
-            {"name": "Bodega de almacenamiento", "status": "ok" if integrity_ok else "degraded", "signal": "DB local e integridad"},
+            {
+                "name": "Neurona Central",
+                "status": "active",
+                "signal": "responde con contexto de Qualia",
+            },
+            {
+                "name": "N Formadora",
+                "status": "active",
+                "signal": "evalua propuestas de neuronas",
+            },
+            {
+                "name": "N Creadora",
+                "status": "active",
+                "signal": "genera neuronas candidatas",
+            },
+            {
+                "name": "Hipotalamo",
+                "status": "active",
+                "signal": "produce intencion/riesgo/urgencia",
+            },
+            {
+                "name": "Vector emocional",
+                "status": "active",
+                "signal": "PV-7 dentro de signal_states",
+            },
+            {
+                "name": "Bodega de almacenamiento",
+                "status": "ok" if integrity_ok else "degraded",
+                "signal": "DB local e integridad",
+            },
             {
                 "name": "Qualia",
                 "status": "active",
@@ -281,10 +341,14 @@ class QualiaEngine:
         ]
 
     @staticmethod
-    def _counts_by_status(conn: sqlite3.Connection, table: str, tables: set[str]) -> dict[str, int]:
+    def _counts_by_status(
+        conn: sqlite3.Connection, table: str, tables: set[str]
+    ) -> dict[str, int]:
         if table not in tables:
             return {}
-        rows = conn.execute(f"SELECT status, COUNT(*) AS c FROM {table} GROUP BY status").fetchall()
+        rows = conn.execute(
+            f"SELECT status, COUNT(*) AS c FROM {table} GROUP BY status"
+        ).fetchall()
         return {str(row["status"] or "unknown"): int(row["c"]) for row in rows}
 
     @staticmethod

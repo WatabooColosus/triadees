@@ -69,7 +69,9 @@ FOUNDATIONAL_NEURONS: tuple[dict[str, Any], ...] = (
 )
 
 
-def ensure_foundational_neurons(db_path: str | Path = "triade/memory/triade.db") -> dict[str, Any]:
+def ensure_foundational_neurons(
+    db_path: str | Path = "triade/memory/triade.db",
+) -> dict[str, Any]:
     """Asegura el núcleo y sus misiones sin duplicarlas.
 
     ``stable`` significa contrato fundacional disponible para selección; no
@@ -90,11 +92,24 @@ def ensure_foundational_neurons(db_path: str | Path = "triade/memory/triade.db")
                 "Usar Manos unidas de Gonzalo Arango como referencia ética declarada, sin reproducir el poema.",
             ],
             triggers=["every_session", "relevant_context"],
-            inputs_allowed=["input_packet", "signals", "memory_context", "qualia_signals"],
-            outputs_allowed=["diagnosis", "proposal", "mission_context", "learning_candidate"],
+            inputs_allowed=[
+                "input_packet",
+                "signals",
+                "memory_context",
+                "qualia_signals",
+            ],
+            outputs_allowed=[
+                "diagnosis",
+                "proposal",
+                "mission_context",
+                "learning_candidate",
+            ],
             forbidden_actions=[
-                "modify_identity_core", "write_stable_memory", "self_approve",
-                "bypass_safety", "external_action_without_permission",
+                "modify_identity_core",
+                "write_stable_memory",
+                "self_approve",
+                "bypass_safety",
+                "external_action_without_permission",
             ],
             success_metrics=["relevance", "coherence", "safety", "evidence_quality"],
             evidence_required=["source_run", "measured_outcome"],
@@ -102,30 +117,35 @@ def ensure_foundational_neurons(db_path: str | Path = "triade/memory/triade.db")
             created_by="Wataboo · Agencia Digital / foundational_bootstrap",
             policy="foundational_active_but_governed",
         )
-        neuron_id = registry.register(spec, contract_payload={
-            "foundational": True,
-            "always_available": True,
-            "activation_policy": {
-                "every_session": True,
-                "context_influence_only_when_relevant": True,
-                "external_actions_require_permission": True,
-                "identity_core_protected": True,
+        neuron_id = registry.register(
+            spec,
+            contract_payload={
+                "foundational": True,
+                "always_available": True,
+                "activation_policy": {
+                    "every_session": True,
+                    "context_influence_only_when_relevant": True,
+                    "external_actions_require_permission": True,
+                    "identity_core_protected": True,
+                },
+                "creator": "Wataboo · Agencia Digital",
             },
-            "creator": "Wataboo · Agencia Digital",
-        })
+        )
         existing = missions.get_missions_by_neuron(neuron_id)
         if not any(m.title == f"Misión fundacional · {spec.name}" for m in existing):
-            missions.create_mission(NeuronMission(
-                neuron_id=neuron_id,
-                title=f"Misión fundacional · {spec.name}",
-                mission=spec.mission,
-                domain=spec.domain,
-                allowed_sources=["run", "worker", "memory", "qualia"],
-                allowed_actions=["observe", "diagnose", "propose_learning"],
-                schedule_hint="every_session",
-                status="stable",
-                metrics={"foundational": True, "always_available": True},
-            ))
+            missions.create_mission(
+                NeuronMission(
+                    neuron_id=neuron_id,
+                    title=f"Misión fundacional · {spec.name}",
+                    mission=spec.mission,
+                    domain=spec.domain,
+                    allowed_sources=["run", "worker", "memory", "qualia"],
+                    allowed_actions=["observe", "diagnose", "propose_learning"],
+                    schedule_hint="every_session",
+                    status="stable",
+                    metrics={"foundational": True, "always_available": True},
+                )
+            )
         ensured.append({"id": neuron_id, "name": spec.name, "status": "stable"})
 
     return {

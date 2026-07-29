@@ -83,13 +83,16 @@ class NeuronEvaluationCoordinator:
             "measurement_decision": comparison.decision,
             "regression_decision": report.decision,
             "report_id": report.report_id,
-            "promotable": comparison.decision == "improved" and report.decision == "pass",
+            "promotable": comparison.decision == "improved"
+            and report.decision == "pass",
         }
 
     def promote(self, candidate_id: str) -> dict[str, Any]:
         manifest = self._require_executed(candidate_id)
         evidence = self.evidence.require_improvement(candidate_id)
-        specification = self.specifications.get(manifest["neuron_id"], manifest["version"])
+        specification = self.specifications.get(
+            manifest["neuron_id"], manifest["version"]
+        )
         if specification is None:
             raise KeyError("la especificación del candidato ya no existe")
         if specification["state"] != "evaluated":
@@ -101,7 +104,9 @@ class NeuronEvaluationCoordinator:
         self._set_candidate_status(candidate_id, "promoted")
         from .lifecycle import NeuronLifecycleManager
 
-        capabilities = NeuronLifecycleManager(self.db_path).register_demonstrated_capabilities(candidate_id)
+        capabilities = NeuronLifecycleManager(
+            self.db_path
+        ).register_demonstrated_capabilities(candidate_id)
         return {
             "candidate_id": candidate_id,
             "neuron_id": manifest["neuron_id"],
@@ -116,7 +121,9 @@ class NeuronEvaluationCoordinator:
         manifest = self._require_executed(candidate_id)
         if not reason.strip():
             raise ValueError("reason es obligatorio")
-        specification = self.specifications.get(manifest["neuron_id"], manifest["version"])
+        specification = self.specifications.get(
+            manifest["neuron_id"], manifest["version"]
+        )
         if specification is None:
             raise KeyError("la especificación del candidato ya no existe")
         if specification["state"] != "evaluated":
@@ -142,14 +149,24 @@ class NeuronEvaluationCoordinator:
             raise ValueError("baseline_evaluation_id inconsistente")
         if comparison.candidate_evaluation_id != candidate.evaluation_id:
             raise ValueError("candidate_evaluation_id inconsistente")
-        if not math.isclose(comparison.baseline_score, baseline.aggregate_score, abs_tol=1e-9):
+        if not math.isclose(
+            comparison.baseline_score, baseline.aggregate_score, abs_tol=1e-9
+        ):
             raise ValueError("baseline_score no coincide con la evaluación")
-        if not math.isclose(comparison.candidate_score, candidate.aggregate_score, abs_tol=1e-9):
+        if not math.isclose(
+            comparison.candidate_score, candidate.aggregate_score, abs_tol=1e-9
+        ):
             raise ValueError("candidate_score no coincide con la evaluación")
         expected_delta = candidate.aggregate_score - baseline.aggregate_score
         if not math.isclose(comparison.absolute_delta, expected_delta, abs_tol=1e-9):
             raise ValueError("absolute_delta inconsistente")
-        expected_decision = "improved" if expected_delta > 0 else "regressed" if expected_delta < 0 else "neutral"
+        expected_decision = (
+            "improved"
+            if expected_delta > 0
+            else "regressed"
+            if expected_delta < 0
+            else "neutral"
+        )
         if comparison.decision != expected_decision:
             raise ValueError(
                 f"decisión de comparación inconsistente: esperada={expected_decision}, recibida={comparison.decision}"

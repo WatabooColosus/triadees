@@ -20,7 +20,9 @@ class RunLearningService:
     @staticmethod
     def _synthetic_source(source: str) -> bool:
         clean = str(source or "").strip().lower()
-        return clean.startswith(("system_pulse", "experimental_light_pulse", "worker", "internal_runtime"))
+        return clean.startswith(
+            ("system_pulse", "experimental_light_pulse", "worker", "internal_runtime")
+        )
 
     def semantic_continuity(
         self,
@@ -37,10 +39,15 @@ class RunLearningService:
                 "mode": "semantic-continuity",
                 "reason": "synthetic_runtime_activity_is_not_memory",
                 "source": input_packet.source,
-                "policy": {"auto_consolidation": False, "identity_core_modified": False},
+                "policy": {
+                    "auto_consolidation": False,
+                    "identity_core_modified": False,
+                },
             }
         try:
-            return SemanticContinuity(db_path=self.db_path, auto_ollama_embed=False).ingest_run(
+            return SemanticContinuity(
+                db_path=self.db_path, auto_ollama_embed=False
+            ).ingest_run(
                 run_id=input_packet.run_id,
                 user_input=input_packet.user_input,
                 response=output.response,
@@ -62,7 +69,10 @@ class RunLearningService:
                 "status": "error",
                 "mode": "semantic-continuity",
                 "error": str(exc),
-                "policy": {"auto_consolidation": False, "identity_core_modified": False},
+                "policy": {
+                    "auto_consolidation": False,
+                    "identity_core_modified": False,
+                },
             }
 
     def post_run_learning_candidate(

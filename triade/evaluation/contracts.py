@@ -54,7 +54,9 @@ class BenchmarkSuite:
         if len(case_ids) != len(set(case_ids)):
             raise ValueError("case_id duplicado en la suite")
         if any(case.capability != self.capability for case in self.cases):
-            raise ValueError("todos los casos deben pertenecer a la capacidad de la suite")
+            raise ValueError(
+                "todos los casos deben pertenecer a la capacidad de la suite"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -88,7 +90,9 @@ class EvaluationRun:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "aggregate_score", _bounded_score(self.aggregate_score))
+        object.__setattr__(
+            self, "aggregate_score", _bounded_score(self.aggregate_score)
+        )
         if not self.results:
             raise ValueError("EvaluationRun requiere resultados")
 
@@ -108,7 +112,9 @@ class CapabilityBaseline:
     created_at: str
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "aggregate_score", _bounded_score(self.aggregate_score))
+        object.__setattr__(
+            self, "aggregate_score", _bounded_score(self.aggregate_score)
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -129,7 +135,9 @@ class EvaluationComparison:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "baseline_score", _bounded_score(self.baseline_score))
-        object.__setattr__(self, "candidate_score", _bounded_score(self.candidate_score))
+        object.__setattr__(
+            self, "candidate_score", _bounded_score(self.candidate_score)
+        )
         if self.decision not in {"improved", "neutral", "regressed", "invalid"}:
             raise ValueError("decision inválida")
 

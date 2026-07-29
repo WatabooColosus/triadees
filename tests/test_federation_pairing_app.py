@@ -8,14 +8,21 @@ from apps import federation_pairing_app
 from apps.federation_pairing_app import app
 
 
-def test_pairing_requires_token_and_registers_browser_node(tmp_path, monkeypatch) -> None:
+def test_pairing_requires_token_and_registers_browser_node(
+    tmp_path, monkeypatch
+) -> None:
     monkeypatch.setattr(federation_pairing_app, "DB_PATH", str(tmp_path / "triade.db"))
     monkeypatch.setattr(federation_pairing_app, "PAIRING_TOKEN", "test-token")
     client = TestClient(app)
 
     blocked = client.post(
         "/api/pair",
-        json={"token": "wrong", "display_name": "Celular", "permissions": ["publish_capabilities"], "capabilities": {}},
+        json={
+            "token": "wrong",
+            "display_name": "Celular",
+            "permissions": ["publish_capabilities"],
+            "capabilities": {},
+        },
     )
     assert blocked.status_code == 401
 
@@ -73,5 +80,8 @@ def test_admin_page_includes_single_install_command(monkeypatch) -> None:
     response = client.get("/admin")
 
     assert response.status_code == 200
-    assert "curl -fsSL http://testserver/downloads/termux-bootstrap.sh | bash" in response.text
+    assert (
+        "curl -fsSL http://testserver/downloads/termux-bootstrap.sh | bash"
+        in response.text
+    )
     assert "secret-pair-token" not in response.text

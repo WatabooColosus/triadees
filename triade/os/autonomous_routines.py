@@ -4,13 +4,12 @@ neuronas, entrenamiento autónomo, verificación, degradación y documentación.
 import json
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any
-
 from triade.core.contracts import utc_now
 
 
 def _gen_id(prefix: str) -> str:
     import hashlib
+
     return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(timezone.utc).timestamp()).encode()).hexdigest()[:6]}"
 
 
@@ -66,14 +65,19 @@ ROUTINE_TYPES = [
 class AutonomousRoutines:
     """Motor de rutinas autónomas para auto-mejora continua."""
 
-    def __init__(self, db_path: str | None = None, conn: sqlite3.Connection | None = None):
-        self._conn = conn or sqlite3.connect(db_path or ":memory:")
+    def __init__(
+        self, db_path: str | None = None, conn: sqlite3.Connection | None = None
+    ):
+        self.db_path = db_path or ":memory:"
+        self._conn = conn or sqlite3.connect(self.db_path)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
 
     def create_routine(self, routine_type: str, config: dict | None = None) -> dict:
         if routine_type not in ROUTINE_TYPES:
-            raise ValueError(f"Unknown routine type: {routine_type}. Valid: {ROUTINE_TYPES}")
+            raise ValueError(
+                f"Unknown routine type: {routine_type}. Valid: {ROUTINE_TYPES}"
+            )
         routine_id = _gen_id("routine")
         now = utc_now()
         self._conn.execute(
@@ -100,16 +104,33 @@ class AutonomousRoutines:
         )
 
         try:
-            result = self._run_by_type(routine["routine_type"],
-                                        json.loads(routine["config_json"]) if routine["config_json"] else {})
+            result = self._run_by_type(
+                routine["routine_type"],
+                json.loads(routine["config_json"]) if routine["config_json"] else {},
+            )
+            result_status = str(result.get("status") or "observed")
+            persistent_status = (
+                "failed"
+                if result_status == "failed"
+                else ("blocked" if result_status == "blocked" else "completed")
+            )
             self._conn.execute(
                 """UPDATE autonomous_routines
-                   SET status='completed', finished_at=?, result_json=?
+                   SET status=?, finished_at=?, result_json=?
                    WHERE routine_id=?""",
-                (utc_now(), json.dumps(result, default=str), routine_id),
+                (
+                    persistent_status,
+                    utc_now(),
+                    json.dumps(result, default=str),
+                    routine_id,
+                ),
             )
             self._conn.commit()
-            return {"routine_id": routine_id, "status": "completed", "result": result}
+            return {
+                "routine_id": routine_id,
+                "status": persistent_status,
+                "result": result,
+            }
         except Exception as e:
             self._conn.execute(
                 """UPDATE autonomous_routines
@@ -146,200 +167,180 @@ class AutonomousRoutines:
         return {"action": "no_handler"}
 
     def _self_improvement(self, config: dict) -> dict:
-        improvements = []
-        imp_id = _gen_id("imp")
-        self._conn.execute(
-            """INSERT INTO autonomous_improvements
-               (improvement_id, category, description, impact_score, created_at)
-               VALUES (?,?,?,?,?)""",
-            (imp_id, "optimization", "Routine self-optimization cycle", 0.5, utc_now()),
-        )
-        self._conn.commit()
-        return {"improvements": 1, "details": "Self-improvement cycle completed"}
+        return {
+            "status": "blocked",
+            "improvements": 0,
+            "reason": "engineering_evolution_worker_and_measured_baseline_required",
+        }
 
     def _autonomous_neuron_creation(self, config: dict) -> dict:
-        """Crea neuronas autónomamente basado en gaps detectados."""
-        created = []
-        try:
-            from triade.neuron_factory.design import DesignEngine
-            de = DesignEngine()
-            spec = de.generate_specification(
-                name=config.get("name", "auto_neuron"),
-                domain=config.get("domain", "general"),
-                description=config.get("description", "Autonomously created neuron"),
-            )
-            if spec:
-                created.append(spec.get("spec_id", "unknown"))
-        except Exception:
-            pass
-        return {"action": "neuron_creation", "created": len(created),
-                "neuron_ids": created, "message": f"Created {len(created)} neurons"}
+        return {
+            "action": "neuron_creation",
+            "status": "blocked",
+            "created": 0,
+            "neuron_ids": [],
+            "reason": "persistent_gap_curriculum_tests_and_approval_required",
+        }
 
     def _autonomous_training(self, config: dict) -> dict:
-        """Entrena neuronas existentes con datos disponibles."""
-        trained = []
-        try:
-            from triade.neuron_factory.training import TrainingPipeline
-            tp = TrainingPipeline()
-            datasets = tp.list_datasets()
-            for ds in datasets[:config.get("max_datasets", 3)]:
-                run = tp.run_episodes(ds["dataset_id"],
-                                      config.get("neuron_id", "auto_train"))
-                trained.append({"dataset": ds["dataset_id"], "score": run.get("avg_score", 0)})
-        except Exception:
-            pass
-        return {"action": "training", "trained": len(trained), "results": trained}
+        return {
+            "action": "training",
+            "status": "blocked",
+            "trained": 0,
+            "results": [],
+            "reason": "governed_dataset_split_baseline_and_independent_evaluation_required",
+        }
 
     def _autonomous_verification(self, config: dict) -> dict:
-        """Verifica neuronas: genera y ejecuta tests para candidatos."""
-        verified = 0
-        failed = 0
-        details = []
-        try:
-            from triade.neuron_factory.test_generator import NeuronTestGenerator
-            ntg = NeuronTestGenerator()
-            neuron_id = config.get("neuron_id", "test_candidate")
-            test_cases = ntg.generate(neuron_id)
-            if test_cases:
-                verified = len(test_cases) if isinstance(test_cases, list) else 1
-                details.append({"neuron_id": neuron_id, "cases": verified})
-            else:
-                failed = 1
-                details.append({"neuron_id": neuron_id, "cases": 0})
-        except Exception:
-            pass
-        return {"action": "verification", "verified": verified, "failed": failed,
-                "details": details}
+        return {
+            "action": "verification",
+            "status": "blocked",
+            "verified": 0,
+            "failed": 0,
+            "details": [],
+            "reason": "generated_tests_are_not_executed_independent_evidence",
+        }
 
     def _autonomous_degradation(self, config: dict) -> dict:
-        """Degrada neuronas: evalúa calidad y marca las de baja puntuación."""
-        degraded = []
-        evaluated = 0
-        try:
-            from triade.neuron_factory.quality_metrics import QualityMetrics
-            qm = QualityMetrics()
-            neuron_id = config.get("neuron_id", "")
-            if neuron_id:
-                result = qm.evaluate(neuron_id, {"completeness": 0.3, "correctness": 0.2})
-                evaluated = 1
-                if result.get("overall_score", 1.0) < config.get("threshold", 0.3):
-                    degraded.append(neuron_id)
-        except Exception:
-            pass
-        return {"action": "degradation", "evaluated": evaluated,
-                "degraded": len(degraded), "neuron_ids": degraded}
+        return {
+            "action": "degradation",
+            "status": "blocked",
+            "evaluated": 0,
+            "degraded": 0,
+            "neuron_ids": [],
+            "reason": "real_performance_evidence_and_reversible_transition_required",
+        }
 
     def _auto_documentation(self, config: dict) -> dict:
-        doc_id = _gen_id("doc")
-        self._conn.execute(
-            """INSERT INTO autonomous_documentation
-               (doc_id, doc_type, title, content, created_at)
-               VALUES (?,?,?,?,?)""",
-            (doc_id, "auto_generated", "System Health Report",
-             json.dumps({"status": "healthy", "timestamp": utc_now()}, default=str),
-             utc_now()),
-        )
-        self._conn.commit()
-        return {"docs_generated": 1, "doc_id": doc_id}
+        return {
+            "status": "blocked",
+            "docs_generated": 0,
+            "reason": "health_snapshot_evidence_required_before_documentation",
+        }
 
     def _memory_organization(self, config: dict) -> dict:
-        """Reorganiza la memoria: consolida duplicados, mejora indexes."""
-        organized = 0
+        """Diagnostica duplicados; una rutina autónoma no borra memoria."""
         try:
-            from triade.memory.compression import MemoryCompressor
-            mc = MemoryCompressor()
-            result = mc.deduplicate_semantic()
-            organized = result.get("duplicates_removed", 0)
-        except Exception:
-            pass
-        return {"action": "memory_organization", "organized": organized}
+            rows = self._conn.execute(
+                """SELECT key,value,COUNT(*) count FROM semantic_memory
+                GROUP BY key,value HAVING COUNT(*)>1"""
+            ).fetchall()
+            return {
+                "action": "memory_organization",
+                "status": "observed",
+                "organized": 0,
+                "duplicate_groups": len(rows),
+                "truth": "diagnosis_only_governed_merge_required",
+            }
+        except Exception as exc:
+            return {
+                "action": "memory_organization",
+                "status": "failed",
+                "organized": 0,
+                "error": str(exc),
+            }
 
     def _knowledge_pruning(self, config: dict) -> dict:
-        """Elimina conocimiento obsoleto: deprecate docs de baja calidad."""
-        pruned = 0
+        """Detecta conocimiento obsoleto sin borrarlo fuera de gobernanza."""
         deprecated = 0
         try:
             from triade.memory.semantic_store import SemanticMemoryStore
+
             ss = SemanticMemoryStore()
             docs = ss.list_documents()
             for doc in docs:
                 if doc.get("status") == "deprecated":
                     deprecated += 1
-                if doc.get("confidence", 1.0) < config.get("max_confidence", 0.2):
-                    ss.delete_document(doc.get("doc_id", ""))
-                    pruned += 1
-        except Exception:
-            pass
-        return {"action": "pruning", "pruned": pruned, "deprecated_found": deprecated}
+        except Exception as exc:
+            return {
+                "action": "pruning",
+                "status": "failed",
+                "pruned": 0,
+                "deprecated_found": deprecated,
+                "error": str(exc),
+            }
+        return {
+            "action": "pruning",
+            "status": "observed",
+            "pruned": 0,
+            "deprecated_found": deprecated,
+            "truth": "direct_deletion_disabled_requires_governed_forgetting",
+        }
 
     def _health_maintenance(self, config: dict) -> dict:
-        return {"action": "health_check", "status": "healthy"}
+        return {
+            "action": "health_check",
+            "status": "observed",
+            "truth": "no_health_probe_attached_to_legacy_routine",
+        }
 
     def _autonomous_learning(self, config: dict) -> dict:
-        """Aprende de interacciones recientes: consolida, crea edges causales, y comprime."""
+        """Diagnostica nodos recientes; no inventa causalidad ni aprendizaje."""
         learned = 0
-        edges_created = 0
-        compressed = 0
         try:
             from triade.learning.causal_learning import CausalLearningEngine
-            cle = CausalLearningEngine()
-            recent = cle.list_nodes(limit=config.get("limit", 20))
-            if len(recent) >= 2:
-                for i in range(min(len(recent) - 1, 5)):
-                    cle.add_edge(recent[i]["node_id"], recent[i+1]["node_id"],
-                                 confidence=0.6, evidence="autonomous_learning")
-                    edges_created += 1
-            learned = len(recent)
-        except Exception:
-            pass
-        try:
-            from triade.memory.compression import MemoryCompressor
-            mc = MemoryCompressor()
-            result = mc.deduplicate_semantic()
-            compressed = result.get("duplicates_removed", 0)
-        except Exception:
-            pass
-        return {"action": "learning", "nodes_analyzed": learned,
-                "edges_created": edges_created, "compressed": compressed}
+
+            cle = CausalLearningEngine(db_path=self.db_path)
+            learned = int(cle.doctor()["nodes"])
+        except Exception as exc:
+            return {
+                "action": "learning",
+                "status": "failed",
+                "nodes_analyzed": 0,
+                "edges_created": 0,
+                "compressed": 0,
+                "error": str(exc),
+            }
+        return {
+            "action": "learning",
+            "status": "observed",
+            "nodes_analyzed": learned,
+            "edges_created": 0,
+            "compressed": 0,
+            "truth": "observation_is_not_learning_or_causal_evidence",
+        }
 
     def _autonomous_research(self, config: dict) -> dict:
-        """Investiga temas nuevos: analiza gaps en el knowledge graph y genera specs."""
-        topics_found = 0
-        specs_generated = 0
-        try:
-            from triade.neuron_factory.research import ResearchEngine
-            re = ResearchEngine()
-            domain = config.get("domain", "general")
-            topics = re.list_by_domain(domain)
-            topics_found = len(topics)
-            for topic in topics[:config.get("max_specs", 2)]:
-                result = re.investigate(topic.get("name", "unknown"),
-                                        config.get("context", "autonomous research"))
-                if result:
-                    specs_generated += 1
-        except Exception:
-            pass
-        return {"action": "research", "topics_found": topics_found,
-                "specs_generated": specs_generated}
+        return {
+            "action": "research",
+            "status": "blocked",
+            "topics_found": 0,
+            "specs_generated": 0,
+            "reason": "use_governed_research_pipeline_with_external_sources",
+        }
 
-    def record_improvement(self, routine_id: str, category: str,
-                           description: str, impact: float = 0.5,
-                           before: dict | None = None, after: dict | None = None) -> dict:
+    def record_improvement(
+        self,
+        routine_id: str,
+        category: str,
+        description: str,
+        impact: float = 0.5,
+        before: dict | None = None,
+        after: dict | None = None,
+    ) -> dict:
         imp_id = _gen_id("imp")
         self._conn.execute(
             """INSERT INTO autonomous_improvements
                (improvement_id, routine_id, category, description,
                 before_json, after_json, impact_score, created_at)
                VALUES (?,?,?,?,?,?,?,?)""",
-            (imp_id, routine_id, category, description,
-             json.dumps(before or {}, default=str),
-             json.dumps(after or {}, default=str),
-             impact, utc_now()),
+            (
+                imp_id,
+                routine_id,
+                category,
+                description,
+                json.dumps(before or {}, default=str),
+                json.dumps(after or {}, default=str),
+                impact,
+                utc_now(),
+            ),
         )
         self._conn.commit()
         return {"improvement_id": imp_id, "category": category}
 
-    def list_routines(self, routine_type: str | None = None, limit: int = 20) -> list[dict]:
+    def list_routines(
+        self, routine_type: str | None = None, limit: int = 20
+    ) -> list[dict]:
         if routine_type:
             rows = self._conn.execute(
                 "SELECT * FROM autonomous_routines WHERE routine_type=? ORDER BY created_at DESC LIMIT ?",
@@ -367,9 +368,21 @@ class AutonomousRoutines:
         return [dict(r) for r in rows]
 
     def doctor(self) -> dict:
-        total = self._conn.execute("SELECT COUNT(*) as c FROM autonomous_routines").fetchone()["c"]
-        completed = self._conn.execute("SELECT COUNT(*) as c FROM autonomous_routines WHERE status='completed'").fetchone()["c"]
-        improvements = self._conn.execute("SELECT COUNT(*) as c FROM autonomous_improvements").fetchone()["c"]
-        docs = self._conn.execute("SELECT COUNT(*) as c FROM autonomous_documentation").fetchone()["c"]
-        return {"total_routines": total, "completed": completed,
-                "improvements": improvements, "documents": docs}
+        total = self._conn.execute(
+            "SELECT COUNT(*) as c FROM autonomous_routines"
+        ).fetchone()["c"]
+        completed = self._conn.execute(
+            "SELECT COUNT(*) as c FROM autonomous_routines WHERE status='completed'"
+        ).fetchone()["c"]
+        improvements = self._conn.execute(
+            "SELECT COUNT(*) as c FROM autonomous_improvements"
+        ).fetchone()["c"]
+        docs = self._conn.execute(
+            "SELECT COUNT(*) as c FROM autonomous_documentation"
+        ).fetchone()["c"]
+        return {
+            "total_routines": total,
+            "completed": completed,
+            "improvements": improvements,
+            "documents": docs,
+        }

@@ -5,7 +5,7 @@ from typing import Any
 
 from .neuron_registry import NeuronRegistry
 from .neuron_missions import NeuronMissionStore
-from .stable_promotion_readiness import evaluate_stable_readiness, SYNTHETIC_POLICIES
+from .stable_promotion_readiness import evaluate_stable_readiness
 
 
 class NeuronAutopromoter:
@@ -37,15 +37,22 @@ class NeuronAutopromoter:
         updated = 0
         for mission in self.mission_store.get_missions_by_neuron(neuron_id):
             if mission.id is not None and mission.status not in {"paused", "rejected"}:
-                updated += int(self.mission_store.update_mission_status(mission.id, status))
+                updated += int(
+                    self.mission_store.update_mission_status(mission.id, status)
+                )
         return updated
 
     def promote(self) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
         for n in self.registry.list_neurons(limit=100):
             status = (n.get("status") or "").strip().lower()
-            name = n.get("name", "?")
-            if status in ("candidate_reviewable", "candidate", "experimental_candidate", "weak_candidate"):
+            n.get("name", "?")
+            if status in (
+                "candidate_reviewable",
+                "candidate",
+                "experimental_candidate",
+                "weak_candidate",
+            ):
                 ev = self._promote_candidate_to_experimental(n)
                 if ev:
                     events.append(ev)
@@ -55,16 +62,30 @@ class NeuronAutopromoter:
                     events.append(ev)
         return events
 
-    def _promote_candidate_to_experimental(self, n: dict[str, Any]) -> dict[str, Any] | None:
+    def _promote_candidate_to_experimental(
+        self, n: dict[str, Any]
+    ) -> dict[str, Any] | None:
         name = n.get("name", "?")
         training = self.registry.list_training(int(n["id"]), limit=1)
         contract = n.get("contract_json") or {}
-        candidate_gate = contract.get("candidate_gate") if isinstance(contract, dict) else {}
-        blocked_gate_types = {"factual_simple", "positive_feedback", "thanks", "acknowledgement"}
+        candidate_gate = (
+            contract.get("candidate_gate") if isinstance(contract, dict) else {}
+        )
+        blocked_gate_types = {
+            "factual_simple",
+            "positive_feedback",
+            "thanks",
+            "acknowledgement",
+        }
         if isinstance(candidate_gate, dict) and candidate_gate:
             gate_score = float(candidate_gate.get("score") or 0.0)
-            detected_type = str(candidate_gate.get("detected_type") or "").strip().lower()
-            if gate_score < self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE or detected_type in blocked_gate_types:
+            detected_type = (
+                str(candidate_gate.get("detected_type") or "").strip().lower()
+            )
+            if (
+                gate_score < self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE
+                or detected_type in blocked_gate_types
+            ):
                 return {
                     "type": "autopromotion_skipped",
                     "severity": "info",
@@ -97,7 +118,11 @@ class NeuronAutopromoter:
                 "status": "not_promoted",
                 "message": f"Neurona '{name}' score={score:.2f} < {self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE}; no se promueve.",
                 "reason": "score_below_threshold",
-                "payload": {"name": name, "score": score, "threshold": self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE},
+                "payload": {
+                    "name": name,
+                    "score": score,
+                    "threshold": self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE,
+                },
             }
         ap = n.get("activation_policy") or {}
         if not ap.get("auto_approve", True):
@@ -136,11 +161,13 @@ class NeuronAutopromoter:
             },
         }
 
-    def _promote_experimental_to_stable(self, n: dict[str, Any]) -> dict[str, Any] | None:
+    def _promote_experimental_to_stable(
+        self, n: dict[str, Any]
+    ) -> dict[str, Any] | None:
         name = n.get("name", "?")
         readiness = evaluate_stable_readiness(prefer_db=True, db_path=str(self.db_path))
         neuron_report = None
-        for nr in (readiness.get("neurons") or []):
+        for nr in readiness.get("neurons") or []:
             if nr.get("name") == name:
                 neuron_report = nr
                 break
@@ -234,31 +261,62 @@ class NeuronAutopromoter:
             },
         }
 
-    def compute_progress(self, neuron: dict[str, Any], training: list[dict[str, Any]]) -> dict[str, Any]:
+    def compute_progress(
+        self, neuron: dict[str, Any], training: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         status = (neuron.get("status") or "").strip().lower()
         name = neuron.get("name", "?")
         if status in ("stable", "rejected"):
-            return {"phase": status, "progress": 1.0, "label": "Completado" if status == "stable" else "Rechazado"}
+            return {
+                "phase": status,
+                "progress": 1.0,
+                "label": "Completado" if status == "stable" else "Rechazado",
+            }
         if status in ("candidate_reviewable", "candidate"):
             score = training[0].get("score", 0.0) if training else 0.0
             progress = min(score / self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE, 1.0)
-            return {"phase": "candidate", "progress": progress, "score": score, "threshold": self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE, "target": "experimental", "label": f"{score:.0%} hacia experimental"}
+            return {
+                "phase": "candidate",
+                "progress": progress,
+                "score": score,
+                "threshold": self.CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE,
+                "target": "experimental",
+                "label": f"{score:.0%} hacia experimental",
+            }
         if status == "experimental":
-            readiness = evaluate_stable_readiness(db_path=str(self.db_path), prefer_db=True)
+            readiness = evaluate_stable_readiness(
+                db_path=str(self.db_path), prefer_db=True
+            )
             nr = None
-            for rn in (readiness.get("neurons") or []):
+            for rn in readiness.get("neurons") or []:
                 if rn.get("name") == name:
                     nr = rn
                     break
             nr = nr or {}
-            a = min(int(nr.get("activation_count", 0)) / self.STABLE_THRESHOLDS["min_activations"], 1.0)
-            d = min(int(nr.get("diagnosis_count", 0)) / self.STABLE_THRESHOLDS["min_diagnosis"], 1.0)
-            t = min(int(nr.get("test_plan_count", 0)) / self.STABLE_THRESHOLDS["min_test_plan"], 1.0)
+            a = min(
+                int(nr.get("activation_count", 0))
+                / self.STABLE_THRESHOLDS["min_activations"],
+                1.0,
+            )
+            d = min(
+                int(nr.get("diagnosis_count", 0))
+                / self.STABLE_THRESHOLDS["min_diagnosis"],
+                1.0,
+            )
+            t = min(
+                int(nr.get("test_plan_count", 0))
+                / self.STABLE_THRESHOLDS["min_test_plan"],
+                1.0,
+            )
             progress = round((a + d + t) / 3, 4)
             return {
-                "phase": "experimental", "progress": progress,
-                "activation_progress": a, "diagnosis_progress": d, "test_plan_progress": t,
+                "phase": "experimental",
+                "progress": progress,
+                "activation_progress": a,
+                "diagnosis_progress": d,
+                "test_plan_progress": t,
                 "thresholds": self.STABLE_THRESHOLDS,
-                "target": "stable", "label": f"{progress:.0%} hacia stable",
+                "target": "stable",
+                "label": f"{progress:.0%} hacia stable",
             }
         return {"phase": status, "progress": 0.0, "label": "En espera"}

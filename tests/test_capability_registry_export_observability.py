@@ -11,7 +11,9 @@ from triade.capabilities import (
 )
 
 
-def capability(capability_id: str, *, state: str = "experimental", critical: bool = False) -> CapabilityDefinition:
+def capability(
+    capability_id: str, *, state: str = "experimental", critical: bool = False
+) -> CapabilityDefinition:
     return CapabilityDefinition(
         capability_id=capability_id,
         name=capability_id,
@@ -47,7 +49,9 @@ def test_export_is_deterministic_and_contains_history(tmp_path: Path) -> None:
 def test_export_write_produces_valid_json(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     CapabilityRegistry(db_path).register(capability("learning"))
-    output = CapabilityRegistryExporter(db_path).write(tmp_path / "artifacts" / "capabilities.json")
+    output = CapabilityRegistryExporter(db_path).write(
+        tmp_path / "artifacts" / "capabilities.json"
+    )
 
     payload = json.loads(output.read_text(encoding="utf-8"))
 
@@ -55,7 +59,9 @@ def test_export_write_produces_valid_json(tmp_path: Path) -> None:
     assert payload["capabilities"][0]["capability_id"] == "learning"
 
 
-def test_observability_reports_blocked_capabilities_as_attention(tmp_path: Path) -> None:
+def test_observability_reports_blocked_capabilities_as_attention(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     registry = CapabilityRegistry(db_path)
     registry.register(capability("learning", state="active"))

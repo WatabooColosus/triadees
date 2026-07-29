@@ -6,7 +6,6 @@ from triade.core.contracts import (
     CrystalPacket,
     MemoryPacket,
     PlanPacket,
-    SafetyPacket,
     SignalPacket,
 )
 from triade.core.safety import Safety

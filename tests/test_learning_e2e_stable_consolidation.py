@@ -12,7 +12,9 @@ from triade.workers.worker_loop import WorkerLoop
 
 def _identity_rows(db_path: Path) -> list[tuple]:
     with sqlite3.connect(db_path) as conn:
-        return conn.execute("SELECT key, value, category, confidence FROM identity_core ORDER BY key").fetchall()
+        return conn.execute(
+            "SELECT key, value, category, confidence FROM identity_core ORDER BY key"
+        ).fetchall()
 
 
 def _attach_improved_evidence(pipe: LearningPipeline, cid: str) -> None:
@@ -62,7 +64,9 @@ def _attach_improved_evidence(pipe: LearningPipeline, cid: str) -> None:
     )
 
 
-def test_end_to_end_learning_consolidates_without_skipping_gates(tmp_path: Path) -> None:
+def test_end_to_end_learning_consolidates_without_skipping_gates(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
     runner = TriadeRunner(db_path=db_path, runs_dir=runs_dir, use_ollama=False)
@@ -101,7 +105,15 @@ def test_end_to_end_learning_consolidates_without_skipping_gates(tmp_path: Path)
     task_dir = tmp_path / "worker-runs" / "stable-review"
     task_dir.mkdir(parents=True, exist_ok=True)
     result = loop._stable_consolidation_review(
-        type("FakeTask", (), {"id": 1, "task_type": "stable_consolidation_review", "to_dict": lambda self: {}})(),
+        type(
+            "FakeTask",
+            (),
+            {
+                "id": 1,
+                "task_type": "stable_consolidation_review",
+                "to_dict": lambda self: {},
+            },
+        )(),
         "worker-e2e-stable",
         task_dir,
         type("FakeConfig", (), {"task_timeout": 30.0, "dry_run": False})(),
@@ -114,7 +126,12 @@ def test_end_to_end_learning_consolidates_without_skipping_gates(tmp_path: Path)
     assert consolidated["status"] == "consolidated"
 
     documents = SemanticMemoryStore(db_path=db_path).list_documents(limit=20)
-    stable_docs = [doc for doc in documents if doc.get("status") == "stable" and doc.get("metadata", {}).get("learning_candidate_id") == cid]
+    stable_docs = [
+        doc
+        for doc in documents
+        if doc.get("status") == "stable"
+        and doc.get("metadata", {}).get("learning_candidate_id") == cid
+    ]
     assert stable_docs
     assert "observabilidad consolidada" in stable_docs[0]["content"].lower()
     assert stable_docs[0]["metadata"]["measurement_evidence"]["decision"] == "improved"

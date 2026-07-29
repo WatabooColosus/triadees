@@ -7,7 +7,6 @@ capacidades, preferencias, patrones de comportamiento.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,7 +17,13 @@ def new_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-DISCOVERY_CATEGORIES = {"capability", "preference", "behavior", "discovered_mission", "observed_pattern"}
+DISCOVERY_CATEGORIES = {
+    "capability",
+    "preference",
+    "behavior",
+    "discovered_mission",
+    "observed_pattern",
+}
 
 
 class AutoIdentityStore:
@@ -37,7 +42,9 @@ class AutoIdentityStore:
 
     def _init_db(self) -> None:
         if not self.schema_path.exists():
-            raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
+            raise FileNotFoundError(
+                f"No existe el esquema de memoria: {self.schema_path}"
+            )
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
 
@@ -58,25 +65,55 @@ class AutoIdentityStore:
             ).fetchone()
 
             if existing:
-                new_confidence = confidence if confidence is not None else min(1.0, float(existing["confidence"]) + 0.05)
+                new_confidence = (
+                    confidence
+                    if confidence is not None
+                    else min(1.0, float(existing["confidence"]) + 0.05)
+                )
                 new_evidence = int(existing["evidence_count"]) + 1
                 conn.execute(
                     """UPDATE auto_identity
                     SET trait_value = ?, category = ?, source_ref = ?,
                         confidence = ?, evidence_count = ?, updated_at = ?
                     WHERE id = ?""",
-                    (trait_value, category, source_ref, new_confidence, new_evidence, now, int(existing["id"])),
+                    (
+                        trait_value,
+                        category,
+                        source_ref,
+                        new_confidence,
+                        new_evidence,
+                        now,
+                        int(existing["id"]),
+                    ),
                 )
-                return {"key": trait_key, "updated": True, "confidence": new_confidence, "evidence_count": new_evidence}
+                return {
+                    "key": trait_key,
+                    "updated": True,
+                    "confidence": new_confidence,
+                    "evidence_count": new_evidence,
+                }
 
             final_confidence = confidence if confidence is not None else 0.3
             conn.execute(
                 """INSERT INTO auto_identity
                 (trait_key, trait_value, category, source_ref, confidence, status, evidence_count, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, 'candidate', 1, ?, ?)""",
-                (trait_key, trait_value, category, source_ref, final_confidence, now, now),
+                (
+                    trait_key,
+                    trait_value,
+                    category,
+                    source_ref,
+                    final_confidence,
+                    now,
+                    now,
+                ),
             )
-            return {"key": trait_key, "updated": False, "confidence": final_confidence, "evidence_count": 1}
+            return {
+                "key": trait_key,
+                "updated": False,
+                "confidence": final_confidence,
+                "evidence_count": 1,
+            }
 
     def archive(self, trait_key: str) -> bool:
         with self._connect() as conn:
@@ -112,14 +149,20 @@ class AutoIdentityStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
-    def evolve_from_reflection(self, run_id: str, reflection_data: dict[str, Any]) -> list[dict[str, Any]]:
+    def evolve_from_reflection(
+        self, run_id: str, reflection_data: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         evolved: list[dict[str, Any]] = []
         observations = reflection_data.get("observations", [])
-        themes = reflection_data.get("learning_candidates", {}).get("candidate_themes", [])
+        themes = reflection_data.get("learning_candidates", {}).get(
+            "candidate_themes", []
+        )
 
         seen = set()
         for obs in observations:
-            text = str(obs.get("observation", obs)) if isinstance(obs, dict) else str(obs)
+            text = (
+                str(obs.get("observation", obs)) if isinstance(obs, dict) else str(obs)
+            )
             if len(text) < 20 or text in seen:
                 continue
             seen.add(text)
@@ -139,7 +182,11 @@ class AutoIdentityStore:
                 evolved.append(result)
 
         for theme in themes:
-            name = str(theme.get("theme", theme)) if isinstance(theme, dict) else str(theme)
+            name = (
+                str(theme.get("theme", theme))
+                if isinstance(theme, dict)
+                else str(theme)
+            )
             if len(name) < 15 or name in seen:
                 continue
             seen.add(name)
@@ -161,7 +208,9 @@ class AutoIdentityStore:
 
     def count(self) -> int:
         with self._connect() as conn:
-            row = conn.execute("SELECT COUNT(*) AS c FROM auto_identity WHERE status IN ('candidate', 'stable')").fetchone()
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM auto_identity WHERE status IN ('candidate', 'stable')"
+            ).fetchone()
             return row["c"] if row else 0
 
     def count_all(self) -> int:

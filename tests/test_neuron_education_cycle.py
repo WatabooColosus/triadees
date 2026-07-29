@@ -20,7 +20,15 @@ def _database(tmp_path):
         conn.execute(
             """INSERT INTO neuron_missions(neuron_id,title,mission,domain,allowed_sources_json,allowed_actions_json,status)
             VALUES(?,?,?,?,?,?,?)""",
-            (neuron_id, "Código", "reparar código con pruebas", "code_repair", '["repo","document","web"]', '["observe"]', "experimental"),
+            (
+                neuron_id,
+                "Código",
+                "reparar código con pruebas",
+                "code_repair",
+                '["repo","document","web"]',
+                '["observe"]',
+                "experimental",
+            ),
         )
     return path, int(neuron_id)
 
@@ -42,21 +50,41 @@ def test_cycle_refuses_to_claim_learning_without_independent_material(tmp_path):
     assert result["learned"] is False
     assert result["independent_sources"] == 0
     with sqlite3.connect(path) as conn:
-        assert conn.execute("SELECT state FROM neuron_education_sessions").fetchone()[0] == "material_insufficient"
+        assert (
+            conn.execute("SELECT state FROM neuron_education_sessions").fetchone()[0]
+            == "material_insufficient"
+        )
 
 
 def test_cycle_prepares_lesson_but_does_not_self_approve(tmp_path):
     path, _ = _database(tmp_path)
-    _material(path, "https://docs.python.org/testing", "Pruebas de código", "reparar código requiere pruebas reproducibles")
-    _material(path, "https://sqlite.org/testing.html", "Validación independiente", "código reparado debe superar pruebas y validación")
+    _material(
+        path,
+        "https://docs.python.org/testing",
+        "Pruebas de código",
+        "reparar código requiere pruebas reproducibles",
+    )
+    _material(
+        path,
+        "https://sqlite.org/testing.html",
+        "Validación independiente",
+        "código reparado debe superar pruebas y validación",
+    )
     result = NeuronEducationCycle(path).run_once()
     assert result["status"] == "lesson_prepared"
     assert result["learned"] is False
     assert result["independent_sources"] == 2
+    assert result["truth_status"] == "hypothesis_pending_independent_evaluation"
     with sqlite3.connect(path) as conn:
-        row = conn.execute("SELECT state,evaluation_json FROM neuron_education_sessions").fetchone()
+        row = conn.execute(
+            "SELECT state,evaluation_json FROM neuron_education_sessions"
+        ).fetchone()
+        evidence = conn.execute(
+            "SELECT decision,regression_required FROM learning_evidence"
+        ).fetchone()
     assert row[0] == "lesson_prepared"
     assert "run_application_pending" in row[1]
+    assert evidence == ("pending", 1)
 
 
 def test_planner_schedules_due_education(tmp_path):

@@ -7,8 +7,6 @@ y auditoría completa en SQLite.
 
 from __future__ import annotations
 
-import json
-import os
 import shutil
 import sqlite3
 import subprocess
@@ -134,7 +132,9 @@ def _audit(
         pass
 
 
-def _validate_command(command: list[str], autonomy_level: str = "observe_only") -> tuple[bool, str]:
+def _validate_command(
+    command: list[str], autonomy_level: str = "observe_only"
+) -> tuple[bool, str]:
     """Valida un comando contra la política de seguridad.
 
     Retorna (allowed, reason).
@@ -264,8 +264,19 @@ def run_autonomous(
     requested_cwd = Path(working_dir or PROJECT_ROOT).resolve()
     project_root = PROJECT_ROOT.resolve()
     if requested_cwd != project_root and project_root not in requested_cwd.parents:
-        _audit(command_key, "???", None, None, "", "working_dir outside project",
-               autonomy_level, source, blocked=True, block_reason="working_dir_not_allowed", db_path=db_path)
+        _audit(
+            command_key,
+            "???",
+            None,
+            None,
+            "",
+            "working_dir outside project",
+            autonomy_level,
+            source,
+            blocked=True,
+            block_reason="working_dir_not_allowed",
+            db_path=db_path,
+        )
         return {
             "status": "blocked",
             "command_key": command_key,
@@ -276,8 +287,19 @@ def run_autonomous(
     # Buscar comando en registros
     cmd = WHITELIST.get(command_key) or AUTONOMOUS_SAFE_EXTENSIONS.get(command_key)
     if cmd is None:
-        _audit(command_key, "???", None, None, "", f"Command not found: {command_key}",
-               autonomy_level, source, blocked=True, block_reason="unknown_command", db_path=db_path)
+        _audit(
+            command_key,
+            "???",
+            None,
+            None,
+            "",
+            f"Command not found: {command_key}",
+            autonomy_level,
+            source,
+            blocked=True,
+            block_reason="unknown_command",
+            db_path=db_path,
+        )
         return {
             "status": "error",
             "command_key": command_key,
@@ -289,8 +311,19 @@ def run_autonomous(
     # Validar contra política de seguridad
     allowed, reason = _validate_command(cmd, autonomy_level)
     if not allowed:
-        _audit(command_key, cmd_text, None, None, "", "", autonomy_level, source,
-               blocked=True, block_reason=reason, db_path=db_path)
+        _audit(
+            command_key,
+            cmd_text,
+            None,
+            None,
+            "",
+            "",
+            autonomy_level,
+            source,
+            blocked=True,
+            block_reason=reason,
+            db_path=db_path,
+        )
         return {
             "status": "blocked",
             "command_key": command_key,
@@ -301,8 +334,19 @@ def run_autonomous(
     # Verificar binario
     binary = shutil.which(cmd[0])
     if not binary:
-        _audit(command_key, cmd_text, None, None, "", f"Binary not found: {cmd[0]}",
-               autonomy_level, source, blocked=True, block_reason="binary_not_found", db_path=db_path)
+        _audit(
+            command_key,
+            cmd_text,
+            None,
+            None,
+            "",
+            f"Binary not found: {cmd[0]}",
+            autonomy_level,
+            source,
+            blocked=True,
+            block_reason="binary_not_found",
+            db_path=db_path,
+        )
         return {
             "status": "error",
             "command_key": command_key,
@@ -325,8 +369,17 @@ def run_autonomous(
         returncode = result.returncode
 
         _record_event(command_key, returncode, duration_ms)
-        _audit(command_key, cmd_text, returncode, duration_ms, stdout, stderr,
-               autonomy_level, source, db_path=db_path)
+        _audit(
+            command_key,
+            cmd_text,
+            returncode,
+            duration_ms,
+            stdout,
+            stderr,
+            autonomy_level,
+            source,
+            db_path=db_path,
+        )
 
         return {
             "status": "ok" if returncode == 0 else "error",
@@ -340,8 +393,17 @@ def run_autonomous(
             "source": source,
         }
     except subprocess.TimeoutExpired:
-        _audit(command_key, cmd_text, None, None, "", f"Timeout {timeout}s",
-               autonomy_level, source, db_path=db_path)
+        _audit(
+            command_key,
+            cmd_text,
+            None,
+            None,
+            "",
+            f"Timeout {timeout}s",
+            autonomy_level,
+            source,
+            db_path=db_path,
+        )
         return {
             "status": "error",
             "command_key": command_key,
@@ -349,8 +411,17 @@ def run_autonomous(
             "error": f"Timeout después de {timeout}s.",
         }
     except OSError as exc:
-        _audit(command_key, cmd_text, None, None, "", str(exc),
-               autonomy_level, source, db_path=db_path)
+        _audit(
+            command_key,
+            cmd_text,
+            None,
+            None,
+            "",
+            str(exc),
+            autonomy_level,
+            source,
+            db_path=db_path,
+        )
         return {
             "status": "error",
             "command_key": command_key,

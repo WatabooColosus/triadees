@@ -148,7 +148,11 @@ class AutonomousSandbox:
             result = {"stdout": "", "stderr": "Timeout expired", "returncode": -1}
             success = False
         except Exception as exc:  # noqa: BLE001
-            result = {"stdout": "", "stderr": f"{type(exc).__name__}: {exc}", "returncode": -1}
+            result = {
+                "stdout": "",
+                "stderr": f"{type(exc).__name__}: {exc}",
+                "returncode": -1,
+            }
             success = False
         finally:
             if code_path.exists():
@@ -292,7 +296,9 @@ class AutonomousSandbox:
     def get_sandbox_stats(self) -> dict[str, Any]:
         """Estadísticas de ejecuciones y rollbacks."""
         with self._connect() as conn:
-            total = conn.execute("SELECT COUNT(*) AS c FROM sandbox_executions").fetchone()["c"]
+            total = conn.execute(
+                "SELECT COUNT(*) AS c FROM sandbox_executions"
+            ).fetchone()["c"]
             successes = conn.execute(
                 "SELECT COUNT(*) AS c FROM sandbox_executions WHERE success = 1"
             ).fetchone()["c"]

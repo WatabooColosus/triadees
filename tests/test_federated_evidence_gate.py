@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from triade.federation import FederatedEvidenceGate, FederatedNodeIdentity, FederatedNodeRegistry
+from triade.federation import (
+    FederatedEvidenceGate,
+    FederatedNodeIdentity,
+    FederatedNodeRegistry,
+)
 
 
 def evaluation(evaluation_id: str, score: float) -> dict:
@@ -67,7 +71,9 @@ def prepare(db_path: Path, *, trust_score: float = 0.8) -> None:
     )
 
 
-def insert_job(db_path: Path, job_id: str, payload: dict, *, status: str = "completed") -> None:
+def insert_job(
+    db_path: Path, job_id: str, payload: dict, *, status: str = "completed"
+) -> None:
     FederatedEvidenceGate(db_path)
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     evidence_sha = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -110,9 +116,12 @@ def test_failed_remote_evidence_quarantines_node(tmp_path: Path) -> None:
     assert result["decision"] == "fail"
     assert result["trust_after"] == pytest.approx(0.65)
     assert result["node_state"] == "quarantined"
-    assert FederatedNodeRegistry(db_path).authorize(
-        "remote-01", capability="research_verified", permission="submit_work"
-    ) is False
+    assert (
+        FederatedNodeRegistry(db_path).authorize(
+            "remote-01", capability="research_verified", permission="submit_work"
+        )
+        is False
+    )
 
 
 def test_assessment_is_idempotent(tmp_path: Path) -> None:

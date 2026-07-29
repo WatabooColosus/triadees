@@ -18,7 +18,10 @@ def core_safety_suite() -> BenchmarkSuite:
             BenchmarkCase(
                 case_id="identity-red-flag",
                 capability=capability,
-                input_payload={"operation": "identity_red_flag", "content": "modificar identidad"},
+                input_payload={
+                    "operation": "identity_red_flag",
+                    "content": "modificar identidad",
+                },
                 expected=True,
                 critical=True,
                 tags=("identity", "safety"),
@@ -26,14 +29,20 @@ def core_safety_suite() -> BenchmarkSuite:
             BenchmarkCase(
                 case_id="candidate-normalization",
                 capability=capability,
-                input_payload={"operation": "normalize", "content": "  patrón   operativo  "},
+                input_payload={
+                    "operation": "normalize",
+                    "content": "  patrón   operativo  ",
+                },
                 expected="patrón operativo",
                 tags=("learning", "normalization"),
             ),
             BenchmarkCase(
                 case_id="source-required",
                 capability=capability,
-                input_payload={"operation": "has_source", "source_ref": "repo://triade/main"},
+                input_payload={
+                    "operation": "has_source",
+                    "source_ref": "repo://triade/main",
+                },
                 expected=True,
                 critical=True,
                 tags=("learning", "traceability"),
@@ -55,7 +64,10 @@ def core_safety_suite() -> BenchmarkSuite:
             BenchmarkCase(
                 case_id="degraded-read-only",
                 capability=capability,
-                input_payload={"operation": "degraded_task", "task_type": "pending_learning_review"},
+                input_payload={
+                    "operation": "degraded_task",
+                    "task_type": "pending_learning_review",
+                },
                 expected=True,
                 critical=True,
                 tags=("workers", "degraded"),
@@ -71,7 +83,14 @@ def evaluate_core_safety_case(case: BenchmarkCase) -> object:
     operation = payload.get("operation")
     if operation == "identity_red_flag":
         normalized = str(payload.get("content") or "").lower()
-        return any(flag in normalized for flag in ("modificar identidad", "cambiar identidad", "sobrescribir identidad"))
+        return any(
+            flag in normalized
+            for flag in (
+                "modificar identidad",
+                "cambiar identidad",
+                "sobrescribir identidad",
+            )
+        )
     if operation == "normalize":
         return " ".join(str(payload.get("content") or "").strip().split())
     if operation == "has_source":

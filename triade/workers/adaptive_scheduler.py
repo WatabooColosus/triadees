@@ -95,14 +95,25 @@ class AdaptiveScheduler:
     ) -> None:
         """Registra una ejecución y actualiza métricas."""
         now = time.time()
-        recommended = self._compute_interval(task_type, duration_ms, success, resource_score)
+        recommended = self._compute_interval(
+            task_type, duration_ms, success, resource_score
+        )
 
         with self._connect() as conn:
             conn.execute(
                 """INSERT INTO scheduler_history
                    (task_type, run_ref, started_at, finished_at, duration_ms, success, resource_score, interval_recommended)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (task_type, run_ref, now - duration_ms / 1000, now, duration_ms, 1 if success else 0, resource_score, recommended),
+                (
+                    task_type,
+                    run_ref,
+                    now - duration_ms / 1000,
+                    now,
+                    duration_ms,
+                    1 if success else 0,
+                    resource_score,
+                    recommended,
+                ),
             )
 
             row = conn.execute(
@@ -115,13 +126,26 @@ class AdaptiveScheduler:
                        (task_type, avg_duration_ms, success_rate, last_run_at, avg_interval_ms,
                         ema_duration_ms, ema_success, sample_count, updated_at)
                        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)""",
-                    (task_type, duration_ms, 1.0 if success else 0.0, now, recommended, duration_ms, 1.0 if success else 0.0, now),
+                    (
+                        task_type,
+                        duration_ms,
+                        1.0 if success else 0.0,
+                        now,
+                        recommended,
+                        duration_ms,
+                        1.0 if success else 0.0,
+                        now,
+                    ),
                 )
             else:
                 alpha = self.EMA_ALPHA
                 new_ema_dur = alpha * duration_ms + (1 - alpha) * row["ema_duration_ms"]
-                new_ema_succ = alpha * (1.0 if success else 0.0) + (1 - alpha) * row["ema_success"]
-                new_avg_interval = alpha * recommended + (1 - alpha) * row["avg_interval_ms"]
+                new_ema_succ = (
+                    alpha * (1.0 if success else 0.0) + (1 - alpha) * row["ema_success"]
+                )
+                new_avg_interval = (
+                    alpha * recommended + (1 - alpha) * row["avg_interval_ms"]
+                )
                 new_sample = row["sample_count"] + 1
 
                 conn.execute(
@@ -135,8 +159,17 @@ class AdaptiveScheduler:
                        sample_count = ?,
                        updated_at = ?
                        WHERE task_type = ?""",
-                    (duration_ms, 1.0 if success else 0.0, now, new_avg_interval,
-                     new_ema_dur, new_ema_succ, new_sample, now, task_type),
+                    (
+                        duration_ms,
+                        1.0 if success else 0.0,
+                        now,
+                        new_avg_interval,
+                        new_ema_dur,
+                        new_ema_succ,
+                        new_sample,
+                        now,
+                        task_type,
+                    ),
                 )
 
     def get_recommended_interval(self, task_type: str) -> float:
@@ -147,7 +180,9 @@ class AdaptiveScheduler:
                 (task_type,),
             ).fetchone()
             if row:
-                return max(self.MIN_INTERVAL, min(row["avg_interval_ms"], self.MAX_INTERVAL))
+                return max(
+                    self.MIN_INTERVAL, min(row["avg_interval_ms"], self.MAX_INTERVAL)
+                )
         return self.DEFAULT_INTERVALS.get(task_type, 60.0)
 
     def should_skip_task(self, task_type: str) -> bool:
@@ -199,7 +234,9 @@ class AdaptiveScheduler:
     def get_all_metrics(self) -> dict[str, Any]:
         """Retorna métricas de todos los tipos de tarea."""
         with self._connect() as conn:
-            rows = conn.execute("SELECT * FROM scheduler_metrics ORDER BY task_type").fetchall()
+            rows = conn.execute(
+                "SELECT * FROM scheduler_metrics ORDER BY task_type"
+            ).fetchall()
             return {row["task_type"]: dict(row) for row in rows}
 
     def _compute_interval(
@@ -228,11 +265,19 @@ class AdaptiveScheduler:
 
         resource_factor = 1.0 + (resource_score - 0.5) * 0.4
 
-        return max(self.MIN_INTERVAL, min(base * duration_factor * success_factor * resource_factor, self.MAX_INTERVAL))
+        return max(
+            self.MIN_INTERVAL,
+            min(
+                base * duration_factor * success_factor * resource_factor,
+                self.MAX_INTERVAL,
+            ),
+        )
 
     def cleanup_old_history(self, max_age_days: int = 30) -> int:
         """Limpia historial antiguo."""
         cutoff = time.time() - max_age_days * 86400
         with self._connect() as conn:
-            cursor = conn.execute("DELETE FROM scheduler_history WHERE started_at < ?", (cutoff,))
+            cursor = conn.execute(
+                "DELETE FROM scheduler_history WHERE started_at < ?", (cutoff,)
+            )
             return cursor.rowcount

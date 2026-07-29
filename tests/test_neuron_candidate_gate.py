@@ -23,7 +23,12 @@ def test_gate_blocks_simple_inputs() -> None:
             context={},
         )
         assert result["should_create_neuron"] is False, text
-        assert result["route"] in {"learning_candidate", "qualia_feedback", "episodic_memory", "ignore"}
+        assert result["route"] in {
+            "learning_candidate",
+            "qualia_feedback",
+            "episodic_memory",
+            "ignore",
+        }
 
 
 def test_gate_allows_explicit_operational_neuron_request() -> None:

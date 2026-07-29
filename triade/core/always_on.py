@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.config import load_config
-from triade.core.contracts import utc_now
 from triade.core.internal_runtime import (
     get_internal_runtime_supervisor,
     record_internal_runtime_event,
@@ -123,8 +122,12 @@ def load_always_on_config(yml_path: str | Path = "triade.yml") -> dict[str, Any]
             ):
                 cfg[key] = _str_to_bool(raw)
             elif key in (
-                "interval_seconds", "start_delay_seconds", "max_cycles", "self_test_every_cycles",
-                "continuous_runner_interval_seconds", "continuous_runner_max_cycles",
+                "interval_seconds",
+                "start_delay_seconds",
+                "max_cycles",
+                "self_test_every_cycles",
+                "continuous_runner_interval_seconds",
+                "continuous_runner_max_cycles",
             ):
                 try:
                     cfg[key] = int(raw)
@@ -172,9 +175,11 @@ def build_always_on_status() -> dict[str, Any]:
         _ALWAYS_ON_STATE["runtime_degraded"] = False
         _ALWAYS_ON_STATE["runtime_degradation_reason"] = None
     state = dict(_ALWAYS_ON_STATE)
-    state["degraded"] = bool(state.get("degraded_by_governor") or state.get("runtime_degraded"))
-    state["degradation_reason"] = (
-        state.get("degradation_reason") or state.get("runtime_degradation_reason")
+    state["degraded"] = bool(
+        state.get("degraded_by_governor") or state.get("runtime_degraded")
+    )
+    state["degradation_reason"] = state.get("degradation_reason") or state.get(
+        "runtime_degradation_reason"
     )
     state["always_on_enabled"] = bool(state.get("enabled", False))
     return state
@@ -194,13 +199,21 @@ def start_always_on_if_enabled(
         _ALWAYS_ON_STATE["enabled"] = False
         _ALWAYS_ON_STATE["status"] = "disabled"
         _ALWAYS_ON_STATE["error"] = None
-        return {"status": "disabled", "message": "ALWAYS-ON no está habilitado.", "config_source": cfg["_config_source"]}
+        return {
+            "status": "disabled",
+            "message": "ALWAYS-ON no está habilitado.",
+            "config_source": cfg["_config_source"],
+        }
 
     bg_alive = _background_thread_alive()
     if bg_alive:
         _ALWAYS_ON_STATE["background_thread_alive"] = True
         _ALWAYS_ON_STATE["status"] = "running"
-        return {"status": "already_running", "background_thread_alive": True, "config_source": cfg["_config_source"]}
+        return {
+            "status": "already_running",
+            "background_thread_alive": True,
+            "config_source": cfg["_config_source"],
+        }
 
     # ── Store config ──
     _ALWAYS_ON_STATE["enabled"] = True
@@ -208,7 +221,9 @@ def start_always_on_if_enabled(
     _ALWAYS_ON_STATE["interval_seconds"] = int(cfg.get("interval_seconds", 60))
     _ALWAYS_ON_STATE["max_cycles"] = int(cfg.get("max_cycles", 0))
     _ALWAYS_ON_STATE["self_test_on_start"] = bool(cfg.get("self_test_on_start", True))
-    _ALWAYS_ON_STATE["self_test_every_cycles"] = int(cfg.get("self_test_every_cycles", 5))
+    _ALWAYS_ON_STATE["self_test_every_cycles"] = int(
+        cfg.get("self_test_every_cycles", 5)
+    )
     _ALWAYS_ON_STATE["config_source"] = cfg.get("_config_source", "default")
     _ALWAYS_ON_STATE["status"] = "starting"
 
@@ -222,6 +237,7 @@ def start_always_on_if_enabled(
 
     try:
         from triade.core.ollama_blood import check_ollama_blood
+
         blood = check_ollama_blood()
         ollama_ok = bool(blood.get("ollama_ok"))
     except Exception as exc:
@@ -231,6 +247,7 @@ def start_always_on_if_enabled(
 
     try:
         from triade.core.resource_probe import build_resource_probe
+
         probe = build_resource_probe()
     except Exception as exc:
         probe = {}
@@ -248,7 +265,7 @@ def start_always_on_if_enabled(
     degraded_by_governor = False
     degradation_reason = None
     require_ollama = bool(cfg.get("require_ollama", False))
-    safe_only = bool(cfg.get("safe_only", True))
+    bool(cfg.get("safe_only", True))
 
     if not ollama_ok and require_ollama:
         effective_mode = "observe_only"
@@ -260,28 +277,42 @@ def start_always_on_if_enabled(
         if WORK_MODE_RANK.get(effective_mode, 0) > WORK_MODE_RANK.get(allowed, 0):
             effective_mode = allowed
             degraded_by_governor = True
-            degradation_reason = decision.get("reason") or f"{requested_mode} degradado a {allowed} por gobernador."
+            degradation_reason = (
+                decision.get("reason")
+                or f"{requested_mode} degradado a {allowed} por gobernador."
+            )
     except Exception as exc:
         preflight_errors.append(f"governor_decision_failed: {exc}")
 
     if effective_mode in ("blocked", "cooldown"):
         _ALWAYS_ON_STATE["status"] = "blocked_by_governor"
         _ALWAYS_ON_STATE["error"] = f"Governor bloquea: effective_mode={effective_mode}"
-        return {"status": "blocked", "effective_mode": effective_mode, "preflight_errors": preflight_errors,
-                "message": "ALWAYS-ON no puede iniciar: recursos insuficientes.", "config_source": cfg["_config_source"]}
+        return {
+            "status": "blocked",
+            "effective_mode": effective_mode,
+            "preflight_errors": preflight_errors,
+            "message": "ALWAYS-ON no puede iniciar: recursos insuficientes.",
+            "config_source": cfg["_config_source"],
+        }
 
     # ── Start background runtime ──
     try:
         result = start_internal_runtime_background(
-            db_path=db_path, runs_dir=runs_dir, mode=effective_mode,
+            db_path=db_path,
+            runs_dir=runs_dir,
+            mode=effective_mode,
             interval_seconds=int(cfg.get("interval_seconds", 60)),
             max_cycles=cfg.get("_max_cycles_param"),
         )
     except Exception as exc:
         _ALWAYS_ON_STATE["status"] = "start_failed"
         _ALWAYS_ON_STATE["error"] = str(exc)
-        return {"status": "error", "message": f"Error al iniciar runtime: {exc}",
-                "preflight_errors": preflight_errors, "config_source": cfg["_config_source"]}
+        return {
+            "status": "error",
+            "message": f"Error al iniciar runtime: {exc}",
+            "preflight_errors": preflight_errors,
+            "config_source": cfg["_config_source"],
+        }
 
     now_utc = datetime.now(timezone.utc).isoformat()
     _ALWAYS_ON_STATE["effective_mode"] = effective_mode
@@ -300,7 +331,9 @@ def start_always_on_if_enabled(
     self_test_result = None
     if bool(cfg.get("self_test_on_start", True)):
         try:
-            self_test_result = run_self_test_cycle(mode="safe", db_path=db_path, runs_dir=runs_dir)
+            self_test_result = run_self_test_cycle(
+                mode="safe", db_path=db_path, runs_dir=runs_dir
+            )
             _ALWAYS_ON_STATE["last_self_test_status"] = self_test_result
         except Exception as st_exc:
             self_test_result = {"status": "error", "error": str(st_exc)}
@@ -308,11 +341,18 @@ def start_always_on_if_enabled(
 
     try:
         record_internal_runtime_event(
-            "always_on_started", "always_on",
-            {"configured_mode": requested_mode, "effective_mode": effective_mode,
-             "degraded_by_governor": degraded_by_governor, "degradation_reason": degradation_reason,
-             "interval_seconds": cfg.get("interval_seconds"), "max_cycles": cfg.get("max_cycles"),
-             "config_source": cfg["_config_source"], "preflight_errors": preflight_errors},
+            "always_on_started",
+            "always_on",
+            {
+                "configured_mode": requested_mode,
+                "effective_mode": effective_mode,
+                "degraded_by_governor": degraded_by_governor,
+                "degradation_reason": degradation_reason,
+                "interval_seconds": cfg.get("interval_seconds"),
+                "max_cycles": cfg.get("max_cycles"),
+                "config_source": cfg["_config_source"],
+                "preflight_errors": preflight_errors,
+            },
             severity="info",
         )
     except Exception:
@@ -352,7 +392,11 @@ def stop_always_on(
     _ALWAYS_ON_STATE["enabled"] = False
     _ALWAYS_ON_STATE["background_thread_alive"] = False
     _ALWAYS_ON_STATE["status"] = "stopped"
-    return {"status": "stopped", "message": "ALWAYS-ON runtime detenido.", "runtime_result": result}
+    return {
+        "status": "stopped",
+        "message": "ALWAYS-ON runtime detenido.",
+        "runtime_result": result,
+    }
 
 
 def restart_always_on(

@@ -67,7 +67,9 @@ class SemanticContinuity:
             status="candidate",
             document_id=f"run-sem-{run_id}",
         )
-        embedding_event = self._embed_document(document.document_id, document.normalized_content)
+        embedding_event = self._embed_document(
+            document.document_id, document.normalized_content
+        )
         return {
             "status": "ok",
             "mode": "semantic-continuity",
@@ -91,8 +93,12 @@ class SemanticContinuity:
                     response=str(row["summary"] or row["content"] or ""),
                     source=str(row["source"] or "unknown"),
                     intent=str(row["intent"] or "unknown"),
-                    q_crystal=float(row["q_crystal"]) if row["q_crystal"] is not None else None,
-                    stability=float(row["stability"]) if row["stability"] is not None else None,
+                    q_crystal=float(row["q_crystal"])
+                    if row["q_crystal"] is not None
+                    else None,
+                    stability=float(row["stability"])
+                    if row["stability"] is not None
+                    else None,
                     model_summary={
                         "hypothalamus": row["model_hypothalamus"],
                         "central": row["model_central"],
@@ -104,8 +110,12 @@ class SemanticContinuity:
             "mode": "semantic-continuity-backfill",
             "requested_limit": limit,
             "processed": len(results),
-            "documents_created_or_updated": len([item for item in results if item.get("document")]),
-            "embeddings_ok": sum(1 for item in results if item.get("embedding_event", {}).get("ok")),
+            "documents_created_or_updated": len(
+                [item for item in results if item.get("document")]
+            ),
+            "embeddings_ok": sum(
+                1 for item in results if item.get("embedding_event", {}).get("ok")
+            ),
             "results": results,
         }
 
@@ -129,13 +139,21 @@ class SemanticContinuity:
             },
         }
 
-    def _embed_document(self, document_id: str, normalized_content: str) -> dict[str, Any]:
+    def _embed_document(
+        self, document_id: str, normalized_content: str
+    ) -> dict[str, Any]:
         if self.auto_ollama_embed:
-            event = SemanticEmbeddingEngine(store=self.store).embed_document(document_id).to_dict()
+            event = (
+                SemanticEmbeddingEngine(store=self.store)
+                .embed_document(document_id)
+                .to_dict()
+            )
             if event.get("ok"):
                 return event
         vector = local_hash_embedding(normalized_content)
-        stored = self.store.store_embedding(document_id, LOCAL_HASH_MODEL, vector, status="stored")
+        stored = self.store.store_embedding(
+            document_id, LOCAL_HASH_MODEL, vector, status="stored"
+        )
         return {
             "ok": True,
             "document_id": document_id,

@@ -33,7 +33,14 @@ class TopicCluster:
 
 TOPIC_SEEDS: dict[str, list[str]] = {
     "mission": ["misión", "objetivo", "entregar", "cumplir", "plan", "tarea"],
-    "learning": ["aprender", "conocimiento", "patrón", "descubrir", "hipótesis", "memoria"],
+    "learning": [
+        "aprender",
+        "conocimiento",
+        "patrón",
+        "descubrir",
+        "hipótesis",
+        "memoria",
+    ],
     "safety": ["seguridad", "riesgo", "protección", "amenaza", "límite", " ética"],
     "self": ["estado", "emoción", "introspección", "carga", "fatiga", "qualia"],
     "error": ["error", "fallo", "excepción", "problema", "crash", "falló"],
@@ -79,7 +86,9 @@ class FragmentationDetector:
         )
 
         drift = coherence < 0.5 or topic_jumps >= 3
-        action = self._recommend_action(coherence, drift, len(contradictions), len(rows))
+        action = self._recommend_action(
+            coherence, drift, len(contradictions), len(rows)
+        )
 
         return {
             "coherence_score": round(coherence, 4),
@@ -117,8 +126,17 @@ class FragmentationDetector:
             obs = str(row.get("observation", "")).lower()
             if not obs:
                 continue
-            negative_tokens = (" no ", "nunca", "falso", "incorrecto", "falló", "imposible")
-            polarity = "negative" if any(t in obs for t in negative_tokens) else "positive"
+            negative_tokens = (
+                " no ",
+                "nunca",
+                "falso",
+                "incorrecto",
+                "falló",
+                "imposible",
+            )
+            polarity = (
+                "negative" if any(t in obs for t in negative_tokens) else "positive"
+            )
             claims.setdefault(subject, {}).setdefault(polarity, set()).add(obs[:80])
 
         contradictions = []

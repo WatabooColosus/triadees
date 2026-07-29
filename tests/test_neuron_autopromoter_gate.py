@@ -9,7 +9,9 @@ from triade.core.neuron_registry import NeuronRegistry
 from triade.core.neuron_trainer import NeuronTrainingResult
 
 
-def test_candidate_gate_blocks_candidate_to_experimental_promotion(tmp_path: Path) -> None:
+def test_candidate_gate_blocks_candidate_to_experimental_promotion(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "triade.db"
     registry = NeuronRegistry(db_path=db_path)
     registry.register(
@@ -31,7 +33,9 @@ def test_candidate_gate_blocks_candidate_to_experimental_promotion(tmp_path: Pat
 
     events = NeuronAutopromoter(db_path=db_path).promote()
 
-    assert any(event.get("reason") == "blocked_by_neuron_candidate_gate" for event in events)
+    assert any(
+        event.get("reason") == "blocked_by_neuron_candidate_gate" for event in events
+    )
     neuron = registry.get_neuron("neurona-literalista")
     assert neuron is not None
     assert neuron["status"] == "candidate"

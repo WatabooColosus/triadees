@@ -14,7 +14,7 @@ import os
 import sqlite3
 import subprocess
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -157,8 +157,15 @@ class SystemSenses:
         try:
             conn = sqlite3.connect(str(self.db_path))
             conn.row_factory = sqlite3.Row
-            cols = {r[1] for r in conn.execute("PRAGMA table_info(worker_state)").fetchall()}
-            if "status" not in cols or not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='worker_state'").fetchone():
+            cols = {
+                r[1] for r in conn.execute("PRAGMA table_info(worker_state)").fetchall()
+            }
+            if (
+                "status" not in cols
+                or not conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='worker_state'"
+                ).fetchone()
+            ):
                 conn.close()
                 return True
             row = conn.execute(
@@ -176,10 +183,14 @@ class SystemSenses:
         try:
             conn = sqlite3.connect(str(self.db_path))
             conn.row_factory = sqlite3.Row
-            if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='worker_tasks'").fetchone():
+            if not conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='worker_tasks'"
+            ).fetchone():
                 conn.close()
                 return 0
-            cols = {r[1] for r in conn.execute("PRAGMA table_info(worker_tasks)").fetchall()}
+            cols = {
+                r[1] for r in conn.execute("PRAGMA table_info(worker_tasks)").fetchall()
+            }
             if "status" not in cols:
                 conn.close()
                 return 0
@@ -196,10 +207,15 @@ class SystemSenses:
         try:
             conn = sqlite3.connect(str(self.db_path))
             conn.row_factory = sqlite3.Row
-            if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='worker_events'").fetchone():
+            if not conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='worker_events'"
+            ).fetchone():
                 conn.close()
                 return 0.0
-            cols = {r[1] for r in conn.execute("PRAGMA table_info(worker_events)").fetchall()}
+            cols = {
+                r[1]
+                for r in conn.execute("PRAGMA table_info(worker_events)").fetchall()
+            }
             if "severity" not in cols:
                 conn.close()
                 return 0.0
@@ -221,10 +237,14 @@ class SystemSenses:
         try:
             conn = sqlite3.connect(str(self.db_path))
             conn.row_factory = sqlite3.Row
-            if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='worker_tasks'").fetchone():
+            if not conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='worker_tasks'"
+            ).fetchone():
                 conn.close()
                 return 0
-            cols = {r[1] for r in conn.execute("PRAGMA table_info(worker_tasks)").fetchall()}
+            cols = {
+                r[1] for r in conn.execute("PRAGMA table_info(worker_tasks)").fetchall()
+            }
             if "status" not in cols:
                 conn.close()
                 return 0
@@ -335,7 +355,10 @@ class SystemSenses:
             )
             conn.execute(
                 "INSERT INTO hardware_senses (snapshot_json, recorded_at) VALUES (?, ?)",
-                (json.dumps(snapshot.to_dict(), ensure_ascii=False, default=str), snapshot.recorded_at),
+                (
+                    json.dumps(snapshot.to_dict(), ensure_ascii=False, default=str),
+                    snapshot.recorded_at,
+                ),
             )
             conn.commit()
             conn.close()
@@ -357,7 +380,9 @@ class SystemSenses:
                     "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu",
                     "--format=csv,noheader,nounits",
                 ],
-                capture_output=True, text=True, timeout=3,
+                capture_output=True,
+                text=True,
+                timeout=3,
             )
             if result.returncode != 0:
                 self._nvidia_cache = None
@@ -380,7 +405,12 @@ class SystemSenses:
             self._nvidia_cache = info
             self._nvidia_cache_ts = now
             return info
-        except (subprocess.TimeoutExpired, FileNotFoundError, ValueError, IndexError) as exc:
+        except (
+            subprocess.TimeoutExpired,
+            FileNotFoundError,
+            ValueError,
+            IndexError,
+        ) as exc:
             _log_sensor_error("nvidia_smi", exc)
             self._nvidia_cache = None
             return None

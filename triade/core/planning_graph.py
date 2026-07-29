@@ -87,7 +87,16 @@ class PlanningGraph:
             conn.execute(
                 """INSERT INTO planning_graph (goal_id, parent_id, title, description, status, priority, metadata, created_at, updated_at)
                 VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)""",
-                (goal_id, parent_id, title, description, priority, json.dumps(metadata or {}, ensure_ascii=False), now, now),
+                (
+                    goal_id,
+                    parent_id,
+                    title,
+                    description,
+                    priority,
+                    json.dumps(metadata or {}, ensure_ascii=False),
+                    now,
+                    now,
+                ),
             )
             if dependencies:
                 for dep_id in dependencies:
@@ -96,18 +105,27 @@ class PlanningGraph:
                         (goal_id, dep_id, now),
                     )
         return GoalNode(
-            goal_id=goal_id, parent_id=parent_id, title=title, description=description,
-            priority=priority, dependencies=dependencies or [], metadata=metadata or {},
-            created_at=now, updated_at=now,
+            goal_id=goal_id,
+            parent_id=parent_id,
+            title=title,
+            description=description,
+            priority=priority,
+            dependencies=dependencies or [],
+            metadata=metadata or {},
+            created_at=now,
+            updated_at=now,
         )
 
     def get_goal(self, goal_id: str) -> GoalNode | None:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM planning_graph WHERE goal_id = ?", (goal_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM planning_graph WHERE goal_id = ?", (goal_id,)
+            ).fetchone()
             if row is None:
                 return None
             deps = conn.execute(
-                "SELECT depends_on_id FROM goal_dependencies WHERE goal_id = ?", (goal_id,)
+                "SELECT depends_on_id FROM goal_dependencies WHERE goal_id = ?",
+                (goal_id,),
             ).fetchall()
         node = self._row_to_goal(row)
         node.dependencies = [str(d["depends_on_id"]) for d in deps]
@@ -145,7 +163,8 @@ class PlanningGraph:
             for row in rows:
                 node = self._row_to_goal(row)
                 deps = conn.execute(
-                    "SELECT depends_on_id FROM goal_dependencies WHERE goal_id = ?", (node.goal_id,)
+                    "SELECT depends_on_id FROM goal_dependencies WHERE goal_id = ?",
+                    (node.goal_id,),
                 ).fetchall()
                 node.dependencies = [str(d["depends_on_id"]) for d in deps]
                 goals.append(node)
@@ -198,7 +217,9 @@ class PlanningGraph:
             "blocked": blocked,
         }
 
-    def decompose(self, goal_id: str, sub_goals: list[dict[str, Any]]) -> list[GoalNode]:
+    def decompose(
+        self, goal_id: str, sub_goals: list[dict[str, Any]]
+    ) -> list[GoalNode]:
         results = []
         for sg in sub_goals:
             node = self.create_goal(
@@ -223,7 +244,7 @@ class PlanningGraph:
 
     def connect_to_run(self, run_id: str, goal_id: str) -> bool:
         """Vincula un goal a un run_id para trazabilidad."""
-        now = _utc_now()
+        _utc_now()
         with self._connect() as conn:
             try:
                 conn.execute(
@@ -258,6 +279,7 @@ class PlanningGraph:
                 return row[key]
             except (KeyError, IndexError):
                 return default
+
         try:
             meta = json.loads(str(r("metadata", "{}")))
         except (json.JSONDecodeError, TypeError):

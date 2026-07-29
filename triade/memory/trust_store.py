@@ -56,7 +56,9 @@ class TrustLevelStore:
 
     def _init_db(self) -> None:
         if not self.schema_path.exists():
-            raise FileNotFoundError(f"No existe el esquema de memoria: {self.schema_path}")
+            raise FileNotFoundError(
+                f"No existe el esquema de memoria: {self.schema_path}"
+            )
         with self._connect() as conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
 
@@ -81,7 +83,9 @@ class TrustLevelStore:
     def _recompute(self, domain: str) -> float:
         now = new_utc()
         with self._connect() as conn:
-            run_count = conn.execute("SELECT COUNT(*) AS c FROM runs").fetchone()["c"] or 0
+            run_count = (
+                conn.execute("SELECT COUNT(*) AS c FROM runs").fetchone()["c"] or 0
+            )
             if run_count == 0:
                 return 0.0
 
@@ -114,7 +118,12 @@ class TrustLevelStore:
             reward_score = max(0.0, min(1.0, avg_reward))
             error_score = 1.0 - min(1.0, error_rate)
             run_score = min(1.0, run_count / 500.0)
-            trust = 0.40 * reward_score + 0.30 * verif_ok_rate + 0.20 * error_score + 0.10 * run_score
+            trust = (
+                0.40 * reward_score
+                + 0.30 * verif_ok_rate
+                + 0.20 * error_score
+                + 0.10 * run_score
+            )
             trust = round(max(0.0, min(1.0, trust)), 4)
 
             conn.execute(
@@ -122,8 +131,15 @@ class TrustLevelStore:
                 (domain, trust_level, criteria_avg_reward, criteria_verification_pass_rate,
                  criteria_error_rate, criteria_run_count, last_updated)
                 VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (domain, trust, round(avg_reward, 4), round(verif_ok_rate, 4),
-                 round(error_rate, 4), run_count, now),
+                (
+                    domain,
+                    trust,
+                    round(avg_reward, 4),
+                    round(verif_ok_rate, 4),
+                    round(error_rate, 4),
+                    run_count,
+                    now,
+                ),
             )
             return trust
 
@@ -140,7 +156,9 @@ class TrustLevelStore:
                 "trust_level": float(row["trust_level"]),
                 "criteria": {
                     "avg_reward": float(row["criteria_avg_reward"]),
-                    "verification_pass_rate": float(row["criteria_verification_pass_rate"]),
+                    "verification_pass_rate": float(
+                        row["criteria_verification_pass_rate"]
+                    ),
                     "error_rate": float(row["criteria_error_rate"]),
                     "run_count": int(row["criteria_run_count"]),
                 },

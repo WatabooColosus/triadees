@@ -91,7 +91,10 @@ class StatisticalRegressionAnalyzer:
         margin = policy.confidence_z * standard_error
         confidence_low = mean_delta - margin
         confidence_high = mean_delta + margin
-        if policy.max_standard_error is not None and standard_error > policy.max_standard_error:
+        if (
+            policy.max_standard_error is not None
+            and standard_error > policy.max_standard_error
+        ):
             decision: StatisticalDecision = "warn"
             reason = "variabilidad superior al máximo permitido"
         elif confidence_high < -policy.max_mean_drop:

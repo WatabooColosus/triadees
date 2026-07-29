@@ -12,7 +12,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from triade.core.contracts import utc_now
 from triade.sandbox.isolation import SandboxLimits
@@ -44,9 +44,17 @@ class SecureExecutor:
     """Ejecutor seguro sin shell=True, con límites de recursos."""
 
     FORBIDDEN_PATTERNS = (
-        "rm -rf", "mkfs", ":(){ :|:& };:", "chmod 777",
-        "curl|sh", "wget|sh", "eval(", "exec(",
-        "__import__", "subprocess.call", "os.system",
+        "rm -rf",
+        "mkfs",
+        ":(){ :|:& };:",
+        "chmod 777",
+        "curl|sh",
+        "wget|sh",
+        "eval(",
+        "exec(",
+        "__import__",
+        "subprocess.call",
+        "os.system",
     )
 
     def __init__(
@@ -68,21 +76,41 @@ class SecureExecutor:
         limits: SandboxLimits | None = None,
     ) -> ExecutionResult:
         import time
+
         now = utc_now()
         validation = self._validate(command)
         if not validation["valid"]:
             return ExecutionResult(
-                success=False, stdout="", stderr=validation["error"],
-                returncode=-1, duration_ms=0, timed_out=False, executed_at=now,
+                success=False,
+                stdout="",
+                stderr=validation["error"],
+                returncode=-1,
+                duration_ms=0,
+                timed_out=False,
+                executed_at=now,
             )
         if limits and not limits.network_allowed:
             for arg in command:
                 arg_lower = arg.lower()
-                if any(p in arg_lower for p in ("curl", "wget", "http://", "https://", "socket", "connect")):
+                if any(
+                    p in arg_lower
+                    for p in (
+                        "curl",
+                        "wget",
+                        "http://",
+                        "https://",
+                        "socket",
+                        "connect",
+                    )
+                ):
                     return ExecutionResult(
-                        success=False, stdout="",
-                        stderr=f"BLOQUEADO: SandboxLimits.network_allowed=False — acceso de red denegado.",
-                        returncode=-1, duration_ms=0, timed_out=False, executed_at=now,
+                        success=False,
+                        stdout="",
+                        stderr="BLOQUEADO: SandboxLimits.network_allowed=False — acceso de red denegado.",
+                        returncode=-1,
+                        duration_ms=0,
+                        timed_out=False,
+                        executed_at=now,
                     )
         safe_env = os.environ.copy()
         if env:
@@ -95,13 +123,19 @@ class SecureExecutor:
         timed_out = False
         preexec = None
         if sys.platform != "win32":
+
             def _apply_limits():
                 if limits:
-                    resource.setrlimit(resource.RLIMIT_CPU, (limits.cpu_seconds, limits.cpu_seconds))
+                    resource.setrlimit(
+                        resource.RLIMIT_CPU, (limits.cpu_seconds, limits.cpu_seconds)
+                    )
                     mem_bytes = limits.memory_mb * 1024 * 1024
                     resource.setrlimit(resource.RLIMIT_AS, (mem_bytes, mem_bytes))
-                    resource.setrlimit(resource.RLIMIT_NPROC, (limits.max_pids, limits.max_pids))
+                    resource.setrlimit(
+                        resource.RLIMIT_NPROC, (limits.max_pids, limits.max_pids)
+                    )
                 os.setsid()
+
             preexec = _apply_limits
         try:
             proc = subprocess.run(
@@ -115,8 +149,8 @@ class SecureExecutor:
                 stdin=subprocess.PIPE if stdin_data else None,
                 preexec_fn=preexec,
             )
-            stdout = proc.stdout[:self.max_output_bytes]
-            stderr = proc.stderr[:self.max_output_bytes]
+            stdout = proc.stdout[: self.max_output_bytes]
+            stderr = proc.stderr[: self.max_output_bytes]
             returncode = proc.returncode
         except subprocess.TimeoutExpired:
             timed_out = True
@@ -147,8 +181,13 @@ class SecureExecutor:
         validation = self._validate_code(code)
         if not validation["valid"]:
             return ExecutionResult(
-                success=False, stdout="", stderr=validation["error"],
-                returncode=-1, duration_ms=0, timed_out=False, executed_at=utc_now(),
+                success=False,
+                stdout="",
+                stderr=validation["error"],
+                returncode=-1,
+                duration_ms=0,
+                timed_out=False,
+                executed_at=utc_now(),
             )
         command = [sys.executable, "-c", code]
         if args:
@@ -159,25 +198,46 @@ class SecureExecutor:
         cmd_str = " ".join(command).lower()
         for pattern in self.FORBIDDEN_PATTERNS:
             if pattern.lower() in cmd_str:
-                return {"valid": False, "error": f"Patrón prohibido detectado: {pattern}"}
-        if any(arg.startswith("-") and arg not in {"-c", "-h", "--help"} for arg in command[1:3]):
+                return {
+                    "valid": False,
+                    "error": f"Patrón prohibido detectado: {pattern}",
+                }
+        if any(
+            arg.startswith("-") and arg not in {"-c", "-h", "--help"}
+            for arg in command[1:3]
+        ):
             pass
         return {"valid": True, "error": None}
 
     def _validate_code(self, code: str) -> dict[str, Any]:
         code_lower = code.lower()
-        dangerous = ("subprocess", "os.system", "exec(", "eval(",
-                      "__import__", "open('/etc", "open(\"/etc",
-                      "shutil.rmtree", "os.remove")
+        dangerous = (
+            "subprocess",
+            "os.system",
+            "exec(",
+            "eval(",
+            "__import__",
+            "open('/etc",
+            'open("/etc',
+            "shutil.rmtree",
+            "os.remove",
+        )
         for pattern in dangerous:
             if pattern in code_lower:
-                return {"valid": False, "error": f"Código contiene patrón prohibido: {pattern}"}
+                return {
+                    "valid": False,
+                    "error": f"Código contiene patrón prohibido: {pattern}",
+                }
         return {"valid": True, "error": None}
 
-    def set_limits(self, *, cpu_seconds: int = 10, memory_mb: int = 256, max_procs: int = 50) -> None:
+    def set_limits(
+        self, *, cpu_seconds: int = 10, memory_mb: int = 256, max_procs: int = 50
+    ) -> None:
         try:
             resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
-            resource.setrlimit(resource.RLIMIT_AS, (memory_mb * 1024 * 1024, memory_mb * 1024 * 1024))
+            resource.setrlimit(
+                resource.RLIMIT_AS, (memory_mb * 1024 * 1024, memory_mb * 1024 * 1024)
+            )
             resource.setrlimit(resource.RLIMIT_NPROC, (max_procs, max_procs))
         except (ValueError, OSError):
             pass

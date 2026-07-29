@@ -12,7 +12,9 @@ from triade.core.qualia import QualiaEngine
 def make_qualia_db(tmp_path: Path) -> Path:
     db_path = tmp_path / "triade.db"
     schema = Path("triade/memory/schemas.sql").read_text(encoding="utf-8")
-    migration = Path("triade/memory/migrations/001_9A_semantic_memory.sql").read_text(encoding="utf-8")
+    migration = Path("triade/memory/migrations/001_9A_semantic_memory.sql").read_text(
+        encoding="utf-8"
+    )
     with sqlite3.connect(db_path) as conn:
         conn.executescript(schema)
         conn.executescript(migration)
@@ -29,7 +31,10 @@ def make_qualia_db(tmp_path: Path) -> Path:
             "INSERT INTO crystal_states (run_id, q_crystal, stability, temporal_status) VALUES (?, ?, ?, ?)",
             (run_id, 0.62, 0.84, "stable"),
         )
-        conn.execute("INSERT INTO verification_reports (run_id, status) VALUES (?, ?)", (run_id, "ok"))
+        conn.execute(
+            "INSERT INTO verification_reports (run_id, status) VALUES (?, ?)",
+            (run_id, "ok"),
+        )
         conn.execute(
             "INSERT INTO model_events (run_id, role, provider, model_name, ok, quality_score) VALUES (?, ?, ?, ?, ?, ?)",
             (run_id, "central", "template", "template-fallback", 0, 0.75),
@@ -46,7 +51,17 @@ def make_qualia_db(tmp_path: Path) -> Path:
             """INSERT INTO semantic_documents
             (document_id, content, normalized_content, content_hash, domain, source_type, source_ref, metadata, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("sem-stable-1", "Pulso vivo documentado", "pulso vivo documentado", "hash1", "core", "manual", "test:qualia", "{}", "stable"),
+            (
+                "sem-stable-1",
+                "Pulso vivo documentado",
+                "pulso vivo documentado",
+                "hash1",
+                "core",
+                "manual",
+                "test:qualia",
+                "{}",
+                "stable",
+            ),
         )
         conn.execute(
             """INSERT INTO semantic_embeddings
@@ -59,7 +74,12 @@ def make_qualia_db(tmp_path: Path) -> Path:
 
 def test_qualia_aligns_semantic_memory_with_life_pulse(tmp_path: Path) -> None:
     db_path = make_qualia_db(tmp_path)
-    life = LifePulseEngine(db_path=db_path, runs_dir=tmp_path / "runs", interval_seconds=5, reflection_limit=10)
+    life = LifePulseEngine(
+        db_path=db_path,
+        runs_dir=tmp_path / "runs",
+        interval_seconds=5,
+        reflection_limit=10,
+    )
     qualia = QualiaEngine(db_path=db_path, life_pulse=life)
 
     payload = qualia.snapshot(refresh_life=True)

@@ -10,7 +10,10 @@ from triade.core.neuron_missions import NeuronEvidence, NeuronMissionStore
 from triade.core.neuron_registry import NeuronRegistry
 from triade.workers.contracts import WorkerRunConfig, WorkerTask
 from triade.workers.mission_planner import MissionPlanner
-from triade.workers.neuron_mission_backfill import backfill_neuron_missions, neuron_missions_doctor
+from triade.workers.neuron_mission_backfill import (
+    backfill_neuron_missions,
+    neuron_missions_doctor,
+)
 from triade.workers.worker_loop import WorkerLoop
 
 
@@ -32,7 +35,12 @@ def create_experimental_neuron(db_path: Path) -> dict:
         triggers=["run"],
         inputs_allowed=["runs"],
         outputs_allowed=["diagnosis"],
-        forbidden_actions=["write_stable_memory", "modify_identity_core", "shell", "network"],
+        forbidden_actions=[
+            "write_stable_memory",
+            "modify_identity_core",
+            "shell",
+            "network",
+        ],
         success_metrics=["cycles", "evidence"],
         evidence_required=["run", "worker"],
         status="experimental",
@@ -47,15 +55,26 @@ def test_operational_neuron_mission_flow(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
     neuron = create_experimental_neuron(db_path)
     with sqlite3.connect(db_path) as conn:
-        identity_before = conn.execute("SELECT key, value, category, confidence FROM identity_core ORDER BY id").fetchall()
+        identity_before = conn.execute(
+            "SELECT key, value, category, confidence FROM identity_core ORDER BY id"
+        ).fetchall()
 
-    backfill = backfill_neuron_missions(db_path=db_path, runs_dir=tmp_path / "runs", limit=20)
+    backfill = backfill_neuron_missions(
+        db_path=db_path, runs_dir=tmp_path / "runs", limit=20
+    )
     assert backfill["created_count"] == 1
     mission_id = int(backfill["created"][0]["id"])
-    NeuronMissionStore(db_path=db_path).record_evidence(NeuronEvidence(
-        mission_id=mission_id, neuron_id=int(neuron["id"]), evidence_type="user_run",
-        source="user_run", content="Evidencia E2E", refs=["run:user-e2e"], score=0.8,
-    ))
+    NeuronMissionStore(db_path=db_path).record_evidence(
+        NeuronEvidence(
+            mission_id=mission_id,
+            neuron_id=int(neuron["id"]),
+            evidence_type="user_run",
+            source="user_run",
+            content="Evidencia E2E",
+            refs=["run:user-e2e"],
+            score=0.8,
+        )
+    )
 
     planner = MissionPlanner(db_path=db_path)
     planned = planner.plan_cycle()
@@ -64,7 +83,9 @@ def test_operational_neuron_mission_flow(tmp_path: Path) -> None:
 
     loop = WorkerLoop(db_path=db_path, runs_dir=tmp_path / "runs")
     result = loop._experimental_neuron_activity(
-        WorkerTask(task_type="experimental_neuron_activity", payload=task.payload, id=1),
+        WorkerTask(
+            task_type="experimental_neuron_activity", payload=task.payload, id=1
+        ),
         run_ref="run-e2e-1",
         task_dir=tmp_path / "task",
         config=WorkerRunConfig(task_timeout=10),
@@ -79,17 +100,28 @@ def test_operational_neuron_mission_flow(tmp_path: Path) -> None:
 
     mission_id = int(task.payload["mission_id"])
     with sqlite3.connect(db_path) as conn:
-        cycles = conn.execute("SELECT COUNT(*) FROM neuron_work_cycles WHERE mission_id = ?", (mission_id,)).fetchone()[0]
-        evidence = conn.execute("SELECT COUNT(*) FROM neuron_evidence WHERE mission_id = ?", (mission_id,)).fetchone()[0]
-        scores = conn.execute("SELECT COUNT(*) FROM neuron_scores WHERE mission_id = ?", (mission_id,)).fetchone()[0]
+        cycles = conn.execute(
+            "SELECT COUNT(*) FROM neuron_work_cycles WHERE mission_id = ?",
+            (mission_id,),
+        ).fetchone()[0]
+        evidence = conn.execute(
+            "SELECT COUNT(*) FROM neuron_evidence WHERE mission_id = ?", (mission_id,)
+        ).fetchone()[0]
+        scores = conn.execute(
+            "SELECT COUNT(*) FROM neuron_scores WHERE mission_id = ?", (mission_id,)
+        ).fetchone()[0]
         learning = conn.execute(
             "SELECT COUNT(*) FROM learning_queue WHERE source_ref = ?",
             (f"mission:{mission_id}:run:run-e2e-1",),
         ).fetchone()[0]
 
-    doctor = neuron_missions_doctor(db_path=db_path, runs_dir=tmp_path / "runs", limit=20)
+    doctor = neuron_missions_doctor(
+        db_path=db_path, runs_dir=tmp_path / "runs", limit=20
+    )
     with sqlite3.connect(db_path) as conn:
-        identity_after = conn.execute("SELECT key, value, category, confidence FROM identity_core ORDER BY id").fetchall()
+        identity_after = conn.execute(
+            "SELECT key, value, category, confidence FROM identity_core ORDER BY id"
+        ).fetchall()
 
     assert cycles >= 1
     assert evidence >= 1

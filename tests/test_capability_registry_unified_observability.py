@@ -18,11 +18,15 @@ def test_unified_observability_exposes_capability_registry(tmp_path: Path) -> No
         )
     )
 
-    payload = TriadeObservabilityView(db_path=db_path, runs_dir=tmp_path / "runs").build(limit=5)
+    payload = TriadeObservabilityView(
+        db_path=db_path, runs_dir=tmp_path / "runs"
+    ).build(limit=5)
 
     assert payload["capability_registry"]["total"] == 1
     assert payload["capability_registry"]["by_domain"] == {"cognition": 1}
-    assert payload["capability_registry"]["capabilities"][0]["capability_id"] == "learning"
+    assert (
+        payload["capability_registry"]["capabilities"][0]["capability_id"] == "learning"
+    )
 
 
 def test_blocked_capability_degrades_global_observability(tmp_path: Path) -> None:
@@ -39,7 +43,12 @@ def test_blocked_capability_degrades_global_observability(tmp_path: Path) -> Non
         )
     )
 
-    payload = TriadeObservabilityView(db_path=db_path, runs_dir=tmp_path / "runs").build(limit=5)
+    payload = TriadeObservabilityView(
+        db_path=db_path, runs_dir=tmp_path / "runs"
+    ).build(limit=5)
 
     assert payload["status"] == "degraded"
-    assert any("Capability Registry requiere atención" in warning for warning in payload["warnings"])
+    assert any(
+        "Capability Registry requiere atención" in warning
+        for warning in payload["warnings"]
+    )

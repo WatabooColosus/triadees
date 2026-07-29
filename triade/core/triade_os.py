@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import Any
 
 
-def triade_os_status(db_path: str | Path = "triade/memory/triade.db", runs_dir: str | Path = "runs") -> dict[str, Any]:
+def triade_os_status(
+    db_path: str | Path = "triade/memory/triade.db", runs_dir: str | Path = "runs"
+) -> dict[str, Any]:
     from .federated_global_edge import build_federated_global_edge_context
     from .internal_runtime import build_runtime_heartbeat
     from .permission_governor import build_permission_profile

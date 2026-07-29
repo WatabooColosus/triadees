@@ -25,9 +25,12 @@ def test_registers_pending_node_with_fingerprint(tmp_path: Path) -> None:
     assert created["state"] == "pending"
     assert created["trust_score"] == 0.0
     assert len(created["key_fingerprint"]) == 64
-    assert registry.authorize(
-        created["node_id"], capability="research_verified", permission="submit_work"
-    ) is False
+    assert (
+        registry.authorize(
+            created["node_id"], capability="research_verified", permission="submit_work"
+        )
+        is False
+    )
 
 
 def test_duplicate_node_or_key_is_rejected(tmp_path: Path) -> None:
@@ -53,15 +56,24 @@ def test_trusted_node_is_authorized_only_for_declared_scope(tmp_path: Path) -> N
     )
 
     assert trusted["state"] == "trusted"
-    assert registry.authorize(
-        "node-medellin-01", capability="research_verified", permission="submit_work"
-    ) is True
-    assert registry.authorize(
-        "node-medellin-01", capability="unknown", permission="submit_work"
-    ) is False
-    assert registry.authorize(
-        "node-medellin-01", capability="research_verified", permission="admin"
-    ) is False
+    assert (
+        registry.authorize(
+            "node-medellin-01", capability="research_verified", permission="submit_work"
+        )
+        is True
+    )
+    assert (
+        registry.authorize(
+            "node-medellin-01", capability="unknown", permission="submit_work"
+        )
+        is False
+    )
+    assert (
+        registry.authorize(
+            "node-medellin-01", capability="research_verified", permission="admin"
+        )
+        is False
+    )
 
 
 def test_low_trust_cannot_be_promoted(tmp_path: Path) -> None:
@@ -96,9 +108,12 @@ def test_quarantine_and_revocation_disable_authorization(tmp_path: Path) -> None
         trust_score=0.2,
     )
 
-    assert registry.authorize(
-        "node-medellin-01", capability="research_verified", permission="submit_work"
-    ) is False
+    assert (
+        registry.authorize(
+            "node-medellin-01", capability="research_verified", permission="submit_work"
+        )
+        is False
+    )
 
     revoked = registry.transition(
         "node-medellin-01",

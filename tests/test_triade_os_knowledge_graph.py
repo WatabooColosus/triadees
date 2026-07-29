@@ -7,12 +7,17 @@ from pathlib import Path
 
 import pytest
 
-from triade.os.contracts import KGNode, KGEdge, KGContradiction
 from triade.os.knowledge_graph import KnowledgeGraph
 
 
 SCHEMA_SQL = Path(__file__).resolve().parents[1] / "triade" / "memory" / "schemas.sql"
-MIGRATION_005 = Path(__file__).resolve().parents[1] / "triade" / "memory" / "migrations" / "005_triade_os.sql"
+MIGRATION_005 = (
+    Path(__file__).resolve().parents[1]
+    / "triade"
+    / "memory"
+    / "migrations"
+    / "005_triade_os.sql"
+)
 
 
 @pytest.fixture()
@@ -35,7 +40,9 @@ def kg(db: Path) -> KnowledgeGraph:
 
 class TestKGNodeCRUD:
     def test_add_fact_and_retrieve(self, kg: KnowledgeGraph) -> None:
-        nid = kg.add_fact("El agua hierve a 100C", domain="ciencia", source_ref="test:1")
+        nid = kg.add_fact(
+            "El agua hierve a 100C", domain="ciencia", source_ref="test:1"
+        )
         assert nid > 0
         node = kg.get_node(nid)
         assert node is not None
@@ -245,7 +252,7 @@ class TestConfidencePropagation:
         assert updated >= 1
 
     def test_no_update_when_stable(self, kg: KnowledgeGraph) -> None:
-        a = kg.add_fact("Stable", domain="test")
+        kg.add_fact("Stable", domain="test")
         updated = kg.propagate_confidence()
         assert updated == 0
 

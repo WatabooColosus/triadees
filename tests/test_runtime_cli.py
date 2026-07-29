@@ -11,14 +11,34 @@ def test_runtime_cli_status_and_once(tmp_path):
     runs_dir = tmp_path / "runs"
 
     status = subprocess.run(
-        [sys.executable, "triade_digimon.py", "runtime", "status", "--db", str(db_path), "--runs-dir", str(runs_dir)],
+        [
+            sys.executable,
+            "triade_digimon.py",
+            "runtime",
+            "status",
+            "--db",
+            str(db_path),
+            "--runs-dir",
+            str(runs_dir),
+        ],
         cwd=repo_root,
         capture_output=True,
         text=True,
         check=False,
     )
     once = subprocess.run(
-        [sys.executable, "triade_digimon.py", "runtime", "once", "--db", str(db_path), "--runs-dir", str(runs_dir), "--mode", "observe_only"],
+        [
+            sys.executable,
+            "triade_digimon.py",
+            "runtime",
+            "once",
+            "--db",
+            str(db_path),
+            "--runs-dir",
+            str(runs_dir),
+            "--mode",
+            "observe_only",
+        ],
         cwd=repo_root,
         capture_output=True,
         text=True,
@@ -28,5 +48,4 @@ def test_runtime_cli_status_and_once(tmp_path):
     assert status.returncode == 0, status.stderr
     assert once.returncode == 0, once.stderr
     assert "observe_only" in status.stdout
-    assert "\"status\": \"ok\"" in once.stdout
-
+    assert '"status": "ok"' in once.stdout

@@ -2,10 +2,19 @@ from pathlib import Path
 
 import pytest
 
-from triade.capabilities import CapabilityDefinition, CapabilityPolicyGuard, CapabilityRegistry
+from triade.capabilities import (
+    CapabilityDefinition,
+    CapabilityPolicyGuard,
+    CapabilityRegistry,
+)
 
 
-def executable(capability_id: str, *, state: str = "active", permissions: tuple[str, ...] = ("read", "execute")) -> CapabilityDefinition:
+def executable(
+    capability_id: str,
+    *,
+    state: str = "active",
+    permissions: tuple[str, ...] = ("read", "execute"),
+) -> CapabilityDefinition:
     return CapabilityDefinition(
         capability_id=capability_id,
         name=capability_id,
@@ -20,7 +29,9 @@ def executable(capability_id: str, *, state: str = "active", permissions: tuple[
     )
 
 
-def test_executable_capability_requires_input_and_output_contracts(tmp_path: Path) -> None:
+def test_executable_capability_requires_input_and_output_contracts(
+    tmp_path: Path,
+) -> None:
     registry = CapabilityRegistry(tmp_path / "triade.db")
     definition = CapabilityDefinition(
         capability_id="worker",
@@ -64,7 +75,11 @@ def test_blocked_capability_rejects_every_action(tmp_path: Path) -> None:
 def test_deprecated_capability_cannot_be_promoted(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     CapabilityRegistry(db_path).register(
-        executable("legacy_worker", state="deprecated", permissions=("read", "execute", "promote"))
+        executable(
+            "legacy_worker",
+            state="deprecated",
+            permissions=("read", "execute", "promote"),
+        )
     )
 
     decision = CapabilityPolicyGuard(db_path).decide("legacy_worker", "promote")

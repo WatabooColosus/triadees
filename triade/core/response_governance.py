@@ -68,8 +68,16 @@ class ConversationContinuityService:
         last_response = previous_response or history_response
         topic = self._topic(user_input)
         previous_topic = self._topic(last_response)
-        similarity = SequenceMatcher(None, _normalize(user_input), _normalize(last_response)).ratio() if last_response else 0.0
-        is_follow_up = bool(last_response) and (similarity >= 0.55 or self._follow_up_hint(user_input))
+        similarity = (
+            SequenceMatcher(
+                None, _normalize(user_input), _normalize(last_response)
+            ).ratio()
+            if last_response
+            else 0.0
+        )
+        is_follow_up = bool(last_response) and (
+            similarity >= 0.55 or self._follow_up_hint(user_input)
+        )
         next_step = None
         if is_follow_up and topic:
             next_step = f"Ya habíamos identificado {topic}; ahora toca avanzar con el siguiente paso."
@@ -93,7 +101,9 @@ class ConversationContinuityService:
         text = text.strip()
         if not text:
             return None
-        words = [w for w in re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_-]+", text) if len(w) >= 4]
+        words = [
+            w for w in re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_-]+", text) if len(w) >= 4
+        ]
         if not words:
             return None
         return " ".join(words[:4]).strip()
@@ -152,7 +162,9 @@ class ResponseCoherenceGate:
             "crystal_temporal_status": crystal_temporal_status,
             "safety_status": getattr(safety, "status", None),
             "continuity": continuity.trace if continuity else {},
-            "verification_status": getattr(verification_report, "status", None) if verification_report is not None else None,
+            "verification_status": getattr(verification_report, "status", None)
+            if verification_report is not None
+            else None,
         }
 
         safety_status = str(getattr(safety, "status", "") or "")
@@ -163,7 +175,10 @@ class ResponseCoherenceGate:
         if safety_status == "blocked":
             response = "La acción fue bloqueada por Safety."
             corrections.append("safety_block_override")
-        elif safety_status in {"sandbox_only", "requires_human_approval"} or human_required:
+        elif (
+            safety_status in {"sandbox_only", "requires_human_approval"}
+            or human_required
+        ):
             if "aprobación humana" not in response.lower():
                 response = f"{response}\n\nSe requiere aprobación humana antes de ejecutar la acción."
                 corrections.append("human_approval_added")
@@ -172,19 +187,46 @@ class ResponseCoherenceGate:
             corrections.append("risk_caution_added")
 
         memory = memory_recall or {}
-        authorized_matches = memory.get("authorized_matches") or memory.get("semantic_matches") or []
+        authorized_matches = (
+            memory.get("authorized_matches") or memory.get("semantic_matches") or []
+        )
         memory_confidence = float(memory.get("confidence") or 0.0)
         if not authorized_matches or memory_confidence < 0.55:
-            if any(phrase in response.lower() for phrase in ("según memoria", "segun memoria", "recuerdo", "sé que", "se que")):
-                response = response.replace("Según memoria", "No hay evidencia suficiente en memoria consolidada para afirmar")
-                response = response.replace("Segun memoria", "No hay evidencia suficiente en memoria consolidada para afirmar")
-                response = response.replace("sé que", "no tengo evidencia suficiente para afirmar")
-                response = response.replace("se que", "no tengo evidencia suficiente para afirmar")
+            if any(
+                phrase in response.lower()
+                for phrase in (
+                    "según memoria",
+                    "segun memoria",
+                    "recuerdo",
+                    "sé que",
+                    "se que",
+                )
+            ):
+                response = response.replace(
+                    "Según memoria",
+                    "No hay evidencia suficiente en memoria consolidada para afirmar",
+                )
+                response = response.replace(
+                    "Segun memoria",
+                    "No hay evidencia suficiente en memoria consolidada para afirmar",
+                )
+                response = response.replace(
+                    "sé que", "no tengo evidencia suficiente para afirmar"
+                )
+                response = response.replace(
+                    "se que", "no tengo evidencia suficiente para afirmar"
+                )
                 corrections.append("memory_evidence_downgraded")
-            warnings.append("Memoria insuficiente o sin matches autorizados para afirmar hechos estables.")
+            warnings.append(
+                "Memoria insuficiente o sin matches autorizados para afirmar hechos estables."
+            )
 
         if qualia_hypothesis and qualia_hypothesis.get("status") == "available":
-            if "qualia" in response.lower() and "hipótesis" not in response.lower() and "hipotesis" not in response.lower():
+            if (
+                "qualia" in response.lower()
+                and "hipótesis" not in response.lower()
+                and "hipotesis" not in response.lower()
+            ):
                 response = f"{response}\n\nLo de Qualia se trata como hipótesis, no como memoria estable."
                 corrections.append("qualia_marked_hypothesis")
 
@@ -192,7 +234,9 @@ class ResponseCoherenceGate:
             if neuron_contribution_summary.get("blocked"):
                 warnings.append("Hubo contribuciones neuronales bloqueadas por policy.")
             if neuron_contribution_summary.get("ignored"):
-                warnings.append("Hubo contribuciones neuronales ignoradas por riesgo, confianza o safety.")
+                warnings.append(
+                    "Hubo contribuciones neuronales ignoradas por riesgo, confianza o safety."
+                )
 
         if continuity and continuity.is_follow_up and continuity.next_step:
             if _normalize(continuity.next_step) not in _normalize(response):
@@ -200,7 +244,9 @@ class ResponseCoherenceGate:
                 corrections.append("continuity_next_step_added")
 
         if verification_report is not None:
-            trace["verification_warnings"] = getattr(verification_report, "warnings", [])
+            trace["verification_warnings"] = getattr(
+                verification_report, "warnings", []
+            )
             trace["verification_errors"] = getattr(verification_report, "errors", [])
 
         status = "ok"
@@ -212,7 +258,9 @@ class ResponseCoherenceGate:
             status = "needs_review"
 
         trace["safety_reason"] = safety_reason
-        trace["memory_matches"] = len(authorized_matches) if isinstance(authorized_matches, list) else 0
+        trace["memory_matches"] = (
+            len(authorized_matches) if isinstance(authorized_matches, list) else 0
+        )
 
         return CoherenceResult(
             response_final=response.strip(),
@@ -246,15 +294,29 @@ class ResponseDeduplicationGate:
         paragraphs = _split_paragraphs(raw)
         deduped_paragraphs, removed = self._dedupe_paragraphs(paragraphs)
         deduped_text = "\n\n".join(deduped_paragraphs).strip()
-        similarity = SequenceMatcher(None, _normalize(deduped_text), _normalize(recent_response or "")).ratio() if recent_response else 0.0
+        similarity = (
+            SequenceMatcher(
+                None, _normalize(deduped_text), _normalize(recent_response or "")
+            ).ratio()
+            if recent_response
+            else 0.0
+        )
         action = "unchanged"
 
         if removed > 0:
             action = "deduplicated"
         if similarity >= 0.80 and recent_response:
             action = "rewritten_for_progress"
-            if continuity and continuity.next_step and continuity.next_step not in deduped_text:
-                deduped_text = f"{deduped_text}\n\n{continuity.next_step}" if deduped_text else continuity.next_step
+            if (
+                continuity
+                and continuity.next_step
+                and continuity.next_step not in deduped_text
+            ):
+                deduped_text = (
+                    f"{deduped_text}\n\n{continuity.next_step}"
+                    if deduped_text
+                    else continuity.next_step
+                )
             elif recent_response and deduped_text:
                 deduped_text = f"{deduped_text}\n\nYa habíamos identificado el punto principal; ahora toca avanzar con el siguiente paso."
 
@@ -283,4 +345,3 @@ class ResponseDeduplicationGate:
             cleaned.append(paragraph)
         cleaned, consecutive_removed = _dedupe_consecutive(cleaned)
         return cleaned, removed + consecutive_removed
-

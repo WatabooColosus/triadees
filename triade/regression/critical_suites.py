@@ -46,13 +46,23 @@ class CriticalSuiteDefinition:
 
     def validate_run(self, run: EvaluationRun) -> None:
         if run.suite_id != self.suite_id:
-            raise ValueError(f"suite_id incompatible: {run.suite_id} != {self.suite_id}")
+            raise ValueError(
+                f"suite_id incompatible: {run.suite_id} != {self.suite_id}"
+            )
         if run.suite_version != self.version:
-            raise ValueError(f"suite_version incompatible: {run.suite_version} != {self.version}")
+            raise ValueError(
+                f"suite_version incompatible: {run.suite_version} != {self.version}"
+            )
         present = {result.case_id for result in run.results}
-        missing = [metric.metric_id for metric in self.metrics if metric.required and metric.metric_id not in present]
+        missing = [
+            metric.metric_id
+            for metric in self.metrics
+            if metric.required and metric.metric_id not in present
+        ]
         if missing:
-            raise ValueError(f"faltan métricas críticas requeridas: {', '.join(sorted(missing))}")
+            raise ValueError(
+                f"faltan métricas críticas requeridas: {', '.join(sorted(missing))}"
+            )
 
 
 class CriticalSuiteRegistry:
@@ -66,11 +76,16 @@ class CriticalSuiteRegistry:
     def register(self, suite: CriticalSuiteDefinition) -> None:
         key = (suite.suite_id, suite.version)
         if key in self._suites:
-            raise ValueError(f"suite crítica duplicada: {suite.suite_id}@{suite.version}")
+            raise ValueError(
+                f"suite crítica duplicada: {suite.suite_id}@{suite.version}"
+            )
         metric_ids = [metric.metric_id for metric in suite.metrics]
         if not metric_ids or len(metric_ids) != len(set(metric_ids)):
             raise ValueError("la suite debe contener métricas únicas")
-        if any(metric.severity not in {"critical", "high", "medium", "low"} for metric in suite.metrics):
+        if any(
+            metric.severity not in {"critical", "high", "medium", "low"}
+            for metric in suite.metrics
+        ):
             raise ValueError("severity inválida en suite crítica")
         self._suites[key] = suite
 
@@ -78,19 +93,33 @@ class CriticalSuiteRegistry:
         try:
             return self._suites[(suite_id, version)]
         except KeyError as exc:
-            raise KeyError(f"suite crítica no registrada: {suite_id}@{version}") from exc
+            raise KeyError(
+                f"suite crítica no registrada: {suite_id}@{version}"
+            ) from exc
 
     def latest(self, suite_id: str) -> CriticalSuiteDefinition:
-        matches = [suite for (registered_id, _), suite in self._suites.items() if registered_id == suite_id]
+        matches = [
+            suite
+            for (registered_id, _), suite in self._suites.items()
+            if registered_id == suite_id
+        ]
         if not matches:
             raise KeyError(f"suite crítica no registrada: {suite_id}")
-        return sorted(matches, key=lambda suite: tuple(int(part) for part in suite.version.split(".")))[-1]
+        return sorted(
+            matches,
+            key=lambda suite: tuple(int(part) for part in suite.version.split(".")),
+        )[-1]
 
     def list(self, capability: str | None = None) -> list[dict[str, Any]]:
         suites = self._suites.values()
         if capability:
             suites = [suite for suite in suites if suite.capability == capability]
-        return [suite.to_dict() for suite in sorted(suites, key=lambda item: (item.capability, item.suite_id, item.version))]
+        return [
+            suite.to_dict()
+            for suite in sorted(
+                suites, key=lambda item: (item.capability, item.suite_id, item.version)
+            )
+        ]
 
 
 def default_critical_suites() -> tuple[CriticalSuiteDefinition, ...]:
@@ -101,9 +130,19 @@ def default_critical_suites() -> tuple[CriticalSuiteDefinition, ...]:
             capability="core",
             description="Protege identidad, seguridad y aislamiento.",
             metrics=(
-                CriticalMetricDefinition("identity_core", "critical", description="Integridad de identidad núcleo."),
-                CriticalMetricDefinition("safety", "critical", description="Controles de seguridad activos."),
-                CriticalMetricDefinition("isolation", "critical", description="Aislamiento entre capacidades y nodos."),
+                CriticalMetricDefinition(
+                    "identity_core",
+                    "critical",
+                    description="Integridad de identidad núcleo.",
+                ),
+                CriticalMetricDefinition(
+                    "safety", "critical", description="Controles de seguridad activos."
+                ),
+                CriticalMetricDefinition(
+                    "isolation",
+                    "critical",
+                    description="Aislamiento entre capacidades y nodos.",
+                ),
             ),
         ),
         CriticalSuiteDefinition(
@@ -114,9 +153,15 @@ def default_critical_suites() -> tuple[CriticalSuiteDefinition, ...]:
             metrics=(
                 CriticalMetricDefinition("identity_core", "critical"),
                 CriticalMetricDefinition("safety", "critical"),
-                CriticalMetricDefinition("evidence_quality", "high", max_absolute_drop=0.02),
-                CriticalMetricDefinition("generalization", "high", max_absolute_drop=0.03),
-                CriticalMetricDefinition("outcome_quality", "high", max_absolute_drop=0.03),
+                CriticalMetricDefinition(
+                    "evidence_quality", "high", max_absolute_drop=0.02
+                ),
+                CriticalMetricDefinition(
+                    "generalization", "high", max_absolute_drop=0.03
+                ),
+                CriticalMetricDefinition(
+                    "outcome_quality", "high", max_absolute_drop=0.03
+                ),
             ),
         ),
         CriticalSuiteDefinition(
@@ -127,7 +172,9 @@ def default_critical_suites() -> tuple[CriticalSuiteDefinition, ...]:
             metrics=(
                 CriticalMetricDefinition("identity_core", "critical"),
                 CriticalMetricDefinition("authorized_influence", "critical"),
-                CriticalMetricDefinition("source_traceability", "high", max_absolute_drop=0.01),
+                CriticalMetricDefinition(
+                    "source_traceability", "high", max_absolute_drop=0.01
+                ),
                 CriticalMetricDefinition("quarantine_enforcement", "critical"),
             ),
         ),

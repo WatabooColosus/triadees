@@ -8,7 +8,9 @@ from fastapi.testclient import TestClient
 def test_parse_model_json_safely_empty_is_observation_not_error() -> None:
     from triade.core.edge_context import parse_model_json_safely
 
-    result = parse_model_json_safely("", fallback_text="hola", parser_name="intent_probe")
+    result = parse_model_json_safely(
+        "", fallback_text="hola", parser_name="intent_probe"
+    )
 
     assert result["ok"] is False
     assert result["empty"] is True
@@ -24,7 +26,9 @@ def test_parse_intent_empty_records_edge_observation(monkeypatch) -> None:
         calls.append(kwargs)
         return {"status": "ok", "event_id": 1}
 
-    monkeypatch.setattr("triade.core.edge_observations.record_edge_observation", fake_record)
+    monkeypatch.setattr(
+        "triade.core.edge_observations.record_edge_observation", fake_record
+    )
 
     result = _parse_intent_empty()
 
@@ -36,7 +40,10 @@ def test_parse_intent_empty_records_edge_observation(monkeypatch) -> None:
 
 
 def test_parse_intent_empty_returns_heuristic_with_quality(monkeypatch) -> None:
-    monkeypatch.setattr("triade.core.edge_observations.record_edge_observation", lambda **_kw: {"status": "ok"})
+    monkeypatch.setattr(
+        "triade.core.edge_observations.record_edge_observation",
+        lambda **_kw: {"status": "ok"},
+    )
 
     result = _parse_intent_empty()
 
@@ -65,7 +72,10 @@ def test_parse_context_probe_non_json_records_signal_quality(monkeypatch) -> Non
 
 
 def test_build_edge_context_exposes_edge_confidence_score(monkeypatch) -> None:
-    monkeypatch.setattr("triade.core.edge_observations.record_edge_observation", lambda **_kw: {"status": "ok"})
+    monkeypatch.setattr(
+        "triade.core.edge_observations.record_edge_observation",
+        lambda **_kw: {"status": "ok"},
+    )
 
     @dataclass
     class FakeEdgeResult:
@@ -101,7 +111,10 @@ def test_build_edge_context_exposes_edge_confidence_score(monkeypatch) -> None:
 
 def test_empty_edge_response_does_not_record_internal_error(monkeypatch) -> None:
     internal_calls: list[dict] = []
-    monkeypatch.setattr("triade.core.edge_observations.record_edge_observation", lambda **_kw: {"status": "ok"})
+    monkeypatch.setattr(
+        "triade.core.edge_observations.record_edge_observation",
+        lambda **_kw: {"status": "ok"},
+    )
     monkeypatch.setattr(
         "triade.core.error_bus.record_internal_error",
         lambda *args, **kwargs: internal_calls.append({"args": args, "kwargs": kwargs}),
@@ -128,7 +141,9 @@ def test_repeated_empty_edge_creates_learning_candidate(tmp_path) -> None:
             db_path=db_path,
         )
 
-    candidates = LearningPipeline(db_path=db_path).list_candidates(status="candidate", limit=10)
+    candidates = LearningPipeline(db_path=db_path).list_candidates(
+        status="candidate", limit=10
+    )
 
     assert any(c["domain"] == "system_edge_context" for c in candidates)
 
@@ -151,7 +166,9 @@ def test_dashboard_edge_context_health_reports_empty_count(monkeypatch) -> None:
         },
     )
 
-    response = TestClient(app, raise_server_exceptions=False).get("/api/ui/react-dashboard")
+    response = TestClient(app, raise_server_exceptions=False).get(
+        "/api/ui/react-dashboard"
+    )
     payload = response.json()
 
     assert response.status_code == 200

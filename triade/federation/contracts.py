@@ -49,23 +49,37 @@ class FederatedTransportDoctor(BaseModel):
     mode: str = "signed-federated-http"
     signature_alg: str = "hmac-sha256"
     sandbox_tasks: list[str] = Field(default_factory=lambda: sorted(SANDBOX_TASKS))
-    truth: str = "Solo ejecuta tareas sandbox permitidas; no acepta comandos arbitrarios."
+    truth: str = (
+        "Solo ejecuta tareas sandbox permitidas; no acepta comandos arbitrarios."
+    )
 
 
 def canonical_payload(payload: dict[str, Any]) -> str:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
 
 
-def signed_message(node_id: str, timestamp: int, nonce: str, payload: dict[str, Any]) -> str:
+def signed_message(
+    node_id: str, timestamp: int, nonce: str, payload: dict[str, Any]
+) -> str:
     return f"{node_id}.{timestamp}.{nonce}.{canonical_payload(payload)}"
 
 
-def sign_payload(secret: str, node_id: str, timestamp: int, nonce: str, payload: dict[str, Any]) -> str:
-    message = signed_message(node_id=node_id, timestamp=timestamp, nonce=nonce, payload=payload)
-    return hmac.new(secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
+def sign_payload(
+    secret: str, node_id: str, timestamp: int, nonce: str, payload: dict[str, Any]
+) -> str:
+    message = signed_message(
+        node_id=node_id, timestamp=timestamp, nonce=nonce, payload=payload
+    )
+    return hmac.new(
+        secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
 
 
-def verify_envelope(envelope: SignedEnvelope, secret: str, max_skew_seconds: int = 300) -> bool:
+def verify_envelope(
+    envelope: SignedEnvelope, secret: str, max_skew_seconds: int = 300
+) -> bool:
     now = int(time.time())
     if abs(now - int(envelope.timestamp)) > max_skew_seconds:
         return False

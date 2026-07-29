@@ -43,9 +43,13 @@ class SemanticSearchEngine:
     ) -> None:
         self.store = store or SemanticMemoryStore()
         self.client = client or OllamaClient()
-        self.embedding_engine = embedding_engine or SemanticEmbeddingEngine(store=self.store, client=self.client)
+        self.embedding_engine = embedding_engine or SemanticEmbeddingEngine(
+            store=self.store, client=self.client
+        )
 
-    def _vectorize_query(self, query: str, model: str | None = None) -> tuple[list[float] | None, str | None, str | None]:
+    def _vectorize_query(
+        self, query: str, model: str | None = None
+    ) -> tuple[list[float] | None, str | None, str | None]:
         selection = self.embedding_engine.select_model(requested_model=model)
         selected_model = selection.get("selected_model")
         provider = selection.get("provider", "ollama")
@@ -64,7 +68,11 @@ class SemanticSearchEngine:
         else:
             query_result = self.client.embed(str(selected_model), query)
             if not query_result.ok or not query_result.embeddings:
-                return None, None, query_result.error or "No se pudo vectorizar la consulta."
+                return (
+                    None,
+                    None,
+                    query_result.error or "No se pudo vectorizar la consulta.",
+                )
             return query_result.embeddings[0], selected_model, None
 
     def search(
@@ -77,13 +85,27 @@ class SemanticSearchEngine:
     ) -> dict[str, Any]:
         normalized_query = self.store.normalize_content(query)
         if not normalized_query:
-            return {"status": "failed", "error": "La consulta semántica no puede estar vacía.", "results": []}
+            return {
+                "status": "failed",
+                "error": "La consulta semántica no puede estar vacía.",
+                "results": [],
+            }
         if limit < 1 or limit > 50:
-            return {"status": "failed", "error": "limit debe estar entre 1 y 50.", "results": []}
+            return {
+                "status": "failed",
+                "error": "limit debe estar entre 1 y 50.",
+                "results": [],
+            }
         if min_similarity < -1.0 or min_similarity > 1.0:
-            return {"status": "failed", "error": "min_similarity debe estar entre -1 y 1.", "results": []}
+            return {
+                "status": "failed",
+                "error": "min_similarity debe estar entre -1 y 1.",
+                "results": [],
+            }
 
-        query_vector, selected_model, error = self._vectorize_query(normalized_query, model)
+        query_vector, selected_model, error = self._vectorize_query(
+            normalized_query, model
+        )
         if query_vector is None:
             return {
                 "status": "failed",
@@ -93,7 +115,9 @@ class SemanticSearchEngine:
 
         query_dimensions = len(query_vector)
         all_embeddings = self.store.list_embeddings()
-        candidates = [e for e in all_embeddings if e.get("embedding_model") == selected_model]
+        candidates = [
+            e for e in all_embeddings if e.get("embedding_model") == selected_model
+        ]
         skipped_model = len(all_embeddings) - len(candidates)
         matches: list[SemanticMatch] = []
         skipped_dimensions = 0
@@ -150,7 +174,9 @@ class SemanticSearchEngine:
     @staticmethod
     def cosine_similarity(left: list[float], right: list[float]) -> float:
         if not left or not right or len(left) != len(right):
-            raise ValueError("Los vectores deben tener la misma dimensión y no estar vacíos.")
+            raise ValueError(
+                "Los vectores deben tener la misma dimensión y no estar vacíos."
+            )
         dot = sum(a * b for a, b in zip(left, right))
         left_norm = math.sqrt(sum(value * value for value in left))
         right_norm = math.sqrt(sum(value * value for value in right))

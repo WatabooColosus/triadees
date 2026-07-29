@@ -46,10 +46,14 @@ class ModelInstallQueue:
         "deep": 80,
     }
 
-    def __init__(self, hardware: HardwareProfile, available_models: list[str] | None = None) -> None:
+    def __init__(
+        self, hardware: HardwareProfile, available_models: list[str] | None = None
+    ) -> None:
         self.hardware = hardware
         self.available_models = available_models or []
-        self.matrix = ModelCompatibilityMatrix(hardware=hardware, available_models=self.available_models)
+        self.matrix = ModelCompatibilityMatrix(
+            hardware=hardware, available_models=self.available_models
+        )
 
     def build(self, include_allowed: bool = False) -> dict[str, Any]:
         matrix = self.matrix.build()
@@ -85,13 +89,18 @@ class ModelInstallQueue:
 
     def _candidate_from_item(self, item: dict[str, Any]) -> ModelInstallCandidate:
         roles = item.get("recommended_roles") or []
-        priority = min((self.PRIORITY_BY_ROLE.get(role, 99) for role in roles), default=99)
+        priority = min(
+            (self.PRIORITY_BY_ROLE.get(role, 99) for role in roles), default=99
+        )
         estimated_ram = float(item.get("estimated_ram_gb") or 4.0)
         required_disk = round(max(estimated_ram * 1.8, 3.0) + self.DISK_BUFFER_GB, 2)
         warnings = list(item.get("warnings") or [])
         if self.hardware.disk_free_gb and self.hardware.disk_free_gb < required_disk:
             warnings.append("Disco libre insuficiente para instalación segura.")
-        reason = ", ".join(item.get("reasons") or []) or "Modelo compatible recomendado por matriz."
+        reason = (
+            ", ".join(item.get("reasons") or [])
+            or "Modelo compatible recomendado por matriz."
+        )
         return ModelInstallCandidate(
             model=str(item["model"]),
             status="pending_authorization",

@@ -9,8 +9,10 @@ from triade.core.bodega import Bodega
 from triade.core.bodega_global_context import build_bodega_global_context
 from triade.core.contracts import InputPacket
 from triade.core.error_bus import query_internal_errors
-from triade.core.internal_runtime import build_internal_context_snapshot, get_internal_runtime_state
-from triade.core.neuron_identity_view import NeuronIdentityView
+from triade.core.internal_runtime import (
+    build_internal_context_snapshot,
+    get_internal_runtime_state,
+)
 from triade.core.neuron_missions import NeuronMissionStore
 from triade.core.qualia import QUALIA
 from triade.learning.pipeline import LearningPipeline
@@ -34,17 +36,25 @@ def build_living_context_for_chat(
     db_path = Path(db_path)
     runs_dir = Path(runs_dir)
     runtime_state = get_internal_runtime_state(db_path=db_path, runs_dir=runs_dir)
-    internal_snapshot = build_internal_context_snapshot(limit=limit, db_path=db_path, runs_dir=runs_dir)
+    internal_snapshot = build_internal_context_snapshot(
+        limit=limit, db_path=db_path, runs_dir=runs_dir
+    )
     worker_status = WorkerBackgroundService(db_path=db_path, runs_dir=runs_dir).status()
     bodega = Bodega(db_path=db_path)
     recall = bodega.recall(
-        InputPacket(user_input=user_input or "estado interno", source="context_engine", context={}),
+        InputPacket(
+            user_input=user_input or "estado interno",
+            source="context_engine",
+            context={},
+        ),
         semantic_recall_enabled=False,
     )
     episodes = bodega.list_recent_episodes(limit=limit)
     mission_store = NeuronMissionStore(db_path=db_path)
     missions = mission_store.list_missions(limit=limit)
-    active_missions = [mission for mission in missions if mission.status in {"experimental", "stable"}]
+    active_missions = [
+        mission for mission in missions if mission.status in {"experimental", "stable"}
+    ]
     mission_cycles = {
         int(mission.id): mission_store.list_cycles(int(mission.id), limit=3)
         for mission in active_missions
@@ -67,7 +77,12 @@ def build_living_context_for_chat(
         ollama_health = OllamaClient().health()
     except Exception as exc:
         ollama_health = {"ok": False, "error": str(exc)}
-    router = ModelRouter(available_models=ollama_health.get("models", []) if isinstance(ollama_health, dict) else [], hardware=hardware)
+    router = ModelRouter(
+        available_models=ollama_health.get("models", [])
+        if isinstance(ollama_health, dict)
+        else [],
+        hardware=hardware,
+    )
     routes = router.route_many(intent="conversation", urgency="medium")
 
     try:
@@ -96,7 +111,9 @@ def build_living_context_for_chat(
         "learning_candidates_verified": verified[:limit],
         "bodega_global_context": bodega_global,
         "memory_confidence": bodega_global.get("memory_confidence", "low"),
-        "recommended_context_policy": bodega_global.get("recommended_context_policy", "ask_or_operate_with_limited_memory"),
+        "recommended_context_policy": bodega_global.get(
+            "recommended_context_policy", "ask_or_operate_with_limited_memory"
+        ),
     }
     mission_context = {
         "status": "ok",
@@ -116,8 +133,17 @@ def build_living_context_for_chat(
                 "mission_id": mission.get("id"),
                 "title": mission.get("title"),
                 "status": mission.get("status"),
-                "latest_cycle": (mission_cycles.get(int(mission.get("id") or 0)) or [None])[0].to_dict() if mission.get("id") and mission_cycles.get(int(mission.get("id") or 0)) else None,
-                "latest_evidence": (mission_evidence.get(int(mission.get("id") or 0)) or [None])[0].to_dict() if mission.get("id") and mission_evidence.get(int(mission.get("id") or 0)) else None,
+                "latest_cycle": (
+                    mission_cycles.get(int(mission.get("id") or 0)) or [None]
+                )[0].to_dict()
+                if mission.get("id") and mission_cycles.get(int(mission.get("id") or 0))
+                else None,
+                "latest_evidence": (
+                    mission_evidence.get(int(mission.get("id") or 0)) or [None]
+                )[0].to_dict()
+                if mission.get("id")
+                and mission_evidence.get(int(mission.get("id") or 0))
+                else None,
             }
             for mission in [m.to_dict() for m in active_missions[:limit]]
         ],
@@ -147,9 +173,13 @@ def build_living_context_for_chat(
         "models": {
             "hardware": hardware.to_dict(),
             "ollama": ollama_health,
-            "routes": [route.to_dict() for route in routes] if isinstance(routes, list) else routes,
+            "routes": [route.to_dict() for route in routes]
+            if isinstance(routes, list)
+            else routes,
         },
-        "federated_global_edge_context": bodega_global.get("federated_global_edge_context", {}),
+        "federated_global_edge_context": bodega_global.get(
+            "federated_global_edge_context", {}
+        ),
     }
     trust_policy = {
         "identity_core_protected": True,
@@ -169,7 +199,9 @@ def build_living_context_for_chat(
             "bodega_global_used": global_used,
             "semantic_recall_enabled": True,
             "memory_confidence": bodega_global.get("memory_confidence", "low"),
-            "recommended_context_policy": bodega_global.get("recommended_context_policy", "ask_or_operate_with_limited_memory"),
+            "recommended_context_policy": bodega_global.get(
+                "recommended_context_policy", "ask_or_operate_with_limited_memory"
+            ),
         },
         "internal_context": internal_context,
         "memory_context": memory_context,

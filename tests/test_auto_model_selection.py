@@ -11,7 +11,9 @@ def test_runner_reports_model_selection_when_ollama_disabled() -> None:
     runner = TriadeRunner(use_ollama=False, auto_select_models=True)
 
     assert runner.model_selection["enabled"] is False
-    assert runner.model_selection["reason"] == "manual_model_provided_or_ollama_disabled"
+    assert (
+        runner.model_selection["reason"] == "manual_model_provided_or_ollama_disabled"
+    )
     assert runner.hypothalamus_model
     assert runner.central_model
 
@@ -27,7 +29,12 @@ def test_runner_result_contains_model_selection(tmp_path) -> None:
 
 def test_runner_logs_hypothalamus_and_central_fallback_model_events(tmp_path) -> None:
     db_path = tmp_path / "triade.db"
-    runner = TriadeRunner(runs_dir=tmp_path / "runs", db_path=db_path, use_ollama=False, auto_select_models=True)
+    runner = TriadeRunner(
+        runs_dir=tmp_path / "runs",
+        db_path=db_path,
+        use_ollama=False,
+        auto_select_models=True,
+    )
 
     result = runner.run("Prueba fallback controlado", source="test")
 
@@ -37,8 +44,20 @@ def test_runner_logs_hypothalamus_and_central_fallback_model_events(tmp_path) ->
             (result["run_id"],),
         ).fetchall()
     assert rows == [
-        ("central", "template", "template-fallback", 0, result["models"]["central"]["quality_score"]),
-        ("hypothalamus", "rules", "rules-fallback", 0, result["models"]["hypothalamus"]["quality_score"]),
+        (
+            "central",
+            "template",
+            "template-fallback",
+            0,
+            result["models"]["central"]["quality_score"],
+        ),
+        (
+            "hypothalamus",
+            "rules",
+            "rules-fallback",
+            0,
+            result["models"]["hypothalamus"]["quality_score"],
+        ),
     ]
     assert result["models"]["hypothalamus"]["provider"] == "rules"
     assert result["models"]["central"]["provider"] == "template"
@@ -57,5 +76,8 @@ def test_runner_doctor_reports_double_model_selection(tmp_path) -> None:
 
     assert doctor["models"]["hypothalamus"] == "hyp-test"
     assert doctor["models"]["central"] == "central-test"
-    assert doctor["models"]["selection"]["reason"] == "manual_model_provided_or_ollama_disabled"
+    assert (
+        doctor["models"]["selection"]["reason"]
+        == "manual_model_provided_or_ollama_disabled"
+    )
     assert doctor["models"]["ollama"]["disabled"] is True

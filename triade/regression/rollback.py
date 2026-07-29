@@ -113,7 +113,14 @@ class RollbackExecutor:
             raise ValueError(f"rollback target incompleto: {sorted(missing)}")
         if not all(
             value.strip()
-            for value in (rollback_id, capability, candidate_id, report_id, reason, requested_by)
+            for value in (
+                rollback_id,
+                capability,
+                candidate_id,
+                report_id,
+                reason,
+                requested_by,
+            )
         ):
             raise ValueError("los campos textuales del rollback son obligatorios")
         plan = RollbackPlan(
@@ -188,7 +195,9 @@ class RollbackExecutor:
                     status="failed",
                     before_state=before_state,
                     after_state=after_state,
-                    error=str(response.get("error") or "handler no confirmó aplicación"),
+                    error=str(
+                        response.get("error") or "handler no confirmó aplicación"
+                    ),
                 )
             if str(after_state.get("subject_id")) != plan.target_subject_id:
                 return self._record_result(

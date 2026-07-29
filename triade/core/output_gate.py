@@ -26,7 +26,9 @@ INTERNAL_LEAK_TERMS = {
 }
 
 
-def sanitize_user_response(response: str, user_input: str, intent: str) -> dict[str, Any]:
+def sanitize_user_response(
+    response: str, user_input: str, intent: str
+) -> dict[str, Any]:
     """Devuelve una respuesta apta para usuario y evidencia de intervención."""
     text = (response or "").strip()
     if not text:
@@ -58,7 +60,11 @@ def sanitize_user_response(response: str, user_input: str, intent: str) -> dict[
         or "bodega semántica" in text.lower()
         or "bodega semantica" in text.lower()
     ):
-        return {"response": text, "modified": False, "reason": "operational_awareness_allowed"}
+        return {
+            "response": text,
+            "modified": False,
+            "reason": "operational_awareness_allowed",
+        }
 
     lowered = text.lower()
     leak = any(term in lowered for term in INTERNAL_LEAK_TERMS)

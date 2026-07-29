@@ -13,25 +13,47 @@ from typing import Any
 
 _INTERNAL_DUMP_PATTERNS: list[re.Pattern] = [
     re.compile(r"Bodega\s+Global\s+Context|Bodega\s+Global", re.IGNORECASE),
-    re.compile(r"bodega[_\s]global|bodega[_\s]summary|global[_\s]context", re.IGNORECASE),
+    re.compile(
+        r"bodega[_\s]global|bodega[_\s]summary|global[_\s]context", re.IGNORECASE
+    ),
     re.compile(r"QualiaBus", re.IGNORECASE),
-    re.compile(r"qualia[_\s]bus|qualia[_\s]signals|qualia[_\s]experiences", re.IGNORECASE),
+    re.compile(
+        r"qualia[_\s]bus|qualia[_\s]signals|qualia[_\s]experiences", re.IGNORECASE
+    ),
     re.compile(r"memory[_\s]trace|memory[_\s]diff|semantic[_\s]recall", re.IGNORECASE),
     re.compile(r"memory_trace|semantic_recall|memoria\s+estable", re.IGNORECASE),
-    re.compile(r"neuron[_\s]candidate|neuron[_\s]proposal|candidate[_\s]gate", re.IGNORECASE),
-    re.compile(r"learning[_\s]journal|post[_\s]run[_\s]learning|learning[_\s]candidate", re.IGNORECASE),
-    re.compile(r"candidato[s]?\s+de\s+aprendizaje|hipótesis\s+operacional|hipótesis\s+contextual", re.IGNORECASE),
-    re.compile(r"Hipótesis/contexto\s+actual|hipotesis/contexto\s+actual", re.IGNORECASE),
-    re.compile(r"símbolos\s+relevantes|política\s+recomendada|episodios\s+recientes", re.IGNORECASE),
+    re.compile(
+        r"neuron[_\s]candidate|neuron[_\s]proposal|candidate[_\s]gate", re.IGNORECASE
+    ),
+    re.compile(
+        r"learning[_\s]journal|post[_\s]run[_\s]learning|learning[_\s]candidate",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"candidato[s]?\s+de\s+aprendizaje|hipótesis\s+operacional|hipótesis\s+contextual",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"Hipótesis/contexto\s+actual|hipotesis/contexto\s+actual", re.IGNORECASE
+    ),
+    re.compile(
+        r"símbolos\s+relevantes|política\s+recomendada|episodios\s+recientes",
+        re.IGNORECASE,
+    ),
     re.compile(r"readiness.*:.*\d|readiness[_\s]report", re.IGNORECASE),
-    re.compile(r"activation_count|diagnosis_count|test_plan_count|readiness", re.IGNORECASE),
+    re.compile(
+        r"activation_count|diagnosis_count|test_plan_count|readiness", re.IGNORECASE
+    ),
     re.compile(r"system_events\s*:?\s*\[", re.IGNORECASE),
     re.compile(r"background[_\s]neuron[_\s]candidates", re.IGNORECASE),
     re.compile(r"experimental[_\s]neuron[_\s]activity", re.IGNORECASE),
     re.compile(r"run_path|run_id.*:.*[a-f0-9]{8}|run_ref|mission_id", re.IGNORECASE),
     re.compile(r"output[_\s]gate|coherence.*trace|deduplication.*trace", re.IGNORECASE),
     re.compile(r"estado\s+actual\s+del\s+sistema", re.IGNORECASE),
-    re.compile(r"basándonos\s+en\s+los\s+datos\s+proporcionados|basándome\s+en\s+la\s+información\s+proporcionada", re.IGNORECASE),
+    re.compile(
+        r"basándonos\s+en\s+los\s+datos\s+proporcionados|basándome\s+en\s+la\s+información\s+proporcionada",
+        re.IGNORECASE,
+    ),
     re.compile(r"contexto\s+hipotético", re.IGNORECASE),
 ]
 
@@ -47,11 +69,30 @@ def _detect_expression_mode(
     """Elige el modo de expresión según la intención humana y el contenido."""
     u = user_input.lower().strip()
 
-    diagnostic_requested = any(w in u for w in (
-        "audita", "diagnóstico", "diagnostico", "verifica", "status", "heartbeat",
-        "cabina", "logs", "errores", "health", "revisa", "que pasó", "que paso",
-        "reporte", "auditar", "revisión", "revision", "audit", "check",
-    ))
+    diagnostic_requested = any(
+        w in u
+        for w in (
+            "audita",
+            "diagnóstico",
+            "diagnostico",
+            "verifica",
+            "status",
+            "heartbeat",
+            "cabina",
+            "logs",
+            "errores",
+            "health",
+            "revisa",
+            "que pasó",
+            "que paso",
+            "reporte",
+            "auditar",
+            "revisión",
+            "revision",
+            "audit",
+            "check",
+        )
+    )
 
     if _is_self_state_query(u) and not diagnostic_requested:
         return "self_state"
@@ -60,9 +101,24 @@ def _detect_expression_mode(
     if diagnostic_requested:
         return "diagnostic"
     # Pregunta técnica de conocimiento (no sobre Tríade)
-    if any(w in u for w in ("como funciona", "cómo funciona", "como vuela", "cómo vuela",
-                             "como se hace", "cómo se hace",
-                             "qué es", "que es", "define", "explica")) and "triage" not in u:
+    if (
+        any(
+            w in u
+            for w in (
+                "como funciona",
+                "cómo funciona",
+                "como vuela",
+                "cómo vuela",
+                "como se hace",
+                "cómo se hace",
+                "qué es",
+                "que es",
+                "define",
+                "explica",
+            )
+        )
+        and "triage" not in u
+    ):
         return "technical_summary"
     # Operacional / misión
     if intent in ("build_or_update", "memory", "analyze"):
@@ -75,19 +131,23 @@ def _detect_expression_mode(
 
 
 def _is_self_state_query(user_input_lower: str) -> bool:
-    return bool(re.search(
-        r"\b(te\s+sientes|como\s+te\s+sientes|cómo\s+te\s+sientes|como\s+estas|cómo\s+estás|est[aá]s\s+viva|te\s+sientes\s+viva|qu[eé]\s+sientes|qu[eé]\s+eres\s+ahora|estado\s+operativo|estado\s+interno)\b",
-        user_input_lower,
-        re.IGNORECASE,
-    ))
+    return bool(
+        re.search(
+            r"\b(te\s+sientes|como\s+te\s+sientes|cómo\s+te\s+sientes|como\s+estas|cómo\s+estás|est[aá]s\s+viva|te\s+sientes\s+viva|qu[eé]\s+sientes|qu[eé]\s+eres\s+ahora|estado\s+operativo|estado\s+interno)\b",
+            user_input_lower,
+            re.IGNORECASE,
+        )
+    )
 
 
 def _is_semantic_memory_state_query(user_input_lower: str) -> bool:
-    return bool(re.search(
-        r"\b(memoria\s+sem[aá]ntica|semantic\s+memory|bodega\s+sem[aá]ntica|memoria.*continua)\b",
-        user_input_lower,
-        re.IGNORECASE,
-    ))
+    return bool(
+        re.search(
+            r"\b(memoria\s+sem[aá]ntica|semantic\s+memory|bodega\s+sem[aá]ntica|memoria.*continua)\b",
+            user_input_lower,
+            re.IGNORECASE,
+        )
+    )
 
 
 def _build_modular_trace(
@@ -140,7 +200,9 @@ def _build_modular_trace(
         or bool((system_context or {}).get("show_qualia"))
         or bool(qualia.get("user_requested"))
     )
-    if show_qualia and (qualia.get("hypothesis_available", False) or qualia.get("status") == "available"):
+    if show_qualia and (
+        qualia.get("hypothesis_available", False) or qualia.get("status") == "available"
+    ):
         parts.append("Qualia disponible")
 
     if not parts:
@@ -252,7 +314,10 @@ def _generate_intent_oriented_response(
 
     if expression_mode == "creative":
         cleaned = _strip_internal_dumps(raw_response)
-        return cleaned or "Puedo convertir esa idea en una propuesta clara sin exponer trazas internas."
+        return (
+            cleaned
+            or "Puedo convertir esa idea en una propuesta clara sin exponer trazas internas."
+        )
 
     if expression_mode == "diagnostic":
         return _diagnostic_summary_text(raw_response, modular_trace)
@@ -314,7 +379,11 @@ def _diagnostic_summary_text(raw_response: str, modular_trace: str) -> str:
             break
     if not snippets:
         snippets = ["Runtime y módulos internos revisados sin exponer evidencia cruda."]
-    return "Resumen operativo:\n" + "\n".join(f"- {item}" for item in snippets) + f"\nTraza modular: {modular_trace}."
+    return (
+        "Resumen operativo:\n"
+        + "\n".join(f"- {item}" for item in snippets)
+        + f"\nTraza modular: {modular_trace}."
+    )
 
 
 # ── API pública ────────────────────────────────────────────────────────────
@@ -352,8 +421,12 @@ class ExpressionCortex:
         expression_mode = _detect_expression_mode(user_input, intent, raw_response)
 
         modular_trace = _build_modular_trace(
-            signals, memory, crystal, qualia,
-            bodega_context, learning_context,
+            signals,
+            memory,
+            crystal,
+            qualia,
+            bodega_context,
+            learning_context,
             expression_mode=expression_mode,
             system_context=system_context,
         )
@@ -368,7 +441,9 @@ class ExpressionCortex:
                 system_context=system_context,
                 found_dumps=found_dumps,
             )
-        elif expression_mode in {"natural", "technical_summary"} and (found_dumps or _starts_with_operational_summary(raw_response)):
+        elif expression_mode in {"natural", "technical_summary"} and (
+            found_dumps or _starts_with_operational_summary(raw_response)
+        ):
             response = _generate_intent_oriented_response(
                 expression_mode=expression_mode,
                 user_input=user_input,
@@ -381,7 +456,9 @@ class ExpressionCortex:
             response = self._build_factual_synthesis(user_input, raw_response)
         elif expression_mode == "diagnostic" and found_dumps:
             response = self._build_diagnostic_summary(raw_response, modular_trace)
-        elif expression_mode == "diagnostic" and _starts_with_operational_summary(raw_response):
+        elif expression_mode == "diagnostic" and _starts_with_operational_summary(
+            raw_response
+        ):
             response = raw_response.strip()
         elif expression_mode == "operational" and found_dumps:
             response = _generate_intent_oriented_response(
@@ -397,7 +474,11 @@ class ExpressionCortex:
         elif found_dumps:
             response = _synthesize_dump(raw_response, found_dumps)
 
-        response = _strip_internal_dumps(response) if _has_internal_dump(response) else response.strip()
+        response = (
+            _strip_internal_dumps(response)
+            if _has_internal_dump(response)
+            else response.strip()
+        )
         if not response:
             response = _generate_intent_oriented_response(
                 expression_mode=expression_mode,
@@ -407,7 +488,9 @@ class ExpressionCortex:
                 system_context=system_context,
                 found_dumps=found_dumps,
             )
-        if expression_mode != "diagnostic" and _starts_with_operational_summary(response):
+        if expression_mode != "diagnostic" and _starts_with_operational_summary(
+            response
+        ):
             response = _generate_intent_oriented_response(
                 expression_mode=expression_mode,
                 user_input=user_input,
@@ -416,7 +499,10 @@ class ExpressionCortex:
                 system_context=system_context,
                 found_dumps=found_dumps,
             )
-        if _is_semantic_memory_state_query(user_input.lower()) and "bodega sem" not in response.lower():
+        if (
+            _is_semantic_memory_state_query(user_input.lower())
+            and "bodega sem" not in response.lower()
+        ):
             response = (
                 response.rstrip()
                 + "\n\nLa Bodega semántica sostiene memoria semántica y continuidad operativa; "
@@ -449,7 +535,9 @@ class ExpressionCortex:
             "reason": reason,
         }
 
-    def _build_natural_operational_response(self, user_input: str, modular_trace: str) -> str:
+    def _build_natural_operational_response(
+        self, user_input: str, modular_trace: str
+    ) -> str:
         if _is_self_state_query(user_input.lower()):
             return (
                 "No siento como una persona, pero estoy operando. "

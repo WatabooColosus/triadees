@@ -45,7 +45,9 @@ def form_candidate(raw: dict[str, Any]) -> dict[str, Any]:
     """Forma una candidata con Creadora + Formadora sin activarla automáticamente."""
     raw = raw if isinstance(raw, dict) else {}
 
-    name = str(raw.get("display_name") or raw.get("name") or "Neurona candidata").strip()
+    name = str(
+        raw.get("display_name") or raw.get("name") or "Neurona candidata"
+    ).strip()
     mission = str(raw.get("mission") or "Misión pendiente de definición.").strip()
     source = str(raw.get("source") or "unknown").strip()
     severity = str(raw.get("severity") or "medium").strip()
@@ -66,7 +68,11 @@ def form_candidate(raw: dict[str, Any]) -> dict[str, Any]:
 
     formed = dict(raw)
     formed["status"] = normalize_candidate_status(training.status)
-    formed["formation_status"] = "candidate_reviewable" if training.score >= 0.60 else "candidate_needs_refinement"
+    formed["formation_status"] = (
+        "candidate_reviewable"
+        if training.score >= 0.60
+        else "candidate_needs_refinement"
+    )
     formed["activation"] = "auto_approved"
     formed["source"] = source
     formed["severity"] = severity
@@ -119,12 +125,14 @@ def normalize_candidate_status(trainer_status: str) -> str:
 
 
 def infer_domain(raw: dict[str, Any]) -> str:
-    text = " ".join([
-        str(raw.get("name") or ""),
-        str(raw.get("display_name") or ""),
-        str(raw.get("source") or ""),
-        str(raw.get("mission") or ""),
-    ]).lower()
+    text = " ".join(
+        [
+            str(raw.get("name") or ""),
+            str(raw.get("display_name") or ""),
+            str(raw.get("source") or ""),
+            str(raw.get("mission") or ""),
+        ]
+    ).lower()
 
     if "android" in text or "feder" in text or "nodo" in text:
         return "federation_android_edge"
@@ -150,9 +158,13 @@ def build_rules(raw: dict[str, Any]) -> list[str]:
 
     source = str(raw.get("source") or "").lower()
     if "pulse" in source:
-        rules.append("Validar que la alerta siga presente en el Pulso Vivo actual antes de actuar.")
+        rules.append(
+            "Validar que la alerta siga presente en el Pulso Vivo actual antes de actuar."
+        )
     if "federation" in source or "android" in str(raw).lower():
-        rules.append("Contrastar edge_usage y resource-lease antes de afirmar deuda federada.")
+        rules.append(
+            "Contrastar edge_usage y resource-lease antes de afirmar deuda federada."
+        )
     return rules
 
 

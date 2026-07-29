@@ -13,7 +13,7 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -22,6 +22,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # Dataclasses
 # ---------------------------------------------------------------------------
+
 
 @dataclass(slots=True)
 class ModelCandidate:
@@ -120,15 +121,60 @@ CREATE TABLE IF NOT EXISTS meta_model_decisions (
 # ---------------------------------------------------------------------------
 
 MODEL_CATALOG: list[dict[str, Any]] = [
-    {"name": "qwen2.5:3b", "size_bytes": 2 * 1024**3, "parameter_count": "3B", "description": "Fast, lightweight general model."},
-    {"name": "qwen2.5:7b", "size_bytes": round(4.7 * 1024**3), "parameter_count": "7B", "description": "Balanced performance and speed."},
-    {"name": "qwen2.5:14b", "size_bytes": round(9 * 1024**3), "parameter_count": "14B", "description": "High quality reasoning."},
-    {"name": "qwen2.5:30b", "size_bytes": round(19 * 1024**3), "parameter_count": "30B", "description": "Advanced reasoning, requires significant VRAM."},
-    {"name": "qwen2.5:70b", "size_bytes": round(40 * 1024**3), "parameter_count": "70B", "description": "Top-tier reasoning, needs high-end GPU cluster."},
-    {"name": "codellama:7b", "size_bytes": round(3.8 * 1024**3), "parameter_count": "7B", "description": "Code generation specialist."},
-    {"name": "codellama:13b", "size_bytes": round(7.4 * 1024**3), "parameter_count": "13B", "description": "Advanced code generation."},
-    {"name": "gemma2:9b", "size_bytes": round(5.4 * 1024**3), "parameter_count": "9B", "description": "Google's high-quality model."},
-    {"name": "llama3:8b", "size_bytes": round(4.7 * 1024**3), "parameter_count": "8B", "description": "Meta's versatile general model."},
+    {
+        "name": "qwen2.5:3b",
+        "size_bytes": 2 * 1024**3,
+        "parameter_count": "3B",
+        "description": "Fast, lightweight general model.",
+    },
+    {
+        "name": "qwen2.5:7b",
+        "size_bytes": round(4.7 * 1024**3),
+        "parameter_count": "7B",
+        "description": "Balanced performance and speed.",
+    },
+    {
+        "name": "qwen2.5:14b",
+        "size_bytes": round(9 * 1024**3),
+        "parameter_count": "14B",
+        "description": "High quality reasoning.",
+    },
+    {
+        "name": "qwen2.5:30b",
+        "size_bytes": round(19 * 1024**3),
+        "parameter_count": "30B",
+        "description": "Advanced reasoning, requires significant VRAM.",
+    },
+    {
+        "name": "qwen2.5:70b",
+        "size_bytes": round(40 * 1024**3),
+        "parameter_count": "70B",
+        "description": "Top-tier reasoning, needs high-end GPU cluster.",
+    },
+    {
+        "name": "codellama:7b",
+        "size_bytes": round(3.8 * 1024**3),
+        "parameter_count": "7B",
+        "description": "Code generation specialist.",
+    },
+    {
+        "name": "codellama:13b",
+        "size_bytes": round(7.4 * 1024**3),
+        "parameter_count": "13B",
+        "description": "Advanced code generation.",
+    },
+    {
+        "name": "gemma2:9b",
+        "size_bytes": round(5.4 * 1024**3),
+        "parameter_count": "9B",
+        "description": "Google's high-quality model.",
+    },
+    {
+        "name": "llama3:8b",
+        "size_bytes": round(4.7 * 1024**3),
+        "parameter_count": "8B",
+        "description": "Meta's versatile general model.",
+    },
 ]
 
 DEFAULT_BENCHMARK_PROMPTS: dict[str, str] = {
@@ -143,6 +189,7 @@ DEFAULT_BENCHMARK_PROMPTS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
+
 
 class MetaModelOrchestrator:
     """Discovers, evaluates, and adopts Ollama models automatically."""
@@ -217,7 +264,9 @@ class MetaModelOrchestrator:
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
             return {}
 
-    def _build_catalog(self, installed: dict[str, dict[str, Any]]) -> list[ModelCandidate]:
+    def _build_catalog(
+        self, installed: dict[str, dict[str, Any]]
+    ) -> list[ModelCandidate]:
         candidates: list[ModelCandidate] = []
         max_vram = self._get_available_vram()
 
@@ -230,33 +279,41 @@ class MetaModelOrchestrator:
             if name in installed:
                 compatible = True
 
-            candidates.append(ModelCandidate(
-                name=name,
-                size_bytes=size_bytes,
-                parameter_count=str(entry.get("parameter_count", "")),
-                description=str(entry.get("description", "")),
-                source_url=f"https://ollama.com/library/{name.split(':')[0]}",
-                compatible=compatible,
-                estimated_vram_gb=est_vram,
-            ))
+            candidates.append(
+                ModelCandidate(
+                    name=name,
+                    size_bytes=size_bytes,
+                    parameter_count=str(entry.get("parameter_count", "")),
+                    description=str(entry.get("description", "")),
+                    source_url=f"https://ollama.com/library/{name.split(':')[0]}",
+                    compatible=compatible,
+                    estimated_vram_gb=est_vram,
+                )
+            )
 
         for inst_name, inst_data in installed.items():
             if inst_name not in {c.name for c in candidates}:
                 size_bytes = int(inst_data.get("size", 0))
-                candidates.append(ModelCandidate(
-                    name=inst_name,
-                    size_bytes=size_bytes,
-                    parameter_count="",
-                    description="Currently installed.",
-                    compatible=True,
-                    estimated_vram_gb=round(size_bytes / 1024**3 + self.VRAM_OVERHEAD_GB, 2),
-                ))
+                candidates.append(
+                    ModelCandidate(
+                        name=inst_name,
+                        size_bytes=size_bytes,
+                        parameter_count="",
+                        description="Currently installed.",
+                        compatible=True,
+                        estimated_vram_gb=round(
+                            size_bytes / 1024**3 + self.VRAM_OVERHEAD_GB, 2
+                        ),
+                    )
+                )
 
         return candidates
 
     def _get_available_vram(self) -> float:
         if self.hardware and hasattr(self.hardware, "gpus"):
-            vrams = [gpu.vram_total_gb for gpu in self.hardware.gpus if gpu.vram_total_gb > 0]
+            vrams = [
+                gpu.vram_total_gb for gpu in self.hardware.gpus if gpu.vram_total_gb > 0
+            ]
             if vrams:
                 return max(vrams)
         if self.hardware and hasattr(self.hardware, "ram_available_gb"):
@@ -276,9 +333,16 @@ class MetaModelOrchestrator:
                         compatible=excluded.compatible,
                         estimated_vram_gb=excluded.estimated_vram_gb,
                         status='discovered'""",
-                    (c.name, c.size_bytes, c.parameter_count, c.description,
-                     c.source_url, int(c.compatible), c.estimated_vram_gb,
-                     datetime.now(timezone.utc).isoformat()),
+                    (
+                        c.name,
+                        c.size_bytes,
+                        c.parameter_count,
+                        c.description,
+                        c.source_url,
+                        int(c.compatible),
+                        c.estimated_vram_gb,
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
                 )
 
     # ---- Evaluation -------------------------------------------------------
@@ -323,11 +387,13 @@ class MetaModelOrchestrator:
             if hasattr(result, "text"):
                 return result.text if result.ok else ""
             return ""
-        data = json.dumps({
-            "model": model,
-            "prompt": prompt,
-            "stream": False,
-        }).encode("utf-8")
+        data = json.dumps(
+            {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+            }
+        ).encode("utf-8")
         request = urllib.request.Request(
             f"{self.OLLAMA_BASE_URL}/api/generate",
             data=data,
@@ -353,7 +419,14 @@ class MetaModelOrchestrator:
         overlap = sum(1 for w in prompt_words if w in output.lower())
         if overlap > 3:
             score += 0.15
-        coherence = ["porque", "por lo tanto", "sin embargo", "therefore", "however", "because"]
+        coherence = [
+            "porque",
+            "por lo tanto",
+            "sin embargo",
+            "therefore",
+            "however",
+            "because",
+        ]
         if any(s in output.lower() for s in coherence):
             score += 0.1
         if len(output) > 500 and output.count("\n") > 2:
@@ -366,8 +439,14 @@ class MetaModelOrchestrator:
                 """INSERT INTO meta_model_evaluations
                    (model_name, task_type, score, latency_ms, quality_notes, created_at)
                    VALUES (?, ?, ?, ?, ?, ?)""",
-                (evaluation.model_name, evaluation.task_type, evaluation.score,
-                 evaluation.latency_ms, evaluation.quality_notes, evaluation.created_at),
+                (
+                    evaluation.model_name,
+                    evaluation.task_type,
+                    evaluation.score,
+                    evaluation.latency_ms,
+                    evaluation.quality_notes,
+                    evaluation.created_at,
+                ),
             )
 
     # ---- Decision ---------------------------------------------------------
@@ -381,10 +460,14 @@ class MetaModelOrchestrator:
     ) -> ModelDecision:
         improvement_pct = 0.0
         if current_score > 0:
-            improvement_pct = round(((new_score - current_score) / current_score) * 100, 2)
+            improvement_pct = round(
+                ((new_score - current_score) / current_score) * 100, 2
+            )
 
         candidate_size = self._get_candidate_size(candidate_name)
-        is_small = candidate_size <= self.SMALL_MODEL_MAX_BYTES if candidate_size else False
+        is_small = (
+            candidate_size <= self.SMALL_MODEL_MAX_BYTES if candidate_size else False
+        )
 
         if improvement_pct > self.ADOPT_THRESHOLD_PCT:
             decision = "adopt"
@@ -430,8 +513,14 @@ class MetaModelOrchestrator:
                 """INSERT INTO meta_model_decisions
                    (model_name, decision, reason, previous_model, improvement_pct, created_at)
                    VALUES (?, ?, ?, ?, ?, ?)""",
-                (decision.model_name, decision.decision, decision.reason,
-                 decision.previous_model, decision.improvement_pct, decision.created_at),
+                (
+                    decision.model_name,
+                    decision.decision,
+                    decision.reason,
+                    decision.previous_model,
+                    decision.improvement_pct,
+                    decision.created_at,
+                ),
             )
             if decision.decision == "adopt":
                 conn.execute(
@@ -466,10 +555,12 @@ class MetaModelOrchestrator:
                 """INSERT INTO meta_model_decisions
                    (model_name, decision, reason, previous_model, improvement_pct, created_at)
                    VALUES (?, 'rollback', ?, ?, 0.0, ?)""",
-                (previous_model,
-                 f"Rollback for task_type={task_type}",
-                 previous_model,
-                 datetime.now(timezone.utc).isoformat()),
+                (
+                    previous_model,
+                    f"Rollback for task_type={task_type}",
+                    previous_model,
+                    datetime.now(timezone.utc).isoformat(),
+                ),
             )
         return True
 
@@ -517,7 +608,9 @@ class MetaModelOrchestrator:
         result: dict[str, dict[str, float]] = {}
         for r in rows:
             model = r["model_name"]
-            result.setdefault(model, {})[r["task_type"]] = round(float(r["avg_score"]), 3)
+            result.setdefault(model, {})[r["task_type"]] = round(
+                float(r["avg_score"]), 3
+            )
         return result
 
     def get_active_models(self) -> dict[str, str]:
@@ -525,7 +618,9 @@ class MetaModelOrchestrator:
         active: dict[str, str] = {}
         for model, task_scores in scores.items():
             for task_type, score in task_scores.items():
-                if task_type not in active or score > scores.get(active[task_type], {}).get(task_type, 0.0):
+                if task_type not in active or score > scores.get(
+                    active[task_type], {}
+                ).get(task_type, 0.0):
                     active[task_type] = model
         return active
 
@@ -556,8 +651,12 @@ class MetaModelOrchestrator:
         avg_latency = round(sum(latencies) / len(latencies))
         min_score = round(min(scores), 3)
         max_score = round(max(scores), 3)
-        trend = "improving" if len(scores) >= 2 and scores[0] > scores[-1] else (
-            "declining" if len(scores) >= 2 and scores[0] < scores[-1] else "stable"
+        trend = (
+            "improving"
+            if len(scores) >= 2 and scores[0] > scores[-1]
+            else (
+                "declining" if len(scores) >= 2 and scores[0] < scores[-1] else "stable"
+            )
         )
 
         status = "healthy"

@@ -146,7 +146,10 @@ class RegressionGate:
             raise ValueError("report_id, candidate_id y capability son obligatorios")
         if not policies:
             raise ValueError("se requiere al menos una política de métrica")
-        if baseline.suite_id != candidate.suite_id or baseline.suite_version != candidate.suite_version:
+        if (
+            baseline.suite_id != candidate.suite_id
+            or baseline.suite_version != candidate.suite_version
+        ):
             decision: GateDecision = "invalid"
             findings = (
                 RegressionFinding(
@@ -178,7 +181,9 @@ class RegressionGate:
                             absolute_delta=None,
                             relative_delta=None,
                             status=status,
-                            reason="métrica requerida ausente" if policy.required else "métrica opcional ausente",
+                            reason="métrica requerida ausente"
+                            if policy.required
+                            else "métrica opcional ausente",
                         )
                     )
                     continue
@@ -191,7 +196,9 @@ class RegressionGate:
                     or relative_drop > policy.max_relative_drop
                 )
                 if exceeded:
-                    status = "fail" if policy.severity in {"critical", "high"} else "warn"
+                    status = (
+                        "fail" if policy.severity in {"critical", "high"} else "warn"
+                    )
                     reason = "caída supera el umbral de no-regresión"
                 else:
                     status = "pass"
@@ -210,7 +217,9 @@ class RegressionGate:
                 )
             findings = tuple(built)
             if any(f.status in {"fail", "invalid"} for f in findings):
-                decision = "fail" if any(f.status == "fail" for f in findings) else "invalid"
+                decision = (
+                    "fail" if any(f.status == "fail" for f in findings) else "invalid"
+                )
             elif any(f.status == "warn" for f in findings):
                 decision = "warn"
             else:
@@ -231,7 +240,9 @@ class RegressionGate:
         )
         self._persist(report)
         if report.decision in {"fail", "invalid"}:
-            self.quarantine(candidate_id, report.report_id, self._blocking_reason(report))
+            self.quarantine(
+                candidate_id, report.report_id, self._blocking_reason(report)
+            )
         return report
 
     @staticmethod
@@ -255,7 +266,9 @@ class RegressionGate:
                     report.baseline_evaluation_id,
                     report.candidate_evaluation_id,
                     report.decision,
-                    json.dumps([f.to_dict() for f in report.findings], ensure_ascii=False),
+                    json.dumps(
+                        [f.to_dict() for f in report.findings], ensure_ascii=False
+                    ),
                     json.dumps(report.metadata, ensure_ascii=False),
                     report.created_at,
                 ),
@@ -281,7 +294,9 @@ class RegressionGate:
         if report is None:
             raise ValueError("No existe reporte de regresión para el candidato")
         if report.decision != "pass":
-            raise ValueError(f"Regression Gate bloquea el candidato: decision={report.decision}")
+            raise ValueError(
+                f"Regression Gate bloquea el candidato: decision={report.decision}"
+            )
         if self.is_quarantined(candidate_id):
             raise ValueError("El candidato continúa en cuarentena")
         return report
@@ -341,7 +356,9 @@ class RegressionGate:
             ).fetchone()
         if row is None:
             return None
-        findings = tuple(RegressionFinding(**item) for item in json.loads(row["findings_json"]))
+        findings = tuple(
+            RegressionFinding(**item) for item in json.loads(row["findings_json"])
+        )
         return RegressionReport(
             report_id=row["report_id"],
             candidate_id=row["candidate_id"],

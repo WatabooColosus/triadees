@@ -38,7 +38,11 @@ def test_specification_requires_sandbox_and_budget() -> None:
     specification.validate()
 
     without_sandbox = NeuronSpecification(
-        **{**specification.to_dict(), "sandbox_required": False, "resource_budget": specification.resource_budget}
+        **{
+            **specification.to_dict(),
+            "sandbox_required": False,
+            "resource_budget": specification.resource_budget,
+        }
     )
     with pytest.raises(ValueError, match="sandbox"):
         without_sandbox.validate()
@@ -47,7 +51,11 @@ def test_specification_requires_sandbox_and_budget() -> None:
 def test_critical_neuron_requires_suite_and_rollback() -> None:
     specification = make_spec()
     invalid = NeuronSpecification(
-        **{**specification.to_dict(), "critical": True, "resource_budget": specification.resource_budget}
+        **{
+            **specification.to_dict(),
+            "critical": True,
+            "resource_budget": specification.resource_budget,
+        }
     )
 
     with pytest.raises(ValueError, match="suite y rollback"):
@@ -59,8 +67,12 @@ def test_store_registers_transitions_and_history(tmp_path: Path) -> None:
     specification = make_spec(critical=True)
 
     registered = store.register(specification)
-    specified = store.transition(specification.neuron_id, specification.version, "specified")
-    training = store.transition(specification.neuron_id, specification.version, "training")
+    specified = store.transition(
+        specification.neuron_id, specification.version, "specified"
+    )
+    training = store.transition(
+        specification.neuron_id, specification.version, "training"
+    )
 
     assert registered["state"] == "draft"
     assert specified["state"] == "specified"

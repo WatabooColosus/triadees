@@ -24,9 +24,11 @@ class RestorationResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "operation": self.operation, "items_restored": self.items_restored,
+            "operation": self.operation,
+            "items_restored": self.items_restored,
             "items_derequarantined": self.items_derequarantined,
-            "details": list(self.details), "created_at": self.created_at,
+            "details": list(self.details),
+            "created_at": self.created_at,
         }
 
 
@@ -66,7 +68,9 @@ class MemoryRestorer:
                     restored += 1
                     details.append(f"ID {row['id']}: conf={conf:.2f} -> stable")
         return RestorationResult(
-            operation="derequarantine", items_restored=restored, details=details,
+            operation="derequarantine",
+            items_restored=restored,
+            details=details,
         )
 
     def restore_forgotten(
@@ -103,9 +107,13 @@ class MemoryRestorer:
                     (round(new_conf, 4), row["id"]),
                 )
                 restored += 1
-                details.append(f"ID {row['id']}: conf {float(row['confidence']):.2f} -> {new_conf:.2f}")
+                details.append(
+                    f"ID {row['id']}: conf {float(row['confidence']):.2f} -> {new_conf:.2f}"
+                )
         return RestorationResult(
-            operation="restore_forgotten", items_restored=restored, details=details,
+            operation="restore_forgotten",
+            items_restored=restored,
+            details=details,
         )
 
     def promote_candidates(
@@ -130,9 +138,13 @@ class MemoryRestorer:
                     "UPDATE learning_queue SET status = 'evaluated' WHERE id = ?",
                     (row["id"],),
                 )
-                details.append(f"ID {row['id']}: candidate -> evaluated (conf={float(row['confidence']):.2f})")
+                details.append(
+                    f"ID {row['id']}: candidate -> evaluated (conf={float(row['confidence']):.2f})"
+                )
         return RestorationResult(
-            operation="promote_candidates", items_restored=promoted, details=details,
+            operation="promote_candidates",
+            items_restored=promoted,
+            details=details,
         )
 
     def summary(self) -> dict[str, Any]:

@@ -89,17 +89,23 @@ class FederatedMerge:
                 conn.executescript(schema_path.read_text(encoding="utf-8"))
 
     def _sign(self, data: str) -> str:
-        return hmac.new(self.secret_key, data.encode("utf-8"), hashlib.sha256).hexdigest()
+        return hmac.new(
+            self.secret_key, data.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
 
     def _payload_bytes(self, request: MergeRequest) -> bytes:
-        canonical = json.dumps({
-            "request_id": request.request_id,
-            "source_node_id": request.source_node_id,
-            "target_node_id": request.target_node_id,
-            "merge_type": request.merge_type,
-            "payload": request.payload,
-            "timestamp": request.timestamp,
-        }, sort_keys=True, ensure_ascii=False)
+        canonical = json.dumps(
+            {
+                "request_id": request.request_id,
+                "source_node_id": request.source_node_id,
+                "target_node_id": request.target_node_id,
+                "merge_type": request.merge_type,
+                "payload": request.payload,
+                "timestamp": request.timestamp,
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        )
         return canonical.encode("utf-8")
 
     def create_merge_request(
@@ -127,7 +133,11 @@ class FederatedMerge:
 
     def process_merge_request(self, request: MergeRequest) -> MergeResponse:
         if not self.verify_merge_request(request):
-            return MergeResponse(request_id=request.request_id, status="rejected", message="Invalid HMAC signature")
+            return MergeResponse(
+                request_id=request.request_id,
+                status="rejected",
+                message="Invalid HMAC signature",
+            )
 
         with self._connect() as conn:
             existing = conn.execute(
@@ -135,7 +145,11 @@ class FederatedMerge:
                 (request.request_id,),
             ).fetchone()
             if existing:
-                return MergeResponse(request_id=request.request_id, status="duplicate", message="Request already processed")
+                return MergeResponse(
+                    request_id=request.request_id,
+                    status="duplicate",
+                    message="Request already processed",
+                )
 
         handler = {
             "neurons": self.merge_neurons,
@@ -144,7 +158,11 @@ class FederatedMerge:
         }.get(request.merge_type)
 
         if handler is None:
-            return MergeResponse(request_id=request.request_id, status="rejected", message=f"Unknown merge type: {request.merge_type}")
+            return MergeResponse(
+                request_id=request.request_id,
+                status="rejected",
+                message=f"Unknown merge type: {request.merge_type}",
+            )
 
         result = handler(request.payload.get("items", []))
 
@@ -186,18 +204,29 @@ class FederatedMerge:
                     """INSERT INTO neurons (name, domain, status, rules_json, triggers_json, allowed_inputs_json, allowed_outputs_json, forbidden_actions_json, metrics_json)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
-                        name, neuron.get("domain", "general"), neuron.get("status", "candidate"),
+                        name,
+                        neuron.get("domain", "general"),
+                        neuron.get("status", "candidate"),
                         json.dumps(neuron.get("rules", []), ensure_ascii=False),
                         json.dumps(neuron.get("triggers", []), ensure_ascii=False),
-                        json.dumps(neuron.get("allowed_inputs", []), ensure_ascii=False),
-                        json.dumps(neuron.get("allowed_outputs", []), ensure_ascii=False),
-                        json.dumps(neuron.get("forbidden_actions", []), ensure_ascii=False),
+                        json.dumps(
+                            neuron.get("allowed_inputs", []), ensure_ascii=False
+                        ),
+                        json.dumps(
+                            neuron.get("allowed_outputs", []), ensure_ascii=False
+                        ),
+                        json.dumps(
+                            neuron.get("forbidden_actions", []), ensure_ascii=False
+                        ),
                         json.dumps(neuron.get("metrics", {}), ensure_ascii=False),
                     ),
                 )
                 merged += 1
         return MergeResponse(
-            request_id="", status="accepted", merged_count=merged, conflicts=conflicts,
+            request_id="",
+            status="accepted",
+            merged_count=merged,
+            conflicts=conflicts,
             message=f"Merged {merged} neurons, {len(conflicts)} conflicts",
         )
 
@@ -207,10 +236,19 @@ class FederatedMerge:
         with self._connect() as conn:
             for candidate in source_candidates:
                 content = candidate.get("content", "")
-                content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()[:32] if content else ""
-                existing = conn.execute(
-                    "SELECT id FROM learning_queue WHERE content_hash = ?", (content_hash,)
-                ).fetchone() if content_hash else None
+                content_hash = (
+                    hashlib.sha256(content.encode("utf-8")).hexdigest()[:32]
+                    if content
+                    else ""
+                )
+                existing = (
+                    conn.execute(
+                        "SELECT id FROM learning_queue WHERE content_hash = ?",
+                        (content_hash,),
+                    ).fetchone()
+                    if content_hash
+                    else None
+                )
                 if existing:
                     conflicts.append(f"learning:{content_hash}")
                     continue
@@ -218,13 +256,20 @@ class FederatedMerge:
                     """INSERT INTO learning_queue (content, content_hash, source, domain, status, score)
                     VALUES (?, ?, ?, ?, ?, ?)""",
                     (
-                        content, content_hash, candidate.get("source", "federated"),
-                        candidate.get("domain", "general"), "candidate", candidate.get("score", 0.5),
+                        content,
+                        content_hash,
+                        candidate.get("source", "federated"),
+                        candidate.get("domain", "general"),
+                        "candidate",
+                        candidate.get("score", 0.5),
                     ),
                 )
                 merged += 1
         return MergeResponse(
-            request_id="", status="accepted", merged_count=merged, conflicts=conflicts,
+            request_id="",
+            status="accepted",
+            merged_count=merged,
+            conflicts=conflicts,
             message=f"Merged {merged} learning candidates, {len(conflicts)} conflicts",
         )
 
@@ -246,14 +291,20 @@ class FederatedMerge:
                     """INSERT INTO semantic_memory (key, value, domain, source_ref, confidence, status)
                     VALUES (?, ?, ?, ?, ?, ?)""",
                     (
-                        key, doc.get("value", ""), doc.get("domain", "general"),
-                        doc.get("source_ref", "federated"), doc.get("confidence", 0.5),
+                        key,
+                        doc.get("value", ""),
+                        doc.get("domain", "general"),
+                        doc.get("source_ref", "federated"),
+                        doc.get("confidence", 0.5),
                         doc.get("status", "candidate"),
                     ),
                 )
                 merged += 1
         return MergeResponse(
-            request_id="", status="accepted", merged_count=merged, conflicts=conflicts,
+            request_id="",
+            status="accepted",
+            merged_count=merged,
+            conflicts=conflicts,
             message=f"Merged {merged} semantic docs, {len(conflicts)} conflicts",
         )
 
@@ -263,9 +314,14 @@ class FederatedMerge:
                 """INSERT INTO federated_merge_log (request_id, source_node, target_node, merge_type, status, merged_count, conflicts_json, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    request.request_id, request.source_node_id, request.target_node_id,
-                    request.merge_type, result.status, result.merged_count,
-                    json.dumps(result.conflicts, ensure_ascii=False), _utc_now(),
+                    request.request_id,
+                    request.source_node_id,
+                    request.target_node_id,
+                    request.merge_type,
+                    result.status,
+                    result.merged_count,
+                    json.dumps(result.conflicts, ensure_ascii=False),
+                    _utc_now(),
                 ),
             )
 
@@ -285,7 +341,9 @@ class FederatedMerge:
             by_status = conn.execute(
                 "SELECT status, COUNT(*) as c FROM federated_merge_log GROUP BY status"
             ).fetchall()
-            node_count = conn.execute("SELECT COUNT(*) as c FROM federated_merge_nodes").fetchone()
+            node_count = conn.execute(
+                "SELECT COUNT(*) as c FROM federated_merge_nodes"
+            ).fetchone()
         return {
             "by_type": [dict(r) for r in by_type] if by_type else [],
             "by_status": {r["status"]: r["c"] for r in by_status} if by_status else {},
