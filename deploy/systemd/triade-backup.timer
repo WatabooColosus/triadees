@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Triade encrypted backup
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=900
+Unit=triade-backup.service
+
+[Install]
+WantedBy=timers.target

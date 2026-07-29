@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from triade.runtime.resource_ledger import ResourceLedger
+
 _HISTORY_TABLE = """
 CREATE TABLE IF NOT EXISTS scheduler_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,6 +72,7 @@ class AdaptiveScheduler:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
         self._ensure_tables()
+        self.resource_ledger = ResourceLedger(self.db_path)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(self.db_path))
@@ -148,6 +151,8 @@ class AdaptiveScheduler:
 
     def should_skip_task(self, task_type: str) -> bool:
         """Determina si una tarea debe saltarse por haberse ejecutado recientemente."""
+        if not self.resource_ledger.allows(self.task_class(task_type)):
+            return True
         interval = self.get_recommended_interval(task_type)
         with self._connect() as conn:
             row = conn.execute(
@@ -160,6 +165,18 @@ class AdaptiveScheduler:
                 elapsed = time.time() - row["last_run_at"]
                 return elapsed < interval * 0.5
         return False
+
+    @staticmethod
+    def task_class(task_type: str) -> str:
+        if task_type in {"pulse_check", "encrypted_backup"}:
+            return "maintenance"
+        if task_type in {"research_curriculum", "goal_research"}:
+            return "research"
+        if task_type in {"goal_lora_train", "stable_consolidation_review"}:
+            return "deep_evaluation"
+        if task_type == "goal_install":
+            return "model_install"
+        return "light"
 
     def get_task_priority(self, task_type: str) -> float:
         """Calcula prioridad dinámica (0.0-1.0) basada en urgencia y rendimiento."""

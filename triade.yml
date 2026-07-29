@@ -27,6 +27,15 @@ runtime:
   continuous_runner_interval_seconds: 60
   continuous_runner_max_cycles: 0
 
+runtime_budget:
+  cpu_minutes_daily: 600
+  gpu_minutes_daily: 360
+  network_mb_daily: 1500
+  new_storage_mb_daily: 500
+  research_tasks_daily: 40
+  deep_evaluations_daily: 12
+  model_installs_daily: 1
+
 triadeos:
   enabled: true
   knowledge_graph:

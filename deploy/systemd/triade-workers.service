@@ -1,0 +1,21 @@
+[Unit]
+Description=Triade Omega governed workers
+After=triade-api.service
+
+[Service]
+Type=simple
+User=triade
+Group=triade
+WorkingDirectory=/opt/triade
+EnvironmentFile=/etc/triade/triade.env
+ExecStart=/opt/triade/.venv/bin/python scripts/runtime_workers.py
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/triade/artifacts /opt/triade/runs /opt/triade/triade/memory
+
+[Install]
+WantedBy=multi-user.target

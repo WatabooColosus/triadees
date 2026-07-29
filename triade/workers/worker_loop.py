@@ -27,6 +27,7 @@ from triade.qualia.contracts import NeuronExperience
 
 from .contracts import WORKER_TASK_TYPES, WorkerRunConfig, WorkerTask, new_worker_run_id
 from .adaptive_scheduler import AdaptiveScheduler
+from triade.runtime.resource_ledger import ResourceLedger
 from .neuron_mission_executor import NeuronMissionExecutor
 from .scheduler import WorkerScheduler
 from .state_store import WorkerStateStore
@@ -89,6 +90,7 @@ class WorkerLoop:
         self.queue = WorkerTaskQueue(db_path=self.db_path)
         self.scheduler = WorkerScheduler(db_path=self.db_path)
         self.adaptive_scheduler = AdaptiveScheduler(db_path=self.db_path)
+        self.resource_ledger = ResourceLedger(db_path=self.db_path)
 
     def run(self, config: WorkerRunConfig | None = None) -> dict[str, Any]:
         config = config or WorkerRunConfig(runs_dir=str(self.runs_dir), lock_file=str(self.lock_file), stop_file=str(self.stop_file))
@@ -299,6 +301,15 @@ class WorkerLoop:
         self.adaptive_scheduler.record_task_execution(
             task.task_type, result["elapsed"] * 1000,
             str(result.get("status")) not in {"error", "failed", "blocked"}, run_ref=run_ref,
+        )
+        self.resource_ledger.record(
+            task_id=str(task.id) if task.id is not None else None,
+            worker_id=run_ref,
+            neuron_id=str(task.payload.get("neuron_id") or task.payload.get("related_neuron_id") or "") or None,
+            duration_seconds=float(result["elapsed"]),
+            model=str(result.get("model_used") or "") or None,
+            success=str(result.get("status")) not in {"error", "failed", "blocked"},
+            task_class=self.adaptive_scheduler.task_class(task.task_type),
         )
         (task_dir / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         return result
