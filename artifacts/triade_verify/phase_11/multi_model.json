@@ -1,0 +1,12 @@
+{
+  "phase": 11,
+  "ollama_models": [],
+  "provider_error": "URLError: <urlopen error [Errno 111] Connection refused>",
+  "real_ab_executed": false,
+  "routing_adopted": false,
+  "rollback_ref": "model-routing:restore:single-model-baseline",
+  "implementation_complete": true,
+  "runtime_verified": false,
+  "status": "partial",
+  "reason": "real_models_unavailable"
+}
