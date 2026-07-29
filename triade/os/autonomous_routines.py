@@ -62,6 +62,15 @@ ROUTINE_TYPES = [
     "autonomous_research",
 ]
 
+AUTONOMOUS_ROUTINE_ERRORS = (
+    sqlite3.Error,
+    OSError,
+    ValueError,
+    RuntimeError,
+    KeyError,
+    ImportError,
+)
+
 
 class AutonomousRoutines:
     """Motor de rutinas autónomas para auto-mejora continua."""
@@ -110,11 +119,27 @@ class AutonomousRoutines:
                 json.loads(routine["config_json"]) if routine["config_json"] else {},
             )
             result_status = str(result.get("status") or "observed")
+            terminal_statuses = {
+                "completed",
+                "blocked",
+                "skipped",
+                "dry_run",
+                "observed",
+                "cancelled",
+                "failed",
+            }
             persistent_status = (
-                "failed"
-                if result_status == "failed"
-                else ("blocked" if result_status == "blocked" else "completed")
+                result_status if result_status in terminal_statuses else "blocked"
             )
+            if (
+                persistent_status == "blocked"
+                and result_status not in terminal_statuses
+            ):
+                result = {
+                    **result,
+                    "status": "blocked",
+                    "reason": f"non_canonical_legacy_result:{result_status or '<empty>'}",
+                }
             self._conn.execute(
                 """UPDATE autonomous_routines
                    SET status=?, finished_at=?, result_json=?
@@ -132,7 +157,7 @@ class AutonomousRoutines:
                 "status": persistent_status,
                 "result": result,
             }
-        except Exception as e:
+        except AUTONOMOUS_ROUTINE_ERRORS as e:
             self._conn.execute(
                 """UPDATE autonomous_routines
                    SET status='failed', finished_at=?, error=?
@@ -165,7 +190,11 @@ class AutonomousRoutines:
             return self._autonomous_learning(config)
         elif routine_type == "autonomous_research":
             return self._autonomous_research(config)
-        return {"action": "no_handler"}
+        return {
+            "action": "no_handler",
+            "status": "blocked",
+            "reason": f"legacy_handler_unavailable:{routine_type}",
+        }
 
     def _self_improvement(self, config: dict) -> dict:
         return {
@@ -233,7 +262,7 @@ class AutonomousRoutines:
                 "duplicate_groups": len(rows),
                 "truth": "diagnosis_only_governed_merge_required",
             }
-        except Exception as exc:
+        except AUTONOMOUS_ROUTINE_ERRORS as exc:
             return {
                 "action": "memory_organization",
                 "status": "failed",
@@ -252,7 +281,7 @@ class AutonomousRoutines:
             for doc in docs:
                 if doc.get("status") == "deprecated":
                     deprecated += 1
-        except Exception as exc:
+        except AUTONOMOUS_ROUTINE_ERRORS as exc:
             return {
                 "action": "pruning",
                 "status": "failed",
@@ -283,7 +312,7 @@ class AutonomousRoutines:
 
             cle = CausalLearningEngine(db_path=self.db_path)
             learned = int(cle.doctor()["nodes"])
-        except Exception as exc:
+        except AUTONOMOUS_ROUTINE_ERRORS as exc:
             return {
                 "action": "learning",
                 "status": "failed",
@@ -318,26 +347,24 @@ class AutonomousRoutines:
         impact: float = 0.5,
         before: dict | None = None,
         after: dict | None = None,
+        evidence_ref: str | None = None,
+        rollback_ref: str | None = None,
     ) -> dict:
-        imp_id = _gen_id("imp")
-        self._conn.execute(
-            """INSERT INTO autonomous_improvements
-               (improvement_id, routine_id, category, description,
-                before_json, after_json, impact_score, created_at)
-               VALUES (?,?,?,?,?,?,?,?)""",
-            (
-                imp_id,
-                routine_id,
-                category,
-                description,
-                json.dumps(before or {}, default=str),
-                json.dumps(after or {}, default=str),
-                impact,
-                utc_now(),
-            ),
+        del (
+            routine_id,
+            category,
+            description,
+            impact,
+            before,
+            after,
+            evidence_ref,
+            rollback_ref,
         )
-        self._conn.commit()
-        return {"improvement_id": imp_id, "category": category}
+        return {
+            "status": "blocked",
+            "reason": "legacy_improvement_producer_retired_use_governed_learning_pipeline",
+            "improvement_id": None,
+        }
 
     def list_routines(
         self, routine_type: str | None = None, limit: int = 20

@@ -60,6 +60,8 @@ def run_concurrency_validation(
     output_dir: str | Path, *, task_count: int = 100, worker_count: int = 3
 ) -> dict[str, Any]:
     output = Path(output_dir)
+    if (output / "concurrency.db").exists():
+        output = output / f"run-{time.time_ns()}"
     output.mkdir(parents=True, exist_ok=True)
     db_path = output / "concurrency.db"
     artifacts = output / "artifacts"
@@ -157,6 +159,7 @@ def run_concurrency_validation(
         )
     terminal = statuses.get("completed", 0) + statuses.get("dead_letter", 0)
     report = {
+        "run_directory": str(output),
         "task_rows": total,
         "enqueue_calls": task_count + (task_count + 9) // 10 + 1,
         "workers": worker_count,

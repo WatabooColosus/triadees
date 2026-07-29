@@ -79,6 +79,8 @@ def test_governed_text_artifact_full_lifecycle(tmp_path: Path) -> None:
     assert (task_dir / "evidence.json").is_file()
     result = json.loads(result_ref.read_text(encoding="utf-8"))
     assert result["effect_receipt"]["verified"] is True
+    assert result["effect_receipt"]["rollback_required"] is True
+    assert Path(result["effect_receipt"]["rollback_ref"]).is_file()
 
     dispatcher.synchronize(graph)
     assert step.state == "completed"

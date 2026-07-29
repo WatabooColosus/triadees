@@ -34,3 +34,21 @@ def test_install_goal_waits_for_human_approval(tmp_path):
     )
     assert result["status"] == "awaiting_approval"
     assert result["task_id"] is None
+
+
+def test_candidate_or_no_evidence_never_completes_goal(tmp_path):
+    for index, terminal in enumerate(("candidate_created", "no_evidence")):
+        orchestrator = GoalOrchestrator(tmp_path / f"triade-{index}.db")
+        accepted = orchestrator.accept(
+            "Investiga documentación sobre materiales auxéticos", run_id=f"run-{index}"
+        )
+        orchestrator.record_task_result(
+            {
+                "goal_id": accepted["goal_id"],
+                "goal_step_id": accepted["step_id"],
+            },
+            {"status": terminal},
+        )
+        status = orchestrator.status(accepted["goal_id"])
+        assert status["goal"]["status"] == "blocked"
+        assert status["steps"][0]["status"] == "blocked"

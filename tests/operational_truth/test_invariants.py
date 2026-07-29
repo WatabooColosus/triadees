@@ -18,6 +18,7 @@ from triade.runtime.governed_plan_dispatcher import GovernedPlanDispatcher
 from triade.runtime.governed_task_executor import GovernedTaskExecutor
 from triade.runtime.resource_ledger import ResourceMeasurement
 from triade.runtime.task_leases import AutonomousTaskStore
+from triade.workers.worker_loop import WorkerLoop
 
 
 def _late_effect(path: str) -> dict:
@@ -36,6 +37,30 @@ def _running(store: AutonomousTaskStore, key: str) -> tuple[dict, int]:
 def test_no_completed_without_execution_evidence() -> None:
     with pytest.raises(ValidationError):
         ExecutionResult(status="completed", executed=True)
+
+
+def test_handler_without_explicit_status_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="unknown_handler_status:<empty>"):
+        WorkerLoop._canonical_execution_result({}, str(tmp_path / "missing.json"))
+
+
+def test_completed_requires_artifact_when_contract_requires_it() -> None:
+    receipt = EffectReceipt(
+        action="observe",
+        target="runtime",
+        postcondition={"passed": True},
+        verified=True,
+        verifier="runtime_probe",
+        evidence_refs=["runtime-probe"],
+    )
+    with pytest.raises(ValidationError, match="completed_requires_artifact"):
+        ExecutionResult(
+            status="completed",
+            executed=True,
+            evidence=["runtime-probe"],
+            postconditions={"artifact_required": True},
+            effect_receipt=receipt,
+        )
 
 
 @pytest.mark.parametrize("terminal", ["blocked", "skipped", "dry_run"])
@@ -96,6 +121,21 @@ def test_no_rollback_claim_without_rollback_test() -> None:
             postcondition={"passed": True},
             verified=True,
             verifier="claim",
+        )
+
+
+def test_reversible_effect_requires_rollback_reference() -> None:
+    with pytest.raises(
+        ValidationError, match="reversible_effect_requires_rollback_ref"
+    ):
+        EffectReceipt(
+            action="write_file",
+            target="x",
+            postcondition={"passed": True},
+            verified=True,
+            verifier="file_verifier",
+            evidence_refs=["file-evidence"],
+            rollback_required=True,
         )
 
 

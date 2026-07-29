@@ -691,7 +691,10 @@ class WorkerLoop:
             observation_justification=None
             if evidence
             else "pure_observation_without_artifact",
-            postconditions={"effect_expected": effect_applied},
+            postconditions={
+                "effect_expected": effect_applied,
+                "artifact_required": True,
+            },
             message=message,
             effect_receipt=receipt,
         )
@@ -863,7 +866,7 @@ class WorkerLoop:
                 "would_execute": True,
             }
             self.store.finish_task(
-                task.id or 0, "completed", result, safety.status, run_ref=run_ref
+                task.id or 0, "dry_run", result, safety.status, run_ref=run_ref
             )
         else:
             try:
@@ -931,7 +934,7 @@ class WorkerLoop:
                     }
                 else:
                     result = outcome.result
-                result_status = str(result.get("status") or "completed")
+                result_status = str(result.get("status") or "")
                 if result_status in {
                     "ok",
                     "completed",
@@ -962,7 +965,9 @@ class WorkerLoop:
                 elif result_status == "error":
                     persisted_status = "failed"
                 else:
-                    raise ValueError(f"unknown_handler_status:{result_status}")
+                    raise ValueError(
+                        f"unknown_handler_status:{result_status or '<empty>'}"
+                    )
                 self.store.finish_task(
                     task.id or 0,
                     persisted_status,
@@ -1137,11 +1142,28 @@ class WorkerLoop:
                 "reason": "backup_verification_failed",
                 "verification": verified,
             }
+        backup_ref = Path("artifacts/backups") / created["file"]
+        verification_ref = task_dir / "backup-restore-verification.json"
+        verification_ref.write_text(
+            json.dumps(verified, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        receipt = EffectReceipt.verify_backup(
+            backup_ref=str(backup_ref),
+            hash_matches=verified.get("sha256") == created.get("sha256"),
+            restore_test_ref=str(verification_ref),
+        )
+        if not receipt.verified:
+            return {
+                "status": "error",
+                "reason": "backup_effect_receipt_failed",
+                "verification": verified,
+            }
         return {
             "status": "completed",
             "backup": created,
             "verification": verified,
             "retention": backup.enforce_retention(),
+            "effect_receipt": receipt.model_dump(mode="json"),
         }
 
     def _neuron_education_cycle(

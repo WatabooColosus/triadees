@@ -207,30 +207,11 @@ def build_bodega_global_context(
 
         if semantic_recall_enabled:
             semantic_ready = bool(ollama_blood.get("can_embed"))
-            # También verificar si hay embeddings locales disponibles
-            local_embeddings_available = False
-            try:
-                from triade.memory.semantic_embedding_engine import (
-                    SemanticEmbeddingEngine,
-                )
-
-                test_engine = SemanticEmbeddingEngine(use_local_fallback=True)
-                selection = test_engine.select_model()
-                local_embeddings_available = (
-                    selection.get("ok") and selection.get("provider") == "local"
-                )
-            except Exception:
-                pass
-
-            if semantic_ready or local_embeddings_available:
+            if semantic_ready:
                 semantic_engine = _build_semantic_search_engine(db_path)
-            if semantic_engine is not None and (
-                semantic_ready or local_embeddings_available
-            ):
+            if semantic_engine is not None and semantic_ready:
                 semantic_engine_status = "available"
-                embedding_model_used = (
-                    ollama_blood.get("embedding_model") or "local-sentence-transformers"
-                )
+                embedding_model_used = ollama_blood.get("embedding_model")
                 semantic_learning_allowed = True
             else:
                 semantic_engine_status = "unavailable"

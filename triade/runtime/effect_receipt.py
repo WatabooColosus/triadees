@@ -20,6 +20,7 @@ class EffectReceipt(BaseModel):
     verifier: str
     evidence_refs: list[str] = Field(default_factory=list)
     rollback_ref: str | None = None
+    rollback_required: bool = False
     irreversible: bool = False
     timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
@@ -32,10 +33,21 @@ class EffectReceipt(BaseModel):
                 raise ValueError("verified_effect_requires_evidence")
             if not self.verifier.strip():
                 raise ValueError("verified_effect_requires_verifier")
+            if self.rollback_required and not self.rollback_ref:
+                raise ValueError("reversible_effect_requires_rollback_ref")
+            if self.rollback_required and self.irreversible:
+                raise ValueError("effect_cannot_be_reversible_and_irreversible")
         return self
 
     @classmethod
-    def verify_file(cls, path: str | Path, expected_sha256: str) -> EffectReceipt:
+    def verify_file(
+        cls,
+        path: str | Path,
+        expected_sha256: str,
+        *,
+        rollback_ref: str | None = None,
+        rollback_required: bool = False,
+    ) -> EffectReceipt:
         target = Path(path)
         exists = target.is_file()
         actual = hashlib.sha256(target.read_bytes()).hexdigest() if exists else None
@@ -48,6 +60,8 @@ class EffectReceipt(BaseModel):
             verified=passed,
             verifier="sha256_file_verifier",
             evidence_refs=[str(target)] if exists else [],
+            rollback_ref=rollback_ref,
+            rollback_required=rollback_required,
         )
 
     @classmethod

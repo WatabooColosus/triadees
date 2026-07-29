@@ -60,6 +60,8 @@ class ExecutionResult(BaseModel):
                 raise ValueError("completed_effect_requires_effect_applied_true")
             if self.effect_receipt is None or not self.effect_receipt.verified:
                 raise ValueError("completed_requires_verified_effect_receipt")
+            if self.postconditions.get("artifact_required") and not self.artifacts:
+                raise ValueError("completed_requires_artifact")
         if self.status in non_executed and self.executed:
             raise ValueError(f"{self.status}_requires_executed_false")
         if self.status in failures and self.postconditions.get("passed") is True:

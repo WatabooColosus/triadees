@@ -110,10 +110,17 @@ class GoalOrchestrator:
         if not step_id or not root_id:
             return
         status = str(result.get("status") or "error")
-        if status in {"ok", "completed", "candidate_created", "no_evidence"}:
+        if status in {"ok", "completed"}:
             self.graph.update_status(step_id, "completed")
             self.graph.update_status(root_id, "completed")
-        elif status == "blocked":
+        elif status in {
+            "candidate_created",
+            "no_evidence",
+            "observed",
+            "skipped",
+            "dry_run",
+            "blocked",
+        }:
             self.graph.update_status(step_id, "blocked")
             self.graph.update_status(root_id, "blocked")
         else:

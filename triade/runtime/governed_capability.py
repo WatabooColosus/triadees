@@ -88,6 +88,7 @@ class GovernedFileWriteCapability(GovernedCapability):
         self.workspace = Path(workspace)
         self.backup_ref: Path | None = None
         self.rollback_target: Path | None = None
+        self.rollback_manifest: Path | None = None
         self.existed = False
         self.authorized_root = (
             Path(authorized_root).resolve() if authorized_root else None
@@ -103,7 +104,13 @@ class GovernedFileWriteCapability(GovernedCapability):
         if self.existed:
             self.backup_ref = self.workspace / f"backup-{uuid4().hex}.bin"
             AtomicArtifactWriter.write_bytes(self.backup_ref, self.target.read_bytes())
-        return {"existed": self.existed, "backup_ref": str(self.backup_ref or "")}
+        self.rollback_manifest = self.workspace / "rollback-spec.json"
+        AtomicArtifactWriter.write_json(self.rollback_manifest, self.rollback_spec())
+        return {
+            "existed": self.existed,
+            "backup_ref": str(self.backup_ref or ""),
+            "rollback_ref": str(self.rollback_manifest),
+        }
 
     def rollback_spec(self) -> dict[str, Any]:
         return {
@@ -150,7 +157,12 @@ class GovernedFileWriteCapability(GovernedCapability):
 
     def verify(self) -> EffectReceipt:
         expected = hashlib.sha256(self.content.encode()).hexdigest()
-        return EffectReceipt.verify_file(self.target, expected)
+        return EffectReceipt.verify_file(
+            self.target,
+            expected,
+            rollback_ref=str(self.rollback_manifest or "") or None,
+            rollback_required=True,
+        )
 
     def rollback(self) -> dict[str, Any]:
         if self.existed and self.backup_ref:
