@@ -38,7 +38,7 @@ from triade.runtime.governed_task_executor import GovernedTaskExecutor
 from triade.runtime.lease_heartbeat import LeaseHeartbeat
 from triade.runtime.legacy_task_reconciler import LegacyTaskReconciler
 from triade.runtime.live_heartbeat import LiveHeartbeat
-from triade.runtime.resource_ledger import ResourceLedger
+from triade.runtime.resource_ledger import ResourceLedger, ResourceMeasurementCollector
 from triade.runtime.task_artifacts import CanonicalTaskArtifacts
 from triade.runtime.task_leases import AutonomousTaskStore
 from triade.runtime.wake_bus import runtime_wake_event
@@ -556,6 +556,7 @@ class WorkerLoop:
         raw_status = str(result.get("status") or "").strip()
         evidence = [result_ref] if Path(result_ref).exists() else []
         message = str(result.get("reason") or result.get("message") or "")
+        resource_usage = dict(result.get("resource_usage") or {})
         if raw_status in {"blocked"}:
             return ExecutionResult(status="blocked", executed=False, message=message)
         if raw_status == "skipped":
@@ -573,6 +574,7 @@ class WorkerLoop:
                 message=str(result.get("error") or message),
                 artifacts=evidence,
                 evidence=evidence,
+                resource_usage=resource_usage,
             )
         if raw_status == "timeout":
             return ExecutionResult(
@@ -583,6 +585,7 @@ class WorkerLoop:
                 message=message,
                 artifacts=evidence,
                 evidence=evidence,
+                resource_usage=resource_usage,
             )
         success = {"ok", "completed", "candidate_created", "consolidated", "lesson_prepared"}
         if raw_status not in success:
@@ -610,6 +613,7 @@ class WorkerLoop:
                 message="El handler afirmó un efecto sin recibo verificable",
                 artifacts=evidence,
                 evidence=evidence,
+                resource_usage=resource_usage,
             )
         return ExecutionResult(
             status="completed",
@@ -617,6 +621,7 @@ class WorkerLoop:
             effect_applied=effect_applied,
             artifacts=evidence,
             evidence=evidence,
+            resource_usage=resource_usage,
             observation_justification=None if evidence else "pure_observation_without_artifact",
             postconditions={"effect_expected": effect_applied},
             message=message,
@@ -700,6 +705,7 @@ class WorkerLoop:
         task_artifact_dir: Path | None = None,
     ) -> dict[str, Any]:
         started = time.monotonic()
+        resource_collector = ResourceMeasurementCollector()
         goal_task = bool(task.payload.get("goal_id"))
         if not goal_task and self.adaptive_scheduler.should_skip_task(task.task_type):
             result = {
@@ -941,7 +947,9 @@ class WorkerLoop:
             str(result.get("status")) not in {"error", "failed", "blocked"},
             run_ref=run_ref,
         )
-        self.resource_ledger.record(
+        resource_usage = resource_collector.finish()
+        result["resource_usage"] = resource_usage.to_dict()
+        self.resource_ledger.record_usage(
             task_id=str(task.id) if task.id is not None else None,
             worker_id=run_ref,
             neuron_id=str(
@@ -950,7 +958,7 @@ class WorkerLoop:
                 or ""
             )
             or None,
-            duration_seconds=float(result["elapsed"]),
+            usage=resource_usage,
             model=str(result.get("model_used") or "") or None,
             success=str(result.get("status")) not in {"error", "failed", "blocked"},
             task_class=self.adaptive_scheduler.task_class(task.task_type),
