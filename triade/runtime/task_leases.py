@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-ACTIVE = {"pending", "queued", "leased", "running", "retry_wait", "recovered", "deferred"}
+ACTIVE = {
+    "pending", "queued", "leased", "running", "retry_wait", "recovered",
+    "deferred", "completion_uncertain",
+}
 TERMINAL_SUCCESS = {"completed"}
 TERMINAL_NON_SUCCESS = {"blocked", "skipped", "dry_run", "observed", "cancelled"}
 TERMINAL_FAILURE = {"failed", "dead_letter", "timeout", "lease_lost"}
@@ -219,6 +222,57 @@ class AutonomousTaskStore:
         return self._terminal_transition(
             task_id, worker_id, lease_generation, "completed", result_ref=result_ref
         )
+
+    def prepare_completion(
+        self, task_id: str, worker_id: str, lease_generation: int, result_ref: str
+    ) -> bool:
+        return self._transition(
+            task_id, worker_id, lease_generation, "completion_uncertain",
+            reason="artifact_publication_pending", result_ref=result_ref,
+        )
+
+    def finalize_completion(
+        self, task_id: str, worker_id: str, lease_generation: int, result_ref: str
+    ) -> bool:
+        if not Path(result_ref).is_file():
+            return False
+        now = _iso()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            changed = conn.execute(
+                """UPDATE autonomous_tasks SET status='completed',updated_at=?,
+                lease_expires_at=NULL WHERE task_id=? AND worker_id=? AND lease_generation=?
+                AND status='completion_uncertain' AND result_ref=?""",
+                (now, task_id, worker_id, lease_generation, result_ref),
+            ).rowcount
+            if changed == 1:
+                conn.execute(
+                    """INSERT INTO autonomous_task_transitions
+                    (task_id,worker_id,lease_generation,from_status,to_status,reason,result_ref,created_at)
+                    VALUES(?,?,?,'completion_uncertain','completed','artifacts_published',?,?)""",
+                    (task_id, worker_id, lease_generation, result_ref, now),
+                )
+            conn.commit()
+        return changed == 1
+
+    def reconcile_uncertain_completions(self) -> dict[str, int]:
+        completed = 0
+        failed = 0
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT task_id,worker_id,lease_generation,result_ref
+                FROM autonomous_tasks WHERE status='completion_uncertain'"""
+            ).fetchall()
+        for row in rows:
+            ref = str(row["result_ref"] or "")
+            if ref and Path(ref).is_file():
+                completed += int(self.finalize_completion(
+                    str(row["task_id"]), str(row["worker_id"]),
+                    int(row["lease_generation"]), ref,
+                ))
+            else:
+                failed += 1
+        return {"completed": completed, "still_uncertain": failed}
 
     def block(
         self, task_id: str, worker_id: str, lease_generation: int, reason: str

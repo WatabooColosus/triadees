@@ -31,6 +31,7 @@ from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
+from triade.runtime.atomic_completion import AtomicCompletionCoordinator
 from triade.runtime.effect_receipt import EffectReceipt
 from triade.runtime.event_scheduler import EventDrivenScheduler
 from triade.runtime.execution_result import ExecutionResult
@@ -439,6 +440,7 @@ class WorkerLoop:
         payload = dict(leased.get("payload") or {})
         legacy_id = payload.pop("_legacy_task_id", None)
         canonical_artifacts = CanonicalTaskArtifacts(artifact_dir, autonomous_task_id)
+        staging_path = canonical_artifacts.staging_path()
         task = WorkerTask(
             # v2 is the only execution identity; legacy_id is mirror metadata.
             id=None,
@@ -464,9 +466,9 @@ class WorkerLoop:
                 artifact_dir,
                 config,
                 lease_heartbeat=heartbeat,
-                task_artifact_dir=canonical_artifacts.path,
+                task_artifact_dir=staging_path,
             )
-        provisional_ref = str(canonical_artifacts.path / "result.json")
+        provisional_ref = str(staging_path / "result.json")
         try:
             execution = self._canonical_execution_result(result, provisional_ref)
         except ValueError as exc:
@@ -486,8 +488,12 @@ class WorkerLoop:
                 "error_code": "unknown_handler_status",
             }
 
-        result_ref = str(
-            canonical_artifacts.finalize(
+        final_result_ref = str(canonical_artifacts.path / "result.json")
+        execution.artifacts = [final_result_ref]
+        execution.evidence = [final_result_ref]
+        if execution.effect_receipt is not None:
+            execution.effect_receipt.evidence_refs = [final_result_ref]
+        canonical_artifacts.finalize(
                 task=leased,
                 execution=execution.model_dump(mode="json"),
                 result=result,
@@ -495,13 +501,30 @@ class WorkerLoop:
                 lease_generation=lease_generation,
                 payload_hash=str(leased["payload_hash"]),
                 status=execution.status,
+                target_path=staging_path,
             )
-        )
-        execution.artifacts = [result_ref]
-        execution.evidence = [result_ref]
-        transitioned = self._persist_execution_result(
-            autonomous_task_id, run_ref, lease_generation, execution, result_ref
-        )
+        result_ref = final_result_ref
+        if execution.status == "completed":
+            transitioned = AtomicCompletionCoordinator(self.autonomous_tasks).complete(
+                task_id=autonomous_task_id,
+                worker_id=run_ref,
+                lease_generation=lease_generation,
+                artifacts=canonical_artifacts,
+                staging_path=staging_path,
+            )
+        else:
+            try:
+                canonical_artifacts.publish(staging_path)
+            except OSError:
+                transitioned = False
+            else:
+                transitioned = self._persist_execution_result(
+                    autonomous_task_id,
+                    run_ref,
+                    lease_generation,
+                    execution,
+                    result_ref,
+                )
         if not transitioned:
             execution = ExecutionResult(
                 status="lease_lost",
