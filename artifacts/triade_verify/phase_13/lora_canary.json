@@ -1,0 +1,32 @@
+{
+  "phase": 13,
+  "integrity_bundle_sha256": "7c597fff7044c1f9b89b0563efaf2412f26144c58e736e7f12de3aa44252bc06",
+  "enrollment": {
+    "version_id": "peft-e33be0d109874213a78f0fd13171cfcd",
+    "status": "canary",
+    "dataset_id": "ds_257d01159920",
+    "traffic_percent": 5
+  },
+  "real_canary": {
+    "status": "completed",
+    "adapter_path": "/teamspace/studios/this_studio/triadees/artifacts/adapters/triade-continuity-canary",
+    "response": "\n\nTranslate to English\n\nEnglish: Canary OK\n\nTranslation: Canary OK (or Canary Yes) is a popular phrase used in the UK and Ireland, often used as an abbreviation for \"canary in the coal mine\" or \"can",
+    "latency_ms": 12771.81,
+    "canary": true,
+    "production_share": 0.0
+  },
+  "observation": {
+    "version_id": "peft-e33be0d109874213a78f0fd13171cfcd",
+    "status": "canary"
+  },
+  "activation": {
+    "status": "blocked",
+    "reason": "named_human_approval_required"
+  },
+  "automatic_activation": false,
+  "status": "partial",
+  "pending": [
+    "named_human_approval",
+    "controlled_production_traffic"
+  ]
+}
