@@ -87,6 +87,9 @@ class WorkerRunConfig:
     runs_dir: str = "runs/background"
     lock_file: str = ".triade_workers.lock"
     stop_file: str = ".triade_stop"
+    max_tasks_per_drain: int = 20
+    max_seconds_per_drain: float = 2.0
+    max_tasks_per_type_per_drain: int = 4
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

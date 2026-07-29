@@ -32,6 +32,7 @@ from triade.memory.semantic_store import SemanticMemoryStore
 from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
 from triade.runtime.atomic_completion import AtomicCompletionCoordinator
+from triade.runtime.backpressure import QueueDrainBudget, RuntimeBackpressure
 from triade.runtime.cancellation import CancellationToken
 from triade.runtime.effect_receipt import EffectReceipt
 from triade.runtime.event_scheduler import EventDrivenScheduler
@@ -163,6 +164,7 @@ class WorkerLoop:
         self.scheduler = WorkerScheduler(db_path=self.db_path)
         self.adaptive_scheduler = AdaptiveScheduler(db_path=self.db_path)
         self.resource_ledger = ResourceLedger(db_path=self.db_path)
+        self.backpressure = RuntimeBackpressure(self.resource_ledger, disk_path=self.runs_dir)
         self.autonomous_tasks = AutonomousTaskStore(db_path=self.db_path)
         self.task_executor = GovernedTaskExecutor(
             quarantine_root=self.runs_dir / "quarantine" / "timeouts"
@@ -275,23 +277,40 @@ class WorkerLoop:
 
             def drain_queue() -> int:
                 drained = 0
+                budget = QueueDrainBudget(
+                    max_tasks=config.max_tasks_per_drain,
+                    max_seconds=config.max_seconds_per_drain,
+                    per_type=config.max_tasks_per_type_per_drain,
+                )
                 # Los reintentos y tareas recuperadas v2 sobreviven aunque su
                 # fila legacy ya no esté pendiente.
-                while True:
+                while not budget.exhausted:
                     leased = self.autonomous_tasks.claim(
-                        run_ref, lease_seconds=max(60, int(config.task_timeout * 2))
+                        run_ref,
+                        lease_seconds=max(60, int(config.task_timeout * 2)),
+                        excluded_task_types=budget.excluded_types,
                     )
                     if leased is None:
                         break
                     drained += 1
+                    budget.record(str(leased["task_type"]))
+                    if not self.backpressure.allows(
+                        str(leased["task_type"]), effectful=str(leased["task_type"]) not in self.READ_ONLY_TASKS_WITHOUT_BLOOD
+                    ):
+                        self.autonomous_tasks.defer(
+                            str(leased["task_id"]), run_ref,
+                            int(leased["lease_generation"]), "resource_backpressure",
+                        )
+                        continue
                     self._execute_autonomous_task(
                         leased, run_ref, artifact_dir, config, summary
                     )
-                while True:
+                while not budget.exhausted:
                     task = self.queue.claim_next()
                     if task is None:
                         break
                     drained += 1
+                    budget.record(task.task_type)
                     payload = dict(task.payload)
                     payload["_legacy_task_id"] = task.id
                     governed = self.autonomous_tasks.enqueue(
@@ -735,7 +754,7 @@ class WorkerLoop:
         cancellation.checkpoint()
         goal_task = bool(task.payload.get("goal_id"))
         if not goal_task and self.adaptive_scheduler.should_skip_task(task.task_type):
-            result = {
+            result: dict[str, Any] = {
                 "status": "skipped",
                 "reason": "adaptive_interval_not_elapsed",
                 "task_type": task.task_type,

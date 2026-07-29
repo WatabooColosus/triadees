@@ -122,7 +122,11 @@ class AutonomousTaskStore:
         return self.get(task_id) or {}
 
     def claim(
-        self, worker_id: str, *, lease_seconds: int = 60
+        self,
+        worker_id: str,
+        *,
+        lease_seconds: int = 60,
+        excluded_task_types: set[str] | None = None,
     ) -> dict[str, Any] | None:
         if not worker_id.strip():
             raise ValueError("worker_id_required")
@@ -130,13 +134,23 @@ class AutonomousTaskStore:
         expires = _iso(now + timedelta(seconds=max(1, lease_seconds)))
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            exclusions = sorted(excluded_task_types or ())
+            exclusion_sql = ""
+            params: list[Any] = [_iso(now)]
+            if exclusions:
+                placeholders = ",".join("?" for _ in exclusions)
+                exclusion_sql = f" AND task_type NOT IN ({placeholders})"
+                params.extend(exclusions)
+            params.append(_iso(now))
             row = conn.execute(
-                """SELECT task_id FROM autonomous_tasks
+                f"""SELECT task_id FROM autonomous_tasks
                 WHERE (status IN ('pending','queued','recovered')
                     OR (status IN ('retry_wait','deferred') AND retry_after<=?))
                 AND attempt < max_attempts
-                ORDER BY priority ASC, created_at ASC LIMIT 1""",
-                (_iso(now),),
+                {exclusion_sql}
+                ORDER BY (priority - MIN(100, CAST((julianday(?) - julianday(created_at))*1440 AS INTEGER))) ASC,
+                created_at ASC LIMIT 1""",
+                params,
             ).fetchone()
             if row is None:
                 conn.commit()
