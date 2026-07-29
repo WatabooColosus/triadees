@@ -90,7 +90,7 @@ def test_end_to_end_learning_consolidates_without_skipping_gates(tmp_path: Path)
     )
     cid = candidate["candidate_id"]
     assert pipe.evaluate(cid)["status"] == "evaluated"
-    assert pipe.verify(cid)["status"] == "verified"
+    assert pipe.verify(cid)["status"] == "internally_checked"
     _attach_improved_evidence(pipe, cid)
     for idx in range(3):
         used = pipe.mark_used_in_run(cid, f"e2e-run-{idx}", outcome_score=0.86)

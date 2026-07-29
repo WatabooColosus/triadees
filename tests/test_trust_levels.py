@@ -321,7 +321,7 @@ class TestAutoConsolidation:
         pipe = pipeline(tmp_path)
         cid = good_candidate(pipe)
 
-        with pytest.raises(ValueError, match="verified"):
+        with pytest.raises(ValueError, match="internally_checked"):
             pipe.consolidate(cid, auto_consolidate=True)
 
     def test_pipeline_doctor_includes_trust_info(self, tmp_path: Path) -> None:

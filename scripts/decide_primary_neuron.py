@@ -91,7 +91,7 @@ def main() -> int:
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--db-path", default="triade/memory/triade.db")
     parser.add_argument("--reason", default="")
-    parser.add_argument("--decisions-path", default="triade/runs/primary_neuron_decisions.json")
+    parser.add_argument("--decisions-path", default="runs/primary_neuron_decisions.json")
     parser.add_argument("--limit", type=int, default=100)
     args = parser.parse_args()
 

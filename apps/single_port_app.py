@@ -24,6 +24,7 @@ from triade.federation.node_live_registry import NODE_LIVE_REGISTRY
 from apps.routes.api import router as api_router
 from apps.routes.health import router as health_router
 from apps.routes.ui import router as ui_router
+from apps.routes.governance import router as governance_router
 
 _ALWAYS_ON_RESULT: dict[str, Any] = {}
 _ALWAYS_ON_LOCK = threading.Lock()
@@ -31,6 +32,13 @@ _ALWAYS_ON_LOCK = threading.Lock()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    from triade.core.runtime_scope import is_test_runtime
+    if is_test_runtime() or os.getenv("TRIADE_DISABLE_BACKGROUND") == "1":
+        global _ALWAYS_ON_RESULT
+        with _ALWAYS_ON_LOCK:
+            _ALWAYS_ON_RESULT = {"status": "isolated_test_runtime", "background_started": False}
+        yield
+        return
     LIFE_PULSE.start()
     NODE_LIVE_REGISTRY.start()
 
@@ -45,7 +53,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception:
         pass
 
-    global _ALWAYS_ON_RESULT
     try:
         from triade.core.foundational_neurons import ensure_foundational_neurons
         from triade.core.model_acquisition import start_model_acquisition_background
@@ -85,6 +92,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Tríade Ω Single Port", version="0.9.0", lifespan=lifespan)
+app.include_router(governance_router)
 
 
 @app.middleware("http")

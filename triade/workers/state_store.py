@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -161,6 +162,93 @@ class WorkerStateStore:
             "last_run": (self.list_worker_runs(limit=1) or [None])[0],
             "state": self.get_state("workers") or {},
         }
+
+    def recover_interrupted_runtime(self, lock_file: str | Path) -> dict[str, Any]:
+        """Recupera locks/runs huérfanos y compacta la cola pendiente.
+
+        Solo considera huérfano un lock cuyo PID ya no existe. Nunca toca un
+        proceso vivo y conserva una tarea por clave lógica para replay seguro.
+        """
+        lock = Path(lock_file)
+        stale_pid: int | None = None
+        if lock.exists():
+            try:
+                stale_pid = int(lock.read_text(encoding="utf-8").strip())
+            except (OSError, ValueError):
+                return {"status": "invalid_lock", "pid": None, "deduplicated": 0}
+            if stale_pid > 0 and self._pid_alive(stale_pid):
+                return {"status": "live_owner", "pid": stale_pid, "deduplicated": 0}
+            try:
+                lock.unlink()
+            except FileNotFoundError:
+                pass
+
+        with self._connect() as conn:
+            conn.execute("UPDATE worker_tasks SET status='completed' WHERE status='ok'")
+            conn.execute("UPDATE worker_tasks SET status='failed' WHERE status='error'")
+            interrupted = conn.execute(
+                "UPDATE worker_runs SET status='interrupted', finished_at=?, error=COALESCE(error, 'stale_worker_lock_recovered') WHERE status='running'",
+                (utc_now(),),
+            ).rowcount
+            conn.execute(
+                "UPDATE worker_tasks SET status='pending', started_at=NULL, error=NULL WHERE status IN ('claimed','running')"
+            )
+            rows = conn.execute(
+                "SELECT id, task_type, payload_json FROM worker_tasks WHERE status='pending' ORDER BY id ASC"
+            ).fetchall()
+            seen: set[str] = set()
+            duplicate_ids: list[int] = []
+            for row in rows:
+                payload = json.loads(row["payload_json"] or "{}")
+                logical = self._logical_task_key(str(row["task_type"]), payload)
+                if logical in seen:
+                    duplicate_ids.append(int(row["id"]))
+                else:
+                    seen.add(logical)
+            for task_id in duplicate_ids:
+                conn.execute(
+                    "UPDATE worker_tasks SET status='skipped', finished_at=?, error='duplicate_pending_task_recovered' WHERE id=?",
+                    (utc_now(), task_id),
+                )
+        return {
+            "status": "recovered" if stale_pid is not None else "clean",
+            "stale_pid": stale_pid,
+            "interrupted_runs": interrupted,
+            "deduplicated": len(duplicate_ids),
+        }
+
+    def find_active_equivalent(self, task_type: str, payload: dict[str, Any]) -> WorkerTask | None:
+        logical = self._logical_task_key(task_type, payload)
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM worker_tasks WHERE task_type=? AND status IN ('pending','running','claimed') ORDER BY id ASC",
+                (task_type,),
+            ).fetchall()
+        for row in rows:
+            candidate = self._task_from_row(row)
+            if self._logical_task_key(candidate.task_type, candidate.payload) == logical:
+                return candidate
+        return None
+
+    @staticmethod
+    def _logical_task_key(task_type: str, payload: dict[str, Any]) -> str:
+        identity = {
+            key: payload.get(key)
+            for key in ("goal_id", "goal_step_id", "mission_id", "neuron_id", "candidate_id", "related_candidate_id", "command_key")
+            if payload.get(key) is not None
+        }
+        # Tareas baseline solo necesitan una instancia activa por tipo.
+        return f"{task_type}:{json.dumps(identity, sort_keys=True, default=str)}"
+
+    @staticmethod
+    def _pid_alive(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
 
     def doctor(self) -> dict[str, Any]:
         status = self.status()

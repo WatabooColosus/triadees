@@ -55,6 +55,12 @@ class AdaptiveScheduler:
         "stable_consolidation_review": 600.0,
         "system_debt_scan": 600.0,
         "bodega_global_review": 180.0,
+        "research_curriculum": 900.0,
+        "goal_research": 0.0,
+        "goal_safe_command": 0.0,
+        "goal_install": 0.0,
+        "goal_lora_train": 0.0,
+        "encrypted_backup": 86400.0,
     }
 
     EMA_ALPHA = 0.3
@@ -145,10 +151,12 @@ class AdaptiveScheduler:
         interval = self.get_recommended_interval(task_type)
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT last_run_at FROM scheduler_metrics WHERE task_type = ?",
+                "SELECT last_run_at, success_rate FROM scheduler_metrics WHERE task_type = ?",
                 (task_type,),
             ).fetchone()
             if row and row["last_run_at"]:
+                if float(row["success_rate"] or 0.0) < 0.5:
+                    interval = min(interval, 120.0)
                 elapsed = time.time() - row["last_run_at"]
                 return elapsed < interval * 0.5
         return False

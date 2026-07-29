@@ -80,7 +80,7 @@ def test_full_pipeline_consolidates_to_stable_semantic_memory(tmp_path: Path) ->
 
     assert pipe.get_candidate(cid)["status"] == "candidate"
     assert pipe.evaluate(cid)["status"] == "evaluated"
-    assert pipe.verify(cid)["status"] == "verified"
+    assert pipe.verify(cid)["status"] == "internally_checked"
     attach_improved_evidence(pipe, cid)
 
     for i in range(5):
@@ -101,7 +101,7 @@ def test_consolidation_requires_verified_state(tmp_path: Path) -> None:
     cid = good_candidate(pipe)
 
     pipe.evaluate(cid)
-    with pytest.raises(ValueError, match="verified"):
+    with pytest.raises(ValueError, match="internally_checked"):
         pipe.consolidate(cid)
 
 
@@ -117,7 +117,7 @@ def test_verify_rejects_candidate_without_source_ref(tmp_path: Path) -> None:
     verified = pipe.verify(cid)
 
     assert verified["status"] == "rejected"
-    assert "has_source_ref" in verified["verification_notes"]["verified"]["failed_gates"]
+    assert "has_source_ref" in verified["verification_notes"]["internally_checked"]["failed_gates"]
 
 
 def test_identity_attack_is_rejected_at_evaluation(tmp_path: Path) -> None:

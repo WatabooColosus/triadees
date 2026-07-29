@@ -119,7 +119,7 @@ def evaluate_stable_readiness(
 
 def write_stable_readiness_report(
     runs_dir: str | Path = "runs",
-    out_path: str | Path = "triade/runs/stable_promotion_readiness.json",
+    out_path: str | Path = "runs/stable_promotion_readiness.json",
     limit: int = 300,
     thresholds: dict[str, int] | None = None,
 ) -> dict[str, Any]:

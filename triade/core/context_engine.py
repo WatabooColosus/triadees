@@ -58,7 +58,7 @@ def build_living_context_for_chat(
     learning = LearningPipeline(db_path=db_path)
     candidates = learning.list_candidates(status="candidate", limit=limit)
     evaluated = learning.list_candidates(status="evaluated", limit=limit)
-    verified = learning.list_candidates(status="verified", limit=limit)
+    verified = learning.list_candidates(status="internally_checked", limit=limit)
     errors = query_internal_errors(limit=limit, db_path=db_path)
     qualia = QUALIA.snapshot(refresh_life=False)
     qualia_bus = QualiaBus(db_path=db_path).report(run_id=None)

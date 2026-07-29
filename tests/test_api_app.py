@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from apps.api_app import app
+from apps.single_port_app import app
 
 
 client = TestClient(app)
@@ -87,7 +87,7 @@ def test_api_key_allows_sensitive_endpoints(monkeypatch, tmp_path) -> None:
     assert response.json()["memory_diff"]["stored"] is True
 
 
-def test_legacy_api_app_exposes_observability_and_ui() -> None:
+def test_single_port_app_exposes_observability_and_ui() -> None:
     obs = client.get("/api/observability?limit=2")
     assert obs.status_code == 200
     assert obs.json()["mode"] == "triade_observability_view"

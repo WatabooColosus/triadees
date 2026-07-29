@@ -82,6 +82,7 @@ class LifePulseEngine:
     _last_continuous_error: str | None = None
     _last_continuous_at: float | None = None
     _continuous_elapsed_ms: list[int] = field(default_factory=list, init=False)
+    _continuous_cycle_timestamps: list[float] = field(default_factory=list, init=False)
     _last_promotion_at: float | None = None
     _last_promotion_name: str | None = None
     _continuous_backoff_seconds: float = 0.0
@@ -263,12 +264,9 @@ class LifePulseEngine:
             last_tick_at = self._last_tick_at
             elapsed_ms = list(self._continuous_elapsed_ms)
             cycle_count = self._continuous_cycle_count
+            cycle_timestamps = list(self._continuous_cycle_timestamps)
 
-        cycles_per_minute = 0.0
-        if elapsed_ms and len(elapsed_ms) >= 2:
-            total_ms = sum(elapsed_ms[-60:])
-            if total_ms > 0:
-                cycles_per_minute = round((len(elapsed_ms[-60:]) / total_ms) * 60_000, 2)
+        cycles_per_minute = float(sum(1 for timestamp in cycle_timestamps if now - timestamp <= 60.0))
 
         return {
             "status": "ok" if not last_error else "degraded",
@@ -605,6 +603,8 @@ class LifePulseEngine:
                     self._last_continuous_at = time.time()
                     self._last_continuous_error = None
                     self._continuous_elapsed_ms.append(elapsed_ms)
+                    self._continuous_cycle_timestamps.append(self._last_continuous_at)
+                    self._continuous_cycle_timestamps = self._continuous_cycle_timestamps[-600:]
                     if len(self._continuous_elapsed_ms) > 200:
                         self._continuous_elapsed_ms = self._continuous_elapsed_ms[-200:]
                     self._continuous_backoff_seconds = 0.0
@@ -623,6 +623,8 @@ class LifePulseEngine:
                     self._last_continuous_at = time.time()
                     self._last_continuous_error = str(exc)
                     self._continuous_elapsed_ms.append(elapsed_ms)
+                    self._continuous_cycle_timestamps.append(self._last_continuous_at)
+                    self._continuous_cycle_timestamps = self._continuous_cycle_timestamps[-600:]
                     if len(self._continuous_elapsed_ms) > 200:
                         self._continuous_elapsed_ms = self._continuous_elapsed_ms[-200:]
                     # Backoff exponencial

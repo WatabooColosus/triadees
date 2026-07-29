@@ -188,6 +188,21 @@ class NeuronScheduler:
             }
 
             with self._connect() as conn:
+                existing = conn.execute(
+                    """SELECT id FROM worker_tasks
+                    WHERE task_type='experimental_neuron_activity'
+                    AND status IN ('pending','running','claimed')
+                    AND CAST(json_extract(payload_json, '$.neuron_id') AS INTEGER)=?
+                    ORDER BY id ASC LIMIT 1""",
+                    (p.neuron_id,),
+                ).fetchone()
+                if existing:
+                    scheduled.append({
+                        "task_id": int(existing["id"]), "neuron_id": p.neuron_id,
+                        "neuron_name": p.neuron_name, "priority_score": p.priority_score,
+                        "reason": "already_queued",
+                    })
+                    continue
                 cursor = conn.execute(
                     """INSERT INTO worker_tasks (task_type, status, priority, payload_json, created_at)
                     VALUES ('experimental_neuron_activity', 'pending', ?, ?, ?)""",

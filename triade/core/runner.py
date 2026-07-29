@@ -42,6 +42,7 @@ from .run_neuron_orchestrator import orchestrate_run_neurons
 from .run_result import build_run_result
 from .run_memory_trace import build_run_memory_trace
 from .run_system_events import build_system_events, filter_obsolete_edge_candidates, filter_obsolete_edge_debt
+from .runner_preflight import prepare_input, enrich_research
 
 
 def _process_neuron_contributions(
@@ -158,6 +159,10 @@ class TriadeRunner:
         semantic_search_engine: Any | None = None,
         semantic_governance: Any | None = None,
     ) -> None:
+        from .runtime_scope import is_test_runtime, isolated_runtime_paths
+        if is_test_runtime() and str(db_path) == "triade/memory/triade.db":
+            isolated_db, isolated_runs = isolated_runtime_paths()
+            db_path, runs_dir = isolated_db, isolated_runs
         self.runs_dir = Path(runs_dir)
         self.db_path = Path(db_path)
         self.config = load_config(config_path)
@@ -231,33 +236,7 @@ class TriadeRunner:
         propose_neurons: bool = True,
     ) -> dict[str, Any]:
         input_packet = InputPacket(user_input=user_input, source=source, context=context or {})
-        try:
-            from .guarded_web import guarded_web_research, requests_web_research
-            if requests_web_research(user_input):
-                input_packet.context["guarded_web_research"] = guarded_web_research(user_input)
-        except Exception as exc:
-            from .error_bus import record_internal_error
-            record_internal_error("runner.guarded_web_research", exc, run_id=input_packet.run_id, db_path=self.db_path)
-        try:
-            from .context_engine import build_living_context_for_chat
-
-            living_context = build_living_context_for_chat(
-                user_input,
-                db_path=self.db_path,
-                runs_dir=self.runs_dir,
-                limit=20,
-            )
-            input_packet.context = {
-                **(input_packet.context or {}),
-                "living_context": living_context,
-                "triade_operational_awareness": living_context.get("internal_context", {}),
-                "system_pulse_summary": (living_context.get("internal_context", {}) or {}).get("life_pulse", {}),
-                "bodega_global_context": living_context.get("bodega_global_context", {}),
-            }
-        except Exception as exc:
-            from .error_bus import record_internal_error
-
-            record_internal_error("runner.living_context", exc, run_id=input_packet.run_id, db_path=self.db_path)
+        prepare_input(input_packet, user_input, source, self.db_path, self.runs_dir)
         self.bodega.create_run(input_packet)
         run_path = self.runs_dir / input_packet.run_id
         run_path.mkdir(parents=True, exist_ok=True)
@@ -326,6 +305,7 @@ class TriadeRunner:
         )
         if semantic_recall_enabled:
             memory = self._get_semantic_governance().govern_memory(memory, allow_experimental=semantic_allow_experimental)
+        enrich_research(input_packet, memory, user_input, source, self.db_path)
         memory.semantic_recall["qualia_bus"] = qualia_context_for_memory(self.db_path, limit=5)
         comparison_basis = build_comparison_basis(input_packet, signals.intent)
         crystal_history = self.bodega.list_recent_crystals(limit=5, context_key=comparison_basis["context_key"])
@@ -448,6 +428,19 @@ class TriadeRunner:
             continuity=continuity,
         )
         output.response = coherence_result.response_final
+        try:
+            from triade.memory.continuity_truth import enforce_memory_truth, memory_truth_snapshot
+            output.response, truth_corrections = enforce_memory_truth(
+                input_packet.user_input,
+                output.response,
+                input_packet.context.get("memory_truth") or memory_truth_snapshot(self.db_path),
+            )
+            if truth_corrections:
+                coherence_result.corrections_applied.extend(truth_corrections)
+                output.actions_taken.extend(truth_corrections)
+        except Exception as exc:
+            from .error_bus import record_internal_error
+            record_internal_error("runner.memory_truth_gate", exc, run_id=input_packet.run_id, db_path=self.db_path)
         output_gate["deduplication"] = {
             "repeated_blocks_removed": dedup_result.repeated_blocks_removed,
             "similarity_to_recent_response": dedup_result.similarity_to_recent_response,
@@ -483,6 +476,21 @@ class TriadeRunner:
         )
         if response_coherence_gate.get("final_response"):
             output.response = str(response_coherence_gate["final_response"])
+        # Esta es la última compuerta que puede reescribir la respuesta; la
+        # verdad de continuidad debe aplicarse después para no ser anulada.
+        try:
+            from triade.memory.continuity_truth import enforce_memory_truth, memory_truth_snapshot
+            output.response, final_truth_corrections = enforce_memory_truth(
+                input_packet.user_input,
+                output.response,
+                input_packet.context.get("memory_truth") or memory_truth_snapshot(self.db_path),
+            )
+            if final_truth_corrections:
+                output.actions_taken.extend(final_truth_corrections)
+                response_coherence_gate.setdefault("warnings", []).extend(final_truth_corrections)
+        except Exception as exc:
+            from .error_bus import record_internal_error
+            record_internal_error("runner.final_memory_truth_gate", exc, run_id=input_packet.run_id, db_path=self.db_path)
         output_gate["response_coherence_gate"] = response_coherence_gate
         output_gate["coherence"] = {
             "coherence_status": response_coherence_gate.get("status", "ok"),
@@ -591,6 +599,33 @@ class TriadeRunner:
             },
         )
         output.response = expression_result["response"]
+        # ExpressionCortex es la última transformación visible. Reafirma aquí
+        # la continuidad para que ninguna capa de estilo pueda ocultarla.
+        try:
+            from triade.memory.continuity_truth import enforce_memory_truth, memory_truth_snapshot
+            output.response, expression_truth_corrections = enforce_memory_truth(
+                input_packet.user_input,
+                output.response,
+                input_packet.context.get("memory_truth") or memory_truth_snapshot(self.db_path),
+            )
+            if expression_truth_corrections:
+                output.actions_taken.extend(expression_truth_corrections)
+                expression_result.setdefault("corrections", []).extend(expression_truth_corrections)
+        except Exception as exc:
+            from .error_bus import record_internal_error
+            record_internal_error("runner.expression_memory_truth_gate", exc, run_id=input_packet.run_id, db_path=self.db_path)
+        goal_dispatch = input_packet.context.get("goal_dispatch") if isinstance(input_packet.context, dict) else None
+        if isinstance(goal_dispatch, dict) and goal_dispatch.get("goal_created"):
+            dispatch_status = str(goal_dispatch.get("status") or "")
+            goal_id = str(goal_dispatch.get("goal_id") or "")
+            if dispatch_status == "queued":
+                output.response = output.response.rstrip() + f"\n\nObjetivo persistente {goal_id} encolado para ejecución por workers."
+            elif dispatch_status == "awaiting_approval":
+                reason = str((goal_dispatch.get("resolution") or {}).get("reason") or "acción de impacto")
+                output.response = output.response.rstrip() + f"\n\nObjetivo persistente {goal_id} pendiente de aprobación: {reason}"
+            elif dispatch_status == "blocked":
+                reason = str((goal_dispatch.get("resolution") or {}).get("reason") or "capacidad no disponible")
+                output.response = output.response.rstrip() + f"\n\nObjetivo {goal_id} bloqueado de forma segura: {reason}"
         output_gate["expression_cortex"] = {
             "expression_mode": expression_result["expression_mode"],
             "internal_context_used": expression_result["internal_context_used"],
@@ -660,6 +695,7 @@ class TriadeRunner:
                 output_packet=output,
                 memory_packet=memory,
                 db_path=self.db_path,
+                evidence_ref=f"verification_report:{verification_id}",
             )
         except Exception as exc:
             from .error_bus import record_internal_error

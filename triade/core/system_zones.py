@@ -20,7 +20,8 @@ def classify_path(path: str) -> dict[str, Any]:
 
     Returns dict con path, normalized_path, zone, reason y permisos.
     """
-    norm = Path(path).resolve()
+    raw = Path(path)
+    norm = (raw if raw.is_absolute() else REPO_ROOT / raw).resolve()
     repo_str = str(REPO_ROOT.resolve())
 
     # Path traversal / absoluto fuera del repo

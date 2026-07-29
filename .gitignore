@@ -9,6 +9,8 @@ __pycache__/
 
 # Runs y memoria local
 runs/
+artifacts/
+data/
 .triade_trash/
 triade/memory/triade.db
 triade/memory/triade.db-*

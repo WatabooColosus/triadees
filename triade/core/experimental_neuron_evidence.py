@@ -167,7 +167,7 @@ def build_experimental_evidence_ledger(
 
 def write_experimental_evidence_ledger(
     runs_dir: str | Path = "runs",
-    out_path: str | Path = "triade/runs/experimental_neuron_evidence.json",
+    out_path: str | Path = "runs/experimental_neuron_evidence.json",
     limit: int = 200,
     db_path: str | Path = "triade/memory/triade.db",
     prefer_db: bool = True,

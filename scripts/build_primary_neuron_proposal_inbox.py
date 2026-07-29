@@ -41,7 +41,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Construye bandeja de propuestas primarias de neuronas.")
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--limit", type=int, default=100)
-    parser.add_argument("--out", default="triade/runs/primary_neuron_proposal_inbox.json")
+    parser.add_argument("--out", default="runs/primary_neuron_proposal_inbox.json")
     parser.add_argument("--print", action="store_true")
     args = parser.parse_args()
 

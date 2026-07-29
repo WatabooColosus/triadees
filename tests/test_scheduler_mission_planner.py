@@ -84,6 +84,8 @@ def test_scheduler_with_active_missions(tmp_path: Path) -> None:
 def test_scheduler_task_types_unchanged() -> None:
     scheduler = WorkerScheduler(db_path=":memory:")
     types = scheduler.task_types()
-    assert len(types) == 11
+    assert len(types) == 17
     assert "pulse_check" in types
     assert "neuron_candidate_formation" in types
+    assert "research_curriculum" in types
+    assert "encrypted_backup" in types

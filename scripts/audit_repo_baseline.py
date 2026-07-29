@@ -100,7 +100,7 @@ def runtime_artifacts_audit() -> dict[str, Any]:
         "db_exists": Path("triade/memory/triade.db").exists(),
         "schema_exists": Path("triade/memory/schemas.sql").exists(),
         "runs_dir_exists": Path("runs").exists(),
-        "triade_runs_dir_exists": Path("triade/runs").exists(),
+        "triade_runs_dir_exists": Path("runs").exists(),
         "neuron_lifecycle_doc_exists": Path("docs/neuron_lifecycle.md").exists(),
     }
     return {
@@ -177,7 +177,7 @@ def main() -> int:
         "policy": "baseline_audit_only_no_repo_modification",
     }
 
-    out = Path("triade/runs/repo_baseline_audit.json")
+    out = Path("runs/repo_baseline_audit.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 

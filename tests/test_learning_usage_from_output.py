@@ -154,5 +154,5 @@ def test_record_usage_does_not_consolidate(tmp_path: Path) -> None:
             (candidate["candidate_id"],),
         ).fetchone()
     assert row is not None
-    assert row["status"] in ("verified", "validated_in_runs")
+    assert row["status"] in ("internally_checked", "validated_in_runs")
     assert row["status"] != "consolidated"

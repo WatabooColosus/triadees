@@ -89,4 +89,4 @@ def test_memory_consolidation_review_marks_used(tmp_path: Path) -> None:
     assert result["status"] == "completed"
     assert len(result["run_tracking_updates"]) >= 1
     updated = pipe.get_candidate(cid)
-    assert updated["run_use_count"] >= 1
+    assert updated["run_use_count"] == 0

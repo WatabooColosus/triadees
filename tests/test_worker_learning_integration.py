@@ -27,5 +27,5 @@ def test_worker_reviews_learning_and_marks_verified_as_used_in_run(tmp_path: Pat
 
     updated = pipe.get_candidate(candidate["candidate_id"])
     assert result["status"] == "completed"
-    assert updated["status"] == "verified"
-    assert int(updated["run_use_count"] or 0) >= 1
+    assert updated["status"] == "internally_checked"
+    assert int(updated["run_use_count"] or 0) == 0

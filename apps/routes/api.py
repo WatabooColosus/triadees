@@ -281,6 +281,28 @@ def workers_queue(status: str | None = None, limit: int = 50) -> dict[str, Any]:
     return _worker_service().queue_status(status=status, limit=limit)
 
 
+@router.get("/api/goals")
+def goals_summary() -> dict[str, Any]:
+    from triade.core.planning_graph import PlanningGraph
+    graph = PlanningGraph()
+    return {"status": "ok", "summary": graph.get_plan_summary(),
+            "roots": [goal.to_dict() for goal in graph.get_root_goals()[:50]]}
+
+
+@router.get("/api/goals/{goal_id}")
+def goal_status(goal_id: str) -> dict[str, Any]:
+    from triade.core.goal_orchestrator import GoalOrchestrator
+    return GoalOrchestrator().status(goal_id)
+
+
+@router.post("/api/goals/{goal_id}/approve-install")
+def approve_goal_install(goal_id: str, package: str, approved_by: str,
+                         x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key")) -> dict[str, Any]:
+    require_key(x_triade_api_key)
+    from triade.core.goal_orchestrator import GoalOrchestrator
+    return GoalOrchestrator().approve_install(goal_id, package, approved_by=approved_by)
+
+
 @router.get("/neurons/activity")
 def neurons_activity(limit: int = 100, name: str | None = None) -> dict[str, Any]:
     LIFE_PULSE.record_action("neurons_activity")
@@ -293,7 +315,7 @@ def learning_pending(limit: int = 50) -> dict[str, Any]:
     LIFE_PULSE.record_action("learning_pending")
     pipe = LearningPipeline()
     pending = []
-    for state in ("candidate", "evaluated", "verified"):
+    for state in ("candidate", "evaluated", "internally_checked"):
         pending.extend(pipe.list_candidates(status=state, limit=limit))
     pending = pending[:limit]
     return {"status": "ok", "count": len(pending), "candidates": pending}
@@ -2556,26 +2578,29 @@ echo "[triade] Este script prepara Termux cuando lo ejecutas manualmente dentro 
 
 # ── Legacy route aliases (D-07) ──────────────────────────────────────────
 
+@router.get("/triade/neurons")
+def triade_neuron_list(limit: int = 20, db_path: str = "triade/memory/triade.db") -> dict[str, Any]:
+    from triade.core.neuron_registry import NeuronRegistry
+    neurons = NeuronRegistry(db_path=db_path).list_neurons(limit=limit)
+    return {"status": "ok", "count": len(neurons), "neurons": neurons}
+
 @router.get("/triade/recall")
 def triade_recall_legacy(query: str = "", limit: int = 10) -> dict[str, Any]:
     LIFE_PULSE.record_action("triade_recall")
-    from triade.memory.semantic_search import SemanticSearchEngine
-    engine = SemanticSearchEngine()
-    results = engine.search(query=query, limit=limit)
-    return {"query": query, "limit": limit, "status": "ok", "results": results[:limit]}
+    return TriadeRunner(use_ollama=False).recall(query=query, limit=limit)
 
 
 @router.get("/triade/doctor")
 def triade_doctor_legacy(use_ollama: bool = True) -> dict[str, Any]:
     LIFE_PULSE.record_action("triade_doctor")
     runner = TriadeRunner(use_ollama=use_ollama)
-    return {"status": "ok", "doctor": runner.doctor()}
+    return runner.doctor()
 
 
 @router.get("/triade/neurons/{name}")
-def triade_neuron_show_legacy(name: str, limit: int = 10) -> dict[str, Any]:
+def triade_neuron_show_legacy(name: str, limit: int = 10, db_path: str = "triade/memory/triade.db") -> dict[str, Any]:
     from triade.core.neuron_registry import NeuronRegistry
-    registry = NeuronRegistry()
+    registry = NeuronRegistry(db_path=db_path)
     neuron = registry.get_neuron(name)
     if neuron is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Neurona no encontrada.")

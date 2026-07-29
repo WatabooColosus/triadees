@@ -248,16 +248,16 @@ def build_bodega_global_context(
         except Exception:
             pass
 
-        learning_context = {"candidates": 0, "evaluated": 0, "verified": 0}
+        learning_context = {"candidates": 0, "evaluated": 0, "internally_checked": 0}
         try:
             learning = LearningPipeline(db_path=db_path)
             candidates = learning.list_candidates(status="candidate", limit=limit)
             evaluated = learning.list_candidates(status="evaluated", limit=limit)
-            verified = learning.list_candidates(status="verified", limit=limit)
+            verified = learning.list_candidates(status="internally_checked", limit=limit)
             learning_context = {
                 "candidates": len(candidates),
                 "evaluated": len(evaluated),
-                "verified": len(verified),
+                "internally_checked": len(verified),
                 "recent_candidates": candidates[:5],
             }
         except Exception:
@@ -399,7 +399,7 @@ def build_bodega_global_context(
             "semantic_governance": {"status": "unavailable"},
             "project_context": {},
             "neuron_context": [],
-            "learning_context": {"candidates": 0, "evaluated": 0, "verified": 0},
+            "learning_context": {"candidates": 0, "evaluated": 0, "internally_checked": 0},
             "safety_context": {
                 "identity_core_protected": True,
                 "stable_memory_requires_learning_pipeline": True,

@@ -1,6 +1,6 @@
 # Deuda técnica vigente · Tríade Ω
 
-Corte: 2026-07-23. Esta es la lista canónica de deuda abierta. Los reportes de
+Corte: 2026-07-29. Esta es la lista canónica de deuda abierta. Los reportes de
 versiones anteriores son históricos.
 
 ## P0 · Continuidad y recuperación de memoria
@@ -9,7 +9,8 @@ versiones anteriores son históricos.
 - Falta extracción general de hechos, preferencias, correcciones y relaciones sin
   programar respuestas especiales.
 - Falta identidad de usuario autenticada para aislar memoria en una web pública.
-- Faltan backups cifrados, retención, exportación y restauración probada.
+- Backup cifrado y prueba de restauración ya existen; falta configurar
+  `TRIADE_BACKUP_KEY`, retención y ejecutar simulacros periódicos en producción.
 - La promoción estable debe seguir exigiendo baseline, evidencia y reversibilidad.
 
 ## P0 · Operación pública y seguridad
@@ -21,11 +22,11 @@ versiones anteriores son históricos.
 
 ## P1 · Always-On y scheduler adaptativo
 
-- El intervalo fijo de 60 segundos mezcla tareas ligeras y costosas.
-- Falta separar heartbeat (30–60 s), aprendizaje/refutación (5–15 min) y tests
-  profundos (10–30 min o por evento).
+- `AdaptiveScheduler` ya limita frecuencia y separa investigación de heartbeat;
+  falta una contabilidad unificada de GPU, red, CPU y almacenamiento por día.
 - Falta watchdog explícito para recuperar el hilo Always-On si muere.
-- Deben medirse novedad, duplicados, utilidad por ciclo, presión térmica y recursos.
+- Existe deduplicación textual/Jaccard y novedad básica; sigue pendiente usar embeddings
+  calibrados y medir utilidad causal, presión térmica y recursos.
 
 ## P1 · Memoria emocional longitudinal
 
@@ -35,12 +36,23 @@ versiones anteriores son históricos.
 
 ## P1 · Aprendizaje autónomo verificable
 
-- El runtime crea, evalúa y verifica candidatos, pero no toda conversación produce
+- El runtime crea, evalúa y marca candidatos como `internally_checked`; este estado no
+  afirma verdad independiente y no toda conversación produce
   conocimiento útil ni debe hacerlo.
-- Falta convertir fallos de coherencia, correcciones y repetición en evaluaciones de
+- Se eliminó el score 0.80 automático y se exige evidencia de run; falta convertir
+  fallos de coherencia, correcciones y repetición en evaluaciones de
   mejora reproducibles, no solo más candidatos.
-- La adquisición de modelos usa catálogo permitido; no descubre ni adopta modelos
-  arbitrarios de Internet, deliberadamente.
+- La adquisición usa catálogo, resuelve el binario Ollama y persiste intentos, tamaños
+  esperados y digest de recibo. Verificar blobs completos sigue pendiente.
+
+## P1 · Instalación y LoRA gobernados
+
+- Installer Worker crea un venv por objetivo, requiere aprobación, registra `pip
+  freeze` y nunca activa en producción automáticamente. Falta una política de hashes
+  obligatorios para cada wheel y cuarentena automática del venv fallido.
+- LoRA real tiene split, deduplicación, filtro de secretos, OOD, prueba de olvido,
+  firma opcional, presupuestos y cola. Falta un backend de serving que cargue PEFT en
+  canary con tráfico real; hasta entonces el estado máximo es `trained_pending_canary`.
 
 ## P1 · Orquestación multi-modelo
 
@@ -60,10 +72,25 @@ versiones anteriores son históricos.
 
 ## P2 · Modularidad y mantenibilidad
 
-- `runner.py`, `bodega.py`, `triade_digimon.py` y las rutas API concentran demasiadas responsabilidades.
-- Persisten wrappers y endpoints legacy que aumentan superficie de mantenimiento.
+- Runner delega preflight/investigación en `runner_preflight.py`; Bodega delega
+  esquema/conexión/migraciones en `bodega_storage.py`; backup, LoRA y serving viven
+  en rutas de gobernanza separadas. Aún conviene continuar reduciendo `api.py` por
+  dominios, pero ya no concentra estas operaciones críticas.
+- Se retiraron `api_app.py`, `chat_ui_app.py`, `chat_ui_router_app.py` y
+  `ui_html.py`. Las dos URLs UI antiguas son redirecciones sin wrapper HTML.
 - Los contratos mezclan dataclasses y Pydantic.
 - Falta normalizar métricas históricas, latencias y causas de fallback por componente.
+- La ruta canónica es `runs/`; los scripts y defaults internos ya fueron migrados.
+
+## P2 · Serving y continuidad operativa cerrados
+
+- `PeftCanaryServer` verifica hashes, carga PEFT de forma lazy en CUDA/CPU, registra
+  generaciones canary, exige canary exitoso y aprobación nominal antes de activar,
+  y conserva rollback. No se asigna tráfico automáticamente.
+- `TRIADE_BACKUP_KEY` vive fuera de Git en `/etc/triade/triade.env` con modo 0600.
+  WorkerLoop crea, verifica y aplica retención diaria/semanal a backups cifrados.
+- La suite completa se ejecuta desde un cwd aislado y no escribe en la DB/runs de
+  producción.
 
 ## P2 · Capacidades pendientes
 

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import shutil
+import hashlib
+import os
 import sqlite3
 import subprocess
 import threading
@@ -32,6 +34,24 @@ _LOCK = threading.Lock()
 _THREAD: threading.Thread | None = None
 
 
+def _ollama_binary() -> str:
+    configured = os.getenv("TRIADE_OLLAMA_BIN", "").strip()
+    candidates = [configured, shutil.which("ollama") or "",
+                  "/teamspace/studios/this_studio/.ollama/runtime/bin/ollama"]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
+            return candidate
+    raise FileNotFoundError("ollama no está en PATH ni en TRIADE_OLLAMA_BIN")
+
+
+def _ensure_history(db_path: str | Path) -> None:
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS model_acquisition_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, model TEXT NOT NULL, source TEXT,
+            expected_size_bytes INTEGER, started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            finished_at TEXT, status TEXT NOT NULL, error TEXT, digest TEXT, binary_path TEXT)""")
+
+
 def model_acquisition_status() -> dict[str, Any]:
     with _LOCK:
         state = dict(_STATE)
@@ -39,6 +59,13 @@ def model_acquisition_status() -> dict[str, Any]:
     state["catalog"] = MODEL_CATALOG
     state["installed"] = OllamaClient().health().get("models", [])
     state["assignments"] = assign_models_to_neurons()
+    path = Path("triade/memory/triade.db")
+    if path.exists():
+        _ensure_history(path)
+        with sqlite3.connect(path) as conn:
+            conn.row_factory = sqlite3.Row
+            state["history"] = [dict(row) for row in conn.execute(
+                "SELECT * FROM model_acquisition_attempts ORDER BY id DESC LIMIT 30").fetchall()]
     state["policy"] = {
         "catalog_only": True, "no_remote_code_execution": True,
         "max_parallel_downloads": 1, "new_models_are_candidates": True,
@@ -56,6 +83,7 @@ def reconcile_model_catalog(
     missing = [name for name in MODEL_CATALOG if name not in installed][: max(0, min(max_downloads, 3))]
     downloaded: list[str] = []
     failed: list[dict[str, str]] = []
+    _ensure_history(db_path)
     for model in missing:
         free_gb = shutil.disk_usage(Path.cwd()).free / (1024 ** 3)
         required = float(MODEL_CATALOG[model]["size_gb"]) + min_free_disk_gb
@@ -63,16 +91,34 @@ def reconcile_model_catalog(
             failed.append({"model": model, "error": f"disk_budget: {free_gb:.1f}GB < {required:.1f}GB"})
             continue
         try:
+            binary = _ollama_binary()
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.execute(
+                    "INSERT INTO model_acquisition_attempts(model,source,expected_size_bytes,status,binary_path) VALUES(?,?,?,?,?)",
+                    (model, MODEL_CATALOG[model]["source"], int(float(MODEL_CATALOG[model]["size_gb"]) * 1024**3), "running", binary),
+                )
+                attempt_id = cursor.lastrowid
             result = subprocess.run(
-                ["ollama", "pull", model], shell=False, capture_output=True, text=True,
+                [binary, "pull", model], shell=False, capture_output=True, text=True,
                 timeout=1800, cwd=str(Path(__file__).resolve().parents[2]),
             )
             if result.returncode == 0:
                 downloaded.append(model)
+                digest = hashlib.sha256((model + (result.stdout or "")[-2000:]).encode()).hexdigest()
+                with sqlite3.connect(db_path) as conn:
+                    conn.execute("UPDATE model_acquisition_attempts SET status='completed',finished_at=CURRENT_TIMESTAMP,digest=? WHERE id=?", (digest, attempt_id))
             else:
-                failed.append({"model": model, "error": (result.stderr or result.stdout)[-500:]})
+                error = (result.stderr or result.stdout)[-500:]
+                failed.append({"model": model, "error": error})
+                with sqlite3.connect(db_path) as conn:
+                    conn.execute("UPDATE model_acquisition_attempts SET status='failed',finished_at=CURRENT_TIMESTAMP,error=? WHERE id=?", (error, attempt_id))
         except (OSError, subprocess.TimeoutExpired) as exc:
             failed.append({"model": model, "error": str(exc)})
+            with sqlite3.connect(db_path) as conn:
+                conn.execute(
+                    "INSERT INTO model_acquisition_attempts(model,source,expected_size_bytes,status,error) VALUES(?,?,?,?,?)",
+                    (model, MODEL_CATALOG[model]["source"], int(float(MODEL_CATALOG[model]["size_gb"]) * 1024**3), "failed", str(exc)),
+                )
     ensure_specialized_model_neurons(db_path)
     assignments = assign_models_to_neurons(db_path)
     result = {
@@ -124,7 +170,8 @@ def assign_models_to_neurons(db_path: str | Path = "triade/memory/triade.db") ->
         elif domain in {"cognitive_coordination", "system_governance"} and "qwen3:4b" in installed:
             model, role = "qwen3:4b", "deep_reasoning"
         else:
-            model, role = "qwen2.5:3b-instruct", "innate_default"
+            model = "triade-omega:latest" if "triade-omega:latest" in installed else "qwen2.5:3b-instruct"
+            role = "innate_default"
         assignments.append({"neuron": str(row["name"]), "domain": domain, "model": model, "role": role})
     return assignments
 

@@ -135,7 +135,7 @@ def test_repeated_empty_edge_creates_learning_candidate(tmp_path) -> None:
 
 def test_dashboard_edge_context_health_reports_empty_count(monkeypatch) -> None:
     import triade.core.internal_runtime as runtime_mod
-    from apps.api_app import app
+    from apps.single_port_app import app
 
     monkeypatch.setattr(
         runtime_mod,

@@ -141,14 +141,14 @@ class PlanningGraph:
                 "SELECT * FROM planning_graph WHERE parent_id = ? ORDER BY priority ASC, created_at ASC",
                 (parent_id,),
             ).fetchall()
-        goals = []
-        for row in rows:
-            node = self._row_to_goal(row)
-            deps = conn.execute(
-                "SELECT depends_on_id FROM goal_dependencies WHERE goal_id = ?", (node.goal_id,)
-            ).fetchall()
-            node.dependencies = [str(d["depends_on_id"]) for d in deps]
-            goals.append(node)
+            goals = []
+            for row in rows:
+                node = self._row_to_goal(row)
+                deps = conn.execute(
+                    "SELECT depends_on_id FROM goal_dependencies WHERE goal_id = ?", (node.goal_id,)
+                ).fetchall()
+                node.dependencies = [str(d["depends_on_id"]) for d in deps]
+                goals.append(node)
         return goals
 
     def get_root_goals(self) -> list[GoalNode]:

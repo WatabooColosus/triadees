@@ -160,7 +160,7 @@ class TriadeObservabilityView:
         pipe = LearningPipeline(db_path=self.db_path)
         doctor = pipe.doctor()
         pending: list[dict[str, Any]] = []
-        for state in ("candidate", "evaluated", "verified", "validated_in_runs"):
+        for state in ("candidate", "evaluated", "internally_checked", "validated_in_runs"):
             pending.extend(pipe.list_candidates(status=state, limit=limit))
         counts = doctor.get("candidates_by_status") or {}
         return {

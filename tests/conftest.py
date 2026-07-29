@@ -1,0 +1,32 @@
+import os
+import tempfile
+from pathlib import Path
+
+_ORIGINAL_CWD: str | None = None
+
+
+def pytest_configure(config):
+    global _ORIGINAL_CWD
+    os.environ["TRIADE_RUNTIME_SCOPE"] = "test"
+    _ORIGINAL_CWD = os.getcwd()
+    root = Path(tempfile.mkdtemp(prefix="triade-pytest-session-"))
+    source_root = Path(_ORIGINAL_CWD)
+    memory = root / "triade" / "memory"
+    memory.mkdir(parents=True)
+    (memory / "schemas.sql").symlink_to(source_root / "triade" / "memory" / "schemas.sql")
+    (memory / "migrations").symlink_to(source_root / "triade" / "memory" / "migrations", target_is_directory=True)
+    (root / "scripts").symlink_to(source_root / "scripts", target_is_directory=True)
+    for name in ("triade.yml", "triade_digimon.py", "pyproject.toml", "requirements.txt", ".env.example"):
+        source = source_root / name
+        if source.exists():
+            (root / name).symlink_to(source)
+    os.environ["TRIADE_TEST_ROOT"] = str(root)
+    os.environ["TRIADE_DISABLE_BACKGROUND"] = "1"
+    os.chdir(root)
+
+
+def pytest_unconfigure(config):
+    if _ORIGINAL_CWD:
+        os.chdir(_ORIGINAL_CWD)
+    os.environ.pop("TRIADE_RUNTIME_SCOPE", None)
+    os.environ.pop("TRIADE_DISABLE_BACKGROUND", None)

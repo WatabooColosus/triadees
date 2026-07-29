@@ -159,9 +159,11 @@ class GovernedDatasets:
     def update_dataset(
         self, dataset_id: str, updates: dict[str, Any]
     ) -> DatasetRecord | None:
-        allowed = {"name", "description", "domain", "source", "row_count",
+        allowed = {"name", "description", "domain", "source", "status", "row_count",
                     "schema_json", "governance_rules"}
         filtered = {k: v for k, v in updates.items() if k in allowed}
+        if "status" in filtered and filtered["status"] not in {"draft","validated","training_ready","archived"}:
+            raise ValueError("Estado de dataset inválido")
         if not filtered:
             return self.get_dataset(dataset_id)
 

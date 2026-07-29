@@ -41,13 +41,25 @@ class WorkerBackgroundService:
         blood = check_ollama_blood()
         payload["lock_file"] = str(self.lock_file)
         payload["stop_file"] = str(self.stop_file)
-        payload["running"] = self.lock_file.exists()
+        payload["running"] = self._lock_owner_alive()
+        payload["stale_lock"] = self.lock_file.exists() and not payload["running"]
         payload["stop_requested"] = self.stop_file.exists()
         payload["ollama_blood_status"] = blood.get("status")
         payload["model_used"] = blood.get("reasoning_model")
         payload["degraded_mode"] = bool(blood.get("fallback_mode"))
         payload["cognitive_blood_active"] = bool(blood.get("cognitive_blood_active"))
         return payload
+
+    def _lock_owner_alive(self) -> bool:
+        if not self.lock_file.exists():
+            return False
+        try:
+            import os
+            pid = int(self.lock_file.read_text(encoding="utf-8").strip())
+            os.kill(pid, 0)
+            return True
+        except (OSError, ValueError):
+            return False
 
     def queue_status(self, status: str | None = None, limit: int = 50) -> dict[str, Any]:
         tasks = self.queue.list(status=status, limit=limit)

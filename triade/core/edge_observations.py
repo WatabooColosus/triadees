@@ -130,7 +130,7 @@ def maybe_create_edge_learning_candidate(
                 c for c in pipeline.list_candidates(limit=100)
                 if c.get("domain") == "system_edge_context"
                 and c.get("title") == title
-                and c.get("status") in {"candidate", "evaluated", "verified", "validated_in_runs"}
+                and c.get("status") in {"candidate", "evaluated", "internally_checked", "validated_in_runs"}
             ),
             None,
         )

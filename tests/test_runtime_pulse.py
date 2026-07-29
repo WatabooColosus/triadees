@@ -72,7 +72,7 @@ def test_learning_journal_counts_candidates(tmp_path: Path) -> None:
             """INSERT INTO learning_queue
             (candidate_id, source_type, source_ref, title, content, normalized_summary, domain, risk_level, confidence, utility, status, verification_notes, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("cand-3", "tool", "run:3", "c3", "content", "content", "runtime", "low", 0.7, 0.8, "verified", "{}", utc_now(), utc_now()),
+            ("cand-3", "tool", "run:3", "c3", "content", "content", "runtime", "low", 0.7, 0.8, "internally_checked", "{}", utc_now(), utc_now()),
         )
         conn.execute(
             """INSERT INTO learning_queue

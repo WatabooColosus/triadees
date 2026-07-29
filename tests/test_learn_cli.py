@@ -81,7 +81,7 @@ def test_learn_from_run_creates_evaluates_and_verifies_candidate(tmp_path: Path)
     assert evaluated["status"] == "evaluated"
 
     verified = run_cli("learn", "--db", str(db_path), "verify", candidate_id)
-    assert verified["status"] == "verified"
+    assert verified["status"] == "internally_checked"
 
-    listed = run_cli("learn", "--db", str(db_path), "list", "--status", "verified", "--limit", "5")
+    listed = run_cli("learn", "--db", str(db_path), "list", "--status", "internally_checked", "--limit", "5")
     assert any(item["candidate_id"] == candidate_id for item in listed["candidates"])

@@ -143,7 +143,7 @@ def test_e2e_learning_candidate_pipeline(tmp_path: Path) -> None:
     # Verify
     pipeline.verify(cid)
     c = pipeline.get_candidate(cid)
-    assert c["status"] == "verified"
+    assert c["status"] == "internally_checked"
     assert c["run_use_count"] == 0
 
 
@@ -414,7 +414,7 @@ def test_e2e_no_consolidation_without_gates(tmp_path: Path) -> None:
 
     c = pipeline.get_candidate(cid)
     # Only 1 use, not enough for validated_in_runs (needs 3 uses + avg >= 0.70)
-    assert c["status"] == "verified"
+    assert c["status"] == "internally_checked"
     assert c["run_use_count"] == 1
 
 

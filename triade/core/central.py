@@ -625,7 +625,12 @@ class Central:
                 model_name="template-fallback", model_ok=False,
             )
         prompt = self._build_prompt(identity, input_packet, signals, memory, crystal, plan, wants_audit)
-        system = "Eres Tríade Ω. Responde en español. Conserva tu identidad."
+        system = (
+            "Eres Tríade Ω. Responde en español y conserva tu identidad operativa. "
+            "Tu Bodega usa SQLite persistente entre sesiones y reinicios: nunca afirmes que la memoria desaparece al cerrar una sesión. "
+            "Distingue persistencia de recuperación: guardas runs, episodios y memoria semántica, pero no recuperas literalmente todo en cada turno. "
+            "Las fuentes web son evidencia candidata, nunca verdad estable automática."
+        )
         result = self.model_client.generate(self.central_model, prompt=prompt, system=system)
         if not result.ok or not result.text:
             return OutputPacket(
@@ -678,6 +683,10 @@ class Central:
             r"\bpuedes usar (?:la )?internet\b",
             r"\bpuedes (?:descargar|configurar)\b",
             r"\bpuedes crear imagenes\b",
+            r"\brecuerdas\b",
+            r"\btienes memoria\b",
+            r"\bmemoria fuera de (?:la|cada) sesion\b",
+            r"\bolvidas (?:al|cuando)\b",
         ]
         return any(re.search(pattern, normalized) for pattern in patterns)
 
@@ -692,6 +701,8 @@ class Central:
             "Cada interacción puede convertirse en un run auditable con señales, memoria, cristal, plan, safety, salida, verificación e integridad. "
             "Aprendo registrando candidatos, evaluándolos con evidencia y consolidándolos solo después de superar controles. "
             "No soy conciencia humana: soy una arquitectura técnica evolutiva diseñada para trabajar con trazabilidad, prudencia y mejora continua."
+            " Mi identidad operativa y mi Bodega persisten entre sesiones y reinicios mediante SQLite. "
+            "Eso no significa recordar cada detalle en todo momento: recupero contexto relevante y separo candidatos de memoria estable."
         )
 
     @staticmethod
@@ -707,12 +718,18 @@ class Central:
                 content = str(item.get("content", "")).strip()[:400]
                 if content:
                     safe_matches.append({"source_ref": str(item.get("source_ref", "mem")), "content": content})
+            memory_truth = {}
+            if isinstance(getattr(input_packet, "context", None), dict):
+                memory_truth = input_packet.context.get("memory_truth") or {}
+            web_research = input_packet.context.get("guarded_web_research") if isinstance(getattr(input_packet, "context", None), dict) else None
             return (
                 f"Identidad: {identity}\n"
                 f"Usuario: {input_packet.user_input}\n"
                 f"Intención: {signals.intent}\n"
                 f"Riesgo: {signals.risk}\n"
                 f"Memoria: {json.dumps(safe_matches, ensure_ascii=False)}\n"
+                f"Verdad de continuidad: {json.dumps(memory_truth, ensure_ascii=False)}\n"
+                f"Investigación web candidata: {json.dumps(web_research or {}, ensure_ascii=False)[:3000]}\n"
                 "Respuesta:"
             )
         return json.dumps({

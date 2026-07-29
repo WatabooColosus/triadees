@@ -68,7 +68,7 @@ def build_learning_journal(
         if row.get("neuron_id") is not None
     })
 
-    latest_learning_candidates = [row for row in candidates_recent if row.get("status") in {"candidate", "evaluated", "verified"}][:limit]
+    latest_learning_candidates = [row for row in candidates_recent if row.get("status") in {"candidate", "evaluated", "internally_checked"}][:limit]
     latest_consolidations = [row for row in candidates_recent if row.get("status") == "consolidated"][:limit]
     latest_rejections = [row for row in candidates_recent if row.get("status") == "rejected"][:limit]
 
@@ -80,7 +80,7 @@ def build_learning_journal(
         "evidence_created": evidence_created,
         "candidates_created": candidates_by_status.get("candidate", 0),
         "candidates_evaluated": candidates_by_status.get("evaluated", 0),
-        "candidates_verified": candidates_by_status.get("verified", 0),
+        "candidates_verified": candidates_by_status.get("internally_checked", 0),
         "candidates_consolidated": candidates_by_status.get("consolidated", 0),
         "candidates_rejected": candidates_by_status.get("rejected", 0),
         "neurons_nourished": neurons_nourished,
@@ -117,7 +117,7 @@ def _count_candidates_recent(rows: list[dict[str, Any]]) -> dict[str, int]:
     counts: dict[str, int] = {
         "candidate": 0,
         "evaluated": 0,
-        "verified": 0,
+        "internally_checked": 0,
         "validated_in_runs": 0,
         "consolidated": 0,
         "rejected": 0,

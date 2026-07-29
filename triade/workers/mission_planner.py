@@ -7,6 +7,7 @@ con razones explicadas. Reemplaza el enqueue_defaults ciego del scheduler.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -64,6 +65,11 @@ class MissionPlanner:
         tasks.extend(self._plan_federation_inbox())
         tasks.extend(self._plan_system_debt())
         tasks.extend(self._plan_neuron_formation())
+        tasks.extend(self._plan_research_curriculum())
+        if os.getenv("TRIADE_BACKUP_KEY"):
+            tasks.append(PlannedTask(task_type="encrypted_backup", priority=80,
+                                     reason="Backup diario cifrado y restaurable",
+                                     source="backup_retention_policy", planner_score=0.4))
 
         tasks.sort(key=lambda t: t.priority)
 
@@ -71,6 +77,21 @@ class MissionPlanner:
             tasks = tasks[:15]
 
         return tasks
+
+    def _plan_research_curriculum(self) -> list[PlannedTask]:
+        try:
+            with self._connect() as conn:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS cnt FROM neurons WHERE status IN ('experimental','candidate','candidate_reviewable')"
+                ).fetchone()
+            count = int(row["cnt"] or 0) if row else 0
+            if count:
+                return [PlannedTask(task_type="research_curriculum", priority=45,
+                                    reason=f"Currículo dirigido por {count} lagunas neuronales reales",
+                                    source="neural_gap_curriculum", planner_score=0.65)]
+        except Exception as exc:
+            record_internal_error("mission_planner.research_curriculum", exc, db_path=self.db_path)
+        return []
 
     def _plan_baseline(self) -> list[PlannedTask]:
         """Tareas base condicionales al estado real del sistema.
@@ -96,7 +117,7 @@ class MissionPlanner:
                 # pending_learning_review: solo si hay work que hacer
                 lr = conn.execute(
                     """SELECT COUNT(*) as cnt FROM learning_queue
-                    WHERE status IN ('candidate', 'evaluated', 'verified')"""
+                    WHERE status IN ('candidate', 'evaluated', 'internally_checked')"""
                 ).fetchone()
                 lr_cnt = int(lr["cnt"] or 0) if lr else 0
                 if lr_cnt > 0:
@@ -226,7 +247,7 @@ class MissionPlanner:
             with self._connect() as conn:
                 row = conn.execute(
                     """SELECT COUNT(*) as cnt FROM learning_queue
-                    WHERE status = 'verified'"""
+                    WHERE status = 'internally_checked'"""
                 ).fetchone()
                 cnt = int(row["cnt"] or 0) if row else 0
             if cnt > 0:

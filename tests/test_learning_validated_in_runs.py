@@ -91,7 +91,7 @@ def test_mark_used_in_run_multiple_uses_requires_evidence_at_promotion_gate(tmp_
     result = pipe.get_candidate(cid)
     assert result["run_use_count"] == 3
     assert result["avg_outcome_score"] == 0.80
-    assert result["status"] == "verified"
+    assert result["status"] == "internally_checked"
 
 
 def test_auto_validates_after_min_uses_and_improved_evidence(tmp_path: Path) -> None:
@@ -112,7 +112,7 @@ def test_no_validate_if_score_too_low(tmp_path: Path) -> None:
     pipe.mark_used_in_run(cid, "run-1", outcome_score=0.80)
     pipe.mark_used_in_run(cid, "run-2", outcome_score=0.60)
     result = pipe.mark_used_in_run(cid, "run-3", outcome_score=0.50)
-    assert result["status"] == "verified"
+    assert result["status"] == "internally_checked"
     assert result["avg_outcome_score"] == 0.633
 
 
@@ -154,7 +154,7 @@ def test_consolidate_rejects_candidate_status(tmp_path: Path) -> None:
         title="Sin evaluar",
         domain="test",
     )["candidate_id"]
-    with pytest.raises(ValueError, match="verified.*validated_in_runs"):
+    with pytest.raises(ValueError, match="internally_checked.*validated_in_runs"):
         pipe.consolidate(cid)
 
 

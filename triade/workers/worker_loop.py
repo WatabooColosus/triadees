@@ -26,6 +26,7 @@ from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
 
 from .contracts import WORKER_TASK_TYPES, WorkerRunConfig, WorkerTask, new_worker_run_id
+from .adaptive_scheduler import AdaptiveScheduler
 from .neuron_mission_executor import NeuronMissionExecutor
 from .scheduler import WorkerScheduler
 from .state_store import WorkerStateStore
@@ -71,7 +72,7 @@ class WorkerSandbox:
 
 
 class WorkerLoop:
-    READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset({"pulse_check", "pending_learning_review", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review"})
+    READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset({"pulse_check", "pending_learning_review", "semantic_memory_governance", "federation_inbox_review", "bodega_global_review", "encrypted_backup"})
 
     def __init__(
         self,
@@ -87,6 +88,7 @@ class WorkerLoop:
         self.store = WorkerStateStore(db_path=self.db_path)
         self.queue = WorkerTaskQueue(db_path=self.db_path)
         self.scheduler = WorkerScheduler(db_path=self.db_path)
+        self.adaptive_scheduler = AdaptiveScheduler(db_path=self.db_path)
 
     def run(self, config: WorkerRunConfig | None = None) -> dict[str, Any]:
         config = config or WorkerRunConfig(runs_dir=str(self.runs_dir), lock_file=str(self.lock_file), stop_file=str(self.stop_file))
@@ -99,6 +101,9 @@ class WorkerLoop:
         if self.stop_file.exists():
             return {"status": "stopped", "stop_file": str(self.stop_file), "message": "Stop file presente antes de iniciar."}
 
+        recovery = self.store.recover_interrupted_runtime(self.lock_file)
+        if recovery.get("status") == "live_owner":
+            return {"status": "locked", "lock_file": str(self.lock_file), "pid": recovery.get("pid"), "message": "Worker ya está en ejecución."}
         # Atomic lock: O_CREAT|O_EXCL evita carrera TOCTOU entre múltiples instancias.
         try:
             fd = os.open(str(self.lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
@@ -138,6 +143,7 @@ class WorkerLoop:
             "model_used": blood.get("reasoning_model"),
             "degraded_mode": bool(blood_policy.get("degraded")),
             "cognitive_blood_active": bool(blood.get("cognitive_blood_active")),
+            "runtime_recovery": recovery,
         }
         self.store.create_worker_run(run_ref, config, artifact_dir)
         self.store.set_state("workers", {"status": "running", "run_ref": run_ref, "started_at": utc_now(), "config": config.to_dict()})
@@ -153,9 +159,6 @@ class WorkerLoop:
                     task = self.queue.claim_next()
                     if task is None:
                         break
-                    if task.run_ref and task.run_ref != run_ref:
-                        self.store.finish_task(task.id or 0, "skipped", {"reason": "belongs_to_other_run"}, run_ref=task.run_ref)
-                        continue
                     result = self._execute_task(task, run_ref, artifact_dir, config)
                     if result.get("status") == "blocked":
                         summary["tasks_blocked"] += 1
@@ -203,6 +206,11 @@ class WorkerLoop:
 
     def _execute_task(self, task: WorkerTask, run_ref: str, artifact_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         started = time.monotonic()
+        goal_task = bool(task.payload.get("goal_id"))
+        if not goal_task and self.adaptive_scheduler.should_skip_task(task.task_type):
+            result = {"status": "skipped", "reason": "adaptive_interval_not_elapsed", "task_type": task.task_type}
+            self.store.finish_task(task.id or 0, "skipped", result, "approved", run_ref=run_ref)
+            return result
         blood = check_ollama_blood()
         blood_policy = ollama_blood_policy("worker_cycle", blood)
         safety = self._safety_for_task(task, run_ref)
@@ -245,12 +253,27 @@ class WorkerLoop:
                     "stable_consolidation_review": self._stable_consolidation_review,
                     "system_debt_scan": self._system_debt_scan,
                     "bodega_global_review": self._bodega_global_review,
+                    "goal_research": self._goal_research,
+                    "goal_safe_command": self._goal_safe_command,
+                    "research_curriculum": self._research_curriculum,
+                    "goal_install": self._goal_install,
+                    "goal_lora_train": self._goal_lora_train,
+                    "encrypted_backup": self._encrypted_backup,
                 }
                 result = handlers[task.task_type](task, run_ref, task_dir, config)
                 if time.monotonic() - started > config.task_timeout:
                     raise TimeoutError(f"worker task timeout: {task.task_type}")
-                self.store.finish_task(task.id or 0, result.get("status", "completed"), result, safety.status, run_ref=run_ref)
+                result_status = str(result.get("status") or "completed")
+                persisted_status = (
+                    "completed" if result_status in {"ok", "completed", "candidate_created", "no_evidence"}
+                    else "failed" if result_status == "error"
+                    else result_status
+                )
+                self.store.finish_task(task.id or 0, persisted_status, result, safety.status, run_ref=run_ref)
                 self.store.record_event("task_completed", f"{task.task_type} completada", run_ref=run_ref, task_id=task.id, task_type=task.task_type, payload=result)
+                if task.payload.get("goal_id"):
+                    from triade.core.goal_orchestrator import GoalOrchestrator
+                    GoalOrchestrator(self.db_path).record_task_result(task.payload, result)
             except Exception as exc:
                 record_internal_error(
                     "worker_loop.execute_task",
@@ -273,8 +296,53 @@ class WorkerLoop:
         result["degraded_mode"] = bool(blood_policy.get("degraded"))
         result["cognitive_blood_active"] = bool(blood.get("cognitive_blood_active"))
         result["elapsed"] = round(time.monotonic() - started, 4)
+        self.adaptive_scheduler.record_task_execution(
+            task.task_type, result["elapsed"] * 1000,
+            str(result.get("status")) not in {"error", "failed", "blocked"}, run_ref=run_ref,
+        )
         (task_dir / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         return result
+
+    def _research_curriculum(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        """Investiga una laguna real; la evidencia queda candidata, nunca estable."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """SELECT n.id, n.name, n.domain, COUNT(na.id) AS evidence_count
+                   FROM neurons n LEFT JOIN neuron_activity na ON na.neuron_id=n.id
+                   WHERE n.status IN ('experimental','candidate','candidate_reviewable')
+                   GROUP BY n.id ORDER BY evidence_count ASC, n.id ASC LIMIT 1"""
+            ).fetchone()
+        if row is None:
+            return {"status": "no_evidence", "reason": "no_neuronal_gap"}
+        delegated = WorkerTask(task_type="goal_research", payload={
+            "request": f"Fuentes técnicas actuales para cerrar la laguna de {row['name']} en {row['domain']}",
+            "related_neuron_id": int(row["id"]), "curriculum": True,
+        })
+        result = self._goal_research(delegated, run_ref, task_dir, config)
+        result["curriculum_gap"] = dict(row)
+        return result
+
+    def _goal_install(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        from triade.training.installer import IsolatedInstaller
+        return IsolatedInstaller(self.db_path).install(
+            str(task.payload.get("package") or ""), goal_id=str(task.payload.get("goal_id") or run_ref),
+            approved=bool(task.payload.get("human_approved")), approved_by=str(task.payload.get("approved_by") or ""),
+        )
+
+    def _goal_lora_train(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        from triade.training.governed_lora import GovernedLoraJobRunner
+        return GovernedLoraJobRunner(self.db_path).run(task.payload)
+
+    def _encrypted_backup(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        from triade.memory.encrypted_backup import EncryptedBackup
+        backup = EncryptedBackup(self.db_path)
+        created = backup.create()
+        verified = backup.verify(Path("artifacts/backups") / created["file"])
+        if verified.get("status") != "ok":
+            return {"status": "error", "reason": "backup_verification_failed", "verification": verified}
+        return {"status": "completed", "backup": created, "verification": verified,
+                "retention": backup.enforce_retention()}
 
     def _safety_for_task(self, task: WorkerTask, run_ref: str):
         signals = SignalPacket(run_id=run_ref, intent="worker", tone="operational", urgency="low", risk="low", pv7={}, notes=[task.task_type])
@@ -313,7 +381,8 @@ class WorkerLoop:
                 usefulness=usefulness,
                 evidence_refs=[f"worker:{run_ref}", f"task:{task_type}"],
             )
-            result = bus.publish_experience(exp, ingest_learning=bool(proposed_learning) if ingest_learning is None else ingest_learning)
+            # Telemetría Qualia no se convierte en aprendizaje por defecto.
+            result = bus.publish_experience(exp, ingest_learning=False if ingest_learning is None else ingest_learning)
             return {"published": True, "experience_id": exp.id, "state": result.get("state", {}).to_dict() if hasattr(result.get("state"), "to_dict") else result.get("state")}
         except Exception as exc:
             record_internal_error(
@@ -355,15 +424,6 @@ class WorkerLoop:
         for candidate in pipe.list_candidates(status="evaluated", limit=5):
             verified = pipe.verify(candidate["candidate_id"])
             processed.append(verified)
-            if verified.get("status") == "verified" and verified.get("source_ref"):
-                try:
-                    processed.append(pipe.mark_used_in_run(
-                        verified["candidate_id"],
-                        run_ref,
-                        outcome_score=0.80,
-                    ))
-                except ValueError as exc:
-                    processed.append({"candidate_id": verified.get("candidate_id"), "action": "mark_used_skipped", "reason": str(exc)})
         qualia = self._publish_qualia_experience(
             run_ref, "pending_learning_review", "worker_learning",
             f"Worker revisó {len(processed)} candidatos de aprendizaje.",
@@ -581,17 +641,11 @@ class WorkerLoop:
         governance = SemanticMemoryGovernance(db_path=self.db_path)
         sandbox = WorkerSandbox(task_dir)
         promoted = []
-        for candidate in pipe.list_candidates(status="verified", limit=5):
+        for candidate in pipe.list_candidates(status="internally_checked", limit=5):
             sb = sandbox.run("analyze_memory_candidate", candidate, timeout=config.task_timeout)
             if sb.get("status") != "ok" or not candidate.get("source_ref"):
                 continue
-            try:
-                pipe.mark_used_in_run(
-                    candidate["candidate_id"], run_ref, outcome_score=0.80,
-                )
-                promoted.append({"candidate_id": candidate.get("candidate_id"), "action": "marked_used_in_run"})
-            except ValueError as exc:
-                promoted.append({"candidate_id": candidate.get("candidate_id"), "action": "skipped", "reason": str(exc)})
+            promoted.append({"candidate_id": candidate.get("candidate_id"), "action": "awaiting_real_run_evidence"})
         return {"status": "completed", "run_tracking_updates": promoted, "stable_memory_written": False}
 
     def _stable_consolidation_review(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
@@ -752,6 +806,16 @@ class WorkerLoop:
                 pass
 
         return result
+
+    def _goal_safe_command(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        return self._shell_execute(task, run_ref, task_dir, config)
+
+    def _goal_research(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
+        from triade.research import AutonomousResearchEngine
+        request = str(task.payload.get("request") or "").strip()
+        if not request:
+            return {"status": "error", "error": "request requerido"}
+        return AutonomousResearchEngine(self.db_path).research(request, trigger="goal_worker")
 
     def _artifact_dir(self, run_ref: str) -> Path:
         stamp = time.strftime("%Y%m%d-%H%M%S")

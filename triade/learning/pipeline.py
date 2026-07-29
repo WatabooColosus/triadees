@@ -124,6 +124,7 @@ class LearningPipeline:
         for name, ddl in additions.items():
             if name not in columns:
                 conn.execute(f"ALTER TABLE learning_queue ADD COLUMN {name} {ddl}")
+        conn.execute("UPDATE learning_queue SET status='internally_checked' WHERE status='verified'")
 
     # ------------------------------------------------------------------
     # 1. Ingesta (descubrimiento + extracción + normalización)
@@ -147,6 +148,24 @@ class LearningPipeline:
         clean_risk = risk_level.strip().lower()
         if clean_risk not in RISK_RANK:
             raise ValueError(f"risk_level inválido: {clean_risk}")
+
+        # Evita que workers/Qualia creen el mismo aprendizaje en cada pulso.
+        with self._connect() as conn:
+            recent = conn.execute(
+                "SELECT * FROM learning_queue WHERE domain=? AND status NOT IN ('rejected','archived') ORDER BY id DESC LIMIT 200",
+                (domain.strip() or "general",),
+            ).fetchall()
+        normalized_words = set(normalized.lower().split())
+        for existing in recent:
+            other = " ".join(str(existing["content"] or "").strip().split())
+            other_words = set(other.lower().split())
+            union = normalized_words | other_words
+            similarity = len(normalized_words & other_words) / len(union) if union else 1.0
+            if normalized.lower() == other.lower() or similarity >= 0.92:
+                payload = self._decode(dict(existing))
+                payload["deduplicated"] = True
+                payload["novelty_score"] = round(1.0 - similarity, 4)
+                return payload
 
         candidate_id = f"learn-{uuid4().hex[:16]}"
         clean_title = (title or normalized[:80]).strip()
@@ -260,27 +279,34 @@ class LearningPipeline:
             **model_guard["metadata"],
         }
         if passed:
-            report["decision"] = "verified"
-            self._update(candidate_id, status="verified", note_step="verified", note_payload=report)
+            report["decision"] = "internally_checked"
+            report["truth"] = "Gates internos aprobados; no constituye verificación independiente."
+            self._update(candidate_id, status="internally_checked", note_step="internally_checked", note_payload=report)
         else:
             report["decision"] = "rejected_failed_gates"
             report["failed_gates"] = [name for name, ok in gates.items() if not ok]
-            self._update(candidate_id, status="rejected", note_step="verified", note_payload=report)
+            self._update(candidate_id, status="rejected", note_step="internally_checked", note_payload=report)
         return self.get_candidate(candidate_id) or {}
 
     # ------------------------------------------------------------------
     # 3b. Uso en runs y validación
     # ------------------------------------------------------------------
 
-    def mark_used_in_run(self, candidate_id: str, run_id: str, outcome_score: float = 0.0) -> dict[str, Any]:
+    def mark_used_in_run(
+        self, candidate_id: str, run_id: str, outcome_score: float = 0.0,
+        *, evidence_ref: str | None = None,
+    ) -> dict[str, Any]:
         """Registra que un candidato verified fue usado en un run.
 
         Si acumula MIN_RUN_USES usos con promedio >= MIN_OUTCOME_SCORE,
         se promueve a validated_in_runs.
         """
         row = self._require(candidate_id)
-        if row["status"] not in ("verified", "validated_in_runs"):
-            raise ValueError(f"Solo se marca uso en runs de candidatos verified/validated_in_runs (actual: {row['status']}).")
+        from triade.core.runtime_scope import is_test_runtime
+        if outcome_score > 0 and not evidence_ref and not is_test_runtime():
+            raise ValueError("outcome_score positivo requiere evidence_ref real y trazable")
+        if row["status"] not in ("internally_checked", "validated_in_runs"):
+            raise ValueError(f"Solo se marca uso de candidatos internally_checked/validated_in_runs (actual: {row['status']}).")
 
         scores_raw = row["run_outcome_scores"] or "[]"
         try:
@@ -295,7 +321,7 @@ class LearningPipeline:
         self._update_run_tracking(candidate_id, use_count, scores, avg_score)
 
         if (use_count >= self.MIN_RUN_USES and avg_score >= self.MIN_OUTCOME_SCORE
-                and row["status"] == "verified"):
+                and row["status"] == "internally_checked"):
             evidence = self.evidence_bridge.require_improvement(candidate_id)
             self._update(
                 candidate_id, status="validated_in_runs",
@@ -312,9 +338,9 @@ class LearningPipeline:
 
         return self.get_candidate(candidate_id) or {}
 
-    def validate_in_run(self, candidate_id: str, run_id: str, outcome_score: float = 0.80) -> dict[str, Any]:
+    def validate_in_run(self, candidate_id: str, run_id: str, outcome_score: float = 0.80, *, evidence_ref: str | None = None) -> dict[str, Any]:
         """Alias semántico de mark_used_in_run con score predeterminado."""
-        return self.mark_used_in_run(candidate_id, run_id, outcome_score=outcome_score)
+        return self.mark_used_in_run(candidate_id, run_id, outcome_score=outcome_score, evidence_ref=evidence_ref)
 
     def _update_run_tracking(self, candidate_id: str, use_count: int, scores: list[float], avg_score: float) -> None:
         with self._connect() as conn:
@@ -332,8 +358,8 @@ class LearningPipeline:
         model_guard = self._model_guard("stable_consolidation", human_approval=approved_by)
         if model_guard["blocked"]:
             raise ValueError("Ollama no disponible para consolidación stable y no hay aprobación humana explícita.")
-        if row["status"] not in ("verified", "validated_in_runs"):
-            raise ValueError(f"Solo se consolida un candidato 'verified' o 'validated_in_runs' (actual: {row['status']}).")
+        if row["status"] not in ("internally_checked", "validated_in_runs"):
+            raise ValueError(f"Solo se consolida un candidato 'internally_checked' o 'validated_in_runs' (actual: {row['status']}).")
         if not row["source_ref"]:
             raise ValueError("No se consolida memoria estable sin source_ref.")
         risk = str(row["risk_level"])
@@ -518,7 +544,7 @@ class LearningPipeline:
         return [self._decode(dict(row)) for row in rows]
 
     def doctor(self) -> dict[str, Any]:
-        states = ["candidate", "evaluated", "verified", "validated_in_runs", "consolidated", "rejected", "archived"]
+        states = ["candidate", "evaluated", "internally_checked", "validated_in_runs", "consolidated", "rejected", "archived"]
         counts = {state: 0 for state in states}
         with self._connect() as conn:
             for row in conn.execute("SELECT status, COUNT(*) AS c FROM learning_queue GROUP BY status").fetchall():
@@ -543,7 +569,7 @@ class LearningPipeline:
             "status": "ok",
             "mode": "learning-pipeline-C",
             "policy": {
-                "consolidation_requires": ["status=verified_or_validated_in_runs", "source_ref", "risk!=critical", "run_use_count>=3", "avg_outcome_score>=0.70", "measurement_decision=improved", "critical_regressions=0"],
+                "consolidation_requires": ["status=internally_checked_or_validated_in_runs", "source_ref", "risk!=critical", "run_use_count>=3", "avg_outcome_score>=0.70", "measurement_decision=improved", "critical_regressions=0"],
                 "identity_core_protected": True,
                 "stable_memory_via": "semantic_governance_1.9E",
                 "auto_consolidation": trust_info.get("permissions", {}).get("auto_consolidate_low_risk", False),

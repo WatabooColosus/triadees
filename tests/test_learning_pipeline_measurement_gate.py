@@ -31,7 +31,7 @@ def _evaluation(evaluation_id: str, subject_id: str, score: float) -> Evaluation
 def _force_verified(pipeline: LearningPipeline, candidate_id: str) -> None:
     with sqlite3.connect(pipeline.db_path) as conn:
         conn.execute(
-            "UPDATE learning_queue SET status='verified', confidence=0.9, utility=0.9 WHERE candidate_id=?",
+            "UPDATE learning_queue SET status='internally_checked', confidence=0.9, utility=0.9 WHERE candidate_id=?",
             (candidate_id,),
         )
 
@@ -85,7 +85,7 @@ def test_pipeline_blocks_validation_without_measurement_evidence(tmp_path) -> No
 
     stored = pipeline.get_candidate(candidate_id)
     assert stored is not None
-    assert stored["status"] == "verified"
+    assert stored["status"] == "internally_checked"
     assert stored["run_use_count"] == 3
     assert stored["measurement_evidence"] is None
 
@@ -154,4 +154,4 @@ def test_pipeline_blocks_neutral_evidence(tmp_path) -> None:
     with pytest.raises(ValueError, match="decision=neutral"):
         pipeline.mark_used_in_run(candidate_id, "run-3", 0.9)
 
-    assert pipeline.get_candidate(candidate_id)["status"] == "verified"
+    assert pipeline.get_candidate(candidate_id)["status"] == "internally_checked"

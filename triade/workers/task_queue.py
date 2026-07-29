@@ -16,7 +16,11 @@ class WorkerTaskQueue:
     def enqueue(self, task_type: str, payload: dict[str, Any] | None = None, priority: int = 50, run_ref: str | None = None) -> WorkerTask:
         if task_type not in WORKER_TASK_TYPES:
             raise ValueError(f"worker task_type inválido: {task_type}")
-        return self.store.enqueue_task(task_type, payload=payload or {}, priority=priority, run_ref=run_ref)
+        clean_payload = payload or {}
+        existing = self.store.find_active_equivalent(task_type, clean_payload)
+        if existing is not None:
+            return existing
+        return self.store.enqueue_task(task_type, payload=clean_payload, priority=priority, run_ref=run_ref)
 
     def enqueue_defaults(self, run_ref: str | None = None) -> list[WorkerTask]:
         tasks = []

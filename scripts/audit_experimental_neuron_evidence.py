@@ -9,7 +9,7 @@ from triade.core.experimental_neuron_evidence import write_experimental_evidence
 def main() -> int:
     parser = argparse.ArgumentParser(description="Audita evidencia acumulada de neuronas experimentales.")
     parser.add_argument("--runs-dir", default="runs")
-    parser.add_argument("--out", default="triade/runs/experimental_neuron_evidence.json")
+    parser.add_argument("--out", default="runs/experimental_neuron_evidence.json")
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()

@@ -44,7 +44,7 @@ def main() -> int:
     parser.add_argument("name", help="Nombre exacto de la neurona.")
     parser.add_argument("--db-path", default="triade/memory/triade.db")
     parser.add_argument("--runs-dir", default="runs")
-    parser.add_argument("--decisions-path", default="triade/runs/stable_promotion_decisions.json")
+    parser.add_argument("--decisions-path", default="runs/stable_promotion_decisions.json")
     parser.add_argument("--reason", default="")
     parser.add_argument("--confirm-human", action="store_true")
     parser.add_argument("--limit", type=int, default=300)

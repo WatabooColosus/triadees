@@ -23,7 +23,7 @@ runtime:
   worker_mode: full_local_guarded
   # Creadora -> Formadora -> Educadora -> evidencia -> promoción gobernada.
   continuous_runner_enabled: true
-  continuous_runner_autonomy_level: promote_stable
+  continuous_runner_autonomy_level: train_candidates
   continuous_runner_interval_seconds: 60
   continuous_runner_max_cycles: 0
 

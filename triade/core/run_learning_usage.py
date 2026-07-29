@@ -28,6 +28,7 @@ def record_learning_usage_from_output(
     output_packet: Any,
     memory_packet: Any,
     db_path: str | Path = "triade/memory/triade.db",
+    evidence_ref: str | None = None,
 ) -> dict[str, Any]:
     """Registra uso de aprendizaje verificado en un run completado.
 
@@ -63,7 +64,7 @@ def record_learning_usage_from_output(
             rows = conn.execute(
                 """SELECT id, candidate_id, title, content, domain, source_ref, status
                 FROM learning_queue
-                WHERE status IN ('verified', 'validated_in_runs')
+                WHERE status IN ('internally_checked', 'validated_in_runs')
                 ORDER BY confidence DESC
                 LIMIT 30"""
             ).fetchall()
@@ -165,6 +166,7 @@ def record_learning_usage_from_output(
                     candidate_id=candidate_id_str,
                     run_id=run_id,
                     outcome_score=outcome_score,
+                    evidence_ref=evidence_ref,
                 )
                 result["candidates_marked"] += 1
                 source_counter = result["matched_by_source"]

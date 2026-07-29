@@ -32,24 +32,18 @@ def test_single_port_serves_spa_index():
     assert "root" in body or "Triade" in body or "triade" in body
 
 
-def test_legacy_ui_routes_deprecated():
-    """Las rutas UI legacy deben ser wrappers deprecated con aviso de migración."""
+def test_legacy_ui_routes_redirect_to_spa():
+    """Las rutas antiguas solo redirigen; ya no sirven wrappers HTML."""
     for route in ["/api/ui/clean", "/api/ui/legacy"]:
         resp = client.get(route)
         assert resp.status_code in (200, 302, 307), f"{route} returned {resp.status_code}"
-        body_lower = resp.text.lower()
-        assert "migrada" in body_lower or "deprecad" in body_lower or resp.status_code in (302, 307), \
-            f"{route} no muestra aviso de migración ni redirige"
+        assert resp.history and resp.history[0].status_code in (302, 307)
 
 
 def test_no_new_html_embedded_routes_without_deprecation():
-    """Verificar que no haya nuevas rutas HTML sin marca DEPRECATED_UI."""
+    """El módulo HTML embebido fue retirado."""
     ui_html_path = Path(__file__).resolve().parent.parent / "apps/ui_html.py"
-    if ui_html_path.exists():
-        content = ui_html_path.read_text(encoding="utf-8")
-        html_constants = sum(1 for line in content.splitlines()
-                             if line.strip().startswith(("CLEAN_UI_HTML", "HTML =", "TRIADE_UI_HTML", "TRIADE_REACT_UI_HTML")))
-        assert html_constants <= 4, f"apps/ui_html.py tiene {html_constants} constantes HTML legacy sin deprecar"
+    assert not ui_html_path.exists()
 
 
 def test_api_runtime_heartbeat_contains_ollama_blood():

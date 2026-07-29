@@ -9,7 +9,7 @@ from triade.core.stable_promotion_readiness import write_stable_readiness_report
 def main() -> int:
     parser = argparse.ArgumentParser(description="Audita si neuronas experimentales están listas para revisión stable.")
     parser.add_argument("--runs-dir", default="runs")
-    parser.add_argument("--out", default="triade/runs/stable_promotion_readiness.json")
+    parser.add_argument("--out", default="runs/stable_promotion_readiness.json")
     parser.add_argument("--limit", type=int, default=300)
     parser.add_argument("--min-activations", type=int, default=5)
     parser.add_argument("--min-diagnosis", type=int, default=5)
