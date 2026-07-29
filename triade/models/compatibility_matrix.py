@@ -7,7 +7,7 @@ RAM/VRAM y disponibilidad local.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 from .hardware_profile import HardwareProfile
 from .model_router import ModelRouter
@@ -32,7 +32,7 @@ class ModelCompatibilityMatrix:
 
     ALL_MODELS = sorted(set(ModelRouter.MODEL_RAM_GB.keys()))
 
-    ROLE_HINTS = {
+    ROLE_HINTS: ClassVar = {
         "qwen3:1.7b": ["fast"],
         "qwen2.5-coder:1.5b-base": ["coder", "fast"],
         "qwen2.5:3b-instruct": ["hypothalamus", "central", "creator", "trainer"],

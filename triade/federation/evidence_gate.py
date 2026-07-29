@@ -6,7 +6,7 @@ import hashlib
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from triade.evaluation import EvaluationRun, MetricResult
 from triade.regression import MetricPolicy, RegressionGate
@@ -17,7 +17,12 @@ from .registry import FederatedNodeRegistry
 class FederatedEvidenceGate:
     """Convierte evidencia remota en medición local y aplica confianza conservadora."""
 
-    TRUST_DELTAS = {"pass": 0.03, "warn": -0.02, "fail": -0.15, "invalid": -0.25}
+    TRUST_DELTAS: ClassVar = {
+        "pass": 0.03,
+        "warn": -0.02,
+        "fail": -0.15,
+        "invalid": -0.25,
+    }
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)

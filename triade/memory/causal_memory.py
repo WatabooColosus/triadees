@@ -10,7 +10,7 @@ import json
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from triade.core.contracts import utc_now
 
@@ -68,15 +68,15 @@ class CausalEdge:
 class CausalMemory:
     """Gestor de memoria causal sobre kg_nodes/kg_edges existentes."""
 
-    VALID_NODE_TYPES = {"fact", "concept", "entity", "claim", "hypothesis"}
-    VALID_EVIDENCE_LEVELS = {
+    VALID_NODE_TYPES: ClassVar = {"fact", "concept", "entity", "claim", "hypothesis"}
+    VALID_EVIDENCE_LEVELS: ClassVar = {
         "candidate",
         "contested",
         "corroborated",
         "established",
         "canonical",
     }
-    VALID_RELATIONS = {
+    VALID_RELATIONS: ClassVar = {
         "supports",
         "contradicts",
         "refines",

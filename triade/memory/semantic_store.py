@@ -14,7 +14,7 @@ import sqlite3
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from uuid import uuid4
 
 
@@ -48,7 +48,12 @@ class SemanticEmbedding:
 
 
 class SemanticMemoryStore:
-    VALID_DOCUMENT_STATUSES = {"candidate", "experimental", "stable", "rejected"}
+    VALID_DOCUMENT_STATUSES: ClassVar = {
+        "candidate",
+        "experimental",
+        "stable",
+        "rejected",
+    }
 
     def __init__(
         self,

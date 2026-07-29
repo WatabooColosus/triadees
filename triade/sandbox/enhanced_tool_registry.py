@@ -7,6 +7,7 @@ import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import ClassVar
 
 from triade.core.contracts import utc_now
 
@@ -116,7 +117,7 @@ class EnhancedToolRegistry:
     """Tool registry con contratos formales, gestión de riesgo, versionado,
     auditoría y ejecución controlada."""
 
-    RISK_WEIGHTS = {"low": 0.1, "medium": 0.3, "high": 0.7, "critical": 1.0}
+    RISK_WEIGHTS: ClassVar = {"low": 0.1, "medium": 0.3, "high": 0.7, "critical": 1.0}
 
     def __init__(
         self, db_path: str | None = None, conn: sqlite3.Connection | None = None

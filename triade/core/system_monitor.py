@@ -4,6 +4,7 @@ disco, temperatura, red, con señales al Hipotálamo."""
 import json
 import sqlite3
 from datetime import UTC, datetime
+from typing import ClassVar
 
 from triade.core.contracts import utc_now
 
@@ -62,7 +63,7 @@ CREATE TABLE IF NOT EXISTS monitor_thresholds (
 class SystemMonitor:
     """Monitor completo del sistema con señales al Hipotálamo."""
 
-    DEFAULT_THRESHOLDS = {
+    DEFAULT_THRESHOLDS: ClassVar = {
         "cpu_percent": (80.0, 95.0),
         "ram_percent": (80.0, 95.0),
         "gpu_percent": (85.0, 98.0),

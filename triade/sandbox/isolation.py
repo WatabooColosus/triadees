@@ -13,7 +13,7 @@ import json
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 IsolationLevel = Literal["none", "restricted", "container"]
 
@@ -62,7 +62,7 @@ SANDBOX_DEFAULTS = SandboxLimits(
 class SandboxPolicy:
     """Política de sandbox con aislamiento por niveles."""
 
-    LEVEL_CONFIGS: dict[IsolationLevel, SandboxLimits] = {
+    LEVEL_CONFIGS: ClassVar[dict[IsolationLevel, SandboxLimits]] = {
         "none": SandboxLimits(
             cpu_seconds=60,
             memory_mb=1024,

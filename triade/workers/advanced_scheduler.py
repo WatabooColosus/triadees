@@ -15,7 +15,7 @@ import logging
 import sqlite3
 import time
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 
 from triade.core.contracts import utc_now
 
@@ -312,7 +312,7 @@ class AdvancedScheduler:
     """Scheduler con prioridades dinámicas, cuotas, leases, backoff,
     circuit breaker, DLQ y balanceo de carga."""
 
-    TASK_TYPES = [
+    TASK_TYPES: ClassVar = [
         "pulse_check",
         "pending_learning_review",
         "semantic_memory_governance",

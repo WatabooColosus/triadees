@@ -9,7 +9,7 @@ from __future__ import annotations
 import sqlite3
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from triade.runtime.resource_ledger import ResourceLedger
 
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS scheduler_metrics (
 class AdaptiveScheduler:
     """Planificador que ajusta intervalos según rendimiento histórico."""
 
-    DEFAULT_INTERVALS: dict[str, float] = {
+    DEFAULT_INTERVALS: ClassVar[dict[str, float]] = {
         "pulse_check": 30.0,
         "pending_learning_review": 120.0,
         "semantic_memory_governance": 180.0,

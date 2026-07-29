@@ -5,6 +5,7 @@ import hashlib
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import ClassVar
 
 from triade.core.contracts import utc_now
 
@@ -64,7 +65,7 @@ class SmartModelRouter:
     """Router inteligente con historial de rendimiento, dificultad de tarea,
     costo y selección basada en scoring compuesto."""
 
-    MODEL_RAM_GB = {
+    MODEL_RAM_GB: ClassVar = {
         "qwen3:1.7b": 2.5,
         "qwen2.5-coder:1.5b-base": 2.5,
         "qwen2.5:3b-instruct": 4.0,
@@ -82,7 +83,7 @@ class SmartModelRouter:
         "moondream:latest": 4.0,
     }
 
-    ROLE_MODELS = {
+    ROLE_MODELS: ClassVar = {
         "hypothalamus": ["qwen2.5:3b-instruct", "qwen3:1.7b", "qwen3:4b"],
         "central": ["qwen2.5:3b-instruct", "llama3:latest", "qwen3:4b"],
         "creator": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
@@ -94,7 +95,7 @@ class SmartModelRouter:
         "vision": ["llava:latest", "bakllava:latest", "moondream:latest"],
     }
 
-    DIFFICULTY_MAP = {
+    DIFFICULTY_MAP: ClassVar = {
         "trivial": "fast",
         "simple": "fast",
         "medium": "medium",

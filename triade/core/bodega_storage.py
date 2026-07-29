@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 
 class BodegaStorage:
-    CRYSTAL_V2_COLUMNS = {
+    CRYSTAL_V2_COLUMNS: ClassVar = {
         "pv7_score": "REAL DEFAULT 0.5",
         "stability": "REAL DEFAULT 0.5",
         "intensity": "REAL DEFAULT 0.5",

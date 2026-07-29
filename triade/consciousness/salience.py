@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 
 @dataclass(slots=True)
@@ -29,7 +29,7 @@ class SalienceEngine:
     db_path: str | Path = "triade/memory/triade.db"
     _mood_cache: dict[str, float] = field(default_factory=dict, init=False)
 
-    WEIGHTS = {
+    WEIGHTS: ClassVar = {
         "emotional": 0.30,
         "goal": 0.25,
         "novelty": 0.20,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from .neuron_missions import NeuronMissionStore
 from .neuron_registry import NeuronRegistry
@@ -19,7 +19,7 @@ class NeuronAutopromoter:
     """
 
     CANDIDATE_TO_EXPERIMENTAL_MIN_SCORE = 0.65
-    STABLE_THRESHOLDS = {
+    STABLE_THRESHOLDS: ClassVar = {
         "min_activations": 5,
         "min_diagnosis": 5,
         "min_test_plan": 3,

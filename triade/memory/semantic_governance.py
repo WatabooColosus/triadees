@@ -6,7 +6,7 @@ import json
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from triade.core.contracts import MemoryPacket, utc_now
 
@@ -28,8 +28,8 @@ class GovernanceDecision:
 
 
 class SemanticMemoryGovernance:
-    VALID_STATUSES = {"candidate", "experimental", "stable", "rejected"}
-    VALID_TRANSITIONS = {
+    VALID_STATUSES: ClassVar = {"candidate", "experimental", "stable", "rejected"}
+    VALID_TRANSITIONS: ClassVar = {
         "candidate": {"experimental", "rejected"},
         "experimental": {"stable", "candidate", "rejected"},
         "stable": {"rejected"},

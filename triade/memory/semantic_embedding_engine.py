@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from triade.models.ollama_client import EmbeddingResult, OllamaClient
 
@@ -73,7 +73,7 @@ class LocalEmbeddingProvider:
 class SemanticEmbeddingEngine:
     """Vectoriza documentos semánticos utilizando modelos locales instalados."""
 
-    PREFERRED_MODELS = [
+    PREFERRED_MODELS: ClassVar = [
         "nomic-embed-text:latest",
         "qwen3-embedding:0.6b",
         "nomic-embed-text",

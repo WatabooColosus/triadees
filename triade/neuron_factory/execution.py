@@ -8,7 +8,7 @@ import sqlite3
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from .candidate import NeuronCandidateFactory
 from .store import NeuronSpecificationStore
@@ -17,7 +17,7 @@ from .store import NeuronSpecificationStore
 class SandboxExecutionEngine:
     """Ejecuta políticas declarativas; no permite código arbitrario."""
 
-    SUPPORTED_POLICIES = {"configuration"}
+    SUPPORTED_POLICIES: ClassVar = {"configuration"}
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)

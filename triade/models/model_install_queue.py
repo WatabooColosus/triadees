@@ -8,7 +8,7 @@ fase posterior con autorización explícita.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 from .compatibility_matrix import ModelCompatibilityMatrix
 from .hardware_profile import HardwareProfile
@@ -35,7 +35,7 @@ class ModelInstallQueue:
 
     DISK_BUFFER_GB = 8.0
 
-    PRIORITY_BY_ROLE = {
+    PRIORITY_BY_ROLE: ClassVar = {
         "embedding": 10,
         "hypothalamus": 20,
         "central": 30,

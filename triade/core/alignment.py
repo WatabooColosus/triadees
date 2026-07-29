@@ -14,7 +14,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 
 @dataclass(slots=True)
@@ -55,7 +55,7 @@ def _init_params(cls: Any) -> set[str]:
 class CoreAlignment:
     """Diagnóstico teórico-técnico del núcleo Tríade (medido, no declarado)."""
 
-    EXPECTED_ARTIFACTS = {
+    EXPECTED_ARTIFACTS: ClassVar = {
         "input.json",
         "signals.json",
         "memory.json",

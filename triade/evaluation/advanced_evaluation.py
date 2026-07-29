@@ -6,7 +6,7 @@ import json
 import sqlite3
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 
 from triade.core.contracts import utc_now
 
@@ -196,7 +196,7 @@ class BenchmarkRunner:
 class MutationTester:
     """Mutation testing: genera mutantes del código y verifica si los tests los detectan."""
 
-    MUTATION_OPERATORS = [
+    MUTATION_OPERATORS: ClassVar = [
         ("negate_condition", "if (", "if not ("),
         ("swap_operators", "==", "!="),
         ("remove_return", "return ", "# return "),
@@ -296,7 +296,12 @@ class MutationTester:
 class RegressionDetector:
     """Detecta regresiones en tiempo real comparando valores baseline vs current."""
 
-    SEVERITY_THRESHOLDS = {"low": 0.05, "medium": 0.10, "high": 0.20, "critical": 0.30}
+    SEVERITY_THRESHOLDS: ClassVar = {
+        "low": 0.05,
+        "medium": 0.10,
+        "high": 0.20,
+        "critical": 0.30,
+    }
 
     def __init__(
         self, db_path: str | None = None, conn: sqlite3.Connection | None = None
@@ -376,7 +381,7 @@ class RegressionDetector:
 class QualityCompositor:
     """Calcula quality metrics compuestas multi-dimensión."""
 
-    WEIGHTS = {
+    WEIGHTS: ClassVar = {
         "correctness": 0.30,
         "completeness": 0.20,
         "performance": 0.15,
@@ -385,7 +390,7 @@ class QualityCompositor:
         "documentation": 0.10,
     }
 
-    GRADES = [
+    GRADES: ClassVar = [
         (0.95, "A+"),
         (0.90, "A"),
         (0.85, "A-"),

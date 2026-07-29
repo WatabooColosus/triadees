@@ -7,7 +7,7 @@ intención, urgencia y capacidad del sistema.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 from .hardware_profile import HardwareProfile
 
@@ -30,7 +30,7 @@ class ModelRouteDecision:
 class ModelRouter:
     """Recomienda modelos por rol según disponibilidad, intención y hardware."""
 
-    DEFAULTS = {
+    DEFAULTS: ClassVar = {
         "hypothalamus": ["qwen2.5:3b-instruct", "qwen3:1.7b", "qwen3:4b"],
         "central": ["qwen2.5:3b-instruct", "llama3:latest", "llama3.1:8b", "qwen3:4b"],
         "creator": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
@@ -41,7 +41,7 @@ class ModelRouter:
         "deep": ["llama3.1:8b", "llama3:latest", "qwen3:4b", "qwen2.5:3b-instruct"],
     }
 
-    MODEL_RAM_GB = {
+    MODEL_RAM_GB: ClassVar = {
         "qwen3:1.7b": 2.5,
         "qwen2.5-coder:1.5b-base": 2.5,
         "qwen2.5:3b-instruct": 4.0,

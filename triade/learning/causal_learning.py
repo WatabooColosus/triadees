@@ -6,6 +6,7 @@ import hashlib
 import json
 import sqlite3
 from datetime import UTC, datetime
+from typing import ClassVar
 
 from triade.core.contracts import utc_now
 
@@ -227,7 +228,7 @@ class CausalLearningEngine:
 class KnowledgeGranularStates:
     """Estados granulares de conocimiento con transiciones auditables."""
 
-    VALID_TRANSITIONS = {
+    VALID_TRANSITIONS: ClassVar = {
         "candidate": {"experimental", "deprecated", "quarantined"},
         "experimental": {"validated", "deprecated", "quarantined"},
         "validated": {"stable", "deprecated", "quarantined"},

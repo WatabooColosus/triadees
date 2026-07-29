@@ -11,7 +11,7 @@ import json
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from triade.core.contracts import utc_now
 
@@ -79,7 +79,7 @@ class SignedReport:
 class ProlongedValidator:
     """Motor de validación prolongada con ventanas de 24h a 30d."""
 
-    WINDOW_SECONDS: dict[ValidationWindow, float] = {
+    WINDOW_SECONDS: ClassVar[dict[ValidationWindow, float]] = {
         "24h": 86400,
         "72h": 259200,
         "7d": 604800,
