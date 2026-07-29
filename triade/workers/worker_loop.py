@@ -34,6 +34,7 @@ from triade.qualia.contracts import NeuronExperience
 from triade.runtime.event_scheduler import EventDrivenScheduler
 from triade.runtime.execution_result import ExecutionResult
 from triade.runtime.governed_task_executor import GovernedTaskExecutor
+from triade.runtime.lease_heartbeat import LeaseHeartbeat
 from triade.runtime.live_heartbeat import LiveHeartbeat
 from triade.runtime.resource_ledger import ResourceLedger
 from triade.runtime.task_leases import AutonomousTaskStore
@@ -419,6 +420,7 @@ class WorkerLoop:
     ) -> dict[str, Any]:
         """Ejecuta una tarea solo después de adquirir su lease v2."""
         autonomous_task_id = str(leased["task_id"])
+        lease_generation = int(leased["lease_generation"])
         payload = dict(leased.get("payload") or {})
         legacy_id = payload.pop("_legacy_task_id", None)
         task = WorkerTask(
@@ -427,10 +429,21 @@ class WorkerLoop:
             payload=payload,
             priority=int(leased.get("priority") or 50),
         )
-        if not self.autonomous_tasks.start(autonomous_task_id, run_ref):
+        if not self.autonomous_tasks.start(
+            autonomous_task_id, run_ref, lease_generation
+        ):
             result = {"status": "error", "error": "autonomous_lease_lost"}
         else:
-            result = self._execute_task(task, run_ref, artifact_dir, config)
+            heartbeat = LeaseHeartbeat(
+                self.autonomous_tasks,
+                autonomous_task_id,
+                run_ref,
+                lease_generation,
+                max(60, int(config.task_timeout * 2)),
+            )
+            result = self._execute_task(
+                task, run_ref, artifact_dir, config, lease_heartbeat=heartbeat
+            )
 
         result_ref = str(
             artifact_dir
@@ -457,7 +470,7 @@ class WorkerLoop:
             }
 
         transitioned = self._persist_execution_result(
-            autonomous_task_id, run_ref, execution, result_ref
+            autonomous_task_id, run_ref, lease_generation, execution, result_ref
         )
         if not transitioned:
             execution = ExecutionResult(
@@ -538,32 +551,47 @@ class WorkerLoop:
         self,
         task_id: str,
         worker_id: str,
+        lease_generation: int,
         execution: ExecutionResult,
         result_ref: str,
     ) -> bool:
         reason = execution.message or execution.error_code or execution.status
         if execution.status == "completed":
-            return self.autonomous_tasks.complete(task_id, worker_id, result_ref)
+            return self.autonomous_tasks.complete(
+                task_id, worker_id, lease_generation, result_ref
+            )
         if execution.status == "blocked":
-            return self.autonomous_tasks.block(task_id, worker_id, reason)
+            return self.autonomous_tasks.block(task_id, worker_id, lease_generation, reason)
         if execution.status == "skipped":
-            return self.autonomous_tasks.skip(task_id, worker_id, reason)
+            return self.autonomous_tasks.skip(task_id, worker_id, lease_generation, reason)
         if execution.status == "dry_run":
-            return self.autonomous_tasks.mark_dry_run(task_id, worker_id, reason)
+            return self.autonomous_tasks.mark_dry_run(
+                task_id, worker_id, lease_generation, reason
+            )
         if execution.status == "observed":
-            return self.autonomous_tasks.mark_observed(task_id, worker_id, reason)
+            return self.autonomous_tasks.mark_observed(
+                task_id, worker_id, lease_generation, reason
+            )
         if execution.status == "cancelled":
-            return self.autonomous_tasks.cancel(task_id, worker_id, reason)
+            return self.autonomous_tasks.cancel(task_id, worker_id, lease_generation, reason)
         if execution.status == "deferred":
-            return self.autonomous_tasks.defer(task_id, worker_id, reason)
+            return self.autonomous_tasks.defer(task_id, worker_id, lease_generation, reason)
         if execution.status == "timeout":
             return self.autonomous_tasks.mark_timeout(
-                task_id, worker_id, reason, retryable=execution.retryable
+                task_id,
+                worker_id,
+                lease_generation,
+                reason,
+                retryable=execution.retryable,
             )
         if execution.status == "lease_lost":
-            return self.autonomous_tasks.mark_lease_lost(task_id, worker_id, reason)
+            return self.autonomous_tasks.mark_lease_lost(
+                task_id, worker_id, lease_generation, reason
+            )
         if execution.status in {"failed", "dead_letter"}:
-            failed = self.autonomous_tasks.fail(task_id, worker_id, reason)
+            failed = self.autonomous_tasks.fail(
+                task_id, worker_id, lease_generation, reason
+            )
             return failed.get("status") != "not_owner"
         raise ValueError(f"unknown_execution_status:{execution.status}")
 
@@ -591,6 +619,8 @@ class WorkerLoop:
         run_ref: str,
         artifact_dir: Path,
         config: WorkerRunConfig,
+        *,
+        lease_heartbeat: LeaseHeartbeat | None = None,
     ) -> dict[str, Any]:
         started = time.monotonic()
         goal_task = bool(task.payload.get("goal_id"))
@@ -702,6 +732,10 @@ class WorkerLoop:
                     args=(task, run_ref, task_dir, config),
                     timeout_seconds=config.task_timeout,
                     artifact_dir=task_dir,
+                    heartbeat=lease_heartbeat.renew if lease_heartbeat else None,
+                    heartbeat_interval_seconds=(
+                        lease_heartbeat.interval_seconds if lease_heartbeat else 15.0
+                    ),
                 )
                 if outcome.status == "timeout":
                     result = {
@@ -712,6 +746,13 @@ class WorkerLoop:
                         "quarantine_ref": outcome.quarantine_ref,
                         "stdout_ref": outcome.stdout_ref,
                         "stderr_ref": outcome.stderr_ref,
+                    }
+                elif outcome.status == "lease_lost":
+                    result = {
+                        "status": "lease_lost",
+                        "error": outcome.error,
+                        "termination_signal": outcome.termination_signal,
+                        "quarantine_ref": outcome.quarantine_ref,
                     }
                 elif outcome.status == "failed":
                     result = {
@@ -746,6 +787,7 @@ class WorkerLoop:
                     "cancelled",
                     "failed",
                     "timeout",
+                    "lease_lost",
                 }:
                     persisted_status = (
                         "failed" if result_status == "error" else result_status

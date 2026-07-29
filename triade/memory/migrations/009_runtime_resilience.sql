@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS autonomous_tasks (
     lease_acquired_at TEXT,
     lease_expires_at TEXT,
     heartbeat_at TEXT,
+    lease_generation INTEGER NOT NULL DEFAULT 0,
     attempt INTEGER NOT NULL DEFAULT 0,
     max_attempts INTEGER NOT NULL DEFAULT 3,
     retry_after TEXT,

@@ -65,8 +65,16 @@ def test_timeout_produces_retry_or_dead_letter(tmp_path: Path) -> None:
     store = AutonomousTaskStore(tmp_path / "tasks.db")
     task = store.enqueue("pulse_check", {}, idempotency_key="timeout", max_attempts=1)
     claimed = store.claim("worker")
-    assert claimed and store.start(task["task_id"], "worker")
-    assert store.mark_timeout(task["task_id"], "worker", "deadline", retryable=True)
+    assert claimed and store.start(
+        task["task_id"], "worker", claimed["lease_generation"]
+    )
+    assert store.mark_timeout(
+        task["task_id"],
+        "worker",
+        claimed["lease_generation"],
+        "deadline",
+        retryable=True,
+    )
     assert store.get(task["task_id"])["status"] == "dead_letter"
 
 

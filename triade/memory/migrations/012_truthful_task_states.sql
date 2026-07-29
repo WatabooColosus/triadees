@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS autonomous_task_transitions (
     transition_id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id TEXT NOT NULL,
     worker_id TEXT,
+    lease_generation INTEGER NOT NULL DEFAULT 0,
     from_status TEXT NOT NULL,
     to_status TEXT NOT NULL,
     reason TEXT,

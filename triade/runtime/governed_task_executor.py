@@ -101,6 +101,8 @@ class GovernedTaskExecutor:
         kwargs: dict[str, Any] | None = None,
         timeout_seconds: float,
         artifact_dir: str | Path,
+        heartbeat: Callable[[], bool] | None = None,
+        heartbeat_interval_seconds: float = 15.0,
     ) -> GovernedExecutionOutcome:
         artifact = Path(artifact_dir)
         artifact.mkdir(parents=True, exist_ok=True)
@@ -125,14 +127,28 @@ class GovernedTaskExecutor:
         started = time.monotonic()
         process.start()
         send.close()
-        process.join(max(0.001, timeout_seconds))
+        deadline = started + max(0.001, timeout_seconds)
+        next_heartbeat = started + max(0.01, heartbeat_interval_seconds)
+        lease_lost = False
+        while process.is_alive():
+            now = time.monotonic()
+            if now >= deadline:
+                break
+            wait_until = min(deadline, next_heartbeat) if heartbeat else deadline
+            process.join(max(0.001, wait_until - now))
+            now = time.monotonic()
+            if process.is_alive() and heartbeat and now >= next_heartbeat:
+                if not heartbeat():
+                    lease_lost = True
+                    break
+                next_heartbeat = now + max(0.01, heartbeat_interval_seconds)
         if process.is_alive():
             termination_signal = self.terminate(process)
             quarantine = self.quarantine_partial_artifacts(artifact)
             return GovernedExecutionOutcome(
-                status="timeout",
+                status="lease_lost" if lease_lost else "timeout",
                 executed=True,
-                error="task_timeout",
+                error="lease_renewal_rejected" if lease_lost else "task_timeout",
                 exit_code=process.exitcode,
                 termination_signal=termination_signal,
                 stdout_ref=str(quarantine / "stdout.log"),

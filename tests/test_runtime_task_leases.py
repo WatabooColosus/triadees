@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from triade.runtime.task_leases import AutonomousTaskStore
 
@@ -42,7 +42,7 @@ def test_expired_lease_is_recovered_and_reclaimed(tmp_path):
     store = AutonomousTaskStore(path)
     task = store.enqueue("research", {}, idempotency_key="recover")
     assert store.claim("dead-worker", lease_seconds=30)
-    expired = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    expired = (datetime.now(UTC) - timedelta(seconds=1)).isoformat()
     with sqlite3.connect(path) as conn:
         conn.execute(
             "UPDATE autonomous_tasks SET lease_expires_at=? WHERE task_id=?",
@@ -60,11 +60,15 @@ def test_retry_backoff_then_dead_letter(tmp_path):
     task = store.enqueue("research", {}, idempotency_key="retry", max_attempts=2)
     claimed = store.claim("w")
     assert claimed
-    retry = store.fail(task["task_id"], "w", "temporary", base_delay_seconds=0)
+    retry = store.fail(
+        task["task_id"], "w", claimed["lease_generation"], "temporary", base_delay_seconds=0
+    )
     assert retry["status"] == "retry_wait"
     claimed = store.claim("w")
     assert claimed
-    dead = store.fail(task["task_id"], "w", "again", base_delay_seconds=0)
+    dead = store.fail(
+        task["task_id"], "w", claimed["lease_generation"], "again", base_delay_seconds=0
+    )
     assert dead["status"] == "dead_letter"
     assert store.claim("other") is None
 
@@ -72,10 +76,12 @@ def test_retry_backoff_then_dead_letter(tmp_path):
 def test_non_owner_cannot_complete_or_renew(tmp_path):
     store = AutonomousTaskStore(tmp_path / "tasks.db")
     task = store.enqueue("research", {}, idempotency_key="owned")
-    store.claim("owner")
-    assert store.renew(task["task_id"], "intruder") is False
-    assert store.complete(task["task_id"], "intruder", "x") is False
-    assert store.complete(task["task_id"], "owner", "artifact:1") is True
+    claimed = store.claim("owner")
+    assert claimed
+    generation = claimed["lease_generation"]
+    assert store.renew(task["task_id"], "intruder", generation) is False
+    assert store.complete(task["task_id"], "intruder", generation, "x") is False
+    assert store.complete(task["task_id"], "owner", generation, "artifact:1") is True
 
 
 def test_claim_specific_task_is_atomic(tmp_path):

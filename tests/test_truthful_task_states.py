@@ -14,29 +14,34 @@ def _running(store: AutonomousTaskStore, key: str) -> dict:
     task = store.enqueue("pulse_check", {}, idempotency_key=key)
     claimed = store.claim("worker")
     assert claimed and claimed["task_id"] == task["task_id"]
-    assert store.start(task["task_id"], "worker")
-    return task
+    generation = int(claimed["lease_generation"])
+    assert store.start(task["task_id"], "worker", generation)
+    return {**task, "lease_generation": generation}
 
 
 def test_blocked_task_never_completes(tmp_path: Path) -> None:
     store = AutonomousTaskStore(tmp_path / "tasks.db")
     task = _running(store, "blocked")
-    assert store.block(task["task_id"], "worker", "policy_denied")
+    assert store.block(task["task_id"], "worker", task["lease_generation"], "policy_denied")
     assert store.get(task["task_id"])["status"] == "blocked"
-    assert not store.complete(task["task_id"], "worker", "result.json")
+    assert not store.complete(
+        task["task_id"], "worker", task["lease_generation"], "result.json"
+    )
 
 
 def test_skipped_task_never_completes(tmp_path: Path) -> None:
     store = AutonomousTaskStore(tmp_path / "tasks.db")
     task = _running(store, "skipped")
-    assert store.skip(task["task_id"], "worker", "not_due")
+    assert store.skip(task["task_id"], "worker", task["lease_generation"], "not_due")
     assert store.get(task["task_id"])["status"] == "skipped"
 
 
 def test_dry_run_never_completes(tmp_path: Path) -> None:
     store = AutonomousTaskStore(tmp_path / "tasks.db")
     task = _running(store, "dry-run")
-    assert store.mark_dry_run(task["task_id"], "worker", "dry_run_requested")
+    assert store.mark_dry_run(
+        task["task_id"], "worker", task["lease_generation"], "dry_run_requested"
+    )
     assert store.get(task["task_id"])["status"] == "dry_run"
 
 
@@ -50,7 +55,9 @@ def test_observed_task_never_claims_execution() -> None:
 def test_only_completed_path_marks_completed(tmp_path: Path) -> None:
     store = AutonomousTaskStore(tmp_path / "tasks.db")
     task = _running(store, "completed")
-    assert store.complete(task["task_id"], "worker", "result.json")
+    assert store.complete(
+        task["task_id"], "worker", task["lease_generation"], "result.json"
+    )
     assert store.get(task["task_id"])["status"] == "completed"
 
 
