@@ -12,8 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
-from triade.os.contracts import EventRule, SEVERITY_ORDER
-
+from triade.os.contracts import SEVERITY_ORDER, EventRule
 
 # ── Reglas built-in ──────────────────────────────────────────
 
@@ -120,8 +119,7 @@ class EventEngine:
 
         for event in events:
             eid = int(event["id"])
-            if eid > max_id:
-                max_id = eid
+            max_id = max(max_id, eid)
 
             event_type = event["event_type"] or ""
             severity = event["severity"] or "ok"

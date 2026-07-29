@@ -34,11 +34,11 @@ from uuid import uuid4
 from triade.core.contracts import utc_now
 from triade.core.model_policy import get_model_cognitive_policy
 from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
-from triade.models.ollama_client import check_ollama_cognitive_health
+from triade.learning.evidence_bridge import LearningEvidenceBridge
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.memory.trust_store import TrustLevelStore
-from triade.learning.evidence_bridge import LearningEvidenceBridge
+from triade.models.ollama_client import check_ollama_cognitive_health
 
 RISK_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 VALID_SOURCE_TYPES = {

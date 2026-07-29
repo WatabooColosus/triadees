@@ -14,7 +14,7 @@ import json
 import logging
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from triade.core.contracts import utc_now
@@ -238,7 +238,7 @@ class TaskLease:
         now = utc_now()
         try:
             expires_ts = datetime.fromisoformat(now).timestamp() + ttl_seconds
-            expires_at = datetime.fromtimestamp(expires_ts, tz=timezone.utc).isoformat()
+            expires_at = datetime.fromtimestamp(expires_ts, tz=UTC).isoformat()
         except Exception:
             expires_at = now
         existing = self._conn.execute(

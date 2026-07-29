@@ -15,7 +15,7 @@ from triade.core.integrity_verifier import (
     verify_integrity_change,
 )
 from triade.core.quarantine_trash import trash_path
-from triade.core.system_zones import classify_path, REPO_ROOT
+from triade.core.system_zones import REPO_ROOT, classify_path
 
 EVENT_SOURCE = "safe_file_ops"
 SUSPICIOUS_EXTENSIONS = {".exe", ".bat", ".sh", ".dll", ".so", ".dylib", ".bin", ".elf"}

@@ -213,7 +213,8 @@ def test_react_dashboard_contains_system_processes():
 def test_repo_runtime_status_uses_whitelist_no_shell():
     """build_repo_runtime_status usa solo comandos whitelist con shell=False."""
     import inspect
-    from triade.core.repo_runtime_status import build_repo_runtime_status, _run_git
+
+    from triade.core.repo_runtime_status import _run_git, build_repo_runtime_status
 
     src = inspect.getsource(_run_git)
     assert "shell=False" in src, "_run_git debe usar shell=False"

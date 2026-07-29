@@ -5,13 +5,12 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-
 from triade.core.neuron_missions import (
-    NeuronMission,
-    NeuronWorkCycle,
     NeuronEvidence,
-    NeuronScore,
+    NeuronMission,
     NeuronMissionStore,
+    NeuronScore,
+    NeuronWorkCycle,
 )
 
 

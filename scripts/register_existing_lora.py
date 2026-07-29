@@ -1,8 +1,12 @@
 """Registra datasets y adaptadores existentes sin activarlos."""
 from __future__ import annotations
-import hashlib,json
+
+import hashlib
+import json
 from pathlib import Path
+
 from triade.core.governed_datasets import GovernedDatasets
+
 
 def main():
  g=GovernedDatasets(); source=Path("data/lora/triade_continuity_smoke.jsonl")

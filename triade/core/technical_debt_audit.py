@@ -12,7 +12,6 @@ from typing import Any
 
 from triade.core.life_pulse import LIFE_PULSE
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 

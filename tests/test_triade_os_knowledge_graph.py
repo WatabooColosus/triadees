@@ -9,7 +9,6 @@ import pytest
 
 from triade.os.knowledge_graph import KnowledgeGraph
 
-
 SCHEMA_SQL = Path(__file__).resolve().parents[1] / "triade" / "memory" / "schemas.sql"
 MIGRATION_005 = (
     Path(__file__).resolve().parents[1]

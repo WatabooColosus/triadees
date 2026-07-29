@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-
 import pytest
 
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_search import SemanticSearchEngine
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.models.ollama_client import EmbeddingResult
-
 
 MIGRATION = "triade/memory/migrations/001_9A_semantic_memory.sql"
 MODEL = "nomic-embed-text:latest"

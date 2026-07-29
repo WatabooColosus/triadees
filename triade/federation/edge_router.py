@@ -9,13 +9,12 @@ el nodo ejecuta con sus propios recursos, y devuelve resultado auditable.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from typing import Any, Dict, Optional, Tuple
 import json
 import time
 import urllib.error
 import urllib.request
-
+from dataclasses import asdict, dataclass
+from typing import Any
 
 LIGHTWEIGHT_TASKS = {
     "preprocess_text",
@@ -40,7 +39,7 @@ class EdgeNodeLease:
     edge_ram_available_gb: float
     model_runtime_backend: str
     allowed_tasks: list[str]
-    raw: Dict[str, Any]
+    raw: dict[str, Any]
 
     @property
     def is_ready(self) -> bool:
@@ -74,7 +73,7 @@ class EdgeRouter:
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
 
-    def get_resource_lease(self) -> Dict[str, Any]:
+    def get_resource_lease(self) -> dict[str, Any]:
         return self._request_json(
             "GET", "/api/federation/resource-lease?sync_relay=true"
         )
@@ -109,7 +108,7 @@ class EdgeRouter:
 
     def select_node(
         self, task: str = "android_local_generate"
-    ) -> Optional[EdgeNodeLease]:
+    ) -> EdgeNodeLease | None:
         for node in self.list_edge_llm_nodes():
             if not node.is_ready:
                 continue
@@ -122,7 +121,7 @@ class EdgeRouter:
 
     def should_route_to_edge(
         self, task: str, text: str, max_chars: int = 2500
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         if task not in LIGHTWEIGHT_TASKS:
             return False, "task_not_lightweight"
         if not text or not text.strip():
@@ -140,7 +139,7 @@ class EdgeRouter:
         max_tokens: int = 80,
         context_tokens: int = 2048,
         wait_timeout: int = 120,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         started = time.time()
         payload = {
             "prompt": prompt,
@@ -165,8 +164,8 @@ class EdgeRouter:
         return result
 
     def run_lightweight_task(
-        self, task: str, text: str, instruction: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, task: str, text: str, instruction: str | None = None
+    ) -> dict[str, Any]:
         should_route, reason = self.should_route_to_edge(task, text)
         if not should_route:
             return {
@@ -192,7 +191,7 @@ class EdgeRouter:
             prompt=prompt, max_tokens=96, context_tokens=2048
         )
 
-    def semantic_summary(self) -> Dict[str, Any]:
+    def semantic_summary(self) -> dict[str, Any]:
         node = self.select_node("android_local_generate")
         return {
             "mode": "task_parallel_edge_federation",
@@ -233,9 +232,9 @@ class EdgeRouter:
         self,
         method: str,
         path: str,
-        payload: Optional[Dict[str, Any]] = None,
-        timeout: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        payload: dict[str, Any] | None = None,
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
         url = self.base_url + path
         data = None
         headers = {"Accept": "application/json"}
@@ -266,11 +265,11 @@ class EdgeRouter:
             }
 
 
-def edge_semantics() -> Dict[str, Any]:
+def edge_semantics() -> dict[str, Any]:
     return EdgeRouter().semantic_summary()
 
 
-def edge_generate(prompt: str, max_tokens: int = 80) -> Dict[str, Any]:
+def edge_generate(prompt: str, max_tokens: int = 80) -> dict[str, Any]:
     return EdgeRouter().generate_on_android(prompt=prompt, max_tokens=max_tokens)
 
 

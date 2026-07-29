@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 CORE_TESTS = [
     "tests/test_neuron_governance_cycle.py",
     "tests/test_experimental_neuron_runtime.py",
@@ -118,7 +117,9 @@ def import_runtime_reports() -> dict[str, Any]:
     }
 
     try:
-        from triade.core.experimental_neuron_evidence import build_experimental_evidence_ledger
+        from triade.core.experimental_neuron_evidence import (
+            build_experimental_evidence_ledger,
+        )
 
         ledger = build_experimental_evidence_ledger(runs_dir="runs", limit=100)
         result["experimental_evidence"] = ledger.get("summary")

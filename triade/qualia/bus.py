@@ -7,7 +7,11 @@ from typing import Any
 
 from triade.learning.pipeline import LearningPipeline
 
+from .continuity import ContinuityEngine
 from .contracts import NeuronExperience, QualiaState
+from .fragmentation import FragmentationDetector
+from .introspection import IntrospectionReport, QualiaIntrospector
+from .meaning import MeaningEngine
 from .qualia_packet import (
     ContinuityChain,
     FragmentationReport,
@@ -15,10 +19,6 @@ from .qualia_packet import (
     QualiaPacket,
     build_qualia_packet,
 )
-from .continuity import ContinuityEngine
-from .meaning import MeaningEngine
-from .fragmentation import FragmentationDetector
-from .introspection import IntrospectionReport, QualiaIntrospector
 from .reports import build_qualia_report
 from .router import QualiaBundle, QualiaRouter
 from .state import compute_qualia_state

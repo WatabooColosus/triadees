@@ -6,7 +6,6 @@ import pytest
 
 from triade.evolution import EvolutionLab, EvolutionPolicy, Stage
 
-
 DOMAINS = EvolutionPolicy().required_domains
 
 

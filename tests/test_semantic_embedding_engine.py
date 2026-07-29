@@ -6,7 +6,6 @@ from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.models.ollama_client import EmbeddingResult
 
-
 MIGRATION = "triade/memory/migrations/001_9A_semantic_memory.sql"
 
 

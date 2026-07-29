@@ -11,7 +11,6 @@ from typing import Any
 from .neuron_creator import NeuronCreator, NeuronSpec
 from .neuron_trainer import NeuronTrainer
 
-
 FORBIDDEN_ACTIONS = [
     "modify_repo_directly",
     "write_stable_memory",

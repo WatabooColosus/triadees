@@ -10,14 +10,14 @@ import os
 import random
 import re
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable
-
+from typing import Any
 
 PII = re.compile(
     r"(?:\b\d{3}-\d{2}-\d{4}\b|\b(?:sk-|ghp_|AIza)[A-Za-z0-9_-]{12,}|password\s*[:=]|contrase(?:ña|na)\s*[:=])",
-    re.I,
+    re.IGNORECASE,
 )
 
 

@@ -7,7 +7,7 @@ from .worker_loop import WorkerLoop
 
 __all__ = [
     "WorkerBackgroundService",
+    "WorkerLoop",
     "WorkerScheduler",
     "WorkerStateStore",
-    "WorkerLoop",
 ]

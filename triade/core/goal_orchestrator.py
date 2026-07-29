@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import json
 import sqlite3
+from pathlib import Path
 from typing import Any
 
 from triade.workers.task_queue import WorkerTaskQueue

@@ -16,7 +16,6 @@ from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.core.neuron_registry import NeuronRegistry
 from triade.services.event_bus import publish_event
 
-
 DEFAULT_THRESHOLDS = {
     "min_activations": 5,
     "min_diagnosis": 5,

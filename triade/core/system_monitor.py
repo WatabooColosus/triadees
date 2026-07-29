@@ -3,7 +3,7 @@ disco, temperatura, red, con señales al Hipotálamo."""
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from triade.core.contracts import utc_now
 
@@ -11,7 +11,7 @@ from triade.core.contracts import utc_now
 def _gen_id(prefix: str) -> str:
     import hashlib
 
-    return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(timezone.utc).timestamp()).encode()).hexdigest()[:6]}"
+    return f"{prefix}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(UTC).timestamp()).encode()).hexdigest()[:6]}"
 
 
 SCHEMA_SQL = """
@@ -305,8 +305,8 @@ class SystemMonitor:
     def get_models_status(self) -> dict:
         """Check Ollama models status."""
         try:
-            import urllib.request
             import json as _json
+            import urllib.request
 
             req = urllib.request.Request(
                 "http://127.0.0.1:11434/api/tags", method="GET"

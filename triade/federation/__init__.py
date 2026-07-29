@@ -9,14 +9,15 @@ from .exchange import (
 )
 from .federation import Federation
 from .registry import (
-    FederatedNodeIdentity,
-    FederatedNodeRegistry,
     VALID_PERMISSIONS,
     VALID_STATES,
+    FederatedNodeIdentity,
+    FederatedNodeRegistry,
 )
 
 __all__ = [
-    "Federation",
+    "VALID_PERMISSIONS",
+    "VALID_STATES",
     "FederatedDispatcher",
     "FederatedEnvelope",
     "FederatedEvidenceGate",
@@ -24,7 +25,6 @@ __all__ = [
     "FederatedNodeIdentity",
     "FederatedNodeRegistry",
     "FederatedWorkBudget",
+    "Federation",
     "HMACEnvelopeAuthenticator",
-    "VALID_PERMISSIONS",
-    "VALID_STATES",
 ]

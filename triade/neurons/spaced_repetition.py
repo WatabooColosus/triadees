@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 
 def next_review_for(result: str, *, changing_knowledge: bool = False) -> str:
@@ -16,4 +16,4 @@ def next_review_for(result: str, *, changing_knowledge: bool = False) -> str:
     if changing_knowledge:
         days = min(days or 1, 7)
     delay = timedelta(minutes=30) if days == 0 else timedelta(days=days)
-    return (datetime.now(timezone.utc) + delay).isoformat()
+    return (datetime.now(UTC) + delay).isoformat()

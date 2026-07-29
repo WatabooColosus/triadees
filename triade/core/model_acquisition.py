@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import shutil
 import hashlib
 import os
+import shutil
 import sqlite3
 import subprocess
 import threading
@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from triade.models.ollama_client import OllamaClient
-
 
 MODEL_CATALOG: dict[str, dict[str, Any]] = {
     "qwen3:4b": {

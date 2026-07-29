@@ -7,7 +7,6 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-
 MEMORY_QUESTION = re.compile(
     r"\b(recuerd|memoria|sesiones?|contexto anterior|olvid|persist|fuera de (?:la|cada) sesi[oó]n)\w*\b",
     re.IGNORECASE,

@@ -28,7 +28,8 @@ class Crystal:
         continuity = packet.continuity
         fragmentation = packet.fragmentation
 
-        from .contracts import MemoryPacket as _MP, SignalPacket as _SP
+        from .contracts import MemoryPacket as _MP
+        from .contracts import SignalPacket as _SP
 
         pv7_raw: dict[str, float] = {}
         if signal:

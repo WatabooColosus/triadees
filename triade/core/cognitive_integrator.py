@@ -23,8 +23,8 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
+from triade.core.constitution import GLOBAL_CONSTITUTION, Constitution
 from triade.core.contracts import utc_now
-from triade.core.constitution import Constitution, GLOBAL_CONSTITUTION
 
 log = logging.getLogger(__name__)
 

@@ -13,7 +13,6 @@ from typing import Any
 from .neuron_creator import NeuronCreator
 from .neuron_trainer import NeuronTrainer
 
-
 DEFAULT_INPUTS = [
     "system_pulse_summary",
     "system_events",

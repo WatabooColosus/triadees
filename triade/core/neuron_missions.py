@@ -19,7 +19,6 @@ from typing import Any
 
 from triade.core.contracts import utc_now
 
-
 # ── Dataclasses ──────────────────────────────────────────────────────────────
 
 

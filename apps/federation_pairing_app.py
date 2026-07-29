@@ -11,9 +11,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
-from triade.federation.federation import Federation
 from triade.core.repo_info import repo_info
-
+from triade.federation.federation import Federation
 
 DB_PATH = os.environ.get("TRIADE_DB_PATH", "triade/memory/triade.db")
 PAIRING_TOKEN = os.environ.get("TRIADE_PAIRING_TOKEN", "")

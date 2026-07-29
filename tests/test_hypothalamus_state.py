@@ -6,12 +6,11 @@ import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock
 
-
 from triade.core.contracts import InputPacket, SignalPacket
 from triade.core.hypothalamus import Hypothalamus
 from triade.memory.hypothalamus_store import (
-    HypothalamusStateStore,
     EmotionalState,
+    HypothalamusStateStore,
     compute_primary_emotion,
     fatigue_decay,
     mood_from_signals,

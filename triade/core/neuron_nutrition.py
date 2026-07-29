@@ -14,7 +14,6 @@ from triade.services.event_bus import publish_event
 from triade.workers.contracts import WorkerRunConfig
 from triade.workers.neuron_mission_executor import NeuronMissionExecutor
 
-
 SAFE_NUTRITION_ACTIONS = {"observe", "diagnose", "propose_learning"}
 ACTIVE_MISSION_STATUSES = {"experimental", "stable"}
 

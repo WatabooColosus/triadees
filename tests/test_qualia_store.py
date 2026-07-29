@@ -1,11 +1,11 @@
 from pathlib import Path
 
 from triade.qualia.contracts import (
+    CentralKnowledgePacket,
     NeuronExperience,
     QualiaSignal,
-    CentralKnowledgePacket,
-    StorageMemoryPacket,
     QualiaState,
+    StorageMemoryPacket,
 )
 from triade.qualia.router import QualiaRouter
 from triade.qualia.store import QualiaStore

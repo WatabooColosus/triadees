@@ -19,7 +19,6 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-
 DB_PATH = Path(os.environ.get("TRIADE_RELAY_DB", "triade/memory/public_relay.db"))
 PAIRING_TOKEN = os.environ.get("TRIADE_RELAY_PAIRING_TOKEN", "")
 ADMIN_TOKEN = os.environ.get("TRIADE_RELAY_ADMIN_TOKEN", "")

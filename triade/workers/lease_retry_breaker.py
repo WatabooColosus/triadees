@@ -11,6 +11,7 @@ import random
 import sqlite3
 import time
 from dataclasses import asdict, dataclass
+from datetime import UTC
 from pathlib import Path
 from typing import Any, Literal
 
@@ -165,10 +166,10 @@ class CircuitBreaker:
     @property
     def state(self) -> CircuitState:
         if self._state == "open" and self._opened_at:
-            from datetime import datetime, timezone
+            from datetime import datetime
 
             opened = datetime.fromisoformat(self._opened_at.replace("Z", "+00:00"))
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             if (now - opened).total_seconds() > self.recovery_timeout:
                 self._state = "half_open"
                 self._success_count = 0

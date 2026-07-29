@@ -1,11 +1,11 @@
 import os
-import yaml
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import yaml
 from fastapi.testclient import TestClient
-from apps.single_port_app import app
 
+from apps.single_port_app import app
 
 # ── Tests de configuración ──────────────────────────────────────────────────
 
@@ -182,7 +182,7 @@ class TestBuildAlwaysOnStatus:
 
     def test_build_status_enabled_not_running(self):
         """Estado cuando always-on está habilitado pero no corriendo."""
-        from triade.core.always_on import build_always_on_status, _ALWAYS_ON_STATE
+        from triade.core.always_on import _ALWAYS_ON_STATE, build_always_on_status
 
         with patch.dict(os.environ, {"TRIADE_ALWAYS_ON": "true"}, clear=True):
             _ALWAYS_ON_STATE.clear()
@@ -245,7 +245,7 @@ class TestAlwaysOnStartup:
         monkeypatch.setattr(
             ao,
             "get_internal_runtime_supervisor",
-            lambda **_kw: MagicMock(snapshot=lambda: {}),
+            lambda **_kw: MagicMock(snapshot=dict),
         )
         import triade.core.ollama_blood as blood_mod
         import triade.core.resource_probe as probe_mod
@@ -259,7 +259,7 @@ class TestAlwaysOnStartup:
                 "can_embed": True,
             },
         )
-        monkeypatch.setattr(probe_mod, "build_resource_probe", lambda: {})
+        monkeypatch.setattr(probe_mod, "build_resource_probe", dict)
 
         result = ao.start_always_on_if_enabled()
 
@@ -491,10 +491,10 @@ class TestHeartbeatAlwaysOn:
 
     def test_heartbeat_truth_full_local_guarded_degraded(self, monkeypatch):
         """Heartbeat muestra degradación de full_local_guarded por gobernador."""
-        from triade.core.internal_runtime import build_runtime_heartbeat
-        import triade.core.internal_runtime as rt
         import triade.core.always_on as ao
+        import triade.core.internal_runtime as rt
         import triade.core.worker_autostart as wa
+        from triade.core.internal_runtime import build_runtime_heartbeat
 
         class AliveThread:
             def is_alive(self):
@@ -558,8 +558,9 @@ class TestHeartbeatAlwaysOn:
 class TestAlwaysOnCLI:
     def test_always_on_status_cli(self):
         """CLI always-on status se ejecuta sin error."""
-        from triade_digimon import handle_always_on
         from argparse import Namespace
+
+        from triade_digimon import handle_always_on
 
         ns = Namespace(always_on_command="status")
         # Solo verifica que no lanza excepción
@@ -570,8 +571,9 @@ class TestAlwaysOnCLI:
 
     def test_cli_enable_writes_runtime_always_on_true(self, tmp_path, capsys):
         """always-on enable escribe runtime.always_on=true en triade.yml."""
-        from triade_digimon import handle_always_on
         from argparse import Namespace
+
+        from triade_digimon import handle_always_on
 
         config = tmp_path / "triade.yml"
         config.write_text("runtime:\n  always_on: false\n", encoding="utf-8")
@@ -595,8 +597,9 @@ class TestAlwaysOnCLI:
 
     def test_self_test_cli(self):
         """CLI self-test se ejecuta sin error."""
-        from triade_digimon import handle_self_test
         from argparse import Namespace
+
+        from triade_digimon import handle_self_test
 
         ns = Namespace(mode="safe")
         try:

@@ -3,10 +3,10 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from triade.core.central import Central
-from triade.core.contracts import InputPacket
-from triade.core.context_engine import build_living_context_for_chat
 from triade.core.bodega import Bodega
+from triade.core.central import Central
+from triade.core.context_engine import build_living_context_for_chat
+from triade.core.contracts import InputPacket
 from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
 from triade.learning.pipeline import LearningPipeline
 

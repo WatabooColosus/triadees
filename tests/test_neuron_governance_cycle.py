@@ -10,7 +10,6 @@ from triade.core.neuron_creator import NeuronSpec
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.primary_neuron_pipeline import build_primary_neuron_package
 
-
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
 
 

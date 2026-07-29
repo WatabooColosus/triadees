@@ -13,7 +13,6 @@ from typing import Any
 
 from triade.federation.federation import Federation
 
-
 DEFAULT_TTL_SECONDS = float(os.environ.get("TRIADE_NODE_ONLINE_TTL_SECONDS", "3"))
 DEFAULT_SWEEP_SECONDS = float(os.environ.get("TRIADE_NODE_SWEEP_SECONDS", "1"))
 

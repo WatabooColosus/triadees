@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from triade.runtime.task_leases import AutonomousTaskStore
 from triade.workers.contracts import WorkerRunConfig
 from triade.workers.worker_loop import WorkerLoop
-from triade.runtime.task_leases import AutonomousTaskStore
 
 
 def test_worker_loop_once_runs_all_default_tasks(tmp_path: Path) -> None:

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from triade.runtime.runtime_recovery import RuntimeRecovery
 from triade.runtime.service_health import RuntimeHealth, ServiceHealth

@@ -1,12 +1,15 @@
 """Gobierno de memoria semántica de Tríade Ω 1.9E."""
 
 from __future__ import annotations
+
 import json
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
 from triade.core.contracts import MemoryPacket, utc_now
+
 from .semantic_store import SemanticMemoryStore
 
 

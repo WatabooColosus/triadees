@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+
 from triade.core.edge_processing import EdgeProcessingService
 
 

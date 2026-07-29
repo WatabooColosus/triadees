@@ -6,7 +6,6 @@ from typing import Any
 
 from .contracts import InputPacket
 
-
 VALID_CONTEXT_SCOPES = {
     "source_intent",
     "session",

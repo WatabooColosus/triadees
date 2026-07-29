@@ -7,20 +7,20 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from apps.single_port_app import app
 import apps.routes.api as routes_api
+from apps.single_port_app import app
 from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.core.neuron_creator import NeuronSpec
 from triade.core.neuron_missions import NeuronEvidence, NeuronMissionStore
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.neuron_trainer import NeuronTrainingResult
+from triade.workers.contracts import WorkerRunConfig, WorkerTask
 from triade.workers.mission_planner import MissionPlanner
 from triade.workers.neuron_mission_backfill import (
     backfill_neuron_missions,
     neuron_missions_doctor,
 )
 from triade.workers.worker_loop import WorkerLoop
-from triade.workers.contracts import WorkerTask, WorkerRunConfig
 
 
 def make_db(tmp_path: Path) -> Path:

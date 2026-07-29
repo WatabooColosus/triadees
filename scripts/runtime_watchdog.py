@@ -7,7 +7,6 @@ import time
 
 from triade.runtime.watchdog import RuntimeWatchdog
 
-
 if __name__ == "__main__":
     interval = max(10, int(os.getenv("TRIADE_WATCHDOG_INTERVAL", "60")))
     watchdog = RuntimeWatchdog(max_recoveries=int(os.getenv("TRIADE_WATCHDOG_MAX_RECOVERIES", "3")))

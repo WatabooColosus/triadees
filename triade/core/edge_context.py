@@ -10,10 +10,10 @@ El edge_context es una capa auxiliar para la Central:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from typing import Any, Dict, Optional
 import json
 import time
+from dataclasses import asdict, dataclass
+from typing import Any
 
 from triade.core.edge_processing import EdgeProcessingService
 
@@ -89,29 +89,29 @@ class EdgeContext:
     enabled: bool
     used_edge: bool
     accepted: bool
-    node_id: Optional[str]
+    node_id: str | None
     elapsed_ms: int
-    intent_probe: Dict[str, Any]
+    intent_probe: dict[str, Any]
     keywords: list[str]
     summary: str
-    evidence: Dict[str, Any]
+    evidence: dict[str, Any]
     edge_signal_quality: str
     edge_observations: list[dict[str, Any]]
     fallback_used: bool
     edge_confidence_score: float
     truth: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def build_edge_context(user_text: str, enable_summary: bool = False) -> Dict[str, Any]:
+def build_edge_context(user_text: str, enable_summary: bool = False) -> dict[str, Any]:
     started = time.time()
     service = EdgeProcessingService()
 
-    evidence: Dict[str, Any] = {}
+    evidence: dict[str, Any] = {}
     edge_observations: list[dict[str, Any]] = []
-    node_id: Optional[str] = None
+    node_id: str | None = None
     used_edge = False
     accepted = False
 
@@ -343,7 +343,7 @@ def parse_context_probe(text: str, fallback_text: str = "") -> dict[str, Any]:
         }
 
 
-def parse_intent(text: str, fallback_text: str = "") -> Dict[str, Any]:
+def parse_intent(text: str, fallback_text: str = "") -> dict[str, Any]:
     result = parse_model_json_safely(
         text, fallback_text=fallback_text, parser_name="intent_probe"
     )
@@ -585,7 +585,7 @@ def heuristic_summary(text: str) -> str:
     return clean[:177].rstrip() + "..."
 
 
-def heuristic_intent(text: str, raw: str = "") -> Dict[str, Any]:
+def heuristic_intent(text: str, raw: str = "") -> dict[str, Any]:
     t = (text or "").lower()
     intent = "general"
     needs_tool = False

@@ -1,5 +1,7 @@
 """QualiaBus: capa circulatoria e introspectiva de experiencias de Tríade."""
 
+from .bus import QualiaBus
+from .continuity import ContinuityEngine
 from .contracts import (
     CentralKnowledgePacket,
     NeuronExperience,
@@ -7,6 +9,9 @@ from .contracts import (
     QualiaState,
     StorageMemoryPacket,
 )
+from .fragmentation import FragmentationDetector
+from .introspection import IntrospectionReport, QualiaIntrospector
+from .meaning import MeaningEngine
 from .qualia_packet import (
     ContinuityChain,
     FragmentationReport,
@@ -14,26 +19,21 @@ from .qualia_packet import (
     QualiaPacket,
     build_qualia_packet,
 )
-from .continuity import ContinuityEngine
-from .meaning import MeaningEngine
-from .fragmentation import FragmentationDetector
-from .bus import QualiaBus
-from .introspection import IntrospectionReport, QualiaIntrospector
-from .router import QualiaRouter, QualiaBundle
+from .router import QualiaBundle, QualiaRouter
 from .store import QualiaStore
 
 __all__ = [
     "CentralKnowledgePacket",
-    "ContinuityEngine",
     "ContinuityChain",
+    "ContinuityEngine",
     "FragmentationDetector",
     "FragmentationReport",
     "IntrospectionReport",
     "MeaningEngine",
     "MeaningScore",
     "NeuronExperience",
-    "QualiaBus",
     "QualiaBundle",
+    "QualiaBus",
     "QualiaIntrospector",
     "QualiaPacket",
     "QualiaRouter",

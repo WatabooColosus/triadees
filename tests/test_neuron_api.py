@@ -9,7 +9,6 @@ from triade.core.neuron_creator import NeuronCreator
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.neuron_trainer import NeuronTrainer
 
-
 client = TestClient(app)
 
 

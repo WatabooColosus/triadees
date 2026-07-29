@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from triade.core.neuron_registry import NeuronRegistry
-
 
 VALID_DECISIONS = {
     "approve": "experimental",
@@ -135,7 +134,7 @@ def main() -> int:
     updated = registry.update_status(args.name, target_status)
 
     decision = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "name": args.name,
         "decision": args.action,
         "next_status": target_status,

@@ -8,7 +8,7 @@ basándose en dominio, keywords, estado y score reciente.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -156,8 +156,8 @@ def _updated_at_bonus(updated_at: str) -> float:
     except ValueError:
         return 0.0
     if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    age_days = max(0.0, (datetime.now(timezone.utc) - ts).total_seconds() / 86400.0)
+        ts = ts.replace(tzinfo=UTC)
+    age_days = max(0.0, (datetime.now(UTC) - ts).total_seconds() / 86400.0)
     if age_days <= 1:
         return 0.6
     if age_days <= 7:

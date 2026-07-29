@@ -16,7 +16,6 @@ from typing import Any
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_store import SemanticMemoryStore
 
-
 LOCAL_HASH_MODEL = "triade-local-hash:64"
 
 

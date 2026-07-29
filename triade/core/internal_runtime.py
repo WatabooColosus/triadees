@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import threading
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
-
 from triade.core.learning_journal import build_learning_journal
 from triade.services.event_bus import build_context_from_events, publish_event
 from triade.services.supervisor import InternalRuntimeSupervisor
-
 
 _SUPERVISOR: InternalRuntimeSupervisor | None = None
 _BACKGROUND_THREAD: threading.Thread | None = None
@@ -111,14 +110,14 @@ def stop_internal_runtime_background(
         if thread and thread.is_alive():
             thread.join(timeout=2)
         _BACKGROUND_THREAD = None
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     return {
         "status": result.get("status", "stopped"),
         "runtime_enabled": False,
         "mode": supervisor.mode,
         "background_thread_alive": False,
-        "stopped_at": datetime.now(timezone.utc).isoformat(),
+        "stopped_at": datetime.now(UTC).isoformat(),
         "message": "Runtime apagado.",
         "snapshot": supervisor.snapshot(),
     }
@@ -205,14 +204,14 @@ def build_runtime_heartbeat(
     since_hours: int = 24,
     limit: int = 50,
 ) -> dict[str, Any]:
+    from triade.core.always_on import build_always_on_status
     from triade.core.context_engine import build_living_context_for_chat
+    from triade.core.edge_observations import build_edge_context_health
     from triade.core.error_bus import query_internal_errors
     from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
-    from triade.core.edge_observations import build_edge_context_health
+    from triade.core.worker_autostart import build_workers_always_on_status
     from triade.models.ollama_client import check_ollama_cognitive_health
     from triade.workers.background_service import WorkerBackgroundService
-    from triade.core.always_on import build_always_on_status
-    from triade.core.worker_autostart import build_workers_always_on_status
 
     runtime_state = get_internal_runtime_state(db_path=db_path, runs_dir=runs_dir)
     learning_journal = build_learning_journal(
@@ -570,9 +569,9 @@ def _is_expected_measurement_gate_signal(err: dict[str, Any]) -> bool:
 
 
 def _count_recent(events: list[dict[str, Any]], wanted: set[str], hours: int) -> int:
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    cutoff = datetime.now(UTC) - timedelta(hours=hours)
     total = 0
     for event in events:
         if str(event.get("event_type") or "") not in wanted:

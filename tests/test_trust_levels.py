@@ -8,14 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from triade.learning.pipeline import LearningPipeline
 from tests.learning_evidence_helpers import attach_improved_evidence
+from triade.learning.pipeline import LearningPipeline
 from triade.memory.trust_store import (
     PERMISSION_THRESHOLDS,
     TRUST_DOMAINS,
     TrustLevelStore,
 )
-
 
 # ── helpers ─────────────────────────────────────────────────────────────────
 

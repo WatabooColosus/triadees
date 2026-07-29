@@ -13,7 +13,44 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, status
 from fastapi.responses import FileResponse, PlainTextResponse
 
-from triade.core.life_pulse import LIFE_PULSE
+from apps import services
+from apps.gates.safety import safety_gate
+from apps.services import (
+    AndroidLocalGenerateRequest,
+    DistributedModelDoctorRequest,
+    DistributedProbeRequest,
+    DistributedRuntimeRequest,
+    LocalNodeHeartbeatRequest,
+    LocalNodeJobResultRequest,
+    LocalNodeRegisterRequest,
+    NeuronCandidateDecisionRequest,
+    RouterRequest,
+    RunRequest,
+    SemanticEmbedRequest,
+    SemanticIngestRequest,
+    SemanticSearchRequest,
+    SemanticTransitionRequest,
+    android_llm_host_nodes,
+    build_model_capacity,
+    build_system_pulse,
+    clean_model,
+    create_local_job,
+    federated_transport_doctor,
+    load_local_node_tokens,
+    local_federated_nodes,
+    local_node_capabilities,
+    merge_local_preprocess_results,
+    model_install_queue,
+    relay_settings,
+    router_payload,
+    run_context_with_living_awareness,
+    save_local_node_tokens,
+    semantic_governance_doctor,
+    split_text_for_nodes,
+    system_payload,
+    upsert_local_android_node,
+    wait_local_job,
+)
 from triade.core.context_engine import build_living_context_for_chat
 from triade.core.internal_runtime import (
     build_internal_context_snapshot,
@@ -24,17 +61,22 @@ from triade.core.internal_runtime import (
     stop_internal_runtime_background,
 )
 from triade.core.learning_journal import build_learning_journal
+from triade.core.life_pulse import LIFE_PULSE
 from triade.core.living_report import build_living_report
-from triade.core.qualia import QUALIA
-from triade.core.runner import TriadeRunner
-from triade.core.repo_info import repo_info
+from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.core.neuron_candidate_governance import NeuronCandidateGovernance
 from triade.core.neuron_dashboard import build_neuron_dashboard
 from triade.core.neuron_identity_view import NeuronIdentityView
-from triade.core.stable_neuron_audit import audit_stable_neurons, apply_stable_neuron_audit
-from triade.core.neuron_activity_store import NeuronActivityStore
+from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
 from triade.core.observability_view import TriadeObservabilityView
 from triade.core.ollama_blood import check_ollama_blood
+from triade.core.qualia import QUALIA
+from triade.core.repo_info import repo_info
+from triade.core.runner import TriadeRunner
+from triade.core.stable_neuron_audit import (
+    apply_stable_neuron_audit,
+    audit_stable_neurons,
+)
 from triade.federation.contracts import (
     FederatedJobResultPayload,
     SignedEnvelope,
@@ -42,62 +84,23 @@ from triade.federation.contracts import (
     verify_envelope,
 )
 from triade.federation.federation import Federation
+from triade.federation.relay_client import (
+    PublicRelayClient,
+)
 from triade.learning.pipeline import LearningPipeline
-from triade.qualia.bus import QualiaBus
-from triade.qualia.contracts import NeuronExperience
-from triade.qualia.store import QualiaStore
-from triade.federation.relay_client import PublicRelayClient, relay_capabilities_for_federation
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
 from triade.models.compatibility_matrix import ModelCompatibilityMatrix
-from triade.models.hardware_profile import HardwareProfiler
-from triade.models.model_install_queue import ModelInstallQueue
-from triade.models.model_router import ModelRouter
-from triade.models.ollama_client import OllamaClient, check_ollama_cognitive_health
-from triade.workers.background_service import WorkerBackgroundService
-from triade.workers.neuron_mission_backfill import backfill_neuron_missions, neuron_missions_doctor
-from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
+from triade.models.ollama_client import check_ollama_cognitive_health
+from triade.qualia.bus import QualiaBus
+from triade.qualia.contracts import NeuronExperience
+from triade.qualia.store import QualiaStore
 from triade.services.event_bus import list_recent_events
-
-from apps import services
-from apps.gates.safety import safety_gate
-from apps.services import (
-    RunRequest,
-    RouterRequest,
-    LocalNodeRegisterRequest,
-    LocalNodeHeartbeatRequest,
-    LocalNodeJobResultRequest,
-    DistributedRuntimeRequest,
-    DistributedProbeRequest,
-    DistributedModelDoctorRequest,
-    AndroidLocalGenerateRequest,
-    SemanticIngestRequest,
-    SemanticEmbedRequest,
-    SemanticSearchRequest,
-    SemanticTransitionRequest,
-    NeuronCandidateDecisionRequest,
-    clean_model,
-    system_payload,
-    router_payload,
-    relay_settings,
-    load_local_node_tokens,
-    save_local_node_tokens,
-    local_node_capabilities,
-    upsert_local_android_node,
-    create_local_job,
-    wait_local_job,
-    local_federated_nodes,
-    android_llm_host_nodes,
-    split_text_for_nodes,
-    merge_local_preprocess_results,
-    build_model_capacity,
-    build_system_pulse,
-    model_install_queue,
-    semantic_governance_doctor,
-    federated_transport_doctor,
-    operational_awareness_context,
-    run_context_with_living_awareness,
+from triade.workers.background_service import WorkerBackgroundService
+from triade.workers.neuron_mission_backfill import (
+    backfill_neuron_missions,
+    neuron_missions_doctor,
 )
 
 router = APIRouter()
@@ -253,7 +256,10 @@ def runtime_workers_restart(
     LIFE_PULSE.record_action("runtime_workers_restart")
     require_key(x_triade_api_key)
     from triade.core.always_on import load_always_on_config
-    from triade.core.worker_autostart import start_workers_if_configured, stop_workers_always_on
+    from triade.core.worker_autostart import (
+        start_workers_if_configured,
+        stop_workers_always_on,
+    )
     stop_workers_always_on()
     return start_workers_if_configured(load_always_on_config())
 
@@ -534,6 +540,7 @@ def models_acquisition_status() -> dict[str, Any]:
 def system_neurons_full(limit: int = 100, mission_limit: int = 50) -> dict[str, Any]:
     LIFE_PULSE.record_action("system_neurons_full")
     import sqlite3
+
     from triade.core.neuron_missions import NeuronMissionStore
 
     dashboard = build_neuron_dashboard(limit=limit)
@@ -602,8 +609,8 @@ def system_neurons_full(limit: int = 100, mission_limit: int = 50) -> dict[str, 
 
 @router.get("/api/system/neurons/{name}")
 def system_neuron_detail(name: str, limit: int = 10) -> dict[str, Any]:
-    from triade.core.neuron_registry import NeuronRegistry
     from triade.core.neuron_autopromoter import NeuronAutopromoter
+    from triade.core.neuron_registry import NeuronRegistry
     registry = NeuronRegistry()
     neuron = registry.get_neuron(name)
     if neuron is None:
@@ -1220,17 +1227,16 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
 
     No ejecuta workers, no modifica memoria, no toca identity_core.
     """
-    from triade.core.internal_runtime import build_runtime_heartbeat
+    import time as _time
+
     from triade.core.bodega_global_context import build_bodega_global_context
+    from triade.core.internal_runtime import build_runtime_heartbeat
     from triade.core.observability_view import TriadeObservabilityView
     from triade.core.ollama_blood import check_ollama_blood
-    from triade.core.technical_debt_audit import build_technical_debt_audit
     from triade.core.repo_runtime_status import build_repo_runtime_status
-    from triade.workers.background_service import WorkerBackgroundService
+    from triade.core.technical_debt_audit import build_technical_debt_audit
     from triade.services.event_bus import list_recent_events
-
-    import time as _time
-    import traceback as _traceback
+    from triade.workers.background_service import WorkerBackgroundService
 
     LIFE_PULSE.record_action("react_dashboard")
 
@@ -1383,9 +1389,9 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
 
 def _build_governor_block(requested_mode: str, limit: int) -> dict[str, Any]:
     """Construye bloque governor para el dashboard React."""
-    from triade.core.resource_probe import build_resource_probe
-    from triade.core.resource_governor import decide_work_mode
     from triade.core.ollama_blood import check_ollama_blood
+    from triade.core.resource_governor import decide_work_mode
+    from triade.core.resource_probe import build_resource_probe
     probe = build_resource_probe()
     blood = check_ollama_blood()
     decision = decide_work_mode(probe, blood, requested_mode or "observe_only")
@@ -1422,7 +1428,7 @@ def _build_governor_block(requested_mode: str, limit: int) -> dict[str, Any]:
 
 def _build_autonomy_block() -> dict[str, Any]:
     """Construye bloque de autonomía delegada para el dashboard React."""
-    from triade.core.autonomy_budget import build_autonomy_budget, LEVELS
+    from triade.core.autonomy_budget import LEVELS, build_autonomy_budget
     from triade.core.quarantine_trash import list_trash
     levels = {}
     for lvl in LEVELS:
@@ -1452,9 +1458,9 @@ def system_resources() -> dict[str, Any]:
 def system_work_mode(requested: str = "observe_only") -> dict[str, Any]:
     """Modo de trabajo decidido por resource governor."""
     LIFE_PULSE.record_action("system_work_mode")
-    from triade.core.resource_probe import build_resource_probe
-    from triade.core.resource_governor import decide_work_mode
     from triade.core.ollama_blood import check_ollama_blood
+    from triade.core.resource_governor import decide_work_mode
+    from triade.core.resource_probe import build_resource_probe
     probe = build_resource_probe()
     blood = check_ollama_blood()
     return decide_work_mode(probe, blood, requested)
@@ -1464,10 +1470,10 @@ def system_work_mode(requested: str = "observe_only") -> dict[str, Any]:
 def system_permissions(requested: str = "observe_only") -> dict[str, Any]:
     """Perfil de permisos para el modo solicitado."""
     LIFE_PULSE.record_action("system_permissions")
-    from triade.core.resource_probe import build_resource_probe
-    from triade.core.resource_governor import decide_work_mode
-    from triade.core.permission_governor import build_permission_profile
     from triade.core.ollama_blood import check_ollama_blood
+    from triade.core.permission_governor import build_permission_profile
+    from triade.core.resource_governor import decide_work_mode
+    from triade.core.resource_probe import build_resource_probe
     probe = build_resource_probe()
     blood = check_ollama_blood()
     decision = decide_work_mode(probe, blood, requested)

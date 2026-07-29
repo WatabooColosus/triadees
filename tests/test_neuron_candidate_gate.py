@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from triade.core.neuron_candidate_gate import evaluate_neuron_candidate_worthiness
 
-
 NO_NEURON_CASES = [
     "en que continente queda colombia?",
     "muy bine, felicitaciones",

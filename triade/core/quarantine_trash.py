@@ -8,18 +8,18 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from triade.core.system_zones import classify_path, REPO_ROOT
+from triade.core.system_zones import REPO_ROOT, classify_path
 
 TRASH_DIR = REPO_ROOT / ".triade_trash"
 CHUNK = 65536
 
 
 def _ensure_trash_dir() -> Path:
-    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    date_str = datetime.now(UTC).strftime("%Y%m%d")
     d = TRASH_DIR / date_str
     d.mkdir(parents=True, exist_ok=True)
     return d
@@ -78,7 +78,7 @@ def trash_path(
         return {"status": "error", "message": "Ruta fuera del repositorio."}
 
     date_dir = _ensure_trash_dir()
-    ts = datetime.now(timezone.utc).strftime("%H%M%S%f")
+    ts = datetime.now(UTC).strftime("%H%M%S%f")
     dest_dir = date_dir / dst.parent.relative_to(REPO_ROOT)
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_file = dest_dir / f"{ts}_{dst.name}"
@@ -97,7 +97,7 @@ def trash_path(
         "size": size,
         "reason": reason,
         "run_ref": run_ref or "",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "zone": info["zone"],
         "restore_command_key": "restore_trash_item",
     }

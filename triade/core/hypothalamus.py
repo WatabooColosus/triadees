@@ -9,16 +9,16 @@ incertidumbre, tensiones entre virtudes, y ViceVirtueState wrapper.
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from typing import Any
 
-from triade.memory.hypothalamus_store import HypothalamusStateStore, EmotionalState
-from triade.models.ollama_client import OllamaClient
-from triade.hypothalamus.vice_virtue import ViceVirtueState
-from triade.hypothalamus.senses import SystemSenses, SystemSnapshot
 from triade.hypothalamus.cognitive_load import CognitiveLoad, CognitiveSnapshot
+from triade.hypothalamus.senses import SystemSenses, SystemSnapshot
+from triade.hypothalamus.vice_virtue import ViceVirtueState
+from triade.memory.hypothalamus_store import EmotionalState, HypothalamusStateStore
+from triade.models.ollama_client import OllamaClient
 
 from .contracts import InputPacket, RiskLevel, SignalPacket, Urgency
-
 
 MOOD_PV7_MODULATION: dict[str, dict[str, float]] = {
     "fatigued": {"diligencia": 0.85, "paciencia": 1.15},
@@ -161,10 +161,10 @@ class Hypothalamus:
         # PV-14: Actualizar ViceVirtueState con decaimiento temporal
         if current_mood and current_mood.last_active_at:
             try:
-                from datetime import datetime, timezone
+                from datetime import datetime
 
                 last = datetime.fromisoformat(current_mood.last_active_at)
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 elapsed = (now - last).total_seconds()
                 if elapsed > 0:
                     self.vice_virtue.decay(rate=0.005, seconds=elapsed)

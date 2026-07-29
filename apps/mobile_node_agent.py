@@ -27,7 +27,6 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-
 DEFAULT_STATE_PATH = Path(os.environ.get("TRIADE_MOBILE_STATE", "mobile_node_state.json"))
 
 

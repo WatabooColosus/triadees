@@ -11,13 +11,15 @@ from pathlib import Path
 import httpx
 
 from triade.core.alignment import CoreAlignment
-from triade.core.conversation_analyzer import ConversationAnalyzer, add_analyze_conversations_args
 from triade.core.context_engine import build_living_context_for_chat
+from triade.core.conversation_analyzer import (
+    ConversationAnalyzer,
+    add_analyze_conversations_args,
+)
 from triade.core.internal_runtime import (
     build_runtime_heartbeat,
     get_internal_runtime_state,
     get_internal_runtime_supervisor,
-    start_internal_runtime_background,
     stop_internal_runtime_background,
 )
 from triade.core.living_report import build_living_report
@@ -367,7 +369,10 @@ def handle_qualia(args: argparse.Namespace) -> None:
 
 def handle_neuron(args: argparse.Namespace) -> None:
     from triade.core.neuron_identity_view import NeuronIdentityView
-    from triade.core.stable_neuron_audit import audit_stable_neurons, apply_stable_neuron_audit
+    from triade.core.stable_neuron_audit import (
+        apply_stable_neuron_audit,
+        audit_stable_neurons,
+    )
 
     view = NeuronIdentityView(db_path=args.db, runs_dir=args.runs_dir)
     if args.neuron_command == "list":
@@ -390,7 +395,10 @@ def handle_neuron(args: argparse.Namespace) -> None:
 
 def handle_neuron_missions(args: argparse.Namespace) -> None:
     from triade.core.neuron_missions import NeuronMissionStore
-    from triade.workers.neuron_mission_backfill import backfill_neuron_missions, neuron_missions_doctor
+    from triade.workers.neuron_mission_backfill import (
+        backfill_neuron_missions,
+        neuron_missions_doctor,
+    )
 
     store = NeuronMissionStore(db_path=args.db)
     if args.neuron_missions_command == "backfill":

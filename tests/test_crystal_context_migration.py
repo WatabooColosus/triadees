@@ -6,7 +6,6 @@ import sqlite3
 
 from triade.core.bodega import Bodega
 
-
 CONTEXT_COLUMNS = {
     "context_scope",
     "context_key",

@@ -2,7 +2,6 @@ from pathlib import Path
 
 from triade.models.model_router import ModelRouter
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 

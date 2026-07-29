@@ -6,13 +6,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.core.neuron_creator import NeuronSpec
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.stable_neuron_audit import (
-    audit_stable_neurons,
     apply_stable_neuron_audit,
+    audit_stable_neurons,
 )
-from triade.core.neuron_activity_store import NeuronActivityStore
 
 
 def _insert_run(db_path: Path, run_id: str) -> None:

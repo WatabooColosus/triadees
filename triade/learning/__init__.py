@@ -2,4 +2,4 @@
 
 from .pipeline import LearningCandidate, LearningPipeline
 
-__all__ = ["LearningPipeline", "LearningCandidate"]
+__all__ = ["LearningCandidate", "LearningPipeline"]

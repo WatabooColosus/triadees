@@ -15,15 +15,15 @@ from typing import Any
 
 from triade.core.bodega import Bodega
 from triade.core.contracts import InputPacket
+from triade.core.neuron_registry import NeuronRegistry
 from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
 from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_governance import SemanticMemoryGovernance
-from triade.core.neuron_registry import NeuronRegistry
 
 try:
-    from triade.memory.semantic_store import SemanticMemoryStore
     from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
     from triade.memory.semantic_search import SemanticSearchEngine
+    from triade.memory.semantic_store import SemanticMemoryStore
     from triade.models.ollama_client import OllamaClient, check_ollama_cognitive_health
 except ImportError:
     SemanticMemoryStore = None  # type: ignore[assignment,misc]

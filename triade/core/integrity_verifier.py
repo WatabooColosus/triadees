@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from triade.core.system_zones import classify_path, REPO_ROOT
+from triade.core.system_zones import REPO_ROOT, classify_path
 
 CHUNK_SIZE = 65536
 
@@ -36,10 +36,10 @@ def _file_info(p: Path, zone: str) -> dict[str, Any]:
             "sha256": _hash_path(p),
             "size": st.st_size,
             "created_at": datetime.fromtimestamp(
-                st.st_ctime, tz=timezone.utc
+                st.st_ctime, tz=UTC
             ).isoformat(),
             "modified_at": datetime.fromtimestamp(
-                st.st_mtime, tz=timezone.utc
+                st.st_mtime, tz=UTC
             ).isoformat(),
             "exists": True,
             "zone": zone,
@@ -96,7 +96,7 @@ def build_integrity_snapshot(paths: list[str] | None = None) -> dict[str, Any]:
         total_bytes += info["size"]
 
     return {
-        "snapshot_at": datetime.now(timezone.utc).isoformat(),
+        "snapshot_at": datetime.now(UTC).isoformat(),
         "files_count": len(files),
         "total_bytes": total_bytes,
         "zone_summary": _zone_summary(files),

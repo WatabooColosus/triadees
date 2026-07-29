@@ -6,14 +6,14 @@ Detecta sistema, CPU, RAM, disco, GPU básica y herramientas clave.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from typing import Any
 import os
 import platform
 import shutil
 import subprocess
 import sys
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any
 
 
 @dataclass(slots=True)

@@ -2,22 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
+from triade.core.bodega_global_context import build_bodega_global_context
 from triade.core.internal_runtime import (
-    get_internal_runtime_state,
     RUNTIME_CYCLE_EVENTS,
+    get_internal_runtime_state,
 )
 from triade.core.neuron_missions import NeuronMissionStore
+from triade.core.qualia import QUALIA
 from triade.core.stable_neuron_audit import audit_stable_neurons
 from triade.learning.pipeline import LearningPipeline
 from triade.models.hardware_profile import HardwareProfiler
 from triade.models.ollama_client import OllamaClient
-from triade.core.qualia import QUALIA
 from triade.services.event_bus import list_recent_events
 from triade.workers.background_service import WorkerBackgroundService
-from triade.core.bodega_global_context import build_bodega_global_context
 
 
 def build_living_report(
@@ -240,9 +241,9 @@ def _compute_runtime_continuity_score(
 def _count_recent(
     events: list[dict[str, Any]], wanted: set[str], hours: int = 1
 ) -> int:
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    cutoff = datetime.now(UTC) - timedelta(hours=hours)
     total = 0
     for event in events:
         if str(event.get("event_type") or "") not in wanted:

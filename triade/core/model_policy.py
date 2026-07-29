@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 CRITICAL_ROLES = {
     "neuron_nutrition",
     "learning_evaluation",

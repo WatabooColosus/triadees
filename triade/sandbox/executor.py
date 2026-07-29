@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .policy import is_task_allowed, get_blocked_reason, SANDBOX_POLICY
+from .policy import SANDBOX_POLICY, get_blocked_reason, is_task_allowed
 
 
 def run_in_sandbox(

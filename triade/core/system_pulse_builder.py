@@ -6,7 +6,8 @@ No ejecuta acciones externas: solo consulta funciones inyectadas por la app.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from .experimental_neuron_evidence import build_experimental_evidence_ledger
 from .stable_promotion_readiness import evaluate_stable_readiness

@@ -6,7 +6,7 @@ auditar qué fuentes contribuyeron a la respuesta.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from triade.core.contracts import MemoryPacket
@@ -87,5 +87,5 @@ def build_run_memory_trace(
             "identity_core_protected": True,
             "trace_is_read_only": True,
         },
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }

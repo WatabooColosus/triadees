@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from statistics import fmean, stdev
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
 
 StatisticalDecision = Literal["pass", "warn", "fail", "invalid"]
 

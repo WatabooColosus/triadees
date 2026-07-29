@@ -8,7 +8,6 @@ from triade.core.bodega import Bodega
 from triade.core.contracts import InputPacket, MemoryPacket, SignalPacket
 from triade.core.crystal import Crystal
 
-
 TEMPORAL_COLUMNS = {
     "previous_q_crystal",
     "previous_stability",

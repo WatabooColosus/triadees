@@ -11,7 +11,6 @@ from triade.federation import (
     HMACEnvelopeAuthenticator,
 )
 
-
 SECRET = b"0123456789abcdef0123456789abcdef"
 NOW = 1_800_000_000
 

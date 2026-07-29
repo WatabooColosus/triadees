@@ -17,17 +17,16 @@ import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 
-
+from triade.core.error_bus import query_internal_errors
 from triade.core.neuron_missions import (
+    NeuronEvidence,
     NeuronMission,
     NeuronMissionStore,
-    NeuronWorkCycle,
-    NeuronEvidence,
     NeuronScore,
+    NeuronWorkCycle,
 )
 from triade.core.run_learning_usage import record_learning_usage_from_output
 from triade.core.runner import _build_traceability
-from triade.core.error_bus import query_internal_errors
 from triade.evaluation import EvaluationComparison, EvaluationRun, MetricResult
 from triade.learning.pipeline import LearningPipeline
 from triade.workers.mission_planner import MissionPlanner
@@ -584,7 +583,7 @@ def test_e2e_traceability_output(tmp_path: Path) -> None:
 
 def test_e2e_error_bus_records_errors(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
-    from triade.core.error_bus import record_internal_error, query_internal_errors
+    from triade.core.error_bus import query_internal_errors, record_internal_error
 
     error_id = record_internal_error(
         scope="test_e2e",

@@ -1,8 +1,11 @@
 """Repara promociones y scores históricos sin borrar evidencia original."""
 
 from __future__ import annotations
-import argparse, json, sqlite3
-from datetime import datetime, timezone
+
+import argparse
+import json
+import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 
 SYNTHETIC_STABLE = (
@@ -12,7 +15,7 @@ SYNTHETIC_STABLE = (
 )
 
 def remediate(db_path: str | Path) -> dict:
-    now = datetime.now(timezone.utc).isoformat(); db_path = Path(db_path)
+    now = datetime.now(UTC).isoformat(); db_path = Path(db_path)
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         conn.execute("""CREATE TABLE IF NOT EXISTS evidence_remediation_audit(

@@ -10,19 +10,17 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-
 from triade.core.life_pulse import (
-    LifePulseEngine,
+    _DEFAULT_CONTINUOUS_INTERVAL,
+    _MIN_CONTINUOUS_INTERVAL,
     AUTONOMY_LEVELS,
     DEFAULT_AUTONOMY_LEVEL,
-    _MIN_CONTINUOUS_INTERVAL,
-    _DEFAULT_CONTINUOUS_INTERVAL,
+    LifePulseEngine,
 )
 from triade.core.neuron_autopromoter import NeuronAutopromoter
 from triade.core.stable_promotion_readiness import (
     evaluate_stable_readiness,
 )
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -519,8 +517,8 @@ def test_autopromoter_returns_skip_reason_low_score(tmp_path: Path) -> None:
     """Autopromoter retorna razón cuando score es bajo."""
     db_path = make_neuron_db(tmp_path)
     from triade.core.neuron_creator import NeuronSpec
-    from triade.core.neuron_trainer import NeuronTrainingResult
     from triade.core.neuron_registry import NeuronRegistry
+    from triade.core.neuron_trainer import NeuronTrainingResult
 
     registry = NeuronRegistry(db_path=db_path)
     spec = NeuronSpec(

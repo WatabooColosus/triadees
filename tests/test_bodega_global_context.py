@@ -107,6 +107,7 @@ def test_build_bodega_global_context_semantic_disabled(tmp_path: Path) -> None:
 
 def test_build_bodega_global_context_no_identity_modification(tmp_path: Path) -> None:
     import sqlite3
+
     from triade.core.bodega import Bodega
 
     db_path = tmp_path / "triade.db"

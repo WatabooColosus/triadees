@@ -7,13 +7,12 @@ ni las protecciones internas del WorkerLoop.
 from __future__ import annotations
 
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from triade.core.resource_governor import WORK_MODE_RANK, decide_work_mode
 from triade.workers.background_service import WorkerBackgroundService
-
 
 _WORKER_THREAD: threading.Thread | None = None
 _WORKER_LOCK = threading.Lock()
@@ -159,7 +158,7 @@ def ensure_workers_alive(
                 {
                     "active": True,
                     "status": "running",
-                    "last_start_at": datetime.now(timezone.utc).isoformat(),
+                    "last_start_at": datetime.now(UTC).isoformat(),
                     "last_error": None,
                 }
             )

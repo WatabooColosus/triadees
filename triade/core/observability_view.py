@@ -4,14 +4,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-from .bodega import Bodega
-from .error_bus import query_internal_errors, record_internal_error
-from .neuron_identity_view import NeuronIdentityView
-from .repo_info import repo_info
 from triade.capabilities.observability import CapabilityObservability
 from triade.federation.federation import Federation
 from triade.learning.pipeline import LearningPipeline
@@ -20,6 +17,11 @@ from triade.models.ollama_client import OllamaClient
 from triade.qualia.store import QualiaStore
 from triade.regression.observability import RegressionObservability
 from triade.workers.background_service import WorkerBackgroundService
+
+from .bodega import Bodega
+from .error_bus import query_internal_errors, record_internal_error
+from .neuron_identity_view import NeuronIdentityView
+from .repo_info import repo_info
 
 
 @dataclass(slots=True)

@@ -1,6 +1,7 @@
 """T-021 — Dashboard API: endpoints para todos los subsistemas de Tríade Ω."""
 
 from fastapi import APIRouter, HTTPException
+
 from triade.core.contracts import utc_now
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])

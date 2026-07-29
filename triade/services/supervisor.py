@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from triade.core.bodega import Bodega
 from triade.core.contracts import utc_now
 from triade.core.error_bus import query_internal_errors, record_internal_error
 from triade.core.life_pulse import LIFE_PULSE
@@ -17,17 +18,15 @@ from triade.core.neuron_missions import NeuronMissionStore
 from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
 from triade.core.qualia import QUALIA
 from triade.learning.pipeline import LearningPipeline
-from triade.core.bodega import Bodega
 from triade.models.hardware_profile import HardwareProfiler
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
+from triade.os import get_triadeos
 from triade.workers.background_service import WorkerBackgroundService
 from triade.workers.mission_planner import MissionPlanner
 from triade.workers.state_store import WorkerStateStore
-from triade.os import get_triadeos
 
 from .event_bus import build_context_from_events, list_recent_events, publish_event
-
 
 AUTONOMY_LEVELS = ("observe_only", "learn_candidates", "execute_missions", "full_local")
 AUTONOMY_RANK = {name: index for index, name in enumerate(AUTONOMY_LEVELS)}
@@ -321,10 +320,10 @@ class InternalRuntimeSupervisor:
 
     def _run_governor(self, mode: str) -> dict[str, Any]:
         """Ejecuta Resource Governor + Permission Governor."""
-        from triade.core.resource_probe import build_resource_probe
-        from triade.core.resource_governor import decide_work_mode
-        from triade.core.permission_governor import build_permission_profile
         from triade.core.ollama_blood import check_ollama_blood
+        from triade.core.permission_governor import build_permission_profile
+        from triade.core.resource_governor import decide_work_mode
+        from triade.core.resource_probe import build_resource_probe
 
         probe = build_resource_probe()
         blood = check_ollama_blood()

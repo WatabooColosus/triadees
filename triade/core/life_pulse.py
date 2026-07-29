@@ -33,7 +33,6 @@ from .error_bus import record_internal_error
 from .runner import TriadeRunner
 from .self_reflection import SelfReflectionEngine
 
-
 # ── Niveles de autonomía ─────────────────────────────────────────────────────
 # Cada nivel implica los anteriores. El continuous runner opera al nivel
 # configurado, y NO puede excederlo sin intervención humana explícita.
@@ -116,7 +115,7 @@ class LifePulseEngine:
         record_internal_error(scope, error, payload=context, db_path=self.db_path)
 
     @classmethod
-    def from_env(cls) -> "LifePulseEngine":
+    def from_env(cls) -> LifePulseEngine:
         interval = int(os.environ.get("TRIADE_LIFE_PULSE_INTERVAL", "60") or "60")
         limit = int(os.environ.get("TRIADE_LIFE_REFLECTION_LIMIT", "30") or "30")
         continuous = str(
@@ -365,6 +364,7 @@ class LifePulseEngine:
         import json
         import time
         from pathlib import Path
+
         from .neuron_activity_store import NeuronActivityStore
         from .neuron_registry import NeuronRegistry
 
@@ -469,8 +469,8 @@ class LifePulseEngine:
         y niveles de autonomía que limitan qué acciones están permitidas.
         """
         from .background_neurons import candidates_from_system_debt
-        from .neuron_formation_pipeline import form_candidates
         from .neuron_autopromoter import NeuronAutopromoter
+        from .neuron_formation_pipeline import form_candidates
         from .neuron_registry import NeuronRegistry
 
         tick_counter = 0
@@ -532,7 +532,7 @@ class LifePulseEngine:
                 ):
                     from .neuron_creator import NeuronSpec
                     from .neuron_missions import NeuronMission, NeuronMissionStore
-                    from .neuron_trainer import NeuronTrainingResult, NeuronTrainer
+                    from .neuron_trainer import NeuronTrainer, NeuronTrainingResult
 
                     mission_store = NeuronMissionStore(db_path=self.db_path)
                     for candidate in formed:

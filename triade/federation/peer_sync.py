@@ -10,11 +10,10 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
-
-import urllib.request
-import urllib.error
 
 from triade.core.guarded_web import MAX_RESPONSE_BYTES, _assert_public_url
 

@@ -10,7 +10,6 @@ import re
 from difflib import SequenceMatcher
 from typing import Any
 
-
 _SPACE_RE = re.compile(r"\s+")
 _PUNCT_RE = re.compile(r"[^\w\sáéíóúüñ¿?¡!]")
 

@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 
 from apps.single_port_app import app
 
-
 client = TestClient(app)
 
 

@@ -14,7 +14,6 @@ from .neuron_creator import NeuronSpec
 from .neuron_missions import NeuronMission, NeuronMissionStore
 from .neuron_registry import NeuronRegistry
 
-
 FOUNDATIONAL_NEURONS: tuple[dict[str, Any], ...] = (
     {
         "name": "Neurona Central",

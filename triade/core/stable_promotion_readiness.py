@@ -18,7 +18,6 @@ from typing import Any
 
 from .experimental_neuron_evidence import build_experimental_evidence_ledger
 
-
 DEFAULT_THRESHOLDS = {
     "min_activations": 5,
     "min_diagnosis": 5,

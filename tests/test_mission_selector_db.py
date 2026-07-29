@@ -5,8 +5,8 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
 from triade.core.neuron_mission_selector import select_relevant_missions
+from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
 
 
 def _make_store(tmp_path: Path) -> NeuronMissionStore:

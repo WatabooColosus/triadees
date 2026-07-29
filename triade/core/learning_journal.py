@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +17,7 @@ def build_learning_journal(
 ) -> dict[str, Any]:
     """Resume actividad de aprendizaje reciente sin modificar identidad núcleo."""
     db_path = Path(db_path)
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, int(since_hours)))
+    cutoff = datetime.now(UTC) - timedelta(hours=max(1, int(since_hours)))
     cutoff_iso = cutoff.isoformat()
 
     try:
@@ -124,7 +124,7 @@ def _is_recent(value: Any, cutoff: datetime) -> bool:
     except ValueError:
         return False
     if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
+        ts = ts.replace(tzinfo=UTC)
     return ts >= cutoff
 
 

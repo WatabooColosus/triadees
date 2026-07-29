@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from triade.learning.pipeline import LearningPipeline
 from tests.learning_evidence_helpers import attach_improved_evidence
+from triade.learning.pipeline import LearningPipeline
 from triade.workers.worker_loop import WorkerLoop
 
 
@@ -38,7 +38,7 @@ def test_stable_consolidation_review_consolidates_eligible(tmp_path: Path) -> No
             {
                 "id": 1,
                 "task_type": "stable_consolidation_review",
-                "to_dict": lambda: {},
+                "to_dict": dict,
             },
         )(),
         "run-test-stable",
@@ -71,7 +71,7 @@ def test_stable_consolidation_review_skips_unvalidated(tmp_path: Path) -> None:
             {
                 "id": 1,
                 "task_type": "stable_consolidation_review",
-                "to_dict": lambda: {},
+                "to_dict": dict,
             },
         )(),
         "run-test-no-uses",
@@ -103,7 +103,7 @@ def test_memory_consolidation_review_marks_used(tmp_path: Path) -> None:
             {
                 "id": 1,
                 "task_type": "memory_consolidation_review",
-                "to_dict": lambda: {},
+                "to_dict": dict,
             },
         )(),
         "run-test-tracking",

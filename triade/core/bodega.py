@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .bodega_storage import BodegaStorage
 from .contracts import (
     CrystalPacket,
     InputPacket,
@@ -20,7 +21,6 @@ from .contracts import (
     SignalPacket,
     VerificationReport,
 )
-from .bodega_storage import BodegaStorage
 
 
 class Bodega(BodegaStorage):

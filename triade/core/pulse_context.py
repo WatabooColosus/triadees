@@ -7,7 +7,8 @@ mezclar planes internos en la respuesta visible. Está separado de
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 def as_dict(value: Any) -> dict[str, Any]:

@@ -10,7 +10,6 @@ from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
 from triade.core.neuron_registry import NeuronRegistry
 from triade.core.stable_promotion_readiness import evaluate_stable_readiness
 
-
 SAFE_ALLOWED_SOURCES = ["worker", "runs", "qualia_bus", "neuron_activity"]
 SAFE_ALLOWED_ACTIONS = ["observe", "diagnose", "propose_learning"]
 SAFE_STABLE_ACTIONS = [*SAFE_ALLOWED_ACTIONS, "request_stable_promotion"]

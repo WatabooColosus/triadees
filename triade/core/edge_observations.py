@@ -6,13 +6,12 @@ Se registra como evento operativo y, si se repite, alimenta diagnóstico técnic
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
 from triade.services.event_bus import list_recent_events, publish_event
-
 
 REPEATED_EDGE_SIGNAL_THRESHOLD = 3
 EDGE_SIGNAL_EVENT = "edge_context_signal_observed"
@@ -229,7 +228,7 @@ def _recent_edge_observations(
     limit: int,
     db_path: str | Path,
 ) -> list[dict[str, Any]]:
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=since_hours)
+    cutoff = datetime.now(UTC) - timedelta(hours=since_hours)
     rows = list_recent_events(limit=limit, db_path=db_path)
     observations: list[dict[str, Any]] = []
     for row in rows:
@@ -267,5 +266,5 @@ def _parse_datetime(value: Any) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed

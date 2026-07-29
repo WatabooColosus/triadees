@@ -8,7 +8,6 @@ from triade.core.model_policy import get_model_cognitive_policy
 from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
 from triade.learning.pipeline import LearningPipeline
 
-
 NO_OLLAMA_HEALTH = {
     "ok": False,
     "base_url": "http://127.0.0.1:11434",

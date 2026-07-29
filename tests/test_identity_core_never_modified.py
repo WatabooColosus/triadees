@@ -6,8 +6,8 @@ from pathlib import Path
 from triade.core.bodega import Bodega
 from triade.evaluation import EvaluationComparison, EvaluationRun, MetricResult
 from triade.learning.pipeline import LearningPipeline
-from triade.workers.worker_loop import WorkerLoop
 from triade.workers.contracts import WorkerRunConfig
+from triade.workers.worker_loop import WorkerLoop
 
 
 def _attach_improved_evidence(pipe: LearningPipeline, cid: str) -> None:

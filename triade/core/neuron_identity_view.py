@@ -5,13 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from triade.qualia.store import QualiaStore
+
 from .contracts import NEURON_STATUS_EFFECTS
 from .experimental_neuron_evidence import build_experimental_evidence_ledger
 from .neuron_activity_store import NeuronActivityStore
 from .neuron_registry import NeuronRegistry
 from .stable_promotion_readiness import evaluate_stable_readiness
-from triade.qualia.store import QualiaStore
-
 
 INSUFFICIENT_IDENTITY_MESSAGE = (
     "Esta neurona aún no tiene evidencia suficiente para identificarse plenamente."

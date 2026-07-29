@@ -6,8 +6,9 @@ hipótesis y acciones de investigación gobernadas y auditables.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 from triade.core.contracts import utc_now
 

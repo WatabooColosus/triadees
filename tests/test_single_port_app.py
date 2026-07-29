@@ -11,7 +11,6 @@ from apps.routes import api as routes_api
 from apps.single_port_app import app, federated_model_plan
 from triade.federation.contracts import sign_payload
 
-
 client = TestClient(app)
 
 

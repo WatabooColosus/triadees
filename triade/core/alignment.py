@@ -12,8 +12,9 @@ campos de contratos, integración entre órganos) en vez de puntajes fijos. Así
 from __future__ import annotations
 
 import inspect
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -247,8 +248,8 @@ class CoreAlignment:
         )
 
     def evaluate_crystal(self) -> OrganAlignment:
-        from .crystal import Crystal
         from .contracts import CrystalPacket
+        from .crystal import Crystal
 
         try:
             packet_fields = set(CrystalPacket.__dataclass_fields__)
@@ -371,7 +372,9 @@ class CoreAlignment:
 
     @staticmethod
     def _semantic_governance_importable() -> bool:
-        from triade.memory.semantic_governance import SemanticMemoryGovernance  # noqa: F401
+        from triade.memory.semantic_governance import (
+            SemanticMemoryGovernance,  # noqa: F401
+        )
 
         return True
 

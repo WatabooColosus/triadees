@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -80,7 +80,7 @@ def main() -> int:
 
     if not readiness.get("ready_for_stable_review"):
         decision = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "name": args.name,
             "decision": "blocked_not_ready",
             "previous_status": existing.get("status"),
@@ -101,7 +101,7 @@ def main() -> int:
     updated = registry.update_status(args.name, "stable")
 
     decision = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "name": args.name,
         "decision": "promote_to_stable",
         "previous_status": existing.get("status"),

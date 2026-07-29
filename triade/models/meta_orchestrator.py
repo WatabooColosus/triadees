@@ -14,10 +14,9 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Dataclasses
@@ -49,7 +48,7 @@ class ModelEvaluation:
 
     def __post_init__(self) -> None:
         if not self.created_at:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = datetime.now(UTC).isoformat()
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -66,7 +65,7 @@ class ModelDecision:
 
     def __post_init__(self) -> None:
         if not self.created_at:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = datetime.now(UTC).isoformat()
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -135,19 +134,19 @@ MODEL_CATALOG: list[dict[str, Any]] = [
     },
     {
         "name": "qwen2.5:14b",
-        "size_bytes": round(9 * 1024**3),
+        "size_bytes": (9 * 1024**3),
         "parameter_count": "14B",
         "description": "High quality reasoning.",
     },
     {
         "name": "qwen2.5:30b",
-        "size_bytes": round(19 * 1024**3),
+        "size_bytes": (19 * 1024**3),
         "parameter_count": "30B",
         "description": "Advanced reasoning, requires significant VRAM.",
     },
     {
         "name": "qwen2.5:70b",
-        "size_bytes": round(40 * 1024**3),
+        "size_bytes": (40 * 1024**3),
         "parameter_count": "70B",
         "description": "Top-tier reasoning, needs high-end GPU cluster.",
     },
@@ -196,7 +195,7 @@ class MetaModelOrchestrator:
 
     ADOPT_THRESHOLD_PCT = 15.0
     ADOPT_SMALL_THRESHOLD_PCT = 5.0
-    SMALL_MODEL_MAX_BYTES = round(5 * 1024**3)
+    SMALL_MODEL_MAX_BYTES = 5 * 1024**3
     OLLAMA_BASE_URL = "http://127.0.0.1:11434"
     VRAM_OVERHEAD_GB = 1.5
 
@@ -341,7 +340,7 @@ class MetaModelOrchestrator:
                         c.source_url,
                         int(c.compatible),
                         c.estimated_vram_gb,
-                        datetime.now(timezone.utc).isoformat(),
+                        datetime.now(UTC).isoformat(),
                     ),
                 )
 
@@ -559,7 +558,7 @@ class MetaModelOrchestrator:
                     previous_model,
                     f"Rollback for task_type={task_type}",
                     previous_model,
-                    datetime.now(timezone.utc).isoformat(),
+                    datetime.now(UTC).isoformat(),
                 ),
             )
         return True
@@ -627,7 +626,7 @@ class MetaModelOrchestrator:
     # ---- Monitoring -------------------------------------------------------
 
     def monitor_adoption(self, model_name: str, days: int = 7) -> dict[str, Any]:
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
         with self._connect() as conn:
             rows = conn.execute(
                 """SELECT score, latency_ms, created_at

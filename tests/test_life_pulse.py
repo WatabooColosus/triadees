@@ -6,8 +6,8 @@ import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
-from triade.core.life_pulse import LifePulseEngine
 from triade.core.error_bus import ERROR_SEVERITY_POLICY, query_internal_errors
+from triade.core.life_pulse import LifePulseEngine
 
 
 def make_life_db(tmp_path: Path) -> Path:

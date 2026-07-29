@@ -5,13 +5,13 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from triade.workers.mission_planner import MissionPlanner, PlannedTask
+from triade.core.error_bus import query_internal_errors
 from triade.core.neuron_missions import (
     NeuronEvidence,
     NeuronMission,
     NeuronMissionStore,
 )
-from triade.core.error_bus import query_internal_errors
+from triade.workers.mission_planner import MissionPlanner, PlannedTask
 
 
 def make_db(tmp_path: Path) -> Path:

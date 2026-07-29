@@ -7,7 +7,10 @@ import argparse
 import json
 import sys
 
-from triade.workers.neuron_mission_backfill import backfill_neuron_missions, neuron_missions_doctor
+from triade.workers.neuron_mission_backfill import (
+    backfill_neuron_missions,
+    neuron_missions_doctor,
+)
 
 
 def _print_json(payload: object) -> None:

@@ -8,7 +8,6 @@ import pytest
 
 from triade.memory.semantic_store import SemanticMemoryStore
 
-
 MIGRATION = "triade/memory/migrations/001_9A_semantic_memory.sql"
 
 

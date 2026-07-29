@@ -1,6 +1,6 @@
 """Tests de la política de permisos por estado de neurona."""
 
-from triade.core.contracts import NEURON_STATUS_EFFECTS, IDENTITY_CORE_FORBIDDEN_EFFECTS
+from triade.core.contracts import IDENTITY_CORE_FORBIDDEN_EFFECTS, NEURON_STATUS_EFFECTS
 
 
 def test_all_statuses_defined():

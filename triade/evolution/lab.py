@@ -12,15 +12,16 @@ import hmac
 import json
 import sqlite3
 import uuid
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import IntEnum
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _canonical(value: Any) -> str:

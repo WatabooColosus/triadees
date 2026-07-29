@@ -9,7 +9,6 @@ from pathlib import Path
 from triade.core.neuron_creator import NeuronSpec
 from triade.core.neuron_registry import NeuronRegistry
 
-
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
 
 

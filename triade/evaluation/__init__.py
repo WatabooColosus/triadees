@@ -16,7 +16,7 @@ __all__ = [
     "CapabilityBaseline",
     "EvaluationComparison",
     "EvaluationRun",
-    "MetricResult",
     "EvaluationRunner",
+    "MetricResult",
     "compare_evaluations",
 ]

@@ -5,7 +5,6 @@ from __future__ import annotations
 from triade.models.hardware_profile import HardwareProfile
 from triade.models.model_router import ModelRouter
 
-
 AVAILABLE = [
     "qwen2.5:3b-instruct",
     "qwen2.5-coder:3b",

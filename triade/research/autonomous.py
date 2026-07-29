@@ -6,10 +6,11 @@ import hashlib
 import json
 import re
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from triade.core.guarded_web import guarded_web_research, requests_web_research
 from triade.learning.pipeline import LearningPipeline
@@ -35,15 +36,15 @@ CREATE TABLE IF NOT EXISTS autonomous_research_runs (
 
 SENSITIVE = re.compile(
     r"\b(password|contrase(?:ña|na)|token|credencial|malware|exploit|arma|autolesi[oó]n|datos privados)\b",
-    re.I,
+    re.IGNORECASE,
 )
 FACTUAL = re.compile(
     r"\b(qué|que|quién|quien|cuál|cual|cómo|como|cuándo|cuando|dónde|donde|por qué|porque|explica|investiga)\b",
-    re.I,
+    re.IGNORECASE,
 )
 LOCAL_IDENTITY = re.compile(
     r"\b(recuerd|memoria|sesiones?|identidad|quién eres|quien eres|cómo te llamas|como te llamas|triade)\w*\b",
-    re.I,
+    re.IGNORECASE,
 )
 
 
@@ -119,7 +120,7 @@ class AutonomousResearchEngine:
                 continue
             source = {
                 **raw,
-                "retrieved_at": datetime.now(timezone.utc).isoformat(),
+                "retrieved_at": datetime.now(UTC).isoformat(),
                 "relevance_score": round(relevance, 3),
                 "reputation": self._reputation(str(raw.get("url", ""))),
                 "provenance_status": "candidate_evidence",
@@ -141,7 +142,7 @@ class AutonomousResearchEngine:
                 candidates.append(payload["candidate_id"])
         canonical = json.dumps(sources, ensure_ascii=False, sort_keys=True)
         digest = hashlib.sha256(canonical.encode()).hexdigest()
-        rid = f"web-{digest[:16]}-{int(datetime.now(timezone.utc).timestamp())}"
+        rid = f"web-{digest[:16]}-{int(datetime.now(UTC).timestamp())}"
         status = "candidate_created" if candidates else "no_evidence"
         with self._connect() as conn:
             conn.execute(
@@ -155,7 +156,7 @@ class AutonomousResearchEngine:
                     digest,
                     json.dumps(candidates),
                     json.dumps(contradictions),
-                    datetime.now(timezone.utc).isoformat(),
+                    datetime.now(UTC).isoformat(),
                 ),
             )
         return {
@@ -171,7 +172,7 @@ class AutonomousResearchEngine:
         }
 
     def _queries_today(self) -> int:
-        today = datetime.now(timezone.utc).date().isoformat()
+        today = datetime.now(UTC).date().isoformat()
         with self._connect() as conn:
             return int(
                 conn.execute(

@@ -18,31 +18,25 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from triade.core.life_pulse import LIFE_PULSE
-from triade.core.qualia import QUALIA
-from triade.core.runner import TriadeRunner
-from triade.core.repo_info import repo_info
 from triade.core.experimental_neuron_evidence import build_experimental_evidence_ledger
-from triade.core.stable_promotion_readiness import evaluate_stable_readiness
-from triade.core.system_pulse_builder import build_system_pulse as build_system_pulse_core
+from triade.core.life_pulse import LIFE_PULSE
 from triade.core.pulse_context import build_run_context_with_pulse
-from triade.core.neuron_candidate_governance import NeuronCandidateGovernance
-from triade.core.neuron_dashboard import build_neuron_dashboard
-from triade.core.ui_manifest import build_ui_manifest
-from triade.federation.contracts import (
-    FederatedJobResultPayload,
-    FederatedTransportDoctor,
-    SignedEnvelope,
-    ensure_sandbox_task,
-    verify_envelope,
+from triade.core.qualia import QUALIA
+from triade.core.stable_promotion_readiness import evaluate_stable_readiness
+from triade.core.system_pulse_builder import (
+    build_system_pulse as build_system_pulse_core,
 )
-from triade.federation.federation import Federation
-from triade.federation.node_live_registry import NODE_LIVE_REGISTRY
-from triade.federation.relay_client import PublicRelayClient, relay_capabilities_for_federation
+from triade.federation.contracts import (
+    FederatedTransportDoctor,
+    ensure_sandbox_task,
+)
 from triade.federation.edge_router import EdgeRouter
-from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
+from triade.federation.federation import Federation
+from triade.federation.relay_client import (
+    PublicRelayClient,
+    relay_capabilities_for_federation,
+)
 from triade.memory.semantic_governance import SemanticMemoryGovernance
-from triade.memory.semantic_search import SemanticSearchEngine
 from triade.models.compatibility_matrix import ModelCompatibilityMatrix
 from triade.models.hardware_profile import HardwareProfiler
 from triade.models.model_install_queue import ModelInstallQueue
@@ -670,7 +664,7 @@ def federated_model_plan(nodes: list[dict[str, Any]]) -> dict[str, Any]:
         "supported_runtime_tasks": sorted({
             task
             for node in runtime_ready
-            for task in (((node.get("capabilities") or {}).get("allowed_tasks") or []))
+            for task in ((node.get("capabilities") or {}).get("allowed_tasks") or [])
             if task
             in {
                 "preprocess_text",

@@ -12,7 +12,6 @@ import re
 import unicodedata
 from typing import Any
 
-
 QUESTION_WORDS = (
     "que",
     "qué",

@@ -151,6 +151,7 @@ def test_safe_shell_git_status_allowed():
 def test_safe_shell_no_shell_true():
     """run_safe_command usa shell=False."""
     import inspect
+
     from triade.core.safe_shell import run_safe_command
 
     src = inspect.getsource(run_safe_command)
@@ -218,8 +219,9 @@ def test_react_dashboard_includes_governor():
 def test_no_shell_true_in_governor():
     """decide_work_mode y build_permission_profile no deben ejecutar shell."""
     import inspect
-    from triade.core.resource_governor import decide_work_mode
+
     from triade.core.permission_governor import build_permission_profile
+    from triade.core.resource_governor import decide_work_mode
 
     for mod in (decide_work_mode, build_permission_profile):
         src = inspect.getsource(mod)

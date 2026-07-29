@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 import platform
+import sqlite3
 import sys
 from pathlib import Path
 from typing import Any
@@ -27,13 +27,11 @@ from .config import load_config
 from .context_scope import build_comparison_basis
 from .contracts import InputPacket
 from .crystal import Crystal
-from .hypothalamus import Hypothalamus
-from .safety import Safety
-from .verification import Verifier
 from .edge_context import build_edge_context
+from .hypothalamus import Hypothalamus
 from .model_quality import score_central, score_hypothalamus
-from .output_gate import sanitize_user_response
 from .neuron_candidate_gate import evaluate_neuron_candidate_worthiness
+from .output_gate import sanitize_user_response
 from .response_coherence_gate import evaluate_response_coherence
 from .response_governance import (
     ConversationContinuityService,
@@ -46,15 +44,17 @@ from .run_artifacts import (
     write_run_integrity,
 )
 from .run_learning import RunLearningService
+from .run_memory_trace import build_run_memory_trace
 from .run_neuron_orchestrator import orchestrate_run_neurons
 from .run_result import build_run_result
-from .run_memory_trace import build_run_memory_trace
 from .run_system_events import (
     build_system_events,
     filter_obsolete_edge_candidates,
     filter_obsolete_edge_debt,
 )
-from .runner_preflight import prepare_input, enrich_research
+from .runner_preflight import enrich_research, prepare_input
+from .safety import Safety
+from .verification import Verifier
 
 
 def _process_neuron_contributions(
@@ -1338,7 +1338,7 @@ class TriadeRunner:
 
         # Crear misión ejecutable asociada a la neurona candidata
         try:
-            from .neuron_missions import NeuronMissionStore, NeuronMission
+            from .neuron_missions import NeuronMission, NeuronMissionStore
 
             mission_store = NeuronMissionStore(db_path=self.db_path)
             mission = NeuronMission(
@@ -1357,8 +1357,8 @@ class TriadeRunner:
             proposal["mission_creation_failed"] = str(exc)
 
         # Persistir training result — el pipeline lo calcula pero nunca lo almacenaba
-        from .neuron_trainer import NeuronTrainingResult
         from .neuron_formation_pipeline import normalize_candidate_status
+        from .neuron_trainer import NeuronTrainingResult
 
         tr = proposal.get("training_result")
         if tr:

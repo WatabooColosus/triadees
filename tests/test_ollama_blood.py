@@ -7,10 +7,9 @@ from fastapi.testclient import TestClient
 import apps.routes.api as api_module
 from apps.single_port_app import app
 from triade.core.internal_runtime import build_runtime_heartbeat
-from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
 from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
+from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
 from triade.learning.pipeline import LearningPipeline
-
 
 OFFLINE_BLOOD = {
     "status": "degraded_no_ollama",

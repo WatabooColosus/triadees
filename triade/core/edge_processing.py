@@ -12,11 +12,11 @@ del transporte. Esta capa mantiene una regla crítica:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from typing import Any, Dict, Optional
-import time
-import re
 import json
+import re
+import time
+from dataclasses import asdict, dataclass
+from typing import Any
 
 from triade.federation.edge_router import EdgeRouter
 
@@ -27,13 +27,13 @@ class EdgeProcessingResult:
     accepted_for_context: bool
     task: str
     text: str
-    node_id: Optional[str]
+    node_id: str | None
     elapsed_ms: int
     reason: str
     response: str
-    raw: Dict[str, Any]
+    raw: dict[str, Any]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -50,7 +50,7 @@ class EdgeProcessingService:
     Cada resultado debe ser tratado como sugerencia, no como verdad final.
     """
 
-    def __init__(self, router: Optional[EdgeRouter] = None):
+    def __init__(self, router: EdgeRouter | None = None):
         self.router = router or EdgeRouter()
 
     def context_probe(self, text: str) -> EdgeProcessingResult:
@@ -143,7 +143,7 @@ class EdgeProcessingService:
         )
 
 
-def extract_response(raw: Dict[str, Any]) -> str:
+def extract_response(raw: dict[str, Any]) -> str:
     """
     Extrae respuesta limpia desde diferentes formas de payload.
     """
@@ -394,13 +394,13 @@ def normalize_bool_like(value) -> bool:
     return False
 
 
-def summarize_with_edge(text: str) -> Dict[str, Any]:
+def summarize_with_edge(text: str) -> dict[str, Any]:
     return EdgeProcessingService().summarize(text).to_dict()
 
 
-def intent_probe_with_edge(text: str) -> Dict[str, Any]:
+def intent_probe_with_edge(text: str) -> dict[str, Any]:
     return EdgeProcessingService().intent_probe(text).to_dict()
 
 
-def keywords_with_edge(text: str) -> Dict[str, Any]:
+def keywords_with_edge(text: str) -> dict[str, Any]:
     return EdgeProcessingService().keywords(text).to_dict()

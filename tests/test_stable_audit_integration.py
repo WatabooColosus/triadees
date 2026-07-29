@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from triade.core.living_report import build_living_report
 from triade.core.context_engine import build_living_context_for_chat
+from triade.core.living_report import build_living_report
 from triade.core.neuron_creator import NeuronSpec
 from triade.core.neuron_registry import NeuronRegistry
 
@@ -125,6 +125,7 @@ def test_runner_injects_bodega_global_context(tmp_path: Path) -> None:
 
 def test_runner_no_identity_modification(tmp_path: Path) -> None:
     import sqlite3
+
     from triade.core.runner import TriadeRunner
 
     db_path = tmp_path / "triade.db"
@@ -150,10 +151,10 @@ def test_runner_no_identity_modification(tmp_path: Path) -> None:
 def test_central_plan_includes_memory_confidence_steps(tmp_path: Path) -> None:
     from triade.core.central import Central
     from triade.core.contracts import (
-        InputPacket,
-        SignalPacket,
-        MemoryPacket,
         CrystalPacket,
+        InputPacket,
+        MemoryPacket,
+        SignalPacket,
     )
 
     central = Central()
@@ -185,10 +186,10 @@ def test_central_plan_includes_memory_confidence_steps(tmp_path: Path) -> None:
 def test_central_plan_no_bodega_global_fallback(tmp_path: Path) -> None:
     from triade.core.central import Central
     from triade.core.contracts import (
-        InputPacket,
-        SignalPacket,
-        MemoryPacket,
         CrystalPacket,
+        InputPacket,
+        MemoryPacket,
+        SignalPacket,
     )
 
     central = Central()

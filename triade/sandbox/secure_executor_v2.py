@@ -7,13 +7,13 @@ import os
 import sqlite3
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from triade.core.contracts import utc_now
 
 
 def _gen_id(prefix: str) -> str:
-    return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(timezone.utc).timestamp()).encode()).hexdigest()[:6]}"
+    return f"{prefix}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(UTC).timestamp()).encode()).hexdigest()[:6]}"
 
 
 @dataclass(frozen=True, slots=True)

@@ -6,22 +6,22 @@ import os
 import tempfile
 from pathlib import Path
 
-from triade.core.system_zones import classify_path, REPO_ROOT
-from triade.core.autonomy_budget import build_autonomy_budget, LEVELS
+from triade.core.autonomy_budget import LEVELS, build_autonomy_budget
+from triade.core.delegated_action_planner import plan_delegated_action
 from triade.core.integrity_verifier import (
     build_integrity_snapshot,
     verify_integrity_change,
 )
-from triade.core.quarantine_trash import trash_path, restore_trash_item, list_trash
+from triade.core.quarantine_trash import list_trash, restore_trash_item, trash_path
 from triade.core.safe_file_ops import (
+    _backup_file,
+    _restore_backup,
     safe_create_file,
-    safe_patch_file,
-    safe_move_file,
     safe_delete_file,
+    safe_move_file,
+    safe_patch_file,
 )
-from triade.core.delegated_action_planner import plan_delegated_action
-from triade.core.safe_file_ops import _backup_file, _restore_backup
-
+from triade.core.system_zones import REPO_ROOT, classify_path
 
 # ── Helper: green zone temp path ─────────────────────────────────────
 

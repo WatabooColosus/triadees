@@ -15,6 +15,8 @@ from .specification import (
 from .store import NeuronSpecificationStore
 
 __all__ = [
+    "VALID_NEURON_STATES",
+    "VALID_TRANSITIONS",
     "NeuronCandidate",
     "NeuronCandidateFactory",
     "NeuronEvaluationCoordinator",
@@ -24,7 +26,5 @@ __all__ = [
     "NeuronSpecificationStore",
     "ResourceBudget",
     "SandboxExecutionEngine",
-    "VALID_NEURON_STATES",
-    "VALID_TRANSITIONS",
     "validate_transition",
 ]

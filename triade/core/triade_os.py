@@ -11,9 +11,9 @@ def triade_os_status(
 ) -> dict[str, Any]:
     from .federated_global_edge import build_federated_global_edge_context
     from .internal_runtime import build_runtime_heartbeat
+    from .model_acquisition import model_acquisition_status
     from .permission_governor import build_permission_profile
     from .refutation_engine import run_system_refutation
-    from .model_acquisition import model_acquisition_status
 
     heartbeat = build_runtime_heartbeat(db_path=db_path, runs_dir=runs_dir)
     return {

@@ -8,8 +8,7 @@ from pathlib import Path
 import pytest
 
 from triade.os.contracts import EventRule
-from triade.os.event_engine import EventEngine, BUILTIN_RULES
-
+from triade.os.event_engine import BUILTIN_RULES, EventEngine
 
 SCHEMA_SQL = Path(__file__).resolve().parents[1] / "triade" / "memory" / "schemas.sql"
 MIGRATION_003 = (

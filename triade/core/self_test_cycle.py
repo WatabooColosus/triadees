@@ -9,7 +9,6 @@ from typing import Any
 from triade.core.contracts import utc_now
 from triade.services.event_bus import publish_event
 
-
 ALWAYS_ON_ALLOWED_ACTIONS = frozenset(
     {
         "heartbeat",

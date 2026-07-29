@@ -15,7 +15,6 @@ from typing import Any
 
 from triade.core.contracts import utc_now
 
-
 ERROR_SEVERITY_POLICY: dict[str, str] = {
     "critical": "Riesgo de corrupción de identidad, memoria estable o seguridad.",
     "error": "Fallo interno recuperable que afecta una tarea o ciclo.",

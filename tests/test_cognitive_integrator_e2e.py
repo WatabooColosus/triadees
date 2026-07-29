@@ -5,7 +5,6 @@ from __future__ import annotations
 import tempfile
 from types import SimpleNamespace
 
-
 from triade.core.cognitive_integrator import CognitiveIntegrator, IntegratedDecision
 from triade.core.contracts import InputPacket
 

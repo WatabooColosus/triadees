@@ -8,7 +8,7 @@ stable debe pasar por revisión humana y pruebas.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -130,7 +130,7 @@ class NeuronCandidateGovernance:
             "previous_status": candidate.get("status", "candidate"),
             "next_status": next_status,
             "decided_by": decided_by or "auto",
-            "decided_at": datetime.now(timezone.utc).isoformat(),
+            "decided_at": datetime.now(UTC).isoformat(),
             "notes": notes,
             "policy": "auto_governance",
             "candidate": candidate,

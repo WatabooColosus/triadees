@@ -9,9 +9,9 @@ from .event_bus import (
 from .supervisor import InternalRuntimeSupervisor
 
 __all__ = [
+    "InternalRuntimeSupervisor",
     "build_context_from_events",
     "list_recent_events",
     "mark_event_processed",
     "publish_event",
-    "InternalRuntimeSupervisor",
 ]

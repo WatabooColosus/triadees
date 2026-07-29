@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -49,7 +49,7 @@ class ServiceHealth:
         process_running: bool | None = None,
         ollama_probe: dict[str, Any] | None = None,
     ) -> RuntimeHealth:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         reasons: list[str] = []
         metrics: dict[str, Any] = {"process_running": process_running}
         if process_running is False:
@@ -169,7 +169,7 @@ class ServiceHealth:
             return float("inf")
         parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
+            parsed = parsed.replace(tzinfo=UTC)
         return max(0.0, (now - parsed).total_seconds())
 
     @staticmethod

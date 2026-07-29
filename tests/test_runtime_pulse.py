@@ -5,10 +5,10 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from apps.single_port_app import app
 import apps.routes.api as api_module
-from triade.core.contracts import utc_now
+from apps.single_port_app import app
 from triade.core.bodega import Bodega
+from triade.core.contracts import utc_now
 from triade.core.internal_runtime import (
     InternalRuntimeSupervisor,
     build_runtime_heartbeat,

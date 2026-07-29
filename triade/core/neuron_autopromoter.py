@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .neuron_registry import NeuronRegistry
 from .neuron_missions import NeuronMissionStore
+from .neuron_registry import NeuronRegistry
 from .stable_promotion_readiness import evaluate_stable_readiness
 
 

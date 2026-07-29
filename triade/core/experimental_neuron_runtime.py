@@ -18,8 +18,8 @@ from __future__ import annotations
 from typing import Any
 
 from .contracts import (
-    NeuronContributionPacket,
     NEURON_STATUS_EFFECTS,
+    NeuronContributionPacket,
 )
 from .neuron_registry import NeuronRegistry
 

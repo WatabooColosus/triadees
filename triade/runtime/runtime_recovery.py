@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from uuid import uuid4
 
 from triade.runtime.task_leases import AutonomousTaskStore
@@ -32,7 +33,7 @@ class RuntimeRecovery:
         verify_heartbeat: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         recovery_id = f"recovery-{uuid4().hex[:16]}"
-        created = datetime.now(timezone.utc).isoformat()
+        created = datetime.now(UTC).isoformat()
         actions: list[dict[str, Any]] = []
         snapshot = self._snapshot(recovery_id)
         with sqlite3.connect(self.db_path) as conn:
@@ -60,7 +61,7 @@ class RuntimeRecovery:
             state, error = "runtime_recovered", None
         except Exception as exc:
             state, error = "critical", f"{type(exc).__name__}: {exc}"
-        finished = datetime.now(timezone.utc).isoformat()
+        finished = datetime.now(UTC).isoformat()
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 "UPDATE runtime_recovery_events SET state=?,actions_json=?,error=?,finished_at=? WHERE recovery_id=?",

@@ -5,7 +5,6 @@ from pathlib import Path
 
 from triade.memory.encrypted_backup import EncryptedBackup
 
-
 if __name__ == "__main__":
     backup = EncryptedBackup()
     created = backup.create()

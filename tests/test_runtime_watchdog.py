@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from triade.runtime.runtime_recovery import RuntimeRecovery
 from triade.runtime.service_health import ServiceHealth
@@ -20,7 +20,7 @@ def _healthy_db(path):
         """)
         conn.execute(
             "INSERT INTO worker_state VALUES('workers',?, '{}')",
-            (datetime.now(timezone.utc).isoformat(),),
+            (datetime.now(UTC).isoformat(),),
         )
 
 
@@ -45,7 +45,7 @@ def test_health_detects_stopped_process(tmp_path, monkeypatch):
 def test_health_detects_frozen_heartbeat(tmp_path, monkeypatch):
     path = tmp_path / "health.db"
     _healthy_db(path)
-    stale = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    stale = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
     with sqlite3.connect(path) as conn:
         conn.execute("UPDATE worker_state SET updated_at=?", (stale,))
     monkeypatch.setattr(

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from apps.single_port_app import app
 import apps.routes.api as api_module
+from apps.single_port_app import app
 from triade.core.context_engine import build_living_context_for_chat
 from triade.core.internal_runtime import InternalRuntimeSupervisor
 from triade.core.living_report import build_living_report

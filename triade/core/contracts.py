@@ -7,7 +7,7 @@ Más adelante estos contratos pueden migrar a Pydantic.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -75,12 +75,12 @@ IDENTITY_CORE_FORBIDDEN_EFFECTS: frozenset[str] = frozenset(
 
 def utc_now() -> str:
     """Retorna timestamp ISO-8601 en UTC."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def new_run_id() -> str:
     """Genera un identificador de run legible y único."""
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     return f"run-{stamp}-{uuid4().hex[:8]}"
 
 

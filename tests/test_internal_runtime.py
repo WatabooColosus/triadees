@@ -3,11 +3,11 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from triade.core.bodega import Bodega
 from triade.core.internal_runtime import get_internal_runtime_supervisor
 from triade.core.living_report import build_living_report
 from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
 from triade.learning.pipeline import LearningPipeline
-from triade.core.bodega import Bodega
 
 
 def _init_db(db_path: Path) -> None:

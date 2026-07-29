@@ -1,9 +1,9 @@
 """Tests del contrato NeuronContributionPacket y políticas de permisos."""
 
 from triade.core.contracts import (
-    NeuronContributionPacket,
-    NEURON_STATUS_EFFECTS,
     IDENTITY_CORE_FORBIDDEN_EFFECTS,
+    NEURON_STATUS_EFFECTS,
+    NeuronContributionPacket,
 )
 
 

@@ -9,10 +9,9 @@ según su nivel actual.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-
 
 TRUST_DOMAINS = ["consolidation", "code_modification", "identity_evolution"]
 
@@ -37,7 +36,7 @@ PERMISSION_THRESHOLDS: dict[str, dict[str, float]] = {
 
 
 def new_utc() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class TrustLevelStore:

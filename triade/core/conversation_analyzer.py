@@ -17,7 +17,6 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
-
 STOPWORDS = {
     "actualiza",
     "ahora",

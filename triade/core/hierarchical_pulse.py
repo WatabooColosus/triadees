@@ -118,9 +118,7 @@ class HierarchicalPulseEngine:
         errors = self._error_counts.get(neuron_id, 0)
         if errors > 5:
             health = "critical"
-        elif errors > 2:
-            health = "degraded"
-        elif latency_ms > 3000:
+        elif errors > 2 or latency_ms > 3000:
             health = "degraded"
         reading = PulseReading(
             level="neuron",

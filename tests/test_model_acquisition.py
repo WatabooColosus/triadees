@@ -2,13 +2,13 @@ import sqlite3
 import subprocess
 from unittest.mock import patch
 
+from triade.core.foundational_neurons import ensure_foundational_neurons
 from triade.core.model_acquisition import (
     MODEL_CATALOG,
     assign_models_to_neurons,
     ensure_specialized_model_neurons,
     reconcile_model_catalog,
 )
-from triade.core.foundational_neurons import ensure_foundational_neurons
 
 
 def test_catalog_has_provenance_license_and_budget():

@@ -8,11 +8,11 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from apps.single_port_app import app
-from triade.core.contracts import InputPacket, MemoryPacket, CrystalPacket, SignalPacket
+from triade.core.contracts import CrystalPacket, InputPacket, MemoryPacket, SignalPacket
 from triade.core.neuron_creator import NeuronSpec
-from triade.core.neuron_registry import NeuronRegistry
-from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
 from triade.core.neuron_mission_selector import select_relevant_missions
+from triade.core.neuron_missions import NeuronMission, NeuronMissionStore
+from triade.core.neuron_registry import NeuronRegistry
 from triade.core.run_neuron_orchestrator import orchestrate_run_neurons
 from triade.workers.contracts import WorkerRunConfig, WorkerTask
 from triade.workers.neuron_mission_backfill import backfill_neuron_missions

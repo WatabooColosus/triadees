@@ -12,19 +12,19 @@ from __future__ import annotations
 
 import os
 import threading
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from triade.core.life_pulse import LIFE_PULSE
-from triade.federation.node_live_registry import NODE_LIVE_REGISTRY
-
 from apps.routes.api import router as api_router
+from apps.routes.governance import router as governance_router
 from apps.routes.health import router as health_router
 from apps.routes.ui import router as ui_router
-from apps.routes.governance import router as governance_router
+from triade.core.life_pulse import LIFE_PULSE
+from triade.federation.node_live_registry import NODE_LIVE_REGISTRY
 
 _ALWAYS_ON_RESULT: dict[str, Any] = {}
 _ALWAYS_ON_LOCK = threading.Lock()
@@ -54,11 +54,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         pass
 
     try:
+        from triade.core.always_on import (
+            load_always_on_config,
+            start_always_on_if_enabled,
+        )
         from triade.core.foundational_neurons import ensure_foundational_neurons
-        from triade.core.model_acquisition import start_model_acquisition_background
-        from triade.core.always_on import load_always_on_config, start_always_on_if_enabled
-        from triade.core.worker_autostart import start_workers_if_configured
         from triade.core.internal_runtime import record_internal_runtime_event
+        from triade.core.model_acquisition import start_model_acquisition_background
+        from triade.core.worker_autostart import start_workers_if_configured
         foundational_result = ensure_foundational_neurons()
         model_acquisition_result = start_model_acquisition_background()
         cfg = load_always_on_config()
@@ -125,29 +128,29 @@ def get_always_on_startup_result() -> dict[str, Any]:
 # Los tests existentes importan símbolos desde apps.single_port_app.
 # Mantenemos estas re-exportaciones para que sigan funcionando.
 
-from apps.services import (  # noqa: E402, F401 — re-export
+from apps.services import (  # noqa: F401 — re-export
     LOCAL_JOBS,
+    android_llm_host_nodes,
+    build_model_capacity,
+    build_system_pulse,
+    clean_model,
+    create_local_job,
+    docker_status,
     federated_model_plan,
     federation_resource_lease,
-    local_node_capabilities,
-    create_local_job,
-    build_model_capacity,
-    clean_model,
-    system_payload,
-    router_payload,
-    relay_settings,
     load_local_node_tokens,
+    local_federated_nodes,
+    local_node_capabilities,
+    merge_local_preprocess_results,
+    node_model_readiness,
+    operational_awareness_context,
+    relay_settings,
+    router_payload,
+    run_context_with_living_awareness,
     save_local_node_tokens,
+    split_text_for_nodes,
+    system_payload,
+    tool_status,
     upsert_local_android_node,
     wait_local_job,
-    local_federated_nodes,
-    android_llm_host_nodes,
-    split_text_for_nodes,
-    merge_local_preprocess_results,
-    tool_status,
-    docker_status,
-    node_model_readiness,
-    build_system_pulse,
-    operational_awareness_context,
-    run_context_with_living_awareness,
 )

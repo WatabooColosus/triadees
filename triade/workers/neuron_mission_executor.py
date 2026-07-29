@@ -23,7 +23,6 @@ from triade.learning.pipeline import LearningPipeline
 
 from .contracts import WorkerRunConfig
 
-
 ACTIVE_MISSION_STATUSES = {"experimental", "stable"}
 
 

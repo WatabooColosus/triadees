@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -314,7 +314,7 @@ def start_always_on_if_enabled(
             "config_source": cfg["_config_source"],
         }
 
-    now_utc = datetime.now(timezone.utc).isoformat()
+    now_utc = datetime.now(UTC).isoformat()
     _ALWAYS_ON_STATE["effective_mode"] = effective_mode
     _ALWAYS_ON_STATE["degraded_by_governor"] = degraded_by_governor
     _ALWAYS_ON_STATE["degradation_reason"] = degradation_reason

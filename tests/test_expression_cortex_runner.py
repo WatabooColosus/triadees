@@ -14,7 +14,6 @@ from triade.core.contracts import (
 )
 from triade.core.runner import TriadeRunner
 
-
 FORBIDDEN_DUMPS = (
     "Bodega Global Context",
     "Bodega Global",
