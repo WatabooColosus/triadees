@@ -18,6 +18,8 @@ USER_AGENT = "TriadeOmega/1.0 guarded-research"
 CURATED_PUBLIC_SOURCES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("vision", "visual", "imagen", "opencv"), "https://docs.opencv.org/4.x/d1/dfb/intro.html"),
     (("vision", "visual", "imagen", "pillow"), "https://pillow.readthedocs.io/en/stable/handbook/tutorial.html"),
+    (("código", "codigo", "pruebas", "testing", "software"), "https://docs.python.org/3/library/unittest.html"),
+    (("código", "codigo", "pruebas", "testing", "software"), "https://docs.pytest.org/en/stable/how-to/index.html"),
 )
 
 
@@ -77,6 +79,11 @@ def guarded_web_research(query: str, *, timeout: int = 8, max_sources: int = MAX
             sources.append({"url": url, "title": _title(raw) or urllib.parse.urlparse(url).netloc, "excerpt": text})
         except Exception:
             continue
+    if not sources:
+        sources = _curated_sources(clean_query, timeout=timeout, max_sources=max_sources)
+        remaining = max(0, max_sources - len(sources))
+        if remaining:
+            sources.extend(_wikipedia_sources(clean_query, timeout=timeout, max_sources=remaining))
     return {
         "status": "ok" if sources else "degraded",
         "query": clean_query,

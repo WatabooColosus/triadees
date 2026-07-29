@@ -331,6 +331,7 @@ class WorkerLoop:
         domain_queries = {
             "vision_image_understanding": "visión artificial procesamiento de imágenes OpenCV Pillow",
             "code_repair": "ingeniería de software depuración pruebas reproducibles",
+            "code_repair_build_tests": "ingeniería de software código depuración pruebas testing pytest unittest",
             "system_governance": "gobernanza de sistemas software auditoría trazabilidad",
         }
         clean_domain = domain_queries.get(domain_value, domain_value.replace("_", " "))
