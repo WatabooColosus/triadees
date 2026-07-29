@@ -42,3 +42,27 @@ despachó `experimental_neuron_activity`, `pending_learning_review`,
 `memory_consolidation_review` ni `neuron_autopromotion`. La cantidad de Qualia,
 evidencias neuronales y candidatos permaneció idéntica. Las pruebas E2E ahora
 inyectan una evidencia `user_run` explícita antes de esperar una misión.
+# Cierre adicional: educación basada en evidencia (2026-07-29)
+
+Se eliminaron dos señales que podían aparentar aprendizaje sin demostrarlo:
+
+- El solapamiento de palabras ya no incrementa `run_use_count`; se conserva solo
+  como `heuristic_observations[].counted=false`.
+- El resultado de un run ya no parte de `0.5` ni aumenta por estado `ok`, longitud
+  de respuesta o disponibilidad del modelo. Solo se registra si la salida aporta
+  `learning_outcome_score` y `learning_outcome_evidence_ref`.
+
+La educación neuronal ahora distingue cuatro hechos persistentes:
+
+1. `lesson_prepared`: dos materiales relevantes en estados `cross_checked` o
+   `externally_supported`; todavía no es aprendizaje.
+2. `evaluated_candidate`: comparación independiente antes/después, con evaluador
+   distinto del formador y evidencia referenciada; todavía no es aprendizaje.
+3. Aplicaciones en runs: solo usos explícitos, medidos, trazables e idempotentes.
+4. `validated_in_runs`: mínimo tres runs únicos y promedio mínimo `0.70`; solo aquí
+   la competencia cambia a validada.
+
+La migración `011_neuron_education_evidence.sql` conserva cada aplicación y evita
+que un mismo run se cuente dos veces. Esta infraestructura no inventa el evaluador:
+si ningún evaluador real entrega baseline, resultado y evidencia, la sesión queda
+pendiente. Tampoco equivale a entrenamiento LoRA o modificación de pesos.

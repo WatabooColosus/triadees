@@ -172,6 +172,8 @@ def test_e2e_usage_explicit_match(tmp_path: Path) -> None:
         model_ok=True,
         memory_diff={
             "used_learning_candidate_ids": [cid],
+            "learning_outcome_score": 0.82,
+            "learning_outcome_evidence_ref": "evaluation:e2e-run-001",
         },
     )
     memory = SimpleNamespace(
@@ -227,6 +229,8 @@ def test_e2e_traceability_learning_mission_evidence_no_internal_errors(tmp_path:
         memory_diff={
             "used_learning_candidate_ids": [cid],
             "evidence_refs": [f"mission:{mission_id}:semantic-doc-obs-1"],
+            "learning_outcome_score": 0.9,
+            "learning_outcome_evidence_ref": "evaluation:e2e-observability-run",
         },
     )
     memory = SimpleNamespace(
@@ -288,7 +292,7 @@ def test_e2e_usage_heuristic_fallback(tmp_path: Path) -> None:
     pipeline.evaluate(cid)
     pipeline.verify(cid)
 
-    # Output without explicit IDs - should match by heuristic
+    # Sin IDs explícitos, el solapamiento solo es una observación diagnóstica.
     output = SimpleNamespace(
         response="Los machine learning modelos neuronales artificiales son fundamentales",
         status="ok",
@@ -304,13 +308,12 @@ def test_e2e_usage_heuristic_fallback(tmp_path: Path) -> None:
         db_path=db_path,
     )
 
-    assert result["candidates_marked"] >= 1
-    trace = result.get("trace", [])
-    heuristic_matches = [t for t in trace if t.get("heuristic_match") is True]
-    assert len(heuristic_matches) >= 1
+    assert result["candidates_marked"] == 0
+    assert result["heuristic_observations"]
+    assert result["heuristic_observations"][0]["counted"] is False
 
     c = pipeline.get_candidate(cid)
-    assert c["run_use_count"] >= 1
+    assert c["run_use_count"] == 0
 
 
 # ── Step 5: Record mission work cycle and evidence ──────────────────────────
@@ -401,7 +404,11 @@ def test_e2e_no_consolidation_without_gates(tmp_path: Path) -> None:
         response="Blockchain descentralizado es una tecnología emergente",
         status="ok",
         model_ok=True,
-        memory_diff={},
+        memory_diff={
+            "used_learning_candidate_ids": [cid],
+            "learning_outcome_score": 0.65,
+            "learning_outcome_evidence_ref": "evaluation:e2e-run-003",
+        },
     )
     memory = SimpleNamespace(verification_status="ok", semantic_recall={})
 
@@ -441,7 +448,11 @@ def test_e2e_consolidation_after_gates(tmp_path: Path) -> None:
         response="Los sistemas distribuidos tolerantes a fallos son esenciales",
         status="ok",
         model_ok=True,
-        memory_diff={},
+        memory_diff={
+            "used_learning_candidate_ids": [cid],
+            "learning_outcome_score": 0.85,
+            "learning_outcome_evidence_ref": "evaluation:e2e-distributed",
+        },
     )
     memory = SimpleNamespace(verification_status="ok", semantic_recall={})
 
@@ -520,6 +531,8 @@ def test_e2e_traceability_output(tmp_path: Path) -> None:
         memory_diff={
             "used_learning_candidate_ids": [cid],
             "evidence_refs": ["neuron:eval-001"],
+            "learning_outcome_score": 0.8,
+            "learning_outcome_evidence_ref": "evaluation:e2e-trace-001",
         },
     )
     memory = SimpleNamespace(

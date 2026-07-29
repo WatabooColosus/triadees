@@ -8,19 +8,20 @@ Soporta:
 - output.memory_diff.used_learning_candidate_ids (explícito)
 - memory.semantic_matches.document_id (explícito)
 - evidence_refs (explícito)
-- Overlap heurístico como fallback (marcado heuristic_match=True)
+
+Las coincidencias heurísticas solo se informan como observaciones. Nunca cuentan
+como uso ni generan una puntuación de resultado.
 """
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 from typing import Any
 
-from triade.core.contracts import utc_now
 from triade.core.error_bus import record_internal_error
 from triade.learning.pipeline import LearningPipeline
+from triade.neurons.competency_store import CompetencyStore
 
 
 def record_learning_usage_from_output(
@@ -36,7 +37,7 @@ def record_learning_usage_from_output(
     1. output.memory_diff.used_learning_candidate_ids → match explícito
     2. memory.semantic_matches.document_id → match de documento semántico
     3. output.memory_diff.evidence_refs → referencia a evidencia
-    4. Overlap heurístico de palabras → fallback (heuristic_match=True)
+    4. Overlap heurístico de palabras → observación no promocionable
 
     Cada candidato marcado incluye reason para trazabilidad.
     """
@@ -114,7 +115,8 @@ def record_learning_usage_from_output(
                         "reason": f"Title '{title[:40]}' matcheado por evidence_ref",
                     })
 
-        # ── 4. Fallback: overlap heurístico ──
+        # ── 4. Diagnóstico heurístico: jamás se registra como uso ──
+        heuristic_observations: list[dict[str, Any]] = []
         response_lower = response_text.lower()
         for cand in rows:
             if any(m["id"] == cand["id"] for m in matched):
@@ -136,7 +138,7 @@ def record_learning_usage_from_output(
                     heuristic_reason = f"Overlap de {overlap} palabras entre contenido y respuesta"
 
             if heuristic_reason:
-                matched.append({
+                heuristic_observations.append({
                     **dict(cand),
                     "match_source": "heuristic",
                     "heuristic_match": True,
@@ -152,7 +154,7 @@ def record_learning_usage_from_output(
                 seen_ids.add(mid)
                 unique_matched.append(m)
 
-        outcome_score = _compute_outcome_score(output_packet, memory_packet)
+        outcome_score, outcome_evidence = _extract_measured_outcome(output_packet)
 
         # ── Mark each matched candidate ──
         for cand in unique_matched[:8]:
@@ -161,12 +163,21 @@ def record_learning_usage_from_output(
             reason = cand.get("reason", "Sin razón especificada")
             is_heuristic = cand.get("heuristic_match", False)
 
+            if outcome_score is None or not outcome_evidence:
+                result["trace"].append({
+                    "candidate_id": candidate_id_str,
+                    "match_source": match_source,
+                    "status": "observed_not_counted",
+                    "reason": "Falta outcome_score medido o evidence_ref explícito",
+                })
+                continue
+
             try:
                 pipeline.mark_used_in_run(
                     candidate_id=candidate_id_str,
                     run_id=run_id,
                     outcome_score=outcome_score,
-                    evidence_ref=evidence_ref,
+                    evidence_ref=outcome_evidence,
                 )
                 result["candidates_marked"] += 1
                 source_counter = result["matched_by_source"]
@@ -179,6 +190,14 @@ def record_learning_usage_from_output(
                     "reason": reason,
                     "outcome_score": outcome_score,
                 })
+                education_applications = CompetencyStore(db_path).record_candidate_application(
+                    candidate_id_str,
+                    run_id=run_id,
+                    outcome_score=outcome_score,
+                    evidence_ref=outcome_evidence,
+                )
+                if education_applications:
+                    result.setdefault("education_applications", []).extend(education_applications)
             except ValueError as exc:
                 # A verified candidate may accumulate real-use observations before
                 # Measurement Core has produced promotable evidence.  That is an
@@ -219,6 +238,15 @@ def record_learning_usage_from_output(
                 )
 
         result["outcome_score"] = outcome_score
+        result["outcome_evidence_ref"] = outcome_evidence
+        result["heuristic_observations"] = [
+            {
+                "candidate_id": str(item["candidate_id"]),
+                "reason": str(item["reason"]),
+                "counted": False,
+            }
+            for item in heuristic_observations[:8]
+        ]
         result["matched_domains"] = list({str(c["domain"]) for c in unique_matched})
         result["total_candidates_checked"] = len(rows)
         result["total_unique_matches"] = len(unique_matched)
@@ -308,36 +336,41 @@ def _extract_evidence_refs(output_packet: Any) -> list[str]:
     return refs
 
 
-def _compute_outcome_score(output_packet: Any, memory_packet: Any) -> float:
-    """Calcula un outcome_score prudente basado en calidad del output."""
-    score = 0.5
+def _extract_measured_outcome(output_packet: Any) -> tuple[float | None, str | None]:
+    """Extrae una medición declarada; nunca infiere calidad por longitud o estado.
 
+    El productor del run debe adjuntar ambos campos dentro de ``memory_diff``:
+    ``learning_outcome_score`` y ``learning_outcome_evidence_ref``. Sin los dos,
+    el match queda como observación y no modifica contadores de aprendizaje.
+    """
     try:
-        if hasattr(output_packet, "status"):
-            if output_packet.status == "ok":
-                score += 0.2
-            elif output_packet.status == "blocked":
-                score -= 0.3
+        if hasattr(output_packet, "memory_diff") and isinstance(output_packet.memory_diff, dict):
+            memory_diff = output_packet.memory_diff
+        elif isinstance(output_packet, dict):
+            memory_diff = output_packet.get("memory_diff", {})
+        else:
+            memory_diff = {}
+        raw_score = memory_diff.get("learning_outcome_score")
+        evidence_ref = str(memory_diff.get("learning_outcome_evidence_ref") or "").strip()
+        if raw_score is None or not evidence_ref:
+            return None, None
+        score = float(raw_score)
+        if not 0.0 <= score <= 1.0:
+            return None, None
+        return score, evidence_ref
+    except (TypeError, ValueError):
+        return None, None
 
-        if hasattr(output_packet, "model_ok") and output_packet.model_ok:
-            score += 0.1
 
-        if hasattr(output_packet, "response"):
-            response = str(output_packet.response or "")
-            if len(response) > 50:
-                score += 0.1
-            if len(response) > 200:
-                score += 0.05
+def _compute_outcome_score(output_packet: Any, memory_packet: Any = None) -> float:
+    """Compatibilidad: devuelve solo una medición explícita o cero.
 
-        if memory_packet is not None:
-            if hasattr(memory_packet, "verification_status"):
-                if memory_packet.verification_status == "ok":
-                    score += 0.1
-
-    except Exception as exc:
-        record_internal_error("learning_usage.outcome_score", exc)
-
-    return max(0.0, min(1.0, score))
+    ``memory_packet`` se conserva en la firma para consumidores antiguos, pero
+    no se usa para fabricar una señal de calidad.
+    """
+    del memory_packet
+    score, _ = _extract_measured_outcome(output_packet)
+    return score if score is not None else 0.0
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:

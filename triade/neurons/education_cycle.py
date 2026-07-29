@@ -40,6 +40,7 @@ class NeuronEducationCycle:
                     "domain": domain, "independent_sources": independent, "material_refs": refs, **session}
 
         lesson = {"objective": objective, "claims": [str(item["content"])[:280] for item in materials[:3]],
+                  "candidate_ids": [str(item["candidate_id"]) for item in materials[:3]],
                   "provenance": refs, "truth_status": "candidate"}
         exercise = {"type": "retrieval_and_application", "prompt": f"Explica y aplica: {objective}",
                     "evaluation_role": "independent_required"}
@@ -87,7 +88,7 @@ class NeuronEducationCycle:
         with self.store.connect() as conn:
             rows = conn.execute(
                 """SELECT candidate_id,title,content,domain,source_type,source_ref,status
-                FROM learning_queue WHERE status IN ('cross_checked','internally_checked','externally_supported')
+                FROM learning_queue WHERE status IN ('cross_checked','externally_supported')
                 AND source_type IN ('repo','document','web','node') AND source_ref IS NOT NULL
                 ORDER BY updated_at DESC LIMIT 300"""
             ).fetchall()

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
-from triade.core.run_learning_usage import record_learning_usage_from_output, _compute_outcome_score
+from triade.core.run_learning_usage import (
+    _compute_outcome_score,
+    record_learning_usage_from_output,
+)
 from triade.learning.pipeline import LearningPipeline
 
 
@@ -21,7 +21,7 @@ def make_db(tmp_path: Path) -> Path:
     return db_path
 
 
-def test_record_usage_marks_verified_candidate(tmp_path: Path) -> None:
+def test_record_usage_requires_explicit_candidate_and_measured_evidence(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
     pipeline = LearningPipeline(db_path=db_path)
     candidate = pipeline.ingest(
@@ -39,6 +39,11 @@ def test_record_usage_marks_verified_candidate(tmp_path: Path) -> None:
         response="This response discusses edge computing patterns on Android devices",
         status="ok",
         model_ok=True,
+        memory_diff={
+            "used_learning_candidate_ids": [candidate["candidate_id"]],
+            "learning_outcome_score": 0.82,
+            "learning_outcome_evidence_ref": "evaluation:run-002",
+        },
     )
     memory = SimpleNamespace(verification_status="ok")
 
@@ -98,25 +103,59 @@ def test_record_usage_empty_response(tmp_path: Path) -> None:
     assert result["candidates_marked"] == 0
 
 
-def test_outcome_score_ok_run(tmp_path: Path) -> None:
-    output = SimpleNamespace(response="A" * 100, status="ok", model_ok=True)
+def test_outcome_score_requires_measurement(tmp_path: Path) -> None:
+    output = SimpleNamespace(response="A" * 100, status="ok", model_ok=True, memory_diff={})
     memory = SimpleNamespace(verification_status="ok")
     score = _compute_outcome_score(output, memory)
-    assert 0.7 <= score <= 1.0
+    assert score == 0.0
 
 
-def test_outcome_score_blocked_run(tmp_path: Path) -> None:
-    output = SimpleNamespace(response="Blocked", status="blocked", model_ok=False)
+def test_outcome_score_reads_explicit_measurement(tmp_path: Path) -> None:
+    output = SimpleNamespace(
+        response="Blocked",
+        status="blocked",
+        model_ok=False,
+        memory_diff={
+            "learning_outcome_score": 0.2,
+            "learning_outcome_evidence_ref": "evaluation:blocked",
+        },
+    )
     memory = SimpleNamespace(verification_status="blocked")
     score = _compute_outcome_score(output, memory)
-    assert score < 0.5
+    assert score == 0.2
 
 
 def test_outcome_score_dict_input() -> None:
-    output = {"response": "A" * 100, "status": "ok"}
+    output = {
+        "response": "A" * 100,
+        "status": "ok",
+        "memory_diff": {
+            "learning_outcome_score": 0.75,
+            "learning_outcome_evidence_ref": "evaluation:dict",
+        },
+    }
     memory = None
     score = _compute_outcome_score(output, memory)
-    assert score >= 0.5
+    assert score == 0.75
+
+
+def test_heuristic_overlap_is_observed_but_never_counted(tmp_path: Path) -> None:
+    db_path = make_db(tmp_path)
+    pipeline = LearningPipeline(db_path=db_path)
+    candidate = pipeline.ingest(
+        content="edge computing android devices",
+        source_type="conversation",
+        source_ref="run:source",
+        title="Edge computing",
+        domain="edge",
+        risk_level="low",
+    )
+    pipeline.evaluate(candidate["candidate_id"])
+    pipeline.verify(candidate["candidate_id"])
+    output = SimpleNamespace(response="edge computing android devices", memory_diff={})
+    result = record_learning_usage_from_output("run-observation", output, None, db_path)
+    assert result["candidates_marked"] == 0
+    assert result["heuristic_observations"][0]["counted"] is False
 
 
 def test_record_usage_does_not_consolidate(tmp_path: Path) -> None:
