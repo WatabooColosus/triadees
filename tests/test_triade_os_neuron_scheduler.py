@@ -9,7 +9,6 @@ import pytest
 
 from triade.os.neuron_scheduler import NeuronScheduler
 
-
 SCHEMA_SQL = Path(__file__).resolve().parents[1] / "triade" / "memory" / "schemas.sql"
 MIGRATION_003 = Path(__file__).resolve().parents[1] / "triade" / "memory" / "migrations" / "003_living_workers.sql"
 MIGRATION_005 = Path(__file__).resolve().parents[1] / "triade" / "memory" / "migrations" / "005_triade_os.sql"
@@ -56,6 +55,16 @@ def _insert_work_cycle(conn: sqlite3.Connection, neuron_id: int, status: str = "
         """INSERT INTO neuron_work_cycles (mission_id, neuron_id, status)
         VALUES (?, ?, ?)""",
         (1, neuron_id, status),
+    )
+    conn.commit()
+
+
+def _insert_external_evidence(conn: sqlite3.Connection, neuron_id: int) -> None:
+    conn.execute(
+        """INSERT INTO neuron_evidence
+        (mission_id,neuron_id,evidence_type,source,content,refs_json,score,created_at)
+        VALUES(1,?,'user_run','user_run','señal externa','["run:user"]',.8,datetime('now','+1 second'))""",
+        (neuron_id,),
     )
     conn.commit()
 
@@ -145,7 +154,8 @@ class TestScheduleWakeups:
     def test_schedule_creates_tasks(self, scheduler: NeuronScheduler, db: Path) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
-        _insert_neuron(conn, "WakeMe", status="experimental")
+        nid = _insert_neuron(conn, "WakeMe", status="experimental")
+        _insert_external_evidence(conn, nid)
         conn.close()
 
         scheduled = scheduler.schedule_wakeups(max_wakeups=3)
@@ -157,7 +167,8 @@ class TestScheduleWakeups:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
         for i in range(10):
-            _insert_neuron(conn, f"N{i}", status="experimental")
+            nid = _insert_neuron(conn, f"N{i}", status="experimental")
+            _insert_external_evidence(conn, nid)
         conn.close()
 
         scheduled = scheduler.schedule_wakeups(max_wakeups=3)
@@ -179,7 +190,8 @@ class TestScheduleWakeups:
     def test_schedule_logs_priority(self, scheduler: NeuronScheduler, db: Path) -> None:
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
-        _insert_neuron(conn, "Logged", status="experimental")
+        nid = _insert_neuron(conn, "Logged", status="experimental")
+        _insert_external_evidence(conn, nid)
         conn.close()
 
         scheduler.schedule_wakeups(max_wakeups=1)
@@ -188,6 +200,20 @@ class TestScheduleWakeups:
         logs = conn2.execute("SELECT COUNT(*) AS c FROM neuron_priority_log").fetchone()["c"]
         conn2.close()
         assert logs >= 1
+
+    def test_schedule_refuses_self_referential_wakeup(self, scheduler: NeuronScheduler, db: Path) -> None:
+        conn = sqlite3.connect(db)
+        conn.row_factory = sqlite3.Row
+        nid = _insert_neuron(conn, "SelfOnly", status="experimental")
+        conn.execute(
+            """INSERT INTO neuron_evidence
+            (mission_id,neuron_id,evidence_type,source,content,refs_json,score,created_at)
+            VALUES(1,?,'mission_cycle','worker','actividad propia','[]',.9,datetime('now'))""",
+            (nid,),
+        )
+        conn.commit()
+        conn.close()
+        assert scheduler.schedule_wakeups(max_wakeups=1) == []
 
 
 class TestRecordActivation:

@@ -6,11 +6,18 @@ import json
 import os
 import sqlite3
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from triade.core.background_neurons import candidates_from_system_debt
-from triade.core.contracts import CrystalPacket, MemoryPacket, PlanPacket, SignalPacket, utc_now
+from triade.core.contracts import (
+    CrystalPacket,
+    MemoryPacket,
+    PlanPacket,
+    SignalPacket,
+    utc_now,
+)
 from triade.core.error_bus import record_internal_error
 from triade.core.experimental_neuron_runtime import run_experimental_neurons
 from triade.core.neuron_activity_store import NeuronActivityStore
@@ -26,11 +33,11 @@ from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
 from triade.runtime.event_scheduler import EventDrivenScheduler
 from triade.runtime.live_heartbeat import LiveHeartbeat
+from triade.runtime.resource_ledger import ResourceLedger
 from triade.runtime.wake_bus import runtime_wake_event
 
-from .contracts import WORKER_TASK_TYPES, WorkerRunConfig, WorkerTask, new_worker_run_id
 from .adaptive_scheduler import AdaptiveScheduler
-from triade.runtime.resource_ledger import ResourceLedger
+from .contracts import WorkerRunConfig, WorkerTask, new_worker_run_id
 from .neuron_mission_executor import NeuronMissionExecutor
 from .scheduler import WorkerScheduler
 from .state_store import WorkerStateStore
@@ -758,22 +765,19 @@ class WorkerLoop:
         }
 
     def _system_debt_scan(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
-        pipe = LearningPipeline(db_path=self.db_path)
         content = "Worker detectó deuda operacional: mantener vivo el ciclo observar→evaluar→sandbox→memoria experimental→medición."
-        candidate = pipe.ingest(
-            content=content,
-            source_type="tool",
-            source_ref=f"worker:{run_ref}",
-            title="Deuda operacional detectada por Living Workers",
-            domain="living-workers",
-            risk_level="low",
-        )
         qualia = self._publish_qualia_experience(
             run_ref, "system_debt_scan", "worker_debt",
             "Deuda operacional detectada: ciclo observar→evaluar→sandbox→memoria experimental→medición.",
             proposed_learning="Mantener vivo el ciclo de observación y evaluación continua.",
         )
-        return {"status": "completed", "learning_candidate": candidate, "qualia": qualia}
+        return {
+            "status": "observed",
+            "observation": content,
+            "learning_candidate": None,
+            "truth": "worker_self_observation_not_learning_evidence",
+            "qualia": qualia,
+        }
 
     def _bodega_global_review(self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig) -> dict[str, Any]:
         """Revisa memoria reciente, learning_queue y stable_audit sin modificar identity_core.

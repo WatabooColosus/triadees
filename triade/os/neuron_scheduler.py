@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -180,11 +180,32 @@ class NeuronScheduler:
             if p.reputation < 0.2:
                 continue
 
+            # A priority score describes a gap; it is not evidence that useful
+            # work exists.  Require a new signal produced outside autonomous
+            # workers before waking the neuron, otherwise the scheduler creates
+            # self-referential activity indefinitely.
+            with self._connect() as conn:
+                external = conn.execute(
+                    """SELECT id,source,refs_json FROM neuron_evidence
+                    WHERE neuron_id=?
+                    AND source NOT IN ('worker','experimental_light_pulse','living_worker')
+                    AND created_at > COALESCE(
+                        (SELECT MAX(created_at) FROM neuron_work_cycles WHERE neuron_id=?),
+                        '1970-01-01'
+                    )
+                    ORDER BY id DESC LIMIT 1""",
+                    (p.neuron_id, p.neuron_id),
+                ).fetchone()
+            if external is None:
+                continue
+
             payload = {
                 "neuron_id": p.neuron_id,
                 "neuron_name": p.neuron_name,
                 "priority_score": p.priority_score,
                 "triggered_by": "neuron_scheduler",
+                "external_evidence_id": int(external["id"]),
+                "external_evidence_source": str(external["source"]),
             }
 
             with self._connect() as conn:
