@@ -11,7 +11,7 @@ import random
 import sqlite3
 import time
 from dataclasses import asdict, dataclass
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -76,9 +76,7 @@ class LeaseManager:
     def acquire(self, resource: str, owner: str, ttl_seconds: int = 60) -> Lease | None:
         self._cleanup_expired(resource)
         now = utc_now()
-        from datetime import datetime, timedelta
-
-        expires = (datetime.utcnow() + timedelta(seconds=ttl_seconds)).isoformat()
+        expires = (datetime.now(UTC) + timedelta(seconds=ttl_seconds)).isoformat()
         lease_id = f"lease-{resource}-{int(time.time() * 1000)}"
         try:
             with self._connect() as conn:

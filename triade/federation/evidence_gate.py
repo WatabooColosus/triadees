@@ -169,7 +169,7 @@ class FederatedEvidenceGate:
     @staticmethod
     def _run(payload: Any, label: str) -> EvaluationRun:
         if not isinstance(payload, dict):
-            raise ValueError(f"evidence.{label} es obligatorio")
+            raise TypeError(f"evidence.{label} debe ser un objeto")
         results = payload.get("results")
         if not isinstance(results, list) or not results:
             raise ValueError(f"evidence.{label}.results debe contener métricas")

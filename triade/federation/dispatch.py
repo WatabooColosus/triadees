@@ -108,7 +108,7 @@ class FederatedDispatcher:
         if not all((job_id.strip(), remote_node_id.strip(), capability.strip())):
             raise ValueError("job_id, remote_node_id y capability son obligatorios")
         if not isinstance(task, dict):
-            raise ValueError("task debe ser un objeto")
+            raise TypeError("task debe ser un objeto")
         if not self.registry.authorize(
             remote_node_id,
             capability=capability,
@@ -212,7 +212,7 @@ class FederatedDispatcher:
         evidence = payload.get("evidence")
         usage = payload.get("usage")
         if not isinstance(evidence, dict) or not isinstance(usage, dict):
-            raise ValueError("evidence y usage son obligatorios")
+            raise TypeError("evidence y usage deben ser objetos")
         limits = {
             "cpu_seconds": float(budget.cpu_seconds),
             "memory_mb": float(budget.memory_mb),

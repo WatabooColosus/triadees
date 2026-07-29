@@ -47,7 +47,7 @@ class FederatedEnvelope:
         if self.issued_at < 0 or self.expires_at <= self.issued_at:
             raise ValueError("ventana temporal inválida")
         if not isinstance(self.payload, dict):
-            raise ValueError("payload debe ser un objeto")
+            raise TypeError("payload debe ser un objeto")
 
     def unsigned_dict(self) -> dict[str, Any]:
         payload = asdict(self)

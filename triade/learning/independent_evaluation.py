@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -158,9 +159,7 @@ class LearningEvaluator:
                 new_ease = max(1.3, ease - 0.2)
                 new_interval = 1.0
                 new_count = count
-            from datetime import datetime, timedelta
-
-            next_review = (datetime.utcnow() + timedelta(days=new_interval)).isoformat()
+            next_review = (datetime.now(UTC) + timedelta(days=new_interval)).isoformat()
             conn.execute(
                 """UPDATE spaced_retrieval SET
                 last_recalled_at=?, recall_count=?, ease_factor=?,

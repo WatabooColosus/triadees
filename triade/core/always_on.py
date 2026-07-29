@@ -156,7 +156,6 @@ def _background_thread_alive() -> bool:
 
 
 def build_always_on_status() -> dict[str, Any]:
-    global _ALWAYS_ON_STATE
     bg_alive = _background_thread_alive()
     _ALWAYS_ON_STATE["background_thread_alive"] = bg_alive
     if _ALWAYS_ON_STATE["enabled"] and not bg_alive:
@@ -191,8 +190,6 @@ def start_always_on_if_enabled(
     runs_dir: str | Path = "runs/background",
     yml_path: str | Path = "triade.yml",
 ) -> dict[str, Any]:
-    global _ALWAYS_ON_STATE
-
     cfg = load_always_on_config(yml_path)
 
     if not cfg.get("enabled", False):
@@ -381,7 +378,6 @@ def stop_always_on(
     db_path: str | Path = "triade/memory/triade.db",
     runs_dir: str | Path = "runs/background",
 ) -> dict[str, Any]:
-    global _ALWAYS_ON_STATE
     try:
         result = stop_internal_runtime_background(db_path=db_path, runs_dir=runs_dir)
     except Exception as exc:

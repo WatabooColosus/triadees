@@ -114,8 +114,12 @@ class Replanner:
         budget_remaining: dict[str, Any] | None = None,
     ) -> ReplanificationStrategy:
         strategy = STRATEGY_MAP.get(analysis.failure_type, "retry")
-        if budget_remaining:
-            budget_remaining.get("remaining_steps", 10) > 2
+        if budget_remaining and int(budget_remaining.get("remaining_steps", 10)) <= 0:
+            return ReplanificationStrategy(
+                strategy="abort",
+                risk_assessment="high",
+                rationale="Presupuesto de pasos agotado; no se permite reintentar.",
+            )
 
         if strategy == "abort_plan" or not analysis.recoverable:
             return ReplanificationStrategy(

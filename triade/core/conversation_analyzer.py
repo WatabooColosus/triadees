@@ -12,7 +12,7 @@ import re
 import sqlite3
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from statistics import mean
 from typing import Any
@@ -223,7 +223,7 @@ class ConversationAnalyzer:
     def _validate_since(value: str | None) -> str | None:
         if not value:
             return None
-        datetime.strptime(value, "%Y-%m-%d")
+        datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=UTC)
         return value
 
     @staticmethod

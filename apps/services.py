@@ -207,10 +207,11 @@ def relay_settings() -> dict[str, str | None]:
     token = os.getenv("TRIADE_RELAY_ADMIN_TOKEN")
     token_path = os.getenv("TRIADE_RELAY_TOKEN_FILE", ".triade-relay.tokens.local")
     if not token and os.path.exists(token_path):
-        for line in open(token_path, encoding="utf-8", errors="ignore"):
-            if line.startswith("TRIADE_RELAY_ADMIN_TOKEN="):
-                token = line.split("=", 1)[1].strip()
-                break
+        with open(token_path, encoding="utf-8", errors="ignore") as token_file:
+            for line in token_file:
+                if line.startswith("TRIADE_RELAY_ADMIN_TOKEN="):
+                    token = line.split("=", 1)[1].strip()
+                    break
     return {"url": url, "admin_token": token}
 
 
