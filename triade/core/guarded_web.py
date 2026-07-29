@@ -5,11 +5,14 @@ from __future__ import annotations
 import html
 import ipaddress
 import json
+import logging
 import re
 import socket
 import urllib.parse
 import urllib.request
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 MAX_RESPONSE_BYTES = 350_000
 MAX_SOURCES = 3
@@ -76,7 +79,7 @@ def guarded_web_research(
             "utf-8", errors="replace"
         )
         urls = _result_urls(search_html)
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         urls = []
         search_error = str(exc)
     else:
@@ -118,7 +121,8 @@ def guarded_web_research(
                     "excerpt": text,
                 }
             )
-        except Exception:
+        except (OSError, ValueError) as exc:
+            logger.warning("primary research source failed url=%s error=%s", url, exc)
             continue
     if not sources:
         sources = _curated_sources(
@@ -160,7 +164,8 @@ def _curated_sources(
                         "source_type": "primary_documentation",
                     }
                 )
-        except Exception:
+        except (OSError, ValueError) as exc:
+            logger.warning("curated research source failed url=%s error=%s", url, exc)
             continue
         if len(result) >= max_sources:
             break
@@ -187,7 +192,8 @@ def _wikipedia_sources(
     url = "https://es.wikipedia.org/w/api.php?" + params
     try:
         payload = json.loads(_download_json(url, timeout=timeout).decode("utf-8"))
-    except Exception:
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        logger.warning("wikipedia research fallback failed error=%s", exc)
         return []
     pages = (payload.get("query") or {}).get("pages") or {}
     result = []

@@ -15,9 +15,11 @@ class TestAlwaysOnConfig:
         """Carga con valores por defecto cuando no hay config ni env."""
         from triade.core.always_on import load_always_on_config
 
-        with patch("triade.core.always_on.load_config", return_value={}):
-            with patch.dict(os.environ, {}, clear=True):
-                cfg = load_always_on_config()
+        with (
+            patch("triade.core.always_on.load_config", return_value={}),
+            patch.dict(os.environ, {}, clear=True),
+        ):
+            cfg = load_always_on_config()
         assert cfg.get("_config_source") == "default"
         assert cfg.get("enabled") is False
         assert cfg.get("mode") == "observe_only"
@@ -31,9 +33,11 @@ class TestAlwaysOnConfig:
         """Env var TRIADE_ALWAYS_ON=true activa el modo."""
         from triade.core.always_on import load_always_on_config
 
-        with patch("triade.core.always_on.load_config", return_value={}):
-            with patch.dict(os.environ, {"TRIADE_ALWAYS_ON": "true"}, clear=True):
-                cfg = load_always_on_config()
+        with (
+            patch("triade.core.always_on.load_config", return_value={}),
+            patch.dict(os.environ, {"TRIADE_ALWAYS_ON": "true"}, clear=True),
+        ):
+            cfg = load_always_on_config()
         assert cfg.get("enabled") is True
         assert cfg.get("_config_source") == "env"
 
@@ -97,9 +101,11 @@ class TestAlwaysOnConfig:
                 "interval_seconds": 60,
             }
         }
-        with patch("triade.core.always_on.load_config", return_value=yml):
-            with patch.dict(os.environ, {}, clear=True):
-                cfg = load_always_on_config()
+        with (
+            patch("triade.core.always_on.load_config", return_value=yml),
+            patch.dict(os.environ, {}, clear=True),
+        ):
+            cfg = load_always_on_config()
         assert cfg.get("enabled") is True
         assert cfg.get("mode") == "execute_missions"
         assert cfg.get("_config_source") == "triade.yml"
@@ -109,10 +115,12 @@ class TestAlwaysOnConfig:
         from triade.core.always_on import load_always_on_config, should_start_always_on
 
         yml = {"runtime": {"always_on": False, "mode": "execute_missions"}}
-        with patch("triade.core.always_on.load_config", return_value=yml):
-            with patch.dict(os.environ, {}, clear=True):
-                cfg = load_always_on_config()
-                should_start = should_start_always_on()
+        with (
+            patch("triade.core.always_on.load_config", return_value=yml),
+            patch.dict(os.environ, {}, clear=True),
+        ):
+            cfg = load_always_on_config()
+            should_start = should_start_always_on()
         assert cfg.get("enabled") is False
         assert should_start is False
 
@@ -161,9 +169,11 @@ class TestShouldStartAlwaysOn:
         """should_start_always_on() devuelve False por defecto."""
         from triade.core.always_on import should_start_always_on
 
-        with patch("triade.core.always_on.load_config", return_value={}):
-            with patch.dict(os.environ, {}, clear=True):
-                assert should_start_always_on() is False
+        with (
+            patch("triade.core.always_on.load_config", return_value={}),
+            patch.dict(os.environ, {}, clear=True),
+        ):
+            assert should_start_always_on() is False
 
 
 # ── Tests de build_always_on_status ─────────────────────────────────────────
