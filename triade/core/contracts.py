@@ -232,6 +232,29 @@ class VerificationReport:
 
 
 @dataclass(slots=True)
+class TriadicCycleTrace:
+    """Traza causal canónica de un ciclo completo de Tríade."""
+
+    run_id: str
+    input: dict[str, Any]
+    signals: dict[str, Any]
+    memory_recalled: dict[str, Any]
+    hypothalamus_modulation: dict[str, Any]
+    crystal_regulation: dict[str, Any]
+    central_proposal: dict[str, Any]
+    safety_decision: dict[str, Any]
+    final_action: dict[str, Any]
+    causal_references: dict[str, list[str]]
+    component_contribution: dict[str, dict[str, Any]]
+    degraded_components: list[str] = field(default_factory=list)
+    trace_version: str = "TRIADIC-CYCLE-TRACE-v1"
+    timestamp: str = field(default_factory=utc_now)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class NeuronContributionPacket:
     """Paquete formal de contribución de una neurona al ciclo cognitivo.
 

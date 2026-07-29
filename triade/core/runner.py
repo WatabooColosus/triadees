@@ -54,6 +54,7 @@ from .run_system_events import (
 )
 from .runner_preflight import enrich_research, prepare_input
 from .safety import Safety
+from .triadic_cycle import build_triadic_cycle_trace, verify_triadic_cycle_trace
 from .verification import Verifier
 
 
@@ -1160,6 +1161,20 @@ class TriadeRunner:
             qualia_storage_artifacts
         )
         output.memory_diff["qualia_state"] = qualia_state
+        triadic_trace = build_triadic_cycle_trace(
+            input_packet=input_packet,
+            signals=signals,
+            memory=memory,
+            crystal=crystal,
+            plan=plan_dict,
+            safety=safety,
+            output=output,
+            hypothalamus_model_result=hypothalamus_model_result,
+        )
+        triadic_trace_verification = verify_triadic_cycle_trace(triadic_trace)
+        output.memory_diff["triadic_trace_status"] = triadic_trace_verification[
+            "status"
+        ]
         artifacts = build_base_artifacts(
             input_packet=input_packet,
             signals=signals,
@@ -1185,6 +1200,8 @@ class TriadeRunner:
         artifacts["qualia_storage_packets.json"] = qualia_storage_artifacts
         artifacts["qualia_state.json"] = qualia_state
         artifacts["qualia_packets.json"] = qualia_packets_data
+        artifacts["triadic_cycle_trace.json"] = triadic_trace.to_dict()
+        artifacts["triadic_cycle_trace_verification.json"] = triadic_trace_verification
         written_artifacts = write_run_artifacts(run_path, artifacts)
         integrity = {
             "run_id": input_packet.run_id,
@@ -1219,6 +1236,7 @@ class TriadeRunner:
             "qualia_storage_packets_count": len(qualia_storage_artifacts),
             "qualia_packets_count": len(qualia_packets_data),
             "qualia_state": qualia_state,
+            "triadic_cycle_trace": triadic_trace_verification,
             "hypothalamus_model_provider": hypothalamus_model_result.get("provider"),
             "hypothalamus_model_name": hypothalamus_model_result.get("name"),
             "hypothalamus_model_ok": hypothalamus_model_result.get("ok"),
@@ -1257,6 +1275,7 @@ class TriadeRunner:
             background_neuron_candidates=background_neuron_candidates,
             experimental_neuron_activity=experimental_neuron_activity,
             output_gate=output_gate,
+            triadic_cycle_trace=triadic_trace.to_dict(),
             run_path=run_path,
         )
 

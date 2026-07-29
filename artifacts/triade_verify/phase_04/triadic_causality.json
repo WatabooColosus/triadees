@@ -1,0 +1,597 @@
+{
+  "phase": 4,
+  "generated_at": "2026-07-29T22:17:42.041193+00:00",
+  "runtime_trace": {
+    "run_id": "run-20260729-221738-3396a211",
+    "verification": {
+      "status": "verified",
+      "invalid_references": [],
+      "missing_components": [],
+      "run_ids": [
+        "run-20260729-221738-3396a211"
+      ]
+    },
+    "components": [
+      "bodega",
+      "central",
+      "crystal",
+      "hypothalamus",
+      "safety"
+    ],
+    "degraded_components": [
+      "hypothalamus_model",
+      "central_model"
+    ]
+  },
+  "ablation": {
+    "benchmark": "TRIADE-TRIADIC-ABLATION-v1",
+    "deterministic": true,
+    "model_calls": false,
+    "tasks": [
+      "Recuerda la restricción del proyecto Atlas y prepara un plan prudente.",
+      "Analiza con calma una contradicción de memoria del proyecto Atlas.",
+      "Evalúa el riesgo crítico de borrar datos del proyecto Atlas."
+    ],
+    "variants": [
+      "full_triad",
+      "without_bodega",
+      "without_hypothalamus",
+      "without_crystal",
+      "without_semantic_recall"
+    ],
+    "cases": [
+      {
+        "task": "Recuerda la restricción del proyecto Atlas y prepara un plan prudente.",
+        "results": {
+          "full_triad": {
+            "variant": "full_triad",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 6,
+                "semantic": 1,
+                "episodic": 0,
+                "confidence": 0.8
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "low"
+              },
+              "tone": "constructive",
+              "planning": {
+                "goal": "Atender intención: memory | q_crystal=0.602 | temporal=baseline",
+                "step_count": 6,
+                "fingerprint": "edf4565b1cd6d1848b5d6e5cb9ce075bb85cf3b51b83b014b182e0fc461e35cc"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.602,
+                "stability": 0.87,
+                "temporal_status": "baseline"
+              }
+            }
+          },
+          "without_bodega": {
+            "variant": "without_bodega",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 0,
+                "semantic": 0,
+                "episodic": 0,
+                "confidence": 0.0
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "low"
+              },
+              "tone": "constructive",
+              "planning": {
+                "goal": "Atender intención: memory | q_crystal=0.378 | temporal=baseline",
+                "step_count": 6,
+                "fingerprint": "2528d7d408ad654ab98adc6da4e9500f416690db2271f34b0304a0cfc98b01ec"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.378,
+                "stability": 0.63,
+                "temporal_status": "baseline"
+              }
+            }
+          },
+          "without_hypothalamus": {
+            "variant": "without_hypothalamus",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 6,
+                "semantic": 1,
+                "episodic": 0,
+                "confidence": 0.8
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "low"
+              },
+              "tone": "unmodulated",
+              "planning": {
+                "goal": "Atender intención: unavailable | q_crystal=0.614 | temporal=baseline",
+                "step_count": 6,
+                "fingerprint": "edf4565b1cd6d1848b5d6e5cb9ce075bb85cf3b51b83b014b182e0fc461e35cc"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.614,
+                "stability": 0.81,
+                "temporal_status": "baseline"
+              }
+            }
+          },
+          "without_crystal": {
+            "variant": "without_crystal",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 6,
+                "semantic": 1,
+                "episodic": 0,
+                "confidence": 0.8
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "low"
+              },
+              "tone": "constructive",
+              "planning": {
+                "goal": "Atender intención: memory | q_crystal=0.0 | temporal=unavailable",
+                "step_count": 7,
+                "fingerprint": "8b37f27d495864eb8b9252f955e65c134636723e93dd29fb8ecf464b70369ecd"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.0,
+                "stability": 0.0,
+                "temporal_status": "unavailable"
+              }
+            }
+          },
+          "without_semantic_recall": {
+            "variant": "without_semantic_recall",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 6,
+                "semantic": 0,
+                "episodic": 0,
+                "confidence": 0.8
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "low"
+              },
+              "tone": "constructive",
+              "planning": {
+                "goal": "Atender intención: memory | q_crystal=0.609 | temporal=baseline",
+                "step_count": 5,
+                "fingerprint": "4da6ce993d87ab5ceabd17075035b94268f4f9c5c1de319a696151663907e4c6"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.609,
+                "stability": 0.88,
+                "temporal_status": "baseline"
+              }
+            }
+          }
+        }
+      },
+      {
+        "task": "Analiza con calma una contradicción de memoria del proyecto Atlas.",
+        "results": {
+          "full_triad": {
+            "variant": "full_triad",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 6,
+                "semantic": 1,
+                "episodic": 0,
+                "confidence": 0.8
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "low"
+              },
+              "tone": "constructive",
+              "planning": {
+                "goal": "Atender intención: analyze | q_crystal=0.609 | temporal=baseline",
+                "step_count": 6,
+                "fingerprint": "edf4565b1cd6d1848b5d6e5cb9ce075bb85cf3b51b83b014b182e0fc461e35cc"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.609,
+                "stability": 0.88,
+                "temporal_status": "baseline"
+              }
+            }
+          },
+          "without_bodega": {
+            "variant": "without_bodega",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 0,
+                "semantic": 0,
+                "episodic": 0,
+                "confidence": 0.0
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "low"
+              },
+              "tone": "constructive",
+              "planning": {
+                "goal": "Atender intención: analyze | q_crystal=0.382 | temporal=baseline",
+                "step_count": 6,
+                "fingerprint": "2528d7d408ad654ab98adc6da4e9500f416690db2271f34b0304a0cfc98b01ec"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.382,
+                "stability": 0.64,
+                "temporal_status": "baseline"
+              }
+            }
+          },
+          "without_hypothalamus": {
+            "variant": "without_hypothalamus",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 6,
+                "semantic": 1,
+                "episodic": 0,
+                "confidence": 0.8
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "low"
+              },
+              "tone": "unmodulated",
+              "planning": {
+                "goal": "Atender intención: unavailable | q_crystal=0.614 | temporal=baseline",
+                "step_count": 6,
+                "fingerprint": "edf4565b1cd6d1848b5d6e5cb9ce075bb85cf3b51b83b014b182e0fc461e35cc"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.614,
+                "stability": 0.81,
+                "temporal_status": "baseline"
+              }
+            }
+          },
+          "without_crystal": {
+            "variant": "without_crystal",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 6,
+                "semantic": 1,
+                "episodic": 0,
+                "confidence": 0.8
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "low"
+              },
+              "tone": "constructive",
+              "planning": {
+                "goal": "Atender intención: analyze | q_crystal=0.0 | temporal=unavailable",
+                "step_count": 7,
+                "fingerprint": "8b37f27d495864eb8b9252f955e65c134636723e93dd29fb8ecf464b70369ecd"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.0,
+                "stability": 0.0,
+                "temporal_status": "unavailable"
+              }
+            }
+          },
+          "without_semantic_recall": {
+            "variant": "without_semantic_recall",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 6,
+                "semantic": 0,
+                "episodic": 0,
+                "confidence": 0.8
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "low"
+              },
+              "tone": "constructive",
+              "planning": {
+                "goal": "Atender intención: analyze | q_crystal=0.609 | temporal=baseline",
+                "step_count": 5,
+                "fingerprint": "4da6ce993d87ab5ceabd17075035b94268f4f9c5c1de319a696151663907e4c6"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.609,
+                "stability": 0.88,
+                "temporal_status": "baseline"
+              }
+            }
+          }
+        }
+      },
+      {
+        "task": "Evalúa el riesgo crítico de borrar datos del proyecto Atlas.",
+        "results": {
+          "full_triad": {
+            "variant": "full_triad",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 6,
+                "semantic": 1,
+                "episodic": 0,
+                "confidence": 0.8
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "medium"
+              },
+              "tone": "constructive",
+              "planning": {
+                "goal": "Atender intención: conversation | q_crystal=0.472 | temporal=baseline",
+                "step_count": 7,
+                "fingerprint": "a50f950101e285ad1abe86ff43eaf5c1fd53469b2404f951be9dbf47525b033b"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.472,
+                "stability": 0.76,
+                "temporal_status": "baseline"
+              }
+            }
+          },
+          "without_bodega": {
+            "variant": "without_bodega",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 0,
+                "semantic": 0,
+                "episodic": 0,
+                "confidence": 0.0
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "medium"
+              },
+              "tone": "constructive",
+              "planning": {
+                "goal": "Atender intención: conversation | q_crystal=0.301 | temporal=baseline",
+                "step_count": 6,
+                "fingerprint": "2528d7d408ad654ab98adc6da4e9500f416690db2271f34b0304a0cfc98b01ec"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.301,
+                "stability": 0.52,
+                "temporal_status": "baseline"
+              }
+            }
+          },
+          "without_hypothalamus": {
+            "variant": "without_hypothalamus",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 6,
+                "semantic": 1,
+                "episodic": 0,
+                "confidence": 0.8
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "low"
+              },
+              "tone": "unmodulated",
+              "planning": {
+                "goal": "Atender intención: unavailable | q_crystal=0.614 | temporal=baseline",
+                "step_count": 6,
+                "fingerprint": "edf4565b1cd6d1848b5d6e5cb9ce075bb85cf3b51b83b014b182e0fc461e35cc"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.614,
+                "stability": 0.81,
+                "temporal_status": "baseline"
+              }
+            }
+          },
+          "without_crystal": {
+            "variant": "without_crystal",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 6,
+                "semantic": 1,
+                "episodic": 0,
+                "confidence": 0.8
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "medium"
+              },
+              "tone": "constructive",
+              "planning": {
+                "goal": "Atender intención: conversation | q_crystal=0.0 | temporal=unavailable",
+                "step_count": 7,
+                "fingerprint": "8b37f27d495864eb8b9252f955e65c134636723e93dd29fb8ecf464b70369ecd"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.0,
+                "stability": 0.0,
+                "temporal_status": "unavailable"
+              }
+            }
+          },
+          "without_semantic_recall": {
+            "variant": "without_semantic_recall",
+            "observable": {
+              "coherence": 0.75,
+              "recall": {
+                "identity": 6,
+                "semantic": 0,
+                "episodic": 0,
+                "confidence": 0.8
+              },
+              "safety": {
+                "status": "approved",
+                "risk_level": "medium"
+              },
+              "tone": "constructive",
+              "planning": {
+                "goal": "Atender intención: conversation | q_crystal=0.467 | temporal=baseline",
+                "step_count": 6,
+                "fingerprint": "0a956065ddddcf1efd7142c26383cb2faa29d92ee60d10b47b844f6e3d98fd74"
+              },
+              "contradictions": 0,
+              "quality": {
+                "usefulness_score": 0.7,
+                "traceability_score": 0.8
+              },
+              "crystal": {
+                "q_crystal": 0.467,
+                "stability": 0.75,
+                "temporal_status": "baseline"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "difference_counts": {
+      "without_bodega": 3,
+      "without_hypothalamus": 3,
+      "without_crystal": 3,
+      "without_semantic_recall": 3
+    },
+    "dimension_differences": {
+      "without_bodega": {
+        "coherence": 0,
+        "recall": 3,
+        "safety": 0,
+        "tone": 0,
+        "planning": 3,
+        "contradictions": 0,
+        "quality": 0,
+        "crystal": 3
+      },
+      "without_hypothalamus": {
+        "coherence": 0,
+        "recall": 0,
+        "safety": 1,
+        "tone": 3,
+        "planning": 3,
+        "contradictions": 0,
+        "quality": 0,
+        "crystal": 3
+      },
+      "without_crystal": {
+        "coherence": 0,
+        "recall": 0,
+        "safety": 0,
+        "tone": 0,
+        "planning": 3,
+        "contradictions": 0,
+        "quality": 0,
+        "crystal": 3
+      },
+      "without_semantic_recall": {
+        "coherence": 0,
+        "recall": 3,
+        "safety": 0,
+        "tone": 0,
+        "planning": 3,
+        "contradictions": 0,
+        "quality": 0,
+        "crystal": 2
+      }
+    },
+    "contribution_demonstrated": {
+      "without_bodega": true,
+      "without_hypothalamus": true,
+      "without_crystal": true,
+      "without_semantic_recall": true
+    },
+    "passed": true,
+    "metric_policy": "Exact observable fields; no human or model quality judgment."
+  },
+  "passed": true
+}

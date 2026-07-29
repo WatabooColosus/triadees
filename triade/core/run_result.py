@@ -28,6 +28,7 @@ def build_run_result(
     background_neuron_candidates: list[dict[str, Any]],
     experimental_neuron_activity: dict[str, Any],
     output_gate: dict[str, Any],
+    triadic_cycle_trace: dict[str, Any],
     run_path: Path,
 ) -> dict[str, Any]:
     """Construye el payload público/operativo que devuelve TriadeRunner.run()."""
@@ -70,5 +71,6 @@ def build_run_result(
         "background_neuron_candidates": background_neuron_candidates,
         "experimental_neuron_activity": experimental_neuron_activity,
         "output_gate": output_gate,
+        "triadic_cycle_trace": triadic_cycle_trace,
         "run_path": str(run_path),
     }
