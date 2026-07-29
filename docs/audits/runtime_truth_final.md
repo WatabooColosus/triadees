@@ -11,7 +11,7 @@ Base: `4c18120525b039b4b6c66703a07b829b01d8e3f0`
 
 Las fases 1–17 están implementadas en commits independientes y sus pruebas
 relacionadas están verdes. La fase 18 no está cerrada: el repositorio conserva
-358 errores Ruff y 215 errores mypy. Por la regla de no avanzar con CI roja no
+284 errores Ruff y 215 errores mypy. Por la regla de no avanzar con CI roja no
 se inició la validación real de 24 horas ni el retiro de la cola legacy.
 
 ## Evidencia ejecutada
@@ -21,8 +21,10 @@ se inició la validación real de 24 horas ni el retiro de la cola legacy.
   funcionales y de Ruff.
 - `pytest -q tests/operational_truth`: 15 pruebas correctas.
 - `ruff format --check .`: 716 archivos formateados correctamente.
-- `ruff check .`: falló con 358 incidencias: 260 `BLE001`, 32 `RUF012`,
-  28 `S110` y 38 incidencias restantes.
+- `ruff check .`: falló con 284 incidencias: 256 `BLE001` y 28 `S110`.
+  Las 74 incidencias de formato, configuración mutable, subprocess, fechas y
+  flujo estructural registradas en el corte anterior fueron corregidas y
+  verificadas sin desactivar reglas.
 - `mypy triade --no-error-summary`: falló con 215 errores.
 - Prueba real de concurrencia: 101 tareas, 111 intentos de enqueue, 3 workers,
   90 completadas, 11 `dead_letter`, cero efectos duplicados, cero artefactos
