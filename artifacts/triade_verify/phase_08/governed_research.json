@@ -1,0 +1,251 @@
+{
+  "phase": 8,
+  "generated_at": "2026-07-29T23:03:54.977936+00:00",
+  "checks": {
+    "one_source_insufficient": true,
+    "conflict_unresolved": true,
+    "independent_sources_candidate": true,
+    "source_failure_exposed": true,
+    "candidate_not_learning": true,
+    "no_stable_memory": true
+  },
+  "runs": {
+    "insufficient": {
+      "research_id": "gr-17ab98d8edee40f785a29377c50c6d7c",
+      "question": "Is the benchmark claim supported?",
+      "trigger": "benchmark_need",
+      "scope": "phase08",
+      "allowed_sources": [
+        "one.test",
+        "two.test",
+        "three.test"
+      ],
+      "minimum_independent_sources": 2,
+      "status": "insufficient_sources",
+      "sources": [
+        {
+          "url": "https://one.test/evidence",
+          "title": "Evidence one.test",
+          "host": "one.test",
+          "content_hash": "6d33854795b0b4bddb16ac13d3e069d128ced9580f8953ff92ed398b2c8c638a",
+          "fetched_at": "2026-07-29T23:03:54.718609+00:00",
+          "claims": [
+            {
+              "key": "claim",
+              "value": "supported"
+            }
+          ],
+          "provenance": {
+            "provider": "injected",
+            "url": "https://one.test/evidence"
+          },
+          "content": "Independent reproducible evidence: supported"
+        }
+      ],
+      "source_failures": [],
+      "claims": [
+        {
+          "key": "claim",
+          "value": "supported",
+          "source_url": "https://one.test/evidence"
+        }
+      ],
+      "contradictions": [],
+      "unresolved_questions": [
+        "Does the result transfer outside this benchmark?"
+      ],
+      "confidence": 0.35,
+      "evidence_bundle": {
+        "research_id": "gr-17ab98d8edee40f785a29377c50c6d7c",
+        "question": "Is the benchmark claim supported?",
+        "source_hashes": [
+          "6d33854795b0b4bddb16ac13d3e069d128ced9580f8953ff92ed398b2c8c638a"
+        ],
+        "source_count": 1,
+        "candidate_only": true
+      },
+      "candidate_id": null,
+      "learning_validated": false,
+      "stable_memory_written": false
+    },
+    "conflicting": {
+      "research_id": "gr-460765c8908941718ddb44532abc7f47",
+      "question": "Is the benchmark claim supported?",
+      "trigger": "benchmark_need",
+      "scope": "phase08",
+      "allowed_sources": [
+        "one.test",
+        "two.test",
+        "three.test"
+      ],
+      "minimum_independent_sources": 2,
+      "status": "conflicting_sources",
+      "sources": [
+        {
+          "url": "https://one.test/evidence",
+          "title": "Evidence one.test",
+          "host": "one.test",
+          "content_hash": "2f24c9f80ef695f1ff6a3ca2679bdc10175da84a461046bd02f1beb1272378ab",
+          "fetched_at": "2026-07-29T23:03:54.790591+00:00",
+          "claims": [
+            {
+              "key": "claim",
+              "value": "yes"
+            }
+          ],
+          "provenance": {
+            "provider": "injected",
+            "url": "https://one.test/evidence"
+          },
+          "content": "Independent reproducible evidence: yes"
+        },
+        {
+          "url": "https://two.test/evidence",
+          "title": "Evidence two.test",
+          "host": "two.test",
+          "content_hash": "d8ca8348cf9383ec5784de4684cd12d317a75bf36312fddb9fac34a65ac50b98",
+          "fetched_at": "2026-07-29T23:03:54.790610+00:00",
+          "claims": [
+            {
+              "key": "claim",
+              "value": "no"
+            }
+          ],
+          "provenance": {
+            "provider": "injected",
+            "url": "https://two.test/evidence"
+          },
+          "content": "Independent reproducible evidence: no"
+        }
+      ],
+      "source_failures": [],
+      "claims": [
+        {
+          "key": "claim",
+          "value": "yes",
+          "source_url": "https://one.test/evidence"
+        },
+        {
+          "key": "claim",
+          "value": "no",
+          "source_url": "https://two.test/evidence"
+        }
+      ],
+      "contradictions": [
+        {
+          "claim_key": "claim",
+          "values": [
+            "no",
+            "yes"
+          ],
+          "resolution": "unresolved"
+        }
+      ],
+      "unresolved_questions": [
+        "Does the result transfer outside this benchmark?"
+      ],
+      "confidence": 0.7,
+      "evidence_bundle": {
+        "research_id": "gr-460765c8908941718ddb44532abc7f47",
+        "question": "Is the benchmark claim supported?",
+        "source_hashes": [
+          "2f24c9f80ef695f1ff6a3ca2679bdc10175da84a461046bd02f1beb1272378ab",
+          "d8ca8348cf9383ec5784de4684cd12d317a75bf36312fddb9fac34a65ac50b98"
+        ],
+        "source_count": 2,
+        "candidate_only": true
+      },
+      "candidate_id": null,
+      "learning_validated": false,
+      "stable_memory_written": false
+    },
+    "candidate": {
+      "research_id": "gr-d6adfcfb7e0241bca012e3142658a2dd",
+      "question": "Is the benchmark claim supported?",
+      "trigger": "benchmark_need",
+      "scope": "phase08",
+      "allowed_sources": [
+        "one.test",
+        "two.test",
+        "three.test"
+      ],
+      "minimum_independent_sources": 2,
+      "status": "candidate_created",
+      "sources": [
+        {
+          "url": "https://one.test/evidence",
+          "title": "Evidence one.test",
+          "host": "one.test",
+          "content_hash": "6d33854795b0b4bddb16ac13d3e069d128ced9580f8953ff92ed398b2c8c638a",
+          "fetched_at": "2026-07-29T23:03:54.861654+00:00",
+          "claims": [
+            {
+              "key": "claim",
+              "value": "supported"
+            }
+          ],
+          "provenance": {
+            "provider": "injected",
+            "url": "https://one.test/evidence"
+          },
+          "content": "Independent reproducible evidence: supported"
+        },
+        {
+          "url": "https://two.test/evidence",
+          "title": "Evidence two.test",
+          "host": "two.test",
+          "content_hash": "6d33854795b0b4bddb16ac13d3e069d128ced9580f8953ff92ed398b2c8c638a",
+          "fetched_at": "2026-07-29T23:03:54.861674+00:00",
+          "claims": [
+            {
+              "key": "claim",
+              "value": "supported"
+            }
+          ],
+          "provenance": {
+            "provider": "injected",
+            "url": "https://two.test/evidence"
+          },
+          "content": "Independent reproducible evidence: supported"
+        }
+      ],
+      "source_failures": [
+        {
+          "url": "https://three.test",
+          "reason": "timeout"
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim",
+          "value": "supported",
+          "source_url": "https://one.test/evidence"
+        },
+        {
+          "key": "claim",
+          "value": "supported",
+          "source_url": "https://two.test/evidence"
+        }
+      ],
+      "contradictions": [],
+      "unresolved_questions": [
+        "Does the result transfer outside this benchmark?"
+      ],
+      "confidence": 0.7,
+      "evidence_bundle": {
+        "research_id": "gr-d6adfcfb7e0241bca012e3142658a2dd",
+        "question": "Is the benchmark claim supported?",
+        "source_hashes": [
+          "6d33854795b0b4bddb16ac13d3e069d128ced9580f8953ff92ed398b2c8c638a",
+          "6d33854795b0b4bddb16ac13d3e069d128ced9580f8953ff92ed398b2c8c638a"
+        ],
+        "source_count": 2,
+        "candidate_only": true
+      },
+      "candidate_id": "learn-07d36cd73213422c",
+      "learning_validated": false,
+      "stable_memory_written": false
+    }
+  },
+  "passed": true
+}

@@ -1873,13 +1873,45 @@ class WorkerLoop:
     def _goal_research(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
-        from triade.research import AutonomousResearchEngine
+        from triade.core.guarded_web import guarded_web_research
+        from triade.research.governed import GovernedResearchWorker
 
         request = str(task.payload.get("request") or "").strip()
         if not request:
             return {"status": "error", "error": "request requerido"}
-        return AutonomousResearchEngine(self.db_path).research(
-            request, trigger="goal_worker"
+        allowed_sources = [
+            str(item).strip()
+            for item in task.payload.get("allowed_sources", [])
+            if str(item).strip()
+        ]
+        if not allowed_sources:
+            return {
+                "status": "blocked",
+                "reason": "goal_research requires explicit allowed_sources",
+            }
+
+        def provider(question: str, minimum: int) -> dict[str, Any]:
+            result = guarded_web_research(question, max_sources=max(3, minimum))
+            return {
+                "sources": result.get("sources", []),
+                "failures": result.get("failures", []),
+            }
+
+        trigger = (
+            "human_decision"
+            if task.payload.get("human_approved")
+            else "benchmark_need"
+            if task.payload.get("benchmark_need")
+            else "gap"
+        )
+        return GovernedResearchWorker(self.db_path, provider).run(
+            question=request,
+            trigger=trigger,
+            scope=str(task.payload.get("scope") or "goal_research"),
+            allowed_sources=allowed_sources,
+            minimum_independent_sources=max(
+                2, int(task.payload.get("minimum_independent_sources") or 2)
+            ),
         )
 
     def _artifact_dir(self, run_ref: str) -> Path:
