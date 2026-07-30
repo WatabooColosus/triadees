@@ -5,6 +5,7 @@ import os
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from triade.security.distributed_auth import DistributedAuthUnavailable
 from triade.security.public_auth import PublicAuthStore
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -26,6 +27,8 @@ def store() -> PublicAuthStore:
 def login(payload: LoginRequest) -> dict[str, object]:
     try:
         return store().authenticate(payload.username, payload.password)
+    except DistributedAuthUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except PermissionError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
 
@@ -35,4 +38,7 @@ def logout(request: Request) -> dict[str, object]:
     value = request.headers.get("Authorization", "")
     if not value.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="bearer_required")
-    return {"revoked": store().revoke(value[7:], actor="self")}
+    try:
+        return {"revoked": store().revoke(value[7:], actor="self")}
+    except DistributedAuthUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

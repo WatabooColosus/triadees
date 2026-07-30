@@ -20,6 +20,7 @@ dependencies = [
     "peft>=0.19.1",
     "cryptography>=42.0",
     "argon2-cffi>=23.1.0",
+    "redis>=5.0.0",
     "accelerate>=1.0",
 ]
 

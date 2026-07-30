@@ -4,7 +4,8 @@ Fecha UTC: 2026-07-29
 
 Base: `f8a6811`
 
-Estado: `completed`
+Estado: `partial` para producción pública; controles locales y backend
+distribuido implementados y probados.
 
 `public_guarded` exige ahora usuarios y sesiones reales, no una API key global.
 Se añadieron Argon2, roles viewer/operator/admin, tenant, expiración, tokens
@@ -26,7 +27,20 @@ Evidencia: `artifacts/triade_verify/phase_15/public_security.json`.
 
 El modo incident puede implementarse deshabilitando usuarios y revocando todas
 las sesiones; falta todavía un endpoint nominal para esa operación masiva y una
-prueba de carga distribuida del rate limiter SQLite.
+evaluación externa adversarial de abuso, prompt injection y egress.
+
+## Estado distribuido Redis
+
+Cuando `TRIADE_REDIS_URL` está configurado, las sesiones, revocaciones y cuotas
+de 60 segundos se comparten entre réplicas mediante Redis. La cuota usa un
+sorted set y una operación Lua atómica. Si Redis no está disponible,
+`public_guarded` falla cerrado con HTTP 503; no vuelve silenciosamente al estado
+local. Sin esa variable se conserva SQLite para operación local compatible.
+
+Se validó contra `redis:7-alpine` real con dos instancias de `PublicAuthStore`,
+cada una usando una SQLite distinta: la sesión creada por A fue aceptada por B,
+ambas consumieron la misma cuota y una revocación en B fue aplicada
+inmediatamente en A. El contenedor temporal fue retirado después de la prueba.
 
 ## Recuperación del servicio web
 
@@ -59,4 +73,6 @@ python scripts/run_runtime_concurrency_test.py                 PASS
 python scripts/run_phase_15_public_security.py                 PASS
 ```
 
-Ruff global queda en 808 errores y mypy global en 224; no se declaran verdes.
+Validación adicional 2026-07-30: Ruff global 0, mypy 0 en 324 módulos, seis
+pruebas de seguridad pública verdes y backend Redis real verificado entre dos
+réplicas. GitHub Actions y pruebas externas siguen siendo gates independientes.

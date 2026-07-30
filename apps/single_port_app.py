@@ -154,6 +154,7 @@ async def public_guarded_mode(request: Request, call_next):
     }
     public_paths = {"/api/auth/login", "/health", "/healthz", "/api/health"}
     if guarded and request.method != "OPTIONS" and request.url.path not in public_paths:
+        from triade.security.distributed_auth import DistributedAuthUnavailable
         from triade.security.public_auth import PublicAuthStore
 
         value = request.headers.get("Authorization", "")
@@ -167,12 +168,18 @@ async def public_guarded_mode(request: Request, call_next):
                 },
             )
         required = "operator" if request.method not in {"GET", "HEAD"} else "viewer"
-        auth = PublicAuthStore(
-            os.getenv("TRIADE_AUTH_DB_PATH", "triade/memory/triade.db"),
-            rate_limit_per_minute=int(os.getenv("TRIADE_RATE_LIMIT_PER_MINUTE", "60")),
-        )
         try:
+            auth = PublicAuthStore(
+                os.getenv("TRIADE_AUTH_DB_PATH", "triade/memory/triade.db"),
+                rate_limit_per_minute=int(
+                    os.getenv("TRIADE_RATE_LIMIT_PER_MINUTE", "60")
+                ),
+            )
             request.state.principal = auth.authorize(value[7:], required_role=required)
+        except DistributedAuthUnavailable:
+            return JSONResponse(
+                status_code=503, content={"detail": "distributed_auth_unavailable"}
+            )
         except RuntimeError:
             return JSONResponse(
                 status_code=429, content={"detail": "rate_limit_exceeded"}
