@@ -1125,12 +1125,26 @@ class WorkerLoop:
         }
         clean_domain = domain_queries.get(domain_value, domain_value.replace("_", " "))
         clean_name = str(row["name"] or "").replace("neurona-", "").replace("-", " ")
+        # Mismos dominios curados/confiables que guarded_web.py ya usa como
+        # fallback (CURATED_PUBLIC_SOURCES + Wikipedia ES) -- sin esto,
+        # _goal_research bloqueaba SIEMPRE con "requires explicit
+        # allowed_sources" y el currículo autónomo nunca investigaba nada
+        # real pese a detectar lagunas neuronales genuinas (hallazgo
+        # 2026-07-30, ver TECHNICAL_DEBT.md). No se amplía a búsqueda web
+        # sin restricción: sigue acotado a las mismas fuentes ya vetadas.
         delegated = WorkerTask(
             task_type="goal_research",
             payload={
                 "request": f"{clean_domain} {clean_name} documentación técnica fundamentos",
                 "related_neuron_id": int(row["id"]),
                 "curriculum": True,
+                "allowed_sources": [
+                    "docs.opencv.org",
+                    "pillow.readthedocs.io",
+                    "docs.python.org",
+                    "docs.pytest.org",
+                    "es.wikipedia.org",
+                ],
             },
         )
         result = self._goal_research(delegated, run_ref, task_dir, config)
