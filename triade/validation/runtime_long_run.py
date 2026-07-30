@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import subprocess
 import tempfile
 import time
 import urllib.request
@@ -28,6 +29,7 @@ def run_wall_clock_validation(
         raise ValueError("duration_and_interval_must_be_positive_real_seconds")
     started_wall = time.time()
     started = time.monotonic()
+    git_sha = _git_sha()
     baseline = _runtime_invariants(Path(db_path))
     baseline_task_ids = set(baseline.pop("task_ids"))
     baseline_recoveries = int(baseline["worker_restarts"])
@@ -96,6 +98,7 @@ def run_wall_clock_validation(
         "elapsed_seconds": elapsed,
         "wall_clock_not_compressed": elapsed >= duration_seconds,
         "started_at_epoch": started_wall,
+        "sha": git_sha,
         "checks": checks,
         "availability": availability,
         "metrics": {
@@ -225,3 +228,16 @@ def _bytes_under(path: Path) -> int:
     if not path.exists():
         return 0
     return sum(item.stat().st_size for item in path.rglob("*") if item.is_file())
+
+
+def _git_sha() -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return result.stdout.strip() or None

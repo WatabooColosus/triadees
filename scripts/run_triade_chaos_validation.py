@@ -287,6 +287,12 @@ def db_lock(root: Path) -> bool:
 
 
 def main() -> int:
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         injected = {
@@ -315,6 +321,7 @@ def main() -> int:
         recovery_safe = injected["watchdog restart"] and injected["backup failure"]
         report = {
             "phase": 17,
+            "sha": sha,
             "mode": "full_isolated_chaos",
             "injected": injected,
             "not_executed": not_executed,

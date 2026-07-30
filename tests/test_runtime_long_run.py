@@ -12,11 +12,13 @@ def test_duration_is_real_and_not_compressed(
     db = tmp_path / "db"
     sqlite3.connect(db).close()
     monkeypatch.setattr("triade.validation.runtime_long_run._http_ok", lambda _: True)
+    monkeypatch.setattr("triade.validation.runtime_long_run._git_sha", lambda: "sha")
     report = run_wall_clock_validation(
         duration_seconds=1, interval_seconds=1, db_path=db, web_url="w", ollama_url="o"
     )
     assert report["elapsed_seconds"] >= 1
     assert report["wall_clock_not_compressed"] is True
+    assert report["sha"] == "sha"
     assert report["availability"] == 1.0
     assert report["metrics"]["duplicate_effects"] == 0
     assert report["metrics"]["lost_tasks"] == 0
