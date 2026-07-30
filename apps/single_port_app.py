@@ -110,6 +110,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         record_internal_runtime_event(
             "workers_autostart_checked", "single_port_app", workers_result
         )
+        metabolism_result = None
+        try:
+            from triade.metabolism.coordinator import get_coordinator
+
+            mc = get_coordinator()
+            mc.load_config()
+            metabolism_result = mc.start()
+        except (ImportError, OSError, RuntimeError, ValueError, sqlite3.Error) as exc:
+            metabolism_result = {"status": "error", "detail": str(exc)}
+
         with _ALWAYS_ON_LOCK:
             _ALWAYS_ON_RESULT = {
                 **result,
@@ -117,6 +127,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 "neuron_lifecycle_background": continuous_result,
                 "foundational_neurons": foundational_result,
                 "model_acquisition": model_acquisition_result,
+                "metabolism": metabolism_result,
             }
     except (
         OSError,

@@ -1330,6 +1330,123 @@ def always_on_stop(
     return stop_always_on()
 
 
+@router.get("/api/runtime/metabolism/status")
+def metabolism_status() -> dict[str, Any]:
+    from triade.metabolism.coordinator import get_coordinator
+
+    coord = get_coordinator()
+    return {"status": "ok", "metabolism": coord.status()}
+
+
+@router.post("/api/runtime/metabolism/start")
+def metabolism_start(
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    require_key(x_triade_api_key)
+    from triade.metabolism.coordinator import get_coordinator
+
+    coord = get_coordinator()
+    return coord.start()
+
+
+@router.post("/api/runtime/metabolism/stop")
+def metabolism_stop(
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    require_key(x_triade_api_key)
+    from triade.metabolism.coordinator import get_coordinator
+
+    coord = get_coordinator()
+    return coord.stop()
+
+
+@router.get("/api/runtime/metabolism/cycle/{cycle_id}")
+def metabolism_cycle(cycle_id: int) -> dict[str, Any]:
+    import sqlite3
+
+    try:
+        with sqlite3.connect("triade/memory/triade.db", timeout=2) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM metabolic_cycle WHERE cycle_id=?", (cycle_id,)
+            ).fetchone()
+            if row is None:
+                return {"status": "not_found", "cycle_id": cycle_id}
+            needs = [
+                dict(n)
+                for n in conn.execute(
+                    "SELECT * FROM metabolic_needs WHERE cycle_id=?", (cycle_id,)
+                ).fetchall()
+            ]
+            receipts = [
+                dict(r)
+                for r in conn.execute(
+                    "SELECT * FROM metabolic_receipts WHERE cycle_id=?", (cycle_id,)
+                ).fetchall()
+            ]
+            return {
+                "status": "ok",
+                "cycle": dict(row),
+                "needs": needs,
+                "receipts": receipts,
+            }
+    except (sqlite3.Error, OSError) as exc:
+        return {"status": "error", "detail": str(exc)}
+
+
+@router.get("/api/runtime/metabolism/needs")
+def metabolism_needs(status: str = "pending", limit: int = 20) -> dict[str, Any]:
+    import sqlite3
+
+    try:
+        with sqlite3.connect("triade/memory/triade.db", timeout=2) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM metabolic_needs WHERE status=? ORDER BY priority DESC LIMIT ?",
+                (status, limit),
+            ).fetchall()
+            return {"status": "ok", "count": len(rows), "needs": [dict(r) for r in rows]}
+    except (sqlite3.Error, OSError) as exc:
+        return {"status": "error", "detail": str(exc)}
+
+
+@router.get("/api/runtime/metabolism/receipts")
+def metabolism_receipts(limit: int = 50) -> dict[str, Any]:
+    import sqlite3
+
+    try:
+        with sqlite3.connect("triade/memory/triade.db", timeout=2) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM metabolic_receipts ORDER BY started_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return {
+                "status": "ok",
+                "count": len(rows),
+                "receipts": [dict(r) for r in rows],
+            }
+    except (sqlite3.Error, OSError) as exc:
+        return {"status": "error", "detail": str(exc)}
+
+
+@router.get("/api/runtime/metabolism/budget")
+def metabolism_budget() -> dict[str, Any]:
+    from triade.metabolism.budget import BudgetTracker
+
+    tracker = BudgetTracker()
+    return {"status": "ok", "budget": tracker.snapshot()}
+
+
+@router.get("/api/runtime/metabolism/health")
+def metabolism_health() -> dict[str, Any]:
+    from triade.metabolism.coordinator import get_coordinator
+
+    coord = get_coordinator()
+    sensors = coord.health.inspect()
+    return {"status": "ok", "health": sensors}
+
+
 @router.post("/api/runtime/self-test")
 def runtime_self_test(mode: str = "safe") -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_self_test")

@@ -101,6 +101,40 @@ runtime_budget:
   deep_evaluations_daily: 12
   model_installs_daily: 1
 
+metabolism:
+  enabled: true
+  dry_run: false
+  mode: full
+  interval_seconds: 15
+  max_cycles: 0
+  jitter_seconds: 2.0
+  policy:
+    min_priority: 10
+    max_concurrent_needs: 5
+    require_ollama: false
+    require_redis: false
+    allowed_modes:
+      - observe_only
+      - light
+      - full
+  needs:
+    health_check:
+      enabled: true
+      interval_seconds: 30
+      priority: 90
+    heartbeat:
+      enabled: true
+      interval_seconds: 5
+      priority: 80
+    lease_supervision:
+      enabled: true
+      interval_seconds: 60
+      priority: 70
+    budget_check:
+      enabled: true
+      interval_seconds: 120
+      priority: 60
+
 triadeos:
   enabled: true
   knowledge_graph:
