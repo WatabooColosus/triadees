@@ -626,9 +626,11 @@ def _latest_contradiction(living_context: dict[str, Any]) -> str | None:
     ) or []
     if contradictions:
         return str(contradictions[0])
-    bodega_summary = living_context.get("bodega_global_context") or {}
-    if bodega_summary.get("contradictions"):
-        return str(bodega_summary.get("contradictions")[0])
+    raw_bodega_summary = living_context.get("bodega_global_context")
+    bodega_summary = raw_bodega_summary if isinstance(raw_bodega_summary, dict) else {}
+    summary_contradictions = bodega_summary.get("contradictions")
+    if isinstance(summary_contradictions, list) and summary_contradictions:
+        return str(summary_contradictions[0])
     return None
 
 

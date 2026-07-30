@@ -98,7 +98,16 @@ class TriadeOSComplete:
             t0 = time.time()
             self._invoke_subsystem(subsystem)
             latency = (time.time() - t0) * 1000
-        except Exception as e:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as e:
             status = "error"
             error = str(e)
 

@@ -4,7 +4,7 @@ disco, temperatura, red, con señales al Hipotálamo."""
 import json
 import sqlite3
 from datetime import UTC, datetime
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from triade.core.contracts import utc_now
 
@@ -135,8 +135,8 @@ class SystemMonitor:
             "signals": signals,
         }
 
-    def _collect_metrics(self) -> dict[str, float]:
-        metrics = {}
+    def _collect_metrics(self) -> dict[str, Any]:
+        metrics: dict[str, Any] = {}
         try:
             import psutil
 
@@ -180,7 +180,16 @@ class SystemMonitor:
                     metrics["gpu_vram_used"] = float(parts[1])
                     metrics["gpu_vram_total"] = float(parts[2])
                     metrics["gpu_temp_c"] = float(parts[3])
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             pass
 
         metrics["ollama_status"] = self._check_ollama()
@@ -196,7 +205,16 @@ class SystemMonitor:
             )
             with urllib.request.urlopen(req, timeout=3) as resp:
                 return "healthy" if resp.status == 200 else "degraded"
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return "unreachable"
 
     def _check_thresholds(self, metrics: dict) -> list[dict]:
@@ -321,7 +339,16 @@ class SystemMonitor:
                     "count": len(models),
                     "status": "healthy",
                 }
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return {"models_available": [], "count": 0, "status": "unreachable"}
 
     def get_scheduler_status(self) -> dict:
@@ -331,7 +358,16 @@ class SystemMonitor:
 
             sch = AdvancedScheduler()
             return sch.doctor()
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return {"status": "unreachable"}
 
     def get_workers_status(self) -> dict:
@@ -341,7 +377,16 @@ class SystemMonitor:
 
             ws = WorkerSupervisor()
             return ws.doctor()
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return {"status": "unreachable"}
 
     def doctor(self) -> dict:

@@ -48,7 +48,16 @@ class FocusModulator:
 
                 threshold = self.BASE_THRESHOLD + modulation
                 return max(self.MIN_THRESHOLD, min(self.MAX_THRESHOLD, threshold))
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return self.BASE_THRESHOLD
 
     def should_filter(self, relevance: float) -> bool:

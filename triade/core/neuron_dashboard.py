@@ -42,7 +42,15 @@ def build_neuron_dashboard(
             runs_dir=runs_dir,
             limit=limit,
         )
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         stable_audit_raw = {
             "status": "error",
             "total_stable_neurons": 0,
@@ -283,7 +291,15 @@ def _load_latest_training_scores(
                 ids,
             ).fetchall()
         return {str(r["name"]): float(r["score"]) for r in rows}
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return {}
 
 

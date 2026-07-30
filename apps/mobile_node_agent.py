@@ -255,7 +255,15 @@ class MobileNodeAgent:
                 job.status = "completed"
                 job.result = result
                 job.updated_at = time.time()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             with self.lock:
                 job.status = "failed"
                 job.error = str(exc)

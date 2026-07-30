@@ -99,7 +99,15 @@ def deep() -> JSONResponse:
         heartbeat = build_runtime_heartbeat()
         heartbeat_ok = isinstance(heartbeat, dict)
         heartbeat_error = None
-    except Exception as exc:  # health nunca debe derribar el proceso
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:  # health nunca debe derribar el proceso
         heartbeat = {}
         heartbeat_ok = False
         heartbeat_error = type(exc).__name__

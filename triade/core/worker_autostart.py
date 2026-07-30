@@ -135,7 +135,15 @@ def ensure_workers_alive(
             with _WORKER_LOCK:
                 if _WORKER_STATE.get("status") != "stop_requested":
                     _WORKER_STATE.update({"active": False, "status": "completed"})
-        except Exception as exc:  # pragma: no cover - defensive path
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:  # pragma: no cover - defensive path
             with _WORKER_LOCK:
                 _WORKER_STATE.update(
                     {"active": False, "status": "failed", "last_error": str(exc)}
@@ -167,7 +175,15 @@ def ensure_workers_alive(
             {"mode_configured": mode_configured, "mode_effective": mode_effective},
             db_path=db_path,
         )
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         with _WORKER_LOCK:
             _WORKER_STATE.update(
                 {"active": False, "status": "failed", "last_error": str(exc)}
@@ -235,7 +251,15 @@ def _decide_worker_mode(mode_configured: str) -> tuple[str, bool, str | None]:
             mode_configured, 0
         )
         return effective, degraded, decision.get("reason") if degraded else None
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         return "observe_only", True, f"worker_mode_decision_failed: {exc}"
 
 
@@ -252,5 +276,13 @@ def _event(
         record_internal_runtime_event(
             event_type, "workers_always_on", payload, severity=severity
         )
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         pass

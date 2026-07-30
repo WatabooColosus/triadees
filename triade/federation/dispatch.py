@@ -162,8 +162,18 @@ class FederatedDispatcher:
             result["exchange"] = accepted
             result["elapsed_seconds"] = elapsed
             self._complete(job_id, result)
-            return {**self.get(job_id), "idempotent": False}
-        except Exception as exc:
+            completed = self.get(job_id)
+            return {**(completed or {}), "idempotent": False}
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             self._fail(job_id, exc)
             raise
 

@@ -69,7 +69,15 @@ def run_self_test_cycle(
             "ollama_ok": blood.get("ollama_ok"),
             "can_reason": blood.get("can_reason"),
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         checks["ollama_blood"] = {"error": str(exc)}
         errors.append(f"ollama_blood: {exc}")
 
@@ -83,7 +91,15 @@ def run_self_test_cycle(
             "runtime_enabled": hb.get("runtime_enabled"),
             "cycles_last_hour": hb.get("cycles_last_hour"),
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         checks["heartbeat"] = {"error": str(exc)}
         errors.append(f"heartbeat: {exc}")
 
@@ -96,7 +112,15 @@ def run_self_test_cycle(
             "status": journal.get("status"),
             "cycles_last_24h": journal.get("cycles_last_24h"),
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         checks["learning_journal"] = {"error": str(exc)}
         errors.append(f"learning_journal: {exc}")
 
@@ -121,7 +145,15 @@ def run_self_test_cycle(
         evidence_created += int(nutrition.get("evidence_created", 0) or 0)
         candidates_created += int(nutrition.get("candidates_created", 0) or 0)
         neurons_nourished += int(nutrition.get("neurons_nourished", 0) or 0)
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         checks["neuron_nutrition"] = {"error": str(exc)}
         errors.append(f"neuron_nutrition: {exc}")
 
@@ -136,7 +168,15 @@ def run_self_test_cycle(
             "status": bodega.get("status"),
             "memory_confidence": bodega.get("memory_confidence"),
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         checks["bodega_global"] = {"error": str(exc)}
         errors.append(f"bodega_global: {exc}")
 
@@ -149,7 +189,15 @@ def run_self_test_cycle(
             "status": debt.get("status"),
             "score": debt.get("score"),
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         checks["technical_debt"] = {"error": str(exc)}
         errors.append(f"technical_debt: {exc}")
 
@@ -162,7 +210,15 @@ def run_self_test_cycle(
             "status": "ok",
             "files_count": integrity.get("files_count"),
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         checks["integrity_snapshot"] = {"error": str(exc)}
         errors.append(f"integrity_snapshot: {exc}")
 
@@ -176,7 +232,15 @@ def run_self_test_cycle(
             "cpu_count": probe.get("cpu", {}).get("count"),
             "ram_gb": probe.get("memory", {}).get("available_gb"),
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         checks["resource_probe"] = {"error": str(exc)}
         errors.append(f"resource_probe: {exc}")
 
@@ -192,7 +256,15 @@ def run_self_test_cycle(
             "empty_json_parsed": True,
             "parsed_type": type(parsed).__name__,
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         checks["edge_context_fallback"] = {"error": str(exc)}
         errors.append(f"edge_context_fallback: {exc}")
 
@@ -227,7 +299,15 @@ def run_self_test_cycle(
             severity="warning" if errors else "info",
             db_path=db_path,
         )
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         pass
 
     return result

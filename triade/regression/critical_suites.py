@@ -8,13 +8,13 @@ from typing import Any
 
 from triade.evaluation import EvaluationRun
 
-from .gate import MetricPolicy
+from .gate import MetricPolicy, Severity
 
 
 @dataclass(frozen=True, slots=True)
 class CriticalMetricDefinition:
     metric_id: str
-    severity: str
+    severity: Severity
     max_absolute_drop: float = 0.0
     max_relative_drop: float = 0.0
     required: bool = True
@@ -112,7 +112,7 @@ class CriticalSuiteRegistry:
         )
 
     def list(self, capability: str | None = None) -> list[dict[str, Any]]:
-        suites = self._suites.values()
+        suites = list(self._suites.values())
         if capability:
             suites = [suite for suite in suites if suite.capability == capability]
         return [

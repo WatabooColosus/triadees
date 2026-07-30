@@ -234,7 +234,7 @@ class ResourceLedger:
             )
             if cursor.lastrowid is None:
                 raise RuntimeError("resource_ledger_insert_missing_id")
-            entry_id = int(cursor.lastrowid)
+            entry_id = int(cursor.lastrowid or -1)
             if _persist_caller_measurements:
                 caller_values = {
                     "cpu_seconds": (cpu_seconds, "seconds"),

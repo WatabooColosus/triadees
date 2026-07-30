@@ -803,7 +803,15 @@ def handle_always_on(args: argparse.Namespace) -> None:
         try:
             with open(path) as f:
                 yml = yaml.safe_load(f) or {}
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             yml = {}
         if "runtime" not in yml:
             yml["runtime"] = {}
@@ -836,7 +844,15 @@ def handle_always_on(args: argparse.Namespace) -> None:
         try:
             with open(path) as f:
                 yml = yaml.safe_load(f) or {}
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             yml = {}
         if "runtime" in yml:
             yml["runtime"]["always_on"] = False

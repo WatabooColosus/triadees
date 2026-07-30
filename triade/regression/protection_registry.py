@@ -6,7 +6,7 @@ import json
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from triade.core.contracts import utc_now
 from triade.regression.gate import MetricPolicy, Severity
@@ -213,13 +213,13 @@ class CapabilityProtectionRegistry:
             capability=str(row["capability"]),
             metric_id=str(row["metric_id"]),
             version=str(row["version"]),
-            severity=str(row["severity"]),
+            severity=cast(Severity, str(row["severity"])),
             max_absolute_drop=float(row["max_absolute_drop"]),
             max_relative_drop=float(row["max_relative_drop"]),
             required=bool(row["required"]),
             immutable=bool(row["immutable"]),
             human_override_allowed=bool(row["human_override_allowed"]),
-            status=str(row["status"]),
+            status=cast(ProtectionStatus, str(row["status"])),
             owner=str(row["owner"]),
             description=str(row["description"]),
         )

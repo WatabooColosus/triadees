@@ -7,7 +7,7 @@ import sqlite3
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from triade.core.contracts import utc_now
 
@@ -215,7 +215,16 @@ class RollbackExecutor:
                 after_state=after_state,
                 error=None,
             )
-        except Exception as exc:  # noqa: BLE001 - la auditoría debe capturar el fallo
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return self._record_result(
                 plan,
                 status="failed",
@@ -274,10 +283,13 @@ class RollbackExecutor:
             ).fetchone()
         if row is None or row["status"] == "planned":
             return None
+        persisted_status = str(row["status"])
+        if persisted_status not in {"applied", "failed", "rejected"}:
+            raise ValueError(f"Estado de rollback inválido: {persisted_status}")
         return RollbackResult(
             rollback_id=str(row["rollback_id"]),
             capability=str(row["capability"]),
-            status=str(row["status"]),
+            status=cast(RollbackStatus, persisted_status),
             before_state=json.loads(row["before_state_json"] or "{}"),
             after_state=json.loads(row["after_state_json"] or "{}"),
             error=row["error"],

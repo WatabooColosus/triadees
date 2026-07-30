@@ -222,7 +222,7 @@ class TriadeRunner:
         self.hypothalamus = Hypothalamus(
             model_client=self.model_client,
             model_name=self.hypothalamus_model,
-            db_path=self.db_path,
+            db_path=str(self.db_path),
         )
         self.bodega = Bodega(
             db_path=self.db_path, semantic_search_engine=semantic_search_engine
@@ -355,7 +355,16 @@ class TriadeRunner:
                 signals.notes.append(
                     "Qualia crítica acotada a medium: consulta explícita de solo lectura sin indicador peligroso."
                 )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from .error_bus import record_internal_error
 
             record_internal_error(
@@ -377,7 +386,16 @@ class TriadeRunner:
                 or ""
             )
             edge_context = build_edge_context(edge_text, enable_summary=False)
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from .error_bus import record_internal_error
 
             record_internal_error(
@@ -500,7 +518,16 @@ class TriadeRunner:
                     timeout=10.0,
                     dry_run=False,
                 )
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 from .error_bus import record_internal_error
 
                 record_internal_error(
@@ -607,7 +634,16 @@ class TriadeRunner:
             if truth_corrections:
                 coherence_result.corrections_applied.extend(truth_corrections)
                 output.actions_taken.extend(truth_corrections)
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from .error_bus import record_internal_error
 
             record_internal_error(
@@ -674,7 +710,16 @@ class TriadeRunner:
                 response_coherence_gate.setdefault("warnings", []).extend(
                     final_truth_corrections
                 )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from .error_bus import record_internal_error
 
             record_internal_error(
@@ -822,7 +867,16 @@ class TriadeRunner:
                 expression_result.setdefault("corrections", []).extend(
                     expression_truth_corrections
                 )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from .error_bus import record_internal_error
 
             record_internal_error(
@@ -963,7 +1017,16 @@ class TriadeRunner:
             from .neuron_autopromoter import NeuronAutopromoter
 
             autopromotion_events = NeuronAutopromoter(db_path=self.db_path).promote()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from .error_bus import record_internal_error
 
             record_internal_error(
@@ -984,7 +1047,16 @@ class TriadeRunner:
                 db_path=self.db_path,
                 evidence_ref=f"verification_report:{verification_id}",
             )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from .error_bus import record_internal_error
 
             record_internal_error(
@@ -1090,7 +1162,16 @@ class TriadeRunner:
                 "authorized_matches_count": len(memory_trace["authorized_matches"]),
                 "contradictions_count": len(memory_trace["contradictions"]),
             }
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from .error_bus import record_internal_error
 
             record_internal_error(
@@ -1126,11 +1207,29 @@ class TriadeRunner:
                     qualia_packets_data.append(packet.to_dict())
                     parent_packet_id = packet.id
                     parent_run_id = experience.run_id
-                except Exception:
+                except (
+                    OSError,
+                    ImportError,
+                    sqlite3.Error,
+                    RuntimeError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                ):
                     pass
             qualia_state_obj = qualia_bus.compute_state(input_packet.run_id)
             qualia_state = qualia_state_obj.to_dict()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from .error_bus import record_internal_error
 
             record_internal_error(
@@ -1372,7 +1471,16 @@ class TriadeRunner:
             )
             mission_id = mission_store.create_mission(mission)
             proposal["mission_id"] = mission_id
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             proposal["mission_creation_failed"] = str(exc)
 
         # Persistir training result — el pipeline lo calcula pero nunca lo almacenaba
@@ -1430,7 +1538,16 @@ class TriadeRunner:
                 inserted_id = int(
                     conn.execute("SELECT last_insert_rowid()").fetchone()[0]
                 )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from .error_bus import record_internal_error
 
             record_internal_error(
@@ -1579,7 +1696,16 @@ def _build_traceability(
                         for m in matches
                         if isinstance(m, dict) and m.get("document_id")
                     ]
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         from .error_bus import record_internal_error
 
         record_internal_error(
@@ -1606,7 +1732,16 @@ def _build_traceability(
                     mid = item.get("mission_id") or item.get("neuron_mission_id")
                     if mid:
                         trace["used_neuron_mission_ids"].append(str(mid))
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         from .error_bus import record_internal_error
 
         record_internal_error(
@@ -1626,7 +1761,16 @@ def _build_traceability(
         mem_diff = getattr(output, "memory_diff", None)
         if isinstance(mem_diff, dict):
             trace["evidence_refs"] = mem_diff.get("evidence_refs") or []
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         from .error_bus import record_internal_error
 
         record_internal_error(

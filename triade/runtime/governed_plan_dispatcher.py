@@ -100,6 +100,15 @@ class GovernedPlanDispatcher:
                 "step_budget_exhausted",
                 decision_id,
             )
+        if not resolution.worker_task_type:
+            return self._blocked(
+                graph,
+                step,
+                capability_id,
+                payload_hash,
+                "worker_task_type_missing",
+                decision_id,
+            )
         task = self.tasks.enqueue(
             resolution.worker_task_type,
             payload,

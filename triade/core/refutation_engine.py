@@ -25,7 +25,15 @@ def _claim(
             "verdict": status,
             "evidence": evidence,
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         return {
             "claim_id": claim_id,
             "statement": statement,

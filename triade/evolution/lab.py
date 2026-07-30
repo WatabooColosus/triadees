@@ -435,9 +435,9 @@ class EvolutionLab:
                 "refutation",
                 "update",
             }
-            missing = sorted(k for k in required if not cycle.get(k))
-            metrics["missing_fields"] = missing
-            if missing:
+            missing_fields = sorted(k for k in required if not cycle.get(k))
+            metrics["missing_fields"] = missing_fields
+            if missing_fields:
                 reasons.append("ciclo científico incompleto")
             if any(
                 not s.get("url") or not s.get("retrieved_at")
@@ -563,7 +563,7 @@ class EvolutionLab:
         body["sha256"] = _sha(body)
         if self.signing_key:
             body["signature"] = hmac.new(
-                self.signing_key, body["sha256"].encode(), hashlib.sha256
+                self.signing_key, str(body["sha256"]).encode(), hashlib.sha256
             ).hexdigest()
         return body
 

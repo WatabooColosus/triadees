@@ -130,7 +130,15 @@ def _get_qualia_snapshot() -> dict[str, Any]:
         from triade.core.qualia import QUALIA
 
         return QUALIA.snapshot(refresh_life=False)
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return {}
 
 
@@ -163,7 +171,15 @@ def _build_semantic_search_engine(
             store=store, client=client, embedding_engine=embedding
         )
         return engine
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return None
 
 
@@ -256,10 +272,22 @@ def build_bodega_global_context(
                 }
                 for n in all_neurons
             ]
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             pass
 
-        learning_context = {"candidates": 0, "evaluated": 0, "internally_checked": 0}
+        learning_context: dict[str, Any] = {
+            "candidates": 0,
+            "evaluated": 0,
+            "internally_checked": 0,
+        }
         try:
             learning = LearningPipeline(db_path=db_path)
             candidates = learning.list_candidates(status="candidate", limit=limit)
@@ -273,7 +301,15 @@ def build_bodega_global_context(
                 "internally_checked": len(verified),
                 "recent_candidates": candidates[:5],
             }
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             pass
 
         safety_context: dict[str, Any] = {
@@ -286,7 +322,15 @@ def build_bodega_global_context(
         try:
             governance = SemanticMemoryGovernance(db_path=db_path)
             semantic_governance = governance.doctor()
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             semantic_governance = {"status": "unavailable"}
 
         stable_audit_summary: dict[str, Any] = {"status": "unavailable"}
@@ -307,7 +351,15 @@ def build_bodega_global_context(
                     "policy": audit_result.get("policy", {}),
                 }
                 safety_context["stable_neuron_audit"] = stable_audit_summary
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             stable_audit_summary = {"status": "unavailable"}
 
         qualia_context = _get_qualia_snapshot()
@@ -412,7 +464,15 @@ def build_bodega_global_context(
             ),
         }
 
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         return {
             "status": "error",
             "error": str(exc),

@@ -72,7 +72,16 @@ class SalienceEngine:
                     valence, arousal = float(row[0]), float(row[1])
                     congruence = 1.0 - abs(valence - 0.5) * 2
                     return max(0.0, min(1.0, base + congruence * 0.3 + arousal * 0.2))
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from triade.core.error_bus import record_internal_error
 
             record_internal_error(
@@ -96,14 +105,23 @@ class SalienceEngine:
                 if not active:
                     return 0.1
                 text_lower = user_input.lower()
-                matches = 0
+                matches = 0.0
                 for title, desc in active:
                     if title and title.lower() in text_lower:
                         matches += 1
                     if desc and any(w in text_lower for w in desc.lower().split()):
                         matches += 0.5
                 return max(0.1, min(1.0, matches / len(active)))
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from triade.core.error_bus import record_internal_error
 
             record_internal_error(
@@ -138,7 +156,16 @@ class SalienceEngine:
                     return 0.5
                 novelty = 1.0 - (avg_overlap / max_possible)
                 return max(0.0, min(1.0, novelty))
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from triade.core.error_bus import record_internal_error
 
             record_internal_error(

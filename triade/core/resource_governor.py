@@ -105,7 +105,8 @@ def decide_work_mode(
     elif not can_reason:
         allowed_mode = "light_background"
         reasons.append("Sin modelo razonador Ollama. Máximo light_background.")
-        downgrades.append("semantic_embedding" if not can_embed else None)
+        if not can_embed:
+            downgrades.append("semantic_embedding")
         downgrades.append("learning_evaluation")
     # --- Observación por hardware low ---
     elif tier == "low":

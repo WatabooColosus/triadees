@@ -192,20 +192,16 @@ def build_resource_probe() -> dict[str, Any]:
         warnings.append(f"RAM disponible baja ({ram_available_gb} GB).")
     if disk_free < 2:
         warnings.append(f"Disco libre bajo ({disk_free} GB).")
+    battery_percent = power.get("battery_percent")
     if (
-        power.get("battery_percent") is not None
-        and power.get("battery_percent", 100) < 25
+        isinstance(battery_percent, (int, float))
+        and battery_percent < 25
         and not power.get("ac_connected")
     ):
-        warnings.append(f"Batería baja ({power['battery_percent']}%) sin AC.")
-    if (
-        load.get("load_1min") is not None
-        and cpu_count
-        and load["load_1min"] > cpu_count * 2
-    ):
-        warnings.append(
-            f"Load average alto ({load['load_1min']}) para {cpu_count} CPUs."
-        )
+        warnings.append(f"Batería baja ({battery_percent}%) sin AC.")
+    load_1min = load.get("load_1min")
+    if isinstance(load_1min, (int, float)) and cpu_count and load_1min > cpu_count * 2:
+        warnings.append(f"Load average alto ({load_1min}) para {cpu_count} CPUs.")
     if thermal.get("thermal_status") == "critical":
         warnings.append(
             f"Temperatura crítica ({thermal.get('temperature_celsius')}°C)."

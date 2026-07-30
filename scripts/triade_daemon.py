@@ -152,7 +152,15 @@ class TriadeDaemon:
             )
             result = runner.run("Auto-reflexión programada del daemon.")
             self.log.info("Auto-run completado: %s", result.get("status", "?"))
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             self.log.warning("Auto-run falló: %s", exc)
 
     # ------------------------------------------------------------------

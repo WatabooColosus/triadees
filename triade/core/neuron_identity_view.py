@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from pathlib import Path
 from typing import Any
 
@@ -80,7 +81,15 @@ class NeuronIdentityView:
             qualia_experiences = QualiaStore(db_path=self.db_path).list_experiences(
                 limit=limit
             )
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             qualia_experiences = []
         return {
             "evidence_by_name": {
@@ -197,7 +206,7 @@ class NeuronIdentityView:
         return "general"
 
     @staticmethod
-    def _observing(neuron: dict[str, Any]) -> list[str]:
+    def _observing(neuron: dict[str, Any]) -> builtins.list[str]:
         triggers = neuron.get("triggers") or []
         inputs = neuron.get("inputs_allowed") or []
         return list(
@@ -248,10 +257,10 @@ class NeuronIdentityView:
     @staticmethod
     def _evidence_used(
         evidence: dict[str, Any],
-        training: list[dict[str, Any]],
-        qualia: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        items: list[dict[str, Any]] = []
+        training: builtins.list[dict[str, Any]],
+        qualia: builtins.list[dict[str, Any]],
+    ) -> builtins.list[dict[str, Any]]:
+        items: builtins.list[dict[str, Any]] = []
         if evidence:
             items.append(
                 {
@@ -295,7 +304,7 @@ class NeuronIdentityView:
         )
 
     @staticmethod
-    def _qualia_contribution(qualia: list[dict[str, Any]]) -> str:
+    def _qualia_contribution(qualia: builtins.list[dict[str, Any]]) -> str:
         if qualia:
             return (
                 f"{len(qualia)} experiencias recientes se tratan como hipótesis Qualia."
@@ -303,7 +312,7 @@ class NeuronIdentityView:
         return "Sin experiencias Qualia recientes."
 
     @staticmethod
-    def _limits(status: str, neuron: dict[str, Any]) -> list[str]:
+    def _limits(status: str, neuron: dict[str, Any]) -> builtins.list[str]:
         limits = [
             "No puede modificar identity_core.",
             "No puede escribir memoria estable sin LearningPipeline.",

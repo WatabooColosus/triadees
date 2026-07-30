@@ -15,6 +15,8 @@ from typing import Any
 
 ENGINEERING_ERRORS = (
     OSError,
+    ImportError,
+    sqlite3.Error,
     RuntimeError,
     ValueError,
     sqlite3.Error,

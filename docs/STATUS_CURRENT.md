@@ -12,6 +12,8 @@ operación prolongada y CI remota verde.
 
 ## Implementado
 
+- Autonomía Delegada para operaciones locales gobernadas, con planificación,
+  permisos, Safe File Ops, cuarentena, verificación de integridad y rollback.
 - Cola runtime v2 como autoridad canónica, reconciliación legacy idempotente y
   cierre atómico sujeto a lease, fencing, postcondición, artifact y receipt.
 - Identity Manifest, verificación de continuidad, detección de alteración, modo

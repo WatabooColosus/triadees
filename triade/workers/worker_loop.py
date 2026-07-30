@@ -56,13 +56,18 @@ from .task_queue import WorkerTaskQueue
 
 WORKER_OPERATION_ERRORS = (
     OSError,
+    ImportError,
+    sqlite3.Error,
     RuntimeError,
     ValueError,
     TypeError,
     KeyError,
     TimeoutError,
-    sqlite3.Error,
 )
+
+
+def _integer_task_id(value: int | str | None) -> int | None:
+    return value if isinstance(value, int) else None
 
 
 class WorkerSandbox:
@@ -330,10 +335,11 @@ class WorkerLoop:
                         max_attempts=3,
                     )
                     if not self.store.link_delegated_task(
-                        int(task.id or 0), str(governed["task_id"])
+                        int(_integer_task_id(task.id) or 0), str(governed["task_id"])
                     ):
                         self.store.return_delegation_to_pending(
-                            int(task.id or 0), "legacy_v2_link_rejected"
+                            int(_integer_task_id(task.id) or 0),
+                            "legacy_v2_link_rejected",
                         )
                         continue
                     leased = self.autonomous_tasks.claim_task(
@@ -343,13 +349,13 @@ class WorkerLoop:
                     )
                     if leased is None:
                         self.store.return_delegation_to_pending(
-                            int(task.id or 0), "v2_lease_conflict"
+                            int(_integer_task_id(task.id) or 0), "v2_lease_conflict"
                         )
                         self.store.record_event(
                             "task_lease_conflict",
                             "La tarea no pudo obtener lease v2",
                             run_ref=run_ref,
-                            task_id=task.id,
+                            task_id=_integer_task_id(task.id),
                             task_type=task.task_type,
                             status="deferred",
                             payload={"autonomous_task_id": governed.get("task_id")},
@@ -481,7 +487,10 @@ class WorkerLoop:
         if not self.autonomous_tasks.start(
             autonomous_task_id, run_ref, lease_generation
         ):
-            result = {"status": "error", "error": "autonomous_lease_lost"}
+            result: dict[str, Any] = {
+                "status": "error",
+                "error": "autonomous_lease_lost",
+            }
         else:
             heartbeat = LeaseHeartbeat(
                 self.autonomous_tasks,
@@ -795,7 +804,11 @@ class WorkerLoop:
                 "task_type": task.task_type,
             }
             self.store.finish_task(
-                task.id or 0, "skipped", result, "approved", run_ref=run_ref
+                _integer_task_id(task.id) or 0,
+                "skipped",
+                result,
+                "approved",
+                run_ref=run_ref,
             )
             return result
         blood = check_ollama_blood()
@@ -830,13 +843,17 @@ class WorkerLoop:
                 "cognitive_blood_active": False,
             }
             self.store.finish_task(
-                task.id or 0, "blocked", result, safety.status, run_ref=run_ref
+                _integer_task_id(task.id) or 0,
+                "blocked",
+                result,
+                safety.status,
+                run_ref=run_ref,
             )
             self.store.record_event(
                 "task_blocked_no_blood",
                 result["reason"],
                 run_ref=run_ref,
-                task_id=task.id,
+                task_id=_integer_task_id(task.id),
                 task_type=task.task_type,
                 status="blocked",
                 payload=result,
@@ -848,13 +865,17 @@ class WorkerLoop:
                 "safety_status": safety.status,
             }
             self.store.finish_task(
-                task.id or 0, "blocked", result, safety.status, run_ref=run_ref
+                _integer_task_id(task.id) or 0,
+                "blocked",
+                result,
+                safety.status,
+                run_ref=run_ref,
             )
             self.store.record_event(
                 "task_blocked",
                 safety.reason,
                 run_ref=run_ref,
-                task_id=task.id,
+                task_id=_integer_task_id(task.id),
                 task_type=task.task_type,
                 status="blocked",
                 payload=result,
@@ -866,7 +887,11 @@ class WorkerLoop:
                 "would_execute": True,
             }
             self.store.finish_task(
-                task.id or 0, "dry_run", result, safety.status, run_ref=run_ref
+                _integer_task_id(task.id) or 0,
+                "dry_run",
+                result,
+                safety.status,
+                run_ref=run_ref,
             )
         else:
             try:
@@ -969,7 +994,7 @@ class WorkerLoop:
                         f"unknown_handler_status:{result_status or '<empty>'}"
                     )
                 self.store.finish_task(
-                    task.id or 0,
+                    _integer_task_id(task.id) or 0,
                     persisted_status,
                     result,
                     safety.status,
@@ -979,7 +1004,7 @@ class WorkerLoop:
                     f"task_{persisted_status}",
                     f"{task.task_type}: {persisted_status}",
                     run_ref=run_ref,
-                    task_id=task.id,
+                    task_id=_integer_task_id(task.id),
                     task_type=task.task_type,
                     payload=result,
                 )
@@ -994,7 +1019,7 @@ class WorkerLoop:
                     "worker_loop.execute_task",
                     exc,
                     run_id=run_ref,
-                    task_id=task.id,
+                    task_id=_integer_task_id(task.id),
                     payload={
                         "module": __name__,
                         "function": "_execute_task",
@@ -1009,7 +1034,7 @@ class WorkerLoop:
                     "error": str(exc),
                 }
                 self.store.finish_task(
-                    task.id or 0,
+                    _integer_task_id(task.id) or 0,
                     "failed",
                     result,
                     safety.status,
@@ -1020,7 +1045,7 @@ class WorkerLoop:
                     "task_failed",
                     str(exc),
                     run_ref=run_ref,
-                    task_id=task.id,
+                    task_id=_integer_task_id(task.id),
                     task_type=task.task_type,
                     status="error",
                     payload=result,
@@ -1854,7 +1879,7 @@ class WorkerLoop:
                     "worker_loop.shell_event",
                     exc,
                     run_id=run_ref,
-                    task_id=task.id,
+                    task_id=_integer_task_id(task.id),
                     payload={
                         "module": __name__,
                         "function": "_shell_execute",

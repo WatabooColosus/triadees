@@ -167,6 +167,7 @@ def main() -> int:
                 json.JSONDecodeError,
                 KeyError,
                 OSError,
+                ImportError,
                 PermissionError,
                 sqlite3.Error,
                 TypeError,

@@ -108,7 +108,15 @@ def select_relevant_missions(
                     score += latest.value
                     reasons.append(f"latest_score:{latest.value:.2f}")
                     primary_signal = True
-            except Exception:
+            except (
+                OSError,
+                ImportError,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ):
                 pass
 
         if m.updated_at:

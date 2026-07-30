@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import json
 import sqlite3
 from dataclasses import asdict, dataclass
@@ -137,7 +138,7 @@ class CapabilityRegistry:
 
     def list(
         self, *, state: str | None = None, domain: str | None = None
-    ) -> list[dict[str, Any]]:
+    ) -> builtins.list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT payload_json FROM capability_registry ORDER BY capability_id, version"
@@ -173,9 +174,9 @@ class CapabilityRegistry:
 
     def history(
         self, capability_id: str, version: str | None = None
-    ) -> list[dict[str, Any]]:
+    ) -> builtins.list[dict[str, Any]]:
         sql = "SELECT action, payload_json, created_at FROM capability_history WHERE capability_id = ?"
-        params: list[Any] = [capability_id]
+        params: builtins.list[Any] = [capability_id]
         if version:
             sql += " AND version = ?"
             params.append(version)

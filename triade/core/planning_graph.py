@@ -252,7 +252,16 @@ class PlanningGraph:
                     (run_id, goal_id),
                 )
                 return True
-            except Exception:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ):
                 return False
 
     def get_goals_for_run(self, run_id: str) -> list[GoalNode]:
@@ -290,7 +299,7 @@ class PlanningGraph:
             title=str(r("title", "")),
             description=str(r("description", "")),
             status=str(r("status", "pending")),
-            priority=int(r("priority", 3)),
+            priority=int(str(r("priority", 3))),
             metadata=meta,
             created_at=str(r("created_at", "")),
             updated_at=str(r("updated_at", "")),

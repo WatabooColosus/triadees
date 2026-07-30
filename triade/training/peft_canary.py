@@ -115,7 +115,16 @@ class PeftCanaryServer:
                 str(path), "canary_generation", True, latency, digest, result=result
             )
             return result
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             self._event(
                 adapter_path, "canary_generation", False, 0, digest, error=str(exc)
             )

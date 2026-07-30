@@ -41,7 +41,16 @@ class TriadeObservabilityView:
         def collect(name: str, fn: Callable[[], Any], fallback: Any) -> Any:
             try:
                 return fn()
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 degraded_sources.append(name)
                 warnings.append(f"{name} no disponible; se devuelve estado degradado.")
                 record_internal_error(
@@ -327,7 +336,16 @@ class TriadeObservabilityView:
                 created_at=trace.get("created_at"),
             )
             return response.model_dump()
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return {}
 
     def _connect(self) -> sqlite3.Connection:

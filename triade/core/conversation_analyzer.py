@@ -309,12 +309,12 @@ class ConversationAnalyzer:
         signals: list[dict[str, Any]],
         reports: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        themes = Counter()
+        themes: Counter[str] = Counter()
         for row in rows:
             themes.update(self._keywords(str(row["user_input"] or "")))
         intents = Counter(str(item.get("intent") or "unknown") for item in signals)
         risks = Counter(str(item.get("risk") or "unknown") for item in signals)
-        warnings = Counter()
+        warnings: Counter[str] = Counter()
         for report in reports:
             warnings.update(self._json_list(report.get("warnings")))
             warnings.update(self._json_list(report.get("errors")))
@@ -436,7 +436,7 @@ class ConversationAnalyzer:
         reports: list[dict[str, Any]],
         crystals: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        themes = Counter()
+        themes: Counter[str] = Counter()
         for row in rows:
             themes.update(self._keywords(str(row["user_input"] or "")))
         clean_themes = [
@@ -444,7 +444,7 @@ class ConversationAnalyzer:
             for theme, count in themes.most_common(8)
             if count >= 2
         ]
-        warnings = Counter()
+        warnings: Counter[str] = Counter()
         for report in reports:
             warnings.update(self._json_list(report.get("warnings")))
         if warnings:

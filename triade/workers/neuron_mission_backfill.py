@@ -34,7 +34,7 @@ def build_neuron_mission_contract(
         SAFE_STABLE_ACTIONS if status == "stable" else SAFE_ALLOWED_ACTIONS
     )
     return NeuronMission(
-        neuron_id=int(neuron.get("id")) if neuron.get("id") is not None else None,
+        neuron_id=int(str(neuron.get("id"))) if neuron.get("id") is not None else None,
         title=name,
         mission=mission_text,
         domain=domain,
@@ -135,10 +135,9 @@ def backfill_neuron_missions(
             }
         )
         mission_id = store.create_mission(mission)
+        created_mission = store.get_mission(mission_id)
         created.append(
-            store.get_mission(mission_id).to_dict()
-            if store.get_mission(mission_id)
-            else {"id": mission_id}
+            created_mission.to_dict() if created_mission else {"id": mission_id}
         )
 
     if not neurons:
@@ -205,7 +204,15 @@ def neuron_missions_doctor(
                 (limit,),
             ).fetchall()
             learning_candidates = [dict(row) for row in rows]
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         learning_candidates = []
 
     missions_by_status: dict[str, int] = {}

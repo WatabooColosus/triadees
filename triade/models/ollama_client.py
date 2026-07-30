@@ -110,6 +110,7 @@ class OllamaClient:
             TimeoutError,
             json.JSONDecodeError,
             OSError,
+            ImportError,
         ) as exc:
             return ModelResult(
                 ok=False,
@@ -189,6 +190,7 @@ class OllamaClient:
             TimeoutError,
             json.JSONDecodeError,
             OSError,
+            ImportError,
             TypeError,
             ValueError,
         ) as exc:
@@ -207,6 +209,7 @@ class OllamaClient:
             TimeoutError,
             json.JSONDecodeError,
             OSError,
+            ImportError,
         ) as exc:
             return {
                 "ok": False,

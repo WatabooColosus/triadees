@@ -138,7 +138,15 @@ def build_edge_context(user_text: str, enable_summary: bool = False) -> dict[str
                 raw_preview="",
                 user_text_preview=user_text,
             )
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             pass
         return EdgeContext(
             enabled=True,
@@ -314,7 +322,15 @@ def parse_context_probe(text: str, fallback_text: str = "") -> dict[str, Any]:
             "edge_observation_type": result["observation_type"],
             "fallback_used": False,
         }
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         malformed = {
             **result,
             "ok": False,
@@ -417,11 +433,8 @@ def _extract_edge_observations(
         if "fallback_used" in payload
         else payload.get("_fallback_used")
     )
-    nested = (
-        payload.get("intent_probe")
-        if isinstance(payload.get("intent_probe"), dict)
-        else {}
-    )
+    raw_nested = payload.get("intent_probe")
+    nested: dict[str, Any] = raw_nested if isinstance(raw_nested, dict) else {}
     obs_type = obs_type or nested.get("_edge_observation_type")
     quality = quality or nested.get("_edge_signal_quality")
     fallback = fallback if fallback is not None else nested.get("_fallback_used")

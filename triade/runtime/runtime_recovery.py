@@ -59,7 +59,16 @@ class RuntimeRecovery:
             if not heartbeat_ok:
                 raise RuntimeError("new_heartbeat_not_observed")
             state, error = "runtime_recovered", None
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             state, error = "critical", f"{type(exc).__name__}: {exc}"
         finished = datetime.now(UTC).isoformat()
         with sqlite3.connect(self.db_path) as conn:

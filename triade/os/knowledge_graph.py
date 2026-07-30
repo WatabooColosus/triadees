@@ -96,7 +96,7 @@ class KnowledgeGraph:
                 VALUES (?, ?, ?, ?, ?, ?)""",
                 (node_type, content, domain, source_ref, neuron_id, now),
             )
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def get_node(self, node_id: int) -> KGNode | None:
         with self._connect() as conn:
@@ -181,7 +181,7 @@ class KnowledgeGraph:
                 VALUES (?, ?, ?, ?, ?, ?)""",
                 (source_id, target_id, relation_type, weight, refs_json, now),
             )
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def get_edges(self, node_id: int, direction: str = "both") -> list[KGEdge]:
         with self._connect() as conn:
@@ -304,7 +304,7 @@ class KnowledgeGraph:
                 )
                 new_contradictions.append(
                     KGContradiction(
-                        id=int(cursor.lastrowid),
+                        id=int(cursor.lastrowid or -1),
                         node_a_id=pair[0],
                         node_b_id=pair[1],
                         description=desc,

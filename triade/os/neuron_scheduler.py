@@ -8,7 +8,7 @@ según presupuesto.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -70,7 +70,7 @@ class NeuronScheduler:
             if not neurons:
                 return []
 
-            now = utc_now()
+            now = datetime.now(UTC)
             priorities: list[NeuronPriority] = []
 
             for neuron in neurons:
@@ -186,7 +186,7 @@ class NeuronScheduler:
             return []
 
         scheduled: list[dict[str, Any]] = []
-        now = utc_now()
+        now = datetime.now(UTC)
 
         for p in priorities[:max_wakeups]:
             if p.reputation < 0.2:
@@ -280,7 +280,7 @@ class NeuronScheduler:
                     p.reputation,
                     p.resource_freshness,
                     p.reason,
-                    now,
+                    now.isoformat(),
                 ),
             )
 

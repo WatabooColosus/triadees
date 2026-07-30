@@ -19,6 +19,8 @@ from triade.core.neuron_missions import NeuronMissionStore
 MISSION_PLANNER_ERRORS = (
     sqlite3.Error,
     OSError,
+    ImportError,
+    sqlite3.Error,
     RuntimeError,
     ValueError,
     TypeError,

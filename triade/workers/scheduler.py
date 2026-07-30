@@ -28,7 +28,15 @@ class WorkerScheduler:
             planned = planner.plan_cycle(run_ref=run_ref)
             if planned:
                 return self._enqueue_planned(planned, run_ref=run_ref)
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from triade.core.error_bus import record_internal_error
 
             record_internal_error(

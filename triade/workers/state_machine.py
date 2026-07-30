@@ -10,7 +10,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from triade.core.contracts import utc_now
 
@@ -77,7 +77,12 @@ class WorkerStateMachine:
                 "SELECT to_status FROM worker_transitions WHERE task_id = ? ORDER BY id DESC LIMIT 1",
                 (task_id,),
             ).fetchone()
-        return str(row["to_status"]) if row else "created"
+        if not row:
+            return "created"
+        status = str(row["to_status"])
+        if status not in VALID_TRANSITIONS:
+            raise ValueError(f"Estado persistido inválido: {status}")
+        return cast(WorkerStatus, status)
 
     def transition(
         self,

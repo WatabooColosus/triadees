@@ -124,7 +124,16 @@ class PeerSync:
                     "version": data.get("version", ""),
                     "status": "active",
                 }
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return None
 
     def get_peers(self, status: str | None = None) -> list[dict[str, Any]]:
@@ -162,7 +171,16 @@ class PeerSync:
                 result = self._sync_type(url, sync_type)
                 results[sync_type] = result
                 total_synced += result.get("count", 0)
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 results[sync_type] = {"status": "error", "error": str(exc)}
 
         elapsed = time.time() - started
@@ -236,7 +254,16 @@ class PeerSync:
                     resp.read(MAX_RESPONSE_BYTES + 1)[:MAX_RESPONSE_BYTES].decode()
                 )
                 return {"status": "ok", "peer_id": peer_id, "result": result}
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return {"status": "error", "peer_id": peer_id, "error": str(exc)}
 
     def get_network_view(self) -> dict[str, Any]:
@@ -264,7 +291,16 @@ class PeerSync:
                 )
                 count = self._merge_remote_data(sync_type, remote_data)
                 return {"status": "ok", "count": count, "type": sync_type}
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return {"status": "error", "error": str(exc), "type": sync_type}
 
     def _merge_remote_data(self, sync_type: str, remote_data: dict[str, Any]) -> int:
@@ -283,7 +319,16 @@ class PeerSync:
                         existing = registry.get_neuron(name)
                         if not existing:
                             count += 1
-            except Exception:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ):
                 pass
 
         elif sync_type == "learning":

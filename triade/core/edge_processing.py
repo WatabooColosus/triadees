@@ -310,7 +310,15 @@ def normalize_intent_probe(text: str) -> str:
                 "needs_tool": normalize_bool_like(data.get("needs_tool", False)),
             }
             return json.dumps(normalized, ensure_ascii=False)
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return candidate
 
     return out.strip()

@@ -107,7 +107,16 @@ class IsolatedInstaller:
                 "activated_in_production": False,
                 "rollback_ready": True,
             }
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     "UPDATE installer_attempts SET status='failed',finished_at=CURRENT_TIMESTAMP,error=? WHERE id=?",

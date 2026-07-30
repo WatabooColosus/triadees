@@ -354,7 +354,16 @@ class EnhancedToolRegistry:
                 "exec_id": exec_id,
                 "duration_ms": round(dur, 2),
             }
-        except Exception as e:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as e:
             dur = (time.time() - t0) * 1000
             self._conn.execute(
                 """INSERT INTO tool_executions_ext

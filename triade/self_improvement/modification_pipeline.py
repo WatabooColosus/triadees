@@ -8,7 +8,7 @@ import json
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from triade.core.contracts import utc_now
 
@@ -278,9 +278,12 @@ class SelfModificationPipeline:
                 "SELECT phase FROM modification_phases WHERE proposal_id = ? ORDER BY id DESC LIMIT 1",
                 (proposal_id,),
             ).fetchone()
-        return str(row["phase"]) if row else "proposed"
+        phase = str(row["phase"]) if row else "proposed"
+        if phase not in PHASE_ORDER:
+            raise ValueError(f"Fase persistida inválida: {phase}")
+        return cast(ModificationPhase, phase)
 
-    def _next_expected(self, current: str) -> ModificationPhase:
+    def _next_expected(self, current: ModificationPhase) -> ModificationPhase:
         try:
             idx = PHASE_ORDER.index(current)
             if idx + 1 < len(PHASE_ORDER):
@@ -292,7 +295,7 @@ class SelfModificationPipeline:
     def _record_phase(
         self,
         proposal_id: str,
-        phase: str,
+        phase: ModificationPhase,
         status: str,
         details: dict[str, Any] | None = None,
     ) -> ModificationPhaseRecord:

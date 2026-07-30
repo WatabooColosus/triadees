@@ -247,7 +247,16 @@ class InternalRuntimeSupervisor:
                     db_path=self.db_path,
                     run_ref=self.runtime_id,
                 )
-            except Exception as triadeos_exc:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as triadeos_exc:
                 results["services"]["triadeos_service"] = {
                     "status": "error",
                     "error": str(triadeos_exc),
@@ -264,7 +273,16 @@ class InternalRuntimeSupervisor:
                         runs_dir=self.runs_dir,
                     )
                     results["self_test"] = self.last_self_test_result
-                except Exception as st_exc:
+                except (
+                    OSError,
+                    ImportError,
+                    sqlite3.Error,
+                    RuntimeError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                ) as st_exc:
                     self.last_self_test_result = {
                         "status": "error",
                         "error": str(st_exc),
@@ -287,7 +305,16 @@ class InternalRuntimeSupervisor:
             results["counters"] = dict(self.counters)
             results["snapshot"] = self.snapshot()
             return results
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             self.counters["errors"] += 1
             record_internal_error(
                 "internal_runtime.run_once",
@@ -460,7 +487,16 @@ class InternalRuntimeSupervisor:
         ]
         try:
             ollama_health = OllamaClient().health()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             ollama_health = {"ok": False, "error": str(exc)}
         hardware = HardwareProfiler().detect()
         router = ModelRouter(
@@ -614,7 +650,16 @@ class InternalRuntimeSupervisor:
                     db_path=self.db_path,
                     run_ref=self.runtime_id,
                 )
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 record_internal_error(
                     "internal_runtime.learning.evaluate",
                     exc,
@@ -635,7 +680,16 @@ class InternalRuntimeSupervisor:
                     db_path=self.db_path,
                     run_ref=self.runtime_id,
                 )
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 record_internal_error(
                     "internal_runtime.learning.verify",
                     exc,
@@ -665,7 +719,16 @@ class InternalRuntimeSupervisor:
     def _model_service(self, mode: str) -> dict[str, Any]:
         try:
             health = OllamaClient().health()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             health = {"ok": False, "error": str(exc)}
         hardware = HardwareProfiler().detect()
         router = ModelRouter(

@@ -93,7 +93,16 @@ class IntegrationValidator:
             details = {}
             try:
                 details = test_fn()
-            except Exception as e:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as e:
                 status = "fail"
                 details = {"error": str(e)}
 

@@ -174,7 +174,7 @@ class Bodega(BodegaStorage):
                     latency_ms,
                 ),
             )
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def store_signal(self, signals: SignalPacket) -> int:
         with self._connect() as conn:
@@ -192,7 +192,7 @@ class Bodega(BodegaStorage):
                     signals.timestamp,
                 ),
             )
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def store_crystal(self, crystal: CrystalPacket) -> int:
         basis = crystal.comparison_basis or {}
@@ -236,7 +236,7 @@ class Bodega(BodegaStorage):
                     crystal.timestamp,
                 ),
             )
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def list_recent_crystals(
         self, limit: int = 5, context_key: str | None = None
@@ -278,7 +278,7 @@ class Bodega(BodegaStorage):
                     safety.timestamp,
                 ),
             )
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def store_verification_report(self, report: VerificationReport) -> int:
         with self._connect() as conn:
@@ -301,7 +301,7 @@ class Bodega(BodegaStorage):
                     report.timestamp,
                 ),
             )
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def store_episode(
         self, input_packet: InputPacket, output: OutputPacket
@@ -434,7 +434,15 @@ class Bodega(BodegaStorage):
     def _qualia_doctor(self) -> dict[str, Any]:
         try:
             return self._qualia_store().doctor()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return {"status": "missing_tables", "error": str(exc)}
 
     def store_qualia_experience(self, experience: Any) -> str:

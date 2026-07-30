@@ -193,7 +193,16 @@ class ServiceHealth:
                 if isinstance(result, dict)
                 else {"ok": False, "error_type": "invalid_probe_result"}
             )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return {"ok": False, "error_type": type(exc).__name__}
 
     @staticmethod

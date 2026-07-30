@@ -38,7 +38,7 @@ class AtomicCompletionCoordinator:
         if event_recorder is not None:
             try:
                 event_recorder()
-            except (OSError, RuntimeError, ValueError):
+            except (OSError, ImportError, RuntimeError, ValueError):
                 return False
         return self.store.finalize_completion(
             task_id, worker_id, lease_generation, final_ref

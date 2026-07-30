@@ -11,7 +11,7 @@ import json
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from triade.core.contracts import utc_now
 
@@ -86,7 +86,10 @@ class KnowledgeStateMachine:
                 "SELECT to_state FROM knowledge_transitions WHERE knowledge_id = ? ORDER BY id DESC LIMIT 1",
                 (knowledge_id,),
             ).fetchone()
-        return str(row["to_state"]) if row else "unknown"
+        state = str(row["to_state"]) if row else "unknown"
+        if state not in VALID_KNOWLEDGE_TRANSITIONS:
+            raise ValueError(f"Estado de conocimiento inválido: {state}")
+        return cast(KnowledgeState, state)
 
     def transition(
         self,

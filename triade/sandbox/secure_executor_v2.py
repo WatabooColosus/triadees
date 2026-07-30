@@ -198,7 +198,16 @@ class SecureExecutor:
         except subprocess.TimeoutExpired:
             exit_code = -1
             stderr = "TIMEOUT"
-        except Exception as e:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as e:
             exit_code = -2
             stderr = str(e)
 

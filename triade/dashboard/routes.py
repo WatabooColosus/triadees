@@ -63,7 +63,15 @@ def dashboard_metrics():
                 "gpu_temp": snap.get("gpu_temp_c", 0),
                 "disk": snap.get("disk_percent", 0),
             }
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         metrics["system"] = {}
 
     try:
@@ -71,7 +79,15 @@ def dashboard_metrics():
 
         sch = AdvancedScheduler()
         metrics["scheduler"] = sch.doctor()
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         metrics["scheduler"] = {}
 
     try:
@@ -79,7 +95,15 @@ def dashboard_metrics():
 
         ce = ConstitutionEnforcer()
         metrics["constitution"] = ce.doctor()
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         metrics["constitution"] = {}
 
     return metrics
@@ -146,7 +170,15 @@ def subsystem_status(name: str):
             raise HTTPException(status_code=404, detail=f"Unknown subsystem: {name}")
     except HTTPException:
         raise
-    except Exception as e:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as e:
         return {"subsystem": name, "status": "error", "error": str(e)}
 
 
@@ -162,7 +194,15 @@ def constitution_status():
             "open_violations": ce.open_violations(),
             "article_summary": ce.article_summary(),
         }
-    except Exception as e:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as e:
         return {"error": str(e)}
 
 
@@ -175,7 +215,15 @@ def pulse_status():
         mon = SystemMonitor()
         snap = mon.latest_snapshot()
         return {"pulse": "active", "last_snapshot": snap, "timestamp": utc_now()}
-    except Exception as e:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as e:
         return {"pulse": "error", "error": str(e)}
 
 
@@ -196,7 +244,15 @@ def hypothalamus_status():
             "dominant_sin": sin_name,
             "sin_score": sin_score,
         }
-    except Exception as e:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as e:
         return {"subsystem": "hypothalamus", "status": "error", "error": str(e)}
 
 
@@ -208,7 +264,15 @@ def crystal_status():
 
         ce = ContinuityEngine()
         return {"subsystem": "crystal", "status": "active", "doctor": ce.doctor()}
-    except Exception as e:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as e:
         return {"subsystem": "crystal", "status": "error", "error": str(e)}
 
 
@@ -220,7 +284,15 @@ def bodega_status():
 
         ss = SemanticMemoryStore()
         return {"subsystem": "bodega", "status": "active", "doctor": ss.doctor()}
-    except Exception as e:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as e:
         return {"subsystem": "bodega", "status": "error", "error": str(e)}
 
 
@@ -232,7 +304,15 @@ def workers_status():
 
         ws = WorkerSupervisor()
         return {"subsystem": "workers", "status": "active", "doctor": ws.doctor()}
-    except Exception as e:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as e:
         return {"subsystem": "workers", "status": "error", "error": str(e)}
 
 
@@ -248,7 +328,15 @@ def recursos_status():
             "status": "active",
             "resources": fed.available_resources(),
         }
-    except Exception as e:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as e:
         return {"subsystem": "recursos", "status": "error", "error": str(e)}
 
 
@@ -260,7 +348,15 @@ def learning_status():
 
         cle = CausalLearningEngine()
         return {"subsystem": "learning", "status": "active", "doctor": cle.doctor()}
-    except Exception as e:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as e:
         return {"subsystem": "learning", "status": "error", "error": str(e)}
 
 
@@ -284,7 +380,15 @@ def events_status():
             "rules_count": len(rules),
             "doctor": ee.doctor(),
         }
-    except Exception as e:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as e:
         return {"subsystem": "events", "status": "error", "error": str(e)}
 
 
@@ -298,22 +402,54 @@ def audit_status():
 
             ce = ConstitutionEnforcer()
             audit_data["constitution"] = ce.doctor()
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             pass
         try:
             from triade.sandbox.enhanced_tool_registry import EnhancedToolRegistry
 
             etr = EnhancedToolRegistry()
             audit_data["tool_audit"] = etr.audit_log(limit=20)
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             pass
         try:
             from triade.memory.replacement_tracker import ReplacementTracker
 
             rt = ReplacementTracker()
             audit_data["replacements"] = rt.rollback_history(limit=20)
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             pass
         return {"subsystem": "audit", "status": "active", "audit_data": audit_data}
-    except Exception as e:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as e:
         return {"subsystem": "audit", "status": "error", "error": str(e)}

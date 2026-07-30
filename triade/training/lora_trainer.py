@@ -13,7 +13,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 PII = re.compile(
     r"(?:\b\d{3}-\d{2}-\d{4}\b|\b(?:sk-|ghp_|AIza)[A-Za-z0-9_-]{12,}|password\s*[:=]|contrase(?:ña|na)\s*[:=])",
@@ -150,11 +150,12 @@ class RealLoraTrainer:
         )
         if tokenizer.pad_token_id is None:
             tokenizer.pad_token = tokenizer.eos_token
-        model = AutoModelForCausalLM.from_pretrained(
+        model: Any = AutoModelForCausalLM.from_pretrained(
             self.config.base_model,
             dtype=torch.bfloat16,
             trust_remote_code=self.config.trust_remote_code,
-        ).to("cuda")
+        )
+        model = model.to(device="cuda")
         model.config.use_cache = False
         lora = LoraConfig(
             r=self.config.rank,
@@ -164,7 +165,7 @@ class RealLoraTrainer:
             task_type="CAUSAL_LM",
             target_modules=list(self.config.target_modules),
         )
-        model = get_peft_model(model, lora)
+        model = get_peft_model(cast(Any, model), lora)
         trainable, total = model.get_nb_trainable_parameters()
         train_ds = _Rows(prepared["train"], tokenizer, self.config.max_length)
         val_ds = _Rows(prepared["validation"], tokenizer, self.config.max_length)
@@ -225,7 +226,7 @@ class RealLoraTrainer:
                 _Rows(self._read_rows(ood_path), tokenizer, self.config.max_length),
                 tokenizer.pad_token_id,
             )
-        model.save_pretrained(output, safe_serialization=True)
+        model.save_pretrained(str(output), safe_serialization=True)
         tokenizer.save_pretrained(output)
         adapter_file = output / "adapter_model.safetensors"
         if not adapter_file.is_file():

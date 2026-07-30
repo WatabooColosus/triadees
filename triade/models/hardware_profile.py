@@ -154,9 +154,19 @@ class HardwareProfiler:
 
             status = MEMORYSTATUSEX()
             status.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
-            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))
+            windll_name = "windll"
+            windll = getattr(ctypes, windll_name)
+            windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))
             return int(status.ullTotalPhys / 1024), int(status.ullAvailPhys / 1024)
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return 0, 0
 
     @staticmethod

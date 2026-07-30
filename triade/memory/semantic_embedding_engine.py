@@ -49,7 +49,15 @@ class LocalEmbeddingProvider:
 
                 self._model = SentenceTransformer(self.model_name)
                 logger.info("Modelo de embedding local cargado: %s", self.model_name)
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 logger.error("Error cargando modelo de embedding local: %s", exc)
                 raise
         return self._model
@@ -100,7 +108,15 @@ class SemanticEmbeddingEngine:
         if self._local_provider is None:
             try:
                 self._local_provider = LocalEmbeddingProvider()
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 logger.warning("No se pudo inicializar proveedor local: %s", exc)
                 return None
         return self._local_provider
@@ -203,7 +219,15 @@ class SemanticEmbeddingEngine:
                     provider="local",
                     error=None,
                 )
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 return EmbeddingResult(
                     ok=False, model=model, embeddings=[], error=str(exc)
                 )
@@ -307,7 +331,15 @@ class SemanticEmbeddingEngine:
         try:
             local = self._get_local_provider()
             local_available = local is not None
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             pass
         return {
             "status": "ok" if selection.get("ok") else "warning",

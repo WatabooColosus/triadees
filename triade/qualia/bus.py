@@ -58,8 +58,11 @@ class QualiaBus:
         introspection = self.introspect(experience.run_id, state=state)
 
         meaning_score = self.meaning.score(experience=experience, state=state)
+        stored_experiences: list[NeuronExperience | dict[str, Any]] = list(
+            self.store.list_experiences(run_id=experience.run_id, limit=50)
+        )
         frag = self.fragmentation.detect(
-            experiences=self.store.list_experiences(run_id=experience.run_id, limit=50),
+            experiences=stored_experiences,
             state=state,
         )
 
@@ -113,19 +116,24 @@ class QualiaBus:
             mission_context=mission_context,
         )
 
-        recent = self.store.list_experiences(run_id=experience.run_id, limit=50)
+        recent: list[NeuronExperience | dict[str, Any]] = list(
+            self.store.list_experiences(run_id=experience.run_id, limit=50)
+        )
         frag = self.fragmentation.detect(experiences=recent, state=state)
 
         packet = build_qualia_packet(
             run_id=experience.run_id,
-            experience=bundle.experience,
-            signal=bundle.signal,
-            state=state,
-            central_packet=bundle.central_packet,
-            storage_packet=bundle.storage_packet,
+            experience=bundle.experience.to_dict(),
             continuity=ContinuityChain(**chain),
             meaning=MeaningScore(**meaning_score),
             fragmentation=FragmentationReport(**frag),
+            confidence=experience.confidence,
+            metadata={
+                "signal": bundle.signal.to_dict(),
+                "state": state.to_dict(),
+                "central_packet": bundle.central_packet.to_dict(),
+                "storage_packet": bundle.storage_packet.to_dict(),
+            },
         )
 
         self.continuity.anchor(
@@ -140,7 +148,7 @@ class QualiaBus:
 
     def introspect_packet(self, packet: QualiaPacket) -> IntrospectionReport:
         """Introspección específica sobre un QualiaPacket."""
-        state = packet.state or self.compute_state(packet.run_id)
+        state = self.compute_state(packet.run_id)
         experience = packet.experience
         return self.introspector.reflect(
             run_id=packet.run_id,

@@ -15,7 +15,7 @@ Regla innegociable: ninguna neurona puede modificar identity_core.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from .contracts import (
     NEURON_STATUS_EFFECTS,
@@ -199,7 +199,7 @@ def build_contribution(
     if edge_usage.get("used_edge"):
         evidence.append(f"edge:{edge_usage.get('node_id')}")
 
-    risk = "low"
+    risk: Literal["low", "medium", "high", "critical"] = "low"
     confidence = 0.50
     if neuron_status == "stable":
         confidence = 0.85

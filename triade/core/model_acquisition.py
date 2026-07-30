@@ -136,7 +136,7 @@ def reconcile_model_catalog(
                     raise sqlite3.DatabaseError(
                         "model acquisition attempt was not persisted"
                     )
-                attempt_id = int(cursor.lastrowid)
+                attempt_id = int(cursor.lastrowid or -1)
             completed_process = subprocess.run(
                 [binary, "pull", model],
                 check=False,

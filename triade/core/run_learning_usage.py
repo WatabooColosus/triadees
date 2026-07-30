@@ -257,7 +257,15 @@ def record_learning_usage_from_output(
                     },
                     db_path=db_path,
                 )
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 result["trace"].append(
                     {
                         "candidate_id": candidate_id_str,
@@ -290,7 +298,16 @@ def record_learning_usage_from_output(
         result["total_candidates_checked"] = len(rows)
         result["total_unique_matches"] = len(unique_matched)
 
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         result["error"] = str(exc)
         record_internal_error(
             "learning_usage.main", exc, run_id=run_id, db_path=db_path
@@ -317,7 +334,16 @@ def _extract_explicit_candidate_ids(output_packet: Any) -> set[str | int]:
                 ids.add(item)
             elif isinstance(item, dict) and "candidate_id" in item:
                 ids.add(item["candidate_id"])
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         record_internal_error(
             "learning_usage.extract_explicit_candidate_ids",
             exc,
@@ -358,7 +384,16 @@ def _extract_semantic_document_ids(memory_packet: Any) -> set[str]:
             for m in matches:
                 if isinstance(m, dict) and "document_id" in m:
                     ids.add(str(m["document_id"]))
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         record_internal_error(
             "learning_usage.extract_semantic_document_ids",
             exc,
@@ -386,7 +421,16 @@ def _extract_evidence_refs(output_packet: Any) -> list[str]:
         raw_refs = mem_diff.get("evidence_refs") or []
         if isinstance(raw_refs, list):
             refs = [str(r) for r in raw_refs if r]
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         record_internal_error(
             "learning_usage.extract_evidence_refs",
             exc,

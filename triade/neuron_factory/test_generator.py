@@ -69,7 +69,7 @@ class NeuronTestGenerator:
         if spec and spec.get("critical"):
             tests.extend(_critical_neuron_tests(design))
 
-        coverage = {
+        coverage: dict[str, Any] = {
             "total": len(tests),
             "by_type": {},
         }

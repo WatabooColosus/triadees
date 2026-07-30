@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS triadeos_rollback_snapshots (
 """
 
 # Auto-approval rules: if ALL conditions match, auto-approve
-AUTO_APPROVAL_RULES = [
+AUTO_APPROVAL_RULES: list[dict[str, object]] = [
     {
         "name": "low_risk_no_identity",
         "conditions": {
@@ -124,7 +124,10 @@ class TriadeOSIntegration:
         approval_rule = ""
         if auto_mode:
             for rule in AUTO_APPROVAL_RULES:
-                conds = rule["conditions"]
+                raw_conditions = rule["conditions"]
+                if not isinstance(raw_conditions, dict):
+                    raise TypeError("Regla de auto-aprobación sin condiciones válidas")
+                conds = raw_conditions
                 match = True
                 if conds.get("risk_level") and conds["risk_level"] != risk_level:
                     match = False
@@ -136,7 +139,7 @@ class TriadeOSIntegration:
                     match = False
                 if match:
                     auto_approved = True
-                    approval_rule = rule["name"]
+                    approval_rule = str(rule["name"])
                     break
 
         approval_required = 0 if auto_approved else 1

@@ -93,7 +93,15 @@ class EventDrivenScheduler:
                 value = job.callback()
                 job.last_error = None
                 results.append({"name": job.name, "status": "ok", "result": value})
-            except Exception as exc:  # noqa: BLE001 - process boundary must isolate job failures
+            except (
+                OSError,
+                ImportError,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 job.last_error = str(exc)
                 results.append({"name": job.name, "status": "error", "error": str(exc)})
             finally:

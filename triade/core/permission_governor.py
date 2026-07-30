@@ -24,56 +24,55 @@ def build_permission_profile(
       Safe Shell autónomo solo con comandos fijos; shell libre nunca.
       identity_core nunca.
     """
-    p = {
+    permissions: dict[str, bool] = {}
+    explanations: dict[str, str] = {}
+    blocked: list[str] = []
+    p: dict[str, Any] = {
         "status": "ok",
         "mode": mode,
         "api_key_present": api_key_present,
         "human_approved": human_approved,
-        "permissions": {},
-        "explanations": {},
-        "blocked": [],
+        "permissions": permissions,
+        "explanations": explanations,
+        "blocked": blocked,
     }
 
     grants = _grants_for(mode)
 
     for perm, (granted, explanation) in grants.items():
-        p["permissions"][perm] = granted
-        p["explanations"][perm] = explanation
+        permissions[perm] = granted
+        explanations[perm] = explanation
         if not granted:
-            p["blocked"].append(perm)
+            blocked.append(perm)
 
     # identity_core nunca se modifica
-    p["permissions"]["can_modify_identity_core"] = False
-    p["explanations"]["can_modify_identity_core"] = "identity_core nunca se modifica."
+    permissions["can_modify_identity_core"] = False
+    explanations["can_modify_identity_core"] = "identity_core nunca se modifica."
 
     # repo_write requiere human_approved
     if mode in ("full_local", "full_local_guarded") and not human_approved:
-        p["permissions"]["can_write_repo"] = False
-        p["explanations"]["can_write_repo"] = "Repo write requiere aprobación humana."
+        permissions["can_write_repo"] = False
+        explanations["can_write_repo"] = "Repo write requiere aprobación humana."
 
     # Shell libre nunca es autónomo. Safe Shell es una capacidad diferente:
     # únicamente claves predefinidas, shell=False, timeout, confinamiento y audit.
-    p["permissions"]["can_run_safe_shell"] = mode == "full_local_guarded"
-    p["explanations"]["can_run_safe_shell"] = (
+    permissions["can_run_safe_shell"] = mode == "full_local_guarded"
+    explanations["can_run_safe_shell"] = (
         "Safe Shell autónomo permitido para diagnóstico, tests y build con whitelist y auditoría."
         if mode == "full_local_guarded"
         else "Safe Shell autónomo requiere full_local_guarded."
     )
-    if p["permissions"]["can_run_safe_shell"] and "can_run_safe_shell" in p["blocked"]:
-        p["blocked"].remove("can_run_safe_shell")
+    if permissions["can_run_safe_shell"] and "can_run_safe_shell" in blocked:
+        blocked.remove("can_run_safe_shell")
     if (
         mode in ("balanced_background", "full_local", "full_local_guarded")
         and human_approved
     ):
-        p["permissions"]["can_run_shell"] = True
-        p["explanations"]["can_run_shell"] = (
-            "Shell permitido solo whitelist con aprobación."
-        )
+        permissions["can_run_shell"] = True
+        explanations["can_run_shell"] = "Shell permitido solo whitelist con aprobación."
     else:
-        p["permissions"]["can_run_shell"] = False
-        p["explanations"]["can_run_shell"] = (
-            "Shell requiere aprobación humana explícita."
-        )
+        permissions["can_run_shell"] = False
+        explanations["can_run_shell"] = "Shell requiere aprobación humana explícita."
 
     return p
 

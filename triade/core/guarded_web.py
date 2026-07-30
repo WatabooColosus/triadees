@@ -86,19 +86,19 @@ def guarded_web_research(
         search_error = ""
 
     if not urls:
-        sources = _curated_sources(
+        fallback_sources = _curated_sources(
             clean_query, timeout=timeout, max_sources=max_sources
         )
-        remaining = max(0, max_sources - len(sources))
+        remaining = max(0, max_sources - len(fallback_sources))
         if remaining:
-            sources.extend(
+            fallback_sources.extend(
                 _wikipedia_sources(clean_query, timeout=timeout, max_sources=remaining)
             )
         return {
-            "status": "ok" if sources else "degraded",
+            "status": "ok" if fallback_sources else "degraded",
             "query": clean_query,
-            "sources": sources,
-            "source_count": len(sources),
+            "sources": fallback_sources,
+            "source_count": len(fallback_sources),
             "search_provider": "wikipedia_api_fallback",
             "search_warning": search_error or "primary_search_returned_no_results",
             "policy": "explicit_request_public_http_no_javascript_evidence_only",

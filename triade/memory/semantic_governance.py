@@ -143,7 +143,9 @@ class SemanticMemoryGovernance:
         for item in legacy:
             item["governance_note"] = "legacy_keyword_no_governance"
             item["allowed_to_influence"] = True
-        accepted, held, decisions = [], [], []
+        accepted: list[dict[str, Any]] = []
+        held: list[dict[str, Any]] = []
+        decisions: list[dict[str, Any]] = []
         allowed_statuses = {"stable", *(["experimental"] if allow_experimental else [])}
         for match in vector:
             doc_id = str(match.get("document_id", ""))
@@ -157,6 +159,8 @@ class SemanticMemoryGovernance:
                 if allowed
                 else "Memoria recuperada sin autorización de influencia; requiere promoción verificable."
             )
+            raw_similarity = match.get("similarity")
+            similarity = float(raw_similarity) if raw_similarity is not None else None
             decision = GovernanceDecision(
                 doc_id,
                 state,
@@ -164,9 +168,7 @@ class SemanticMemoryGovernance:
                 allowed,
                 reason,
                 source,
-                float(match.get("similarity"))
-                if match.get("similarity") is not None
-                else None,
+                similarity,
             )
             (accepted if allowed else held).append(enriched)
             decisions.append(decision.to_dict())

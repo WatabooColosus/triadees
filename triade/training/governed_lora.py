@@ -64,7 +64,16 @@ class GovernedLoraJobRunner:
                     (json.dumps(result, default=str), job_id),
                 )
             return result
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     "UPDATE lora_jobs SET status='failed',finished_at=CURRENT_TIMESTAMP,error=? WHERE id=?",

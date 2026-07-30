@@ -21,7 +21,15 @@ def prepare_input(
             packet.context["goal_dispatch"] = GoalOrchestrator(db_path).accept(
                 user_input, run_id=packet.run_id, source=source
             )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             record_internal_error(
                 "runner.goal_orchestrator", exc, run_id=packet.run_id, db_path=db_path
             )
@@ -30,7 +38,15 @@ def prepare_input(
 
         if requests_web_research(user_input):
             packet.context["guarded_web_research"] = guarded_web_research(user_input)
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         record_internal_error(
             "runner.guarded_web_research", exc, run_id=packet.run_id, db_path=db_path
         )
@@ -50,7 +66,15 @@ def prepare_input(
                 "bodega_global_context": living.get("bodega_global_context", {}),
             }
         )
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         record_internal_error(
             "runner.living_context", exc, run_id=packet.run_id, db_path=db_path
         )
@@ -76,17 +100,26 @@ def enrich_research(
                 memory_confidence=float(memory.confidence or 0.0),
                 authorized_matches=len(memory.semantic_matches or []),
             )
-            research = (
+            research_result = (
                 engine.research(user_input, trigger=trigger)
                 if should
                 and not is_test_runtime()
                 and not str(source).startswith(("test", "pytest"))
                 else None
             )
+            research = research_result or {}
         if research:
             packet.context["guarded_web_research"] = research
             packet.context["autonomous_research"] = research
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         record_internal_error(
             "runner.autonomous_research", exc, run_id=packet.run_id, db_path=db_path
         )

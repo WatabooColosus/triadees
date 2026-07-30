@@ -103,7 +103,15 @@ def run_in_sandbox(
         result["shell_used"] = False
         return result
 
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         return {
             "status": "error",
             "task": task,

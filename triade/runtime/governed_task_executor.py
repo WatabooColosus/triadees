@@ -18,6 +18,7 @@ from uuid import uuid4
 
 CHILD_EXECUTION_ERRORS = (
     OSError,
+    ImportError,
     RuntimeError,
     ValueError,
     TypeError,

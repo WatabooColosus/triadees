@@ -18,7 +18,15 @@ def _read_json(path: Path, default: Any) -> Any:
         if not path.exists():
             return default
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return default
 
 

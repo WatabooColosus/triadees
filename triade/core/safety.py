@@ -4,7 +4,9 @@ from .contracts import (
     CrystalPacket,
     MemoryPacket,
     PlanPacket,
+    RiskLevel,
     SafetyPacket,
+    SafetyStatus,
     SignalPacket,
 )
 
@@ -103,9 +105,9 @@ class Safety:
     ) -> SafetyPacket:
         risk_types: list[str] = []
         controls: list[str] = []
-        status = "approved"
+        status: SafetyStatus = "approved"
         reason_parts: list[str] = []
-        risk_level = signals.risk
+        risk_level: RiskLevel = signals.risk
         human_approval_required = False
 
         plan_text = " ".join(plan.tools or [])
@@ -261,6 +263,6 @@ class Safety:
         )
 
     @staticmethod
-    def _raise_risk_level(current: str, minimum: str) -> str:
+    def _raise_risk_level(current: RiskLevel, minimum: RiskLevel) -> RiskLevel:
         rank = {"low": 0, "medium": 1, "high": 2, "critical": 3}
         return current if rank.get(current, 0) >= rank.get(minimum, 0) else minimum

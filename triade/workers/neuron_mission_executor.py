@@ -45,9 +45,10 @@ class NeuronMissionExecutor:
         started = time.monotonic()
         task_dir.mkdir(parents=True, exist_ok=True)
         explicit_blood = isinstance(task_payload.get("ollama_blood"), dict)
-        blood = (
+        raw_blood = (
             task_payload.get("ollama_blood") if explicit_blood else _degraded_blood()
         )
+        blood = raw_blood if isinstance(raw_blood, dict) else _degraded_blood()
         blood_policy = ollama_blood_policy("neuron_nutrition", blood)
         blood_result = {
             "ollama_blood_status": blood.get("status"),

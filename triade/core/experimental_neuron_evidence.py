@@ -21,7 +21,15 @@ def load_json(path: Path, default: Any) -> Any:
         if not path.exists():
             return default
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return default
 
 
@@ -172,7 +180,15 @@ def build_experimental_evidence_ledger(
             ledger = _build_from_db(db_path=db_path, limit=limit)
             if ledger.get("neurons"):
                 return ledger
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             # Fallback silencioso: el ledger no debe romper el pulso vivo.
             pass
 

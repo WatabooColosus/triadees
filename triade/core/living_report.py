@@ -38,7 +38,15 @@ def build_living_report(
     qualia = QUALIA.snapshot(refresh_life=False)
     try:
         ollama = OllamaClient().health()
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         ollama = {"ok": False, "error": str(exc)}
     try:
         stable_audit_raw = audit_stable_neurons(
@@ -67,7 +75,15 @@ def build_living_report(
                 if n.get("recommended_action") != "keep_stable"
             ][:10],
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         stable_audit = {
             "status": "error",
             "error": str(exc),
@@ -107,7 +123,15 @@ def build_living_report(
             limit=10,
             semantic_recall_enabled=True,
         )
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         bodega_global = {
             "status": "error",
             "memory_confidence": "low",

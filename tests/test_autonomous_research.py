@@ -1,4 +1,5 @@
 import sqlite3
+from pathlib import Path
 
 from triade.research.autonomous import (
     AutonomousResearchEngine,
@@ -32,7 +33,7 @@ def test_identity_question_does_not_go_to_web(tmp_path):
 
 
 def test_gap_creates_candidate_not_stable_memory(tmp_path, monkeypatch):
-    monkeypatch.chdir("/teamspace/studios/this_studio/triadees")
+    monkeypatch.chdir(Path(__file__).resolve().parents[1])
     db = tmp_path / "triade.db"
     engine = AutonomousResearchEngine(
         db,

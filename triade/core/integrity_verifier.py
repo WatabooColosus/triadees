@@ -83,12 +83,12 @@ def build_integrity_snapshot(paths: list[str] | None = None) -> dict[str, Any]:
 
     for fp in targets:
         try:
-            rel = str(fp.relative_to(repo))
+            relative = str(fp.relative_to(repo))
         except ValueError:
             continue
-        zone = classify_path(rel).get("zone", "unknown")
+        zone = classify_path(relative).get("zone", "unknown")
         info = _file_info(fp, zone)
-        files[rel] = info
+        files[relative] = info
         total_bytes += info["size"]
 
     return {
@@ -139,12 +139,12 @@ def verify_integrity_change(
             planned_rel.add(str(p))
     planned_action = plan.get("action_type", "read")
 
-    created = []
-    modified = []
-    moved = []
-    trashed = []
-    missing_unexpected = []
-    hash_changed_unexpected = []
+    created: list[str] = []
+    modified: list[str] = []
+    moved: list[str] = []
+    trashed: list[str] = []
+    missing_unexpected: list[str] = []
+    hash_changed_unexpected: list[dict[str, str]] = []
 
     all_rels = set(bf.keys()) | set(af.keys())
     for rel in all_rels:

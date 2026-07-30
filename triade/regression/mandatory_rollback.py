@@ -69,7 +69,7 @@ class MandatoryRollbackEnforcer:
             )
 
         is_critical = self._is_critical(capability_id)
-        promotion_allowed = not is_critical or (
+        promotion_allowed = not is_critical or bool(
             has_handler and has_baseline and rollback_policy
         )
 

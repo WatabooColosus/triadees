@@ -552,7 +552,15 @@ class Central:
                 steps = self._parse_reasoning_steps(result.text)
                 if steps:
                     return steps[:7]
-        except (OSError, RuntimeError, ValueError, TypeError, KeyError) as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+        ) as exc:
             log.warning("Central CoT failed, using rules: %s", exc)
         return self._chain_of_thought_rules(input_packet, signals, memory, crystal)
 
@@ -853,7 +861,7 @@ class Central:
                             "content": content,
                         }
                     )
-            memory_truth = {}
+            memory_truth: dict[str, Any] = {}
             if isinstance(getattr(input_packet, "context", None), dict):
                 memory_truth = input_packet.context.get("memory_truth") or {}
             web_research = (
@@ -954,39 +962,19 @@ class Central:
         ]
         if not any(term in text for term in triggers):
             return ""
-        life = awareness.get("life") if isinstance(awareness.get("life"), dict) else {}
-        qualia = (
-            awareness.get("qualia") if isinstance(awareness.get("qualia"), dict) else {}
-        )
-        local = (
-            awareness.get("local") if isinstance(awareness.get("local"), dict) else {}
-        )
-        federation = (
-            awareness.get("federation")
-            if isinstance(awareness.get("federation"), dict)
-            else {}
-        )
-        runtime = (
-            awareness.get("runtime")
-            if isinstance(awareness.get("runtime"), dict)
-            else {}
-        )
-        missions = (
-            awareness.get("missions")
-            if isinstance(awareness.get("missions"), dict)
-            else {}
-        )
-        learning = (
-            awareness.get("learning")
-            if isinstance(awareness.get("learning"), dict)
-            else {}
-        )
-        counters = (
-            life.get("counters") if isinstance(life.get("counters"), dict) else {}
-        )
-        identity_state = (
-            qualia.get("identity") if isinstance(qualia.get("identity"), dict) else {}
-        )
+
+        def mapping(value: Any) -> dict[str, Any]:
+            return value if isinstance(value, dict) else {}
+
+        life = mapping(awareness.get("life"))
+        qualia = mapping(awareness.get("qualia"))
+        local = mapping(awareness.get("local"))
+        federation = mapping(awareness.get("federation"))
+        runtime = mapping(awareness.get("runtime"))
+        missions = mapping(awareness.get("missions"))
+        learning = mapping(awareness.get("learning"))
+        counters = mapping(life.get("counters"))
+        identity_state = mapping(qualia.get("identity"))
         ethics = [item for item in (identity_state.get("ethics") or []) if item]
         ethics_text = " / ".join(str(item) for item in ethics) or "ética interna activa"
         origin_text = str(identity_state.get("creator_origin") or "origen no cargado")

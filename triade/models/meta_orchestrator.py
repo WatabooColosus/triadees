@@ -475,7 +475,7 @@ class MetaModelOrchestrator:
             decision = "adopt"
             reason = (
                 f"Improvement {improvement_pct:.1f}% exceeds {self.ADOPT_SMALL_THRESHOLD_PCT}% "
-                f"threshold and model is small ({candidate_size / 1024**3:.1f}GB)."
+                f"threshold and model is small ({(candidate_size or 0) / 1024**3:.1f}GB)."
             )
         elif improvement_pct < -5.0:
             decision = "reject"

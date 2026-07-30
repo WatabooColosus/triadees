@@ -61,7 +61,16 @@ class CoordinationLock:
                 )
                 conn.execute("COMMIT")
                 return True
-            except Exception:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ):
                 conn.execute("ROLLBACK")
                 return False
 

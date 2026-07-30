@@ -32,7 +32,15 @@ def load_config(path: str | Path = "triade.yml") -> dict[str, Any]:
 
     try:
         parsed = _parse_simple_yaml(file_path.read_text(encoding="utf-8"))
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return DEFAULT_CONFIG
 
     return _deep_merge(DEFAULT_CONFIG, parsed)

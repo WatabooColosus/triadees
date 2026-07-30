@@ -148,7 +148,7 @@ class NeuronRegistry:
                 ),
             )
             if cursor.lastrowid:
-                return int(cursor.lastrowid)
+                return int(cursor.lastrowid or -1)
             row = conn.execute(
                 "SELECT id FROM neurons WHERE name = ?", (spec.name,)
             ).fetchone()
@@ -183,7 +183,7 @@ class NeuronRegistry:
                 """,
                 (result.status, neuron_id),
             )
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def update_status(self, name: str, status: str) -> dict[str, Any]:
         """Actualiza el estado de una neurona por nombre.

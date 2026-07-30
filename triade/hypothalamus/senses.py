@@ -175,7 +175,16 @@ class SystemSenses:
             if row is None:
                 return True
             return str(row["status"]) != "dead"
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("scheduler_heartbeat", exc)
             return True
 
@@ -199,7 +208,16 @@ class SystemSenses:
             ).fetchone()
             conn.close()
             return int(row["c"]) if row else 0
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("active_workers", exc)
             return 0
 
@@ -229,7 +247,16 @@ class SystemSenses:
             if row is None or int(row["total"]) == 0:
                 return 0.0
             return round(int(row["errors"] or 0) / max(int(row["total"]), 1), 4)
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("error_rate_hour", exc)
             return 0.0
 
@@ -253,7 +280,16 @@ class SystemSenses:
             ).fetchone()
             conn.close()
             return int(row["c"]) if row else 0
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("pending_tasks", exc)
             return 0
 
@@ -262,66 +298,165 @@ class SystemSenses:
         used_gb, total_gb = self.ram_info()
         try:
             cpu = self.cpu_load()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("cpu_snapshot", exc)
             cpu = 0.0
             failures.append("cpu")
         try:
             ram = self.ram_usage()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("ram_snapshot", exc)
             ram = 0.0
             failures.append("ram")
         try:
             gpu = self.gpu_utilization()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("gpu_snapshot", exc)
             gpu = 0.0
             failures.append("gpu")
         try:
             gpu_mem = self.gpu_memory_used()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("gpu_mem_snapshot", exc)
             gpu_mem = 0.0
             failures.append("gpu_mem")
         try:
             gpu_mem_total = self.gpu_memory_total_mb()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("gpu_mem_total_snapshot", exc)
             gpu_mem_total = 0.0
         try:
             gpu_temp = self.gpu_temperature()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("gpu_temp_snapshot", exc)
             gpu_temp = 0
             failures.append("gpu_temp")
         try:
             disk = self.disk_usage()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("disk_snapshot", exc)
             disk = 0.0
             failures.append("disk")
         try:
             sched_ok = self.scheduler_heartbeat_ok()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("scheduler_snapshot", exc)
             sched_ok = False
             failures.append("scheduler")
         try:
             workers = self.active_workers()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("workers_snapshot", exc)
             workers = 0
             failures.append("workers")
         try:
             err_rate = self.error_rate_hour()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("error_rate_snapshot", exc)
             err_rate = 0.0
             failures.append("error_rate")
         try:
             pending = self.pending_tasks()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("pending_snapshot", exc)
             pending = 0
             failures.append("pending")
@@ -362,7 +497,16 @@ class SystemSenses:
             )
             conn.commit()
             conn.close()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _log_sensor_error("save_snapshot", exc)
 
     def get_recent_sensor_failures(self, limit: int = 50) -> list[dict[str, str]]:

@@ -169,7 +169,16 @@ class TrainingPipeline:
                     dur = (time.time() - t0) * 1000
                     score = _score_match(actual, expected)
                     status = "pass" if score >= 0.7 else "fail"
-                except Exception as e:
+                except (
+                    OSError,
+                    ImportError,
+                    sqlite3.Error,
+                    RuntimeError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                ) as e:
                     actual = {"error": str(e)}
                     dur = (time.time() - t0) * 1000
                     score = 0.0
@@ -307,7 +316,16 @@ class TrainingPipeline:
                 try:
                     actual = execute_fn(inp)
                     scores.append(_score_match(actual, expected))
-                except Exception:
+                except (
+                    OSError,
+                    ImportError,
+                    sqlite3.Error,
+                    RuntimeError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                ):
                     scores.append(0.0)
             else:
                 scores.append(_score_match(inp, expected))

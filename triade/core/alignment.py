@@ -34,21 +34,45 @@ def _safe(predicate: Callable[[], bool]) -> bool:
     """Evalúa una comprobación sin permitir que align falle por una excepción."""
     try:
         return bool(predicate())
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return False
 
 
 def _source(obj: Any) -> str:
     try:
         return inspect.getsource(obj)
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return ""
 
 
 def _init_params(cls: Any) -> set[str]:
     try:
         return set(inspect.signature(cls.__init__).parameters)
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return set()
 
 
@@ -253,7 +277,15 @@ class CoreAlignment:
 
         try:
             packet_fields = set(CrystalPacket.__dataclass_fields__)
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             packet_fields = set()
         v2_metrics = {"pv7_score", "stability", "intensity", "q_crystal"}.issubset(
             packet_fields
@@ -340,7 +372,15 @@ class CoreAlignment:
             from .runner import TriadeRunner
 
             return _source(TriadeRunner.run)
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return ""
 
     @staticmethod
@@ -351,7 +391,15 @@ class CoreAlignment:
             return _source(TriadeRunner.__init__) + _source(
                 getattr(TriadeRunner, "_select_models", None)
             )
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return ""
 
     @staticmethod
@@ -360,7 +408,15 @@ class CoreAlignment:
             from . import run_artifacts
 
             return _source(run_artifacts)
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return ""
 
     @staticmethod
@@ -389,7 +445,15 @@ class CoreAlignment:
             from triade.learning.pipeline import LearningPipeline
 
             return _source(LearningPipeline)
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return ""
 
     @staticmethod
@@ -398,7 +462,15 @@ class CoreAlignment:
             from pathlib import Path
 
             return Path(path).read_text(encoding="utf-8")
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return ""
 
     @staticmethod

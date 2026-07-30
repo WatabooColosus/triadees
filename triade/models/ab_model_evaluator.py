@@ -222,7 +222,16 @@ class ABModelEvaluator:
                 "duration_ms": duration_ms,
                 "tokens_eval": 0,
             }
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return {
                 "status": "error",
                 "error": str(exc)[:500],

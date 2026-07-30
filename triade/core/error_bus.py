@@ -1,6 +1,6 @@
 """Registro centralizado de errores internos — Tríade Ω.
 
-Reemplaza `except Exception: pass` con registro auditable en worker_events.
+Reemplaza `except (OSError, sqlite3.Error, ImportError, RuntimeError, ValueError, TypeError, KeyError, AttributeError): pass` con registro auditable en worker_events.
 Cada error se guarda con scope, run_ref, task_id, payload y traceback truncado.
 """
 
@@ -82,8 +82,17 @@ def record_internal_error(
                 ),
             )
             prune_worker_events(conn)
-            return int(cursor.lastrowid)
-    except Exception:
+            return int(cursor.lastrowid or -1) if cursor.lastrowid is not None else None
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return None
 
 
@@ -122,7 +131,16 @@ def query_internal_errors(
                     (limit,),
                 ).fetchall()
             return [_row_to_dict(r) for r in rows]
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return []
 
 

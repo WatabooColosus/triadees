@@ -87,7 +87,16 @@ def _ensure_audit_table(db_path: str | Path | None = None) -> None:
     try:
         with sqlite3.connect(str(path)) as conn:
             conn.execute(_AUDIT_TABLE)
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         pass
 
 
@@ -128,7 +137,16 @@ def _audit(
                     block_reason,
                 ),
             )
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         pass
 
 
@@ -467,13 +485,22 @@ def get_audit_log(
                     (limit,),
                 ).fetchall()
             return [dict(r) for r in rows]
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return []
 
 
 def _record_event(command_key: str, returncode: int, duration_ms: float) -> None:
     try:
-        from triade.core.event_bus import publish_event
+        from triade.services.event_bus import publish_event
 
         publish_event(
             "safe_shell_command_executed",
@@ -485,5 +512,14 @@ def _record_event(command_key: str, returncode: int, duration_ms: float) -> None
             },
             severity="info",
         )
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        sqlite3.Error,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         pass

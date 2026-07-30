@@ -152,7 +152,8 @@ class ToolRegistry:
                 ).fetchall()
             else:
                 rows = conn.execute("SELECT tool_id FROM tool_registry").fetchall()
-        return [self.get(r["tool_id"]) for r in rows if self.get(r["tool_id"])]
+        tools = [self.get(r["tool_id"]) for r in rows]
+        return [tool for tool in tools if tool is not None]
 
     def validate_input(self, tool_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         definition = self.get(tool_id)
@@ -200,7 +201,16 @@ class ToolRegistry:
                 duration_ms=round(duration, 2),
                 executed_at=utc_now(),
             )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             duration = (time.perf_counter() - start) * 1000
             result = ToolExecutionResult(
                 tool_id=tool_id,

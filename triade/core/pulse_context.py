@@ -177,7 +177,15 @@ def build_run_context_with_pulse(
             sync_relay=False, intent="conversation", urgency="medium"
         )
         run_context["system_pulse_summary"] = summarize_pulse(pulse)
-    except Exception as exc:  # pragma: no cover - defensa runtime para UI local
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:  # pragma: no cover - defensa runtime para UI local
         run_context["system_pulse_summary"] = {
             "status": "unknown",
             "level": "error",

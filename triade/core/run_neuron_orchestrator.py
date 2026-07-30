@@ -162,10 +162,18 @@ def _generate_learning_candidates_from_contributions(
     """Genera candidatos de aprendizaje cuando una contribution tiene proposed_learning."""
     from triade.learning.pipeline import LearningPipeline
 
-    candidates = []
+    candidates: list[dict[str, Any]] = []
     try:
         pipe = LearningPipeline(db_path=db_path)
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         record_internal_error(
             "run_neuron_orchestrator.learning_pipeline_init",
             exc,
@@ -208,7 +216,15 @@ def _generate_learning_candidates_from_contributions(
                     "run_id": run_id,
                 }
             )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             record_internal_error(
                 "run_neuron_orchestrator.learning_candidate_ingest",
                 exc,

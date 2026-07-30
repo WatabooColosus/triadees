@@ -263,7 +263,7 @@ class QualiaStore:
                     state.updated_at,
                 ),
             )
-            return int(cur.lastrowid)
+            return int(cur.lastrowid or -1)
 
     def persist_bundle(self, bundle: Any) -> dict[str, Any]:
         self.store_experience(bundle.experience)
@@ -370,7 +370,16 @@ class QualiaStore:
                 "missing_tables": missing,
                 "counts": self.counts() if not missing else {},
             }
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return {"status": "error", "error": str(exc)}
 
     def _list(

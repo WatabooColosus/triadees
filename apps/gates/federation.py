@@ -41,7 +41,15 @@ def require_federation_enabled() -> None:
             )
     except HTTPException:
         raise
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         from triade.core.error_bus import record_internal_error
 
         record_internal_error(

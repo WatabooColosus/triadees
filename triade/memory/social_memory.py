@@ -216,7 +216,9 @@ class SocialMemory:
             t = inter.get("topic", "")
             if t:
                 topic_counts[t] = topic_counts.get(t, 0) + 1
-        return sorted(topic_counts, key=topic_counts.get, reverse=True)[:limit]
+        return sorted(
+            topic_counts, key=lambda topic: topic_counts[topic], reverse=True
+        )[:limit]
 
     def summary(self, user_id: str | None = None) -> dict[str, Any]:
         with self._connect() as conn:

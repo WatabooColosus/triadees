@@ -52,7 +52,7 @@ def get_model_cognitive_policy(
     ).strip()
     model_required = clean_role in CRITICAL_ROLES
 
-    allowed_actions: dict[str, bool] = {
+    allowed_actions: dict[str, Any] = {
         "allow_response": False,
         "allow_observation": True,
         "allow_fallback": False,

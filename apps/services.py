@@ -38,7 +38,7 @@ from triade.federation.relay_client import (
 )
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.models.compatibility_matrix import ModelCompatibilityMatrix
-from triade.models.hardware_profile import HardwareProfiler
+from triade.models.hardware_profile import HardwareProfile, HardwareProfiler
 from triade.models.model_install_queue import ModelInstallQueue
 from triade.models.model_router import ModelRouter
 from triade.models.ollama_client import OllamaClient
@@ -182,7 +182,23 @@ def clean_model(value: str | None) -> str | None:
     return value or None
 
 
-def system_payload() -> tuple[object, dict[str, Any]]:
+def _mapping(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _string_list(value: Any) -> list[str]:
+    return [str(item) for item in value] if isinstance(value, list) else []
+
+
+def _mapping_list(value: Any) -> list[dict[str, Any]]:
+    return (
+        [item for item in value if isinstance(item, dict)]
+        if isinstance(value, list)
+        else []
+    )
+
+
+def system_payload() -> tuple[HardwareProfile, dict[str, Any]]:
     hardware = HardwareProfiler().detect()
     ollama = OllamaClient().health()
     return hardware, ollama
@@ -225,7 +241,15 @@ def load_local_node_tokens() -> dict[str, str]:
         return {}
     try:
         return dict(json.loads(path.read_text(encoding="utf-8")))
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return {}
 
 
@@ -385,12 +409,8 @@ def local_federated_nodes(task: str | None = None) -> list[dict[str, Any]]:
     fed = Federation()
     nodes = []
     for node in fed.list_nodes(status="active"):
-        caps = node.get("capabilities") or {}
-        allowed = (
-            caps.get("allowed_tasks")
-            if isinstance(caps.get("allowed_tasks"), list)
-            else []
-        )
+        caps = _mapping(node.get("capabilities"))
+        allowed = _string_list(caps.get("allowed_tasks"))
         relay_url = str(caps.get("relay_url") or node.get("endpoint") or "")
         is_direct_local = (
             "127.0.0.1:8010" in relay_url
@@ -412,13 +432,9 @@ def local_federated_nodes(task: str | None = None) -> list[dict[str, Any]]:
 def android_llm_host_nodes(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     hosts = []
     for node in nodes:
-        caps = node.get("capabilities") or {}
-        support = caps.get("model_support") or {}
-        allowed = (
-            caps.get("allowed_tasks")
-            if isinstance(caps.get("allowed_tasks"), list)
-            else []
-        )
+        caps = _mapping(node.get("capabilities"))
+        support = _mapping(caps.get("model_support"))
+        allowed = _string_list(caps.get("allowed_tasks"))
         if "android_local_generate" not in allowed:
             continue
         if bool(
@@ -686,8 +702,8 @@ def federated_model_plan(nodes: list[dict[str, Any]]) -> dict[str, Any]:
     total_vram = 0.0
     gpu_nodes = 0
     for node in feeders:
-        caps = node.get("capabilities") or {}
-        gpus = caps.get("gpus") if isinstance(caps.get("gpus"), list) else []
+        caps = _mapping(node.get("capabilities"))
+        gpus = _mapping_list(caps.get("gpus"))
         node_vram = sum(
             float(gpu.get("vram_total_gb") or 0.0)
             for gpu in gpus
@@ -845,7 +861,15 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
                 str(relay["url"]), str(relay["admin_token"]), timeout=12
             ).sync_nodes_to_federation(federation)
             relay_sync["attempted"] = True
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             relay_sync = {"attempted": True, "status": "error", "error": str(exc)}
     nodes = [
         node_model_readiness(node) for node in federation.list_nodes(status="active")
@@ -919,7 +943,15 @@ def build_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
 def _edge_llm_host_snapshot() -> list[dict]:
     try:
         nodes = EdgeRouter().list_edge_llm_nodes()
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return []
     out = []
     for node in nodes:
@@ -971,7 +1003,15 @@ def _pulse_item(
 def _safe_pulse(name: str, fn) -> dict[str, Any]:
     try:
         return fn()
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         return _pulse_item(name, False, str(exc), level="error")
 
 
@@ -1000,7 +1040,15 @@ def _experimental_neuron_pulse() -> dict[str, Any]:
             ],
             "policy": "evidence_only_no_auto_promotion",
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         return {
             "ok": False,
             "summary": {
@@ -1049,7 +1097,15 @@ def _stable_readiness_pulse() -> dict[str, Any]:
             ][:5],
             "policy": "readiness_only_no_auto_stable",
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         return {
             "ok": False,
             "summary": {

@@ -281,7 +281,15 @@ class LifePulseEngine:
                 self._last_reflection = self._summarize_reflection(reflection)
                 self._last_reflection["elapsed_ms"] = elapsed_ms
             return self.snapshot()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             with self._lock:
                 self._counters["cycles"] += 1
                 self._counters["errors"] += 1
@@ -514,7 +522,15 @@ class LifePulseEngine:
                             system_events=[],
                         )
                         formed = form_candidates(raw_candidates)
-                    except Exception as exc:
+                    except (
+                        OSError,
+                        ImportError,
+                        RuntimeError,
+                        ValueError,
+                        TypeError,
+                        KeyError,
+                        AttributeError,
+                    ) as exc:
                         self._record_error(
                             "life_pulse.continuous.candidate_formation",
                             exc,
@@ -655,7 +671,15 @@ class LifePulseEngine:
                                     policy="trainer_auto_approves",
                                 ),
                             )
-                        except Exception as exc:
+                        except (
+                            OSError,
+                            ImportError,
+                            RuntimeError,
+                            ValueError,
+                            TypeError,
+                            KeyError,
+                            AttributeError,
+                        ) as exc:
                             self._record_error(
                                 "life_pulse.continuous.training",
                                 exc,
@@ -700,7 +724,15 @@ class LifePulseEngine:
                 ):
                     try:
                         self._activate_experimental_light()
-                    except Exception as exc:
+                    except (
+                        OSError,
+                        ImportError,
+                        RuntimeError,
+                        ValueError,
+                        TypeError,
+                        KeyError,
+                        AttributeError,
+                    ) as exc:
                         self._record_error(
                             "life_pulse.continuous.experimental_activation",
                             exc,
@@ -714,7 +746,15 @@ class LifePulseEngine:
                         from triade.memory.trust_store import TrustLevelStore
 
                         TrustLevelStore(db_path=self.db_path).recompute_all()
-                    except Exception as exc:
+                    except (
+                        OSError,
+                        ImportError,
+                        RuntimeError,
+                        ValueError,
+                        TypeError,
+                        KeyError,
+                        AttributeError,
+                    ) as exc:
                         self._record_error(
                             "life_pulse.continuous.recompute_trust",
                             exc,
@@ -735,7 +775,15 @@ class LifePulseEngine:
                             source="system_pulse_continuous",
                             propose_neurons=True,
                         )
-                    except Exception as exc:
+                    except (
+                        OSError,
+                        ImportError,
+                        RuntimeError,
+                        ValueError,
+                        TypeError,
+                        KeyError,
+                        AttributeError,
+                    ) as exc:
                         self._record_error(
                             "life_pulse.continuous.runner_run",
                             exc,
@@ -757,7 +805,15 @@ class LifePulseEngine:
                         self._continuous_elapsed_ms = self._continuous_elapsed_ms[-200:]
                     self._continuous_backoff_seconds = 0.0
 
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 elapsed_ms = int((time.time() - cycle_start) * 1000)
                 self._record_error(
                     "life_pulse.continuous.loop",
@@ -804,7 +860,15 @@ class LifePulseEngine:
                 "episodes_count": counts.get("episodes", 0),
                 "continuous_cycle": self._continuous_cycle_count,
             }
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             self._record_error(
                 "life_pulse.build_system_dict",
                 exc,
@@ -830,7 +894,15 @@ class LifePulseEngine:
                 f"Propongo, formo y promuevo neuronas autonomamente. "
                 f"Siempre encendida, nunca quieta."
             )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             self._record_error(
                 "life_pulse.build_system_pulse_text",
                 exc,
@@ -912,7 +984,15 @@ class LifePulseEngine:
                 if len(self._stream_of_consciousness) > 10:
                     self._stream_of_consciousness = self._stream_of_consciousness[-10:]
                 self._counters["thoughts_generated"] += 1
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             record_internal_error(
                 "life_pulse.generate_thought",
                 exc,
@@ -927,7 +1007,15 @@ class LifePulseEngine:
     def _recompute_trust(self) -> None:
         try:
             TrustLevelStore(db_path=self.db_path).recompute_all()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             record_internal_error(
                 "life_pulse.recompute_trust",
                 exc,
@@ -942,14 +1030,30 @@ class LifePulseEngine:
     def _get_trust_levels(self) -> dict[str, Any]:
         try:
             return TrustLevelStore(db_path=self.db_path).doctor()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return {"status": "error", "error": str(exc)}
 
     def _check_auto_identity(self) -> dict[str, Any] | None:
         try:
             store = AutoIdentityStore(db_path=self.db_path)
             return store.doctor()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             record_internal_error(
                 "life_pulse.check_auto_identity",
                 exc,
@@ -966,7 +1070,15 @@ class LifePulseEngine:
         try:
             store = AutoIdentityStore(db_path=self.db_path)
             return store.doctor()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return {"status": "error", "error": str(exc)}
 
     def _update_emotional_rest(self) -> None:
@@ -977,7 +1089,15 @@ class LifePulseEngine:
                 decayed = fatigue_decay(latest.fatigue, float(self.interval_seconds))
                 if decayed != latest.fatigue:
                     store.update_fatigue(decayed)
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             record_internal_error(
                 "life_pulse.update_emotional_rest",
                 exc,
@@ -993,7 +1113,15 @@ class LifePulseEngine:
         try:
             store = HypothalamusStateStore(db_path=self.db_path)
             return store.doctor()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return {"status": "error", "error": str(exc)}
 
     @staticmethod

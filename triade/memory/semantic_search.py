@@ -63,7 +63,15 @@ class SemanticSearchEngine:
             try:
                 vector = local.embed(query)
                 return vector, selected_model, None
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 return None, None, str(exc)
         else:
             query_result = self.client.embed(str(selected_model), query)

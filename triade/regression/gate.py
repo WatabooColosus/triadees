@@ -151,7 +151,7 @@ class RegressionGate:
             or baseline.suite_version != candidate.suite_version
         ):
             decision: GateDecision = "invalid"
-            findings = (
+            findings: tuple[RegressionFinding, ...] = (
                 RegressionFinding(
                     metric_id="suite_compatibility",
                     severity="critical",

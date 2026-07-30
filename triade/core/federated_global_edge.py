@@ -18,11 +18,8 @@ def build_federated_global_edge_context(
     nodes = federation.list_nodes()[: max(1, min(limit, 100))]
     sanitized: list[dict[str, Any]] = []
     for node in nodes:
-        caps = (
-            node.get("capabilities")
-            if isinstance(node.get("capabilities"), dict)
-            else {}
-        )
+        raw_caps = node.get("capabilities")
+        caps: dict[str, Any] = raw_caps if isinstance(raw_caps, dict) else {}
         sanitized.append(
             {
                 "node_id": node.get("node_id"),

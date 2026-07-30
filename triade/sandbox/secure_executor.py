@@ -158,7 +158,15 @@ class SecureExecutor:
             stdout = ""
             stderr = f"Timeout después de {self.timeout_seconds}s"
             returncode = -1
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             stdout = ""
             stderr = f"{type(exc).__name__}: {exc}"
             returncode = -1

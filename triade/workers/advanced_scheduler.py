@@ -133,7 +133,16 @@ class CircuitBreaker:
                     )
                     self._conn.commit()
                     d["state"] = "half_open"
-            except Exception:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ):
                 pass
         return d
 
@@ -239,7 +248,16 @@ class TaskLease:
         try:
             expires_ts = datetime.fromisoformat(now).timestamp() + ttl_seconds
             expires_at = datetime.fromtimestamp(expires_ts, tz=UTC).isoformat()
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             expires_at = now
         existing = self._conn.execute(
             "SELECT * FROM task_leases WHERE task_id=? AND status='active'", (task_id,)
@@ -253,7 +271,16 @@ class TaskLease:
                         "reason": "already_leased",
                         "by": existing["worker_id"],
                     }
-            except Exception:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ):
                 pass
         lease_id = _gen_id("lease")
         self._conn.execute(
@@ -280,7 +307,16 @@ class TaskLease:
         try:
             exp_ts = datetime.fromisoformat(row["expires_at"]).timestamp()
             return time.time() < exp_ts
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return True
 
     def cleanup_expired(self) -> int:
@@ -298,7 +334,16 @@ class TaskLease:
                         (r["lease_id"],),
                     )
                     expired += 1
-            except Exception:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ):
                 self._conn.execute(
                     "UPDATE task_leases SET status='expired' WHERE lease_id=?",
                     (r["lease_id"],),
@@ -385,7 +430,16 @@ class AdvancedScheduler:
                 result = func()
                 breaker.record_success()
                 return result
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 last_exc = exc
                 breaker.record_failure()
                 delay = base_delay * (2**attempt)
@@ -539,7 +593,16 @@ class AdvancedScheduler:
         for r in rows:
             try:
                 ts = datetime.fromisoformat(r["last_heartbeat"]).timestamp()
-            except Exception:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ):
                 ts = 0
             if now - ts > timeout_seconds:
                 stale.append(dict(r))

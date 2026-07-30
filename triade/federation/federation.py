@@ -331,15 +331,15 @@ class Federation:
         min_rank = tier_rank.get((min_tier or "low").strip().lower(), 1)
         nodes = []
         for node in self.list_nodes(status="active"):
-            capabilities = node.get("capabilities") or {}
+            raw_capabilities = node.get("capabilities")
+            capabilities: dict[str, Any] = (
+                raw_capabilities if isinstance(raw_capabilities, dict) else {}
+            )
             tier = str(
                 capabilities.get("tier") or node.get("capability_status") or "unknown"
             ).lower()
-            gpus = (
-                capabilities.get("gpus")
-                if isinstance(capabilities.get("gpus"), list)
-                else []
-            )
+            raw_gpus = capabilities.get("gpus")
+            gpus: list[Any] = raw_gpus if isinstance(raw_gpus, list) else []
             has_gpu = any(
                 float(gpu.get("vram_total_gb") or 0.0) > 0
                 or bool(gpu.get("cuda_available"))
@@ -684,11 +684,8 @@ class Federation:
 
     @staticmethod
     def _max_vram(capabilities: dict[str, Any]) -> float:
-        gpus = (
-            capabilities.get("gpus")
-            if isinstance(capabilities.get("gpus"), list)
-            else []
-        )
+        raw_gpus = capabilities.get("gpus")
+        gpus: list[Any] = raw_gpus if isinstance(raw_gpus, list) else []
         values = []
         for gpu in gpus:
             if isinstance(gpu, dict):

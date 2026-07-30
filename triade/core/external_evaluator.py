@@ -184,16 +184,17 @@ class ExternalEvaluator:
         model_client: Any | None = None,
         task_ids: list[str] | None = None,
     ) -> dict[str, Any]:
+        tasks: list[BenchmarkTask] = []
         if task_ids:
-            tasks = [
-                self.get_benchmark_task(tid)
-                for tid in task_ids
-                if self.get_benchmark_task(tid)
-            ]
+            for task_id in task_ids:
+                task = self.get_benchmark_task(task_id)
+                if task is not None:
+                    tasks.append(task)
         else:
             with self._connect() as conn:
                 rows = conn.execute("SELECT * FROM benchmark_tasks").fetchall()
-            tasks = [self._row_to_task(r) for r in rows]
+            decoded_tasks = [self._row_to_task(r) for r in rows]
+            tasks = [decoded for decoded in decoded_tasks if decoded is not None]
         if not tasks:
             return {"model": model_to_evaluate, "total_tasks": 0, "avg_score": 0.0}
 

@@ -148,7 +148,16 @@ class AutonomousSandbox:
         except subprocess.TimeoutExpired:
             result = {"stdout": "", "stderr": "Timeout expired", "returncode": -1}
             success = False
-        except Exception as exc:  # noqa: BLE001
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             result = {
                 "stdout": "",
                 "stderr": f"{type(exc).__name__}: {exc}",

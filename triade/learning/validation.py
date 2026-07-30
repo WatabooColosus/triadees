@@ -7,7 +7,7 @@ import sqlite3
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, model_validator
@@ -139,7 +139,7 @@ class LearningValidationService:
                 ),
             )
 
-    def _new(self, status: LearningState, **values: str) -> LearningValidationReceipt:
+    def _new(self, status: LearningState, **values: Any) -> LearningValidationReceipt:
         now = self._now()
         receipt = LearningValidationReceipt(
             learning_id=f"learning-{uuid4().hex}",

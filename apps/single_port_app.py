@@ -118,7 +118,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 "foundational_neurons": foundational_result,
                 "model_acquisition": model_acquisition_result,
             }
-    except (ImportError, OSError, RuntimeError, ValueError, sqlite3.Error) as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        sqlite3.Error,
+    ) as exc:
         with _ALWAYS_ON_LOCK:
             _ALWAYS_ON_RESULT = {
                 "status": "error",

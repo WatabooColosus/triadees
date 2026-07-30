@@ -150,7 +150,7 @@ def list_trash(limit: int = 100) -> dict[str, Any]:
     if not TRASH_DIR.exists():
         return {"items": [], "total_count": 0}
 
-    items = []
+    items: list[dict[str, Any]] = []
     for manifest_file in sorted(TRASH_DIR.rglob("*.manifest.json"), reverse=True):
         if len(items) >= limit:
             break

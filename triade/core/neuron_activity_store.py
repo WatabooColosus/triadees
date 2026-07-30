@@ -115,7 +115,7 @@ class NeuronActivityStore:
                         json.dumps(activation, ensure_ascii=False),
                     ),
                 )
-                inserted.append(int(cursor.lastrowid))
+                inserted.append(int(cursor.lastrowid or -1))
 
         return inserted
 

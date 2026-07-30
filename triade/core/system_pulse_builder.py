@@ -33,7 +33,15 @@ def pulse_item(
 def safe_pulse(name: str, fn: Callable[[], dict[str, Any]]) -> dict[str, Any]:
     try:
         return fn()
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         return pulse_item(name, False, str(exc), level="error")
 
 
@@ -64,7 +72,15 @@ def experimental_neuron_pulse() -> dict[str, Any]:
             ],
             "policy": "evidence_only_no_auto_promotion",
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         return {
             "ok": False,
             "summary": {
@@ -118,7 +134,15 @@ def stable_readiness_pulse() -> dict[str, Any]:
             ][:5],
             "policy": "readiness_only_no_auto_stable",
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         return {
             "ok": False,
             "summary": {

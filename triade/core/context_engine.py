@@ -24,6 +24,10 @@ from triade.qualia.bus import QualiaBus
 from triade.workers.background_service import WorkerBackgroundService
 
 
+def _latest_dict(items: list[Any]) -> dict[str, Any] | None:
+    return items[0].to_dict() if items else None
+
+
 def build_living_context_for_chat(
     user_input: str,
     *,
@@ -75,7 +79,15 @@ def build_living_context_for_chat(
     hardware = HardwareProfiler().detect()
     try:
         ollama_health = OllamaClient().health()
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         ollama_health = {"ok": False, "error": str(exc)}
     router = ModelRouter(
         available_models=ollama_health.get("models", [])
@@ -93,7 +105,15 @@ def build_living_context_for_chat(
             limit=limit,
             semantic_recall_enabled=True,
         )
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         bodega_global = {
             "status": "error",
             "error": str(exc),
@@ -133,17 +153,12 @@ def build_living_context_for_chat(
                 "mission_id": mission.get("id"),
                 "title": mission.get("title"),
                 "status": mission.get("status"),
-                "latest_cycle": (
-                    mission_cycles.get(int(mission.get("id") or 0)) or [None]
-                )[0].to_dict()
-                if mission.get("id") and mission_cycles.get(int(mission.get("id") or 0))
-                else None,
-                "latest_evidence": (
-                    mission_evidence.get(int(mission.get("id") or 0)) or [None]
-                )[0].to_dict()
-                if mission.get("id")
-                and mission_evidence.get(int(mission.get("id") or 0))
-                else None,
+                "latest_cycle": _latest_dict(
+                    mission_cycles.get(int(mission.get("id") or 0), [])
+                ),
+                "latest_evidence": _latest_dict(
+                    mission_evidence.get(int(mission.get("id") or 0), [])
+                ),
             }
             for mission in [m.to_dict() for m in active_missions[:limit]]
         ],

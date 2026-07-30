@@ -10,7 +10,15 @@ from typing import Any
 def load_json(path: Path, default: Any = None) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         return {} if default is None else default
 
 
@@ -27,7 +35,15 @@ def fetch_pulse(base_url: str) -> dict[str, Any]:
         return {"status": "error", "error": result.stderr.strip()}
     try:
         return json.loads(result.stdout)
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         return {
             "status": "error",
             "error": f"invalid_json: {exc}",

@@ -110,7 +110,15 @@ class Hypothalamus:
         self._last_snapshot = snapshot
         try:
             self._senses.save_snapshot(snapshot)
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             pass
         return snapshot
 
@@ -140,7 +148,15 @@ class Hypothalamus:
         try:
             self.capture_system_senses()
             cognitive = self.compute_cognitive_load()
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             cognitive = None
 
         scoped_relational = bool(
@@ -350,7 +366,15 @@ class Hypothalamus:
                     risk=signals.risk,
                     urgency=signals.urgency,
                 )
-            except Exception:
+            except (
+                OSError,
+                ImportError,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ):
                 pass
         return signals
 
@@ -363,7 +387,15 @@ class Hypothalamus:
         if self.state_store is not None:
             try:
                 pattern = self.state_store.recall_pattern(packet.user_input)
-            except Exception:
+            except (
+                OSError,
+                ImportError,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ):
                 pattern = None
 
         if pattern and float(pattern.get("confidence", 0)) >= 0.7:

@@ -181,7 +181,16 @@ class WorkerSupervisor:
         try:
             start_ts = datetime.fromisoformat(row["started_at"]).timestamp()
             dur = (time.time() - start_ts) * 1000
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             dur = 0.0
         self._conn.execute(
             "UPDATE worker_time_log SET finished_at=?, duration_ms=?, status=? WHERE log_id=?",
@@ -202,7 +211,16 @@ class WorkerSupervisor:
                 dur = (now - start_ts) * 1000
                 if dur > timeout_ms:
                     stuck.append({**dict(r), "elapsed_ms": round(dur, 2)})
-            except Exception:
+            except (
+                OSError,
+                ImportError,
+                sqlite3.Error,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ):
                 stuck.append(dict(r))
         return stuck
 

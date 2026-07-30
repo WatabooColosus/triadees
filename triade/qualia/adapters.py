@@ -59,17 +59,12 @@ def build_run_experiences(
     for activation in activity.get("activations") or []:
         if not isinstance(activation, dict):
             continue
-        output = (
-            activation.get("output")
-            if isinstance(activation.get("output"), dict)
-            else {}
-        )
-        diagnosis = (
-            output.get("diagnosis") if isinstance(output.get("diagnosis"), list) else []
-        )
-        test_plan = (
-            output.get("test_plan") if isinstance(output.get("test_plan"), list) else []
-        )
+        raw_output = activation.get("output")
+        output: dict[str, Any] = raw_output if isinstance(raw_output, dict) else {}
+        raw_diagnosis = output.get("diagnosis")
+        diagnosis: list[Any] = raw_diagnosis if isinstance(raw_diagnosis, list) else []
+        raw_test_plan = output.get("test_plan")
+        test_plan: list[Any] = raw_test_plan if isinstance(raw_test_plan, list) else []
         experiences.append(
             NeuronExperience(
                 run_id=run_id,
@@ -220,7 +215,15 @@ def qualia_context_for_memory(
             "relevant_signals": signals,
             "policy": "Qualia informa hipótesis/contexto; no es memoria estable salvo verificación/promoción explícita.",
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         return {
             "status": "unavailable",
             "error": str(exc),

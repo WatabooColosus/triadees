@@ -255,7 +255,15 @@ class EdgeRouter:
                 "body": body,
                 "url": url,
             }
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return {
                 "status": "error",
                 "error": str(exc),

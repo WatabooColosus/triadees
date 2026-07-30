@@ -119,6 +119,8 @@ class MemoryConsolidator:
 
     def _ensure_schema(self) -> None:
         conn = self._conn
+        if conn is None:
+            raise RuntimeError("La conexión SQLite no fue inicializada")
         conn.execute(
             """CREATE TABLE IF NOT EXISTS schema_migrations (
                 table_name TEXT NOT NULL, version INTEGER NOT NULL,
@@ -142,7 +144,16 @@ class MemoryConsolidator:
                     )
                     conn.commit()
                     log.info("Applied consolidation migration v%d", v)
-                except Exception as exc:
+                except (
+                    OSError,
+                    ImportError,
+                    sqlite3.Error,
+                    RuntimeError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                ) as exc:
                     log.error("Consolidation migration v%d failed: %s", v, exc)
                     raise
 

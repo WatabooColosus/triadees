@@ -187,5 +187,14 @@ class ContinuityEngine:
             )
             conn.commit()
             conn.close()
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             pass

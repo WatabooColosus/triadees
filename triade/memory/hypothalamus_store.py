@@ -16,6 +16,28 @@ from typing import Any
 from triade.core.contracts import SignalPacket
 
 
+def _lastrowid(cursor: sqlite3.Cursor) -> int:
+    return int(cursor.lastrowid or -1) if cursor.lastrowid is not None else -1
+
+
+def _as_float(value: object, default: float = 0.0) -> float:
+    if isinstance(value, (int, float, str, bytes, bytearray)):
+        try:
+            return float(value)
+        except ValueError:
+            return default
+    return default
+
+
+def _as_int(value: object, default: int = 0) -> int:
+    if isinstance(value, (int, float, str, bytes, bytearray)):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
+
+
 @dataclass
 class EmotionalState:
     valence: float = 0.1
@@ -247,7 +269,7 @@ class HypothalamusStateStore:
                         json.dumps(mood.cognitive_snapshot, ensure_ascii=False),
                     ),
                 )
-                return int(cursor.lastrowid)
+                return _lastrowid(cursor)
             except sqlite3.IntegrityError:
                 # FK constraint: run_id no existe en tabla runs. Insertar registro mínimo.
                 try:
@@ -285,8 +307,17 @@ class HypothalamusStateStore:
                             json.dumps(mood.cognitive_snapshot, ensure_ascii=False),
                         ),
                     )
-                    return int(cursor.lastrowid)
-                except Exception:
+                    return _lastrowid(cursor)
+                except (
+                    OSError,
+                    ImportError,
+                    sqlite3.Error,
+                    RuntimeError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                ):
                     return -1
 
     def save_raw(self, run_id: str, state: EmotionalState) -> int:
@@ -322,7 +353,7 @@ class HypothalamusStateStore:
                     json.dumps(state.cognitive_snapshot, ensure_ascii=False),
                 ),
             )
-            return int(cursor.lastrowid)
+            return _lastrowid(cursor)
 
     def load_latest(self) -> EmotionalState | None:
         with self._connect() as conn:
@@ -378,7 +409,7 @@ class HypothalamusStateStore:
                     new_utc(),
                 ),
             )
-            return int(cursor.lastrowid)
+            return _lastrowid(cursor)
 
     def count(self) -> int:
         with self._connect() as conn:
@@ -456,7 +487,7 @@ class HypothalamusStateStore:
                     fat_after,
                 ),
             )
-            return int(cursor.lastrowid)
+            return _lastrowid(cursor)
 
     def reinforcement_history(self, limit: int = 20) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -487,7 +518,16 @@ class HypothalamusStateStore:
         try:
             reward_count = len(self.reinforcement_history(1000))
             avg_reward = self.avg_reward(50)
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from triade.core.error_bus import record_internal_error
 
             record_internal_error(
@@ -552,7 +592,7 @@ class HypothalamusStateStore:
                     now,
                 ),
             )
-            return int(cursor.lastrowid)
+            return _lastrowid(cursor)
 
     def recall_pattern(self, text: str) -> dict[str, Any] | None:
         """Recupera un patrón aprendido para el texto dado."""
@@ -623,22 +663,22 @@ class HypothalamusStateStore:
             cognitive_snapshot = {}
 
         return EmotionalState(
-            valence=float(r("mood_valence", 0.0)),
-            arousal=float(r("mood_arousal", 0.0)),
-            dominance=float(r("mood_dominance", 0.0)),
+            valence=_as_float(r("mood_valence", 0.0)),
+            arousal=_as_float(r("mood_arousal", 0.0)),
+            dominance=_as_float(r("mood_dominance", 0.0)),
             primary_emotion=str(r("primary_emotion", "neutral")),
-            fatigue=float(r("fatigue", 0.0)),
+            fatigue=_as_float(r("fatigue", 0.0)),
             pv7_baseline=pv7,
-            run_count=int(r("run_count", 0)),
+            run_count=_as_int(r("run_count", 0)),
             last_active_at=str(r("last_active_at") or r("created_at", "")),
-            cpu_load=float(r("cpu_load", 0.0)),
-            ram_usage=float(r("ram_usage", 0.0)),
-            gpu_utilization=float(r("gpu_utilization", 0.0)),
-            gpu_memory_used=float(r("gpu_memory_used", 0.0)),
-            gpu_temperature=int(r("gpu_temperature", 0)),
-            cognitive_load=float(r("cognitive_load", 0.0)),
-            curiosity=float(r("curiosity", 0.0)),
-            uncertainty=float(r("uncertainty", 0.0)),
+            cpu_load=_as_float(r("cpu_load", 0.0)),
+            ram_usage=_as_float(r("ram_usage", 0.0)),
+            gpu_utilization=_as_float(r("gpu_utilization", 0.0)),
+            gpu_memory_used=_as_float(r("gpu_memory_used", 0.0)),
+            gpu_temperature=_as_int(r("gpu_temperature", 0)),
+            cognitive_load=_as_float(r("cognitive_load", 0.0)),
+            curiosity=_as_float(r("curiosity", 0.0)),
+            uncertainty=_as_float(r("uncertainty", 0.0)),
             tensions=tensions,
             cognitive_snapshot=cognitive_snapshot,
         )

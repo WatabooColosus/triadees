@@ -97,7 +97,16 @@ class SelfImprovementOrchestrator:
                 promotion=promotion,
                 canary=canary,
             )
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             try:
                 self.bridge.release_candidate(candidate_id, outcome="cancelled")
             except (KeyError, ValueError):

@@ -47,7 +47,15 @@ def py_compile_audit(roots: list[str]) -> dict[str, Any]:
                 continue
             try:
                 py_compile.compile(str(path), doraise=True)
-            except Exception as exc:
+            except (
+                OSError,
+                ImportError,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
                 errors.append({"path": str(path), "error": str(exc)})
 
     return {
@@ -123,7 +131,15 @@ def import_runtime_reports() -> dict[str, Any]:
 
         ledger = build_experimental_evidence_ledger(runs_dir="runs", limit=100)
         result["experimental_evidence"] = ledger.get("summary")
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         result["ok"] = False
         result["errors"].append({"experimental_evidence": str(exc)})
 
@@ -132,7 +148,15 @@ def import_runtime_reports() -> dict[str, Any]:
 
         readiness = evaluate_stable_readiness(runs_dir="runs", limit=100)
         result["stable_readiness"] = readiness.get("summary")
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         result["ok"] = False
         result["errors"].append({"stable_readiness": str(exc)})
 

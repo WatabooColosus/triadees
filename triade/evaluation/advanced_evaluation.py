@@ -102,7 +102,16 @@ class BenchmarkRunner:
                 try:
                     actual = evaluator(inp)
                     score = _score_match(actual, expected)
-                except Exception as e:
+                except (
+                    OSError,
+                    ImportError,
+                    sqlite3.Error,
+                    RuntimeError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                ) as e:
                     actual = {"error": str(e)}
                     score = 0.0
             else:

@@ -66,7 +66,7 @@ def publish_event(
         prune_worker_events(conn)
     return {
         "status": "ok",
-        "event_id": int(cursor.lastrowid),
+        "event_id": int(cursor.lastrowid or -1),
         "event_type": event_type,
         "source": source,
         "severity": severity,

@@ -191,7 +191,15 @@ def maybe_create_edge_learning_candidate(
             "candidate_id": candidate.get("candidate_id"),
             "count_24h": repeated,
         }
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         from triade.core.error_bus import record_internal_error
 
         record_internal_error(
@@ -238,11 +246,12 @@ def _recent_edge_observations(
         if created_at and created_at < cutoff:
             continue
         event_payload = row.get("payload") or {}
-        payload = (
+        raw_payload = (
             event_payload.get("payload")
             if isinstance(event_payload.get("payload"), dict)
             else event_payload
         )
+        payload = raw_payload if isinstance(raw_payload, dict) else {}
         observations.append(
             {
                 "event_id": row.get("id"),

@@ -65,6 +65,7 @@ ROUTINE_TYPES = [
 AUTONOMOUS_ROUTINE_ERRORS = (
     sqlite3.Error,
     OSError,
+    ImportError,
     ValueError,
     RuntimeError,
     KeyError,

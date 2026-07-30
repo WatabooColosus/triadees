@@ -144,7 +144,7 @@ class NeuronMissionStore:
                     json.dumps(mission.metrics, ensure_ascii=False),
                 ),
             )
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def get_mission(self, mission_id: int) -> NeuronMission | None:
         with self._connect() as conn:
@@ -216,7 +216,7 @@ class NeuronMissionStore:
                     cycle.created_at,
                 ),
             )
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def list_cycles(self, mission_id: int, limit: int = 20) -> list[NeuronWorkCycle]:
         with self._connect() as conn:
@@ -245,7 +245,7 @@ class NeuronMissionStore:
                     evidence.created_at,
                 ),
             )
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def list_evidence(self, mission_id: int, limit: int = 20) -> list[NeuronEvidence]:
         with self._connect() as conn:
@@ -272,7 +272,7 @@ class NeuronMissionStore:
                     score.created_at,
                 ),
             )
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def latest_score(self, mission_id: int) -> NeuronScore | None:
         with self._connect() as conn:

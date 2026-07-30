@@ -67,7 +67,7 @@ def build_learning_journal(
     )
     neurons_nourished = len(
         {
-            int(row.get("neuron_id"))
+            int(str(row.get("neuron_id")))
             for row in cycles + evidence
             if row.get("neuron_id") is not None
         }

@@ -41,7 +41,15 @@ class NodeLiveRegistry:
             while not self._stop.is_set():
                 try:
                     self.sweep_once()
-                except Exception as exc:
+                except (
+                    OSError,
+                    ImportError,
+                    RuntimeError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                ) as exc:
                     self.last_result = {"status": "error", "error": str(exc)}
                 self._stop.wait(interval)
 

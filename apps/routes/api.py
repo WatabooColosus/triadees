@@ -660,7 +660,15 @@ def system_neurons_full(limit: int = 100, mission_limit: int = 50) -> dict[str, 
                 (mission_limit,),
             ).fetchall()
         learning_usage = [dict(row) for row in rows]
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         learning_usage = []
 
     return {
@@ -1391,7 +1399,15 @@ def system_living_report(limit: int = 20, summary: bool = False) -> dict[str, An
                 stable_neuron_audit=report.get("stable_neuron_audit", {}),
             )
             return validated.model_dump()
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             return report
     return report
 
@@ -1450,7 +1466,15 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
     def _safe(fn, block_name: str, default: Any = None):
         try:
             return fn()
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             _errors.append({"block": block_name, "error": str(exc)[:200]})
             return (
                 default
@@ -1835,7 +1859,15 @@ def integrity_snapshot(
             import json
 
             target_paths = json.loads(paths)
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             target_paths = [p.strip() for p in paths.split(",") if p.strip()]
     elif path:
         target_paths = [path]
@@ -2783,7 +2815,15 @@ def run_triade(
         return result
     except HTTPException:
         raise
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         LIFE_PULSE.record_action("run_error")
         return {
             "status": "error",

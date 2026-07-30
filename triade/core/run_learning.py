@@ -64,7 +64,15 @@ class RunLearningService:
                     "selection": model_selection,
                 },
             )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return {
                 "status": "error",
                 "mode": "semantic-continuity",

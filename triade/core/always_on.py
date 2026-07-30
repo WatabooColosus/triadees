@@ -101,7 +101,15 @@ def load_always_on_config(yml_path: str | Path = "triade.yml") -> dict[str, Any]
             if "always_on" in rtc:
                 cfg["enabled"] = bool(rtc["always_on"])
             cfg["_config_source"] = "triade.yml"
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         pass
 
     # ── env vars ──
@@ -237,7 +245,15 @@ def start_always_on_if_enabled(
 
         blood = check_ollama_blood()
         ollama_ok = bool(blood.get("ollama_ok"))
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         blood = {}
         ollama_ok = False
         preflight_errors.append(f"ollama_blood_check_failed: {exc}")
@@ -246,14 +262,30 @@ def start_always_on_if_enabled(
         from triade.core.resource_probe import build_resource_probe
 
         probe = build_resource_probe()
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         probe = {}
         preflight_errors.append(f"resource_probe_failed: {exc}")
 
     try:
         supervisor = get_internal_runtime_supervisor(db_path=db_path, runs_dir=runs_dir)
         supervisor.snapshot()
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         preflight_errors.append(f"db_or_supervisor_failed: {exc}")
 
     # ── Decide effective mode ──
@@ -278,7 +310,15 @@ def start_always_on_if_enabled(
                 decision.get("reason")
                 or f"{requested_mode} degradado a {allowed} por gobernador."
             )
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         preflight_errors.append(f"governor_decision_failed: {exc}")
 
     if effective_mode in ("blocked", "cooldown"):
@@ -301,7 +341,15 @@ def start_always_on_if_enabled(
             interval_seconds=int(cfg.get("interval_seconds", 60)),
             max_cycles=cfg.get("_max_cycles_param"),
         )
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         _ALWAYS_ON_STATE["status"] = "start_failed"
         _ALWAYS_ON_STATE["error"] = str(exc)
         return {
@@ -332,7 +380,15 @@ def start_always_on_if_enabled(
                 mode="safe", db_path=db_path, runs_dir=runs_dir
             )
             _ALWAYS_ON_STATE["last_self_test_status"] = self_test_result
-        except Exception as st_exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as st_exc:
             self_test_result = {"status": "error", "error": str(st_exc)}
             _ALWAYS_ON_STATE["last_self_test_status"] = self_test_result
 
@@ -352,7 +408,15 @@ def start_always_on_if_enabled(
             },
             severity="info",
         )
-    except Exception:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
         pass
 
     start_result = {
@@ -380,7 +444,15 @@ def stop_always_on(
 ) -> dict[str, Any]:
     try:
         result = stop_internal_runtime_background(db_path=db_path, runs_dir=runs_dir)
-    except Exception as exc:
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         _ALWAYS_ON_STATE["status"] = "stop_failed"
         _ALWAYS_ON_STATE["error"] = str(exc)
         return {"status": "error", "message": f"Error al detener: {exc}"}

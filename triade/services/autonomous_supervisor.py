@@ -105,7 +105,16 @@ class AutonomousSupervisorService:
                         created_at=utc_now(),
                     )
                 )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             alerts.append(
                 SupervisorAlert(
                     alert_id=f"alert-worker-check-{int(_time.time())}",
@@ -147,7 +156,16 @@ class AutonomousSupervisorService:
                         created_at=utc_now(),
                     )
                 )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             alerts.append(
                 SupervisorAlert(
                     alert_id=f"alert-pulse-check-{int(_time.time())}",
@@ -190,7 +208,16 @@ class AutonomousSupervisorService:
                         created_at=utc_now(),
                     )
                 )
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             alerts.append(
                 SupervisorAlert(
                     alert_id=f"alert-cap-check-{int(_time.time())}",

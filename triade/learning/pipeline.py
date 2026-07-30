@@ -530,7 +530,16 @@ class LearningPipeline:
 
             rollback_executor = RollbackExecutor(db_path=self.db_path)
             registered_handlers = set(rollback_executor._handlers.keys())
-        except Exception:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ):
             registered_handlers = set()
         enforcer.enforce_before_promotion(
             capability_id,
@@ -741,7 +750,16 @@ class LearningPipeline:
                 "consolidation_trust": trust_store.get_trust("consolidation"),
                 "permissions": trust_store.get_permissions("consolidation"),
             }
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             from triade.core.error_bus import record_internal_error
 
             record_internal_error(

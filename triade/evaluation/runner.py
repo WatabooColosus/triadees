@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from triade.core.contracts import utc_now
@@ -161,6 +161,7 @@ def compare_evaluations(
         if baseline.aggregate_score == 0
         else round((absolute_delta / baseline.aggregate_score) * 100.0, 6)
     )
+    decision: Literal["improved", "neutral", "regressed", "invalid"]
     if critical or absolute_delta < -epsilon:
         decision = "regressed"
     elif absolute_delta > epsilon and not degraded:

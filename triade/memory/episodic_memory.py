@@ -114,7 +114,16 @@ class EpisodicMemory:
                     )
                     self._conn.commit()
                     log.info("Applied episodic_memory migration v%d", v)
-                except Exception as exc:
+                except (
+                    OSError,
+                    ImportError,
+                    sqlite3.Error,
+                    RuntimeError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                ) as exc:
                     log.error("Migration v%d failed: %s", v, exc)
                     raise
 

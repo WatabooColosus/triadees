@@ -13,6 +13,8 @@ def pytest_configure(config):
     source_root = Path(_ORIGINAL_CWD)
     memory = root / "triade" / "memory"
     memory.mkdir(parents=True)
+    (root / "runs").mkdir()
+    (root / "artifacts").mkdir()
     (memory / "schemas.sql").symlink_to(
         source_root / "triade" / "memory" / "schemas.sql"
     )
@@ -20,6 +22,7 @@ def pytest_configure(config):
         source_root / "triade" / "memory" / "migrations", target_is_directory=True
     )
     (root / "scripts").symlink_to(source_root / "scripts", target_is_directory=True)
+    (root / "docs").symlink_to(source_root / "docs", target_is_directory=True)
     for name in (
         "triade.yml",
         "triade_digimon.py",

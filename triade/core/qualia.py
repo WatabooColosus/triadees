@@ -149,7 +149,16 @@ class QualiaEngine:
                 "storage_packets_count": counts.get("qualia_storage_packets", 0),
                 "latest_state": store.latest_state(),
             }
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
             return {
                 "status": "missing_tables",
                 "experiences_count": 0,
@@ -260,11 +269,13 @@ class QualiaEngine:
 
     @staticmethod
     def _senses(life: dict[str, Any], semantic: dict[str, Any]) -> dict[str, Any]:
-        counters = (
-            life.get("counters") if isinstance(life.get("counters"), dict) else {}
+        raw_counters = life.get("counters")
+        counters: dict[str, Any] = (
+            raw_counters if isinstance(raw_counters, dict) else {}
         )
-        reflection = (
-            life.get("reflection") if isinstance(life.get("reflection"), dict) else {}
+        raw_reflection = life.get("reflection")
+        reflection: dict[str, Any] = (
+            raw_reflection if isinstance(raw_reflection, dict) else {}
         )
         return {
             "mode": "internal_senses",
@@ -291,11 +302,13 @@ class QualiaEngine:
     @staticmethod
     def _organs(life: dict[str, Any], semantic: dict[str, Any]) -> list[dict[str, Any]]:
         integrity_ok = bool((life.get("integrity") or {}).get("ok"))
-        counters = (
-            life.get("counters") if isinstance(life.get("counters"), dict) else {}
+        raw_counters = life.get("counters")
+        counters: dict[str, Any] = (
+            raw_counters if isinstance(raw_counters, dict) else {}
         )
-        reflection = (
-            life.get("reflection") if isinstance(life.get("reflection"), dict) else {}
+        raw_reflection = life.get("reflection")
+        reflection: dict[str, Any] = (
+            raw_reflection if isinstance(raw_reflection, dict) else {}
         )
         return [
             {

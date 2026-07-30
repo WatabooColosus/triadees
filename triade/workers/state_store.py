@@ -160,7 +160,7 @@ class WorkerStateStore:
             )
             if cursor.lastrowid is None:
                 raise sqlite3.DatabaseError("worker_task_insert_without_id")
-            task_id = int(cursor.lastrowid)
+            task_id = int(cursor.lastrowid or -1)
         return self.get_task(task_id) or WorkerTask(
             id=task_id, task_type=task_type, payload=payload or {}, priority=priority
         )
@@ -310,7 +310,7 @@ class WorkerStateStore:
             prune_worker_events(conn)
             if cursor.lastrowid is None:
                 raise sqlite3.DatabaseError("worker_event_insert_without_id")
-            return int(cursor.lastrowid)
+            return int(cursor.lastrowid or -1)
 
     def list_events(
         self, limit: int = 50, run_ref: str | None = None
