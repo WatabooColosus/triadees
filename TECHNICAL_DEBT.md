@@ -3,6 +3,37 @@
 Corte: 2026-07-30. SHA documental base: `8f44814`. Esta lista es canónica;
 los reportes anteriores son históricos cuando la contradicen.
 
+## CORREGIDO — investigación web autónoma nunca corría (commit `bebb270`)
+
+El usuario reportó no ver aprendizaje autónomo usando recursos web en
+segundo plano. Verificado en vivo, no supuesto:
+
+- `worker_tasks` (tabla clásica de Living Workers) no recibe filas nuevas
+  desde 2026-07-29 07:26 — confirmado observando en tiempo real (0 filas en
+  75s). **No es un bug**: el runtime v2 (`autonomous_tasks`, lease/fencing,
+  ya mencionado en "Implemented" de `STATUS_CURRENT.md`) reemplazó esa tabla
+  y está genuinamente vivo (`pulse_check`, `neuron_candidate_formation`,
+  `neuron_autopromotion` cada ~60s, confirmado). Quedó como nota para no
+  confundir a futuras auditorías que consulten `worker_tasks` y concluyan
+  que el sistema está parado.
+- **Bug real:** `_research_curriculum` (`worker_loop.py`) detecta lagunas
+  neuronales reales ("Currículo dirigido por 2 lagunas neuronales reales",
+  confirmado en payload real) pero nunca incluía `allowed_sources` en el
+  `goal_research` delegado. `_goal_research` exige `allowed_sources` no
+  vacío o bloquea de inmediato. Resultado: 33 bloqueos en una hora, la
+  investigación autónoma nunca corrió pese a detectar lagunas reales.
+  Corregido con los mismos dominios curados que `guarded_web.py` ya usa
+  como fallback (`docs.opencv.org`, `pillow.readthedocs.io`,
+  `docs.python.org`, `docs.pytest.org`, `es.wikipedia.org`) — no se amplió
+  a búsqueda sin restricción. Verificado con una llamada real: obtuvo
+  contenido real de `docs.python.org` para la laguna de "gobernanza de
+  sistemas"; `status="unverifiable"` es correcto cuando solo hay 1 de 2
+  fuentes independientes mínimas, no un fallo.
+- Confirmado en la misma verificación: la nutrición neuronal vía Ollama
+  Blood (`run_neuron_nutrition_cycle`) **sí funciona** — 6 misiones, 6
+  evidencias, 6 candidatos, 6 neuronas nutridas en una llamada real durante
+  esta sesión.
+
 ## Discrepancia adicional con "pytest completo al 100%" (Fase 3)
 
 Al correr `pytest -q tests/ --ignore=tests/operational_truth` (excluyendo el
