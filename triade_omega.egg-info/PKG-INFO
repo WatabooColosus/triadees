@@ -10,9 +10,16 @@ Requires-Dist: fastapi>=0.115.0
 Requires-Dist: uvicorn[standard]>=0.30.0
 Requires-Dist: httpx>=0.27.0
 Requires-Dist: pydantic>=2.0.0
+Requires-Dist: peft>=0.19.1
+Requires-Dist: cryptography>=42.0
+Requires-Dist: argon2-cffi>=23.1.0
+Requires-Dist: redis>=5.0.0
+Requires-Dist: sentence-transformers>=3.0.0
+Requires-Dist: accelerate>=1.0
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0.0; extra == "dev"
 Requires-Dist: pytest-cov>=5.0.0; extra == "dev"
+Requires-Dist: types-psutil>=7.0.0.20250601; extra == "dev"
 
 # Tríade Ω  
 ### Arquitectura Triádica de Inteligencia Viva, Relacional y Verificable
@@ -23,7 +30,7 @@ No es solo un modelo ni un prompt: es un **núcleo cognitivo expandible**, pensa
 
 La Tríade no piensa porque alguien escribe; el chat solo consulta y expresa el estado de un sistema interno que observa, trabaja y aprende bajo reglas.
 
-## Estado verificable · 2026-07-23
+## Estado verificable · 2026-07-30
 
 Este README separa tres niveles:
 
@@ -33,13 +40,23 @@ Este README separa tres niveles:
 
 Tríade es actualmente un **prototipo integrado avanzado de agente local gobernado**,
 no una AGI, una conciencia, un modelo fundacional propio ni un sistema operativo que
-reemplace Linux. La medición estática del núcleo es `0.96/1.0`; el Hipotálamo sigue
-sin estado emocional longitudinal propio por sesión. La fuente operativa vigente es
+reemplace Linux. El manifiesto TRIADE-VERIFY-v1 vigente es `PARTIAL_SAFE`: identidad,
+causalidad, memoria, ejecución, aprendizaje, rollback y federación tienen evidencia
+local; chaos 15/15, Ruff/mypy y un SHA CI intermedio están verdes, pero operación
+24/72 h y CI sobre el SHA final siguen pendientes. La fuente operativa vigente es
 [`docs/STATUS_CURRENT.md`](docs/STATUS_CURRENT.md) y la deuda abierta está en
 [`TECHNICAL_DEBT.md`](TECHNICAL_DEBT.md). Los documentos `STATUS_*` anteriores son
 históricos salvo indicación expresa.
 
+Reproducción y límites: [`docs/operations/triade_verify.md`](docs/operations/triade_verify.md).
+
 ## Pulso Vivo 24/7 verificable
+
+El núcleo operacional dispone de un heartbeat ligero de 5 segundos sin llamadas
+a modelos y de un scheduler monotónico que despierta cuando entra trabajo. Los
+benchmarks y los límites exactos de esta fase están en
+[`docs/LIVE_RUNTIME_BASELINE.md`](docs/LIVE_RUNTIME_BASELINE.md) y
+[`docs/LIVE_HEARTBEAT_ARCHITECTURE.md`](docs/LIVE_HEARTBEAT_ARCHITECTURE.md).
 
 El runtime local puede exponer un pulso operativo continuo sin depender del chat:
 
@@ -170,11 +187,10 @@ Encargada de:
 
 La Bodega es la **memoria viva y verificable** del sistema.
 
-**Límite actual:** SQLite conserva los datos entre reinicios, pero persistencia no
-garantiza recuperación pertinente. El sistema combina búsqueda por términos,
-embeddings y gobierno semántico; todavía debe mejorar la extracción de hechos,
-preferencias y continuidad personal. Sin backups externos verificados, la memoria
-tampoco puede describirse como permanente o “eterna”.
+**Límite actual:** el benchmark longitudinal determinista verificó recuperación,
+aislamiento, contradicciones y restore con los umbrales iniciales, pero ese corpus no
+demuestra rendimiento universal ni memoria permanente. La operación debe conservar
+procedencia, scopes y backups verificados.
 
 La auditoría estable no asume que `stable` sea sinónimo de listo: `neuron audit-stable` y `/api/neurons/stable-audit` sirven para revisar neuronas estables con evidencia insuficiente sin borrar datos ni tocar `identity_core`.
 
@@ -216,7 +232,7 @@ y Qualia construye hipótesis.
 - Stable memory puede influir con trazabilidad de origen.
 - Si el motor semántico no está disponible, el sistema falla seguro sin romperse.
 
-**Camino hacia proto-conciencia digital verificable:**
+**Marco funcional de continuidad verificable:**
 1. Identidad operativa.
 2. Memoria trazable.
 3. Continuidad contextual.
@@ -229,7 +245,7 @@ y Qualia construye hipótesis.
 > La Bodega no es archivo.
 > La Bodega es el suelo común de la Tríade.
 > Central piensa sobre ella.
-> Hipotálamo siente con ella.
+> Hipotálamo modula con ella.
 > Cristal regula desde ella.
 > Workers la revisan.
 > Neuronas se nutren de ella.
@@ -409,9 +425,9 @@ Reglas:
 ## 🌐 Federación entre Nodos
 
 Tríade implementa contratos, registro, transporte y contexto para una red privada
-federada de nodos autorizados. En la instalación auditada no hay nodos remotos
-activos; por tanto la federación sostenida es **experimental**, no una capacidad
-de producción demostrada.
+federada de nodos autorizados. Una prueba local usó dos procesos reales y transporte
+TCP para verificar firma, reproducción, idempotencia y revocación. La federación
+sostenida entre hosts sigue siendo **experimental**, no una capacidad de producción.
 
 Principios:
 
@@ -582,7 +598,7 @@ triadees/
 └── Manifiesto/ · Inicio/ · IngeniaInversa1/
 ```
 
-Estado real del proyecto (corte operativo 2026-07-23; el versionado histórico no
+Estado real del proyecto (corte operativo 2026-07-30; el versionado histórico no
 representa por sí solo madurez):
 
 - Repositorio: `WatabooColosus/triadees` · rama base `main`; los cambios se publican mediante PR.

@@ -103,14 +103,10 @@ class WorkerBackgroundService:
     def _lock_owner_alive(self) -> bool:
         if not self.lock_file.exists():
             return False
-        try:
-            import os
+        from triade.runtime.process_lock import RuntimeProcessLock
 
-            pid = int(self.lock_file.read_text(encoding="utf-8").strip())
-            os.kill(pid, 0)
-            return True
-        except (OSError, ValueError):
-            return False
+        inspection = RuntimeProcessLock.inspect(self.lock_file)
+        return inspection.status == "live"
 
     def queue_status(
         self, status: str | None = None, limit: int = 50
