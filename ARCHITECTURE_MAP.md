@@ -2,6 +2,19 @@
 
 Mapa de la arquitectura **tal como existe en el código** (no la visión). Estado al 2026-06-12, commit base `e597618`, frontera ≈ v2.1.
 
+> **Corrección 2026-07-30 (auditoría por-órgano con evidencia de call sites,
+> no reafirmación del texto anterior):** varias afirmaciones de este mapa
+> quedaron obsoletas por cambios reales del propio proyecto entre el
+> 2026-06-12 y hoy. Ver notas inline marcadas `[VERIFICADO 2026-07-30]` y el
+> detalle completo en `TECHNICAL_DEBT.md` § "Fase 2 — auditoría por órgano".
+> Resumen de lo que cambió: (1) N Creadora/Formadora/Registry **sí** están
+> dentro del ciclo automático (runner + 24/7), la nota de "desconexión" de
+> la sección 3 era falsa incluso en `e597618`; (2) la duplicación D-07
+> (`chat_ui_app.py`/`chat_ui_router_app.py`/`api_app.py`/`model_router_api.py`)
+> fue eliminada por el propio proyecto en el commit `aa001f3` (2026-07-29),
+> consolidada en `apps/single_port_app.py` + `apps/routes/*`; esos archivos
+> ya no existen.
+
 Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin código).
 
 ---
@@ -75,25 +88,38 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 ## 3. Módulos por componente
 
 ### Neurona Central 🟡
-- `core/central.py` — `Central.plan()`, `Central.respond()`. Regulación por `q_crystal`/`temporal_status`, prompts con atribución literal.
+- `core/central.py` — `Central.plan()`, `Central.respond()`. Regulación por `q_crystal`/`temporal_status`, prompts con atribución literal. Llamadas reales en `runner.py:453,504,544,548,554`.
 - `core/neuron_creator.py` — **N Creadora**: `NeuronCreator.create() → NeuronSpec`.
 - `core/neuron_trainer.py` — **N Formadora**: `NeuronTrainer.evaluate() → NeuronTrainingResult` (estados candidate/experimental/stable/rejected).
 - `core/neuron_registry.py` — persistencia en tablas `neurons` / `neuron_training`.
-- ⚠ **Desconexión:** estos tres últimos solo se usan vía CLI `neuron`, no en `run()`.
+- ✅ **[VERIFICADO 2026-07-30] CONECTADAS, no "fuera del ciclo":** las tres
+  se invocan vía `primary_neuron_pipeline.py` → `runner.py:1394`
+  (`_propose_neuron_candidate`, activo por defecto en `run()`) y también
+  desde el ciclo 24/7 (`neuron_formation_pipeline.py` ← `worker_loop.py:1408`
+  y `life_pulse.py`). `NeuronRegistry` además se expone en
+  `apps/routes/api.py:699,725,3068,3091`.
+- 🔴 **Código muerto confirmado:** `Central.execute_plan_steps()`,
+  `save_plan()`, `load_plan()` y las clases `PlanGraph`/`PlanStep`/
+  `StepBudget` no tienen ningún caller productivo. Su único consumidor,
+  `triade/runtime/governed_plan_dispatcher.py` (`GovernedPlanDispatcher`),
+  a su vez no tiene ningún caller fuera de su propio archivo — huérfano por
+  partida doble.
 
 ### Hipotálamo Emocional 🟢
 - `core/hypothalamus.py` — `Hypothalamus.analyze() → SignalPacket`. PV-7 (humildad, generosidad, respeto, paciencia, templanza, caridad, diligencia). Modelo+fallback por reglas con validación JSON.
+- **[VERIFICADO 2026-07-30]** conectado solo al ciclo por-run (`runner.py:222,326`), no corre dentro del ciclo 24/7 (`supervisor.py`/`workers/*` no lo invocan) — coherente con ser un regulador de tono conversacional, no un chequeo de fondo.
 
 ### Bodega de Almacenamiento 🟢
-- `core/bodega.py` — persistencia y recall, `doctor`, migración Crystal v2.
-- `memory/semantic_store.py` — documentos + embeddings + protección de estado gobernado. ⚠ D-01/D-02.
-- `memory/semantic_embedding_engine.py` — vectorización vía Ollama (1.9B). ⚠ usa `list_documents(limit=)`.
-- `memory/semantic_search.py` — similitud coseno (1.9C). ⚠ `dict(metadata)`.
-- `memory/semantic_governance.py` — gobierno de estados y cuarentena (1.9E). ⚠ `doctor()` usa `list_documents(limit=)`.
+- `core/bodega.py` — persistencia y recall, `doctor`, migración Crystal v2. **[VERIFICADO 2026-07-30]** conectada a ambos ciclos: `runner.py:227` (por-run) y `supervisor.py:539,562` + `worker_loop.py:1787` (24/7).
+- `memory/semantic_store.py` — documentos + embeddings + protección de estado gobernado. ⚠ D-01/D-02 → **[VERIFICADO 2026-07-30] YA CORREGIDO**: `list_documents(limit=)` (semantic_store.py:270) tiene la firma correcta y todos los call sites la usan bien; esta advertencia quedó obsoleta (la línea 217 de este mismo doc ya lo decía, pero no se limpiaron estas notas ⚠).
+- `memory/semantic_embedding_engine.py` — vectorización vía Ollama (1.9B). 🔴 **[VERIFICADO 2026-07-30] código muerto:** `embed_pending()` (línea 310) no tiene ningún caller fuera de su propia clase/tests.
+- `memory/semantic_search.py` — similitud coseno (1.9C). Conectada: `bodega.py:65` la invoca dentro del flujo real de `runner.py`.
+- `memory/semantic_governance.py` — gobierno de estados y cuarentena (1.9E). Conectada: `runner.py:438` la ejecuta en cada run. ⚠ **[VERIFICADO 2026-07-30]** en `worker_loop.py:1684-1685` se instancian `SemanticMemoryStore`/`SemanticMemoryGovernance` dentro del ciclo 24/7 sin invocar ningún método — construcción vestigial sin efecto, "por estar".
 - `memory/schemas.sql` (16 tablas) + `memory/migrations/001_9A_semantic_memory.sql`.
 
 ### Cristal Morfológico 🟢
 - `core/crystal.py` — `Crystal.regulate()`: ética/profundidad/creatividad/relación, `pv7_score`, `stability`, `intensity`, fórmula `Q_cristal` relacional (s_h/s_t/s_rel/φ_memory), estado temporal contextualizado (baseline/stable/improving/degrading/critical). ⚠ D-06 (método legacy duplicado).
+- ⚠ **[VERIFICADO 2026-07-30]** solo conectado al ciclo por-run (`runner.py:230,449`). El ciclo 24/7 (`worker_loop.py:1268-1269`) **no llama a `Crystal.regulate()`**: construye un `CrystalPacket` estático (`temporal_status="stable"` fijo) solo para satisfacer el chequeo de `Safety.review()`. La regulación real de Cristal nunca opera fuera de conversaciones — los ciclos de fondo (workers) corren con un Cristal "de mentira".
 
 ### Safety 🟢
 - `core/safety.py` — `Safety.review()`. Estados: approved / approved_with_warning / requires_human_approval / blocked. ⚠ `sandbox_only` declarado, no emitido (D-09).
@@ -124,12 +150,31 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 
 ### Living Workers 🟢
 - `triade/workers/` — scheduler, task_queue, worker_loop, background_service, state_store. Ejecuta ciclos acotados y auditables en `runs/background/`.
-- 10 task types: pulse_check, pending_learning_review, semantic_memory_governance, neuron_candidate_formation, experimental_neuron_activity, neuron_autopromotion, federation_inbox_review, memory_consolidation_review, stable_consolidation_review, system_debt_scan.
+- ⚠ **[VERIFICADO 2026-07-30]** son **19 task types reales**, no 10 — el
+  README subestima la lista. A los 10 documentados (pulse_check,
+  pending_learning_review, semantic_memory_governance,
+  neuron_candidate_formation, experimental_neuron_activity,
+  neuron_autopromotion, federation_inbox_review, memory_consolidation_review,
+  stable_consolidation_review, system_debt_scan) se suman 9 sin documentar:
+  `bodega_global_review`, `goal_research`, `goal_safe_command`,
+  `research_curriculum`, `goal_install`, `goal_lora_train`,
+  `encrypted_backup`, `neuron_education_cycle`,
+  `write_governed_text_artifact` (`triade/workers/contracts.py:22-30`,
+  `worker_loop.py:914-922`). Los 19 handlers hacen trabajo verificable real
+  (SQL, efectos con receipt/rollback); ninguno es un no-op.
 - memory_consolidation_review marca candidatos verified como `used_in_run` (no consolida directamente).
 - stable_consolidation_review consolida solo candidatos `validated_in_runs` con evidencia suficiente.
 - Persistencia: `worker_tasks`, `worker_runs`, `worker_events`, `worker_state`.
 - Superficies: CLI `workers once/start/daemon/status/stop/queue/events/doctor` y endpoints `/workers/*`.
 - Política: no modifica identity_core, no escribe memoria stable sin evidencia, no red externa por defecto, no shell arbitrario.
+- 🔴 **[VERIFICADO 2026-07-30] código muerto dentro de `triade/workers/`:**
+  `state_machine.py` (`WorkerStateMachine`) y `lease_retry_breaker.py`
+  (`Lease`, `CircuitBreaker`, etc.) — cero referencias en todo el repo,
+  incluyendo tests. `advanced_scheduler.py` y `worker_supervisor.py` sí se
+  importan, pero solo para `.doctor()` en paneles de salud
+  (`triade/dashboard/routes.py`, `system_monitor.py`) — no forman parte del
+  loop 24/7 real (`worker_autostart.py` → `WorkerBackgroundService` →
+  `WorkerLoop` usa `scheduler.py`/`adaptive_scheduler.py`/`task_queue.py`).
 
 ### Learning Pipeline 🟢 (Fase C)
 - `triade/learning/pipeline.py` (`LearningPipeline`) sobre `learning_queue`:
@@ -137,10 +182,56 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 - `mark_used_in_run(candidate_id, run_id, outcome_score)` registra uso en runs; auto-promueve a `validated_in_runs` tras 3 usos con promedio >= 0.70.
 - Consolidación exige: verified o validated_in_runs, source_ref, risk != critical, run_use_count >= 3, avg_outcome_score >= 0.70.
 - Consolidación vía gobernanza semántica 1.9E (candidate→experimental→stable). Nunca toca `identity_core`. CLI `learn`. Tests en `tests/test_learning_pipeline.py`.
+- ✅ **[VERIFICADO 2026-07-30]** las 4 transiciones tienen un caller
+  productivo real (no solo tests): `pending_learning_review` (worker),
+  `stable_consolidation_review` (worker), y `mark_used_in_run` vía
+  `run_learning_usage.py:194` ← `runner.py:1043` en cada run. ⚠ El estado
+  real que produce `verify()` es `internally_checked`, no `verified` como
+  dice el nombre de la transición en este documento. ⚠ La transición
+  `internally_checked → validated_in_runs` exige que el productor del run
+  adjunte `learning_outcome_score` + `learning_outcome_evidence_ref`
+  explícitos en `memory_diff`; si no lo hace, el uso queda en
+  `observed_not_counted` y nunca cuenta — **pendiente confirmar si algo en
+  producción popula esos campos hoy**, o si esta transición es real-pero-
+  rara-vez-disparada en la práctica (ver `TECHNICAL_DEBT.md`).
 
 ### Federation 🟢 (Fase D)
 - `triade/federation/federation.py` (`Federation`): registro de nodos (permisos/confianza/estado), recepción gated (autenticación → permiso → Safety → log → Learning Pipeline como candidato), envío con bloqueo de fuga de datos, revocación.
 - Permisos prohibidos por defecto (modify_identity_core, write_stable_memory, …) rechazados al registrar. Nada recibido se consolida automáticamente. CLI `federate`. Tests en `tests/test_federation.py`.
+- ✅ **[VERIFICADO 2026-07-30]** `federation_inbox_review` corre de verdad en
+  el ciclo 24/7 (`worker_loop.py:1664-1678`), pero solo hace un chequeo de
+  estado local (`federation.doctor()` sobre `federated_exchange_log`) — el
+  propio handler devuelve `"external_network": False`. El router de
+  federación (`apps/routes/api.py:2177-2387`) sí está montado en
+  `single_port_app.py`, alcanzable en producción.
+- 🔴 **[VERIFICADO 2026-07-30] código muerto:** `triade/federation/merge.py`
+  (`FederatedMerge`) ni siquiera está exportado en `federation/__init__.py`.
+  `dispatch.py` y `evidence_gate.py` se exportan pero no tienen importadores
+  reales fuera de tests.
+
+### Entrenamiento LoRA/PEFT 🟢 (no cubierto en versiones previas de este mapa)
+- `triade/training/{governed_lora,lora_trainer,installer,peft_canary,serving_governance}.py`.
+- ✅ **[VERIFICADO 2026-07-30]** Cadena real y activa, no solo declarada:
+  `POST /api/governance/lora/jobs` (`apps/routes/governance.py:105-118`,
+  montado en `single_port_app.py`) → `goal_orchestrator.schedule_lora` →
+  task `goal_lora_train` (`worker_loop.py:1151-1156`) →
+  `GovernedLoraJobRunner.run` → `RealLoraTrainer.train` (PEFT/torch real,
+  exige CUDA). Evidencia en DB real (no test): 2 filas en `trainable_adapters`
+  con `adapter_sha256` y artefacto `.safetensors` en disco; 2 eventos de
+  canary con texto generado real y latencia medida
+  (`scripts/run_phase_13_lora_canary.py`, no un test).
+- Gate de aprobación humana **sí bloquea de verdad** en código (no solo en
+  docs): `governed_lora.py:23-24`, `peft_canary.py:133-166`,
+  `serving_governance.py:133-146` — sin `approved_by` no vacío, estado
+  `blocked` antes de tocar disco/GPU. `lora_trainer.py:259-262` marca
+  explícitamente `"automatic_activation": False`; nada activa un adaptador
+  automáticamente tras entrenar.
+- ⚠ Conectado pero **nunca ejercitado en producción**: `governed_peft_active_slot`
+  y `peft_serving_state` tienen 0 filas — la activación/rollback en serving
+  nunca se disparó fuera de una prueba deliberada de que el bloqueo funciona.
+- Caveat de seguridad real: el gate de aprobación solo exige una cadena
+  `approved_by` no vacía; no valida identidad humana verdadera (RBAC/firma)
+  — el carácter "nominal" de la aprobación depende de quién tenga la API key.
 
 ### Capa de Modelos (transversal) 🟢
 - `models/ollama_client.py` — health, generate, embed.
@@ -193,14 +284,51 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 
 ## 5. Superficies de entrada
 
-| Superficie | Archivo | Rol |
-|---|---|---|
-| CLI | `triade_digimon.py` | run, chat, recall, doctor, align, api, neuron, models, qualia, workers |
-| API principal | `apps/api_app.py` | `/triade/run`, `/recall`, `/doctor`, `/neurons*` (con API key) |
-| App unificada | `apps/single_port_app.py` | chat + semántica + router + run en un puerto |
-| Chat UI | `apps/chat_ui_app.py`, `apps/chat_ui_router_app.py` | UIs web (⚠ duplicación, D-07) |
-| Model Router API | `apps/model_router_api.py` | `/health`, `/models/doctor` |
-| Orquestación | `n8n/*.json` | webhook, chat producción, neuron create/list |
+> **[VERIFICADO 2026-07-30]** `apps/api_app.py`, `apps/chat_ui_app.py`,
+> `apps/chat_ui_router_app.py`, `apps/ui_html.py` y `apps/model_router_api.py`
+> **ya no existen** — eliminados en el commit `aa001f3` (2026-07-29),
+> consolidados en `apps/single_port_app.py` + `apps/routes/{api,ui,auth,
+> governance,health}.py`. La tabla de abajo refleja lo que corre hoy, no la
+> tabla original de este documento.
+
+| Superficie | Archivo | Rol | Quién la arranca |
+|---|---|---|---|
+| CLI | `triade_digimon.py` | run, chat, recall, doctor, align, api, neuron, models, qualia, workers | manual |
+| App unificada gobernada | `apps/single_port_app.py` (monta `governance_router`, `auth_router`, `health_router`, `api_router`, `ui_router`) | chat + semántica + router + run + UI React en un puerto | `deploy/systemd/triade-api.service` (puerto 8010, este entorno), `Dockerfile.cloud` + `compose.free.yml`/`compose.cloud.yml` |
+| Relay público | `apps/public_relay_app.py` vía `apps/public_relay_entrypoint.py` | `/api/register`, `/api/heartbeat`, `/api/jobs*` para nodos federados/Android | `Procfile`, `railway.json`, `render.yaml`, `Dockerfile` (Railway/Render, puerto `$PORT`) — superficie de producción real y **distinta** de single_port_app, no huérfana |
+| Emparejamiento de federación | `apps/federation_pairing_app.py` | pairing manual de nodos | nada la arranca en ningún deploy config; solo tiene test — herramienta manual, no servicio persistente |
+| Agente nodo móvil | `apps/mobile_node_agent.py` | agente Python para ejecutar en el propio dispositivo (Termux/Android) | ejecución manual del usuario, no un servicio de este servidor |
+| Orquestación | `n8n/*.json` | webhook, chat producción, neuron create/list | n8n externo |
+
+### Nodo Android (`android/triade-node/`) — real, no aspiracional
+
+**[VERIFICADO 2026-07-30]** No es un esqueleto vacío: 6 archivos Java reales
+(1296 líneas) — `AndroidModelRuntime.java`, `MainActivity.java`,
+`RelayClient.java`, `TriadeNodeService.java`, `NodeConfig.java`,
+`TextPreprocessor.java` — más binarios `.so` de llama.cpp/ggml para
+inferencia local embebida. `RelayClient.java` hace llamadas HTTP reales a
+`/api/register`, `/api/heartbeat`, `/api/federation/transport/{next,result}`,
+`/api/jobs/{id}/result`, endpoints que existen literalmente en
+`apps/routes/api.py` y `apps/public_relay_app.py`. Lo que falta probar (y
+coincide con `TECHNICAL_DEBT.md`) es una federación sostenida entre dos hosts
+físicos distintos usando este cliente real, no que el cliente sea falso.
+
+### `systemd/` (carpeta raíz) — legado, riesgo de colisión
+
+**[VERIFICADO 2026-07-30]** Distinto de `deploy/systemd/` (única fuente real
+instalada y verificada en este servidor). Las unidades de `systemd/` apuntan
+a `WorkingDirectory=/home/santiago/triadees`, `User=santiago` — una máquina
+distinta a este entorno. `systemd/triade-model-router.service` dice
+literalmente en su `Description`: "DEPRECATED — merged into
+single_port_app:8010". `systemd/triade.service` y `triade-chat-ui.service`
+usan el mismo `ExecStart` que `deploy/systemd/triade-api.service`: si
+alguna vez se instalaran juntas colisionarían en el puerto 8010. Riesgo real:
+el commit más reciente del repo (`aa001f3`, autor "Triade Evolution Worker",
+un worker autónomo) todavía tocó `systemd/triade-ollama.service` y
+`systemd/triade.service` — es decir, un proceso autónomo del propio sistema
+sigue escribiendo en la carpeta legado. Recomendado marcarla `DEPRECATED`
+explícitamente o eliminarla, para que ningún proceso autónomo futuro la
+instale por error.
 
 ---
 
@@ -213,7 +341,7 @@ Hypothalamus ███████░░░  operativo   — PV-7 + señales + f
 Verification ███████░░░  operativo   — 5 scores, retroalimentación
 Safety       ███████░░░  operativo   — 4/5 estados (falta sandbox_only)
 Crystal      ███████░░░  operativo   — Q_cristal + temporal contextual
-Central      ██████░░░░  parcial     — N Creadora/Formadora fuera del ciclo
+Central      ██████░░░░  parcial     — N Creadora/Formadora SÍ conectadas (ver 3); execute_plan_steps/GovernedPlanDispatcher muertos
 Semántica    ████████░░  operativa   — regresión 1.9F reparada (Fase A.1)
 Learning     ███████░░░  operativo   — pipeline Fase C sobre learning_queue
 Federation   ███████░░░  operativo   — nodos + intercambio gated (Fase D)

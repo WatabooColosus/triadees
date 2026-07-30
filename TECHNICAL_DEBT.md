@@ -3,6 +3,45 @@
 Corte: 2026-07-30. SHA documental base: `8f44814`. Esta lista es canónica;
 los reportes anteriores son históricos cuando la contradicen.
 
+## Fase 2 — auditoría por órgano (2026-07-30)
+
+Auditoría de conectividad real (call sites, no documentación) de los 6
+agentes de exploración lanzados en esta sesión, cubriendo Central/Neuronas,
+Hipotálamo/Bodega/Cristal, Workers/Learning, LoRA/PEFT, Federación/nodo
+Android, y superficies de entrada. Detalle completo con ruta:línea ya
+volcado en `ARCHITECTURE_MAP.md` (marcado `[VERIFICADO 2026-07-30]`); aquí
+solo el resumen accionable para Fase 3.
+
+**Código muerto confirmado (cero callers productivos, candidatos a eliminar
+o conectar en Fase 3):**
+- `triade/runtime/governed_plan_dispatcher.py` completo (`GovernedPlanDispatcher`, `DispatchReceipt`).
+- `Central.execute_plan_steps/save_plan/load_plan`, `PlanGraph.close/extract_subgraph/to_dict` (`triade/core/central.py`).
+- `triade/memory/semantic_embedding_engine.py::embed_pending()`.
+- `triade/workers/state_machine.py` completo (`WorkerStateMachine`).
+- `triade/workers/lease_retry_breaker.py` completo (`Lease`, `CircuitBreaker`, etc.) — cero referencias incluso en tests.
+- `triade/federation/merge.py` completo (`FederatedMerge`) — ni siquiera exportado en `__init__.py`.
+
+**Código vestigial ("por estar", construido pero sin efecto) dentro del ciclo 24/7:**
+- `worker_loop.py:1684-1685` instancia `SemanticMemoryStore`/`SemanticMemoryGovernance` sin invocar ningún método.
+- `worker_loop.py:1268-1269` usa un `CrystalPacket` estático (`temporal_status="stable"` fijo) en vez de llamar a `Crystal.regulate()` real — el Cristal nunca opera fuera de conversaciones; los ciclos de fondo corren con un Cristal simulado. Esto contradice la idea de que "todos los órganos" trabajan siempre.
+
+**Pendiente de confirmar (no clasificado con certeza):**
+- Si `learning_outcome_score`/`learning_outcome_evidence_ref` se están poblando realmente en producción para que la transición `internally_checked → validated_in_runs` del Learning Pipeline cuente casos de uso, o si en la práctica casi todo cae en `observed_not_counted`.
+- `installer.py` (`goal_install`) está conectado en el dispatcher pero la tabla `installer_attempts` no existe aún en la DB actual — sugiere que ese camino nunca corrió de verdad.
+
+**Documentación desactualizada corregida en `ARCHITECTURE_MAP.md`:**
+- La nota "N Creadora/N Formadora/Registry fuera del ciclo" era falsa — están conectadas al runner y al ciclo 24/7.
+- La "duplicación D-07" (`chat_ui_app.py` etc.) ya fue eliminada por el propio proyecto el 2026-07-29 (commit `aa001f3`); el mapa seguía describiendo archivos que ya no existen.
+- README subestima Living Workers: son 19 task types reales, no 10.
+- La carpeta `systemd/` (raíz) es legado de otra máquina (`/home/santiago/triadees`) y colisionaría en puerto 8010 con `deploy/systemd/` si se instalara; un worker autónomo (`aa001f3`) la sigue tocando — riesgo real de que algún proceso futuro la active por error.
+
+**Hallazgo positivo confirmado (no era solo aspiracional):** el nodo Android
+(`android/triade-node/`) tiene 1296 líneas de Java funcional con llamadas
+HTTP reales a los endpoints de federación/relay, no un esqueleto vacío. El
+pipeline LoRA/PEFT entrenó de verdad con evidencia en DB y disco, y su gate
+de aprobación humana bloquea genuinamente en código, no solo en la
+documentación.
+
 ## P0 — certificación local
 
 - **Pendiente:** ejecutar desde el SHA final, sin compresión, las ventanas de
