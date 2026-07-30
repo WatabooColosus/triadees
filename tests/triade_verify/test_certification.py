@@ -42,3 +42,95 @@ def test_only_literal_passed_true_opens_evidence_gate(tmp_path: Path) -> None:
     assert all(manifest[gate.manifest_field] for gate in GATES)
     assert manifest["result"] == "PARTIAL_SAFE"
     assert len(manifest["evidence_files"]) == len(GATES)
+
+
+def test_ci_requires_same_sha_and_all_required_workflows(tmp_path: Path) -> None:
+    root = _repository(tmp_path)
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    path = root / "artifacts/triade_verify/phase_18/ci.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "sha": sha,
+                "passed": True,
+                "workflows": [
+                    {"name": name, "conclusion": "success"}
+                    for name in (
+                        "Runtime Truth CI",
+                        "Tríade Tests",
+                        "Measurement Core",
+                        "Python Tests",
+                    )
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = TriadeVerifier(root).generate(tmp_path / "result")
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["ci_verified"] is True
+
+    path.write_text(path.read_text().replace(sha, "wrong-sha"), encoding="utf-8")
+    second = TriadeVerifier(root).generate(tmp_path / "second")
+    second_manifest = json.loads((second / "manifest.json").read_text(encoding="utf-8"))
+    assert second_manifest["ci_verified"] is False
+
+
+def test_long_run_requires_both_real_windows_metrics_and_full_chaos(
+    tmp_path: Path,
+) -> None:
+    root = _repository(tmp_path)
+    phase = root / "artifacts/triade_verify/phase_17"
+    phase.mkdir(parents=True)
+    metrics = {
+        "duplicate_effects": 0,
+        "lost_tasks": 0,
+        "false_completed": 0,
+        "db_corruption": 0,
+        "late_results_accepted": 0,
+        "artifact_loss": 0,
+        "rollback_success_percent": 100.0,
+    }
+    for name, duration in (("runtime_24h.json", 86_400), ("runtime_72h.json", 259_200)):
+        (phase / name).write_text(
+            json.dumps(
+                {
+                    "passed": True,
+                    "sha": subprocess.run(
+                        ["git", "rev-parse", "HEAD"],
+                        cwd=root,
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    ).stdout.strip(),
+                    "wall_clock_not_compressed": True,
+                    "elapsed_seconds": duration,
+                    "requested_duration_seconds": duration,
+                    "availability": 0.99,
+                    "metrics": metrics,
+                }
+            ),
+            encoding="utf-8",
+        )
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    (phase / "chaos_short.json").write_text(
+        json.dumps({"full_chaos_verified": True, "sha": sha}), encoding="utf-8"
+    )
+
+    output = TriadeVerifier(root).generate(tmp_path / "result")
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["long_run_verified"] is True
