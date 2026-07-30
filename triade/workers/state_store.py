@@ -397,6 +397,12 @@ class WorkerStateStore:
             conn.execute(
                 "UPDATE worker_tasks SET status='pending', started_at=NULL, error=NULL WHERE status IN ('claimed','running')"
             )
+            conn.execute(
+                """UPDATE autonomous_tasks SET status='pending', worker_id=NULL,
+                lease_acquired_at=NULL, lease_expires_at=NULL, heartbeat_at=NULL,
+                last_error=NULL, attempt=0
+                WHERE status IN ('leased','running','retry_wait','deferred','completion_uncertain')"""
+            )
             rows = conn.execute(
                 "SELECT id, task_type, payload_json FROM worker_tasks WHERE status='pending' ORDER BY id ASC"
             ).fetchall()
