@@ -35,6 +35,7 @@ class TriadeVerifier:
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root).resolve()
         self.source = self.root / "artifacts" / "triade_verify"
+        self.live_source = self.root / "runs" / "triade_verify_live"
 
     @staticmethod
     def _load_passed(path: Path) -> bool:
@@ -136,9 +137,9 @@ class TriadeVerifier:
                 shutil.copy2(source_path, target)
                 copied.append({"file": target.name, "sha256": self._sha256(target)})
 
-        runtime_24h = self.source / "phase_17" / "runtime_24h.json"
-        runtime_72h = self.source / "phase_17" / "runtime_72h.json"
-        chaos = self.source / "phase_17" / "chaos_short.json"
+        runtime_24h = self.live_source / "phase_17" / "runtime_24h.json"
+        runtime_72h = self.live_source / "phase_17" / "runtime_72h.json"
+        chaos = self.live_source / "phase_17" / "chaos.json"
         runtime_24h_data = self._load_json(runtime_24h)
         runtime_72h_data = self._load_json(runtime_72h)
         chaos_data = self._load_json(chaos)
@@ -149,7 +150,7 @@ class TriadeVerifier:
             and chaos_data.get("sha") == current_sha
         )
         manifest["long_run_verified"] = long_run
-        ci_path = self.source / "phase_18" / "ci.json"
+        ci_path = self.live_source / "phase_18" / "ci.json"
         manifest["ci_verified"] = self._ci_passed(self._load_json(ci_path), current_sha)
 
         for source_path in (runtime_24h, runtime_72h, chaos, ci_path):

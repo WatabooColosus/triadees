@@ -11,7 +11,7 @@ def main() -> int:
     parser.add_argument("--duration-seconds", type=int, default=259_200)
     parser.add_argument("--interval-seconds", type=int, default=60)
     parser.add_argument(
-        "--report", default="artifacts/triade_verify/phase_17/runtime_72h.json"
+        "--report", default="runs/triade_verify_live/phase_17/runtime_72h.json"
     )
     args = parser.parse_args()
     report = run_wall_clock_validation(

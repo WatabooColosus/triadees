@@ -34,8 +34,9 @@ python scripts/run_24h_runtime_validation.py
 python scripts/run_72h_runtime_validation.py
 ```
 
-Evidencia corta: `artifacts/triade_verify/phase_17/chaos_short.json` y
-`runtime_short.json`.
+Evidencia histórica corta: `artifacts/triade_verify/phase_17/`. La evidencia
+certificable ligada al SHA se escribe en `runs/triade_verify_live/phase_17/` y
+el certificador la copia al bundle final; no modifica el commit evaluado.
 
 Estado: `implementation_complete`, `long_run_pending`. Los quince escenarios
 aislados pasaron. Worker y API son procesos reales de `WorkerBackgroundService`

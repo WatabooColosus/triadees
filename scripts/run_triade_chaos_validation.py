@@ -343,7 +343,7 @@ def main() -> int:
             and not not_executed
             and set(injected) == set(ALL_SCENARIOS),
         }
-    output = Path("artifacts/triade_verify/phase_17/chaos_short.json")
+    output = Path("runs/triade_verify_live/phase_17/chaos.json")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2))

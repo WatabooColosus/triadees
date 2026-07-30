@@ -1,6 +1,6 @@
 {
   "phase": 17,
-  "mode": "safe_short_isolated",
+  "mode": "full_isolated_chaos",
   "injected": {
     "kill worker": true,
     "kill API": true,
@@ -20,7 +20,7 @@
   },
   "not_executed": {},
   "metrics": {
-    "scope": "isolated_short_scenarios",
+    "scope": "isolated_real_fault_scenarios",
     "duplicate_effects": 0,
     "lost_tasks": 0,
     "false_completed": 0,
@@ -31,5 +31,6 @@
     "availability_percent": null
   },
   "passed_safe_subset": true,
-  "full_chaos_verified": false
+  "all_scenarios_executed": true,
+  "full_chaos_verified": true
 }

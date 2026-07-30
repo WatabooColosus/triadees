@@ -68,7 +68,7 @@ def collect() -> dict[str, object]:
 
 def main() -> int:
     evidence = collect()
-    target = Path("artifacts/triade_verify/phase_18/ci.json")
+    target = Path("runs/triade_verify_live/phase_18/ci.json")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         json.dumps(evidence, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"

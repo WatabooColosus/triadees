@@ -53,7 +53,7 @@ def test_ci_requires_same_sha_and_all_required_workflows(tmp_path: Path) -> None
         capture_output=True,
         text=True,
     ).stdout.strip()
-    path = root / "artifacts/triade_verify/phase_18/ci.json"
+    path = root / "runs/triade_verify_live/phase_18/ci.json"
     path.parent.mkdir(parents=True)
     path.write_text(
         json.dumps(
@@ -88,7 +88,7 @@ def test_long_run_requires_both_real_windows_metrics_and_full_chaos(
     tmp_path: Path,
 ) -> None:
     root = _repository(tmp_path)
-    phase = root / "artifacts/triade_verify/phase_17"
+    phase = root / "runs/triade_verify_live/phase_17"
     phase.mkdir(parents=True)
     metrics = {
         "duplicate_effects": 0,
@@ -127,7 +127,7 @@ def test_long_run_requires_both_real_windows_metrics_and_full_chaos(
         capture_output=True,
         text=True,
     ).stdout.strip()
-    (phase / "chaos_short.json").write_text(
+    (phase / "chaos.json").write_text(
         json.dumps({"full_chaos_verified": True, "sha": sha}), encoding="utf-8"
     )
 
