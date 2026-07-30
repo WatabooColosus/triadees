@@ -43,6 +43,65 @@ def killed_process() -> bool:
     return process.wait(timeout=5) != 0
 
 
+def kill_real_worker(root: Path) -> bool:
+    db = root / "worker.db"
+    runs = root / "worker-runs"
+    code = (
+        "from triade.workers.background_service import WorkerBackgroundService;"
+        f"WorkerBackgroundService({str(db)!r},{str(runs)!r}).start("
+        "max_iterations=1000,sleep_seconds=60,task_timeout=5)"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", code],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    lock = runs / ".triade_workers.lock"
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not lock.is_file():
+        if process.poll() is not None:
+            return False
+        time.sleep(0.1)
+    if not lock.is_file():
+        process.terminate()
+        process.wait(timeout=5)
+        return False
+    process.terminate()
+    return process.wait(timeout=5) != 0
+
+
+def kill_real_api(root: Path) -> bool:
+    port = _free_port()
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "apps.single_port_app:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+        ],
+        env={
+            **os.environ,
+            "TRIADE_DB_PATH": str(root / "api.db"),
+            "TRIADE_DISABLE_BACKGROUND": "1",
+        },
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        if not _wait_http(f"http://127.0.0.1:{port}/health/live"):
+            return False
+        process.terminate()
+        return process.wait(timeout=10) != 0
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            process.wait(timeout=5)
+
+
 def port_conflict() -> bool:
     first = socket.socket()
     second = socket.socket()
@@ -231,8 +290,8 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         injected = {
-            "kill worker": killed_process(),
-            "kill API": killed_process(),
+            "kill worker": kill_real_worker(root),
+            "kill API": kill_real_api(root),
             **lease_and_fencing(root),
             "DB lock": db_lock(root),
             "restart Ollama": restart_ollama(root),
@@ -256,11 +315,11 @@ def main() -> int:
         recovery_safe = injected["watchdog restart"] and injected["backup failure"]
         report = {
             "phase": 17,
-            "mode": "safe_short_isolated",
+            "mode": "full_isolated_chaos",
             "injected": injected,
             "not_executed": not_executed,
             "metrics": {
-                "scope": "isolated_short_scenarios",
+                "scope": "isolated_real_fault_scenarios",
                 "duplicate_effects": 0 if injected["stale fencing"] else 1,
                 "lost_tasks": 0 if injected["lease expiry"] else 1,
                 "false_completed": 0 if lease_safe else 1,
@@ -271,7 +330,11 @@ def main() -> int:
                 "availability_percent": None,
             },
             "passed_safe_subset": all(injected.values()),
-            "full_chaos_verified": False,
+            "all_scenarios_executed": not not_executed
+            and set(injected) == set(ALL_SCENARIOS),
+            "full_chaos_verified": all(injected.values())
+            and not not_executed
+            and set(injected) == set(ALL_SCENARIOS),
         }
     output = Path("artifacts/triade_verify/phase_17/chaos_short.json")
     output.parent.mkdir(parents=True, exist_ok=True)

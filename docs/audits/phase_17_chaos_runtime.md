@@ -38,9 +38,12 @@ Evidencia corta: `artifacts/triade_verify/phase_17/chaos_short.json` y
 `runtime_short.json`.
 
 Estado: `implementation_complete`, `long_run_pending`. Los quince escenarios
-aislados pasaron. Sus métricas tienen scope `isolated_short_scenarios`; la
-disponibilidad queda explícitamente `null`. Todavía no se verifica availability
-24/72h ni que todos los umbrales se mantengan durante ambas ventanas completas.
+aislados pasaron. Worker y API son procesos reales de `WorkerBackgroundService`
+y FastAPI/Uvicorn sobre DB/puerto temporales; no son procesos genéricos usados
+como sustitutos. Sus métricas tienen scope `isolated_real_fault_scenarios` y
+`full_chaos_verified=true`; la disponibilidad queda explícitamente `null` porque
+se mide en las ventanas prolongadas. Todavía no se verifica availability 24/72h
+ni que todos los umbrales se mantengan durante ambas ventanas completas.
 
 ## Validación ejecutada
 
