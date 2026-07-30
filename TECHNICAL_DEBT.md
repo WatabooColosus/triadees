@@ -123,6 +123,27 @@ los reportes anteriores son históricos cuando la contradicen.
   Verificado tras reinicio de `triade-api.service`: `effective_mode=
   full_local_guarded`, `degraded_by_governor=false`, supervisor real en
   `mode=full_local, enabled=true`.
+- **Efecto colateral real del fix anterior, corregido con evidencia:** al
+  activarse `full_local_guarded` por primera vez de verdad, `GET
+  /api/ui/react-dashboard` y `/triade/run` (chat) quedaron colgados 60s+ en
+  vivo — reportado por el usuario ("no me responde, se queda pensando").
+  Stack trace (`faulthandler.dump_traceback_later`) mostró el cuelgue exacto:
+  `ollama_client.embed()` esperando una respuesta HTTP de Ollama, llamado
+  desde `bodega.recall()` → `build_bodega_global_context()` →
+  `build_runtime_heartbeat()` → `react_dashboard()`. Causa: el unit
+  `triade-ollama.service` fijaba `OLLAMA_MAX_LOADED_MODELS=1` y
+  `OLLAMA_NUM_PARALLEL=1`; con el runtime ahora realmente activo, cada
+  petición de embedding forzaba descargar el modelo de razonamiento y cargar
+  `nomic-embed-text` (o viceversa), serializando todo. Con 22 GB de VRAM
+  libres de 23 GB y los 6 modelos instalados sumando 11.3 GB, subido a
+  `OLLAMA_MAX_LOADED_MODELS=3` / `OLLAMA_NUM_PARALLEL=2` en
+  `/etc/systemd/system/triade-ollama.service` (pendiente de sincronizar en
+  `deploy/systemd/triade-ollama.service` y commitear). Verificado: `embed()`
+  directo 0.07s con ambos modelos residentes a la vez; tras reiniciar
+  `triade-api.service` para vaciar el backlog de hilos ya atascados (algunos
+  esperando hasta 180s por el timeout ampliado en esta misma sesión),
+  `react-dashboard` respondió en 2.7s y `/api/run` (chat) completó en 23.7s
+  con contenido real.
 - **Pendiente:** crear `deploy/triade.env.example` versionado con el conjunto
   completo de variables reales usadas en producción local (`TRIADE_ALWAYS_ON_*`
   y `TRIADE_RUNTIME_*`), y un script `deploy/render_triade_env.sh` o similar
