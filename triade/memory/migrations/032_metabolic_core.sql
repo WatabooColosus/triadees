@@ -5,7 +5,8 @@ CREATE TABLE IF NOT EXISTS metabolic_cycle (
     status TEXT NOT NULL DEFAULT 'running',
     mode TEXT NOT NULL DEFAULT 'full',
     error TEXT,
-    recovery_ref TEXT
+    recovery_ref TEXT,
+    summary_json TEXT DEFAULT '{}'
 );
 
 CREATE TABLE IF NOT EXISTS metabolic_needs (

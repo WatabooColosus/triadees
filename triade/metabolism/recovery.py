@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class RecoveryManager:
@@ -25,8 +28,8 @@ class RecoveryManager:
                     self._mark_cycle_interrupted(conn, cycle["cycle_id"])
                     self._recover_needs(conn, cycle["cycle_id"])
                     recovered.append(cycle)
-        except (sqlite3.Error, OSError):
-            pass
+        except (sqlite3.Error, OSError) as exc:
+            logger.warning("recover_interrupted_cycles_failed: %s", exc)
         return recovered
 
     def _mark_cycle_interrupted(
@@ -62,5 +65,6 @@ class RecoveryManager:
                     ORDER BY priority DESC LIMIT 10"""
                 ).fetchall()
                 return [dict(r) for r in rows]
-        except (sqlite3.Error, OSError):
+        except (sqlite3.Error, OSError) as exc:
+            logger.warning("needs_after_recovery_failed: %s", exc)
             return []

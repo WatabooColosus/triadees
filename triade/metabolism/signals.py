@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from triade.metabolism.contracts import MetabolicSignal, ResourceUsageReceipt
+
+logger = logging.getLogger(__name__)
 
 
 class SignalBus:
@@ -56,8 +59,8 @@ class SignalBus:
                         json.dumps(signal.budget_used.to_dict() if signal.budget_used else {}),
                     ),
                 )
-        except (ImportError, OSError, RuntimeError):
-            pass
+        except (ImportError, OSError, RuntimeError) as exc:
+            logger.warning("signal_persist_failed: %s", exc)
 
     def recent(self, limit: int = 50) -> list[dict[str, Any]]:
         return [s.to_dict() for s in self._signals[-limit:]]

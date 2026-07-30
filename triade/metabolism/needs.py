@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from triade.metabolism.contracts import MetabolicNeed, ResourceBudget
+
+logger = logging.getLogger(__name__)
 
 
 NEED_DEFAULTS: dict[str, dict[str, Any]] = {
@@ -186,8 +189,8 @@ class NeedsQueue:
                         datetime.now(UTC).isoformat(),
                     ),
                 )
-        except (sqlite3.Error, OSError):
-            pass
+        except (sqlite3.Error, OSError) as exc:
+            logger.warning("persist_need_failed: %s", exc)
 
     def pending(self, limit: int = 20) -> list[dict[str, Any]]:
         try:
@@ -201,5 +204,6 @@ class NeedsQueue:
                     (limit,),
                 ).fetchall()
                 return [dict(r) for r in rows]
-        except (sqlite3.Error, OSError):
+        except (sqlite3.Error, OSError) as exc:
+            logger.warning("pending_needs_query_failed: %s", exc)
             return []

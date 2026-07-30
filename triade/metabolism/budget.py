@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import time
 from pathlib import Path
 from typing import Any
 
 from triade.metabolism.contracts import ResourceBudget
+
+logger = logging.getLogger(__name__)
 
 
 class BudgetTracker:
@@ -80,8 +83,8 @@ class BudgetTracker:
                         "cpu_seconds": float(row[1]),
                         "ram_mb": float(row[2]),
                     }
-        except (sqlite3.Error, OSError):
-            pass
+        except (sqlite3.Error, OSError) as exc:
+            logger.warning("cycle_usage_query_failed: %s", exc)
         return {"needs_count": 0, "cpu_seconds": 0.0, "ram_mb": 0.0}
 
     def _period_usage(self, kind: str, since: float) -> float:
@@ -95,7 +98,8 @@ class BudgetTracker:
                     (kind, since_iso),
                 ).fetchone()
                 return float(row[0]) if row else 0.0
-        except (sqlite3.Error, OSError):
+        except (sqlite3.Error, OSError) as exc:
+            logger.warning("period_usage_query_failed: %s", exc)
             return 0.0
 
     def snapshot(self) -> dict[str, Any]:

@@ -102,9 +102,9 @@ runtime_budget:
   model_installs_daily: 1
 
 metabolism:
-  enabled: true
-  dry_run: false
-  mode: full
+  enabled: false
+  dry_run: true
+  mode: observe_only
   interval_seconds: 15
   max_cycles: 0
   jitter_seconds: 2.0

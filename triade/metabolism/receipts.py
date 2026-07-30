@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import time
 import uuid
@@ -9,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from triade.metabolism.contracts import MetabolicReceipt, ResourceUsageReceipt
+
+logger = logging.getLogger(__name__)
 
 
 class ReceiptLedger:
@@ -73,8 +76,8 @@ class ReceiptLedger:
                         json.dumps(receipt.evidence),
                     ),
                 )
-        except (sqlite3.Error, OSError):
-            pass
+        except (sqlite3.Error, OSError) as exc:
+            logger.warning("receipt_persist_failed: %s", exc)
 
     def recent(self, limit: int = 50) -> list[dict[str, Any]]:
         try:
@@ -86,7 +89,8 @@ class ReceiptLedger:
                     (limit,),
                 ).fetchall()
                 return [dict(r) for r in rows]
-        except (sqlite3.Error, OSError):
+        except (sqlite3.Error, OSError) as exc:
+            logger.warning("receipt_query_failed: %s", exc)
             return []
 
     def count_by_status(self) -> dict[str, int]:
@@ -96,5 +100,6 @@ class ReceiptLedger:
                     "SELECT status, COUNT(*) as cnt FROM metabolic_receipts GROUP BY status"
                 ).fetchall()
                 return {str(r[0]): int(r[1]) for r in rows}
-        except (sqlite3.Error, OSError):
+        except (sqlite3.Error, OSError) as exc:
+            logger.warning("count_by_status_failed: %s", exc)
             return {}

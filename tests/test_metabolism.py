@@ -1,0 +1,245 @@
+from __future__ import annotations
+
+import json
+import sqlite3
+import threading
+import time
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from triade.metabolism.coordinator import MetabolicCoordinator, get_coordinator
+from triade.metabolism.contracts import MetabolicNeed
+
+
+def _coordinator(tmp_path: Path, **overrides: Any) -> MetabolicCoordinator:
+    db = tmp_path / "test.db"
+    cfg = tmp_path / "triade.yml"
+    interval = overrides.get("interval_seconds", 0.5)
+    max_cycles = overrides.get("max_cycles", 1)
+    enabled = "true" if overrides.get("enabled", True) else "false"
+    dry_run = "true" if overrides.get("dry_run", False) else "false"
+    mode = overrides.get("mode", "full")
+    cfg.write_text(
+        f"metabolism:\n"
+        f"  enabled: {enabled}\n"
+        f"  mode: {mode}\n"
+        f"  dry_run: {dry_run}\n"
+        f"  interval_seconds: {interval}\n"
+        f"  max_cycles: {max_cycles}\n"
+        f"  jitter_seconds: 0.0\n",
+        encoding="utf-8",
+    )
+    return MetabolicCoordinator(db_path=str(db), config_path=str(cfg))
+
+
+class TestLifecycle:
+    def test_start_stop(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path)
+        c.load_config()
+        assert c._enabled is True
+        result = c.start()
+        assert result["status"] == "started"
+        time.sleep(0.1)
+        status = c.status()
+        assert status["running"] is True
+        assert status["enabled"] is True
+        stop = c.stop(timeout=5)
+        assert stop["status"] == "stopped"
+        assert c.status()["running"] is False
+
+    def test_start_disabled(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path, enabled=False)
+        assert c._enabled is False
+        result = c.start()
+        assert result["status"] == "disabled"
+        assert c._thread is None
+
+    def test_start_twice_no_deadlock(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path)
+        c.load_config()
+        r1 = c.start()
+        assert r1["status"] == "started"
+        r2 = c.start()
+        assert r2["status"] in ("already_running",)
+        c.stop(timeout=5)
+
+    def test_concurrent_status_calls(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path)
+        c.load_config()
+        c.start()
+        errors: list[Exception] = []
+
+        def hammer() -> None:
+            try:
+                for _ in range(50):
+                    c.status()
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=hammer) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert not errors, f"concurrent status() raised: {errors}"
+        c.stop(timeout=5)
+
+    def test_shutdown(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path)
+        c.load_config()
+        c.start()
+        time.sleep(0.1)
+        result = c.shutdown()
+        assert result["status"] == "stopped"
+        assert c._thread is None or not c._thread.is_alive()
+
+    def test_status_after_stop(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path)
+        c.load_config()
+        c.start()
+        c.stop(timeout=5)
+        status = c.status()
+        assert status["running"] is False
+        assert status["status"] == "stopped"
+
+
+class TestProcessLock:
+    def test_lock_prevents_second_coordinator(self, tmp_path: Path) -> None:
+        c1 = _coordinator(tmp_path, enabled=True, max_cycles=0, interval_seconds=60)
+        c2 = _coordinator(tmp_path, enabled=True, max_cycles=0, interval_seconds=60)
+        c1.load_config()
+        r1 = c1.start()
+        assert r1["status"] == "started"
+        err = c2._acquire_process_lock()
+        assert err is not None, f"expected lock held, got {err!r}"
+        r2 = c2.start()
+        assert r2["status"] == "locked", f"expected locked, got {r2}"
+        c1.stop(timeout=5)
+
+    def test_lock_released_on_stop(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path, max_cycles=0, interval_seconds=60)
+        c.load_config()
+        c.start()
+        lock_path = c._process_lock_path
+        assert lock_path.exists()
+        c.stop(timeout=5)
+        assert not lock_path.exists()
+
+
+class TestDryRun:
+    def test_dry_run_does_not_execute(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path, dry_run=True)
+        c.load_config()
+        assert c._dry_run is True
+        need = MetabolicNeed(
+            need_id="test-dry-run-001",
+            kind="health_check",
+            priority=90,
+            evidence={},
+        )
+        result = c._execute([need], cycle_id=1)
+        assert len(result) == 1
+        assert result[0]["status"] == "dry_run"
+
+    def test_dry_run_via_config(self, tmp_path: Path) -> None:
+        cfg = tmp_path / "triade.yml"
+        cfg.write_text(
+            "metabolism:\n"
+            "  enabled: true\n"
+            "  dry_run: true\n"
+            "  mode: observe_only\n"
+            "  interval_seconds: 60\n"
+            "  max_cycles: 0\n"
+            "  jitter_seconds: 0.0\n",
+            encoding="utf-8",
+        )
+        c = MetabolicCoordinator(db_path=str(tmp_path / "test.db"), config_path=str(cfg))
+        c.load_config()
+        assert c._dry_run is True
+        assert c._mode == "observe_only"
+
+
+class TestRunNeedAction:
+    def test_unknown_kind_returns_skipped(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path)
+        need = MetabolicNeed(
+            need_id="test-unknown-001",
+            kind="nonexistent_kind_xyz",
+            priority=50,
+            evidence={},
+        )
+        status, detail = c._run_need_action(need, 1)
+        assert status == "skipped"
+        assert "no_handler" in detail
+
+    def test_health_check_is_success(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path)
+        status, detail = c._action_health_check()
+        assert status == "success"
+
+
+class TestConsolidate:
+    def test_consolidate_writes_summary(self, tmp_path: Path) -> None:
+        db = tmp_path / "test.db"
+        c = _coordinator(tmp_path)
+        c.db_path = db
+        cycle_id = c._start_cycle()
+        need = MetabolicNeed(
+            need_id="test-consolidate-001",
+            kind="health_check",
+            priority=90,
+            evidence={},
+        )
+        c._execute([need], cycle_id)
+        c._consolidate(
+            [{"need_id": need.need_id, "status": "success", "detail": "ok"}],
+            cycle_id,
+        )
+        with sqlite3.connect(db) as conn:
+            row = conn.execute(
+                "SELECT summary_json FROM metabolic_cycle WHERE cycle_id=?",
+                (cycle_id,),
+            ).fetchone()
+        assert row is not None
+        summary = json.loads(row[0])
+        assert summary["passed"] >= 1
+        assert summary["total"] >= 1
+
+
+class TestResourceMeasurement:
+    def test_execute_need_records_real_cpu(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path)
+        cycle_id = c._start_cycle()
+        need = MetabolicNeed(
+            need_id="test-cpu-001",
+            kind="health_check",
+            priority=90,
+            evidence={},
+        )
+        result = c._execute_need(need, cycle_id)
+        assert result["status"] == "success"
+        assert "duration_ms" in result
+        assert result["duration_ms"] > 0
+
+    def test_rss_measurement_returns_float(self, tmp_path: Path) -> None:
+        rss = MetabolicCoordinator._measure_rss_mb()
+        assert isinstance(rss, float)
+        assert rss >= 0
+
+
+class TestSingleton:
+    def test_get_coordinator_is_singleton(self, tmp_path: Path) -> None:
+        db = str(tmp_path / "test.db")
+        c1 = get_coordinator(db_path=db)
+        c2 = get_coordinator(db_path=db)
+        assert c1 is c2
+
+    def test_configure_updates_mode(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path)
+        c.load_config()
+        c.configure(mode="observe_only")
+        assert c._mode == "observe_only"
+        c.configure(mode="full")
+        assert c._mode == "full"
