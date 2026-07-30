@@ -6,7 +6,10 @@ intención, urgencia y capacidad del sistema.
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any, ClassVar
 
 from .hardware_profile import HardwareProfile
@@ -31,6 +34,11 @@ class ModelRouter:
     """Recomienda modelos por rol según disponibilidad, intención y hardware."""
 
     DEFAULTS: ClassVar = {
+        "planner": ["qwen3:4b", "qwen2.5:3b-instruct"],
+        "critic": ["qwen3:4b", "qwen2.5:3b-instruct"],
+        "evaluator": ["qwen3:4b", "qwen2.5:3b-instruct"],
+        "vision": ["gemma3:4b"],
+        "summarizer": ["qwen3:1.7b", "qwen2.5:3b-instruct"],
         "hypothalamus": ["qwen2.5:3b-instruct", "qwen3:1.7b", "qwen3:4b"],
         "central": ["qwen2.5:3b-instruct", "llama3:latest", "llama3.1:8b", "qwen3:4b"],
         "creator": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
@@ -88,6 +96,9 @@ class ModelRouter:
         prefer_depth: bool = False,
     ) -> ModelRouteDecision:
         normalized_role = self._normalize_role(role, intent, prefer_speed, prefer_depth)
+        measured = self._measured_route(normalized_role)
+        if measured is not None:
+            return measured
         candidates = self.DEFAULTS.get(normalized_role, self.DEFAULTS["central"])
         hardware_candidates, rejected = self._filter_by_hardware(candidates)
         selected = self._first_available(hardware_candidates)
@@ -130,6 +141,37 @@ class ModelRouter:
             candidates=hardware_candidates,
             hardware_tier=hardware_tier,
             rejected_by_hardware=rejected,
+        )
+
+    def _measured_route(self, role: str) -> ModelRouteDecision | None:
+        configured = os.getenv(
+            "TRIADE_MEASURED_ROUTING_PATH", "triade/models/active_routing.json"
+        )
+        path = Path(configured)
+        if not path.is_file():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, TypeError):
+            return None
+        if payload.get("status") != "active" or not payload.get("evidence_ref"):
+            return None
+        routes = payload.get("routes")
+        if not isinstance(routes, dict):
+            return None
+        selected = routes.get(role)
+        if not isinstance(selected, str) or selected not in self.available_models:
+            return None
+        if not self._model_fits(selected):
+            return None
+        return ModelRouteDecision(
+            role=role,
+            selected_model=selected,
+            reason=f"measured_ab_route:{payload.get('benchmark_sha256', 'unknown')}",
+            fallback_used=False,
+            candidates=[selected],
+            hardware_tier=self.hardware.tier if self.hardware else "unknown",
+            rejected_by_hardware=[],
         )
 
     def route_many(
@@ -216,6 +258,13 @@ class ModelRouter:
             "rapido": "fast",
             "rápido": "fast",
             "profundo": "deep",
+            "planificador": "planner",
+            "crítico": "critic",
+            "critico": "critic",
+            "evaluador": "evaluator",
+            "visión": "vision",
+            "vision": "vision",
+            "resumidor": "summarizer",
         }
         clean = aliases.get(clean, clean)
         if prefer_speed and clean == "central":

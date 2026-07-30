@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "status": "active",
+  "baseline_model": "qwen3:4b",
+  "routes": {
+    "planner": "qwen3:4b",
+    "coder": "qwen2.5-coder:3b",
+    "critic": "qwen3:4b",
+    "evaluator": "qwen3:4b",
+    "embedding": "nomic-embed-text:latest",
+    "vision": "gemma3:4b",
+    "summarizer": "qwen3:1.7b"
+  },
+  "benchmark_sha256": "43121b70b8c8fa0bbb52bcc593be90ef9fe9f5ff9c7212b8c02a2df7ea2a1f21",
+  "evidence_ref": "artifacts/triade_verify/phase_11/multi_model.json",
+  "rollback_ref": "triade/models/active_routing.rollback.json"
+}

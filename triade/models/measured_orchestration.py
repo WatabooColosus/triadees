@@ -27,6 +27,8 @@ ROLES: tuple[Role, ...] = (
     "vision",
     "summarizer",
 )
+QUALITY_GAIN_THRESHOLD = 0.1
+MAX_RESOURCE_RATIO_FOR_QUALITY_GAIN = 2.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,9 +154,27 @@ class MeasuredModelOrchestrator:
         else:
             quality_gain = 0.0
             resource_gain = 0.0
-        adopted = complete and quality_gain >= 0 and resource_gain > 0
+        resource_ratio = (
+            candidate_metrics["resource_cost"] / baseline_metrics["resource_cost"]
+            if complete
+            and baseline_metrics is not None
+            and candidate_metrics is not None
+            and baseline_metrics["resource_cost"] > 0
+            else float("inf")
+        )
+        adopted_for_efficiency = complete and quality_gain >= 0 and resource_gain > 0
+        adopted_for_quality = (
+            complete
+            and quality_gain >= QUALITY_GAIN_THRESHOLD
+            and resource_ratio <= MAX_RESOURCE_RATIO_FOR_QUALITY_GAIN
+        )
+        adopted = adopted_for_efficiency or adopted_for_quality
         reason = (
-            "measured_improvement" if adopted else "benchmark_missing_or_no_improvement"
+            "measured_resource_improvement"
+            if adopted_for_efficiency
+            else "measured_quality_improvement_within_resource_budget"
+            if adopted_for_quality
+            else "benchmark_missing_or_no_improvement"
         )
         decision = {
             "decision_id": f"md-{uuid.uuid4().hex}",
@@ -163,6 +183,7 @@ class MeasuredModelOrchestrator:
             "reason": reason,
             "quality_gain": quality_gain,
             "resource_gain": resource_gain,
+            "resource_ratio": resource_ratio,
         }
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(

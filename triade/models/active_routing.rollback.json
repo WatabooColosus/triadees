@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "status": "rollback_baseline",
+  "baseline_model": "qwen3:4b",
+  "routes": {
+    "planner": "qwen3:4b",
+    "coder": "qwen3:4b",
+    "critic": "qwen3:4b",
+    "evaluator": "qwen3:4b",
+    "embedding": "qwen3:4b",
+    "vision": "qwen3:4b",
+    "summarizer": "qwen3:4b"
+  },
+  "evidence_ref": "artifacts/triade_verify/phase_11/multi_model.json"
+}

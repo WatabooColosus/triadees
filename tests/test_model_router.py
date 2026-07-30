@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+import pytest
+
 from triade.models.hardware_profile import HardwareProfile
 from triade.models.model_router import ModelRouter
 
@@ -98,3 +103,33 @@ def test_embedding_is_allowed_even_on_low_hardware() -> None:
 
     assert decision.selected_model == "nomic-embed-text:latest"
     assert decision.rejected_by_hardware == []
+
+
+def test_measured_route_requires_active_status_and_evidence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    manifest = tmp_path / "routing.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "status": "active",
+                "routes": {"summarizer": "qwen3:1.7b"},
+                "benchmark_sha256": "abc",
+                "evidence_ref": "evidence.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TRIADE_MEASURED_ROUTING_PATH", str(manifest))
+    decision = ModelRouter(AVAILABLE).route("summarizer")
+    assert decision.selected_model == "qwen3:1.7b"
+    assert decision.reason == "measured_ab_route:abc"
+
+    manifest.write_text(
+        json.dumps(
+            {"status": "rollback_baseline", "routes": {"summarizer": "qwen3:1.7b"}}
+        ),
+        encoding="utf-8",
+    )
+    fallback = ModelRouter(AVAILABLE).route("summarizer")
+    assert fallback.reason != "measured_ab_route:abc"

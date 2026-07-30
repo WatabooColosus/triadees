@@ -78,3 +78,24 @@ def test_ab_adopts_only_measured_resource_improvement(tmp_path: Path) -> None:
         candidate_metrics={"quality": 0.8, "resource_cost": 8.0},
     )
     assert decision["adopted"] is True
+
+
+def test_ab_adopts_significant_quality_gain_only_within_resource_budget(
+    tmp_path: Path,
+) -> None:
+    orchestrator = MeasuredModelOrchestrator(tmp_path / "db", [])
+    accepted = orchestrator.evaluate_adoption(
+        baseline_model="single",
+        routes=[],
+        baseline_metrics={"quality": 0.7, "resource_cost": 10.0},
+        candidate_metrics={"quality": 0.85, "resource_cost": 15.0},
+    )
+    rejected = orchestrator.evaluate_adoption(
+        baseline_model="single",
+        routes=[],
+        baseline_metrics={"quality": 0.7, "resource_cost": 10.0},
+        candidate_metrics={"quality": 0.85, "resource_cost": 21.0},
+    )
+    assert accepted["adopted"] is True
+    assert accepted["reason"] == "measured_quality_improvement_within_resource_budget"
+    assert rejected["adopted"] is False

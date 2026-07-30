@@ -1,12 +1,216 @@
 {
   "phase": 11,
-  "ollama_models": [],
-  "provider_error": "URLError: <urlopen error [Errno 111] Connection refused>",
-  "real_ab_executed": false,
-  "routing_adopted": false,
-  "rollback_ref": "model-routing:restore:single-model-baseline",
-  "implementation_complete": true,
-  "runtime_verified": false,
-  "status": "partial",
-  "reason": "real_models_unavailable"
+  "ollama_models": [
+    "gemma3:4b",
+    "qwen3:4b",
+    "nomic-embed-text:latest",
+    "qwen2.5-coder:3b",
+    "qwen3:1.7b",
+    "qwen2.5:3b-instruct"
+  ],
+  "baseline_model": "qwen3:4b",
+  "candidate_routes": {
+    "planner": "qwen3:4b",
+    "coder": "qwen2.5-coder:3b",
+    "critic": "qwen3:4b",
+    "evaluator": "qwen3:4b",
+    "embedding": "nomic-embed-text:latest",
+    "vision": "gemma3:4b",
+    "summarizer": "qwen3:1.7b"
+  },
+  "benchmark_seed": 17,
+  "evaluation": "deterministic_contract_and_semantic_ranking",
+  "baseline": [
+    {
+      "role": "planner",
+      "model": "qwen3:4b",
+      "status": "ok",
+      "quality": 1.0,
+      "latency_ms": 7523.862,
+      "peak_ram_mb": 351.48,
+      "peak_vram_mb": 3260.0,
+      "output": "{\n  \"steps\": [\n    {\n      \"step_number\": 1,\n      \"description\": \"Crear backup inicial\",\n      \"command\": \"sqlite3 database.db 'backup database.db'\"\n    },\n    {\n      \"step_number\": 2,\n      \"description\": \"Validaci\u00f3n de estructura\",\n      \"command\": \"sqlite3 database.db 'PRAGMA table_info(table_name);'\"\n    },\n    {\n      \"step_number\": 3,\n      \"description\": \"Aplicar migraci\u00f3n\",\n      \"command\": \"sqlite3 database.db 'ALTER TABLE table_name ADD COLUMN new_column TEXT;'\"\n    },\n    {\n      \"step_number\": 4,\n      \"description\": \"Validaci\u00f3n post-migraci\u00f3n\",\n      \"command\": \"sqlite3 database.db 'SELECT COUNT(*) FROM table_name;'\"\n    },\n    {\n      \"step_number\": \":\",\n      \"description\": \"Restauraci\u00f3n\",\n      \"command\": \"sqlite3 database.db 'ATTACH DATABASE backup.db AS backup; ALTER TABLE table_name RENAME TO table_name_backup; CREATE TABLE table_name AS SELECT * FROM backup.table_name;'\"\n    }\n  ],\n  \"rollback\": \"Restaurar el backup inicial (database.db) para revertir los cambios\"\n}",
+      "error": null,
+      "resource_cost": 7853.377
+    },
+    {
+      "role": "coder",
+      "model": "qwen3:4b",
+      "status": "ok",
+      "quality": 1.0,
+      "latency_ms": 5650.978,
+      "peak_ram_mb": 326.332,
+      "peak_vram_mb": 3260.0,
+      "output": "{\n  \"code\": 200,\n  \"invariant\": \"La funci\u00f3n debe ser idempotente y verificar si la clave existe antes de insertarla en el diccionario.\"\n}",
+      "error": null,
+      "resource_cost": 5980.241
+    },
+    {
+      "role": "critic",
+      "model": "qwen3:4b",
+      "status": "ok",
+      "quality": 1.0,
+      "latency_ms": 5634.762,
+      "peak_ram_mb": 304.945,
+      "peak_vram_mb": 3260.0,
+      "output": "{\"issues\": [{\"message\": \"except Exception: return True\", \"severity\": \"high\"}], \"severity\": \"high\"}",
+      "error": null,
+      "resource_cost": 5963.811
+    },
+    {
+      "role": "evaluator",
+      "model": "qwen3:4b",
+      "status": "ok",
+      "quality": 0.75,
+      "latency_ms": 5523.28,
+      "peak_ram_mb": 325.562,
+      "peak_vram_mb": 3260.0,
+      "output": "{\n  \"score\": 0.0,\n  \"reasons\": [\n    \"No se recibi\u00f3 efecto en la ejecuci\u00f3n\",\n    \"No se gener\u00f3 artefacto en la ejecuci\u00f3n\"\n  ]\n}",
+      "error": null,
+      "resource_cost": 5852.536
+    },
+    {
+      "role": "embedding",
+      "model": "qwen3:4b",
+      "status": "unavailable",
+      "quality": 0.0,
+      "latency_ms": 0.0,
+      "peak_ram_mb": 0.0,
+      "peak_vram_mb": 0.0,
+      "output": "",
+      "error": "HTTP Error 501: Not Implemented",
+      "resource_cost": 0.0
+    },
+    {
+      "role": "vision",
+      "model": "qwen3:4b",
+      "status": "error",
+      "quality": 0.0,
+      "latency_ms": 0.0,
+      "peak_ram_mb": 0.0,
+      "peak_vram_mb": 0.0,
+      "output": "",
+      "error": "HTTP Error 400: Bad Request",
+      "resource_cost": 0.0
+    },
+    {
+      "role": "summarizer",
+      "model": "qwen3:4b",
+      "status": "ok",
+      "quality": 1.0,
+      "latency_ms": 6017.922,
+      "peak_ram_mb": 322.898,
+      "peak_vram_mb": 3930.0,
+      "output": "{\n  \"summary\": \"La tarea 7 expir\u00f3; fencing 3 rechaz\u00f3 el resultado tard\u00edo; no hubo efecto\",\n  \"facts\": [\n    \"La tarea 7 expir\u00f3\",\n    \"fencing 3 rechaz\u00f3 el resultado tard\u00edo\",\n    \"no hubo efecto\"\n  ]\n}",
+      "error": null,
+      "resource_cost": 6414.151
+    }
+  ],
+  "candidate": [
+    {
+      "role": "planner",
+      "model": "qwen3:4b",
+      "status": "ok",
+      "quality": 1.0,
+      "latency_ms": 7523.862,
+      "peak_ram_mb": 351.48,
+      "peak_vram_mb": 3260.0,
+      "output": "{\n  \"steps\": [\n    {\n      \"step_number\": 1,\n      \"description\": \"Crear backup inicial\",\n      \"command\": \"sqlite3 database.db 'backup database.db'\"\n    },\n    {\n      \"step_number\": 2,\n      \"description\": \"Validaci\u00f3n de estructura\",\n      \"command\": \"sqlite3 database.db 'PRAGMA table_info(table_name);'\"\n    },\n    {\n      \"step_number\": 3,\n      \"description\": \"Aplicar migraci\u00f3n\",\n      \"command\": \"sqlite3 database.db 'ALTER TABLE table_name ADD COLUMN new_column TEXT;'\"\n    },\n    {\n      \"step_number\": 4,\n      \"description\": \"Validaci\u00f3n post-migraci\u00f3n\",\n      \"command\": \"sqlite3 database.db 'SELECT COUNT(*) FROM table_name;'\"\n    },\n    {\n      \"step_number\": \":\",\n      \"description\": \"Restauraci\u00f3n\",\n      \"command\": \"sqlite3 database.db 'ATTACH DATABASE backup.db AS backup; ALTER TABLE table_name RENAME TO table_name_backup; CREATE TABLE table_name AS SELECT * FROM backup.table_name;'\"\n    }\n  ],\n  \"rollback\": \"Restaurar el backup inicial (database.db) para revertir los cambios\"\n}",
+      "error": null,
+      "resource_cost": 7853.377
+    },
+    {
+      "role": "coder",
+      "model": "qwen2.5-coder:3b",
+      "status": "ok",
+      "quality": 1.0,
+      "latency_ms": 5224.755,
+      "peak_ram_mb": 317.246,
+      "peak_vram_mb": 3260.0,
+      "output": "{\n  \"code\": 200,\n  \"invariant\": \"La funci\u00f3n inserta una clave solo si no existe.\"\n}",
+      "error": null,
+      "resource_cost": 5553.927
+    },
+    {
+      "role": "critic",
+      "model": "qwen3:4b",
+      "status": "ok",
+      "quality": 1.0,
+      "latency_ms": 5634.762,
+      "peak_ram_mb": 304.945,
+      "peak_vram_mb": 3260.0,
+      "output": "{\"issues\": [{\"message\": \"except Exception: return True\", \"severity\": \"high\"}], \"severity\": \"high\"}",
+      "error": null,
+      "resource_cost": 5963.811
+    },
+    {
+      "role": "evaluator",
+      "model": "qwen3:4b",
+      "status": "ok",
+      "quality": 0.75,
+      "latency_ms": 5523.28,
+      "peak_ram_mb": 325.562,
+      "peak_vram_mb": 3260.0,
+      "output": "{\n  \"score\": 0.0,\n  \"reasons\": [\n    \"No se recibi\u00f3 efecto en la ejecuci\u00f3n\",\n    \"No se gener\u00f3 artefacto en la ejecuci\u00f3n\"\n  ]\n}",
+      "error": null,
+      "resource_cost": 5852.536
+    },
+    {
+      "role": "embedding",
+      "model": "nomic-embed-text:latest",
+      "status": "ok",
+      "quality": 1.0,
+      "latency_ms": 2072.785,
+      "peak_ram_mb": 288.684,
+      "peak_vram_mb": 3258.0,
+      "output": "semantic_ranking",
+      "error": null,
+      "resource_cost": 2401.472
+    },
+    {
+      "role": "vision",
+      "model": "gemma3:4b",
+      "status": "ok",
+      "quality": 1.0,
+      "latency_ms": 8305.54,
+      "peak_ram_mb": 346.332,
+      "peak_vram_mb": 3930.0,
+      "output": "{\"color\": \"red\"}",
+      "error": null,
+      "resource_cost": 8702.003
+    },
+    {
+      "role": "summarizer",
+      "model": "qwen3:1.7b",
+      "status": "ok",
+      "quality": 1.0,
+      "latency_ms": 5098.985,
+      "peak_ram_mb": 327.473,
+      "peak_vram_mb": 3260.0,
+      "output": "{\n  \"summary\": \"La tarea 7 expir\u00f3; fencing 3 rechaz\u00f3 el resultado tard\u00edo; no hubo efecto\",\n  \"facts\": [\"La tarea 7 expir\u00f3\", \"fencing 3 rechaz\u00f3 el resultado tard\u00edo\", \"no hubo efecto\"]\n}",
+      "error": null,
+      "resource_cost": 5428.26
+    }
+  ],
+  "baseline_metrics": {
+    "quality": 0.6786,
+    "latency_ms": 4335.829,
+    "peak_ram_mb": 351.48,
+    "peak_vram_mb": 3930.0,
+    "resource_cost": 4580.588
+  },
+  "candidate_metrics": {
+    "quality": 0.9643,
+    "latency_ms": 5626.281,
+    "peak_ram_mb": 351.48,
+    "peak_vram_mb": 3930.0,
+    "resource_cost": 5965.055
+  },
+  "real_ab_executed": true,
+  "routing_adopted": true,
+  "rollback_ref": "model-routing:restore:qwen3:4b",
+  "adoption_reason": "measured_quality_improvement_within_resource_budget",
+  "runtime_verified": true,
+  "status": "completed",
+  "reason": "measured_quality_improvement_within_resource_budget"
 }
