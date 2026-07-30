@@ -414,16 +414,16 @@ documentación.
   Ninguno se corrigió en esta sesión por estar fuera del alcance de los
   archivos tocados; quedan listados aquí para que "Ruff/mypy cero" deje de
   afirmarse sin evidencia reproducible en este entorno.
-- **Pendiente, no reproducido de forma determinista:** `GET
-  /api/runtime/heartbeat` colgó 60s+ sin responder (dos intentos) justo tras un
-  reinicio de Ollama; una llamada directa a `build_runtime_heartbeat()` sin la
-  capa HTTP también colgó >45s una vez y luego resolvió en 3.4s. Contradice la
-  descripción de README ("heartbeat ligero... sin llamadas a modelos"): la
-  función real llama a `check_ollama_cognitive_health()` y `check_ollama_blood()`
-  y construye contexto vivo completo (`build_living_context_for_chat`), no es
-  liviana. Hipótesis sin confirmar: contención de SQLite o de Ollama durante
-  carga en frío del modelo. Requiere reproducción controlada y, si se confirma,
-  timeout explícito o desacoplar el chequeo cognitivo del endpoint de pulso.
+- **Confirmado y cerrado (2026-07-30, ronda posterior):** el cuelgue de `GET
+  /api/runtime/heartbeat` era el mismo problema de fondo que el cuelgue del
+  dashboard/chat documentado abajo (`OLLAMA_MAX_LOADED_MODELS=1` forzando
+  descarga/carga de modelos en cada embedding). Re-probado tras el fix de
+  `OLLAMA_MAX_LOADED_MODELS=3`/`OLLAMA_NUM_PARALLEL=2`: 5 llamadas solas
+  (1.5–2.2s) y 6 llamadas concurrentes (10–12s, degradación normal bajo
+  carga, no cuelgue) — cero fallos. Sigue siendo cierto que la función no es
+  tan liviana como dice README (llama a Ollama y construye contexto vivo
+  completo); eso queda como nota de precisión de documentación, no como bug
+  de disponibilidad.
 
 ## Cerrado con evidencia local
 

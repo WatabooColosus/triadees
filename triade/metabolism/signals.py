@@ -4,6 +4,7 @@ import json
 import logging
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from triade.metabolism.contracts import MetabolicSignal, ResourceUsageReceipt
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class SignalBus:
-    def __init__(self, db_path: str = "triade/memory/triade.db") -> None:
+    def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = db_path
         self._signals: list[MetabolicSignal] = []
 

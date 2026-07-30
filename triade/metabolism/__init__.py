@@ -1,4 +1,3 @@
-from triade.metabolism.coordinator import MetabolicCoordinator
 from triade.metabolism.contracts import (
     MetabolicNeed,
     MetabolicPolicy,
@@ -7,6 +6,7 @@ from triade.metabolism.contracts import (
     ResourceBudget,
     ResourceUsageReceipt,
 )
+from triade.metabolism.coordinator import MetabolicCoordinator
 
 __all__ = [
     "MetabolicCoordinator",

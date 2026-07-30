@@ -390,7 +390,7 @@ class WorkerLoop:
                 run_immediately=True,
             )
 
-            target_iterations = int(config.max_iterations)
+            target_iterations: int | float = int(config.max_iterations)
             if target_iterations <= 0:
                 target_iterations = float("inf")
             while summary["iterations"] < target_iterations:

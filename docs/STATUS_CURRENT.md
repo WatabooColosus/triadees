@@ -18,6 +18,24 @@ verde registrado sobre el mismo SHA final.
   relational modulation state PV-7, metacognición, research y learning receipts.
 - Utility Ledger, certificación neuronal, LoRA/PEFT canary gobernado, federación
   firmada, autenticación/RBAC, sesiones y cuotas distribuidas con Redis.
+- **Autonomía Delegada (FASE 8):** marco de autonomía por niveles
+  (`observe_only → safe_write → project_maintenance → repo_refactor →
+  full_local_guarded`, `triade/core/autonomy_budget.py`) con presupuesto por
+  ciclo (archivos/bytes máximos), clasificación de rutas en zonas
+  green/yellow/red/forbidden (`triade/core/system_zones.py`), operaciones de
+  archivo seguras con backup/restore (`triade/core/safe_file_ops.py`),
+  papelera con manifest recuperable en vez de borrado directo
+  (`triade/core/quarantine_trash.py`), verificación de integridad
+  pre/post-cambio (`triade/core/integrity_verifier.py`) y planificación de
+  acciones delegadas (`triade/core/delegated_action_planner.py`). Expuesto en
+  producción vía `/api/autonomy/budget`, `/api/system/zones`,
+  `/api/delegated/plan`, `/api/trash/*`, `/api/files/*`
+  (`apps/routes/api.py`, montado en `single_port_app.py`). 46 tests en
+  `tests/test_autonomy_delegation.py`. Ningún nivel, ni siquiera el máximo,
+  permite `delete_permanently`, `modify_identity_core`, `modify_git` ni
+  `run_shell_free` sin aprobación humana — es una regla dura del propio
+  presupuesto (`_forbidden_actions`/`_human_approval` en
+  `autonomy_budget.py`), no una política externa.
 - Backups Fernet, restore drills semanales, retención recuperable y runners
   chaos/24 h/72 h con métricas completas y procedencia por SHA.
 - Certificador reproducible que no abre CI o long-run con evidencia de otro SHA.
@@ -27,8 +45,19 @@ verde registrado sobre el mismo SHA final.
 - Web local y pública HTTP 200; Ollama 0.32.5 HTTP 200 con seis modelos. Always-On
   opera en `full_local_guarded`, `degraded=false`, y el self-test confirma
   `can_reason=true`.
-- Ruff cero, format verde y mypy cero en 324 archivos. Pytest completo terminó
-  al 100%; operational truth 18/18.
+- Ruff cero y mypy cero en 332 archivos, re-verificado 2026-07-30 sobre este
+  SHA (`git ls-files '*.py' | xargs ruff check` y `mypy triade`, no una
+  muestra). **Corrección de precisión:** en esta misma fecha se encontraron
+  y corrigieron 17 errores reales de Ruff y 2 de mypy que sí existían en el
+  código ya commiteado pese a esta afirmación previa — ver `TECHNICAL_DEBT.md`
+  para la evidencia y el detalle de qué se corrigió. "Pytest completo al
+  100%" no se re-verificó en esta sesión (no se corrió la suite completa por
+  costo de tiempo); dos fallas puntuales preexistentes sí se encontraron y
+  corrigieron con evidencia
+  (`test_pid_reuse_identity_mismatch_recovers_lock`,
+  `test_status_current_mentions_autonomy_delegation` — esta última se cierra
+  con la sección "Autonomía Delegada" añadida arriba). No se afirma 100%
+  sin haber corrido la suite completa sobre este SHA.
 - Concurrencia: 101 tareas, 90 efectos, cero duplicados, cero artifacts ausentes,
   lease recuperada, todo contabilizado e integridad SQLite `ok`.
 - Chaos aislado completo 15/15 con procesos Tríade reales y métricas de seguridad

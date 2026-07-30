@@ -12,7 +12,10 @@ from typing import Any
 
 from triade.core.config import load_config as _load_cfg_from_file
 from triade.metabolism.budget import BudgetTracker
-from triade.metabolism.contracts import MetabolicNeed, MetabolicPolicy, ResourceUsageReceipt
+from triade.metabolism.contracts import (
+    MetabolicNeed,
+    ResourceUsageReceipt,
+)
 from triade.metabolism.health import HealthSensors
 from triade.metabolism.needs import NeedsQueue
 from triade.metabolism.policy import PolicyEngine
@@ -228,7 +231,6 @@ class MetabolicCoordinator:
         started = time.monotonic()
         cycle_id = self._start_cycle()
         self._current_cycle_id = cycle_id
-        signals: list[dict[str, Any]] = []
 
         try:
             self.signals.emit(cycle_id, "observe", "started", "beginning_observation")
@@ -610,15 +612,17 @@ class MetabolicCoordinator:
     def _run_loop(self) -> None:
         self._recover()
         while not self._stop_event.is_set():
-            if self.scheduler.max_cycles > 0:
-                if self.scheduler.cycle_count >= self.scheduler.max_cycles:
-                    break
+            if (
+                self.scheduler.max_cycles > 0
+                and self.scheduler.cycle_count >= self.scheduler.max_cycles
+            ):
+                break
             try:
                 result = self.tick()
                 if result.get("status") == "error":
                     with self._lock:
                         self._status["last_tick_error"] = result.get("error")
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 -- one bad cycle must not kill the background loop
                 logger.error("run_loop_tick_failed: %s", exc)
                 with self._lock:
                     self._status["last_tick_error"] = str(exc)

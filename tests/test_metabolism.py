@@ -7,10 +7,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-import pytest
-
-from triade.metabolism.coordinator import MetabolicCoordinator, get_coordinator
 from triade.metabolism.contracts import MetabolicNeed
+from triade.metabolism.coordinator import MetabolicCoordinator, get_coordinator
 
 
 def _coordinator(tmp_path: Path, **overrides: Any) -> MetabolicCoordinator:
@@ -75,7 +73,7 @@ class TestLifecycle:
             try:
                 for _ in range(50):
                     c.status()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 -- test harness must catch any error to assert none occurred
                 errors.append(e)
 
         threads = [threading.Thread(target=hammer) for _ in range(10)]
@@ -176,7 +174,7 @@ class TestRunNeedAction:
 
     def test_health_check_is_success(self, tmp_path: Path) -> None:
         c = _coordinator(tmp_path)
-        status, detail = c._action_health_check()
+        status, _detail = c._action_health_check()
         assert status == "success"
 
 

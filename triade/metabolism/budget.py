@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from triade.metabolism.contracts import ResourceBudget
 
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class BudgetTracker:
-    PER_CYCLE_LIMITS = {
+    PER_CYCLE_LIMITS: ClassVar[dict[str, float]] = {
         "cpu_seconds": 30.0,
         "ram_mb": 512.0,
         "disk_read_mb": 10.0,
@@ -22,13 +21,13 @@ class BudgetTracker:
         "needs_count": 10,
     }
 
-    HOURLY_LIMITS = {
+    HOURLY_LIMITS: ClassVar[dict[str, float]] = {
         "cpu_seconds": 300.0,
         "disk_read_mb": 100.0,
         "disk_write_mb": 50.0,
     }
 
-    DAILY_LIMITS = {
+    DAILY_LIMITS: ClassVar[dict[str, float]] = {
         "cpu_seconds": 3600.0,
         "disk_read_mb": 500.0,
         "disk_write_mb": 250.0,
