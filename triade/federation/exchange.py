@@ -7,6 +7,7 @@ import hmac
 import json
 import sqlite3
 import time
+from base64 import b64decode, b64encode
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -93,6 +94,50 @@ class HMACEnvelopeAuthenticator:
         if not isinstance(secret, bytes) or len(secret) < 32:
             raise ValueError("el secreto de autenticación debe tener al menos 32 bytes")
         return secret
+
+
+class Ed25519EnvelopeAuthenticator:
+    """Firma asimétrica por nodo; la clave privada nunca viaja."""
+
+    def __init__(
+        self,
+        public_key_resolver: Callable[[str], bytes],
+        private_key_resolver: Callable[[str], bytes] | None = None,
+    ) -> None:
+        self.public_key_resolver = public_key_resolver
+        self.private_key_resolver = private_key_resolver
+
+    def sign(self, envelope: FederatedEnvelope) -> FederatedEnvelope:
+        if self.private_key_resolver is None:
+            raise ValueError("private_key_resolver_required_for_signing")
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        key = serialization.load_pem_private_key(
+            self.private_key_resolver(envelope.sender_node_id), password=None
+        )
+        if not isinstance(key, Ed25519PrivateKey):
+            raise TypeError("ed25519_private_key_required")
+        signature = b64encode(key.sign(envelope.canonical_bytes())).decode("ascii")
+        return FederatedEnvelope(**{**envelope.to_dict(), "signature": signature})
+
+    def verify(self, envelope: FederatedEnvelope) -> bool:
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+        try:
+            key = serialization.load_pem_public_key(
+                self.public_key_resolver(envelope.sender_node_id)
+            )
+            if not isinstance(key, Ed25519PublicKey):
+                return False
+            key.verify(
+                b64decode(envelope.signature, validate=True), envelope.canonical_bytes()
+            )
+        except (InvalidSignature, ValueError, TypeError):
+            return False
+        return True
 
 
 class FederatedExchangeStore:
