@@ -1,0 +1,46 @@
+{
+  "phase": 1,
+  "certification": "TRIADE-VERIFY-v1",
+  "executed_at": "2026-07-29T21:35:06.881362+00:00",
+  "checks": {
+    "blocked_never_completed": true,
+    "observed_never_completed": true,
+    "legacy_improvement_write_blocked": true,
+    "completed_requires_receipt": true,
+    "completed_requires_artifact_when_declared": true,
+    "reversible_requires_rollback_ref": true,
+    "timeout_rejects_late_effect": true,
+    "stale_fencing_cannot_publish": true,
+    "reversible_effect_has_receipt_and_rollback": true
+  },
+  "details": {
+    "legacy": {
+      "blocked": "blocked",
+      "observed": "observed"
+    },
+    "timeout": {
+      "status": "timeout",
+      "executed": true,
+      "result": {},
+      "error": "task_timeout",
+      "exit_code": -15,
+      "termination_signal": 15,
+      "stdout_ref": "/tmp/triade-phase-01-il7thl2b/quarantine/timeout-artifact-1ea8dd4680af/stdout.log",
+      "stderr_ref": "/tmp/triade-phase-01-il7thl2b/quarantine/timeout-artifact-1ea8dd4680af/stderr.log",
+      "quarantine_ref": "/tmp/triade-phase-01-il7thl2b/quarantine/timeout-artifact-1ea8dd4680af",
+      "elapsed_seconds": 0.102835
+    },
+    "fencing": {
+      "old_generation": 1,
+      "new_generation": 2,
+      "stale_accepted": false
+    },
+    "governed_file": {
+      "effect_verified": true,
+      "rollback_ref_present": true,
+      "rollback_verified": true,
+      "target_absent_after_rollback": true
+    }
+  },
+  "passed": true
+}

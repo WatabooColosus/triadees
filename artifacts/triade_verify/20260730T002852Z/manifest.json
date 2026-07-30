@@ -1,0 +1,46 @@
+{
+  "system": "Triade Omega",
+  "certification": "TRIADE-VERIFY-v1",
+  "sha": "23a7d77fb0855debb80e7ad73353a0150f212050",
+  "identity_verified": true,
+  "triadic_causality_verified": true,
+  "memory_continuity_verified": true,
+  "execution_truth_verified": true,
+  "autonomous_learning_verified": true,
+  "rollback_verified": true,
+  "federation_verified": true,
+  "long_run_verified": false,
+  "ci_verified": false,
+  "result": "PARTIAL_SAFE",
+  "evidence_bundle": "evidence",
+  "evidence_files": [
+    {
+      "file": "identity_continuity.json",
+      "sha256": "9ed255aa3d8b782637e4e67ef369f2c10b4ef81be3062a6bb36bd6ac65277257"
+    },
+    {
+      "file": "triadic_causality.json",
+      "sha256": "df56939a952c6dfe7f8d2fdf0df62fe7fe5f0e6e21c66c81596031f046172918"
+    },
+    {
+      "file": "memory_longitudinal.json",
+      "sha256": "bb34a51f1dbc2254d48cd2839cdb0f45311362c05556e62061bbd5ed27d8b901"
+    },
+    {
+      "file": "execution_truth.json",
+      "sha256": "dd92f2617074655f0cca61671d950921e4274d38e6cbab543c9589c3ad278eb1"
+    },
+    {
+      "file": "autonomous_learning.json",
+      "sha256": "a1f83f9d7375b6eca2f87cafce33e04d6fc2c19a51ac7c3509af78c650b58ec5"
+    },
+    {
+      "file": "recovery.json",
+      "sha256": "e6b3956aa78beedecf73b1c1051e94dc0a519737fb1355595cdb3f41d6d9e60d"
+    },
+    {
+      "file": "federation.json",
+      "sha256": "dd3d5e329a16212b7c4a60f55c1be1d49866a3d3752ab4895515462c7c4ae632"
+    }
+  ]
+}

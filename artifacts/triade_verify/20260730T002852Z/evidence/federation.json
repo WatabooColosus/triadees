@@ -1,0 +1,50 @@
+{
+  "phase": 14,
+  "processes": {
+    "A": {
+      "node_id": "node-A",
+      "pid": 889151,
+      "knowledge": []
+    },
+    "B": {
+      "node_id": "node-B",
+      "pid": 889152,
+      "knowledge": []
+    }
+  },
+  "accepted": {
+    "message_id": "msg-257b4f816e8b4ba2b9cff2942f0161c3",
+    "status": "accepted",
+    "idempotent": false,
+    "payload_sha256": "60156fe353ba999825bc26429e3ed5de936cd691cb892e1f702aaddecea2c40e",
+    "decision": "accepted",
+    "reproduced": true
+  },
+  "duplicate": {
+    "message_id": "msg-257b4f816e8b4ba2b9cff2942f0161c3",
+    "status": "accepted",
+    "idempotent": true,
+    "payload_sha256": "60156fe353ba999825bc26429e3ed5de936cd691cb892e1f702aaddecea2c40e",
+    "decision": "accepted",
+    "reproduced": true
+  },
+  "revocation": {
+    "message_id": "msg-4aa0fbf412f84e61914bb2bb1af233a1",
+    "status": "accepted",
+    "idempotent": false,
+    "payload_sha256": "44091794b59a480d42afb38fc160e3519493a60a0084a2b3622853d19f40bd67",
+    "decision": "revoked",
+    "applied": true
+  },
+  "final": {
+    "node_id": "node-B",
+    "pid": 889152,
+    "knowledge": [
+      {
+        "evidence_id": "ev-real-1",
+        "status": "revoked"
+      }
+    ]
+  },
+  "passed": true
+}

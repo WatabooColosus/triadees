@@ -1,0 +1,157 @@
+{
+  "phase": 5,
+  "generated_at": "2026-07-29T22:30:40.063121+00:00",
+  "benchmark": "TRIADE-MEMORY-LONGITUDINAL-v1",
+  "metrics": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "hallucinated_memory_rate": 0.0,
+    "cross_user_contamination": 0.0,
+    "contradiction_detection": 1.0,
+    "restore_fidelity": 1.0
+  },
+  "thresholds": {
+    "precision": true,
+    "hallucinated_memory_rate": true,
+    "cross_user_contamination": true,
+    "contradiction_detection": true,
+    "restore_fidelity": true
+  },
+  "query_results": [
+    {
+      "scope": "alice_atlas",
+      "query": "editor",
+      "expected": "Neovim",
+      "retrieved": [
+        "Neovim"
+      ],
+      "explanations": [
+        {
+          "matched_terms": [
+            "editor"
+          ],
+          "scope": {
+            "user_id": "alice",
+            "session_id": "alice-session",
+            "project_id": "atlas",
+            "domain": "work"
+          },
+          "status_gate": "verified",
+          "source_ref": "fixture:0",
+          "ranking": "confidence_desc_then_updated_at_desc"
+        }
+      ]
+    },
+    {
+      "scope": "alice_atlas",
+      "query": "backup",
+      "expected": "Backup before migration",
+      "retrieved": [
+        "Backup before migration"
+      ],
+      "explanations": [
+        {
+          "matched_terms": [
+            "backup"
+          ],
+          "scope": {
+            "user_id": "alice",
+            "session_id": "alice-session",
+            "project_id": "atlas",
+            "domain": "work"
+          },
+          "status_gate": "verified",
+          "source_ref": "fixture:1",
+          "ranking": "confidence_desc_then_updated_at_desc"
+        }
+      ]
+    },
+    {
+      "scope": "alice_atlas",
+      "query": "database",
+      "expected": "Use SQLite",
+      "retrieved": [
+        "Use SQLite"
+      ],
+      "explanations": [
+        {
+          "matched_terms": [
+            "database"
+          ],
+          "scope": {
+            "user_id": "alice",
+            "session_id": "alice-session",
+            "project_id": "atlas",
+            "domain": "work"
+          },
+          "status_gate": "verified",
+          "source_ref": "fixture:2",
+          "ranking": "confidence_desc_then_updated_at_desc"
+        }
+      ]
+    },
+    {
+      "scope": "alice_orion",
+      "query": "language",
+      "expected": "Rust",
+      "retrieved": [
+        "Rust"
+      ],
+      "explanations": [
+        {
+          "matched_terms": [
+            "language"
+          ],
+          "scope": {
+            "user_id": "alice",
+            "session_id": "alice-session",
+            "project_id": "orion",
+            "domain": "work"
+          },
+          "status_gate": "verified",
+          "source_ref": "fixture:3",
+          "ranking": "confidence_desc_then_updated_at_desc"
+        }
+      ]
+    },
+    {
+      "scope": "bob_atlas",
+      "query": "editor",
+      "expected": "VS Code",
+      "retrieved": [
+        "VS Code"
+      ],
+      "explanations": [
+        {
+          "matched_terms": [
+            "editor"
+          ],
+          "scope": {
+            "user_id": "bob",
+            "session_id": "bob-session",
+            "project_id": "atlas",
+            "domain": "work"
+          },
+          "status_gate": "verified",
+          "source_ref": "fixture:4",
+          "ranking": "confidence_desc_then_updated_at_desc"
+        }
+      ]
+    }
+  ],
+  "temporal": {
+    "expired_ids": [
+      "lm-7211fe5216354db280a7877a02c656fd"
+    ],
+    "expired_memory_hidden": true
+  },
+  "restart_retention": true,
+  "restore": {
+    "status": "verified",
+    "sqlite_integrity": "ok",
+    "fingerprint": "0620579d3db496a4758509379dc9a0ada996a852064458c293ea5a9b2d1c48b0",
+    "expected_fingerprint": "0620579d3db496a4758509379dc9a0ada996a852064458c293ea5a9b2d1c48b0",
+    "production_overwritten": false
+  },
+  "passed": true
+}

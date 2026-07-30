@@ -1,0 +1,64 @@
+{
+  "phase": 16,
+  "created": {
+    "status": "completed",
+    "file": "triade-1785370410-77e160fa2593.db.gz.fernet",
+    "sha256": "77e160fa2593477f3130719d1f1c719072c519a98a065272125afa6f98889a4a",
+    "encrypted": true,
+    "created_at": 1785370410.2423606,
+    "source_db_sha256": "da75b1eea189f6bf51eb900e95dea7acf5dbd341b50690bcb4162cc4af7457d9",
+    "source_size_bytes": 77594624
+  },
+  "verified": {
+    "status": "ok",
+    "sha256": "77e160fa2593477f3130719d1f1c719072c519a98a065272125afa6f98889a4a",
+    "integrity_check": "ok",
+    "identity_manifest_hash": "311b12b1b19289dac19067ebad1958373fbdcd53102b781f44b7776069ffcbd8",
+    "semantic_memory_count": 0,
+    "task_states": {
+      "blocked": 8,
+      "completed": 410,
+      "observed": 5,
+      "running": 2
+    },
+    "artifact_refs_checked": 410,
+    "artifact_ref_failures": []
+  },
+  "restored": {
+    "status": "restored_sandbox",
+    "destination": "/tmp/tmp0pygu2o8/sandbox/triade.db",
+    "production_overwritten": false,
+    "verification": {
+      "status": "ok",
+      "sha256": "77e160fa2593477f3130719d1f1c719072c519a98a065272125afa6f98889a4a",
+      "integrity_check": "ok",
+      "identity_manifest_hash": "311b12b1b19289dac19067ebad1958373fbdcd53102b781f44b7776069ffcbd8",
+      "semantic_memory_count": 0,
+      "task_states": {
+        "blocked": 8,
+        "completed": 410,
+        "observed": 5,
+        "running": 2
+      },
+      "artifact_refs_checked": 410,
+      "artifact_ref_failures": []
+    },
+    "restored": {
+      "integrity_check": "ok",
+      "identity_manifest_hash": "311b12b1b19289dac19067ebad1958373fbdcd53102b781f44b7776069ffcbd8",
+      "semantic_memory_count": 0,
+      "task_states": {
+        "blocked": 8,
+        "completed": 410,
+        "observed": 5,
+        "running": 2
+      },
+      "artifact_refs_checked": 410,
+      "artifact_ref_failures": []
+    }
+  },
+  "wrong_key_failed": true,
+  "cooldown_blocked": true,
+  "production_restore_attempted": false,
+  "passed": true
+}
