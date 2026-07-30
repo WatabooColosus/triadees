@@ -12,13 +12,17 @@ jobs:
   python-truth:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install Python dependencies
         run: |
@@ -26,7 +30,7 @@ jobs:
           pip install -r requirements.txt
           pip install ruff mypy pytest-cov pip-audit detect-secrets types-setuptools
       - name: Compile all Python
-        run: python -m compileall -q triade
+        run: python -m compileall -q triade apps scripts tests
       - name: Ruff check
         run: ruff check .
       - name: Ruff format check
@@ -60,12 +64,22 @@ jobs:
           with sqlite3.connect(db) as conn:
               assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
           PY
-      - name: Global mypy debt report
-        continue-on-error: true
+      - name: Global mypy gate
         shell: bash
         run: |
           set -o pipefail
-          mypy triade --ignore-missing-imports 2>&1 | tee mypy-report.txt
+          mypy triade 2>&1 | tee mypy-report.txt
+      - name: Security gates
+        run: >-
+          pytest -q tests/test_public_security.py
+          tests/test_federated_exchange.py
+          tests/test_lora_serving_governance.py
+          tests/test_encrypted_backup_recovery.py
+      - name: Clean and historical migration gates
+        run: >-
+          pytest -q tests/test_migration_persistence.py
+          tests/test_crystal_db_migration.py
+          tests/test_runtime_task_leases.py
       - name: Python dependency audit
         run: pip-audit -r requirements.txt
       - name: Secret scan
@@ -76,7 +90,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: runtime-truth-python-${{ github.sha }}
+          name: runtime-truth-python-${{ matrix.python-version }}-${{ github.sha }}
           if-no-files-found: warn
           retention-days: 14
           path: |
