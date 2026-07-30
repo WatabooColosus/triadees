@@ -1,0 +1,33 @@
+{
+  "phase": 17,
+  "mode": "safe_short_isolated",
+  "injected": {
+    "kill worker": true,
+    "kill API": true,
+    "lease expiry": true,
+    "stale fencing": true,
+    "late result": true,
+    "DB lock": true,
+    "orphan process": true,
+    "port conflict": true,
+    "network outage": true,
+    "backup failure": true
+  },
+  "not_executed": {
+    "restart Ollama": "requires destructive production/resource fault window",
+    "disk pressure": "requires destructive production/resource fault window",
+    "watchdog restart": "requires destructive production/resource fault window",
+    "GPU unavailable": "requires destructive production/resource fault window",
+    "low memory": "requires destructive production/resource fault window"
+  },
+  "metrics": {
+    "duplicate_effects": 0,
+    "lost_tasks": 0,
+    "false_completed": 0,
+    "db_corruption": 0,
+    "late_results_accepted": 0,
+    "artifact_loss": 0
+  },
+  "passed_safe_subset": true,
+  "full_chaos_verified": false
+}

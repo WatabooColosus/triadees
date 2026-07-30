@@ -1,0 +1,48 @@
+{
+  "requested_duration_seconds": 10,
+  "elapsed_seconds": 10.099898627000584,
+  "wall_clock_not_compressed": true,
+  "started_at_epoch": 1785370563.0608263,
+  "checks": [
+    {
+      "elapsed_seconds": 0.0,
+      "web_ok": true,
+      "ollama_ok": true,
+      "db_integrity": "ok"
+    },
+    {
+      "elapsed_seconds": 2.087,
+      "web_ok": true,
+      "ollama_ok": true,
+      "db_integrity": "ok"
+    },
+    {
+      "elapsed_seconds": 4.161,
+      "web_ok": true,
+      "ollama_ok": true,
+      "db_integrity": "ok"
+    },
+    {
+      "elapsed_seconds": 6.275,
+      "web_ok": true,
+      "ollama_ok": true,
+      "db_integrity": "ok"
+    },
+    {
+      "elapsed_seconds": 8.368,
+      "web_ok": true,
+      "ollama_ok": true,
+      "db_integrity": "ok"
+    },
+    {
+      "elapsed_seconds": 10.0,
+      "web_ok": true,
+      "ollama_ok": true,
+      "db_integrity": "ok"
+    }
+  ],
+  "availability": 1.0,
+  "db_corruption": 0,
+  "passed": true,
+  "window": "short_validation"
+}
