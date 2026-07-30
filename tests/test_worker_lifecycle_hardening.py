@@ -32,8 +32,15 @@ def test_structured_live_lock_verifies_command_line(tmp_path: Path) -> None:
 
 
 def test_pid_reuse_identity_mismatch_recovers_lock(tmp_path: Path) -> None:
+    # Simula reutilización real de PID: el kernel garantiza que un proceso
+    # distinto que reutiliza el mismo PID tiene un starttime distinto
+    # (/proc/<pid>/stat campo 22), incluso si por coincidencia cmdline
+    # fuera idéntico. Un expected_token constante (mecanismo previo) nunca
+    # puede simular esto de forma realista porque nunca distingue procesos
+    # reales entre sí — ver TECHNICAL_DEBT.md.
     lock = tmp_path / "worker.lock"
     payload = json.loads(RuntimeProcessLock.payload(os.getpid()))
+    payload["start_time"] = (payload["start_time"] or 0) + 999999
     payload["expected_token"] = "definitely-not-this-process"
     lock.write_text(json.dumps(payload), encoding="utf-8")
     result = WorkerStateStore(tmp_path / "db.sqlite").recover_interrupted_runtime(lock)
