@@ -153,12 +153,17 @@ class LifePulseEngine:
             )
             self._thread.start()
             if self.continuous_run_enabled:
-                self._continuous_thread = threading.Thread(
-                    target=self._continuous_loop,
-                    name="triade-continuous-runner",
-                    daemon=True,
+                c_alive = bool(
+                    self._continuous_thread
+                    and self._continuous_thread.is_alive()
                 )
-                self._continuous_thread.start()
+                if not c_alive:
+                    self._continuous_thread = threading.Thread(
+                        target=self._continuous_loop,
+                        name="triade-continuous-runner",
+                        daemon=True,
+                    )
+                    self._continuous_thread.start()
 
     def stop(self) -> None:
         self._stop.set()
@@ -760,6 +765,30 @@ class LifePulseEngine:
                             exc,
                             function="_continuous_loop",
                             operation="trust_recompute_all",
+                        )
+
+                # 5b. Watchdog de workers cada 10 ciclos
+                if tick_counter % 10 == 0:
+                    try:
+                        from triade.core.always_on import load_always_on_config
+                        from triade.core.worker_autostart import ensure_workers_alive
+
+                        wcfg = load_always_on_config()
+                        ensure_workers_alive(wcfg, db_path=self.db_path)
+                    except (
+                        OSError,
+                        ImportError,
+                        RuntimeError,
+                        ValueError,
+                        TypeError,
+                        KeyError,
+                        AttributeError,
+                    ) as exc:
+                        self._record_error(
+                            "life_pulse.continuous.worker_watchdog",
+                            exc,
+                            function="_continuous_loop",
+                            operation="ensure_workers_alive",
                         )
 
                 # 6. Cada ~20 ciclos, un ciclo cognitivo completo para reflexión profunda

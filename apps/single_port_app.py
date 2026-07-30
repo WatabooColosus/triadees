@@ -61,7 +61,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             }
         yield
         return
-    LIFE_PULSE.start()
     NODE_LIVE_REGISTRY.start()
 
     # Clean up expired coordination locks from prior runs.
@@ -100,6 +99,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             interval_seconds=int(cfg.get("continuous_runner_interval_seconds", 60)),
             max_cycles=int(cfg.get("continuous_runner_max_cycles", 0)),
         )
+        LIFE_PULSE.start()
         record_internal_runtime_event(
             "always_on_startup_checked",
             "single_port_app",

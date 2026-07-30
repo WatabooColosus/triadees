@@ -23,7 +23,7 @@ runtime:
   worker_mode: full_local_guarded
   # Creadora -> Formadora -> Educadora -> evidencia -> promoción gobernada.
   continuous_runner_enabled: true
-  continuous_runner_autonomy_level: train_candidates
+  continuous_runner_autonomy_level: promote_stable
   continuous_runner_interval_seconds: 60
   continuous_runner_max_cycles: 0
   synthetic_canary_enabled: false
@@ -102,9 +102,9 @@ runtime_budget:
   model_installs_daily: 1
 
 metabolism:
-  enabled: false
-  dry_run: true
-  mode: observe_only
+  enabled: true
+  dry_run: false
+  mode: full
   interval_seconds: 15
   max_cycles: 0
   jitter_seconds: 2.0

@@ -389,7 +389,9 @@ class WorkerLoop:
                 run_immediately=True,
             )
 
-            target_iterations = max(1, int(config.max_iterations))
+            target_iterations = int(config.max_iterations)
+            if target_iterations <= 0:
+                target_iterations = float("inf")
             while summary["iterations"] < target_iterations:
                 if self.stop_file.exists():
                     summary["stop_requested"] = True
