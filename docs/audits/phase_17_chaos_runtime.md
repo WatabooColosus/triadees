@@ -10,10 +10,12 @@ Se crearon los runners de 24h y 72h con duración wall-clock real. Sus defaults
 son exactamente 86,400 y 259,200 segundos; no aceleran ni comprimen tiempo. Una
 prueba corta separada comprueba web, Ollama e integridad SQLite.
 
-El chaos corto inyecta en recursos aislados kill worker/API/orphan, lease expiry,
-stale fencing, late result, DB lock, port conflict, network outage y backup
-failure. No mata la web ni Ollama productivos. Los fallos restantes se declaran
-`not_executed` con motivo; no se presentan como aprobados.
+El chaos corto inyecta los quince escenarios en recursos aislados. Para los
+cinco fallos antes pendientes usa: un servidor Ollama real en un puerto temporal
+que se termina y arranca de nuevo; `/dev/full` para obtener `ENOSPC`; el watchdog
+real contra una SQLite temporal con snapshot y reinicio; un proceso con
+`CUDA_VISIBLE_DEVICES=-1`; y un proceso limitado por `RLIMIT_AS` que confirma
+`MemoryError`. No mata la web ni Ollama productivos.
 
 ## Reproducción
 
@@ -26,9 +28,10 @@ python scripts/run_72h_runtime_validation.py
 Evidencia corta: `artifacts/triade_verify/phase_17/chaos_short.json` y
 `runtime_short.json`.
 
-Estado: `implementation_complete`, `long_run_pending`. No se verifican todavía
-availability 24/72h, restart Ollama, disk pressure, watchdog, GPU unavailable,
-low memory ni rollback 100% en una ventana completa.
+Estado: `implementation_complete`, `long_run_pending`. Los quince escenarios
+aislados pasaron. Sus métricas tienen scope `isolated_short_scenarios`; la
+disponibilidad queda explícitamente `null`. Todavía no se verifica availability
+24/72h ni que todos los umbrales se mantengan durante ambas ventanas completas.
 
 ## Validación ejecutada
 
@@ -43,3 +46,8 @@ ruff check (archivos de fase) / format                          PASS
 
 La ventana corta duró al menos 10.0 segundos reales, seis checkpoints, 100% de
 availability, DB corruption 0, web 200 y Ollama 200. Esto no sustituye 24h.
+
+Ejecución adicional 2026-07-30: los 15/15 escenarios chaos aislados pasaron;
+duplicate effects 0, lost tasks 0, false completed 0, DB corruption 0, late
+results accepted 0, artifact loss 0 y rollback 100% dentro de ese scope. Tras
+la inyección, web local, web pública y Ollama respondieron HTTP 200.

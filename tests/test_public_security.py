@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 import pytest
@@ -80,3 +81,20 @@ def test_prompt_injection_tool_validation_and_egress() -> None:
     enforce_egress("https://docs.python.org/3/", {"docs.python.org"})
     with pytest.raises(PermissionError, match="egress_denied"):
         enforce_egress("http://127.0.0.1/secrets", {"docs.python.org"})
+
+
+def test_rate_limit_uses_rolling_window_across_minute_boundary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    auth = PublicAuthStore(tmp_path / "rolling.db", rate_limit_per_minute=2)
+    auth.create_user("rolling", "long-rolling-password", "viewer", "tenant-a")
+    token = str(auth.authenticate("rolling", "long-rolling-password")["access_token"])
+    current = time.time()
+    boundary = (int(current // 60) + 1) * 60
+    ticks = iter((boundary - 0.1, boundary + 0.1, boundary + 0.2))
+    monkeypatch.setattr("triade.security.public_auth.time.time", lambda: next(ticks))
+
+    auth.authorize(token, required_role="viewer")
+    auth.authorize(token, required_role="viewer")
+    with pytest.raises(RuntimeError, match="rate_limit_exceeded"):
+        auth.authorize(token, required_role="viewer")

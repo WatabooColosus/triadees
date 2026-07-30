@@ -13,6 +13,7 @@ from typing import Any
 
 from triade.core.config import load_config
 from triade.core.internal_runtime import (
+    get_internal_runtime_governor_status,
     get_internal_runtime_supervisor,
     record_internal_runtime_event,
     start_internal_runtime_background,
@@ -177,6 +178,22 @@ def build_always_on_status() -> dict[str, Any]:
         _ALWAYS_ON_STATE["status"] = "running"
         _ALWAYS_ON_STATE["runtime_degraded"] = False
         _ALWAYS_ON_STATE["runtime_degradation_reason"] = None
+        governor = get_internal_runtime_governor_status()
+        if governor:
+            configured = str(_ALWAYS_ON_STATE.get("configured_mode") or "observe_only")
+            dynamic_mode = str(governor.get("effective_mode") or configured)
+            if configured == "full_local_guarded" and dynamic_mode == "full_local":
+                dynamic_mode = configured
+            _ALWAYS_ON_STATE["effective_mode"] = dynamic_mode
+            degraded = WORK_MODE_RANK.get(dynamic_mode, 0) < WORK_MODE_RANK.get(
+                configured, 0
+            )
+            _ALWAYS_ON_STATE["degraded_by_governor"] = degraded
+            _ALWAYS_ON_STATE["degradation_reason"] = (
+                str(governor.get("reason") or "Modo reducido por gobernador dinámico.")
+                if degraded
+                else None
+            )
     else:
         _ALWAYS_ON_STATE["status"] = "disabled"
         _ALWAYS_ON_STATE["runtime_degraded"] = False
@@ -337,7 +354,9 @@ def start_always_on_if_enabled(
         result = start_internal_runtime_background(
             db_path=db_path,
             runs_dir=runs_dir,
-            mode=effective_mode,
+            # El supervisor conserva el modo solicitado y reevalúa recursos/Ollama
+            # en cada ciclo, permitiendo recuperación automática tras una caída.
+            mode=requested_mode,
             interval_seconds=int(cfg.get("interval_seconds", 60)),
             max_cycles=cfg.get("_max_cycles_param"),
         )

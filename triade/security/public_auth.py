@@ -173,8 +173,8 @@ class PublicAuthStore:
                 raise PermissionError("insufficient_role")
             window = int(now // 60)
             count = conn.execute(
-                "SELECT COUNT(*) FROM auth_rate_events WHERE user_id=? AND window_key=?",
-                (row["user_id"], window),
+                "SELECT COUNT(*) FROM auth_rate_events WHERE user_id=? AND created_at>=?",
+                (row["user_id"], now - 60.0),
             ).fetchone()[0]
             if count >= self.rate_limit_per_minute:
                 raise RuntimeError("rate_limit_exceeded")

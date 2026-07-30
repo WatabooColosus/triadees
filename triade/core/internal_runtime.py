@@ -42,6 +42,14 @@ def get_internal_runtime_supervisor(
         return _SUPERVISOR
 
 
+def get_internal_runtime_governor_status() -> dict[str, Any]:
+    """Devuelve la última decisión dinámica sin crear un supervisor nuevo."""
+    with _LOCK:
+        if _SUPERVISOR is None:
+            return {}
+        return dict(_SUPERVISOR.last_governor_decision)
+
+
 def start_internal_runtime_background(
     *,
     db_path: str | Path = "triade/memory/triade.db",

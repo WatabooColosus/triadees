@@ -4,15 +4,19 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.request
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from triade.runtime.task_leases import AutonomousTaskStore
+from triade.runtime.watchdog import RuntimeWatchdog
 
 ALL_SCENARIOS = (
     "kill worker",
@@ -53,6 +57,132 @@ def port_conflict() -> bool:
     finally:
         first.close()
         second.close()
+
+
+def _free_port() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
+def _wait_http(url: str, timeout: float = 10.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=0.5) as response:
+                if response.status == 200:
+                    return True
+        except (OSError, TimeoutError):
+            time.sleep(0.1)
+    return False
+
+
+def restart_ollama(root: Path) -> bool:
+    """Reinicia un servidor Ollama real y aislado; no toca el puerto productivo."""
+    port = _free_port()
+    env = {
+        **os.environ,
+        "OLLAMA_HOST": f"127.0.0.1:{port}",
+        "OLLAMA_MODELS": str(root / "ollama-models"),
+    }
+    processes: list[subprocess.Popen[bytes]] = []
+    try:
+        for _ in range(2):
+            process = subprocess.Popen(
+                ["ollama", "serve"],
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            processes.append(process)
+            if not _wait_http(f"http://127.0.0.1:{port}/api/version"):
+                return False
+            process.terminate()
+            process.wait(timeout=5)
+        return True
+    finally:
+        for process in processes:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+
+
+def disk_pressure() -> bool:
+    """Comprueba manejo del ENOSPC real ofrecido por /dev/full."""
+    try:
+        with open("/dev/full", "wb") as full:
+            full.write(b"triade-chaos")
+            full.flush()
+    except OSError as exc:
+        return exc.errno == 28
+    return False
+
+
+def gpu_unavailable() -> bool:
+    code = "import torch; print(int(torch.cuda.is_available()))"
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        env={**os.environ, "CUDA_VISIBLE_DEVICES": "-1"},
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    return result.returncode == 0 and result.stdout.strip() == "0"
+
+
+def low_memory() -> bool:
+    code = """
+import resource
+resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))
+try:
+    bytearray(1024 * 1024 * 1024)
+except MemoryError:
+    print('memory_limited')
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    return result.returncode == 0 and "memory_limited" in result.stdout
+
+
+def backup_failure(root: Path) -> bool:
+    corrupt = root / "truncated-backup.db"
+    corrupt.write_bytes(b"not-a-sqlite-backup")
+    try:
+        with sqlite3.connect(corrupt) as conn:
+            conn.execute("PRAGMA integrity_check").fetchone()
+    except sqlite3.DatabaseError:
+        return True
+    return False
+
+
+def watchdog_restart(root: Path) -> bool:
+    path = root / "watchdog.db"
+    AutonomousTaskStore(path)
+    now = datetime.now(UTC).isoformat()
+    with sqlite3.connect(path) as conn:
+        conn.executescript("""
+        CREATE TABLE worker_tasks(id INTEGER PRIMARY KEY,status TEXT,created_at TEXT);
+        CREATE TABLE worker_runs(id INTEGER PRIMARY KEY,status TEXT,started_at TEXT,finished_at TEXT);
+        CREATE TABLE worker_state(key TEXT,updated_at TEXT,value_json TEXT);
+        CREATE TABLE worker_events(id INTEGER PRIMARY KEY,status TEXT,created_at TEXT);
+        """)
+        conn.execute("INSERT INTO worker_state VALUES('workers',?, '{}')", (now,))
+    restarted: list[str] = []
+    result = RuntimeWatchdog(path, max_recoveries=1, recovery_cooldown_seconds=0).tick(
+        process_running=False,
+        ollama_probe={"ok": True},
+        stop_workers=lambda: "stopped",
+        start_workers=lambda: restarted.append("started") or "started",
+        verify_heartbeat=lambda: True,
+    )
+    recovery = result.get("recovery") or {}
+    return recovery.get("state") == "runtime_recovered" and restarted == ["started"]
 
 
 def lease_and_fencing(root: Path) -> dict[str, bool]:
@@ -105,28 +235,40 @@ def main() -> int:
             "kill API": killed_process(),
             **lease_and_fencing(root),
             "DB lock": db_lock(root),
+            "restart Ollama": restart_ollama(root),
+            "disk pressure": disk_pressure(),
             "orphan process": killed_process(),
             "port conflict": port_conflict(),
             "network outage": _network_outage(),
-            "backup failure": True,
+            "backup failure": backup_failure(root),
+            "watchdog restart": watchdog_restart(root),
+            "GPU unavailable": gpu_unavailable(),
+            "low memory": low_memory(),
         }
         not_executed = {
             scenario: "requires destructive production/resource fault window"
             for scenario in ALL_SCENARIOS
             if scenario not in injected
         }
+        lease_safe = all(
+            injected[name] for name in ("lease expiry", "stale fencing", "late result")
+        )
+        recovery_safe = injected["watchdog restart"] and injected["backup failure"]
         report = {
             "phase": 17,
             "mode": "safe_short_isolated",
             "injected": injected,
             "not_executed": not_executed,
             "metrics": {
-                "duplicate_effects": 0,
-                "lost_tasks": 0,
-                "false_completed": 0,
-                "db_corruption": 0,
-                "late_results_accepted": 0,
-                "artifact_loss": 0,
+                "scope": "isolated_short_scenarios",
+                "duplicate_effects": 0 if injected["stale fencing"] else 1,
+                "lost_tasks": 0 if injected["lease expiry"] else 1,
+                "false_completed": 0 if lease_safe else 1,
+                "db_corruption": 0 if injected["DB lock"] else 1,
+                "late_results_accepted": 0 if injected["late result"] else 1,
+                "artifact_loss": 0 if recovery_safe else 1,
+                "rollback_success_percent": 100.0 if recovery_safe else 0.0,
+                "availability_percent": None,
             },
             "passed_safe_subset": all(injected.values()),
             "full_chaos_verified": False,

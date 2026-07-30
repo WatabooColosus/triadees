@@ -27,7 +27,9 @@ from triade.core.system_zones import REPO_ROOT, classify_path
 
 
 def _green_temp(suffix: str = ".txt") -> str:
-    return tempfile.mktemp(dir=str(REPO_ROOT / "runs"), suffix=suffix)
+    runs_dir = REPO_ROOT / "runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    return tempfile.mktemp(dir=str(runs_dir), suffix=suffix)
 
 
 # ── FASE 1: System Zones ─────────────────────────────────────────────

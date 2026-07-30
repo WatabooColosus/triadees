@@ -205,6 +205,62 @@ class TestBuildAlwaysOnStatus:
         assert status.get("degradation_reason")
         assert "hilo" in status["degradation_reason"].lower()
 
+    def test_build_status_recovers_when_dynamic_governor_recovers(self, monkeypatch):
+        """Un preflight degradado no queda pegado después de recuperarse Ollama."""
+        import triade.core.always_on as ao
+
+        ao._ALWAYS_ON_STATE.clear()
+        ao._ALWAYS_ON_STATE.update(
+            {
+                "enabled": True,
+                "configured_mode": "full_local_guarded",
+                "effective_mode": "light_background",
+                "degraded_by_governor": True,
+                "degradation_reason": "Sin modelo razonador Ollama.",
+            }
+        )
+        monkeypatch.setattr(ao, "_background_thread_alive", lambda: True)
+        monkeypatch.setattr(
+            ao,
+            "get_internal_runtime_governor_status",
+            lambda: {"effective_mode": "full_local", "reason": "Recursos disponibles."},
+        )
+
+        status = ao.build_always_on_status()
+
+        assert status["effective_mode"] == "full_local_guarded"
+        assert status["degraded_by_governor"] is False
+        assert status["degraded"] is False
+        assert status["degradation_reason"] is None
+
+    def test_build_status_reports_current_dynamic_degradation(self, monkeypatch):
+        import triade.core.always_on as ao
+
+        ao._ALWAYS_ON_STATE.clear()
+        ao._ALWAYS_ON_STATE.update(
+            {
+                "enabled": True,
+                "configured_mode": "full_local_guarded",
+                "effective_mode": "full_local_guarded",
+            }
+        )
+        monkeypatch.setattr(ao, "_background_thread_alive", lambda: True)
+        monkeypatch.setattr(
+            ao,
+            "get_internal_runtime_governor_status",
+            lambda: {
+                "effective_mode": "light_background",
+                "reason": "Sin modelo razonador Ollama.",
+            },
+        )
+
+        status = ao.build_always_on_status()
+
+        assert status["effective_mode"] == "light_background"
+        assert status["degraded_by_governor"] is True
+        assert status["degraded"] is True
+        assert status["degradation_reason"] == "Sin modelo razonador Ollama."
+
 
 class TestAlwaysOnStartup:
     def test_always_on_true_in_yml_starts_on_startup(self, monkeypatch):

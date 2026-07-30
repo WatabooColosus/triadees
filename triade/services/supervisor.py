@@ -82,6 +82,7 @@ class InternalRuntimeSupervisor:
         self.counters: Counter[str] = Counter()
         self.last_events: list[dict[str, Any]] = []
         self.last_context_snapshot: dict[str, Any] = {}
+        self.last_governor_decision: dict[str, Any] = {}
         self.safety_policy = {
             "identity_core_modified": False,
             "stable_memory_written": False,
@@ -155,6 +156,8 @@ class InternalRuntimeSupervisor:
 
         # ── Resource Governor ──────────────────────────────────────────
         governor = self._run_governor(current_mode)
+        with self._lock:
+            self.last_governor_decision = dict(governor)
         effective_mode = governor.get("effective_mode", current_mode)
         governor.get("permissions", {})
         results["governor"] = governor
@@ -455,6 +458,7 @@ class InternalRuntimeSupervisor:
             "counters": dict(self.counters),
             "last_events": self.last_events[-20:],
             "last_context_snapshot": self.last_context_snapshot,
+            "last_governor_decision": dict(self.last_governor_decision),
             "safety_policy": self.safety_policy,
             "files": {
                 "lock_file": str(self.lock_file),
