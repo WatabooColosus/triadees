@@ -1004,6 +1004,27 @@ class TriadeRunner:
         report = self.verifier.verify(output, safety, crystal=crystal, memory=memory)
         verification_id = self.bodega.store_verification_report(report)
         output.memory_diff["verification_report_id"] = verification_id
+        # Conecta la medición real ya calculada por el Verifier (5 scores
+        # deterministas, no autorreportados) con el pipeline de aprendizaje.
+        # Sin esto, record_learning_usage_from_output nunca encuentra
+        # learning_outcome_score/learning_outcome_evidence_ref en
+        # memory_diff y ningún candidato puede avanzar de
+        # internally_checked a validated_in_runs (bug real detectado en
+        # auditoría 2026-07-30: 579 candidatos estancados, cero promovidos).
+        output.memory_diff["learning_outcome_score"] = round(
+            (
+                report.coherence_score
+                + report.memory_score
+                + report.safety_score
+                + report.usefulness_score
+                + report.traceability_score
+            )
+            / 5,
+            4,
+        )
+        output.memory_diff["learning_outcome_evidence_ref"] = (
+            f"verification_report:{verification_id}"
+        )
         learning = RunLearningService(db_path=self.db_path)
         post_run_learning = learning.post_run_learning_candidate(
             input_packet=input_packet,
