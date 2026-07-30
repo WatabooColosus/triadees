@@ -20,6 +20,56 @@ arriba, la afirmación "Pytest completo terminó al 100%" de
 `docs/STATUS_CURRENT.md` queda contradicha por evidencia directa, al menos
 para este SHA en este entorno.
 
+## P1 — tres sandboxes construidos, solo uno conectado (hallazgo, sin resolver)
+
+Verificado con grep exhaustivo (imports reales, no solo presencia del
+archivo) de todo `triade/sandbox/` y `triade/core/autonomous_sandbox.py`:
+**2316 líneas de infraestructura de sandbox, de las cuales solo 344 están
+conectadas a producción.**
+
+- **Viva:** `triade/sandbox/executor.py` + `policy.py` (`run_in_sandbox`,
+  exportado en `triade/sandbox/__init__.py`). Conectada vía
+  `apps/services.py::wait_local_job()` como fallback cuando un nodo Android
+  federado no recoge una tarea a tiempo — la ejecuta localmente en
+  aislamiento. `apps/services.py` es importado por `apps/single_port_app.py`
+  (producción real) y `triade/workers/worker_loop.py`. Tiene test real
+  (`tests/test_sandbox.py`, 205 líneas). Es un sandbox simple: valida contra
+  `ALLOWED_TASKS`/`BLOCKED_TASKS`, ejecuta funciones puras (sha256, preprocess
+  de texto, análisis de candidatos) — no aísla a nivel de sistema operativo.
+- **Construida, sofisticada, NUNCA conectada, cero tests:**
+  `triade/sandbox/secure_executor_v2.py` (442 líneas, marcada "T-013" en su
+  docstring) implementa ejecución rootless con chroot, política de red
+  configurable, límites de GPU/disco/procesos, y una tabla SQLite
+  `secure_executions` para replay/auditoría. `secure_executor.py` (252
+  líneas, versión anterior), `tool_registry.py` (257) y
+  `enhanced_tool_registry.py` (481) tampoco tienen ningún caller ni test
+  fuera de sí mismos. `isolation.py` (187) tampoco — las coincidencias de
+  "isolation" en tests son la palabra como *tag* de un registro de métricas,
+  no el módulo.
+- **Construida, sofisticada, NUNCA conectada, cero tests:**
+  `triade/core/autonomous_sandbox.py` (353 líneas) implementa snapshot de
+  archivos antes de ejecutar, comparación de hashes SHA-256 tras la
+  ejecución, y rollback verificable restaurando el contenido original —
+  exactamente el mecanismo de "aprender de errores con reversión segura"
+  que hace falta para dejar correr más autonomía con seguridad real, no
+  solo umbrales.
+
+**No se eliminó nada de esto** (a diferencia de `state_machine.py`/
+`lease_retry_breaker.py`/`federation/merge.py` en Fase 3, que eran código
+abandonado y sin ambición): esto es trabajo real, bien diseñado, que
+alguna sesión autónoma anterior construyó y nunca conectó — no basura.
+
+**Recomendación concreta, no ejecutada en esta sesión por su sensibilidad
+de seguridad (aislamiento a nivel de SO no se improvisa a última hora de
+una sesión ya larga):** conectar `AutonomousSandbox` (snapshot+rollback,
+sin chroot ni red, riesgo bajo) como capa de verificación antes de que los
+task types de mayor efecto real (`write_governed_text_artifact`,
+`goal_safe_command`, `goal_install`) confirmen su resultado — así el
+worker prueba, revierte si algo salió mal, y solo entonces lo cuenta como
+evidencia real para el pipeline de aprendizaje. `secure_executor_v2.py`
+(chroot/red/GPU) es un proyecto más grande y debe evaluarse aparte, con
+pruebas dedicadas de escape de aislamiento antes de confiar en él.
+
 ## P0 — bug real en identidad de locks (CORREGIDO en Fase 3, commit `439116c`)
 
 **`RuntimeProcessLock.inspect()` no detectaba reutilización de PID cuando el
