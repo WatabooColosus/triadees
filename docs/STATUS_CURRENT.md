@@ -1,76 +1,66 @@
 # Estado vigente de Tríade Ω · corte 2026-07-30
 
-SHA documental base: `56b476d`. Esta es la fuente vigente después de
+SHA documental base: `8f44814`. Esta es la fuente vigente después de
 `TECHNICAL_DEBT.md`; los reportes antiguos son históricos si la contradicen.
 
 ## Dictamen
 
 Tríade es un prototipo integrado de agente local gobernado. No es AGI, no se ha
-demostrado conciencia subjetiva y no es autosuficiente. La certificación
-TRIADE-VERIFY-v1 observada es `PARTIAL_SAFE`, no `VERIFIED_LOCAL`, porque faltan
-operación prolongada y CI remota verde.
+demostrado conciencia subjetiva y no es autosuficiente. TRIADE-VERIFY-v1 es
+`PARTIAL_SAFE`, no `VERIFIED_LOCAL`: faltan las ventanas reales 24/72 h y CI
+verde registrado sobre el mismo SHA final.
 
-## Implementado
+## Implemented
 
-- Autonomía Delegada para operaciones locales gobernadas, con planificación,
-  permisos, Safe File Ops, cuarentena, verificación de integridad y rollback.
-- Cola runtime v2 como autoridad canónica, reconciliación legacy idempotente y
-  cierre atómico sujeto a lease, fencing, postcondición, artifact y receipt.
-- Identity Manifest, verificación de continuidad, detección de alteración, modo
-  degradado seguro, restore, endpoint y CLI read-only.
-- `TriadicCycleTrace` con contribuciones de Central, Hipotálamo, Bodega, Cristal
-  y Safety, más ablaciones deterministas.
-- Memoria longitudinal por usuario/sesión/proyecto/dominio, procedencia,
-  contradicción, supersesión, decay, explicación de recall y restore semántico.
-- `relational modulation state` PV-7 longitudinal, aislado y reversible. No se
-  describe como sentimiento humano.
-- Registry de capacidades, calibración, gaps, research gobernado y learning
-  receipts con baseline, evaluador independiente, transferencia, persistencia,
-  regresión y rollback.
-- Utility Ledger; gates de certificación neuronal; LoRA/PEFT canary gobernado;
-  federación firmada; autenticación, RBAC, sesiones, cuotas y auditoría; backups
-  cifrados con restore sandbox.
-- Runners de chaos, 24 h y 72 h, y certificador reproducible con bundles
-  hasheados.
+- Cola runtime v2, lease/fencing, cierre atómico, postcondiciones, artifacts,
+  effect receipts, cuarentena y rollback.
+- Continuidad de identidad, `TriadicCycleTrace`, memoria longitudinal gobernada,
+  relational modulation state PV-7, metacognición, research y learning receipts.
+- Utility Ledger, certificación neuronal, LoRA/PEFT canary gobernado, federación
+  firmada, autenticación/RBAC, sesiones y cuotas distribuidas con Redis.
+- Backups Fernet, restore drills semanales, retención recuperable y runners
+  chaos/24 h/72 h con métricas completas y procedencia por SHA.
+- Certificador reproducible que no abre CI o long-run con evidencia de otro SHA.
 
-## Verificado en runtime local
+## Runtime verified
 
-- Web pública y Ollama respondieron HTTP 200 en el corte. Ollama 0.32.5 ejecutó
-  inferencia real y embeddings de 768 dimensiones; los modelos requeridos están
-  instalados localmente.
-- Suite pytest completa: código de salida 0. Operational truth: 18 pruebas
-  aprobadas. Suite focal de migración/seguridad: 35 aprobadas.
-- Concurrencia: 90 efectos, cero duplicados, cero artefactos ausentes, una lease
-  recuperada, todas las tareas contabilizadas e integridad SQLite `ok`.
-- El manifiesto `artifacts/triade_verify/20260730T002852Z/manifest.json` marca
-  identidad, causalidad, memoria, ejecución, aprendizaje, rollback y federación
-  como verdaderos con evidencia SHA-256.
+- Web local y pública HTTP 200; Ollama 0.32.5 HTTP 200 con seis modelos. Always-On
+  opera en `full_local_guarded`, `degraded=false`, y el self-test confirma
+  `can_reason=true`.
+- Ruff cero, format verde y mypy cero en 324 archivos. Pytest completo terminó
+  al 100%; operational truth 18/18.
+- Concurrencia: 101 tareas, 90 efectos, cero duplicados, cero artifacts ausentes,
+  lease recuperada, todo contabilizado e integridad SQLite `ok`.
+- Chaos aislado completo 15/15 con procesos Tríade reales y métricas de seguridad
+  en sus umbrales. Disponibilidad no se atribuye a esta prueba.
+- A/B multi-modelo real superó calidad monomodelo y se adoptó con rollback.
+- Redis real compartió rate limit, sesiones y revocación entre dos réplicas.
+- Restore drill cifrado validó identidad, SQLite, estados y 455 refs sin fallos;
+  restore productivo no fue ejecutado.
+- GitHub Actions completo estuvo verde en `00a05aa`; no certifica commits
+  posteriores.
 
-## Parcial
+## Partial
 
-- Multi-modelo: implementación disponible; falta A/B real que demuestre ventaja
-  sobre un solo modelo.
-- LoRA: canary técnico probado; faltan aprobación nominal y tráfico productivo
-  controlado.
-- Federación: dos procesos reales sobre TCP en el mismo host; falta operación
-  sostenida entre hosts.
-- Seguridad pública: autenticación real disponible; el rate limiting sigue siendo
-  local al proceso y requiere backend distribuido para múltiples réplicas.
-- Chaos/long-run: sub-suite corta aprobada; 24/72 h no ejecutadas.
-- Calidad: pruebas dinámicas verdes, pero Ruff y mypy no están verdes.
+- Long-run: implementación completa; 24/72 h deben iniciarse desde el SHA final
+  y terminar sin reinicio. `long_run_verified=false`.
+- CI: gates locales verdes y evidencia remota intermedia verde; falta SHA final.
+  `ci_verified=false`.
+- Legacy: reconciliación idempotente disponible; falta ventana productiva antes
+  de retiro definitivo.
+- Backups: un drill real y scheduler implementado; falta observar periodicidad y
+  crecimiento durante semanas.
+- Observabilidad y fronteras arquitectónicas: funcionales, no maduras a escala.
 
-## Pendiente para VERIFIED_LOCAL
+## Pending / external authority
 
-- Completar 72 h reales y chaos completo con los umbrales de Fase 17.
-- Dejar Ruff y mypy en cero sin desactivar reglas.
-- Obtener GitHub Actions verde sobre el SHA candidato.
-
-## Visión
-
-- Federación sostenida entre hosts heterogéneos.
-- Orquestación multi-modelo adoptada solo tras demostrar utilidad.
-- Serving LoRA productivo con aprobación humana nominal y rollback operacional.
-- Tríade OS sigue siendo un plano de control sobre Linux.
+- Aprobación nominal y tráfico real LoRA canary.
+- Federación prolongada entre dos hosts distintos.
+- Auditoría externa de prompt injection, abuso y network egress.
+- Dominio, TLS, ingress y supervisor persistente fuera del Cloudspace.
+- Protección real de `main`; GitHub API indica que todavía no está activa.
+- Corpus independiente/multilingüe de memoria, aprendizaje complejo anti-overfit,
+  utilidad semanal, capacidad máxima y SLO/RTO/RPO medidos.
 
 ## Reproducción
 
@@ -82,8 +72,10 @@ mypy triade
 pytest -q
 pytest -q tests/operational_truth
 python scripts/run_runtime_concurrency_test.py
+python scripts/run_triade_chaos_validation.py
+python scripts/record_ci_evidence.py
 python scripts/run_triade_verify.py
 ```
 
-Operación y límites: `docs/operations/triade_verify.md`. Deuda vigente:
+Operación y límites: `docs/operations/`. Deuda vigente:
 `TECHNICAL_DEBT.md`.

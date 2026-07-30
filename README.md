@@ -19,7 +19,8 @@ Tríade es actualmente un **prototipo integrado avanzado de agente local goberna
 no una AGI, una conciencia, un modelo fundacional propio ni un sistema operativo que
 reemplace Linux. El manifiesto TRIADE-VERIFY-v1 vigente es `PARTIAL_SAFE`: identidad,
 causalidad, memoria, ejecución, aprendizaje, rollback y federación tienen evidencia
-local; operación 24/72 h y CI remota siguen pendientes. La fuente operativa vigente es
+local; chaos 15/15, Ruff/mypy y un SHA CI intermedio están verdes, pero operación
+24/72 h y CI sobre el SHA final siguen pendientes. La fuente operativa vigente es
 [`docs/STATUS_CURRENT.md`](docs/STATUS_CURRENT.md) y la deuda abierta está en
 [`TECHNICAL_DEBT.md`](TECHNICAL_DEBT.md). Los documentos `STATUS_*` anteriores son
 históricos salvo indicación expresa.

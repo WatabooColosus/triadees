@@ -16,6 +16,7 @@ mypy triade
 pytest -q
 pytest -q tests/operational_truth
 python scripts/run_runtime_concurrency_test.py
+python scripts/record_ci_evidence.py
 python scripts/run_triade_verify.py
 ```
 
@@ -49,3 +50,6 @@ explícita.
 
 El corte 2026-07-30 permanece `PARTIAL_SAFE` porque
 `long_run_verified=false` y `ci_verified=false`.
+
+Objetivos provisionales y condiciones de aprobación:
+`docs/operations/production_reliability_targets.md`.
