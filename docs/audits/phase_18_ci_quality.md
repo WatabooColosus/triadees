@@ -2,9 +2,9 @@
 
 Fecha UTC: 2026-07-30
 
-Base: `1cfa114`
+Base de validación local: `9d179bd`
 
-Estado: `partial`
+Estado: `partial` (`CI final SHA pending`)
 
 CI ahora declara matrices Python 3.11/3.12 y gates obligatorios para compileall
 completo, Ruff check/format, mypy, pytest, operational truth, migraciones,
@@ -16,8 +16,10 @@ se publican aun ante fallo.
 Ejecución local del 30 de julio de 2026:
 
 - `compileall`: aprobado.
-- `ruff format --check .`: 792 archivos ya formateados.
-- suite focal de migraciones y seguridad: 35 pruebas aprobadas.
+- `ruff check .`: cero incidencias.
+- `ruff format --check .`: 802 archivos ya formateados.
+- `mypy triade`: cero errores en 324 archivos fuente.
+- suite focal runtime/operational: 28 pruebas aprobadas.
 - `pytest -q`: aprobado al 100 %, código de salida 0; una advertencia de
   deprecación de Starlette ajena al código del repositorio.
 - `tests/operational_truth`: 18 pruebas aprobadas.
@@ -27,14 +29,17 @@ Ejecución local del 30 de julio de 2026:
 - web pública: HTTP 200.
 - Ollama local: HTTP 200.
 
-La anomalía local de permisos hacía que Ruff reportara 536 `EXE002` aunque el
-índice Git ya registra esos archivos como `100644`; se normalizó el workspace.
-Quedan 271 errores Ruff reales: 247 catches amplios y 24 catches silenciosos.
-Mypy conserva 224 errores en 68 archivos. No se desactivó ninguna regla ni se
-añadieron ignores/noqa/skips/xfail.
+Las 271 incidencias Ruff y los 224 errores mypy del baseline se resolvieron sin
+desactivar reglas ni añadir ignores/noqa/skips/xfail. Un checkout limpio reveló
+un bit ejecutable ausente en el rollback de routing; se corrigió en `00a05aa`.
+Sobre ese SHA, Runtime Truth CI, Tríade Tests y Measurement Core finalizaron en
+`success`.
 
-Por tanto el gate local no está verde y, como no hubo push, GitHub Actions no se
-ha ejecutado sobre estos commits. Esta fase no puede ser `completed`.
+El SHA `9d179bd` está publicado y sus workflows están en curso. La fase no será
+`completed` ni `ci_verified=true` hasta que todos terminen en verde. Además, la
+protección de `main` está documentada pero la API de GitHub confirmó que todavía
+no está aplicada; se mantiene pendiente para no bloquear la secuencia de commits
+directos expresamente solicitada.
 
 ## Gates reproducibles
 
@@ -48,6 +53,7 @@ pytest -q tests/operational_truth
 python scripts/run_runtime_concurrency_test.py
 ```
 
-Branch protection está documentada en `docs/operations/branch_protection.md`.
-Pendiente: resolver por fronteras los 224 errores mypy y revisar semánticamente
-271 manejadores de excepción; luego ejecutar y confirmar CI remota.
+Branch protection y su estado real están documentados en
+`docs/operations/branch_protection.md`. Pendiente: confirmar CI remota sobre el
+SHA final y activar/verificar la protección cuando termine la secuencia de
+publicación directa.

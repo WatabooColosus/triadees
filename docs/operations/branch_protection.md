@@ -11,8 +11,13 @@ Protect `main` in repository settings with these minimum rules:
 - block force pushes and deletion;
 - retain the uploaded test, coverage, mypy, secret-scan, and concurrency evidence.
 
-The global mypy step is temporarily marked non-blocking because the recorded
-baseline has 225 errors in 69 files. Its full output remains visible and is
-uploaded; changed runtime modules are checked locally with mypy before each
-commit. Ruff, format, tests, dependency audits, frontend build, operational
-truth, rollback and concurrency are blocking and must not be bypassed.
+The global mypy step is blocking and runs under `set -o pipefail`; a failing
+`mypy triade` cannot be hidden by `tee`. Ruff, format, tests, dependency audits,
+frontend build, operational truth, rollback and concurrency are also blocking
+and must not be bypassed.
+
+Repository API check on 2026-07-30 returned `404 Branch not protected` for
+`main`. The policy above is therefore documented but not active. Enable it only
+after the final direct-push implementation sequence, then verify the protection
+API and a pull-request gate. Until that external setting is applied, do not
+describe branch protection as enforced.
