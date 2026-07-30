@@ -20,7 +20,7 @@ arriba, la afirmación "Pytest completo terminó al 100%" de
 `docs/STATUS_CURRENT.md` queda contradicha por evidencia directa, al menos
 para este SHA en este entorno.
 
-## P1 — tres sandboxes construidos, solo uno conectado (hallazgo, sin resolver)
+## P1 — tres sandboxes construidos, solo uno conectado (PARCIALMENTE CORREGIDO)
 
 Verificado con grep exhaustivo (imports reales, no solo presencia del
 archivo) de todo `triade/sandbox/` y `triade/core/autonomous_sandbox.py`:
@@ -59,16 +59,40 @@ conectadas a producción.**
 abandonado y sin ambición): esto es trabajo real, bien diseñado, que
 alguna sesión autónoma anterior construyó y nunca conectó — no basura.
 
-**Recomendación concreta, no ejecutada en esta sesión por su sensibilidad
-de seguridad (aislamiento a nivel de SO no se improvisa a última hora de
-una sesión ya larga):** conectar `AutonomousSandbox` (snapshot+rollback,
-sin chroot ni red, riesgo bajo) como capa de verificación antes de que los
-task types de mayor efecto real (`write_governed_text_artifact`,
-`goal_safe_command`, `goal_install`) confirmen su resultado — así el
-worker prueba, revierte si algo salió mal, y solo entonces lo cuenta como
-evidencia real para el pipeline de aprendizaje. `secure_executor_v2.py`
-(chroot/red/GPU) es un proyecto más grande y debe evaluarse aparte, con
-pruebas dedicadas de escape de aislamiento antes de confiar en él.
+**Conectado en esta sesión (con aprobación explícita del usuario):**
+`AutonomousSandbox` (snapshot SHA-256 + backup + rollback por contenido) ya
+está cableado en `WorkerLoop._shell_execute()`
+(`triade/workers/worker_loop.py`, task type `goal_safe_command`), como capa
+de verificación conservadora y aditiva:
+- Con `working_dir` explícito en el payload (nunca sobre el
+  `PROJECT_ROOT` por defecto de `safe_shell.run_autonomous` — sería costoso
+  hashear todo el repo y sin sentido, el comando ya está gobernado por su
+  propia whitelist), se toma snapshot+backup real antes de ejecutar.
+- Un comando exitoso **nunca se toca**: solo se añade
+  `result["sandbox_file_changes"]` para visibilidad de qué tocó.
+- Solo si el comando falló (`status != "ok"`) Y quedaron cambios de
+  archivo, se revierte por contenido (no solo se detecta) y se eliminan los
+  archivos nuevos que no existían antes —
+  `result["sandbox_rollback"] = {"performed": true, "restored_files": N}`.
+- `AutonomousSandbox.create_snapshot()` cambió su firma de
+  `list[str | Path]` a `Sequence[str | Path]` (covariante; mypy señalaba
+  invarianza de `list`, cero cambio de comportamiento).
+- Verificado: 4 tests nuevos dedicados
+  (`tests/test_worker_shell_sandbox.py` — roundtrip snapshot/restore, éxito
+  nunca revierte, falla con cambios sí revierte, sin `working_dir` cero
+  regresión) + 82 tests de la suite de workers/sandbox/autonomía existente,
+  todos en verde. `triade-workers.service` reiniciado en vivo sin caída de
+  los 4 servicios.
+
+**Pendiente, no ejecutado en esta sesión (decisión deliberada, no olvido):**
+extender la misma capa a `goal_install` y evaluar si aporta algo sobre el
+mecanismo de receipt/rollback que `write_governed_text_artifact` ya tiene
+propio (`GovernedFileWriteCapability`) antes de duplicar protección ahí.
+`secure_executor_v2.py` (chroot/red/GPU, 442 líneas) sigue sin conectar — es
+un proyecto de aislamiento de sistema operativo más grande, con superficie
+de riesgo real (escape de chroot, políticas de red) que exige pruebas
+dedicadas de seguridad antes de confiar en él; no se improvisa al cierre de
+una sesión ya larga.
 
 ## P0 — bug real en identidad de locks (CORREGIDO en Fase 3, commit `439116c`)
 

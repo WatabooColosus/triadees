@@ -17,6 +17,7 @@ import os
 import shutil
 import sqlite3
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -78,7 +79,7 @@ class AutonomousSandbox:
                 "ON sandbox_executions(created_at)"
             )
 
-    def create_snapshot(self, files_to_watch: list[str | Path]) -> dict[str, str]:
+    def create_snapshot(self, files_to_watch: Sequence[str | Path]) -> dict[str, str]:
         """Captura SHA-256 de cada archivo existente."""
         snapshot: dict[str, str] = {}
         for filepath in files_to_watch:

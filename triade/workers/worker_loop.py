@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sqlite3
 import time
 from collections.abc import Callable
@@ -1842,6 +1843,49 @@ class WorkerLoop:
             "qualia": qualia,
         }
 
+    def _sandbox_snapshot_and_backup(
+        self, watch_dir: Path, run_ref: str
+    ) -> tuple[dict[str, str], dict[str, Path], Path]:
+        """Snapshot de hashes + copia de respaldo de un directorio acotado.
+
+        Usa AutonomousSandbox.create_snapshot() (T-0xx, hasta ahora sin
+        conectar a producción) para los hashes; la copia de respaldo permite
+        una reversión real por contenido, no solo detección de cambio.
+        """
+        from triade.core.autonomous_sandbox import AutonomousSandbox
+
+        sandbox = AutonomousSandbox(db_path=self.db_path, runs_dir=self.runs_dir)
+        existing_files = [f for f in watch_dir.rglob("*") if f.is_file()]
+        snapshot = sandbox.create_snapshot(existing_files)
+        backup_dir = self.runs_dir / f"shell_backup_{run_ref}_{int(time.time() * 1000)}"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup_map: dict[str, Path] = {}
+        for f in existing_files:
+            dest = backup_dir / f.relative_to(watch_dir)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, dest)
+            backup_map[str(f.resolve())] = dest
+        return snapshot, backup_map, backup_dir
+
+    def _sandbox_restore(
+        self,
+        watch_dir: Path,
+        snapshot_before: dict[str, str],
+        backup_map: dict[str, Path],
+    ) -> int:
+        """Restaura contenido original y elimina archivos creados durante la falla."""
+        restored = 0
+        for fp, backup_path in backup_map.items():
+            if backup_path.exists():
+                target = Path(fp)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(backup_path, target)
+                restored += 1
+        for f in watch_dir.rglob("*"):
+            if f.is_file() and str(f.resolve()) not in snapshot_before:
+                f.unlink(missing_ok=True)
+        return restored
+
     def _shell_execute(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
@@ -1849,6 +1893,14 @@ class WorkerLoop:
 
         Payload esperado: {command_key, autonomy_level?, timeout?, working_dir?}
         El resultado se registra como evidencia para neuronas.
+
+        Si se pasa working_dir explícito (nunca el PROJECT_ROOT por defecto —
+        sería costoso hashear todo el repo y no aporta nada, el comando ya
+        está gobernado por su propia whitelist), se toma snapshot+backup
+        antes y se compara después. Si el comando falló Y quedaron cambios,
+        se revierte automáticamente por contenido (no solo se detecta). Un
+        comando exitoso nunca se toca — esto es una red de seguridad
+        adicional para fallas, no un cambio de comportamiento.
         """
         from triade.core.safe_shell import run_autonomous
 
@@ -1861,6 +1913,29 @@ class WorkerLoop:
         timeout = int(payload.get("timeout", 60))
         working_dir = payload.get("working_dir")
 
+        watch_dir: Path | None = None
+        snapshot_before: dict[str, str] = {}
+        backup_map: dict[str, Path] = {}
+        backup_dir: Path | None = None
+        if working_dir:
+            try:
+                candidate = Path(working_dir).resolve()
+                if candidate.is_dir():
+                    watch_dir = candidate
+                    snapshot_before, backup_map, backup_dir = (
+                        self._sandbox_snapshot_and_backup(watch_dir, run_ref)
+                    )
+            except OSError as exc:
+                record_internal_error(
+                    "worker_loop.sandbox_snapshot",
+                    exc,
+                    run_id=run_ref,
+                    task_id=_integer_task_id(task.id),
+                    payload={"module": __name__, "function": "_shell_execute"},
+                    db_path=self.db_path,
+                )
+                watch_dir = None
+
         result = run_autonomous(
             command_key=command_key,
             timeout=timeout,
@@ -1868,6 +1943,41 @@ class WorkerLoop:
             source="worker",
             working_dir=working_dir,
         )
+
+        if watch_dir is not None:
+            try:
+                from triade.core.autonomous_sandbox import AutonomousSandbox
+
+                sandbox = AutonomousSandbox(db_path=self.db_path, runs_dir=self.runs_dir)
+                current_files = [f for f in watch_dir.rglob("*") if f.is_file()]
+                snapshot_after = sandbox.create_snapshot(current_files)
+                changed = sorted(
+                    fp
+                    for fp in set(snapshot_before) | set(snapshot_after)
+                    if snapshot_before.get(fp) != snapshot_after.get(fp)
+                )
+                result["sandbox_file_changes"] = changed
+                if result.get("status") != "ok" and changed:
+                    restored = self._sandbox_restore(
+                        watch_dir, snapshot_before, backup_map
+                    )
+                    result["sandbox_rollback"] = {
+                        "performed": True,
+                        "restored_files": restored,
+                    }
+            except OSError as exc:
+                result["sandbox_rollback_error"] = str(exc)
+                record_internal_error(
+                    "worker_loop.sandbox_restore",
+                    exc,
+                    run_id=run_ref,
+                    task_id=_integer_task_id(task.id),
+                    payload={"module": __name__, "function": "_shell_execute"},
+                    db_path=self.db_path,
+                )
+            finally:
+                if backup_dir is not None:
+                    shutil.rmtree(backup_dir, ignore_errors=True)
 
         # Registrar como evidencia si fue exitoso.
         if result.get("status") == "ok":
