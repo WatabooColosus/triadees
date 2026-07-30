@@ -98,12 +98,17 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
   desde el ciclo 24/7 (`neuron_formation_pipeline.py` ← `worker_loop.py:1408`
   y `life_pulse.py`). `NeuronRegistry` además se expone en
   `apps/routes/api.py:699,725,3068,3091`.
-- 🔴 **Código muerto confirmado:** `Central.execute_plan_steps()`,
-  `save_plan()`, `load_plan()` y las clases `PlanGraph`/`PlanStep`/
-  `StepBudget` no tienen ningún caller productivo. Su único consumidor,
-  `triade/runtime/governed_plan_dispatcher.py` (`GovernedPlanDispatcher`),
-  a su vez no tiene ningún caller fuera de su propio archivo — huérfano por
-  partida doble.
+- ⚠ **[CORREGIDO 2026-07-30]** `Central.execute_plan_steps()`, `save_plan()`,
+  `load_plan()`, `PlanGraph`/`PlanStep`/`StepBudget` y
+  `triade/runtime/governed_plan_dispatcher.py` (`GovernedPlanDispatcher`) NO
+  son código muerto — tienen cobertura de test real
+  (`tests/test_governed_plan_dispatcher.py`,
+  `tests/test_governed_text_artifact_e2e.py`,
+  `tests/test_no_simulated_autonomy.py`,
+  `tests/operational_truth/test_invariants.py`). Estado real: implementado y
+  probado, pero **sin ningún caller de producción** (runner/workers/API) —
+  capacidad lista pero nunca conectada al ciclo en vivo. Ver
+  `TECHNICAL_DEBT.md`.
 
 ### Hipotálamo Emocional 🟢
 - `core/hypothalamus.py` — `Hypothalamus.analyze() → SignalPacket`. PV-7 (humildad, generosidad, respeto, paciencia, templanza, caridad, diligencia). Modelo+fallback por reglas con validación JSON.
@@ -112,7 +117,7 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 ### Bodega de Almacenamiento 🟢
 - `core/bodega.py` — persistencia y recall, `doctor`, migración Crystal v2. **[VERIFICADO 2026-07-30]** conectada a ambos ciclos: `runner.py:227` (por-run) y `supervisor.py:539,562` + `worker_loop.py:1787` (24/7).
 - `memory/semantic_store.py` — documentos + embeddings + protección de estado gobernado. ⚠ D-01/D-02 → **[VERIFICADO 2026-07-30] YA CORREGIDO**: `list_documents(limit=)` (semantic_store.py:270) tiene la firma correcta y todos los call sites la usan bien; esta advertencia quedó obsoleta (la línea 217 de este mismo doc ya lo decía, pero no se limpiaron estas notas ⚠).
-- `memory/semantic_embedding_engine.py` — vectorización vía Ollama (1.9B). 🔴 **[VERIFICADO 2026-07-30] código muerto:** `embed_pending()` (línea 310) no tiene ningún caller fuera de su propia clase/tests.
+- `memory/semantic_embedding_engine.py` — vectorización vía Ollama (1.9B). ⚠ **[CORREGIDO 2026-07-30]** `embed_pending()` (línea 310) no es código muerto: tiene test real (`tests/test_semantic_embedding_engine.py:104-110`) pero cero caller de producción.
 - `memory/semantic_search.py` — similitud coseno (1.9C). Conectada: `bodega.py:65` la invoca dentro del flujo real de `runner.py`.
 - `memory/semantic_governance.py` — gobierno de estados y cuarentena (1.9E). Conectada: `runner.py:438` la ejecuta en cada run. ⚠ **[VERIFICADO 2026-07-30]** en `worker_loop.py:1684-1685` se instancian `SemanticMemoryStore`/`SemanticMemoryGovernance` dentro del ciclo 24/7 sin invocar ningún método — construcción vestigial sin efecto, "por estar".
 - `memory/schemas.sql` (16 tablas) + `memory/migrations/001_9A_semantic_memory.sql`.
@@ -167,10 +172,9 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 - Persistencia: `worker_tasks`, `worker_runs`, `worker_events`, `worker_state`.
 - Superficies: CLI `workers once/start/daemon/status/stop/queue/events/doctor` y endpoints `/workers/*`.
 - Política: no modifica identity_core, no escribe memoria stable sin evidencia, no red externa por defecto, no shell arbitrario.
-- 🔴 **[VERIFICADO 2026-07-30] código muerto dentro de `triade/workers/`:**
-  `state_machine.py` (`WorkerStateMachine`) y `lease_retry_breaker.py`
-  (`Lease`, `CircuitBreaker`, etc.) — cero referencias en todo el repo,
-  incluyendo tests. `advanced_scheduler.py` y `worker_supervisor.py` sí se
+- ✅ **[ELIMINADO 2026-07-30]** `state_machine.py` (`WorkerStateMachine`) y
+  `lease_retry_breaker.py` (`Lease`, `CircuitBreaker`, etc.) — tenían cero
+  referencias en todo el repo, incluyendo tests; borrados. `advanced_scheduler.py` y `worker_supervisor.py` sí se
   importan, pero solo para `.doctor()` en paneles de salud
   (`triade/dashboard/routes.py`, `system_monitor.py`) — no forman parte del
   loop 24/7 real (`worker_autostart.py` → `WorkerBackgroundService` →
@@ -204,10 +208,11 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
   propio handler devuelve `"external_network": False`. El router de
   federación (`apps/routes/api.py:2177-2387`) sí está montado en
   `single_port_app.py`, alcanzable en producción.
-- 🔴 **[VERIFICADO 2026-07-30] código muerto:** `triade/federation/merge.py`
-  (`FederatedMerge`) ni siquiera está exportado en `federation/__init__.py`.
-  `dispatch.py` y `evidence_gate.py` se exportan pero no tienen importadores
-  reales fuera de tests.
+- ✅ **[ELIMINADO 2026-07-30]** `triade/federation/merge.py` (`FederatedMerge`)
+  no estaba exportado en `federation/__init__.py` ni tenía referencias en
+  ningún lugar del repo; borrado. `dispatch.py` y `evidence_gate.py` se
+  exportan pero no tienen importadores reales fuera de tests — no se
+  tocaron (sí tienen cobertura de test).
 
 ### Entrenamiento LoRA/PEFT 🟢 (no cubierto en versiones previas de este mapa)
 - `triade/training/{governed_lora,lora_trainer,installer,peft_canary,serving_governance}.py`.
@@ -341,7 +346,7 @@ Hypothalamus ███████░░░  operativo   — PV-7 + señales + f
 Verification ███████░░░  operativo   — 5 scores, retroalimentación
 Safety       ███████░░░  operativo   — 4/5 estados (falta sandbox_only)
 Crystal      ███████░░░  operativo   — Q_cristal + temporal contextual
-Central      ██████░░░░  parcial     — N Creadora/Formadora SÍ conectadas (ver 3); execute_plan_steps/GovernedPlanDispatcher muertos
+Central      ██████░░░░  parcial     — N Creadora/Formadora SÍ conectadas (ver 3); execute_plan_steps/GovernedPlanDispatcher probados pero sin caller de producción
 Semántica    ████████░░  operativa   — regresión 1.9F reparada (Fase A.1)
 Learning     ███████░░░  operativo   — pipeline Fase C sobre learning_queue
 Federation   ███████░░░  operativo   — nodos + intercambio gated (Fase D)

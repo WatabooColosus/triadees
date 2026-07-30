@@ -12,12 +12,12 @@ from typing import Any, ClassVar
 
 from triade.core.background_neurons import candidates_from_system_debt
 from triade.core.contracts import (
-    CrystalPacket,
     MemoryPacket,
     PlanPacket,
     SignalPacket,
     utc_now,
 )
+from triade.core.crystal import Crystal
 from triade.core.error_bus import record_internal_error
 from triade.core.experimental_neuron_runtime import run_experimental_neurons
 from triade.core.neuron_activity_store import NeuronActivityStore
@@ -1265,7 +1265,10 @@ class WorkerLoop:
             tools=[],
         )
         memory = MemoryPacket(run_id=run_ref, semantic_recall={"enabled": False})
-        crystal = CrystalPacket(run_id=run_ref, temporal_status="stable")
+        # Regulación real de Cristal (pura, sin I/O) en vez de un CrystalPacket
+        # estático "stable" fijo — los ciclos de fondo deben pasar por el
+        # mismo regulador que los runs conversacionales, no por un stub.
+        crystal = Crystal().regulate(signals, memory)
         return Safety().review(signals, plan, crystal=crystal, memory=memory)
 
     def _publish_qualia_experience(

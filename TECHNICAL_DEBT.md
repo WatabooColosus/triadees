@@ -3,6 +3,57 @@
 Corte: 2026-07-30. SHA documental base: `8f44814`. Esta lista es canónica;
 los reportes anteriores son históricos cuando la contradicen.
 
+## Discrepancia adicional con "pytest completo al 100%" (Fase 3)
+
+Al correr `pytest -q tests/ --ignore=tests/operational_truth` (excluyendo el
+test de locks ya documentado arriba) apareció una segunda falla real y
+preexistente, no causada por esta sesión:
+`tests/test_autonomy_delegation.py::test_status_current_mentions_autonomy_delegation`
+espera que `docs/STATUS_CURRENT.md` contenga la frase "Autonomía Delegada" /
+"autonomía delegada", y no la contiene. No se editó `STATUS_CURRENT.md` para
+forzar el texto y pasar el test — sería maquillar la evidencia, no
+corregirla. Pendiente: decidir si el test está desactualizado (la sección
+correspondiente se renombró) o si `STATUS_CURRENT.md` debe documentar
+explícitamente el estado de autonomía delegada. No se ejecutó la suite
+completa por costo de tiempo; con esta y la falla de locks documentada
+arriba, la afirmación "Pytest completo terminó al 100%" de
+`docs/STATUS_CURRENT.md` queda contradicha por evidencia directa, al menos
+para este SHA en este entorno.
+
+## P0 — bug real en identidad de locks (detectado en Fase 3, sin corregir)
+
+**`RuntimeProcessLock.inspect()` (`triade/runtime/process_lock.py:63-77`) no
+detecta reutilización de PID cuando el cmdline del proceso no cambió.** Test
+`tests/test_worker_lifecycle_hardening.py::test_pid_reuse_identity_mismatch_recovers_lock`
+falla en el SHA actual (falla también en `b0613ea`, antes de esta sesión —
+no es una regresión de hoy, pero tampoco estaba documentada). Causa raíz:
+
+- El commit `3c005c0` (30-jul, mismo día) relajó correctamente un bug real:
+  antes, `expected_token` (constante hardcodeada `"triade"` en
+  `RuntimeProcessLock.payload()`) tenía que aparecer literalmente en el
+  cmdline real del proceso, lo cual NUNCA pasa para procesos legítimos
+  (`python scripts/runtime_workers.py` no contiene la palabra "triade") —
+  causaba falsos positivos marcando workers vivos como huérfanos.
+- La relajación quedó excesiva: ahora `expected_token` solo se consulta
+  como atenuante *dentro* de la rama `recorded != actual` (cmdline
+  cambiado). Si el cmdline grabado coincide con el cmdline actual —el caso
+  típico de reutilización de PID por un proceso con invocación similar—,
+  el token nunca se compara y el lock se reporta `"live"` aunque
+  `expected_token` no coincida en absoluto.
+- Problema de fondo, no solo de lógica: `expected_token` es una constante
+  fija en todo el código (`"triade"`), no un valor único por instancia de
+  proceso, así que en producción NUNCA puede distinguir "este proceso real"
+  de "otro proceso que reutilizó el PID" — ambos escribirían el mismo
+  token. Arreglar la comparación sin antes darle al token una fuente de
+  entropía real (ej. UUID por proceso persistido también en una variable de
+  entorno legible vía `/proc/<pid>/environ`) puede reintroducir el bug que
+  `3c005c0` acababa de corregir.
+- **No se corrigió en esta sesión** por ser una ruta de seguridad crítica
+  para la recuperación tras reinicio (exactamente lo que se pidió auditar)
+  y el arreglo correcto requiere rediseñar la fuente del token, no solo
+  la comparación — un parche apresurado aquí podría ser peor que el bug
+  actual. Repro: `pytest tests/test_worker_lifecycle_hardening.py::test_pid_reuse_identity_mismatch_recovers_lock`.
+
 ## Fase 2 — auditoría por órgano (2026-07-30)
 
 Auditoría de conectividad real (call sites, no documentación) de los 6
@@ -12,18 +63,45 @@ Android, y superficies de entrada. Detalle completo con ruta:línea ya
 volcado en `ARCHITECTURE_MAP.md` (marcado `[VERIFICADO 2026-07-30]`); aquí
 solo el resumen accionable para Fase 3.
 
-**Código muerto confirmado (cero callers productivos, candidatos a eliminar
-o conectar en Fase 3):**
-- `triade/runtime/governed_plan_dispatcher.py` completo (`GovernedPlanDispatcher`, `DispatchReceipt`).
-- `Central.execute_plan_steps/save_plan/load_plan`, `PlanGraph.close/extract_subgraph/to_dict` (`triade/core/central.py`).
-- `triade/memory/semantic_embedding_engine.py::embed_pending()`.
-- `triade/workers/state_machine.py` completo (`WorkerStateMachine`).
-- `triade/workers/lease_retry_breaker.py` completo (`Lease`, `CircuitBreaker`, etc.) — cero referencias incluso en tests.
-- `triade/federation/merge.py` completo (`FederatedMerge`) — ni siquiera exportado en `__init__.py`.
+**Código muerto confirmado y ELIMINADO en Fase 3 (2026-07-30, verificado con
+grep exhaustivo de todo el repo incluyendo tests antes de borrar — cero
+referencias en ningún lado):**
+- `triade/workers/state_machine.py` (`WorkerStateMachine`) — borrado.
+- `triade/workers/lease_retry_breaker.py` (`Lease`, `CircuitBreaker`, `RetryPolicy`, `LeaseManager`) — borrado. (El `CircuitBreaker` de `advanced_scheduler.py` es una clase homónima distinta, no relacionada; no se tocó.)
+- `triade/federation/merge.py` (`FederatedMerge`) — borrado; no estaba exportado en `federation/__init__.py`.
+
+**Corrección importante: NO son código muerto, tienen cobertura de test real
+(no se tocaron, deletion habría roto tests):**
+- `triade/runtime/governed_plan_dispatcher.py` (`GovernedPlanDispatcher`) y
+  `Central.execute_plan_steps/save_plan/load_plan`/`PlanGraph` — SÍ tienen
+  tests reales: `tests/test_governed_plan_dispatcher.py`,
+  `tests/test_governed_text_artifact_e2e.py`,
+  `tests/test_no_simulated_autonomy.py`, y
+  `tests/operational_truth/test_invariants.py` (esta última parece parte de
+  la suite de invariantes operacionales, posiblemente gateada en CI). Estado
+  real: **implementado y probado, pero sin ningún caller de producción**
+  (runner/workers/API) — es una capacidad lista pero nunca conectada al
+  ciclo en vivo, no código sin uso. Decisión pendiente: conectarla al runner
+  o documentar explícitamente por qué se mantiene solo como capacidad
+  probada y no activa.
+- `triade/memory/semantic_embedding_engine.py::embed_pending()` — tiene test
+  real (`tests/test_semantic_embedding_engine.py:104-110`). Mismo caso:
+  probado, sin caller de producción.
 
 **Código vestigial ("por estar", construido pero sin efecto) dentro del ciclo 24/7:**
 - `worker_loop.py:1684-1685` instancia `SemanticMemoryStore`/`SemanticMemoryGovernance` sin invocar ningún método.
-- `worker_loop.py:1268-1269` usa un `CrystalPacket` estático (`temporal_status="stable"` fijo) en vez de llamar a `Crystal.regulate()` real — el Cristal nunca opera fuera de conversaciones; los ciclos de fondo corren con un Cristal simulado. Esto contradice la idea de que "todos los órganos" trabajan siempre.
+- **Corregido en Fase 3:** `worker_loop.py` usaba un `CrystalPacket` estático
+  (`temporal_status="stable"` fijo) en vez de llamar a `Crystal.regulate()`
+  real dentro de `_safety_for_task()`. `Crystal.regulate()` es cómputo puro
+  (sin I/O ni llamadas a Ollama), así que conectarlo es seguro y barato.
+  Ahora los ciclos de fondo (los 19 task types de Living Workers) pasan por
+  el mismo regulador Cristal real que los runs conversacionales, con
+  `pv7_score`/`stability`/`temporal_status` calculados de verdad en vez de
+  un valor fijo. Verificado: 14/14 tests de `test_worker_loop.py` +
+  `test_worker_safety_blocks_identity_change.py` +
+  `test_worker_stable_consolidation_review.py` +
+  `test_worker_learning_integration.py` + `test_worker_qualia_integration.py`
+  + `test_worker_runtime_recovery.py` en verde tras el cambio.
 
 **Pendiente de confirmar (no clasificado con certeza):**
 - Si `learning_outcome_score`/`learning_outcome_evidence_ref` se están poblando realmente en producción para que la transición `internally_checked → validated_in_runs` del Learning Pipeline cuente casos de uso, o si en la práctica casi todo cae en `observed_not_counted`.
