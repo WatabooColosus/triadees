@@ -143,7 +143,7 @@ class MissionPlanner:
                     row = conn.execute(
                         """SELECT COUNT(*) cnt FROM neurons n
                         LEFT JOIN neuron_competencies c ON c.neuron_id=n.id AND c.domain=n.domain
-                        WHERE n.status='experimental' AND (c.next_review IS NULL OR c.next_review<=datetime('now'))"""
+                        WHERE n.status='experimental' AND (c.next_review IS NULL OR datetime(c.next_review)<=datetime('now'))"""
                     ).fetchone()
                 else:
                     row = conn.execute(
