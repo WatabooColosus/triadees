@@ -68,15 +68,16 @@ class RuntimeProcessLock:
             return LockInspection("invalid", None, "pid_missing")
         if not cls.pid_alive(pid):
             return LockInspection("stale", pid, "process_missing")
-        actual = cls.command_line(pid)
-        expected = str(payload.get("expected_token") or "")
-        recorded = str(payload.get("command_line") or "")
-        if (
-            not actual
-            or (expected and expected not in actual)
-            or (recorded and recorded != actual)
-        ):
-            return LockInspection("stale", pid, "process_identity_mismatch")
+        actual = cls.command_line(pid).strip()
+        expected = str(payload.get("expected_token") or "").strip()
+        recorded = str(payload.get("command_line") or "").strip()
+        if not actual:
+            return LockInspection("stale", pid, "empty_cmdline")
+        if recorded and recorded != actual:
+            if not expected or expected not in actual:
+                return LockInspection(
+                    "stale", pid, "process_identity_mismatch"
+                )
         return LockInspection("live", pid, "process_identity_verified")
 
     @staticmethod
