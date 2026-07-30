@@ -10,7 +10,9 @@ El HTML vive en apps/ui_html.py.
 
 from __future__ import annotations
 
+import logging
 import os
+import sqlite3
 import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -20,6 +22,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from apps.routes.api import router as api_router
+from apps.routes.auth import router as auth_router
 from apps.routes.governance import router as governance_router
 from apps.routes.health import router as health_router
 from apps.routes.ui import router as ui_router
@@ -68,13 +71,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         coord = OrchestratorCoordinator()
         cleaned = coord.cleanup()
         if cleaned:
-            import logging
-
             logging.getLogger("single_port_app").info(
                 "Cleaned %d expired orchestrator locks", cleaned
             )
-    except Exception:
-        pass
+    except (ImportError, OSError, RuntimeError, ValueError, sqlite3.Error):
+        logging.getLogger("single_port_app").exception(
+            "Failed to clean expired orchestrator locks"
+        )
 
     try:
         from triade.core.always_on import (
@@ -115,7 +118,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 "foundational_neurons": foundational_result,
                 "model_acquisition": model_acquisition_result,
             }
-    except Exception as exc:
+    except (ImportError, OSError, RuntimeError, ValueError, sqlite3.Error) as exc:
         with _ALWAYS_ON_LOCK:
             _ALWAYS_ON_RESULT = {
                 "status": "error",
@@ -131,32 +134,52 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Tríade Ω Single Port", version="0.9.0", lifespan=lifespan)
 app.include_router(governance_router)
+app.include_router(auth_router)
 
 
 @app.middleware("http")
 async def public_guarded_mode(request: Request, call_next):
-    """Keep a keyless public UI usable while blocking administrative writes."""
+    """Exige sesión real en modo público; una API key global no basta."""
     guarded = os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower() in {
         "1",
         "true",
         "yes",
         "on",
     }
-    safe_public_posts = {"/api/run", "/triade/run", "/api/router/doctor"}
-    if (
-        guarded
-        and request.method not in {"GET", "HEAD", "OPTIONS"}
-        and request.url.path not in safe_public_posts
-    ):
-        return JSONResponse(
-            status_code=403,
-            content={
-                "status": "blocked",
-                "detail": "Operación administrativa bloqueada en modo público sin API key.",
-                "public_guarded": True,
-            },
+    public_paths = {"/api/auth/login", "/health", "/healthz", "/api/health"}
+    if guarded and request.method != "OPTIONS" and request.url.path not in public_paths:
+        from triade.security.public_auth import PublicAuthStore
+
+        value = request.headers.get("Authorization", "")
+        if not value.startswith("Bearer "):
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "status": "blocked",
+                    "detail": "authenticated_session_required",
+                    "public_guarded": True,
+                },
+            )
+        required = "operator" if request.method not in {"GET", "HEAD"} else "viewer"
+        auth = PublicAuthStore(
+            os.getenv("TRIADE_AUTH_DB_PATH", "triade/memory/triade.db"),
+            rate_limit_per_minute=int(os.getenv("TRIADE_RATE_LIMIT_PER_MINUTE", "60")),
         )
-    return await call_next(request)
+        try:
+            request.state.principal = auth.authorize(value[7:], required_role=required)
+        except RuntimeError:
+            return JSONResponse(
+                status_code=429, content={"detail": "rate_limit_exceeded"}
+            )
+        except PermissionError as exc:
+            code = 403 if str(exc) == "insufficient_role" else 401
+            return JSONResponse(status_code=code, content={"detail": str(exc)})
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = "default-src 'self'"
+    return response
 
 
 app.include_router(health_router)

@@ -1,0 +1,13 @@
+{
+  "phase": 15,
+  "principal": {
+    "session_id": "ses-b1faa05a77ef4216a98ddd2daf36ef9e",
+    "user_id": "usr-fd7d509c5b564de2a7bf0cd400115bc0",
+    "role": "viewer",
+    "tenant_id": "tenant-runtime"
+  },
+  "rate_blocked": true,
+  "revoked": true,
+  "revocation_enforced": true,
+  "passed": true
+}
