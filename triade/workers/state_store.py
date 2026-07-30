@@ -10,6 +10,7 @@ from typing import Any
 from triade.core.contracts import utc_now
 from triade.core.error_bus import prune_worker_events
 from triade.runtime.process_lock import RuntimeProcessLock
+from triade.runtime.task_leases import AutonomousTaskStore
 
 from .contracts import WorkerRunConfig, WorkerTask
 
@@ -397,12 +398,6 @@ class WorkerStateStore:
             conn.execute(
                 "UPDATE worker_tasks SET status='pending', started_at=NULL, error=NULL WHERE status IN ('claimed','running')"
             )
-            conn.execute(
-                """UPDATE autonomous_tasks SET status='pending', worker_id=NULL,
-                lease_acquired_at=NULL, lease_expires_at=NULL, heartbeat_at=NULL,
-                last_error=NULL, attempt=0
-                WHERE status IN ('leased','running','retry_wait','deferred','completion_uncertain')"""
-            )
             rows = conn.execute(
                 "SELECT id, task_type, payload_json FROM worker_tasks WHERE status='pending' ORDER BY id ASC"
             ).fetchall()
@@ -420,11 +415,29 @@ class WorkerStateStore:
                     "UPDATE worker_tasks SET status='skipped', finished_at=?, error='duplicate_pending_task_recovered' WHERE id=?",
                     (utc_now(), task_id),
                 )
+
+        # Recuperación gobernada de autonomous_tasks v2
+        autonomous = AutonomousTaskStore(self.db_path).recover_orphaned_tasks(
+            lock_file=lock if stale_pid is not None else None,
+        )
+        if autonomous.get("status") in ("live_owner", "live_lease"):
+            return {"status": "live_owner", "pid": autonomous.get("pid"), "deduplicated": 0}
+
         return {
             "status": "recovered" if stale_pid is not None else "clean",
             "stale_pid": stale_pid,
             "interrupted_runs": interrupted,
             "deduplicated": len(duplicate_ids),
+            "autonomous_tasks": {
+                "leased_recovered": autonomous.get("leased_recovered", 0),
+                "running_recovered": autonomous.get("running_recovered", 0),
+                "running_uncertain": autonomous.get("running_uncertain", 0),
+                "retry_wait_preserved": autonomous.get("retry_wait_preserved", 0),
+                "deferred_preserved": autonomous.get("deferred_preserved", 0),
+                "uncertain_completed": autonomous.get("uncertain_completed", 0),
+                "uncertain_quarantined": autonomous.get("uncertain_quarantined", 0),
+                "fencing_invalidated": autonomous.get("fencing_invalidated", 0),
+            },
         }
 
     def find_active_equivalent(

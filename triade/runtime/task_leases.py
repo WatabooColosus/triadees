@@ -521,6 +521,193 @@ class AutonomousTaskStore:
             conn.commit()
         return ids
 
+    def recover_orphaned_tasks(
+        self,
+        lock_file: Path | None = None,
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Recupera tareas huérfanas de autonomous_tasks tras reinicio del worker.
+
+        Tratamiento por estado:
+        - leased: → recovered si lock stale/inexistente o lease expirado
+        - running: clasifica → recovered (solo lectura) o completion_uncertain (efectos)
+        - retry_wait: preserva status, attempt, retry_after, last_error
+        - deferred: preserva status, retry_after
+        - completion_uncertain: reconcilia artifacts existentes; mantiene si ambiguo
+
+        Nunca:
+        - resetea attempt a 0
+        - borra last_error
+        - convierte retry_wait/deferred a pending
+        - toca tareas con propietario vivo
+        """
+        now = now or datetime.now(UTC)
+        now_iso = _iso(now)
+
+        result: dict[str, Any] = {
+            "leased_recovered": 0,
+            "running_recovered": 0,
+            "running_uncertain": 0,
+            "retry_wait_preserved": 0,
+            "deferred_preserved": 0,
+            "uncertain_completed": 0,
+            "uncertain_quarantined": 0,
+            "fencing_invalidated": 0,
+        }
+
+        # ── 1. Verificar propietario vivo ──────────────────────────
+        if lock_file and lock_file.exists():
+            from triade.runtime.process_lock import RuntimeProcessLock
+
+            inspection = RuntimeProcessLock.inspect(lock_file)
+            if inspection.status == "live":
+                return {"status": "live_owner", "pid": inspection.pid, **result}
+
+        # ── 2. Reconciliar completion_uncertain existentes ──────────
+        reconciled = self.reconcile_uncertain_completions()
+        result["uncertain_completed"] = reconciled["completed"]
+        result["uncertain_quarantined"] = reconciled["still_uncertain"]
+
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+
+            def _record(
+                task_id: str,
+                worker_id: str | None,
+                lease_gen: int,
+                from_st: str,
+                to_st: str,
+                reason: str,
+            ) -> None:
+                conn.execute(
+                    """INSERT INTO autonomous_task_transitions
+                    (task_id,worker_id,lease_generation,from_status,to_status,reason,created_at)
+                    VALUES(?,?,?,?,?,?,?)""",
+                    (task_id, worker_id, lease_gen, from_st, to_st, reason, now_iso),
+                )
+
+            # ── 3. leased ──────────────────────────────────────────
+            for row in conn.execute(
+                """SELECT task_id,worker_id,lease_generation,lease_expires_at,attempt,
+                         last_error,heartbeat_at
+                 FROM autonomous_tasks WHERE status='leased'"""
+            ).fetchall():
+                tid = str(row["task_id"])
+                wid = str(row["worker_id"]) if row["worker_id"] else None
+                lgen = int(row["lease_generation"])
+                expires = row["lease_expires_at"]
+                expired = expires and expires <= now_iso
+
+                if not expired:
+                    conn.commit()
+                    return {"status": "live_lease", **result}
+
+                conn.execute(
+                    """UPDATE autonomous_tasks SET status='recovered',
+                    worker_id=NULL,lease_acquired_at=NULL,lease_expires_at=NULL,
+                    heartbeat_at=NULL,updated_at=?
+                    WHERE task_id=? AND status='leased'""",
+                    (now_iso, tid),
+                )
+                _record(tid, wid, lgen, "leased", "recovered", "orphaned_lease_recovered")
+                result["leased_recovered"] += 1
+                result["fencing_invalidated"] += 1
+
+            # ── 4. running ─────────────────────────────────────────
+            for row in conn.execute(
+                """SELECT task_id,worker_id,lease_generation,lease_expires_at,attempt,
+                         last_error,result_ref,payload_hash
+                 FROM autonomous_tasks WHERE status='running'"""
+            ).fetchall():
+                tid = str(row["task_id"])
+                wid = str(row["worker_id"]) if row["worker_id"] else None
+                lgen = int(row["lease_generation"])
+                expires = row["lease_expires_at"]
+                expired = expires and expires <= now_iso
+
+                if not expired:
+                    conn.commit()
+                    return {"status": "live_lease", **result}
+
+                ref = str(row["result_ref"] or "")
+                has_artifact = ref and Path(ref).is_file()
+
+                if has_artifact:
+                    conn.execute(
+                        """UPDATE autonomous_tasks SET status='completed',
+                        lease_expires_at=NULL,updated_at=?
+                        WHERE task_id=? AND status='running' AND result_ref=?""",
+                        (now_iso, tid, ref),
+                    )
+                    _record(tid, wid, lgen, "running", "completed", "artifact_found_during_recovery")
+                    result["running_recovered"] += 1
+                else:
+                    conn.execute(
+                        """UPDATE autonomous_tasks SET status='completion_uncertain',
+                        last_error=COALESCE(last_error||'; ','')||'recovery:no_artifact_found',
+                        updated_at=?
+                        WHERE task_id=? AND status='running'""",
+                        (now_iso, tid),
+                    )
+                    _record(tid, wid, lgen, "running", "completion_uncertain", "recovery_no_artifact")
+                    result["running_uncertain"] += 1
+                result["fencing_invalidated"] += 1
+
+            # ── 5. retry_wait: preservar, solo limpiar owner ───────
+            for row in conn.execute(
+                """SELECT task_id,worker_id,lease_generation,attempt,
+                         retry_after,last_error
+                 FROM autonomous_tasks WHERE status='retry_wait'"""
+            ).fetchall():
+                tid = str(row["task_id"])
+                wid = str(row["worker_id"]) if row["worker_id"] else None
+                lgen = int(row["lease_generation"])
+                if wid:
+                    conn.execute(
+                        """UPDATE autonomous_tasks SET worker_id=NULL,
+                        lease_acquired_at=NULL,lease_expires_at=NULL,
+                        heartbeat_at=NULL,updated_at=?
+                        WHERE task_id=? AND status='retry_wait'""",
+                        (now_iso, tid),
+                    )
+                    _record(tid, wid, lgen, "retry_wait", "retry_wait", "stale_ownership_cleaned")
+                result["retry_wait_preserved"] += 1
+
+            # ── 6. deferred: preservar, solo limpiar owner ────────
+            for row in conn.execute(
+                """SELECT task_id,worker_id,lease_generation,
+                         retry_after,last_error
+                 FROM autonomous_tasks WHERE status='deferred'"""
+            ).fetchall():
+                tid = str(row["task_id"])
+                wid = str(row["worker_id"]) if row["worker_id"] else None
+                lgen = int(row["lease_generation"])
+                if wid:
+                    conn.execute(
+                        """UPDATE autonomous_tasks SET worker_id=NULL,
+                        lease_acquired_at=NULL,lease_expires_at=NULL,
+                        heartbeat_at=NULL,updated_at=?
+                        WHERE task_id=? AND status='deferred'""",
+                        (now_iso, tid),
+                    )
+                    _record(tid, wid, lgen, "deferred", "deferred", "stale_ownership_cleaned")
+                result["deferred_preserved"] += 1
+
+            # ── 7. completion_uncertain restantes (no reconciliables) ──
+            for row in conn.execute(
+                """SELECT task_id,worker_id,lease_generation,result_ref
+                 FROM autonomous_tasks WHERE status='completion_uncertain'"""
+            ).fetchall():
+                ref = str(row["result_ref"] or "")
+                if not ref or not Path(ref).is_file():
+                    result["uncertain_quarantined"] += 1
+
+            conn.commit()
+
+        result["status"] = "recovered"
+        return result
+
     def get(self, task_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
