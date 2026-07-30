@@ -17,6 +17,15 @@ real contra una SQLite temporal con snapshot y reinicio; un proceso con
 `CUDA_VISIBLE_DEVICES=-1`; y un proceso limitado por `RLIMIT_AS` que confirma
 `MemoryError`. No mata la web ni Ollama productivos.
 
+El runner prolongado registra en cada checkpoint disponibilidad, integridad,
+duplicados por idempotency key, tareas baseline desaparecidas, falsos
+`completed`, pérdida de artifacts y recuperaciones de workers. Al inicio y al
+final ejecuta probes aislados de fencing tardío y rollback SQLite. El reporte
+también conserva crecimiento de snapshots y RSS del propio monitor. El gate
+terminal exige cero duplicados, pérdidas, falsos `completed`, corrupción,
+resultados tardíos y artifacts perdidos, rollback 100% y disponibilidad mínima
+99%.
+
 ## Reproducción
 
 ```bash
@@ -46,6 +55,11 @@ ruff check (archivos de fase) / format                          PASS
 
 La ventana corta duró al menos 10.0 segundos reales, seis checkpoints, 100% de
 availability, DB corruption 0, web 200 y Ollama 200. Esto no sustituye 24h.
+
+Una primera ejecución prolongada iniciada el 2026-07-30 fue invalidada tras
+detectar que su versión del runner solo medía disponibilidad e integridad. Sus
+horas transcurridas no se reutilizan. Las ventanas certificables deben comenzar
+desde cero con el runner que incluye todas las métricas anteriores.
 
 Ejecución adicional 2026-07-30: los 15/15 escenarios chaos aislados pasaron;
 duplicate effects 0, lost tasks 0, false completed 0, DB corruption 0, late
