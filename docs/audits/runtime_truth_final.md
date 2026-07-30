@@ -1,5 +1,8 @@
 # Runtime truth stabilization — estado verificable
 
+> Informe histórico de otro SHA y rama. Sus conteos y pendientes no representan
+> el estado vigente; prevalecen `TECHNICAL_DEBT.md` y `docs/STATUS_CURRENT.md`.
+
 Fecha: 2026-07-29 UTC  
 Rama: `codex/runtime-truth-stabilization`  
 Base: `4c18120525b039b4b6c66703a07b829b01d8e3f0`  

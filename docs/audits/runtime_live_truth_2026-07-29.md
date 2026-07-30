@@ -1,5 +1,9 @@
 # Auditoría viva de autonomía — 2026-07-29
 
+> Informe histórico de su ventana de observación. Para estado vigente usar
+> `TECHNICAL_DEBT.md` y `docs/STATUS_CURRENT.md`; no extrapolar sus pendientes al
+> corte actual.
+
 Hora de observación: 07:11–07:14 UTC  
 Host: Linux, 8 CPU lógicos, 31.34 GiB RAM, NVIDIA L4 con 22.49 GiB VRAM  
 Base: `triade/memory/triade.db`
