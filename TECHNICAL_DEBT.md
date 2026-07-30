@@ -65,6 +65,58 @@ pero tampoco estaba documentado). Causa raíz:
   reiniciado, lock real del proceso activo con `start_time` correcto;
   56/56 tests de locks/leases/recuperación en verde.
 
+## P0 — Learning Pipeline nunca promovía candidatos (CORREGIDO, commit `0c9d234`)
+
+**579 candidatos estancados en `internally_checked`, cero en
+`validated_in_runs` o `consolidated`** (verificado contando filas reales de
+`learning_queue`, no supuesto). Causa raíz: `_extract_measured_outcome()`
+(`run_learning_usage.py`) exige `memory_diff["learning_outcome_score"]` +
+`["learning_outcome_evidence_ref"]`, pero nada en producción los escribía —
+`runner.py` calculaba un `verification_id` real y lo pasaba como parámetro
+`evidence_ref` a `record_learning_usage_from_output()`, pero ese parámetro
+nunca se lee dentro de la función (estaba muerto). Cada uso quedaba
+`observed_not_counted` para siempre, sin importar cuántas veces se usara un
+candidato — el organismo del aprendizaje evidenciado por uso real nunca
+había arrancado.
+
+Corrección: el `Verifier` ya calcula 5 scores deterministas y no
+autorreportados (coherencia, memoria, safety, utilidad, trazabilidad) en
+cada run. `runner.py` ahora escribe el promedio de esos 5 en
+`memory_diff["learning_outcome_score"]` y
+`f"verification_report:{verification_id}"` en
+`memory_diff["learning_outcome_evidence_ref"]`, justo después de calcular
+el `VerificationReport`. No se inventó ninguna señal nueva — se cableó una
+medición que el sistema ya producía con otra que ya consumía. Verificado en
+vivo: `POST /api/run` real devolvió `learning_outcome_score=0.87`,
+`learning_outcome_evidence_ref="verification_report:138"`. 85/85 tests
+relevantes en verde.
+
+Pendiente de observar: con esto corregido, los candidatos que sí tengan un
+match explícito (`used_learning_candidate_ids`, `semantic_matches`,
+`evidence_refs`) en runs futuros ahora pueden acumular
+`run_use_count`/`avg_outcome_score` reales y cruzar el umbral de
+autopromoción (`MIN_RUN_USES=3`, `MIN_OUTCOME_SCORE=0.70`). Los 579
+candidatos ya estancados no se reprocesan retroactivamente (no había datos
+de uso real que reconstruir); el efecto se observará hacia adelante.
+
+## Decisión Fase 3 — GovernedPlanDispatcher: no conectado a producción (deliberado)
+
+Evaluado conectar `GovernedPlanDispatcher`/`Central.execute_plan_steps` al
+ciclo real de `Central.plan()`/`respond()` en `runner.py`. Decisión: **no
+conectarlo en esta sesión**. Razones:
+- Es una ruta de planificación estructurada alternativa (grafo de pasos con
+  presupuesto), no un simple bugfix — integrarla al ciclo cognitivo
+  principal cambia el comportamiento de cada run, no solo de un caso
+  puntual, y merece su propia validación dedicada (no una corrección
+  apurada dentro de una sesión de auditoría de reinicio).
+- Ya tiene cobertura de test real y aislada
+  (`tests/test_governed_plan_dispatcher.py`,
+  `tests/operational_truth/test_invariants.py`), así que no es código en
+  riesgo de pudrirse sin uso — es una capacidad lista para cuando se
+  decida activarla deliberadamente.
+- No implementarlo no bloquea ningún objetivo de "Tríade siempre viva": el
+  ciclo cognitivo real (`Central.plan()`/`respond()`) ya funciona sin él.
+
 ## Fase 2 — auditoría por órgano (2026-07-30)
 
 Auditoría de conectividad real (call sites, no documentación) de los 6
