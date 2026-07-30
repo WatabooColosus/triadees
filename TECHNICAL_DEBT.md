@@ -20,13 +20,13 @@ arriba, la afirmación "Pytest completo terminó al 100%" de
 `docs/STATUS_CURRENT.md` queda contradicha por evidencia directa, al menos
 para este SHA en este entorno.
 
-## P0 — bug real en identidad de locks (detectado en Fase 3, sin corregir)
+## P0 — bug real en identidad de locks (CORREGIDO en Fase 3, commit `439116c`)
 
-**`RuntimeProcessLock.inspect()` (`triade/runtime/process_lock.py:63-77`) no
-detecta reutilización de PID cuando el cmdline del proceso no cambió.** Test
+**`RuntimeProcessLock.inspect()` no detectaba reutilización de PID cuando el
+cmdline del proceso no cambió.** Test
 `tests/test_worker_lifecycle_hardening.py::test_pid_reuse_identity_mismatch_recovers_lock`
-falla en el SHA actual (falla también en `b0613ea`, antes de esta sesión —
-no es una regresión de hoy, pero tampoco estaba documentada). Causa raíz:
+fallaba desde `b0613ea` (antes de esta sesión, no era una regresión de hoy,
+pero tampoco estaba documentado). Causa raíz:
 
 - El commit `3c005c0` (30-jul, mismo día) relajó correctamente un bug real:
   antes, `expected_token` (constante hardcodeada `"triade"` en
@@ -46,13 +46,24 @@ no es una regresión de hoy, pero tampoco estaba documentada). Causa raíz:
   de "otro proceso que reutilizó el PID" — ambos escribirían el mismo
   token. Arreglar la comparación sin antes darle al token una fuente de
   entropía real (ej. UUID por proceso persistido también en una variable de
-  entorno legible vía `/proc/<pid>/environ`) puede reintroducir el bug que
-  `3c005c0` acababa de corregir.
-- **No se corrigió en esta sesión** por ser una ruta de seguridad crítica
-  para la recuperación tras reinicio (exactamente lo que se pidió auditar)
-  y el arreglo correcto requiere rediseñar la fuente del token, no solo
-  la comparación — un parche apresurado aquí podría ser peor que el bug
-  actual. Repro: `pytest tests/test_worker_lifecycle_hardening.py::test_pid_reuse_identity_mismatch_recovers_lock`.
+  entorno legible vía `/proc/<pid>/environ`.
+- **Verificado empíricamente antes de corregir:** escribir a `os.environ`
+  en tiempo de ejecución NO actualiza `/proc/<pid>/environ` en este
+  entorno (confirmado con una prueba directa), así que un token de
+  instancia vía variable de entorno no sirve sin re-exec del proceso.
+- **Corrección real aplicada:** `/proc/<pid>/stat` campo 22 (`starttime`,
+  jiffies desde el arranque del sistema) sí es una señal de identidad
+  garantizada por el kernel — dos procesos con el mismo PID en momentos
+  distintos siempre tienen `starttime` distinto, sin importar si su
+  cmdline coincide. `RuntimeProcessLock.payload()` ahora graba
+  `start_time`; `inspect()` lo usa como verificación primaria, con la
+  heurística de cmdline de `3c005c0` como respaldo solo para locks legacy
+  sin este campo (para no reintroducir el falso positivo que ese commit
+  corrigió). Test corregido para simular reutilización de PID real
+  (alterando `start_time`, no solo `expected_token`, que nunca podía
+  simular el escenario). Verificado en vivo: `triade-workers.service`
+  reiniciado, lock real del proceso activo con `start_time` correcto;
+  56/56 tests de locks/leases/recuperación en verde.
 
 ## Fase 2 — auditoría por órgano (2026-07-30)
 
