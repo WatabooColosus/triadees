@@ -10,6 +10,8 @@ import shutil
 import sqlite3
 import tempfile
 import time
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -26,15 +28,29 @@ class EncryptedBackup:
         self.minimum_interval_seconds = max(0, minimum_interval_seconds)
         self.require_identity_manifest = require_identity_manifest
         self.backup_dir.mkdir(parents=True, exist_ok=True)
+        migration = (
+            Path(__file__).resolve().parent / "migrations/031_restore_drills.sql"
+        )
+        with sqlite3.connect(self.db_path) as conn:
+            conn.executescript(migration.read_text(encoding="utf-8"))
 
     @staticmethod
     def _fernet():
         from cryptography.fernet import Fernet
 
-        key = os.getenv("TRIADE_BACKUP_KEY", "").encode()
+        key_text = os.getenv("TRIADE_BACKUP_KEY", "").strip()
+        key_file = os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
+        if not key_text and key_file:
+            path = Path(key_file)
+            mode = path.stat().st_mode & 0o777
+            if mode & 0o077:
+                raise PermissionError("backup_key_file_permissions_must_be_0600")
+            key_text = path.read_text(encoding="utf-8").strip()
+        key = key_text.encode()
         if not key:
             raise RuntimeError(
-                "TRIADE_BACKUP_KEY requerida; no se crean backups sin cifrado"
+                "TRIADE_BACKUP_KEY o TRIADE_BACKUP_KEY_FILE requerida; "
+                "no se crean backups sin cifrado"
             )
         return Fernet(key)
 
@@ -248,3 +264,104 @@ class EncryptedBackup:
             "verification": verification,
             "pre_restore_backup": pre_restore,
         }
+
+    def storage_metrics(
+        self, *, artifacts_root: str | Path | None = None
+    ) -> dict[str, int]:
+        root = Path(artifacts_root) if artifacts_root else self.backup_dir.parent
+
+        def bytes_under(path: Path) -> int:
+            if not path.exists():
+                return 0
+            return sum(
+                item.stat().st_size for item in path.rglob("*") if item.is_file()
+            )
+
+        return {
+            "backup_bytes": bytes_under(self.backup_dir),
+            "snapshot_bytes": bytes_under(root / "recovery"),
+            "artifact_bytes": bytes_under(root),
+        }
+
+    def run_restore_drill(
+        self,
+        backup: str | Path | None = None,
+        *,
+        sandbox_dir: str | Path = "artifacts/restore-drills",
+        artifacts_root: str | Path | None = None,
+        minimum_interval_seconds: int = 604800,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        now = datetime.now(UTC)
+        with sqlite3.connect(self.db_path) as conn:
+            previous = conn.execute(
+                "SELECT created_at,backup_bytes,snapshot_bytes,artifact_bytes "
+                "FROM backup_restore_drills ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+        if previous and not force:
+            elapsed = (now - datetime.fromisoformat(str(previous[0]))).total_seconds()
+            if elapsed < max(0, minimum_interval_seconds):
+                return {
+                    "status": "blocked",
+                    "reason": "restore_drill_cooldown_active",
+                    "seconds_until_next": round(minimum_interval_seconds - elapsed, 3),
+                }
+        backup_path = Path(backup) if backup else self._latest_backup()
+        drill_id = f"restore-drill-{uuid.uuid4().hex[:16]}"
+        sandbox = Path(sandbox_dir) / f"{drill_id}.db"
+        restored = self.restore_to_sandbox(backup_path, sandbox)
+        semantic = restored["restored"]
+        storage = self.storage_metrics(artifacts_root=artifacts_root)
+        previous_artifact_bytes = int(previous[3]) if previous else None
+        growth = (
+            storage["artifact_bytes"] - previous_artifact_bytes
+            if previous_artifact_bytes is not None
+            else None
+        )
+        status = (
+            "completed"
+            if restored["status"] == "restored_sandbox"
+            and semantic["integrity_check"] == "ok"
+            and not restored["production_overwritten"]
+            else "failed"
+        )
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO backup_restore_drills VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    drill_id,
+                    str(backup_path),
+                    status,
+                    str(sandbox),
+                    semantic["integrity_check"],
+                    semantic["identity_manifest_hash"],
+                    int(semantic["semantic_memory_count"]),
+                    json.dumps(semantic["task_states"], sort_keys=True),
+                    storage["backup_bytes"],
+                    storage["snapshot_bytes"],
+                    storage["artifact_bytes"],
+                    growth,
+                    now.isoformat(),
+                ),
+            )
+        return {
+            "drill_id": drill_id,
+            "status": status,
+            "backup_ref": str(backup_path),
+            "sandbox_ref": str(sandbox),
+            "production_overwritten": restored["production_overwritten"],
+            "semantic_verification": semantic,
+            "storage": storage,
+            "growth_bytes": growth,
+            "created_at": now.isoformat(),
+        }
+
+    def _latest_backup(self) -> Path:
+        backups = sorted(
+            self.backup_dir.glob("triade-*.db.gz.fernet"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if not backups:
+            raise FileNotFoundError("encrypted_backup_not_found")
+        return backups[0]

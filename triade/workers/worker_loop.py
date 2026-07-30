@@ -1160,6 +1160,12 @@ class WorkerLoop:
 
         backup = EncryptedBackup(self.db_path)
         created = backup.create()
+        if created.get("status") == "blocked":
+            return {
+                "status": "blocked",
+                "reason": created.get("reason", "backup_creation_blocked"),
+                "backup": created,
+            }
         verified = backup.verify(Path("artifacts/backups") / created["file"])
         if verified.get("status") != "ok":
             return {
@@ -1188,6 +1194,7 @@ class WorkerLoop:
             "backup": created,
             "verification": verified,
             "retention": backup.enforce_retention(),
+            "restore_drill": backup.run_restore_drill(backup_ref),
             "effect_receipt": receipt.model_dump(mode="json"),
         }
 

@@ -12,3 +12,6 @@ if __name__ == "__main__":
     if verified.get("status") != "ok":
         raise SystemExit("backup verification failed")
     backup.enforce_retention()
+    drill = backup.run_restore_drill()
+    if drill.get("status") not in {"completed", "blocked"}:
+        raise SystemExit("restore drill failed")

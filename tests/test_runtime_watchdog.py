@@ -171,3 +171,28 @@ def test_watchdog_recovery_cooldown_survives_process_restart(tmp_path, monkeypat
     assert deferred["recovery"]["state"] == "deferred"
     assert deferred["recovery"]["reason"] == "recovery_cooldown_active"
     assert len(list(snapshot_dir.glob("*.db"))) == 1
+
+
+def test_recovery_snapshot_retention_quarantines_and_restores(tmp_path):
+    path = tmp_path / "health.db"
+    _healthy_db(path)
+    snapshot_dir = tmp_path / "snapshots"
+    recovery = RuntimeRecovery(path, snapshot_dir)
+    for index in range(4):
+        output = snapshot_dir / f"recovery-{index}.db"
+        with sqlite3.connect(path) as source, sqlite3.connect(output) as target:
+            source.backup(target)
+
+    retention = recovery.enforce_snapshot_retention(
+        keep_recent=1, max_archives_per_run=None
+    )
+    archives = list((snapshot_dir / "quarantine").glob("*.db.gz"))
+    restored = tmp_path / "restored.db"
+    result = recovery.restore_archived_snapshot(archives[0], restored)
+
+    assert retention["remaining_plain_snapshots"] == 1
+    assert len(retention["archived"]) == 3
+    assert retention["bytes_reclaimed"] > 0
+    assert result["status"] == "restored"
+    assert result["integrity_check"] == "ok"
+    assert restored.is_file()
