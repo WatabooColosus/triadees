@@ -7,7 +7,7 @@ import {
   TrashCard, DelegatedActionsCard, BodegaCard, MemoryTraceCard,
   LearningJournalCard, TechnicalDebtCard, WorkersCard,
   SafeShellCard, EventsFeed, AlwaysOnCard, WorkersAlwaysOnCard,
-  EdgeContextHealthCard, LoraApprovalCard,
+  EdgeContextHealthCard, LoraApprovalCard, NeuronEducationCard,
 } from './Cards'
 
 export function CabinaViva() {
@@ -191,6 +191,7 @@ export function CabinaViva() {
         <BodegaCard data={dash.bodega_summary} />
         <MemoryTraceCard data={dash.observability} />
         <LearningJournalCard data={dash.learning_journal} />
+        <NeuronEducationCard />
         <TechnicalDebtCard data={dash.technical_debt} />
         <WorkersAlwaysOnCard data={dash.workers_always_on} onRestart={restartWorkers} onRunOnce={runWorkerOnce} />
         <WorkersCard data={dash.workers} />

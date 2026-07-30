@@ -972,3 +972,65 @@ export function LoraApprovalCard() {
     </Card>
   )
 }
+
+// Muestra evidencia real de ciclos de educación neuronal por sesión --
+// no un resumen agregado, sino qué se intentó, con qué resultado, y
+// cuándo. Poll propio, independiente del dashboard pesado.
+export function NeuronEducationCard() {
+  const [data, setData] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function load() {
+    try {
+      const res = await liveApi('/api/governance/education/status')
+      setData(res)
+      setError(null)
+    } catch (e: any) {
+      setError(e.message || 'Error al consultar educación neuronal')
+    }
+  }
+
+  useEffect(() => {
+    load()
+    const id = setInterval(load, 20000)
+    return () => clearInterval(id)
+  }, [])
+
+  if (error) return <UnavailableBlock label="Educación Neuronal" error={error} />
+  if (!data) return <Card title="Educación Neuronal" color="#a855f7"><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cargando…</div></Card>
+
+  const counts = data.session_counts || {}
+  const sessions = data.recent_sessions || []
+  const resultColor: Record<string, string> = {
+    lesson_prepared: '#22c55e',
+    insufficient_material: '#ef4444',
+    uncertain: '#f59e0b',
+  }
+
+  return (
+    <Card title="Educación Neuronal" color="#a855f7">
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+        Ciclos reales de revisión/educación por neurona experimental — no agregado, sesión por sesión.
+      </div>
+      <KVTable data={{
+        competencias_vencidas: data.due_competencies,
+        lecciones_preparadas: counts.lesson_prepared || 0,
+        material_insuficiente: counts.material_insufficient || 0,
+      }} />
+      {sessions.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Sin sesiones recientes.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 180, overflowY: 'auto', marginTop: 6 }}>
+          {sessions.slice(0, 8).map((s: any) => (
+            <div key={s.session_id} style={{ padding: '4px 6px', background: 'var(--bg-base)', borderRadius: 4, fontSize: 10 }}>
+              <span style={{ color: resultColor[s.result] || 'var(--text-primary)' }}>{s.result}</span>
+              {' · '}neurona {s.neuron_id}
+              {' · '}{s.independent_source_count} fuente(s) independiente(s)
+              {' · '}{s.created_at}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
