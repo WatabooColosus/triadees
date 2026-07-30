@@ -1,21 +1,25 @@
 [Unit]
-Description=Triade Omega progress watchdog
-After=triade-workers.service
+Description=Tríade Ω progress watchdog
+Documentation=https://github.com/WatabooColosus/triadees
+After=triade-api.service
+Wants=triade-api.service
 
 [Service]
 Type=simple
-User=triade
-Group=triade
-WorkingDirectory=/opt/triade
+User=agenciadigitalwataboo
+Group=agenciadigitalwataboo
+WorkingDirectory=/teamspace/studios/this_studio/triadees
 EnvironmentFile=/etc/triade/triade.env
-ExecStart=/opt/triade/.venv/bin/python scripts/runtime_watchdog.py
+ExecStart=/home/zeus/miniconda3/envs/cloudspace/bin/python scripts/runtime_watchdog.py
 Restart=always
-RestartSec=10
+RestartSec=30
+TimeoutStopSec=15
+
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/triade/artifacts /opt/triade/runs /opt/triade/triade/memory
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/teamspace/studios/this_studio/triadees
 
 [Install]
 WantedBy=multi-user.target

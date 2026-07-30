@@ -34,6 +34,10 @@ WORK_MODE_ALIASES = {
     "light_background": "learn_candidates",
     "balanced_background": "execute_missions",
     "full_local_guarded": "full_local",
+    "promote_stable": "full_local",
+    "promote_experimental": "full_local",
+    "train_candidates": "execute_missions",
+    "form_candidates": "learn_candidates",
 }
 
 

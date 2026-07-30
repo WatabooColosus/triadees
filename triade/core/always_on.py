@@ -240,6 +240,9 @@ def start_always_on_if_enabled(
     # ── Store config ──
     _ALWAYS_ON_STATE["enabled"] = True
     _ALWAYS_ON_STATE["configured_mode"] = str(cfg.get("mode", "observe_only"))
+    _ALWAYS_ON_STATE["continuous_runner_autonomy_level"] = str(
+        cfg.get("continuous_runner_autonomy_level", "observe_only")
+    )
     _ALWAYS_ON_STATE["interval_seconds"] = int(cfg.get("interval_seconds", 60))
     _ALWAYS_ON_STATE["max_cycles"] = int(cfg.get("max_cycles", 0))
     _ALWAYS_ON_STATE["self_test_on_start"] = bool(cfg.get("self_test_on_start", True))
@@ -306,7 +309,20 @@ def start_always_on_if_enabled(
         preflight_errors.append(f"db_or_supervisor_failed: {exc}")
 
     # ── Decide effective mode ──
-    requested_mode = str(cfg.get("mode", "observe_only"))
+    # `resource_mode` is the Resource Governor's own vocabulary (observe_only,
+    # light_background, balanced_background, full_local, full_local_guarded).
+    # `continuous_runner_autonomy_level` is a separate axis (how much learning
+    # autonomy the continuous runner has: observe_only, form_candidates,
+    # train_candidates, promote_experimental, promote_stable) understood by
+    # the supervisor's WORK_MODE_ALIASES, not by WORK_MODE_RANK. Feeding the
+    # autonomy level into decide_work_mode() made every non-observe_only
+    # autonomy level rank as 0 (unranked), forcing a spurious governor
+    # degradation even when resources fully allowed the requested mode.
+    resource_mode = str(cfg.get("mode", "observe_only"))
+    autonomy_level = str(
+        cfg.get("continuous_runner_autonomy_level") or resource_mode
+    )
+    requested_mode = autonomy_level if autonomy_level != "observe_only" else resource_mode
     effective_mode = requested_mode
     degraded_by_governor = False
     degradation_reason = None
@@ -318,7 +334,7 @@ def start_always_on_if_enabled(
         preflight_errors.append("ollama_required_but_unavailable")
 
     try:
-        decision = decide_work_mode(probe, blood, requested_mode)
+        decision = decide_work_mode(probe, blood, resource_mode)
         allowed = decision.get("effective_mode", "observe_only")
         if WORK_MODE_RANK.get(effective_mode, 0) > WORK_MODE_RANK.get(allowed, 0):
             effective_mode = allowed
@@ -390,6 +406,7 @@ def start_always_on_if_enabled(
     _ALWAYS_ON_STATE["runtime_degraded"] = False
     _ALWAYS_ON_STATE["runtime_degradation_reason"] = None
     _ALWAYS_ON_STATE["error"] = None
+    _ALWAYS_ON_STATE["autonomy_level_applied"] = autonomy_level
 
     # ── Self-test on start ──
     self_test_result = None

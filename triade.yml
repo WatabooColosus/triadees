@@ -1,7 +1,7 @@
 models:
   provider: ollama
   base_url: http://127.0.0.1:11434
-  timeout: 60
+  timeout: 180
   fallback_enabled: true
   roles:
     hypothalamus: qwen2.5:3b-instruct

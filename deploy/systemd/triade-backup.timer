@@ -1,5 +1,5 @@
 [Unit]
-Description=Daily Triade encrypted backup
+Description=Daily Tríade Ω backup timer
 
 [Timer]
 OnCalendar=daily

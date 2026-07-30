@@ -1,15 +1,16 @@
 [Unit]
-Description=Triade Omega encrypted verified backup
+Description=Tríade Ω database backup
+Documentation=https://github.com/WatabooColosus/triadees
 
 [Service]
 Type=oneshot
-User=triade
-Group=triade
-WorkingDirectory=/opt/triade
+User=agenciadigitalwataboo
+Group=agenciadigitalwataboo
+WorkingDirectory=/teamspace/studios/this_studio/triadees
 EnvironmentFile=/etc/triade/triade.env
-ExecStart=/opt/triade/.venv/bin/python scripts/runtime_backup.py
+ExecStart=/home/zeus/miniconda3/envs/cloudspace/bin/python scripts/runtime_backup.py
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/triade/artifacts /opt/triade/triade/memory
+
+[Install]
+WantedBy=multi-user.target

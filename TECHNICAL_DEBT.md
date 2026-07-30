@@ -79,6 +79,77 @@ los reportes anteriores son históricos cuando la contradicen.
 - **Límite explícito:** Tríade OS es un plano de control sobre Linux, no un
   kernel ni un sistema operativo anfitrión independiente.
 
+## P1 — hallazgos 2026-07-30 (sesión de auditoría post-reinicio)
+
+- **Corregido con evidencia:** `triade-ollama.service` quedaba en loop de
+  reinicio infinito (150+ reintentos) porque `.lightning_studio/on_start.sh`
+  arrancaba Ollama con `nohup` compitiendo por el puerto 11434 contra el propio
+  unit systemd (`Restart=always`), que siempre perdía la carrera. El servicio
+  vivía sin supervisión real aunque respondía. Corregido: `on_start.sh` ahora
+  usa `systemctl start` (idempotente) y solo cae a `nohup` si el unit no existe
+  (bootstrap). Ver `deploy/lightning_studio/on_start.sh`. Verificado sin caída
+  de servicio (ollama.ok=true antes/después, 6 modelos intactos).
+- **Corregido con evidencia:** `scripts/triade_doctor_full.py` tenía una
+  f-string suelta sin `print()` que ocultaba el SHA en el reporte humano.
+- **Corregido con evidencia:** `deploy/systemd/*.service` y `*.timer` estaban
+  desincronizados de los units realmente instalados en
+  `/etc/systemd/system/` (paths, usuario, `ProtectSystem`, dependencias);
+  `triade-ollama.service` ni siquiera estaba versionado. Si esta Cloudspace se
+  recreara desde el repo, la configuración real no se reproduciría. Re-sincronizado
+  byte a byte desde los units instalados y verificados en producción local.
+- **Corregido con evidencia:** el dashboard mostraba `razon_degradacion` =
+  "Hardware tier high con AC y Ollama Blood activa. Full local guarded
+  permitido." junto con `degraded_by_governor=true` y
+  `effective_mode=observe_only` — el propio texto de la razón contradecía la
+  degradación. Causa raíz doble:
+  1. `always_on.py` pasaba el nivel de autonomía del continuous-runner
+     (`observe_only/form_candidates/train_candidates/promote_experimental/promote_stable`)
+     directamente a `resource_governor.decide_work_mode()`, que solo conoce el
+     vocabulario de modos operativos (`observe_only…full_local_guarded`). Un
+     valor como `promote_stable` no existe en `WORK_MODE_RANK` y se evaluaba
+     con rango 0 (el más bajo), forzando una degradación espuria. Corregido en
+     `triade/core/always_on.py`: el gobernador ahora recibe `resource_mode`
+     (`cfg["mode"]`) en vez del nivel de autonomía.
+  2. `InternalRuntimeSupervisor` (el ciclo que sí reevalúa en vivo) lee
+     `TRIADE_RUNTIME_MODE`/`TRIADE_RUNTIME_ENABLED` — variables de entorno
+     independientes de `TRIADE_ALWAYS_ON_*` y no documentadas en
+     `docs/ALWAYS_ON_RUNTIME.md` ni en ningún `.env*.example`. Al no estar
+     seteadas en `/etc/triade/triade.env`, el supervisor vivía en
+     `mode=observe_only, enabled=false` real sin importar lo que decidiera
+     Always-On. Añadidas a `/etc/triade/triade.env` (no versionable, contiene
+     `TRIADE_BACKUP_KEY`); pendiente documentarlas y añadir un template
+     versionado del env real (`deploy/triade.env.example`) para que sea
+     reproducible si la Cloudspace se recrea.
+  Verificado tras reinicio de `triade-api.service`: `effective_mode=
+  full_local_guarded`, `degraded_by_governor=false`, supervisor real en
+  `mode=full_local, enabled=true`.
+- **Pendiente:** crear `deploy/triade.env.example` versionado con el conjunto
+  completo de variables reales usadas en producción local (`TRIADE_ALWAYS_ON_*`
+  y `TRIADE_RUNTIME_*`), y un script `deploy/render_triade_env.sh` o similar
+  para que `/etc/triade/triade.env` sea reproducible desde el repo, no
+  "auto-generado" a mano una vez y luego huérfano.
+- **Discrepancia con STATUS_CURRENT.md ("Ruff cero... mypy cero en 324
+  archivos"):** en esta Cloudspace, `ruff check .` reporta 643 errores, pero
+  613 son `EXE002` (bit ejecutable en archivos `.py` sin shebang) causado por
+  `core.fileMode=false` en este entorno — ruido específico del filesystem, no
+  del código. Descontando `EXE002`, el baseline ya commiteado (SHA `b0613ea`)
+  tiene **18 errores reales de Ruff** (F401, SIM102 en `triade/metabolism/*` y
+  `triade/runtime/process_lock.py`, entre otros) y **1 error real de mypy**
+  (`triade/workers/worker_loop.py:394`, asignación `float` a variable `int`).
+  Ninguno se corrigió en esta sesión por estar fuera del alcance de los
+  archivos tocados; quedan listados aquí para que "Ruff/mypy cero" deje de
+  afirmarse sin evidencia reproducible en este entorno.
+- **Pendiente, no reproducido de forma determinista:** `GET
+  /api/runtime/heartbeat` colgó 60s+ sin responder (dos intentos) justo tras un
+  reinicio de Ollama; una llamada directa a `build_runtime_heartbeat()` sin la
+  capa HTTP también colgó >45s una vez y luego resolvió en 3.4s. Contradice la
+  descripción de README ("heartbeat ligero... sin llamadas a modelos"): la
+  función real llama a `check_ollama_cognitive_health()` y `check_ollama_blood()`
+  y construye contexto vivo completo (`build_living_context_for_chat`), no es
+  liviana. Hipótesis sin confirmar: contención de SQLite o de Ollama durante
+  carga en frío del modelo. Requiere reproducción controlada y, si se confirma,
+  timeout explícito o desacoplar el chequeo cognitivo del endpoint de pulso.
+
 ## Cerrado con evidencia local
 
 - Ejecución con lease, fencing, postcondición, artifact, receipt y rollback.
