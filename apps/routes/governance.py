@@ -65,6 +65,15 @@ def peft_status() -> dict[str, Any]:
     return PeftCanaryServer().status()
 
 
+@router.get("/peft/pending-approval")
+def peft_pending_approval() -> dict[str, Any]:
+    """Adaptadores que ya pasaron canary y esperan una aprobación humana
+    de un clic. Solo lectura -- no activa nada."""
+    from triade.training.peft_canary import PeftCanaryServer
+
+    return PeftCanaryServer().pending_approval()
+
+
 @router.post("/peft/canary")
 def peft_canary(
     request: CanaryRequest,

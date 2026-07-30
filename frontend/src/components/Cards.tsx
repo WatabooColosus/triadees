@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { api as liveApi } from './useLiveDashboard'
 
 export function Card({ title, color, children }: { title: string; color?: string; children: React.ReactNode }) {
   return (
@@ -860,6 +861,114 @@ export function AlwaysOnCard({ data }: { data: any }) {
           self_test_on_start: data.self_test_on_start,
         }} />
       </div>
+    </Card>
+  )
+}
+
+// El sistema entrena LoRA solo, pero activarlo en producción siempre exige
+// un humano real -- esta tarjeta hace que esa aprobación sea de un clic en
+// vez de un trámite: se refresca sola, no depende del poll pesado del
+// dashboard.
+export function LoraApprovalCard() {
+  const [data, setData] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [approvedBy, setApprovedBy] = useState(() => localStorage.getItem('triade_approver_name') || '')
+  const [busy, setBusy] = useState<string | null>(null)
+  const [lastResult, setLastResult] = useState<any>(null)
+
+  async function load() {
+    try {
+      const res = await liveApi('/api/governance/peft/pending-approval')
+      setData(res)
+      setError(null)
+    } catch (e: any) {
+      setError(e.message || 'Error al consultar aprobaciones pendientes')
+    }
+  }
+
+  useEffect(() => {
+    load()
+    const id = setInterval(load, 20000)
+    return () => clearInterval(id)
+  }, [])
+
+  async function approve(adapterPath: string) {
+    if (busy || !approvedBy.trim()) return
+    localStorage.setItem('triade_approver_name', approvedBy.trim())
+    setBusy(adapterPath)
+    setLastResult(null)
+    try {
+      const res = await liveApi('/api/governance/peft/activate', {
+        method: 'POST',
+        body: JSON.stringify({ adapter_path: adapterPath, approved_by: approvedBy.trim() }),
+      })
+      setLastResult(res)
+      await load()
+    } catch (e: any) {
+      setLastResult({ status: 'error', reason: e.message })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const pending = data?.pending || []
+  const hasPending = pending.length > 0
+  const color = hasPending ? '#f59e0b' : '#22c55e'
+
+  return (
+    <Card title={`LoRA · aprobación de producción${hasPending ? ` (${pending.length})` : ''}`} color={color}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+        El sistema entrena y prueba en canary sin ayuda. Activar en producción
+        siempre necesita un humano real -- esto no cambia. Aquí solo se hace rápido.
+      </div>
+      {error && <div style={{ fontSize: 11, color: '#ef4444' }}>{error}</div>}
+      {!error && !hasPending && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Nada esperando aprobación ahora mismo.</div>
+      )}
+      {hasPending && (
+        <>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Tu nombre</span>
+            <input
+              value={approvedBy}
+              onChange={e => setApprovedBy(e.target.value)}
+              placeholder="quién aprueba"
+              style={{
+                flex: 1, background: 'var(--bg-base)', color: 'var(--text-primary)',
+                border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 11,
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {pending.map((item: any) => (
+              <div key={item.adapter_path} style={{ padding: '6px 8px', background: 'var(--bg-base)', borderRadius: 6, fontSize: 11 }}>
+                <div style={{ color: 'var(--text-primary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  {item.adapter_path.split('/').slice(-1)[0]}
+                </div>
+                <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 10 }}>
+                  {item.successful_canaries} canary(s) exitoso(s) · último {item.last_success_at}
+                </div>
+                <button
+                  onClick={() => approve(item.adapter_path)}
+                  disabled={busy === item.adapter_path || !approvedBy.trim()}
+                  style={{ ...btn, marginTop: 4, opacity: approvedBy.trim() ? 1 : 0.5 }}
+                >
+                  {busy === item.adapter_path ? 'Activando…' : 'Aprobar y activar en producción'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {lastResult && (
+        <div style={{
+          marginTop: 8, padding: '6px 8px', borderRadius: 6, fontSize: 10, fontFamily: 'monospace',
+          whiteSpace: 'pre-wrap', color: lastResult.status === 'active' ? '#22c55e' : '#ef4444',
+          background: 'var(--bg-base)',
+        }}>
+          {JSON.stringify(lastResult, null, 2)}
+        </div>
+      )}
     </Card>
   )
 }

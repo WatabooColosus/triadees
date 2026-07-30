@@ -212,6 +212,44 @@ class PeftCanaryServer:
             "recent_events": recent,
         }
 
+    def pending_approval(self) -> dict[str, Any]:
+        """Adaptadores con al menos un canary exitoso que aún no están en
+        producción — listos para una aprobación humana rápida, de un clic.
+
+        No decide nada por sí solo: activate() sigue exigiendo approved_by
+        no vacío. Esto solo hace visible lo que ya pasó la barra automática
+        para que un humano no tenga que ir a buscarlo.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            passed = conn.execute(
+                """SELECT adapter_path, COUNT(*) AS successful_canaries,
+                          MAX(created_at) AS last_success_at
+                   FROM peft_canary_events
+                   WHERE event = 'canary_generation' AND success = 1
+                   GROUP BY adapter_path"""
+            ).fetchall()
+            current = conn.execute(
+                "SELECT adapter_path FROM peft_serving_state "
+                "WHERE slot = 'production' AND status = 'active'"
+            ).fetchone()
+        active_path = current["adapter_path"] if current else None
+        pending = [
+            {
+                "adapter_path": row["adapter_path"],
+                "successful_canaries": row["successful_canaries"],
+                "last_success_at": row["last_success_at"],
+            }
+            for row in passed
+            if row["adapter_path"] != active_path
+        ]
+        return {
+            "status": "ok",
+            "active_adapter_path": active_path,
+            "pending_count": len(pending),
+            "pending": pending,
+        }
+
     def _event(
         self,
         path: str,
