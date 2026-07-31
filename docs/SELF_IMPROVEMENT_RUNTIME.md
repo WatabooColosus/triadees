@@ -153,18 +153,46 @@ Tratarlo como fallo descartaría candidatas perfectamente válidas por haber
 llegado antes que sus datos, y **ningún canary acumularía observaciones**: cada
 ciclo sin informes nuevos contaría como intento fallido y a los tres se acabaría.
 
-## Aprobación
+## Aprobación: dónde está el gate humano, y por qué ahí
 
-Por defecto **se exige firma humana**. Un humano decide *qué dirección* se
-intenta; la máquina hace la verificación rigurosa.
+> **El humano no aprueba el aprendizaje. Aprueba que un aprendizaje demostrado
+> pase a formar parte estable del organismo.**
 
-`TRIADE_SELF_IMPROVEMENT_AUTO_APPROVE=1` permite que la política apruebe sin
-firma. Cuando se activa, la aprobación se registra como `auto:threshold_policy` —
-**nunca** como humana— y ese sello aparece en todos los caminos de salida, no
-solo en el feliz.
+Niveles de riesgo y quién decide:
 
-El gate de salida verifica el *resultado*, pero no sustituye a la decisión de
-intentarlo.
+| Nivel | Qué incluye | Decisión |
+|---|---|---|
+| **G0** Observación | diagnóstico, lectura, métricas | automática |
+| **G1** Experimental | investigar, currículo, lección, **proponer**, candidata, sandbox | automática |
+| **G2** Reversible | evaluación, canary, observación, **rollback**, cuarentena | automática gobernada |
+| **G3** Estable | **promover a estable**, reemplazar versión estable | **firma humana** |
+| **G4** Crítico | `identity_core`, constitución, privilegios, LoRA en inferencia | prohibido |
+
+Hasta 2026-07-31 el reparto estaba **invertido en los dos extremos**:
+
+- Proponer una mejora exigía firma humana, lo que dejaba el circuito inerte
+  esperando a una persona para algo enteramente reversible.
+- `_promote_experimental_to_stable` promovía **sin pedir permiso a nadie** en
+  cuanto los umbrales de readiness pasaban. Ni un `human` ni un `approval` en
+  toda esa ruta.
+
+Ahora:
+
+- **G1 automático**: `TRIADE_SELF_IMPROVEMENT_AUTO_APPROVE=1` por defecto. Se
+  puede volver a exigir firma con `=0`.
+- **G3 con firma**: `triade/core/stable_promotion_gate.py`. Sin
+  `TRIADE_STABLE_PROMOTION_APPROVED_BY=<nombre>`, no hay promoción estable.
+  Se pide un **nombre**, no un booleano: una promoción debe poder atribuirse a
+  alguien concreto cuando se audite meses después.
+
+`TRIADE_STABLE_PROMOTION_AUTO_APPROVE=1` desactiva el gate para pruebas, y
+entonces la decisión se registra como `auto:stable_promotion_policy` — **nunca**
+como humana. El aprobador aparece en todos los caminos de salida, también al
+denegar: si solo apareciera en el feliz, una auditoría no podría distinguir una
+promoción firmada de una automática.
+
+Pasar los umbrales demuestra que la neurona **puede** promoverse. Que **deba**
+hacerlo es una decisión de gobierno.
 
 ## Rollback
 
