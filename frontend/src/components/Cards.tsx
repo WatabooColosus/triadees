@@ -925,8 +925,9 @@ export function LoraApprovalCard() {
   return (
     <Card title={`LoRA · aprobación de producción${hasPending ? ` (${pending.length})` : ''}`} color={color}>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
-        El sistema entrena y prueba en canary sin ayuda. Activar en producción
-        siempre necesita un humano real -- esto no cambia. Aquí solo se hace rápido.
+        El sistema entrena y prueba en canary sin ayuda. Tu aprobación queda
+        registrada, pero hoy NO pone el adaptador a servir: la inferencia real sale
+        por Ollama y no lee este slot. Falta construir esa ruta.
       </div>
       {error && <div style={{ fontSize: 11, color: '#ef4444' }}>{error}</div>}
       {!error && !hasPending && (
