@@ -103,6 +103,41 @@ class ImprovementStore:
             self._history(conn, "signal", signal.signal_id, "registered", payload, now)
         return {**payload, "status": "open"}
 
+    def refresh_open_signal(self, signal: ImprovementSignal) -> dict[str, Any] | None:
+        """Actualiza en su sitio la señal abierta de esa capacidad+métrica.
+
+        `register_signal` rechaza una segunda señal abierta para la misma
+        `(capability_id, metric_id)`, y con razón: apilar duplicados no aporta
+        nada. Pero sin esto la señal abierta queda **congelada en el primer
+        intento**, y cualquier reevaluación posterior (coste más alto, confianza
+        más baja, puntuación observada nueva) nunca llegaría a aplicarse.
+
+        Conserva el `signal_id` original — la señal es la misma brecha, mejor
+        medida— y deja constancia en el historial. Devuelve `None` si no hay
+        ninguna señal abierta que refrescar.
+        """
+        signal.validate()
+        now = self.clock()
+        payload = signal.to_dict()
+        with self._connect() as conn:
+            existing = conn.execute(
+                """SELECT signal_id FROM improvement_signals
+                WHERE capability_id = ? AND metric_id = ? AND status = 'open'
+                ORDER BY created_at ASC LIMIT 1""",
+                (signal.capability_id, signal.metric_id),
+            ).fetchone()
+            if existing is None:
+                return None
+            signal_id = str(existing["signal_id"])
+            payload["signal_id"] = signal_id
+            conn.execute(
+                """UPDATE improvement_signals SET priority = ?, payload_json = ?
+                WHERE signal_id = ?""",
+                (payload["priority"], json.dumps(payload, sort_keys=True), signal_id),
+            )
+            self._history(conn, "signal", signal_id, "refreshed", payload, now)
+        return {**payload, "status": "open"}
+
     def create_proposal(self, proposal: ImprovementProposal) -> dict[str, Any]:
         proposal.validate()
         now = self.clock()

@@ -28,6 +28,8 @@ WorkerTaskType = Literal[
     "encrypted_backup",
     "neuron_education_cycle",
     "write_governed_text_artifact",
+    "self_improvement_evaluation",
+    "self_improvement_canary_observation",
 ]
 
 WORKER_TASK_TYPES: tuple[str, ...] = (
@@ -50,6 +52,13 @@ WORKER_TASK_TYPES: tuple[str, ...] = (
     "encrypted_backup",
     "neuron_education_cycle",
     "write_governed_text_artifact",
+    # La educación prepara lecciones; la evaluación somete una candidata a
+    # sandbox, medición y gates. Son etapas distintas del mismo grafo y por eso
+    # no comparten tipo de tarea.
+    "self_improvement_evaluation",
+    # El canary no se observa dentro de la evaluación: acumula observaciones
+    # reales entre ciclos del worker, en tareas posteriores e idempotentes.
+    "self_improvement_canary_observation",
 )
 
 TERMINAL_TASK_STATUSES = {"completed", "failed", "blocked", "skipped"}

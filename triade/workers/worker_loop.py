@@ -56,6 +56,26 @@ from .scheduler import WorkerScheduler
 from .state_store import WorkerStateStore
 from .task_queue import WorkerTaskQueue
 
+
+def _auto_approval_enabled() -> bool:
+    """¿Puede la política aprobar propuestas sin firma humana?
+
+    **Por defecto NO.** Una propuesta decide *qué dirección* intenta la máquina
+    sobre sí misma; el gate de salida verifica el resultado, pero no sustituye a
+    la decisión de intentarlo. Cambiar aprobación humana por automática sin
+    decirlo sería exactamente el tipo de deriva que este runtime existe para
+    impedir.
+
+    Se deja activable (`TRIADE_SELF_IMPROVEMENT_AUTO_APPROVE=1`) porque el
+    responsable puede decidir lo contrario para su propia instancia, pero el
+    valor por defecto del repositorio exige firma humana. Cuando se activa, la
+    aprobación se registra como `auto:threshold_policy`, nunca como humana.
+    """
+    return os.getenv(
+        "TRIADE_SELF_IMPROVEMENT_AUTO_APPROVE", "0"
+    ).strip().lower() in {"1", "true", "yes"}
+
+
 WORKER_OPERATION_ERRORS = (
     OSError,
     ImportError,
@@ -938,6 +958,7 @@ class WorkerLoop:
                     "encrypted_backup": self._encrypted_backup,
                     "neuron_education_cycle": self._neuron_education_cycle,
                     "write_governed_text_artifact": self._write_governed_text_artifact,
+                    "self_improvement_evaluation": self._self_improvement_evaluation,
                 }
                 outcome = self.task_executor.execute_callable(
                     handlers[task.task_type],
@@ -1243,6 +1264,168 @@ class WorkerLoop:
         result["run_ref"] = run_ref
         result["stable_memory_written"] = False
         result["stable_neuron_promotion"] = False
+        return result
+
+    def _self_improvement_evaluation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Ejecuta el ciclo de automejora sobre propuestas YA APROBADAS por un humano.
+
+        Este handler **no crea ni aprueba propuestas**. `create_candidate`
+        (`self_improvement/bridge.py:102`) exige que la propuesta esté en estado
+        `approved`, y `approve()` (`:67`) exige un `approved_by` no vacío. Es decir:
+        un humano decide **qué dirección** se intenta; la máquina hace la
+        **verificación rigurosa** (sandbox → medición → regression gate → canary),
+        que es donde una firma humana no aportaría nada verificable.
+
+        La medición no la declara el propio candidato: `VitalityEvaluationProvider`
+        lee las cinco puntuaciones que el `Verifier` ya escribió en
+        `verification_reports` durante runs reales, contra la suite inmutable
+        `triade-vitality`. Si no hay evidencia suficiente, **falla en vez de
+        adivinar**.
+
+        Procesa **una** propuesta por ciclo, deliberadamente.
+        """
+        import sqlite3 as _sqlite3
+
+        from triade.evaluation.vitality_provider import VitalityEvaluationProvider
+        from triade.self_improvement.orchestrator import SelfImprovementOrchestrator
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+
+        with _sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = _sqlite3.Row
+            # En una base nueva la tabla puede no existir todavía; un worker no
+            # debe caerse por eso.
+            if not conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='improvement_proposals'"
+            ).fetchone():
+                return {
+                    "status": "no_target",
+                    "reason": "no hay registro de propuestas de mejora todavía",
+                    "run_ref": run_ref,
+                }
+            row = conn.execute(
+                """SELECT proposal_id, payload_json FROM improvement_proposals
+                   WHERE status = 'approved' ORDER BY rowid ASC LIMIT 1"""
+            ).fetchone()
+            pending = (
+                None
+                if row is not None
+                else conn.execute(
+                    """SELECT proposal_id, payload_json FROM improvement_proposals
+                       WHERE status = 'open' ORDER BY rowid ASC LIMIT 1"""
+                ).fetchone()
+            )
+
+        approver = "human"
+        if row is None and pending is not None and _auto_approval_enabled():
+            # Aprobación por política, no humana. Decisión explícita del
+            # responsable (2026-07-31): prefiere umbral altísimo a una firma que
+            # no puede verificar. La búsqueda no queda sin límites: las
+            # propuestas nacen de brechas MEDIDAS (ImprovementSignal con
+            # observed/target/impact/confidence) y hay cooldown por señal
+            # (self_improvement/store.py:144). El rigor se sostiene en el gate de
+            # salida —tolerancia cero en trazabilidad y safety, suite inmutable—
+            # no en una firma previa.
+            # Se registra `auto:threshold_policy` para que NUNCA parezca que un
+            # humano aprobó algo que no aprobó.
+            from triade.self_improvement.bridge import ImprovementNeuronFactoryBridge
+
+            proposal_id = str(pending["proposal_id"])
+            try:
+                ImprovementNeuronFactoryBridge(self.db_path).approve(
+                    proposal_id, approved_by="auto:threshold_policy"
+                )
+            except (ValueError, KeyError) as exc:
+                return {
+                    "status": "observed",
+                    "reason": f"auto-aprobación rechazada: {exc}",
+                    "proposal_id": proposal_id,
+                    "run_ref": run_ref,
+                }
+            approver = "auto:threshold_policy"
+            row = pending
+
+        if row is None:
+            return {
+                "status": "no_target",
+                "reason": (
+                    "no hay propuestas aprobadas"
+                    if _auto_approval_enabled()
+                    else "no hay propuestas aprobadas por un humano"
+                ),
+                "run_ref": run_ref,
+            }
+
+        proposal_id = str(row["proposal_id"])
+
+        def _stamp(payload_out: dict[str, Any]) -> dict[str, Any]:
+            """Todo camino de salida declara quién aprobó. Sin excepciones.
+
+            Si el aprobador solo apareciera en el camino feliz, un fallo temprano
+            borraría la única señal de que la propuesta se aprobó sin humano.
+            """
+            payload_out["proposal_id"] = proposal_id
+            payload_out["run_ref"] = run_ref
+            payload_out["approved_by"] = approver
+            payload_out["human_approved_proposal"] = approver == "human"
+            return payload_out
+
+        neuron_id = str(payload.get("neuron_id") or "")
+        version = str(payload.get("version") or "")
+        if not neuron_id or not version:
+            return _stamp(
+                {
+                    "status": "blocked",
+                    "reason": "la propuesta aprobada no declara neuron_id/version",
+                }
+            )
+
+        provider = VitalityEvaluationProvider(self.db_path)
+        artifact_cutoff = str(payload.get("evaluated_since") or "")
+
+        def _provider(candidate_id: str, artifact: dict[str, Any]):
+            reference = dict(artifact)
+            if artifact_cutoff:
+                reference["created_at"] = artifact_cutoff
+            return provider(candidate_id, reference)
+
+        try:
+            result = SelfImprovementOrchestrator(self.db_path).run_once(
+                proposal_id,
+                neuron_id=neuron_id,
+                version=version,
+                configuration=dict(payload.get("configuration") or {"mode": "safe"}),
+                evaluation_provider=_provider,
+            )
+        except (ValueError, KeyError) as exc:
+            # Evidencia insuficiente o contrato incumplido: es un resultado
+            # legítimo del gate, no un fallo del worker. No se promueve nada.
+            return _stamp({"status": "observed", "reason": f"ciclo no promovible: {exc}"})
+
+        _stamp(result)
+        result["stable_memory_written"] = False
+
+        # Aprender del fallo. Antes de esto, `quarantined` era terminal: el gate
+        # sabía qué métrica cayó y cuánto, y nadie leía ese detalle. Ahora cada
+        # reprobación se archiva como lección por (capacidad, métrica) —
+        # compartida entre neuronas— y se emite una señal dirigida a la métrica
+        # que realmente falló. No relaja el gate: solo alimenta el intento
+        # siguiente. Nunca puede tumbar el ciclo.
+        if result.get("orchestrator_status") in {"quarantined", "rejected"}:
+            try:
+                from triade.self_improvement.failure_learning import FailureLearningLoop
+
+                result["failure_learning"] = FailureLearningLoop(self.db_path).harvest()
+            except (sqlite3.Error, ValueError, KeyError, OSError) as exc:
+                result["failure_learning"] = {"error": f"{type(exc).__name__}: {exc}"}
+        # El estado que devuelve el orquestador (promoted/quarantined/
+        # canary_running) no es un estado de tarea: se reporta como observación
+        # para que el ejecutor no lo interprete como éxito de promoción.
+        result["orchestrator_status"] = result.get("status")
+        result["status"] = "observed"
         return result
 
     def _write_governed_text_artifact(

@@ -77,6 +77,7 @@ class MissionPlanner:
         tasks.extend(self._plan_neuron_formation())
         tasks.extend(self._plan_research_curriculum())
         tasks.extend(self._plan_neuron_education())
+        tasks.extend(self._plan_self_improvement())
         if os.getenv("TRIADE_BACKUP_KEY"):
             tasks.append(
                 PlannedTask(
@@ -129,6 +130,45 @@ class MissionPlanner:
         except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.research_curriculum", exc, db_path=self.db_path
+            )
+        return []
+
+    def _plan_self_improvement(self) -> list[PlannedTask]:
+        """Agenda el ciclo de automejora SOLO si hay propuestas ya aprobadas.
+
+        Nunca crea ni aprueba propuestas: si ningún humano ha aprobado nada, no
+        hay nada que planificar y el ciclo no se dispara. Así el bucle no gira en
+        vacío ni se auto-alimenta.
+        """
+        try:
+            with self._connect() as conn:
+                table = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' "
+                    "AND name='improvement_proposals'"
+                ).fetchone()
+                if not table:
+                    return []
+                row = conn.execute(
+                    "SELECT COUNT(*) cnt FROM improvement_proposals "
+                    "WHERE status = 'approved'"
+                ).fetchone()
+            count = int(row["cnt"] or 0) if row else 0
+            if count:
+                return [
+                    PlannedTask(
+                        task_type="self_improvement_evaluation",
+                        priority=38,
+                        reason=(
+                            f"{count} propuesta(s) aprobada(s) por un humano "
+                            "esperando verificación"
+                        ),
+                        source="human_approved_improvement",
+                        planner_score=0.65,
+                    )
+                ]
+        except MISSION_PLANNER_ERRORS as exc:
+            record_internal_error(
+                "mission_planner.self_improvement", exc, db_path=self.db_path
             )
         return []
 
