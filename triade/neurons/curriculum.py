@@ -6,6 +6,8 @@ import re
 import urllib.parse
 from typing import Any
 
+from triade.core.guarded_web import TRUSTED_RESEARCH_HOSTS
+
 
 def terms(text: str) -> set[str]:
     stop = {
@@ -45,12 +47,7 @@ def relevant_material(
         )
         score = len(overlap) / max(1, len(wanted))
         host = source_domain(str(row.get("source_ref") or ""))
-        governed_docs = host in {
-            "docs.opencv.org",
-            "pillow.readthedocs.io",
-            "docs.python.org",
-            "docs.pytest.org",
-        }
+        governed_docs = host in TRUSTED_RESEARCH_HOSTS
         minimum = (
             0.05
             if governed_docs

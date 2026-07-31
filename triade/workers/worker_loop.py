@@ -21,6 +21,7 @@ from triade.core.contracts import (
 from triade.core.crystal import Crystal
 from triade.core.error_bus import record_internal_error
 from triade.core.experimental_neuron_runtime import run_experimental_neurons
+from triade.core.guarded_web import TRUSTED_RESEARCH_HOSTS
 from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.core.neuron_autopromoter import NeuronAutopromoter
 from triade.core.neuron_formation_pipeline import form_candidates
@@ -631,7 +632,23 @@ class WorkerLoop:
             return ExecutionResult(status="skipped", executed=False, message=message)
         if raw_status == "dry_run":
             return ExecutionResult(status="dry_run", executed=False, message=message)
-        if raw_status in {"observed", "no_target", "no_evidence", "needs_research"}:
+        if raw_status in {
+            "observed",
+            "no_target",
+            "no_evidence",
+            "needs_research",
+            # GovernedResearchWorker.run() (triade/research/governed.py) --
+            # inalcanzable mientras research_curriculum estuvo bloqueado por
+            # falta de allowed_sources (corregido 2026-07-30). Al correr de
+            # verdad, estos tres estados legitimos empezaron a crashear con
+            # "unknown_handler_status" porque nunca se habian agregado aqui
+            # (hallazgo en vivo, auditoria 2026-07-31). No son fallos: el
+            # research corrio bien y decidio, correctamente, no reclamar
+            # evidencia que no tenia.
+            "insufficient_sources",
+            "conflicting_sources",
+            "unverifiable",
+        }:
             return ExecutionResult(status="observed", executed=False, message=message)
         if raw_status in {"error", "failed"}:
             return ExecutionResult(
@@ -976,6 +993,13 @@ class WorkerLoop:
                     "no_target",
                     "no_evidence",
                     "needs_research",
+                    # Mismos estados legitimos de GovernedResearchWorker que
+                    # _canonical_execution_result -- ver comentario ahi.
+                    # Duplicado aqui porque este es un mapeo de estado
+                    # separado para tareas v2/delegadas, no el mismo codigo.
+                    "insufficient_sources",
+                    "conflicting_sources",
+                    "unverifiable",
                 }:
                     persisted_status = "observed"
                 elif result_status in {
@@ -1125,26 +1149,21 @@ class WorkerLoop:
         }
         clean_domain = domain_queries.get(domain_value, domain_value.replace("_", " "))
         clean_name = str(row["name"] or "").replace("neurona-", "").replace("-", " ")
-        # Mismos dominios curados/confiables que guarded_web.py ya usa como
-        # fallback (CURATED_PUBLIC_SOURCES + Wikipedia ES) -- sin esto,
-        # _goal_research bloqueaba SIEMPRE con "requires explicit
-        # allowed_sources" y el currículo autónomo nunca investigaba nada
-        # real pese a detectar lagunas neuronales genuinas (hallazgo
-        # 2026-07-30, ver TECHNICAL_DEBT.md). No se amplía a búsqueda web
-        # sin restricción: sigue acotado a las mismas fuentes ya vetadas.
+        # TRUSTED_RESEARCH_HOSTS (guarded_web.py) es la fuente unica de estos
+        # dominios -- sin esto, _goal_research bloqueaba SIEMPRE con
+        # "requires explicit allowed_sources" y el currículo autónomo nunca
+        # investigaba nada real pese a detectar lagunas neuronales genuinas
+        # (hallazgo 2026-07-30, ver TECHNICAL_DEBT.md). No se amplía a
+        # búsqueda web sin restricción: sigue acotado a las mismas fuentes ya
+        # vetadas. Antes de 2026-07-31 esta lista estaba duplicada aquí en
+        # vez de importada -- ver TECHNICAL_DEBT.md.
         delegated = WorkerTask(
             task_type="goal_research",
             payload={
                 "request": f"{clean_domain} {clean_name} documentación técnica fundamentos",
                 "related_neuron_id": int(row["id"]),
                 "curriculum": True,
-                "allowed_sources": [
-                    "docs.opencv.org",
-                    "pillow.readthedocs.io",
-                    "docs.python.org",
-                    "docs.pytest.org",
-                    "es.wikipedia.org",
-                ],
+                "allowed_sources": sorted(TRUSTED_RESEARCH_HOSTS),
             },
         )
         result = self._goal_research(delegated, run_ref, task_dir, config)

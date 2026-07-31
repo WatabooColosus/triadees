@@ -42,7 +42,13 @@ class NeuronEducationCycle:
                 curriculum_id=str(curriculum["curriculum_id"]),
                 neuron_id=neuron_id,
                 competency_id=str(competency["competency_id"]),
-                state="material_insufficient",
+                # Antes de 2026-07-31: state="material_insufficient" (orden
+                # de palabras invertido respecto a result="insufficient_material"
+                # para el mismo caso, misma llamada). Filas historicas con
+                # state='material_insufficient' quedan intactas; el endpoint
+                # /api/governance/education/status y NeuronEducationCard ya
+                # suman ambas variantes para no perder el conteo historico.
+                state=result,
                 material_refs=refs,
                 independent_sources=independent,
                 lesson={"objective": objective, "status": "not_created"},
@@ -115,12 +121,15 @@ class NeuronEducationCycle:
 
     def status(self) -> dict[str, Any]:
         with self.store.connect() as conn:
-            counts = {
-                str(row["state"]): int(row["count"])
-                for row in conn.execute(
-                    "SELECT state,COUNT(*) count FROM neuron_education_sessions GROUP BY state"
-                )
-            }
+            counts: dict[str, int] = {}
+            for row in conn.execute(
+                "SELECT state,COUNT(*) count FROM neuron_education_sessions GROUP BY state"
+            ):
+                # Filas anteriores a 2026-07-31 usan 'material_insufficient';
+                # filas nuevas usan 'insufficient_material' (mismo caso, ver
+                # run_once()). Se fusionan para no fragmentar el conteo.
+                key = "insufficient_material" if row["state"] == "material_insufficient" else str(row["state"])
+                counts[key] = counts.get(key, 0) + int(row["count"])
             recent = [
                 dict(row)
                 for row in conn.execute(
@@ -157,10 +166,19 @@ class NeuronEducationCycle:
         return dict(row) if row else None
 
     def _candidate_materials(self) -> list[dict[str, Any]]:
+        # Estados reales del pipeline (triade/learning/pipeline.py):
+        # candidate -> evaluated -> internally_checked -> validated_in_runs
+        # -> consolidated. 'cross_checked'/'externally_supported' no existen
+        # en ningun productor real -- esta consulta nunca podia devolver
+        # filas (583/583 candidatos reales en 'internally_checked',
+        # confirmado en auditoria 2026-07-31). Se usan los tres niveles
+        # post-verificacion, no solo el mas alto, para no exigir mas
+        # evidencia de la que el propio pipeline ya considera suficiente
+        # para "internally_checked".
         with self.store.connect() as conn:
             rows = conn.execute(
                 """SELECT candidate_id,title,content,domain,source_type,source_ref,status
-                FROM learning_queue WHERE status IN ('cross_checked','externally_supported')
+                FROM learning_queue WHERE status IN ('internally_checked','validated_in_runs','consolidated')
                 AND source_type IN ('repo','document','web','node') AND source_ref IS NOT NULL
                 ORDER BY updated_at DESC LIMIT 300"""
             ).fetchall()

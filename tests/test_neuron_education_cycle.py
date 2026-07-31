@@ -38,7 +38,7 @@ def _material(path, source_ref, title, content):
         conn.execute(
             """INSERT INTO learning_queue(candidate_id,source_type,source_ref,title,content,normalized_summary,
             domain,risk_level,confidence,utility,status,verification_notes,created_at,updated_at)
-            VALUES(?, 'web', ?, ?, ?, ?, 'code_repair', 'low', .8, .8, 'cross_checked', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""",
+            VALUES(?, 'web', ?, ?, ?, ?, 'code_repair', 'low', .8, .8, 'internally_checked', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""",
             (f"candidate-{title}", source_ref, title, content, content),
         )
 
@@ -52,7 +52,7 @@ def test_cycle_refuses_to_claim_learning_without_independent_material(tmp_path):
     with sqlite3.connect(path) as conn:
         assert (
             conn.execute("SELECT state FROM neuron_education_sessions").fetchone()[0]
-            == "material_insufficient"
+            == "insufficient_material"
         )
 
 

@@ -37,6 +37,22 @@ CURATED_PUBLIC_SOURCES: tuple[tuple[tuple[str, ...], str], ...] = (
     ),
 )
 
+# Fuente única de verdad para los hosts curados/confiables de investigación
+# autónoma (CURATED_PUBLIC_SOURCES + fallback Wikipedia ES de
+# _wikipedia_sources). Antes de 2026-07-31 este mismo conjunto estaba
+# hardcodeado por separado en curriculum.py (sin Wikipedia) y worker_loop.py
+# (con Wikipedia) -- ambos ahora importan esta constante para no volver a
+# desincronizarse si se agrega o quita un dominio curado.
+TRUSTED_RESEARCH_HOSTS: frozenset[str] = frozenset(
+    {
+        "docs.opencv.org",
+        "pillow.readthedocs.io",
+        "docs.python.org",
+        "docs.pytest.org",
+        "es.wikipedia.org",
+    }
+)
+
 
 def requests_web_research(text: str) -> bool:
     normalized = text.lower()

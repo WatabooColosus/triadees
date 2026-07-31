@@ -3,6 +3,77 @@
 Corte: 2026-07-30. SHA documental base: `8f44814`. Esta lista es canónica;
 los reportes anteriores son históricos cuando la contradicen.
 
+## Auditoría integral 2026-07-31 (post bebb270/9be6f33/5219e00) — 3 bugs P0 más, todos CORREGIDOS
+
+Auditoría de extremo a extremo pedida explícitamente sobre el circuito real
+de educación neuronal, con prueba controlada real (no simulada) en cada
+paso. Encontró que los dos fixes anteriores (investigación web, next_review)
+eran necesarios pero **no suficientes**: el circuito completo tenía dos
+eslabones más rotos, silenciosamente, que impedían que `lesson_prepared`
+ocurriera alguna vez, y un tercer bug expuesto por los propios fixes.
+
+- **P0, CORREGIDO:** `_candidate_materials()` (`triade/neurons/education_cycle.py`)
+  buscaba `learning_queue.status IN ('cross_checked','externally_supported')`
+  — dos valores que **ningún productor real escribe jamás**. Verificado:
+  583/583 candidatos reales estaban en `internally_checked` (el estado real
+  del pipeline), y la consulta devolvía 0 filas siempre, sin importar cuánto
+  contenido bueno existiera. Corregido a
+  `IN ('internally_checked','validated_in_runs','consolidated')` — el
+  vocabulario real de `triade/learning/pipeline.py`. Verificado: la consulta
+  pasó de 0 a 25 materiales reales encontrados.
+- **P0, CORREGIDO:** con los dos fixes anteriores más este, una prueba real
+  controlada (`NeuronEducationCycle.run_once()` en vivo, neurona 12 "Código y
+  Reparación") produjo por primera vez `status="lesson_prepared"` con 3
+  fuentes independientes reales (Wikipedia, docs.python.org, docs.pytest.org),
+  `next_review` actualizado correctamente, y una fila real en
+  `learning_evidence` (decision='pending', hipótesis declarada). Ver detalle
+  completo del circuito trazado en el reporte de la sesión.
+- **P0, CORREGIDO (bug expuesto por el propio fix, no preexistente):**
+  `_canonical_execution_result` y el mapeo de estado v2 en
+  `triade/workers/worker_loop.py` (dos lugares duplicados) no reconocían
+  `"insufficient_sources"`, `"conflicting_sources"`, `"unverifiable"` —
+  los 3 estados no-éxito reales que `GovernedResearchWorker.run()`
+  (`triade/research/governed.py`) puede devolver. Como `research_curriculum`
+  estaba bloqueado antes (bebb270), estos estados eran inalcanzables; al
+  correr de verdad, causaban un crash real
+  (`unknown_handler_status:unverifiable`, observado en vivo en producción).
+  Agregados a la categoría "observado, no reclama éxito indebido" en ambos
+  lugares. Verificado con evidencia directa: los 3 estados ya no lanzan
+  excepción.
+- **P1, CORREGIDO:** `state="material_insufficient"` vs
+  `result="insufficient_material"` — mismo caso, misma llamada, dos strings
+  con orden de palabras invertido (confirmado, no solo sospechado).
+  Normalizado a `insufficient_material` en escrituras nuevas;
+  `NeuronEducationCycle.status()` fusiona ambas variantes al contar para no
+  fragmentar el histórico. Frontend actualizado a la clave normalizada.
+- **P1, CORREGIDO:** el conjunto de dominios curados/confiables
+  (`docs.opencv.org`, `pillow.readthedocs.io`, `docs.python.org`,
+  `docs.pytest.org`, `es.wikipedia.org`) estaba duplicado en 3 lugares
+  independientes con membresías ligeramente distintas
+  (`guarded_web.py::CURATED_PUBLIC_SOURCES`, `curriculum.py` sin Wikipedia,
+  `worker_loop.py` con Wikipedia — este último introducido en la sesión
+  anterior). Consolidado en `guarded_web.TRUSTED_RESEARCH_HOSTS`, única
+  fuente de verdad; los otros dos ahora importan de ahí.
+- **Observado, no atribuido a un bug de código:** tras un reinicio de
+  `triade-workers.service` tomado a mitad de la auditoría (con múltiples
+  invocaciones manuales concurrentes de `WorkerLoop`/`WorkerBackgroundService`
+  contra la misma DB de producción por parte de la propia sesión de
+  auditoría), el servicio entró en crash-loop 5 veces sin ningún error
+  registrado en `worker_events` durante la ventana. Una reproducción
+  controlada y limpia (mismas variables de entorno reales, sin
+  concurrencia) completó sin fallos. Se estabilizó solo tras ~30s y se
+  mantuvo estable el resto de la sesión. No se afirma una causa de código
+  específica sin evidencia — documentado como posible contención de
+  recursos bajo auditoría intensiva, a vigilar, no como corregido.
+- **Confirmado, NO corregido (fuera del alcance "solo P0/P1 comprobados",
+  no bloquea educación):** la evidencia que crea `lesson_prepared`
+  (`learning_evidence`, decision='pending') no tiene ningún proceso
+  identificado que resuelva esa decisión — queda como candidato/hipótesis
+  permanentemente, sin ruta automática a "improved"/consolidado. La
+  educación ejecuta, produce lecciones reales con evidencia real, pero
+  "la lección mejoró a la neurona" nunca se demuestra ni se refuta
+  automáticamente hoy.
+
 ## CORREGIDO — investigación web autónoma nunca corría (commit `bebb270`)
 
 El usuario reportó no ver aprendizaje autónomo usando recursos web en

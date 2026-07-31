@@ -1015,7 +1015,7 @@ export function NeuronEducationCard() {
       <KVTable data={{
         competencias_vencidas: data.due_competencies,
         lecciones_preparadas: counts.lesson_prepared || 0,
-        material_insuficiente: counts.material_insufficient || 0,
+        material_insuficiente: counts.insufficient_material || 0,
       }} />
       {sessions.length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Sin sesiones recientes.</div>
