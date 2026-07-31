@@ -1,0 +1,144 @@
+name: Concurrency Matrix
+
+# Por qué existe este workflow
+# ---------------------------
+# La concurrencia gobernada está implementada y verificada localmente, pero se
+# apagó por defecto porque al activarla `test_worker_learning_integration` pasó
+# de verde en `main` a rojo en la rama, y el fallo **no se reprodujo** localmente
+# —ni limitando a 2 CPU ni sin Ollama—. Un fallo que no se entiende no se activa
+# por defecto.
+#
+# Lo que faltaba era poder observarlo donde ocurre. Este workflow ejecuta el
+# MISMO subconjunto de pruebas en las dos configuraciones, para que la diferencia
+# sea atribuible a la concurrencia y no al entorno:
+#
+#   TRIADE_WORKER_CONCURRENCY=0  ->  comportamiento secuencial de siempre
+#   TRIADE_WORKER_CONCURRENCY=1  ->  carriles, pool y exclusiones activos
+#
+# El trabajo concurrente se repite varias veces a propósito: una carrera que
+# aparece una de cada cinco ejecuciones es indistinguible de "verde" si solo se
+# mira una. Repetir es la única forma de convertir un fallo intermitente en
+# evidencia.
+
+on:
+  push:
+    paths:
+      - "triade/workers/**"
+      - "triade/runtime/**"
+      - "tests/test_worker*"
+      - "tests/test_*concurrency*"
+      - "tests/test_*lease*"
+      - ".github/workflows/concurrency-matrix.yml"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Subconjunto sensible al modo de ejecución. Incluye el test que rompió
+  # (`test_worker_learning_integration`) para que su fallo vuelva a verse aquí,
+  # aislado y repetible, en vez de mezclado con 1500 pruebas más.
+  RUNTIME_TESTS: >-
+    tests/test_worker_loop.py
+    tests/test_worker_cli.py
+    tests/test_worker_api.py
+    tests/test_worker_learning_integration.py
+    tests/test_worker_safety_blocks_identity_change.py
+    tests/test_worker_concurrency_policy.py
+    tests/test_worker_concurrency_pool.py
+    tests/test_worker_loop_concurrency_integration.py
+    tests/test_controlled_shutdown_live.py
+    tests/test_worker_autostart_deadlock.py
+    tests/test_runtime_task_leases.py
+    tests/test_lease_fencing.py
+    tests/test_atomic_completion.py
+    tests/test_orphaned_task_recovery.py
+    tests/test_uncertain_completion_leak.py
+
+jobs:
+  serial:
+    name: runtime tests (serial)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run runtime tests without concurrency
+        env:
+          TRIADE_WORKER_CONCURRENCY: "0"
+        run: pytest -q --durations=15 ${{ env.RUNTIME_TESTS }}
+
+  concurrent:
+    name: runtime tests (concurrent, run ${{ matrix.attempt }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # NO bloquea el PR todavía, y decirlo importa: la concurrencia está apagada
+    # por defecto, así que un fallo aquí no afecta a lo que se ejecuta en
+    # producción. Este trabajo existe para DIAGNOSTICAR, no para dar por buena
+    # una capacidad que aún no se entiende. Pasa a bloqueante el día que se
+    # active la concurrencia por defecto — y no antes, para no acostumbrarse a
+    # ver rojo y dejar de mirarlo.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        attempt: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Show the machine we are racing on
+        # El fallo no se reprodujo en 8 CPU. Si depende del hardware del runner,
+        # este dato es la primera pista.
+        run: |
+          nproc
+          free -m || true
+          python -c "import os; print('cpu_count:', os.cpu_count())"
+      - name: Run runtime tests with governed concurrency
+        env:
+          TRIADE_WORKER_CONCURRENCY: "1"
+        run: pytest -q --durations=15 ${{ env.RUNTIME_TESTS }}
+      - name: Governed concurrency validation on a database copy
+        if: always()
+        env:
+          TRIADE_WORKER_CONCURRENCY: "1"
+        run: python scripts/run_concurrency_and_lease_validation.py
+      - name: Keep the evidence when it breaks
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: concurrency-failure-${{ matrix.attempt }}
+          path: |
+            runs/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  verdict:
+    name: concurrency verdict
+    runs-on: ubuntu-latest
+    needs: [serial, concurrent]
+    if: always()
+    steps:
+      - name: Report what the matrix proved
+        run: |
+          echo "serial:     ${{ needs.serial.result }}"
+          echo "concurrent: ${{ needs.concurrent.result }}"
+          # El serial SÍ es bloqueante: es el modo que corre en producción hoy.
+          test "${{ needs.serial.result }}" = "success"
+          if [ "${{ needs.concurrent.result }}" != "success" ]; then
+            echo "::warning::La concurrencia falla en CI. Sigue apagada por defecto."
+          else
+            echo "La concurrencia pasó las 3 repeticiones en este runner."
+          fi
