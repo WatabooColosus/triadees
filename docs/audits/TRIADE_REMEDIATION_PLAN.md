@@ -391,3 +391,68 @@ sobre una medición propia sigue siendo una medición propia.
 autónomo. En esta prueba los proporcioné yo. En producción, **quien genere esas
 puntuaciones determina todo el resultado** — y ese es el punto real de confianza,
 no el umbral.
+
+---
+
+## 9. C1 no se puede "conectar": falta la función que mide (hallazgo decisivo)
+
+**[E]** `SelfImprovementOrchestrator.run_once()`
+(`triade/self_improvement/orchestrator.py:35-56`) **exige un parámetro
+`evaluation_provider`**:
+
+```python
+EvaluationProvider = Callable[
+    [str, dict[str, Any]],
+    tuple[EvaluationRun, EvaluationRun, tuple[MetricPolicy, ...]],
+]
+...
+baseline, candidate, policies = evaluation_provider(candidate_id, artifact)
+```
+
+**[E]** `grep -rn "evaluation_provider"` sobre `triade/`, `apps/` y `scripts/`
+(excluyendo el propio orquestador) → **cero resultados. No existe ninguno.**
+
+### Qué significa
+
+C1 **no es una tarea de cableado**. El orquestador no genera las puntuaciones: las
+recibe. Conectarlo obliga a **escribir la función que decide qué cuenta como
+mejora** — la pieza más consecuente de todo el bucle de automejora.
+
+Quien escriba ese `evaluation_provider` **define qué significa que Tríade mejore**.
+No es una decisión de implementación: es la regla de fondo del sistema.
+
+**Escribirla al vuelo en una sesión sería el peor resultado posible**: un bucle
+autónomo de autopromoción gobernado por un criterio improvisado. La barra estricta
+verificada en §8.1 (cuatro condiciones, tolerancia cero) **no protege de esto**,
+porque opera *sobre* las puntuaciones que esa función produzca.
+
+### Sobre la preocupación de "algo fijo mientras el sistema evoluciona"
+
+**[E] Resuelto por diseño ya existente:** `CriticalSuiteRegistry`
+(`triade/regression/critical_suites.py:69-113`) **no congela nada**:
+
+- `register()` (`:77-82`) **rechaza** duplicar `(suite_id, version)` → una versión
+  publicada es **inmutable**: el sistema no puede reescribir la vara con la que ya
+  se midió.
+- Pero **sí** admite registrar versiones nuevas (`v2.0.0`), y `latest()` (`:101`)
+  elige la mayor → **el sistema puede evolucionar**.
+- `validate_run()` (`:48-67`) exige que la ejecución declare `suite_id` y
+  `suite_version` coincidentes y que **no falte ninguna métrica requerida**.
+
+Es decir: **append-only versionado**, no congelado. La preocupación era legítima y
+la arquitectura ya la contempla.
+
+**[E] Pero `CriticalSuiteRegistry` no se usa en producción**: solo aparece en
+`triade/regression/__init__.py` (reexport) y en tests. Está listo y sin conectar.
+
+### Condición real y final para C1
+
+1. Escribir un `evaluation_provider` **deliberado**, cuyas puntuaciones provengan de
+   una suite registrada en `CriticalSuiteRegistry` con `suite_id`/`suite_version`
+   explícitos — no generadas por el mismo ciclo que se evalúa.
+2. Registrar al menos una `CriticalSuiteDefinition` real para la capacidad a
+   evaluar.
+3. Solo entonces conectar el orquestador al ciclo 24/7.
+
+**El paso 1 es trabajo de diseño, no de remediación.** Define el criterio de verdad
+del sistema sobre sí mismo, y por eso no se hace dentro de una auditoría.
