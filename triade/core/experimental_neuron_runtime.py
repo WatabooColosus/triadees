@@ -172,12 +172,16 @@ def should_activate(
     if matched_trigger:
         reasons.append(f"trigger declarado coincide: {matched_trigger}")
 
-    # El fallback por nombre se conserva. Quitarlo dejaría sin activarse a las
-    # neuronas que hoy funcionan así, y eso sería cambiar un sesgo por otro.
+    # El fallback por nombre se conserva —quitarlo dejaría sin activarse a las
+    # neuronas que hoy funcionan así— pero se le aplica el mismo filtro de verbos
+    # de intención. Medido: `neurona-quiero-informacion-sobre-banda` capturaba
+    # «quiero aprender a dibujar en madera» porque «quiero» está en su nombre.
+    # Un nombre que empieza con una muletilla no puede reclamar media
+    # conversación.
     if name and any(
         part in text
         for part in name.replace("neurona-", "").split("-")
-        if len(part) >= 5
+        if len(part) >= 5 and part not in _GENERIC_NAME_TOKENS
     ):
         reasons.append("name token matched input/context")
 
@@ -186,6 +190,12 @@ def should_activate(
         "reasons": reasons,
     }
 
+
+#: Trozos de nombre que no distinguen nada. Las neuronas creadas desde una frase
+#: de chat se llaman como esa frase, así que su nombre arrastra muletillas.
+_GENERIC_NAME_TOKENS = frozenset(
+    ["quiero", "quisiera", "necesito", "podrias", "puedes", "informacion", "ayuda", "favor", "gracias", "saber", "sobre", "como", "cuando", "donde", "porque", "quien", "cual"]
+)
 
 #: Triggers de ciclo de vida, no términos que un usuario escriba. Si se buscaran
 #: en el texto activarían siempre o nunca, y la evidencia dejaría de significar
