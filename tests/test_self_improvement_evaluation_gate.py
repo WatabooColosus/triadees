@@ -108,7 +108,9 @@ def test_se_puede_volver_a_exigir_firma_humana(
         lock_file=tmp_path / "l",
         stop_file=tmp_path / "s",
     )
-    task = WorkerTask(id=8, task_type="self_improvement_evaluation", payload={}, status="claimed")
+    task = WorkerTask(
+        id=8, task_type="self_improvement_evaluation", payload={}, status="claimed"
+    )
     result = loop._self_improvement_evaluation(task, "run", tmp_path / "runs", None)
     assert result["status"] == "no_target"
     assert "humano" in result["reason"]
@@ -138,7 +140,9 @@ def test_handler_sin_propuesta_aprobada_no_hace_nada(tmp_path: Path):
         lock_file=tmp_path / "l",
         stop_file=tmp_path / "s",
     )
-    task = WorkerTask(id=1, task_type="self_improvement_evaluation", payload={}, status="claimed")
+    task = WorkerTask(
+        id=1, task_type="self_improvement_evaluation", payload={}, status="claimed"
+    )
     result = loop._self_improvement_evaluation(task, "run", tmp_path / "runs", None)
     assert result["status"] == "no_target"
 

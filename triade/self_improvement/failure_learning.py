@@ -273,7 +273,11 @@ class FailureLearningLoop:
         if baseline is None or candidate is None:
             return {**base, "signal_id": None, "reason_skipped": "sin puntuaciones"}
         if baseline - candidate < MIN_REAL_GAP:
-            return {**base, "signal_id": None, "reason_skipped": "brecha no significativa"}
+            return {
+                **base,
+                "signal_id": None,
+                "reason_skipped": "brecha no significativa",
+            }
 
         impact, risk = _SEVERITY.get(severity, (0.5, "medium"))
         signal = ImprovementSignal(
@@ -303,7 +307,11 @@ class FailureLearningLoop:
             # primer intento y la escalada nunca surtiría efecto.
             refreshed = self.store.refresh_open_signal(signal)
             if refreshed is None:
-                return {**base, "signal_id": None, "reason_skipped": "señal no registrable"}
+                return {
+                    **base,
+                    "signal_id": None,
+                    "reason_skipped": "señal no registrable",
+                }
             signal_id, action = str(refreshed["signal_id"]), "refreshed"
 
         with self._connect() as conn:

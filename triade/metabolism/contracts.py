@@ -60,9 +60,9 @@ class ResourceUsageReceipt:
 @dataclass(frozen=True, slots=True)
 class MetabolicPolicy:
     enabled_kinds: frozenset[str] = field(
-        default_factory=lambda: frozenset({
-            "health_check", "heartbeat", "lease_supervision", "budget_check"
-        })
+        default_factory=lambda: frozenset(
+            {"health_check", "heartbeat", "lease_supervision", "budget_check"}
+        )
     )
     min_priority: int = 10
     require_ollama: bool = False
@@ -85,7 +85,10 @@ class MetabolicPolicy:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> MetabolicPolicy:
         kinds = data.get("enabled_kinds") or [
-            "health_check", "heartbeat", "lease_supervision", "budget_check"
+            "health_check",
+            "heartbeat",
+            "lease_supervision",
+            "budget_check",
         ]
         raw_modes = data.get("allowed_modes", ["observe_only", "light", "full"])
         if isinstance(raw_modes, dict):

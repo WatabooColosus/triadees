@@ -4,6 +4,7 @@
 Comprehensive health check for the entire Tríade ecosystem.
 Returns JSON and human-readable output.
 """
+
 import json
 import os
 import subprocess
@@ -17,15 +18,24 @@ DB_PATH = REPO_ROOT / "triade/memory/triade.db"
 ENV_FILE = Path("/etc/triade/triade.env")
 PUBLIC_URL_TEMPLATE = "https://lightning.ai/agenciadigitalwataboo-org/deploy-model-project/studios/triade/web-ui?port={port}"
 
+
 def sh(cmd, timeout=10):
     try:
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout, check=False)
+        r = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
         return r.stdout.strip(), r.returncode
     except subprocess.TimeoutExpired:
         return "TIMEOUT", -1
     except OSError as e:
         # A single probe must not crash the whole doctor run.
         return str(e), -1
+
 
 def check_ollama():
     out, rc = sh("curl -s --max-time 5 http://127.0.0.1:11434/api/tags", timeout=10)
@@ -43,27 +53,32 @@ def check_ollama():
     except json.JSONDecodeError:
         return {"status": "CRITICAL", "detail": "Ollama returned invalid JSON"}
 
+
 def check_inference():
     out, rc = sh(
-        'curl -s --max-time 120 http://127.0.0.1:11434/api/generate '
+        "curl -s --max-time 120 http://127.0.0.1:11434/api/generate "
         '-d \'{"model":"qwen2.5:3b-instruct","prompt":"Hi","stream":false}\'',
-        timeout=120
+        timeout=120,
     )
     if rc != 0 or not out:
         return {"status": "CRITICAL", "detail": "Inference failed"}
     try:
         data = json.loads(out)
         if data.get("done"):
-            return {"status": "HEALTHY", "latency_ms": data.get("total_duration", 0) // 1_000_000}
+            return {
+                "status": "HEALTHY",
+                "latency_ms": data.get("total_duration", 0) // 1_000_000,
+            }
         return {"status": "DEGRADED", "detail": "Inference incomplete"}
     except json.JSONDecodeError:
         return {"status": "CRITICAL", "detail": "Inference returned invalid JSON"}
 
+
 def check_embedding():
     out, rc = sh(
-        'curl -s --max-time 90 http://127.0.0.1:11434/api/embeddings '
+        "curl -s --max-time 90 http://127.0.0.1:11434/api/embeddings "
         '-d \'{"model":"nomic-embed-text","prompt":"test"}\'',
-        timeout=90
+        timeout=90,
     )
     if rc != 0 or not out:
         return {"status": "DEGRADED", "detail": "Embedding failed"}
@@ -74,6 +89,7 @@ def check_embedding():
         return {"status": "DEGRADED", "detail": "No embedding in response"}
     except json.JSONDecodeError:
         return {"status": "DEGRADED", "detail": "Embedding returned invalid JSON"}
+
 
 def check_api():
     for endpoint in ["/health/live", "/api/health"]:
@@ -87,6 +103,7 @@ def check_api():
                 pass
     return {"status": "CRITICAL", "detail": "API not responding"}
 
+
 def check_ollama_blood():
     out, rc = sh("curl -s --max-time 10 http://127.0.0.1:8010/api/models/ollama/blood")
     if rc != 0 or not out:
@@ -94,15 +111,18 @@ def check_ollama_blood():
     try:
         data = json.loads(out)
         if data.get("status") == "ok":
-            return {"status": "HEALTHY", "blood_status": data.get("ollama_blood", {}).get("mode")}
+            return {
+                "status": "HEALTHY",
+                "blood_status": data.get("ollama_blood", {}).get("mode"),
+            }
         return {"status": "DEGRADED", "detail": data.get("message", "unknown")}
     except json.JSONDecodeError:
         return {"status": "DEGRADED", "detail": "Invalid blood endpoint response"}
 
+
 def check_heartbeat():
     out, rc = sh(
-        "curl -s --max-time 30 http://127.0.0.1:8010/api/runtime/heartbeat",
-        timeout=30
+        "curl -s --max-time 30 http://127.0.0.1:8010/api/runtime/heartbeat", timeout=30
     )
     if rc != 0 or not out:
         return {"status": "DEGRADED", "detail": "Heartbeat not responding"}
@@ -112,34 +132,54 @@ def check_heartbeat():
     except json.JSONDecodeError:
         return {"status": "DEGRADED", "detail": "Invalid heartbeat response"}
 
+
 def check_database():
     if not DB_PATH.exists():
         return {"status": "CRITICAL", "detail": "Database file not found"}
-    out, _rc = sh(f'python3 -c "import sqlite3; c=sqlite3.connect(\'{DB_PATH}\').cursor(); c.execute(\'PRAGMA integrity_check\'); print(c.fetchone()[0])"')
+    out, _rc = sh(
+        f"python3 -c \"import sqlite3; c=sqlite3.connect('{DB_PATH}').cursor(); c.execute('PRAGMA integrity_check'); print(c.fetchone()[0])\""
+    )
     if "ok" in out.lower():
-        return {"status": "HEALTHY", "size_mb": round(DB_PATH.stat().st_size / 1_048_576, 1)}
+        return {
+            "status": "HEALTHY",
+            "size_mb": round(DB_PATH.stat().st_size / 1_048_576, 1),
+        }
     return {"status": "CRITICAL", "detail": f"Integrity check: {out[:100]}"}
 
+
 def check_identity():
-    out, _rc = sh(f'python3 -c "import sqlite3; c=sqlite3.connect(\'{DB_PATH}\').cursor(); c.execute(\'SELECT COUNT(*) FROM identity_core\'); print(c.fetchone()[0])"')
+    out, _rc = sh(
+        f"python3 -c \"import sqlite3; c=sqlite3.connect('{DB_PATH}').cursor(); c.execute('SELECT COUNT(*) FROM identity_core'); print(c.fetchone()[0])\""
+    )
     try:
         count = int(out)
         if count >= 6:
             return {"status": "HEALTHY", "rows": count}
-        return {"status": "DEGRADED", "rows": count, "detail": "Identity core may be incomplete"}
+        return {
+            "status": "DEGRADED",
+            "rows": count,
+            "detail": "Identity core may be incomplete",
+        }
     except ValueError:
         return {"status": "CRITICAL", "detail": "Cannot read identity_core"}
+
 
 def check_git():
     out, rc = sh("git rev-parse HEAD 2>/dev/null", timeout=5)
     sha = out.strip() if rc == 0 else "unknown"
     out2, _rc2 = sh("git status --porcelain 2>/dev/null", timeout=5)
     dirty = bool(out2.strip())
-    return {"status": "HEALTHY", "sha": sha[:12] if len(sha) > 12 else sha, "dirty": dirty}
+    return {
+        "status": "HEALTHY",
+        "sha": sha[:12] if len(sha) > 12 else sha,
+        "dirty": dirty,
+    }
+
 
 def check_systemd(name):
     out, _rc = sh(f"systemctl is-active {name} 2>/dev/null")
     return out.strip() == "active"
+
 
 def check_public_url():
     port = "8010"
@@ -149,16 +189,26 @@ def check_public_url():
         return {"status": "HEALTHY", "url": url}
     return {"status": "DEGRADED", "url": url, "detail": f"HTTP {out[:10]}"}
 
+
 def check_backup():
     backup_dir = REPO_ROOT / "artifacts/backups"
     if not backup_dir.exists():
         return {"status": "DEGRADED", "detail": "No backup directory"}
-    backups = sorted(backup_dir.glob("triade-*.db.gz.fernet"), key=lambda f: f.stat().st_mtime, reverse=True)
+    backups = sorted(
+        backup_dir.glob("triade-*.db.gz.fernet"),
+        key=lambda f: f.stat().st_mtime,
+        reverse=True,
+    )
     if backups:
         newest = max(backups, key=lambda f: f.stat().st_mtime)
         age_h = (time.time() - newest.stat().st_mtime) / 3600
-        return {"status": "HEALTHY" if age_h < 48 else "DEGRADED", "latest_backup": newest.name, "age_hours": round(age_h, 1)}
+        return {
+            "status": "HEALTHY" if age_h < 48 else "DEGRADED",
+            "latest_backup": newest.name,
+            "age_hours": round(age_h, 1),
+        }
     return {"status": "DEGRADED", "detail": "No backup files found"}
+
 
 def check_disk():
     out, rc = sh("df -h /teamspace/studios/this_studio/triadees")
@@ -171,6 +221,7 @@ def check_disk():
                     return {"status": "HEALTHY", "free": parts[3], "used_pct": parts[4]}
     return {"status": "UNKNOWN", "detail": "Cannot read disk"}
 
+
 def check_ram():
     out, rc = sh("free -h | grep 'Mem:'")
     if rc == 0 and out:
@@ -178,14 +229,22 @@ def check_ram():
         return {"status": "HEALTHY", "total": parts[1], "available": parts[6]}
     return {"status": "UNKNOWN", "detail": "Cannot read RAM"}
 
+
 def check_gpu():
-    out, rc = sh("nvidia-smi --query-gpu=name,memory.free --format=csv,noheader 2>/dev/null")
+    out, rc = sh(
+        "nvidia-smi --query-gpu=name,memory.free --format=csv,noheader 2>/dev/null"
+    )
     if rc == 0 and out:
         return {"status": "HEALTHY", "detail": out.strip()}
     return {"status": "DEGRADED", "detail": "No GPU access"}
 
+
 def check_systemd_units():
-    services = ["triade-ollama.service", "triade-api.service", "triade-watchdog.service"]
+    services = [
+        "triade-ollama.service",
+        "triade-api.service",
+        "triade-watchdog.service",
+    ]
     timers = ["triade-backup.timer"]
     results = {}
     all_ok = True
@@ -201,6 +260,7 @@ def check_systemd_units():
         if not ok:
             all_ok = False
     return {"status": "HEALTHY" if all_ok else "DEGRADED", "units": results}
+
 
 def main():
     results = {
@@ -228,7 +288,14 @@ def main():
         ("gpu", check_gpu),
     ]
 
-    status_order = {"CRITICAL": 0, "DEGRADED": 1, "UNKNOWN": 2, "RECOVERING": 3, "HEALTHY": 4, "active": 4}
+    status_order = {
+        "CRITICAL": 0,
+        "DEGRADED": 1,
+        "UNKNOWN": 2,
+        "RECOVERING": 3,
+        "HEALTHY": 4,
+        "active": 4,
+    }
 
     for name, fn in checks:
         try:
@@ -252,16 +319,21 @@ def main():
     if "--json" in sys.argv:
         print(json.dumps(results, indent=2))
     else:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("  Tríade Ω · doctor --full")
         print(f"  Host: {results['host']}")
         print(f"  SHA: {results['sha']}")
         print(f"  Time: {results['timestamp']}")
         print(f"  Status: {results['overall_status']}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         for name, c in results["checks"].items():
             status = c["status"]
-            icon = {"HEALTHY": "✓", "DEGRADED": "⚠", "CRITICAL": "✗", "UNKNOWN": "?"}.get(status, "?")
+            icon = {
+                "HEALTHY": "✓",
+                "DEGRADED": "⚠",
+                "CRITICAL": "✗",
+                "UNKNOWN": "?",
+            }.get(status, "?")
             detail = c.get("detail", c.get("free", c.get("available", "")))
             print(f"  {icon} {name}: {status}".ljust(50) + f" {detail[:60]}")
         if degraded:
@@ -271,6 +343,7 @@ def main():
         print()
 
     return 0 if results["overall_status"] in ("HEALTHY", "DEGRADED") else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

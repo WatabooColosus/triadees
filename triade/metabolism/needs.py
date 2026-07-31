@@ -128,9 +128,7 @@ class NeedsQueue:
                 )
             )
 
-        needs.append(
-            self._create_need("budget_check", {"cycle_id": cycle_id})
-        )
+        needs.append(self._create_need("budget_check", {"cycle_id": cycle_id}))
 
         return needs
 

@@ -1405,7 +1405,11 @@ def metabolism_needs(status: str = "pending", limit: int = 20) -> dict[str, Any]
                 "SELECT * FROM metabolic_needs WHERE status=? ORDER BY priority DESC LIMIT ?",
                 (status, limit),
             ).fetchall()
-            return {"status": "ok", "count": len(rows), "needs": [dict(r) for r in rows]}
+            return {
+                "status": "ok",
+                "count": len(rows),
+                "needs": [dict(r) for r in rows],
+            }
     except (sqlite3.Error, OSError) as exc:
         return {"status": "error", "detail": str(exc)}
 

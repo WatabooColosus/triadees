@@ -20,6 +20,7 @@ def _concurrency_enabled_default() -> bool:
         "yes",
     }
 
+
 WorkerTaskType = Literal[
     "pulse_check",
     "pending_learning_review",

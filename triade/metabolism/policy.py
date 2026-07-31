@@ -15,7 +15,10 @@ class PolicyEngine:
         if need.kind not in self.policy.enabled_kinds:
             return False, f"kind_{need.kind}_not_enabled"
         if need.priority < self.policy.min_priority:
-            return False, f"priority_{need.priority}_below_min_{self.policy.min_priority}"
+            return (
+                False,
+                f"priority_{need.priority}_below_min_{self.policy.min_priority}",
+            )
         if need.authorization_policy == "never":
             return False, "authorization_policy_is_never"
         return True, ""

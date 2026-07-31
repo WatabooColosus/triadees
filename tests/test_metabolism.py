@@ -153,7 +153,9 @@ class TestDryRun:
             "  jitter_seconds: 0.0\n",
             encoding="utf-8",
         )
-        c = MetabolicCoordinator(db_path=str(tmp_path / "test.db"), config_path=str(cfg))
+        c = MetabolicCoordinator(
+            db_path=str(tmp_path / "test.db"), config_path=str(cfg)
+        )
         c.load_config()
         assert c._dry_run is True
         assert c._mode == "observe_only"

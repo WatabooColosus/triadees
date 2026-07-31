@@ -75,7 +75,9 @@ Señal que representa un evento metabólico. Se emite al inicio/fin de cada etap
 class MetabolicSignal:
     signal_id: str
     cycle: int
-    stage: str  # observe | evaluate | propose | authorize | execute | verify | consolidate
+    stage: (
+        str  # observe | evaluate | propose | authorize | execute | verify | consolidate
+    )
     need_id: str | None
     status: str  # started | completed | failed | skipped
     reason: str
@@ -92,8 +94,8 @@ Necesidad metabólica identificada. Cada necesidad tiene:
 class MetabolicNeed:
     need_id: str
     kind: str  # health_check | memory_maintenance | contradiction_detection |
-               # backlog_review | artifact_review | lease_supervision |
-               # snapshot_maintenance | internal_task_generation
+    # backlog_review | artifact_review | lease_supervision |
+    # snapshot_maintenance | internal_task_generation
     priority: int  # 0-100 (higher = more urgent)
     evidence: dict  # por qué se detectó esta necesidad
     estimated_cost: ResourceBudget

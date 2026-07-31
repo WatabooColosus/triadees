@@ -96,7 +96,9 @@ class VitalityEvaluationProvider:
         count = max(1, len(rows))
         return {metric: value / count for metric, value in totals.items()}
 
-    def _run(self, evaluation_id: str, subject_id: str, scores: dict[str, float]) -> EvaluationRun:
+    def _run(
+        self, evaluation_id: str, subject_id: str, scores: dict[str, float]
+    ) -> EvaluationRun:
         results = tuple(
             MetricResult(
                 case_id=metric,
@@ -135,7 +137,8 @@ class VitalityEvaluationProvider:
             )
 
         candidate_rows = [
-            row for row in self._rows(before=None, limit=self.window)
+            row
+            for row in self._rows(before=None, limit=self.window)
             if str(row["created_at"]) >= cutoff
         ]
         baseline_rows = self._rows(before=cutoff, limit=self.window)
@@ -152,10 +155,14 @@ class VitalityEvaluationProvider:
             )
 
         baseline = self._run(
-            f"vitality-baseline-{candidate_id}", candidate_id, self._aggregate(baseline_rows)
+            f"vitality-baseline-{candidate_id}",
+            candidate_id,
+            self._aggregate(baseline_rows),
         )
         candidate = self._run(
-            f"vitality-candidate-{candidate_id}", candidate_id, self._aggregate(candidate_rows)
+            f"vitality-candidate-{candidate_id}",
+            candidate_id,
+            self._aggregate(candidate_rows),
         )
         return baseline, candidate, TRIADE_VITALITY_SUITE.policies()
 

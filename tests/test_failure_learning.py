@@ -146,9 +146,11 @@ def test_cada_fallo_afila_la_misma_senal_en_vez_de_apilar_duplicados(tmp_path: P
 
     assert len(prioridades) == 3
     assert prioridades == sorted(prioridades, reverse=True), prioridades
-    total = sqlite3.connect(db).execute(
-        "SELECT COUNT(*) FROM improvement_signals"
-    ).fetchone()[0]
+    total = (
+        sqlite3.connect(db)
+        .execute("SELECT COUNT(*) FROM improvement_signals")
+        .fetchone()[0]
+    )
     assert total == 1
 
 

@@ -156,10 +156,10 @@ previas.
 
 ```python
 concurrency_enabled: bool = False  # TRIADE_WORKER_CONCURRENCY=1 para activar
-max_concurrent_tasks: int = 3      # nominal: 4
-read_only_workers: int = 2         # nominal: 4
-research_workers: int = 1          # nominal: 2
-evaluation_workers: int = 1        # nominal: 2
+max_concurrent_tasks: int = 3  # nominal: 4
+read_only_workers: int = 2  # nominal: 4
+research_workers: int = 1  # nominal: 2
+evaluation_workers: int = 1  # nominal: 2
 memory_write_workers: int = 1
 critical_mutation_workers: int = 1
 concurrency_shutdown_seconds: float = 30.0

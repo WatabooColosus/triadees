@@ -260,7 +260,8 @@ def validate_sqlite(report: Report, db_path: Path) -> None:
             store = AutonomousTaskStore(db_path)  # conexion propia en SU hilo
             for step in range(12):
                 store.enqueue(
-                    "pulse_check", {"i": index, "s": step},
+                    "pulse_check",
+                    {"i": index, "s": step},
                     idempotency_key=f"e2e-conc-{index}-{step}-{time.time()}",
                 )
         except sqlite3.Error as exc:

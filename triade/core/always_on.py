@@ -343,10 +343,10 @@ def start_always_on_if_enabled(
     # autonomy level rank as 0 (unranked), forcing a spurious governor
     # degradation even when resources fully allowed the requested mode.
     resource_mode = str(cfg.get("mode", "observe_only"))
-    autonomy_level = str(
-        cfg.get("continuous_runner_autonomy_level") or resource_mode
+    autonomy_level = str(cfg.get("continuous_runner_autonomy_level") or resource_mode)
+    requested_mode = (
+        autonomy_level if autonomy_level != "observe_only" else resource_mode
     )
-    requested_mode = autonomy_level if autonomy_level != "observe_only" else resource_mode
     effective_mode = requested_mode
     degraded_by_governor = False
     degradation_reason = None
