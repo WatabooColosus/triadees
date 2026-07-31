@@ -266,3 +266,73 @@ systemd deben seguir activos con `/api/health` 200.
 Fases 10 y 13–16 del encargo siguen sin auditar (Model Router en detalle, matriz
 completa de conexiones, pruebas E2E de coherencia contextual, censo exhaustivo de
 excepciones silenciosas). **Pueden aparecer riesgos nuevos que cambien este orden.**
+
+---
+
+## 7. Estado de ejecución del plan (actualizado 2026-07-31)
+
+### Ejecutado y verificado en producción
+
+| Punto | Estado | Verificación |
+|---|---|---|
+| **A1** WAL garantizado | ✅ hecho (`ccabd14`) | Base nueva en tmp: sin fix nace `delete`, con fix `wal` y persiste. Producción: `journal_mode=wal`. |
+| **A2** Watchdog honesto | ✅ hecho (`ccabd14`) | 3 caminos probados: sin verificador → `unverified` (antes `runtime_recovered`); True → `runtime_recovered`; False → `critical`. |
+| **B1** LoRA no miente | ✅ hecho (`f029b42`) | Producción real: `served_by_inference=false`, `effective_state=approved_not_served`, con aviso visible en el dashboard. |
+
+Suite completa de tests en verde tras cada punto; 4 servicios activos; API 200.
+
+### C1 — hallazgo que corrige el propio plan
+
+**El plan original decía: "activar la regresión antes de C1". Esa formulación era
+imprecisa y aquí se corrige.**
+
+**[E]** `regression_reports` no está vacía por un interruptor apagado, sino porque
+**el pipeline completo de `neuron_factory` nunca ha corrido en producción**:
+`NeuronEvaluationCoordinator.record_evidence()`
+(`triade/neuron_factory/evaluation.py:31-85`) exige un candidato **ya ejecutado en
+sandbox** (`_require_executed` → `execution_id`), más `baseline` y `candidate`
+como `EvaluationRun` **medidos de verdad**, más políticas de no-regresión.
+**[E]** Coherente con `sandbox_executions` = **0 filas**.
+
+→ "Activar la regresión" y "conectar C1" **no son dos pasos separados**: la
+regresión produce informes como *subproducto* del ciclo de evaluación que C1
+habilitaría. No se puede tener uno sin el otro por la vía automática.
+
+### Lo que sí se pudo verificar de forma aislada y controlada
+
+**[E] La red de seguridad NO es vaporware. Funciona.** Ejercitada directamente
+sobre una base temporal (sin tocar producción), con datos controlados:
+
+| Caso | Entrada | Decisión | Efecto |
+|---|---|---|---|
+| Candidato mejora | 0.70 → 0.90 | `pass` | informe persistido |
+| Candidato degrada | 0.90 → 0.50 | **`fail`** | hallazgo `critical` + **cuarentena automática** |
+
+`regression_reports` = 2 filas escritas, `regression_quarantine` = 1.
+`RegressionGate.evaluate()` detecta la degradación, la clasifica por severidad,
+la persiste y pone el candidato en cuarentena **sin intervención**.
+
+**Consecuencia para la decisión de C1 [I]:** el argumento "no hay red de seguridad"
+queda **parcialmente refutado**: el mecanismo existe y funciona. Lo que sigue sin
+existir es su **ejercicio end-to-end sobre un candidato real** (que requiere el
+pipeline de sandbox, nunca ejecutado).
+
+### Condición revisada para C1
+
+Ya no aplica "activar regresión primero" como paso independiente. La condición
+honesta pasa a ser:
+
+1. **[Resuelto]** Confirmar que el gate de regresión funciona → **hecho arriba**.
+2. **[Pendiente]** Ejecutar **una vez, manualmente y de forma controlada**, el
+   pipeline `neuron_factory` completo (candidato → especificación → sandbox →
+   evaluación) sobre un candidato real, para comprobar que produce evaluaciones
+   medibles y un informe de regresión real. Esto **no** requiere activar autonomía:
+   sería una ejecución disparada por un humano.
+3. **[Pendiente, decisión de producto]** Resolver la contradicción de
+   independencia: el contrato de la lección declara
+   `evaluation_role: "independent_required"`, pero el evaluador que C1 conectaría
+   es **el propio sistema evaluando sus propias lecciones**. Conectarlo tal cual
+   incumple el requisito que el diseño se impuso a sí mismo.
+
+**El punto 3 no es técnico y no lo puede resolver una auditoría.** Es una decisión
+sobre qué significa "independiente" para este proyecto.
