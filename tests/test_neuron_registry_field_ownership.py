@@ -305,3 +305,29 @@ def test_database_stays_consistent(db: Path) -> None:
     assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
     conn.close()
+
+
+def test_foundational_bootstrap_does_not_rewrite_on_every_start(db: Path) -> None:
+    """Las diez fundacionales se reescribían enteras en cada arranque.
+
+    Declaran triggers fijos, así que no bastaba con proteger el silencio: la
+    rutina tenía que dejar de actualizar.
+    """
+    from triade.core.foundational_neurons import ensure_foundational_neurons
+
+    ensure_foundational_neurons(db)
+
+    registry = NeuronRegistry(db)
+    aprendidos = ["duda", "contradicción", "evidencia"]
+    registry.register(
+        _spec("Neurona Central", mission="Coordinar.", triggers=aprendidos)
+    )
+    _touch(db, "Neurona Central", updated_at="SIN-TOCAR")
+
+    ensure_foundational_neurons(db)
+    ensure_foundational_neurons(db)
+
+    row = _row(db, "Neurona Central")
+    assert json.loads(row["triggers"]) == aprendidos
+    assert row["status"] == "stable"
+    assert row["updated_at"] == "SIN-TOCAR"
