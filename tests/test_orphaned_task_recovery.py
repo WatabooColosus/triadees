@@ -295,7 +295,23 @@ def test_uncertain_with_valid_artifact_completes(tmp_path: Path):
     assert store.get(task["task_id"])["status"] == "completed"
 
 
-def test_uncertain_without_artifact_remains_uncertain(tmp_path: Path):
+def test_uncertain_without_artifact_is_closed_as_dead_letter(tmp_path: Path):
+    """CAMBIO DE COMPORTAMIENTO (2026-07-31), con motivo.
+
+    Este test afirmaba antes que la tarea **seguía** en `completion_uncertain`.
+    La intención era buena —sin artefacto no sabemos si el efecto se aplicó, así
+    que no se completa ni se reintenta— pero la consecuencia no lo era: nada
+    volvía a tocar esas filas nunca.
+
+    La auditoría en vivo encontró 12 tareas ahí, la más antigua de 20 horas
+    atrás. `completion_uncertain` no es terminal ni activo, y la monitorización
+    lo contaba entre las tareas vivas: el sistema afirmaba actividad inexistente.
+
+    Se conserva la intención y se corrige la consecuencia. `dead_letter` con
+    razón `uncertain_without_artifact` no dice "falló": dice que no hay evidencia
+    de que terminara y que no se reintentará sola. Es terminal, es visible, y
+    deja la decisión de reencolar a un humano que pueda mirar el caso.
+    """
     store = AutonomousTaskStore(tmp_path / "tasks.db")
     task = store.enqueue("work", {}, idempotency_key="uncertain-no-artifact")
     claimed = store.claim("w", lease_seconds=30)
@@ -305,7 +321,11 @@ def test_uncertain_without_artifact_remains_uncertain(tmp_path: Path):
         task["task_id"], "w", claimed["lease_generation"], "/nonexistent/result.json"
     )
     store.recover_orphaned_tasks()
-    assert store.get(task["task_id"])["status"] == "completion_uncertain"
+    recovered = store.get(task["task_id"])
+    assert recovered["status"] == "dead_letter"
+    # No se completa: eso sería afirmar un éxito que nadie puede demostrar.
+    assert recovered["status"] != "completed"
+    assert "uncertain_without_artifact" in str(recovered.get("last_error") or "")
 
 
 # ── Test: attempt ────────────────────────────────────────────────────

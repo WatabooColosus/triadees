@@ -280,8 +280,22 @@ class AutonomousTaskStore:
         return changed == 1
 
     def reconcile_uncertain_completions(self) -> dict[str, int]:
+        """Resuelve `completion_uncertain`: o completa, o cierra diciendo por qué.
+
+        Lo que hacía antes era contar las irresolubles (`failed += 1`) y dejarlas
+        donde estaban. Como nada más las tocaba, se acumulaban indefinidamente:
+        la auditoría en vivo del 2026-07-31 encontró 12, la más antigua de 20
+        horas atrás. `completion_uncertain` no es terminal ni activo — es limbo —
+        y como la monitorización lo cuenta entre las tareas vivas, el sistema
+        **afirmaba actividad que no existía**.
+
+        Sin artefacto no se reintenta: no sabemos si el efecto llegó a aplicarse,
+        y repetir un `goal_safe_command` podría aplicarlo dos veces. Se cierra
+        como `dead_letter` con la razón explícita, y la decisión de reencolar
+        queda en manos de un humano que pueda mirar el caso.
+        """
         completed = 0
-        failed = 0
+        dead_lettered = 0
         with self._connect() as conn:
             rows = conn.execute(
                 """SELECT task_id,worker_id,lease_generation,result_ref
@@ -289,18 +303,55 @@ class AutonomousTaskStore:
             ).fetchall()
         for row in rows:
             ref = str(row["result_ref"] or "")
+            task_id = str(row["task_id"])
             if ref and Path(ref).is_file():
                 completed += int(
                     self.finalize_completion(
-                        str(row["task_id"]),
+                        task_id,
                         str(row["worker_id"]),
                         int(row["lease_generation"]),
                         ref,
                     )
                 )
             else:
-                failed += 1
-        return {"completed": completed, "still_uncertain": failed}
+                dead_lettered += int(
+                    self._close_uncertain_without_artifact(
+                        task_id,
+                        str(row["worker_id"] or ""),
+                        int(row["lease_generation"]),
+                    )
+                )
+        return {
+            "completed": completed,
+            # Se conserva la clave por compatibilidad con quien la lea: ahora
+            # siempre es 0, porque ninguna se queda sin resolver.
+            "still_uncertain": 0,
+            "dead_lettered": dead_lettered,
+        }
+
+    def _close_uncertain_without_artifact(
+        self, task_id: str, worker_id: str, lease_generation: int
+    ) -> bool:
+        now = _iso()
+        reason = "uncertain_without_artifact:no_evidence_of_completion"
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            changed = conn.execute(
+                """UPDATE autonomous_tasks SET status='dead_letter',
+                last_error=COALESCE(last_error||'; ','')||?,
+                lease_expires_at=NULL,updated_at=?
+                WHERE task_id=? AND status='completion_uncertain'""",
+                (reason, now, task_id),
+            ).rowcount
+            if changed == 1:
+                conn.execute(
+                    """INSERT INTO autonomous_task_transitions
+                    (task_id,worker_id,lease_generation,from_status,to_status,reason,created_at)
+                    VALUES(?,?,?,'completion_uncertain','dead_letter',?,?)""",
+                    (task_id, worker_id, lease_generation, reason, now),
+                )
+            conn.commit()
+        return changed == 1
 
     def block(
         self, task_id: str, worker_id: str, lease_generation: int, reason: str
@@ -620,7 +671,10 @@ class AutonomousTaskStore:
         # ── 2. Reconciliar completion_uncertain existentes ──────────
         reconciled = self.reconcile_uncertain_completions()
         result["uncertain_completed"] = reconciled["completed"]
-        result["uncertain_quarantined"] = reconciled["still_uncertain"]
+        # "Cuarentenadas" son ahora las que se cerraron como `dead_letter` por no
+        # tener artefacto. Antes esta cifra contaba las que se quedaban en limbo,
+        # que es precisamente lo que ya no ocurre.
+        result["uncertain_quarantined"] = reconciled["dead_lettered"]
 
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
