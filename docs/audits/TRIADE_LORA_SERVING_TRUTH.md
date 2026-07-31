@@ -138,3 +138,56 @@ sistema no afirme algo que no hace.
 - No se verificó el rollback ni su requisito de aprobación.
 - No se determinó si el canary usa tráfico real o prompt sintético (pendiente de
   la Fase 11 completa).
+
+
+---
+
+## 7. HALLAZGO DECISIVO (2026-07-31): el adaptador es incompatible con el modelo de producción
+
+Al intentar construir la ruta de servicio se encontró la causa real de que el
+adaptador nunca pudiera servir. **No es que falte cablearlo: es incompatible por
+construcción.**
+
+**[E]** Modelo base del adaptador —`artifacts/adapters/triade-continuity-canary/adapter_config.json`
+y `triade_adapter_manifest.json`:
+
+```
+base_model_name_or_path : Qwen/Qwen2.5-0.5B-Instruct
+r: 8 · lora_alpha: 16 · target_modules: [v_proj, q_proj, k_proj, o_proj]
+```
+
+**[E]** Modelo que sirve producción —`GET /api/health`:
+
+```
+central     : qwen2.5:3b-instruct
+hipotálamo  : qwen2.5:3b-instruct
+```
+
+**[E]** Modelos instalados en Ollama: `gemma3:4b`, `qwen3:4b`,
+`nomic-embed-text`, `qwen2.5-coder:3b`, `qwen3:1.7b`, `qwen2.5:3b-instruct`.
+**`Qwen2.5-0.5B-Instruct` no está instalado.**
+
+### Consecuencia
+
+Un adaptador LoRA está atado matemáticamente a las dimensiones y pesos de su modelo
+base. **Un adaptador de 0.5B no puede aplicarse a un modelo de 3B.** No existe
+configuración, Modelfile ni ruta de serving que lo haga funcionar.
+
+**Esto reclasifica el hallazgo:** el problema no era el serving (§3), sino que
+**todo el ciclo LoRA se entrenó contra un modelo que no es el de producción**. El
+canary generó texto real —pero con el modelo de 0.5B, no con el que atiende a los
+usuarios. La aprobación humana no podía activar nada porque no había nada
+aplicable.
+
+### Qué haría falta para repararlo [I]
+
+1. Reentrenar el adaptador con `base_model = qwen2.5:3b-instruct` (o el modelo que
+   realmente sirva producción en ese momento).
+2. Resolver el formato: Ollama sirve adaptadores vía `ADAPTER` en Modelfile, que
+   espera GGUF; el artefacto actual es `safetensors` → requiere conversión.
+3. Hacer que `model_router` seleccione el modelo derivado. **[NV]** No verificado
+   que la versión de Ollama instalada (0.32.5) soporte el flujo completo.
+
+**Prioridad relativa:** baja frente a construir el `evaluation_provider`. Sin una
+vara de medida no se puede determinar si un adaptador reentrenado **mejora** algo;
+repararlo antes sería entrenar a ciegas otra vez.

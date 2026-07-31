@@ -82,6 +82,30 @@ Detalle en `TRIADE_CONTEXT_TRACE.md` §10.
 
 ---
 
+### P0-03 · El adaptador LoRA se entrenó contra un modelo base distinto al de producción
+
+**[E]** `adapter_config.json` / `triade_adapter_manifest.json`:
+`base_model_name_or_path = Qwen/Qwen2.5-0.5B-Instruct`.
+**[E]** Producción sirve con `qwen2.5:3b-instruct` (`GET /api/health`).
+**[E]** El modelo de 0.5B **ni siquiera está instalado** en Ollama.
+
+Un adaptador LoRA está atado a las dimensiones y pesos de su base: **un adaptador
+de 0.5B no puede aplicarse a un modelo de 3B**. No hay configuración ni ruta de
+serving que lo resuelva.
+
+**Reclasifica P0-01:** el problema de fondo no era el serving, sino que **todo el
+ciclo LoRA se entrenó contra un modelo que no es el de producción**. El canary
+generó texto real, pero con el 0.5B. La aprobación humana no podía activar nada.
+
+**Reparación [I]:** reentrenar sobre el modelo real + resolver conversión
+safetensors→GGUF + selección en `model_router`. **Prioridad baja** frente al
+`evaluation_provider`: sin vara de medida no se puede saber si un adaptador
+reentrenado mejora algo.
+
+Detalle en `TRIADE_LORA_SERVING_TRUTH.md` §7.
+
+---
+
 ## P1 — Alto
 
 ### P1-01 · El watchdog declara recuperación exitosa sin verificarla
