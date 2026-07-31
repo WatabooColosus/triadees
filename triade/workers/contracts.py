@@ -8,6 +8,8 @@ from uuid import uuid4
 
 from triade.core.contracts import utc_now
 
+from .concurrency import ConcurrencySettings
+
 WorkerTaskType = Literal[
     "pulse_check",
     "pending_learning_review",
@@ -101,6 +103,30 @@ class WorkerRunConfig:
     max_tasks_per_drain: int = 20
     max_seconds_per_drain: float = 2.0
     max_tasks_per_type_per_drain: int = 4
+    # Concurrencia gobernada. `concurrency_enabled=False` reproduce exactamente
+    # el drenaje secuencial anterior; los límites por carril viven en
+    # `triade/workers/concurrency.py` y pueden reducirse por backpressure.
+    concurrency_enabled: bool = True
+    max_concurrent_tasks: int = 3
+    read_only_workers: int = 2
+    research_workers: int = 1
+    evaluation_workers: int = 1
+    memory_write_workers: int = 1
+    critical_mutation_workers: int = 1
+    # Cuánto se espera, como máximo, a que terminen las tareas en vuelo al parar.
+    concurrency_shutdown_seconds: float = 30.0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    def concurrency_settings(self) -> ConcurrencySettings:
+        """Traduce la configuración del run a los límites del pool."""
+        return ConcurrencySettings(
+            enabled=bool(self.concurrency_enabled),
+            max_concurrent_tasks=int(self.max_concurrent_tasks),
+            read_only_workers=int(self.read_only_workers),
+            research_workers=int(self.research_workers),
+            evaluation_workers=int(self.evaluation_workers),
+            memory_write_workers=int(self.memory_write_workers),
+            critical_mutation_workers=int(self.critical_mutation_workers),
+        )
