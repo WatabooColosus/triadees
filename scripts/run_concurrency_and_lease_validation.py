@@ -1,5 +1,11 @@
-#!/usr/bin/env python
-"""Validación E2E de concurrencia gobernada y automejora, sobre COPIA de la base.
+"""Validación de concurrencia, leases y SQLite, sobre COPIA de la base.
+
+**Esto NO es un E2E del ciclo de automejora.** No ejecuta
+propuesta → candidata → sandbox → evaluación → canary. Llamarlo E2E sería
+sobrevender: valida los mecanismos de runtime (carriles, exclusiones, lease,
+cierre, SQLite) y comprueba que la medición de vitalidad falla honestamente por
+falta de evidencia, pero el circuito completo requiere una propuesta aprobada
+por un humano que hoy no existe en la base.
 
 Nunca toca producción: copia `triade/memory/triade.db` a un directorio temporal y
 trabaja ahí. La copia conserva los `verification_reports` reales, que es lo que
@@ -9,21 +15,22 @@ Qué demuestra, y qué no
 -----------------------
 Demuestra: solapamiento real de tareas seguras, serialización de mutaciones
 críticas, exclusión por candidata, propiedad del lease, ausencia de doble cierre,
-que SQLite no se bloquea, parada controlada, y el ciclo completo
-propuesta → candidata → sandbox → vitalidad → RegressionGate → canary → observación.
+que SQLite no se bloquea y parada controlada.
+
+NO demuestra: el circuito propuesta → candidata → sandbox → canary ejecutado de
+principio a fin. Eso sigue sin evidencia y así debe reportarse.
 
 NO demuestra un A/B verdadero: la vitalidad se mide comparando ventanas
 antes/después sobre los mismos informes reales, no ejecutando la misma carga con
 y sin la candidata. Esa capacidad no existe hoy.
 
 Uso:
-    python scripts/run_governed_concurrency_validation.py
+    python scripts/run_concurrency_and_lease_validation.py
 """
 
 from __future__ import annotations
 
 import json
-import shutil
 import sqlite3
 import sys
 import threading
@@ -34,7 +41,7 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from triade.workers.concurrency import (  # noqa: E402
+from triade.workers.concurrency import (
     ConcurrencySettings,
     GovernedTaskPool,
 )
@@ -331,7 +338,7 @@ def validate_self_improvement(report: Report, db_path: Path) -> None:
 
 def main() -> int:
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    workdir = REPO / "runs" / f"governed-concurrency-validation-{stamp}"
+    workdir = REPO / "runs" / f"concurrency-lease-validation-{stamp}"
     workdir.mkdir(parents=True, exist_ok=True)
     print(f"Directorio de trabajo: {workdir}")
     db_path = copy_production_db(workdir)
@@ -352,9 +359,16 @@ def main() -> int:
         "passed": sum(1 for c in report.checks if c["passed"]),
         "total": len(report.checks),
         "limitations": [
-            "La vitalidad compara ventanas antes/despues sobre informes reales; "
-            "NO es un A/B controlado. Repetir la misma carga con y sin candidata "
-            "no es posible hoy.",
+            (
+                "La vitalidad compara ventanas antes/despues sobre informes "
+                "reales; NO es un A/B controlado. Repetir la misma carga con y "
+                "sin candidata no es posible hoy."
+            ),
+            (
+                "Este script NO ejecuta el circuito propuesta -> candidata -> "
+                "sandbox -> canary de principio a fin. Valida los mecanismos de "
+                "runtime, no el ciclo completo de automejora."
+            ),
         ],
     }
     (workdir / "validation.json").write_text(

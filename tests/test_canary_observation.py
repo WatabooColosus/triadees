@@ -219,3 +219,30 @@ def test_the_registry_is_small_and_explicit() -> None:
 
 def test_empty_provider_name_falls_back_to_the_default(db_path: Path) -> None:
     assert callable(build_evaluation_provider("", db_path))
+
+
+# ── corrección de revisión (2026-07-31) ─────────────────────────────────
+
+
+def test_observation_declares_that_attribution_is_only_temporal(db_path: Path) -> None:
+    """El resultado debe confesar que no prueba que la candidata se usara.
+
+    Los informes se eligen por ser posteriores al canary. Sin enrutado de
+    trafico por candidata, eso es correlacion, no causa. Quien lea el resultado
+    tiene que saberlo sin ir a leer el codigo.
+    """
+    _open_canary(db_path, baseline=0.9, minimum=2, maximum=5)
+    _seed_reports(db_path, [0.91], base="2999-01-01T00:00:")
+    result = CanaryObservationCollector(db_path).observe_once()
+    assert result["causal_attribution"] == "temporal_only"
+    assert "no se demuestra" in result["causal_attribution_note"]
+
+
+def test_temporal_attribution_never_authorises_a_promotion(db_path: Path) -> None:
+    """Revertir por correlacion es barato; promover por correlacion, no."""
+    _open_canary(db_path, baseline=0.9, minimum=2, maximum=3)
+    _seed_reports(db_path, [0.92, 0.93, 0.94], base="2999-01-01T00:00:")
+    result = CanaryObservationCollector(db_path).observe_once()
+    assert result["status"] == "graduated"
+    assert result["stable_promotion_performed"] is False
+    assert result["causal_attribution"] == "temporal_only"

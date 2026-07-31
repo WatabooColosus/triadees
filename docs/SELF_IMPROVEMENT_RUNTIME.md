@@ -101,6 +101,17 @@ bloquear un worker durante horas sosteniendo un lease.
   golpe saltaría de recién abierto a graduado sin que nadie pudiera reaccionar a
   una degradación intermedia.
 
+#### La atribución es temporal, no causal
+
+Los informes se seleccionan por ser **posteriores** al arranque del canary. Hoy
+no existe enrutado de tráfico por candidata, así que **no se demuestra que la
+candidata sirviera esas respuestas**: un cambio ajeno en la misma ventana se le
+atribuiría igual.
+
+El resultado lo declara explícitamente (`causal_attribution: "temporal_only"`).
+Por eso el canary solo puede mantener, declarar elegible o **revertir**, nunca
+promover: revertir de más es barato, promover por correlación no lo sería.
+
 #### No contar dos veces
 
 La garantía no se deja a una comprobación en código: vive en la clave primaria de

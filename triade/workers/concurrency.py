@@ -101,7 +101,6 @@ TASK_CONCURRENCY_POLICY: dict[str, TaskConcurrencyPolicy] = {
     "federation_inbox_review": TaskConcurrencyPolicy("read_only", 4, "io"),
     "system_debt_scan": TaskConcurrencyPolicy("read_only", 4, "light"),
     "bodega_global_review": TaskConcurrencyPolicy("read_only", 4, "light"),
-    "write_governed_text_artifact": TaskConcurrencyPolicy("read_only", 4, "io"),
     # ── research: consultan modelos o la web; caras y lentas ────────────
     "goal_research": TaskConcurrencyPolicy("research", 2, "model"),
     "research_curriculum": TaskConcurrencyPolicy("research", 2, "model"),
@@ -126,6 +125,14 @@ TASK_CONCURRENCY_POLICY: dict[str, TaskConcurrencyPolicy] = {
     "stable_consolidation_review": TaskConcurrencyPolicy("memory_write", 1, "light"),
     "semantic_memory_governance": TaskConcurrencyPolicy("memory_write", 1, "light"),
     "encrypted_backup": TaskConcurrencyPolicy("memory_write", 1, "io"),
+    # Escribe ficheros en disco vía GovernedFileWriteCapability. Estuvo
+    # clasificada como `read_only` con concurrencia 4, que era sencillamente
+    # falso: cuatro escrituras simultáneas podían apuntar al mismo `target`.
+    # La clave de exclusión por `target` cubre además el caso de dos escrituras
+    # al mismo fichero desde carriles distintos.
+    "write_governed_text_artifact": TaskConcurrencyPolicy(
+        "memory_write", 1, "io", ("target",)
+    ),
     # ── critical_mutation: cambian lo estable; serial global ────────────
     "neuron_autopromotion": TaskConcurrencyPolicy(
         "critical_mutation", 1, "critical", ("neuron_id", GLOBAL_PROMOTION_KEY)

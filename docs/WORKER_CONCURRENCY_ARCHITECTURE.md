@@ -1,8 +1,13 @@
 # Concurrencia gobernada en los Living Workers
 
-> Estado: **activo** con límites conservadores desde 2026-07-31.
-> Desactivable con `concurrency_enabled=False`, que reproduce exactamente el
-> comportamiento secuencial anterior.
+> Estado: **implementada y probada, pero APAGADA por defecto.**
+> Se activa con `TRIADE_WORKER_CONCURRENCY=1` o `concurrency_enabled=True`.
+>
+> Se activó por defecto y CI —que estaba verde en `main`— se puso rojo en
+> `test_worker_learning_integration`. El fallo no se reprodujo localmente ni
+> limitando a 2 CPU ni sin Ollama, así que **no está entendido**. Activar por
+> defecto algo cuyo modo de fallo no se comprende es exactamente lo que este
+> runtime existe para no hacer. Apagada, el drenaje es el secuencial de siempre.
 
 ## El problema que resuelve
 
@@ -27,10 +32,10 @@ claim → despachar al carril → claim → despachar → recoger lo terminado �
 
 | Carril | Límite nominal | Límite inicial | Qué contiene | Por qué |
 |---|---|---|---|---|
-| `read_only` | 4 | 2 | `pulse_check`, `pending_learning_review`, `federation_inbox_review`, `system_debt_scan`, `bodega_global_review`, `write_governed_text_artifact` | Observan y reportan. No escriben estado estable, así que solaparlas no puede corromper nada. |
+| `read_only` | 4 | 2 | `pulse_check`, `pending_learning_review`, `federation_inbox_review`, `system_debt_scan`, `bodega_global_review` | Observan y reportan. No escriben estado estable, así que solaparlas no puede corromper nada. |
 | `research` | 2 | 1 | `goal_research`, `research_curriculum`, `neuron_candidate_formation` | Consultan modelos o la web. Caras y lentas; con una sola GPU L4 conviene no apilarlas. |
 | `evaluation` | 2 | 1 | `experimental_neuron_activity`, `neuron_education_cycle`, `self_improvement_evaluation`, `self_improvement_canary_observation` | Sandbox, medición y gates. Solapables **solo entre candidatas distintas**. |
-| `memory_write` | 1 | 1 | `memory_consolidation_review`, `stable_consolidation_review`, `semantic_memory_governance`, `encrypted_backup` | Escriben memoria gobernada. Dos escrituras simultáneas producirían una memoria que nadie puede auditar. |
+| `memory_write` | 1 | 1 | `memory_consolidation_review`, `stable_consolidation_review`, `semantic_memory_governance`, `encrypted_backup`, `write_governed_text_artifact` | Escriben memoria gobernada. Dos escrituras simultáneas producirían una memoria que nadie puede auditar. |
 | `critical_mutation` | 1 | 1 | `neuron_autopromotion`, `goal_lora_train`, `goal_install`, `goal_safe_command` | Cambian lo estable. Serial global, siempre. |
 
 `identity_core` sigue prohibido para cualquier tarea, en cualquier carril.
@@ -56,6 +61,7 @@ contra el payload:
 | `self_improvement_evaluation` | `candidate_id`, `neuron_id`, `proposal_id` |
 | `self_improvement_canary_observation` | `candidate_id`, `canary_id` |
 | `experimental_neuron_activity`, `neuron_education_cycle` | `neuron_id` |
+| `write_governed_text_artifact` | `target` (el fichero de destino) |
 | `neuron_autopromotion` | `neuron_id` + `global_promotion` |
 
 `global_promotion` no se lee del payload: la toma toda promoción, de modo que
@@ -132,9 +138,14 @@ conexiones.
 
 1. Se deja de aceptar tareas nuevas (`stop_accepting`).
 2. Se espera un período acotado (`concurrency_shutdown_seconds`, 30 s).
-3. Lo que siga vivo se **reporta** como `still_running` — nunca se marca como
-   completado. Su lease sigue siendo suyo, y la recuperación por expiración de
-   lease es el mecanismo que ya existe para eso.
+3. Si algo sigue vivo, se **espera de verdad** una segunda vez (hasta
+   `max(60 s, task_timeout × 2)`). Reportarlo no bastaba: mientras una tarea
+   corre, este run sigue siendo el dueño de su lease.
+4. Si aun así quedan tareas vivas, el run termina como
+   **`completed_with_active_tasks`** (ni completado ni fallido) y **conserva el
+   lock**. Soltarlo dejaría entrar a otro worker sobre la misma base — la doble
+   ejecución exacta que este runtime existe para impedir. No queda huérfano:
+   `recover_interrupted_runtime` detecta el lock caduco por PID muerto.
 
 Se conservan: modo `once`, modo daemon, `max_iterations`, stop file, process
 lock, wake bus, reconciliación de la cola legacy, idempotency keys, artefactos
@@ -144,7 +155,7 @@ previas.
 ## Configuración
 
 ```python
-concurrency_enabled: bool = True
+concurrency_enabled: bool = False  # TRIADE_WORKER_CONCURRENCY=1 para activar
 max_concurrent_tasks: int = 3      # nominal: 4
 read_only_workers: int = 2         # nominal: 4
 research_workers: int = 1          # nominal: 2
@@ -154,8 +165,9 @@ critical_mutation_workers: int = 1
 concurrency_shutdown_seconds: float = 30.0
 ```
 
-Se activa con los valores conservadores, no con los nominales. Subir a los
-nominales solo tras medir estabilidad real.
+Cuando se active, se hace con los valores conservadores, no con los nominales.
+Subir a los nominales solo tras medir estabilidad real — y antes de eso hay que
+entender el fallo de CI descrito arriba.
 
 ### Hardware limitado
 
@@ -207,7 +219,7 @@ No se expone razonamiento interno ni prompts.
 ## Validación
 
 ```bash
-python scripts/run_governed_concurrency_validation.py
+python scripts/run_concurrency_and_lease_validation.py
 ```
 
 Trabaja sobre una **copia** de `triade/memory/triade.db` (con `backup()`, no

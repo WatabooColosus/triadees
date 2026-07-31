@@ -263,13 +263,32 @@ def test_running_tasks_expose_traceable_fields() -> None:
 # ── configuración ───────────────────────────────────────────────────────
 
 
-def test_worker_run_config_defaults_to_the_conservative_activation() -> None:
-    """Fase 7: se activa con margen, no al máximo."""
+def test_concurrency_is_off_unless_someone_asks_for_it(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Apagada por defecto: se activó por defecto y CI se puso rojo.
+
+    El fallo (`test_worker_learning_integration`) no se reprodujo localmente ni
+    limitando a 2 CPU ni sin Ollama, asi que no esta entendido. Activar por
+    defecto algo cuyo modo de fallo no se comprende es justo lo que este runtime
+    existe para no hacer.
+    """
+    monkeypatch.delenv("TRIADE_WORKER_CONCURRENCY", raising=False)
+    settings = WorkerRunConfig().concurrency_settings()
+    assert settings.enabled is False
+    assert settings.effective_global_limit() == 1
+
+
+def test_concurrency_can_be_switched_on_by_environment(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("TRIADE_WORKER_CONCURRENCY", "1")
     settings = WorkerRunConfig().concurrency_settings()
     assert settings.enabled is True
     assert settings.max_concurrent_tasks == 3
     assert settings.critical_mutation_workers == 1
     assert settings.memory_write_workers == 1
+
+
+def test_explicit_flag_still_wins_over_the_default() -> None:
+    settings = WorkerRunConfig(concurrency_enabled=True).concurrency_settings()
+    assert settings.enabled is True
 
 
 def test_serial_settings_report_a_global_limit_of_one() -> None:
@@ -281,3 +300,44 @@ def test_conservative_settings_are_below_nominal() -> None:
     nominal = ConcurrencySettings()
     assert conservative.max_concurrent_tasks <= nominal.max_concurrent_tasks
     assert conservative.research_workers <= nominal.research_workers
+
+
+# ── correcciones de revisión (2026-07-31) ───────────────────────────────
+
+
+def test_file_writing_task_is_not_classified_as_read_only() -> None:
+    """`write_governed_text_artifact` escribe ficheros: no es read-only.
+
+    Estuvo en el carril `read_only` con concurrencia 4, que era sencillamente
+    falso. Cuatro escrituras simultaneas podian apuntar al mismo `target`.
+    """
+    policy = policy_for("write_governed_text_artifact")
+    assert policy.lane != "read_only"
+    assert policy.lane == "memory_write"
+    assert policy.max_concurrency == 1
+    assert "target" in policy.exclusive_keys
+
+
+def test_two_writes_to_the_same_file_cannot_overlap() -> None:
+    """Doble barrera: el carril ya es serial, y ademas la clave por `target`.
+
+    El carril gana primero (`lane_limit`), asi que la clave nunca llega a ser el
+    motivo del rechazo. Se conserva igualmente: si alguien subiera
+    `memory_write_workers`, la exclusion por fichero seguiria impidiendo que dos
+    escrituras apunten al mismo `target`.
+    """
+    registry = _registry(max_concurrent_tasks=8, memory_write_workers=4)
+    payload = {"target": "/tmp/x.md", "authorized_root": "/tmp"}
+    assert registry.try_admit("w1", "write_governed_text_artifact", payload).admitted
+    denied = registry.try_admit("w2", "write_governed_text_artifact", dict(payload))
+    assert not denied.admitted
+    assert denied.reason in {"lane_limit", "exclusive_key_held:target=/tmp/x.md"}
+    # La clave esta tomada aunque no sea la que rechazo.
+    assert registry.holds_key("target=/tmp/x.md")
+
+
+def test_every_effectful_lane_is_serial() -> None:
+    """Ningun carril que escriba estado puede admitir mas de una a la vez."""
+    for task_type, policy in TASK_CONCURRENCY_POLICY.items():
+        if policy.lane in {"memory_write", "critical_mutation"}:
+            assert policy.max_concurrency == 1, task_type

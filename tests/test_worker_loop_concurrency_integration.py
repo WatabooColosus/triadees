@@ -175,3 +175,44 @@ def test_config_round_trips_through_to_dict() -> None:
     assert data["concurrency_enabled"] is True
     assert data["max_concurrent_tasks"] == 4
     assert data["critical_mutation_workers"] == 1
+
+
+# ── correcciones de revisión (2026-07-31) ───────────────────────────────
+
+
+def test_shutdown_reports_orphans_so_the_run_can_refuse_to_finish() -> None:
+    """Reportar `still_running` no basta si el run se declara terminado igual.
+
+    Mientras una tarea corre, el run sigue siendo el dueno de su lease. Si el
+    run se cierra y suelta el lock, otro worker puede arrancar sobre la misma
+    base: la doble ejecucion exacta que este runtime existe para impedir.
+    """
+    import threading
+
+    from triade.workers.concurrency import ConcurrencySettings, GovernedTaskPool
+
+    pool = GovernedTaskPool(ConcurrencySettings(enabled=True, max_concurrent_tasks=2))
+    release = threading.Event()
+    inside = threading.Event()
+
+    def blocking() -> str:
+        inside.set()
+        release.wait(timeout=30)
+        return "done"
+
+    try:
+        pool.submit("t1", "pulse_check", {}, blocking)
+        assert inside.wait(timeout=10)
+        report = pool.shutdown(wait_seconds=0.3)
+        assert report["still_running"] == 1
+        # El registro sigue sabiendo QUE tarea quedo viva, no solo cuantas.
+        (entry,) = pool.registry.running_tasks()
+        assert entry.task_id == "t1"
+    finally:
+        release.set()
+
+
+def test_worker_loop_starts_without_retaining_the_lock() -> None:
+    """La bandera solo puede activarse al cerrar con tareas vivas."""
+    loop = WorkerLoop.__new__(WorkerLoop)
+    assert getattr(loop, "_retain_lock_for_active_tasks", False) is False

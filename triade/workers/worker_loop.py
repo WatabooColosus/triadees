@@ -223,6 +223,8 @@ class WorkerLoop:
         )
         self.live_heartbeat = LiveHeartbeat(db_path=self.db_path)
         self.legacy_reconciler = LegacyTaskReconciler(self.db_path)
+        # Se activa solo si el run termina con tareas todavia vivas.
+        self._retain_lock_for_active_tasks = False
 
     def run(self, config: WorkerRunConfig | None = None) -> dict[str, Any]:
         config = config or WorkerRunConfig(
@@ -499,19 +501,46 @@ class WorkerLoop:
                         drain_queue()
                     elif not idle:
                         self._reap_finished(pool, summary)
-            # Parada ordenada: se deja de aceptar, se espera un período acotado y
-            # lo que siga vivo se reporta —nunca se marca como completado—.
+            # Parada ordenada. Reportar las tareas vivas NO basta: mientras una
+            # tarea corre, este run sigue siendo el dueño de su lease, y declarar
+            # el run terminado permitiría que otro worker arrancara sobre la
+            # misma base creyendo que no hay nadie. Así que se espera de verdad.
             if pool is not None:
-                summary["concurrency_shutdown"] = pool.shutdown(
+                shutdown_report = pool.shutdown(
                     wait_seconds=float(config.concurrency_shutdown_seconds)
                 )
+                if shutdown_report.get("still_running"):
+                    hard_deadline = time.monotonic() + max(
+                        60.0, float(config.task_timeout) * 2
+                    )
+                    while (
+                        pool.registry.running_count()
+                        and time.monotonic() < hard_deadline
+                    ):
+                        pool.wait_for_slot(1.0)
+                        self._reap_finished(pool, summary)
+                    shutdown_report["still_running"] = pool.registry.running_count()
+                    shutdown_report["orphans"] = [
+                        {"task_id": entry.task_id, "task_type": entry.task_type}
+                        for entry in pool.registry.running_tasks()
+                    ]
+                summary["concurrency_shutdown"] = shutdown_report
                 self._reap_finished(pool, summary)
             summary["live_scheduler"] = live_scheduler.snapshot()
             summary["heartbeat"] = self.live_heartbeat.snapshot()
             summary["autonomous_tasks_governed"] = True
+            orphaned = int(
+                (summary.get("concurrency_shutdown") or {}).get("still_running") or 0
+            )
             status = (
                 "completed" if not summary.get("errors") else "completed_with_errors"
             )
+            if orphaned:
+                # Estado propio: ni "completado" (no lo está) ni "fallido" (no
+                # falló). Que se note en el estado, no solo en un campo del
+                # summary que nadie mira.
+                status = "completed_with_active_tasks"
+                self._retain_lock_for_active_tasks = True
             self.store.finish_worker_run(run_ref, status, summary)
             self.store.set_state(
                 "workers",
@@ -562,10 +591,25 @@ class WorkerLoop:
                 **summary,
             }
         finally:
-            try:
-                self.lock_file.unlink()
-            except FileNotFoundError:
-                pass
+            if getattr(self, "_retain_lock_for_active_tasks", False):
+                # Se conserva el lock a propósito. Soltarlo con tareas todavía
+                # vivas dejaría entrar a otro worker sobre la misma base, que es
+                # exactamente la doble ejecución que este runtime existe para
+                # impedir. No queda huérfano: `recover_interrupted_runtime`
+                # comprueba si el PID sigue vivo y recupera el lock caduco
+                # cuando el proceso muera.
+                self.store.record_event(
+                    "worker_lock_retained",
+                    "Lock conservado: quedaban tareas vivas al cerrar el run",
+                    run_ref=run_ref,
+                    status="observed",
+                    payload={"lock_file": str(self.lock_file)},
+                )
+            else:
+                try:
+                    self.lock_file.unlink()
+                except FileNotFoundError:
+                    pass
 
     def _dispatch_autonomous_task(
         self,

@@ -94,9 +94,16 @@ class CanaryObservationCollector:
     def _unconsumed_reports(self, canary_id: str, since: float) -> list[sqlite3.Row]:
         """Informes posteriores al arranque del canary que aún no se contaron.
 
-        El filtro por `created_at` importa tanto como el `LEFT JOIN`: un informe
-        anterior al canary no dice nada sobre la candidata, porque se produjo
-        cuando la candidata no estaba activa.
+        **Limitación que no se puede disimular**: "posterior al canary" es
+        correlación temporal, no prueba de que la candidata haya servido nada.
+        Hoy no existe enrutado de tráfico por candidata, así que no hay forma de
+        saber qué informes se produjeron *con* ella activa. Un cambio ajeno
+        ocurrido en la misma ventana se le atribuiría igual.
+
+        Por eso el resultado se marca `causal_attribution: "temporal_only"` y el
+        canary **no promueve nada**: solo puede mantener, graduar como elegible o
+        revertir. Un rollback por correlación es aceptable —revertir de más es
+        barato—; una promoción por correlación no lo sería.
         """
         columns = ", ".join(_METRIC_COLUMNS)
         with self._connect() as conn:
@@ -187,6 +194,15 @@ class CanaryObservationCollector:
             # la ventana sin degradar; consolidarla sigue siendo otro carril.
             "eligible_for_stable_promotion": status == "graduated",
             "stable_promotion_performed": False,
+            # Ni A/B ni prueba de uso: los informes se atribuyen a la candidata
+            # por ser posteriores al canary, nada más. Quien lea este resultado
+            # tiene que poder saberlo sin ir a leer el código.
+            "causal_attribution": "temporal_only",
+            "causal_attribution_note": (
+                "Los informes se seleccionan por ser posteriores al arranque del "
+                "canary. No hay enrutado de tráfico por candidata, así que no se "
+                "demuestra que la candidata sirviera esas respuestas."
+            ),
         }
 
     def _reserve(self, canary_id: str, report_id: int, score: float) -> bool:

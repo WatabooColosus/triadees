@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 from uuid import uuid4
@@ -9,6 +10,15 @@ from uuid import uuid4
 from triade.core.contracts import utc_now
 
 from .concurrency import ConcurrencySettings
+
+
+def _concurrency_enabled_default() -> bool:
+    """La concurrencia se activa por decisión explícita, no por omisión."""
+    return os.getenv("TRIADE_WORKER_CONCURRENCY", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
 WorkerTaskType = Literal[
     "pulse_check",
@@ -103,10 +113,17 @@ class WorkerRunConfig:
     max_tasks_per_drain: int = 20
     max_seconds_per_drain: float = 2.0
     max_tasks_per_type_per_drain: int = 4
-    # Concurrencia gobernada. `concurrency_enabled=False` reproduce exactamente
-    # el drenaje secuencial anterior; los límites por carril viven en
-    # `triade/workers/concurrency.py` y pueden reducirse por backpressure.
-    concurrency_enabled: bool = True
+    # Concurrencia gobernada. **Apagada por defecto**, y no por timidez: se
+    # activó por defecto, y CI —que estaba verde en `main`— se puso rojo en
+    # `test_worker_learning_integration`. El fallo no se reprodujo localmente ni
+    # limitando a 2 CPU ni sin Ollama, así que no está entendido. Activar por
+    # defecto algo cuyo modo de fallo no se comprende es exactamente lo que este
+    # runtime existe para no hacer.
+    #
+    # Se activa explícitamente con `TRIADE_WORKER_CONCURRENCY=1` o pasando
+    # `concurrency_enabled=True`. Apagada, el drenaje es el secuencial de
+    # siempre, bit a bit.
+    concurrency_enabled: bool = field(default_factory=_concurrency_enabled_default)
     max_concurrent_tasks: int = 3
     read_only_workers: int = 2
     research_workers: int = 1
