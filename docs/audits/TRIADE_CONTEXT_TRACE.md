@@ -219,3 +219,75 @@ siempre".
 - Si existe ruta que degrade un episodio tras verificación negativa.
 - Si la rama `sandbox_only` se ejecuta alguna vez en la práctica.
 - Crecimiento no acotado del contexto y qué porción de la Bodega llega al modelo.
+
+---
+
+## 10. Fase 8 — Dónde se corta exactamente el ciclo educativo
+
+### 10.1 Estados reales de neuronas (no los que asumía el encargo)
+
+**[E]** `SELECT status, COUNT(*) FROM neurons`:
+
+| Estado real | Nº |
+|---|---|
+| `stable` | 10 |
+| `candidate_reviewable` | 4 |
+| `experimental` | 3 |
+| `quarantined` | 3 |
+
+**[E]** Los estados que el encargo asumía —`active_assistant`, `trusted_worker`,
+`candidate`, `rejected`— **no aparecen en producción**. En cambio existen
+`candidate_reviewable` y `quarantined`, que el encargo no listaba.
+
+### 10.2 La cadena se corta en la evaluación — con mecanismo exacto
+
+**[E]** Volumen real: `neuron_education_sessions` = 12, `neuron_evidence` = 430,
+`neuron_scores` = 430, pero **`learning_evidence` = 1 fila, y su `decision` es
+`pending`**.
+
+**[E] Cadena de responsabilidad, verificada eslabón a eslabón:**
+
+1. `NeuronEducationCycle` crea la evidencia con `decision='pending'`
+   (`triade/learning/evidence_bridge.py:73` `declare_hypothesis`).
+2. Lo único que puede pasar `pending` → `improved` es
+   `evidence_bridge.record_comparison()` (`:116`), porque
+   `require_improvement()` (`:185-191`) exige
+   `decision in PROMOTABLE_DECISIONS = {"improved"}` (`:19`).
+3. **[E]** El único llamador de `record_comparison()` fuera del propio módulo es
+   `triade/neuron_factory/evaluation.py:60`.
+4. **[E]** `NeuronEvaluationCoordinator` solo se instancia en
+   `triade/self_improvement/orchestrator.py:32`.
+5. **[E]** `SelfImprovementOrchestrator` se importa **únicamente desde
+   `tests/`** (`tests/test_self_improvement_orchestrator.py:12,88,125`) y desde su
+   propio `__init__.py`. **Cero invocaciones desde `triade/workers/`,
+   `triade/services/`, `triade/core/` o `apps/`.**
+
+**Conclusión [E]: el ciclo educativo se corta en el paso 4→5.** La evidencia de que
+"la lección mejoró a la neurona" no puede resolverse nunca en producción, porque su
+único evaluador vive en un orquestador que **solo los tests invocan**.
+
+```
+research → curriculum → lesson → evidence(pending) ──╳── evaluation → promotion
+                                                      ↑
+                          NeuronEvaluationCoordector solo alcanzable vía
+                          SelfImprovementOrchestrator = test_only
+```
+
+### 10.3 Respuesta directa a la pregunta del encargo sobre `lesson_prepared`
+
+| Pregunta | Respuesta | Marca |
+|---|---|---|
+| ¿Cuenta como éxito? | No. `result='uncertain'` | [E] |
+| ¿Cuenta como fallo? | No. `_schedule(..., success=False)` incrementa `failure_count` | [E] |
+| ¿Crea evidencia? | **Sí**, `learning_evidence` con hipótesis declarada | [E] |
+| ¿Queda `pending`? | **Sí, permanentemente** | [E] |
+| ¿Actualiza competencia? | Sí, `next_review` y contadores | [E] |
+| ¿Ejecuta evaluación? | **No** — sin evaluador alcanzable | [E] |
+| ¿Activa entrenamiento? | **No** | [E] |
+| ¿Llama a LoRA? | **No** | [E] |
+| ¿Genera nueva versión? | **No** | [E] |
+
+**Veredicto:** se cumple la regla del encargo *"no declares que la neurona aprendió
+si solo se creó una lección"*. Hoy Tríade **prepara lecciones con material real y
+declara la hipótesis correctamente, pero nunca la contrasta**. El aprendizaje
+neuronal está en estado *evidencia pendiente*, no en estado *aprendido*.

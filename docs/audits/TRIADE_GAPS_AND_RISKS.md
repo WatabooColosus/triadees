@@ -3,8 +3,8 @@
 **SHA:** `e3cba75` · **Fecha:** 2026-07-31
 **Cobertura de esta versión:** Fases 1, 2, 3 (parcial), 4 (metabolismo), 5 y 9
 (workers, estados, SQLite), 6 y 7 (runner, invariantes, contexto), 11 (LoRA
-serving) y 12 (QualiaBus). Las
-fases 8, 10 y 13–16 no están cubiertas; los riesgos que se descubran allí **no** están en
+serving), 12 (QualiaBus) y 8 (neuronas/educación). Las
+fases 10 y 13–16 no están cubiertas; los riesgos que se descubran allí **no** están en
 esta lista todavía.
 
 Clasificación: **P0** crítico · **P1** alto · **P2** medio · **P3** bajo.
@@ -45,6 +45,40 @@ mientras `peft_serving_state` tiene 1 activa. Dos tablas del mismo hecho en
 desacuerdo.
 
 Detalle completo en `TRIADE_LORA_SERVING_TRUTH.md`.
+
+---
+
+### P0-02 · El ciclo educativo no puede completarse: su evaluador solo lo invocan los tests
+
+**[E]** Cadena verificada eslabón a eslabón:
+
+1. `NeuronEducationCycle` crea evidencia con `decision='pending'`
+   (`learning/evidence_bridge.py:73`).
+2. Solo `record_comparison()` (`:116`) puede pasarla a `improved`;
+   `require_improvement()` (`:185-191`) exige
+   `PROMOTABLE_DECISIONS = {"improved"}` (`:19`).
+3. Único llamador de `record_comparison()` fuera del módulo:
+   `triade/neuron_factory/evaluation.py:60`.
+4. `NeuronEvaluationCoordinator` solo se instancia en
+   `triade/self_improvement/orchestrator.py:32`.
+5. **`SelfImprovementOrchestrator` solo se importa desde `tests/`**
+   (`tests/test_self_improvement_orchestrator.py:12,88,125`). **Cero
+   invocaciones desde `triade/workers/`, `triade/services/`, `triade/core/`
+   o `apps/`.**
+
+**[E] Confirmación en datos:** `learning_evidence` tiene 1 fila y su `decision`
+es `pending`. Nunca ha habido otra.
+
+**Impacto:** Tríade prepara lecciones con material real y declara la hipótesis
+correctamente, pero **nunca la contrasta**. El aprendizaje neuronal está en estado
+*evidencia pendiente*, no *aprendido*. Cumple la regla del encargo ("no declares
+que la neurona aprendió si solo se creó una lección") — pero significa que el ciclo
+de automejora **no cierra**.
+
+**Severidad P0** porque es el objetivo declarado del sistema (automejora) y está
+estructuralmente interrumpido, no degradado.
+
+Detalle en `TRIADE_CONTEXT_TRACE.md` §10.
 
 ---
 
