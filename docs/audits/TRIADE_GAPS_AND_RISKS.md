@@ -1,8 +1,9 @@
 # TRIADE_GAPS_AND_RISKS.md — Riesgos clasificados
 
 **SHA:** `e3cba75` · **Fecha:** 2026-07-31
-**Cobertura de esta versión:** Fases 1, 2 y 3 (parcial). Las fases 4–16 no están
-cubiertas; los riesgos que se descubran allí **no** están en esta lista todavía.
+**Cobertura de esta versión:** Fases 1, 2, 3 (parcial) y 4 (metabolismo). Las
+fases 5–16 no están cubiertas; los riesgos que se descubran allí **no** están en
+esta lista todavía.
 
 Clasificación: **P0** crítico · **P1** alto · **P2** medio · **P3** bajo.
 Marcas: **[E]** evidencia · **[I]** inferencia · **[H]** hipótesis · **[NV]** no verificado.
@@ -58,6 +59,32 @@ desajuste entre lo que su interfaz promete y lo que su despliegue ejecuta.
 
 ---
 
+### P1-03 · 93 necesidades metabólicas huérfanas sin ninguna ruta de recuperación
+
+**[E]** En la DB real: 67 needs en `running` y 26 en `pending`, todas de la ventana
+2026-07-30 03:21–04:22, mientras el sistema ha corrido 1817 ciclos desde entonces.
+
+**[E] Causa raíz** — `triade/metabolism/recovery.py:16-23` solo escanea ciclos
+`WHERE status IN ('running','starting') AND finished_at IS NULL`, y `:45-53` solo
+repara needs `WHERE cycle_id=?` del ciclo que está recuperando.
+
+**[E]** Los ciclos padres de esas 93 needs están **cerrados**: 67 con
+`status='failed'`, 26 con `status='completed'`, todos con `finished_at` no nulo.
+Nunca vuelven a escanearse → sus needs nunca se recuperan.
+
+**[E]** Tasa de ciclos fallidos: 67 de 1817 (≈3,7 %), y cada fallo dejó needs
+colgadas.
+
+**Impacto [I]:** no bloquea la operación (siguen creándose ciclos), pero contamina
+permanentemente cualquier métrica de backlog y deja trabajo marcado como "en curso"
+que nadie ejecutará jamás.
+
+**Corrección mínima propuesta:** al cerrar un ciclo (a `completed` o `failed`),
+reconciliar en la misma transacción sus needs no terminales; o añadir un barrido
+por antigüedad independiente del estado del ciclo.
+
+---
+
 ## P2 — Medio
 
 ### P2-01 · Endpoint informa un hilo vivo que está muerto
@@ -104,6 +131,29 @@ parámetros (`?`) en vez del literal `datetime('now')`. **Riesgo residual real.*
 atiende al usuario. Consistente con los cuelgues de dashboard observados
 anteriormente en esta sesión (aunque su causa raíz confirmada fue otra: la
 serialización de modelos en Ollama).
+
+---
+
+### P2-05 · 6 de 10 necesidades metabólicas son solo entradas de catálogo
+
+**[E]** `triade/metabolism/needs.py:16-79` declara 10 kinds, pero `detect()`
+(`:98-132`) solo crea 4, la política (`contracts.py:64,88`) solo habilita esos 4,
+y el dispatcher (`coordinator.py:442-448`) solo tiene handler para esos 4.
+
+`memory_maintenance`, `contradiction_detection`, `backlog_review`,
+`artifact_review`, `snapshot_maintenance`, `internal_task_generation` **no pueden
+dispararse jamás**. Confirmado en datos: 0 filas de esos kinds en `metabolic_needs`.
+
+**Riesgo:** la documentación y el propio catálogo sugieren una cobertura de
+mantenimiento (memoria, contradicciones, artifacts, snapshots) que **no existe en
+ejecución**. Severidad P2 y no P1 porque no hay degradación activa: simplemente
+esas funciones nunca se han prestado.
+
+### P2-06 · 128 ejecuciones metabólicas sin verify aprobado
+
+**[E]** `metabolic_receipts`: 4453 `execute/success` frente a 4325 `verify/passed`.
+**[NV]** No se determinó si son verificaciones fallidas, omitidas o desfase de
+escritura. Requiere una fase dedicada.
 
 ---
 
