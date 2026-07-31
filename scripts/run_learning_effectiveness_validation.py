@@ -38,6 +38,11 @@ sys.path.insert(0, str(REPO))
 
 PROD = REPO / "triade/memory/triade.db"
 
+from triade.memory.retrieval_safety import (
+    RetrievalSafetyPolicy,
+    render_memory_block,
+)
+
 
 def utc_now() -> str:
     return datetime.now(UTC).isoformat()
@@ -177,13 +182,9 @@ class Harness:
         min_similarity: float = 0.55,
         safety: bool = True,
     ) -> None:
-        from triade.memory.retrieval_safety import RetrievalSafetyPolicy
-        from triade.memory.retrieval_safety import render_memory_block
         from triade.memory.semantic_search import SemanticSearchEngine
         from triade.memory.semantic_store import SemanticMemoryStore
         from triade.models.ollama_client import OllamaClient
-
-        globals().setdefault("render_memory_block", render_memory_block)
 
         self.db = db
         self.model = model
