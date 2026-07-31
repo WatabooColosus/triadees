@@ -264,7 +264,7 @@ class LearningDeduplicator:
         primero que se escribió, no al mejor.
         """
         riesgo = {"low": 0, "medium": 1, "high": 2, "critical": 3}
-        return sorted(
+        return min(
             grupo,
             key=lambda r: (
                 0 if str(r.get("source_ref") or "").strip() else 1,
@@ -275,7 +275,7 @@ class LearningDeduplicator:
                 str(r.get("created_at") or ""),
                 str(r.get("candidate_id")),
             ),
-        )[0]
+        )
 
     # ── persistencia reversible ──────────────────────────────────────
     def apply(self, report: DedupReport) -> int:
