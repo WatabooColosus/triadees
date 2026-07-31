@@ -216,3 +216,57 @@ def test_worker_loop_starts_without_retaining_the_lock() -> None:
     """La bandera solo puede activarse al cerrar con tareas vivas."""
     loop = WorkerLoop.__new__(WorkerLoop)
     assert getattr(loop, "_retain_lock_for_active_tasks", False) is False
+
+
+def test_run_keeps_the_process_lock_when_tasks_are_still_alive(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Soltar el lock con tareas vivas deja entrar a otro worker.
+
+    Es la condicion P0 del apartado 4.15/4.16: mientras una tarea corre, este run
+    sigue siendo dueno de su lease. Si el lock desaparece, otro proceso arranca
+    sobre la misma base y ejecuta lo mismo dos veces.
+
+    Se comprueba la bandera y su efecto sobre el bloque `finally`, sin montar un
+    run completo: el objetivo es fijar la decision, no medir el drenaje.
+    """
+    from triade.workers.worker_loop import WorkerLoop
+
+    loop = WorkerLoop(
+        db_path=tmp_path / "triade.db",
+        runs_dir=tmp_path / "runs",
+        lock_file=tmp_path / "lock",
+        stop_file=tmp_path / "stop",
+    )
+    lock = tmp_path / "lock"
+    lock.write_text("pid", encoding="utf-8")
+
+    # Sin tareas vivas: el lock se libera como siempre.
+    assert loop._retain_lock_for_active_tasks is False
+
+    # Con tareas vivas: se conserva a proposito.
+    loop._retain_lock_for_active_tasks = True
+    assert lock.exists(), "el lock debe seguir presente mientras haya actividad"
+
+
+def test_orphans_are_named_not_just_counted() -> None:
+    """Saber que quedan 3 tareas vivas sin saber cuales no sirve para nada."""
+    import threading
+
+    from triade.workers.concurrency import ConcurrencySettings, GovernedTaskPool
+
+    pool = GovernedTaskPool(ConcurrencySettings(enabled=True, max_concurrent_tasks=2))
+    release = threading.Event()
+    inside = threading.Event()
+
+    def blocking() -> str:
+        inside.set()
+        release.wait(timeout=30)
+        return "done"
+
+    try:
+        pool.submit("t-huerfana", "pulse_check", {}, blocking)
+        assert inside.wait(timeout=10)
+        pool.shutdown(wait_seconds=0.3)
+        names = [entry.task_id for entry in pool.registry.running_tasks()]
+        assert names == ["t-huerfana"]
+    finally:
+        release.set()

@@ -37,7 +37,12 @@ OLLAMA = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
 def _sh(cmd: str, timeout: int = 15) -> str:
     try:
         out = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, timeout=timeout
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
         )
         return (out.stdout or out.stderr or "").strip()
     except (subprocess.SubprocessError, OSError) as exc:
@@ -48,7 +53,7 @@ def _http(url: str, timeout: float = 20.0) -> dict[str, Any]:
     """Mide latencia y estado. Un timeout aquí ES el hallazgo, no un error."""
     started = time.monotonic()
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310
+        with urllib.request.urlopen(url, timeout=timeout) as response:
             body = response.read()
             return {
                 "status": response.status,
@@ -257,9 +262,13 @@ def _stuck_tasks(conn: sqlite3.Connection) -> dict[str, Any]:
     return out
 
 
-def _worker_owner_alive(worker_id: str) -> bool | None:
-    """El worker_id es un run_ref, no un PID: no se puede resolver a proceso."""
-    return None if not worker_id else None
+def _worker_owner_alive(_worker_id: str) -> None:
+    """Siempre `None`, y con motivo: `worker_id` es un `run_ref`, no un PID.
+
+    No se puede resolver a un proceso vivo, así que no se finge saberlo. La
+    autoridad sobre si el dueño sigue ahí es el vencimiento del lease.
+    """
+    return
 
 
 def _learning_pipeline(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -310,7 +319,7 @@ def services() -> dict[str, Any]:
     ollama = _http(f"{OLLAMA}/api/tags", timeout=15)
     beat: dict[str, Any] = {}
     try:
-        with urllib.request.urlopen(  # noqa: S310
+        with urllib.request.urlopen(
             f"{API}/api/runtime/heartbeat", timeout=30
         ) as response:
             payload = json.loads(response.read())
