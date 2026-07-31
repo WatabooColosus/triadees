@@ -23,7 +23,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 POLICY_VERSION = "learning-dedup-1.0.0"
 
@@ -238,8 +238,10 @@ class LearningDeduplicator:
 
             canonical = self._pick_canonical(grupo)
             tipo: MatchType = (
-                "exact" if len({r["_exact"] for r in grupo}) == 1 else match_type
-            )  # type: ignore[assignment]
+                "exact"
+                if len({r["_exact"] for r in grupo}) == 1
+                else cast(MatchType, match_type)
+            )
             g = CandidateGroup(
                 group_id=f"grp-{uuid.uuid4().hex[:16]}",
                 canonical_candidate_id=str(canonical["candidate_id"]),
