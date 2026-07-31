@@ -194,7 +194,25 @@ def should_activate(
 #: Trozos de nombre que no distinguen nada. Las neuronas creadas desde una frase
 #: de chat se llaman como esa frase, así que su nombre arrastra muletillas.
 _GENERIC_NAME_TOKENS = frozenset(
-    ["quiero", "quisiera", "necesito", "podrias", "puedes", "informacion", "ayuda", "favor", "gracias", "saber", "sobre", "como", "cuando", "donde", "porque", "quien", "cual"]
+    [
+        "quiero",
+        "quisiera",
+        "necesito",
+        "podrias",
+        "puedes",
+        "informacion",
+        "ayuda",
+        "favor",
+        "gracias",
+        "saber",
+        "sobre",
+        "como",
+        "cuando",
+        "donde",
+        "porque",
+        "quien",
+        "cual",
+    ]
 )
 
 #: Triggers de ciclo de vida, no términos que un usuario escriba. Si se buscaran

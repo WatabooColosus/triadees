@@ -66,11 +66,13 @@ superior por accidente.
 ## API
 
 ```python
-registry.create_if_missing(spec)          # arranques: si existe, no toca nada
-registry.register(spec)                    # por defecto: preserve_learned
-registry.register(spec, conflict_policy="replace_definition")   # sobrescritura deliberada
-registry.register(spec, explicit_fields={"triggers"})           # vaciar a propósito
-registry.update_status(name, "quarantined")                     # única vía para degradar
+registry.create_if_missing(spec)  # arranques: si existe, no toca nada
+registry.register(spec)  # por defecto: preserve_learned
+registry.register(
+    spec, conflict_policy="replace_definition"
+)  # sobrescritura deliberada
+registry.register(spec, explicit_fields={"triggers"})  # vaciar a propósito
+registry.update_status(name, "quarantined")  # única vía para degradar
 ```
 
 `explicit_fields` existe porque `NeuronSpec` no puede distinguir por valor entre

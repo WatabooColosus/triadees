@@ -54,7 +54,50 @@ MIN_TRIGGER_LENGTH = 5
 
 #: Palabras que aparecen en casi cualquier misión y no distinguen nada.
 _STOPWORDS = frozenset(
-    ["para", "por", "con", "sin", "sobre", "entre", "desde", "hasta", "como", "cuando", "donde", "the", "and", "for", "with", "without", "from", "into", "that", "this", "then", "than", "neurona", "neuron", "sistema", "system", "triade", "proponer", "proponer", "analizar", "describir", "mediante", "permitidos", "limites", "evidencia", "evidence", "generar", "usar", "hacer", "tener", "puede", "debe"]
+    [
+        "para",
+        "por",
+        "con",
+        "sin",
+        "sobre",
+        "entre",
+        "desde",
+        "hasta",
+        "como",
+        "cuando",
+        "donde",
+        "the",
+        "and",
+        "for",
+        "with",
+        "without",
+        "from",
+        "into",
+        "that",
+        "this",
+        "then",
+        "than",
+        "neurona",
+        "neuron",
+        "sistema",
+        "system",
+        "triade",
+        "proponer",
+        "proponer",
+        "analizar",
+        "describir",
+        "mediante",
+        "permitidos",
+        "limites",
+        "evidencia",
+        "evidence",
+        "generar",
+        "usar",
+        "hacer",
+        "tener",
+        "puede",
+        "debe",
+    ]
 )
 
 #: Verbos de intención y muletillas. No son temas: dicen *que* alguien pide algo,
@@ -62,7 +105,24 @@ _STOPWORDS = frozenset(
 #: "Quiero informacion sobre la Banda Epica", y habría capturado media
 #: conversación —incluida «quiero aprender a dibujar», que es de otra neurona—.
 _GENERIC_INTENT = frozenset(
-    ["quiero", "quisiera", "queria", "necesito", "necesitaria", "podrias", "puedes", "ayuda", "ayudame", "informacion", "favor", "gracias", "saber", "dime", "cuentame", "explicame"]
+    [
+        "quiero",
+        "quisiera",
+        "queria",
+        "necesito",
+        "necesitaria",
+        "podrias",
+        "puedes",
+        "ayuda",
+        "ayudame",
+        "informacion",
+        "favor",
+        "gracias",
+        "saber",
+        "dime",
+        "cuentame",
+        "explicame",
+    ]
 )
 
 #: Términos de ciclo de vida que ya usa el runtime: no son palabras de usuario.
