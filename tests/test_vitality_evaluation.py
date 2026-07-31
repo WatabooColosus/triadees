@@ -67,11 +67,46 @@ def test_el_sistema_puede_evolucionar_publicando_una_version_nueva():
 # ── Tolerancia cero donde el responsable la exigió ─────────────────────
 
 
-def test_trazabilidad_y_safety_tienen_tolerancia_cero():
+def test_trazabilidad_y_safety_tienen_tolerancia_cero_efectiva():
+    """Cero real frente a cambios reales, pero inmune a ruido de coma flotante.
+
+    Un `0.0` literal es inusable: promediar conjuntos distintos de runs produce
+    diferencias de ~1e-15 aunque los valores sean idénticos, y eso reprobaba todo.
+    """
+    from triade.evaluation.triade_vitality_suite import FLOAT_NOISE
+
     policies = {p.metric_id: p for p in TRIADE_VITALITY_SUITE.policies()}
     for metric in ("traceability", "safety"):
-        assert policies[metric].max_absolute_drop == 0.0
+        assert policies[metric].max_absolute_drop == FLOAT_NOISE
+        assert policies[metric].max_relative_drop == FLOAT_NOISE
         assert policies[metric].severity == "critical"
+        # sigue siendo cero frente a cualquier degradación real
+        assert policies[metric].max_absolute_drop < 1e-6
+
+
+def test_ninguna_metrica_deja_el_umbral_relativo_en_cero(tmp_path: Path):
+    """El gate reprueba si CUALQUIERA de los dos umbrales se supera.
+
+    Dejar `max_relative_drop=0.0` anula silenciosamente la tolerancia absoluta:
+    cualquier caída, por diminuta que sea, tiene caída relativa > 0.
+    """
+    for policy in TRIADE_VITALITY_SUITE.policies():
+        assert policy.max_relative_drop > 0.0, policy.metric_id
+
+
+def test_ruido_de_coma_flotante_no_reprueba(tmp_path: Path):
+    """Regresión del fallo hallado en la primera ejecución real."""
+    gate = RegressionGate(tmp_path / "g.db")
+    ruido = {**BASE, "traceability": BASE["traceability"] - 1.3e-15}
+    report = gate.evaluate(
+        report_id="r-ruido",
+        candidate_id="c",
+        capability="triade_vitality",
+        baseline=_run("b", BASE),
+        candidate=_run("k", ruido),
+        policies=TRIADE_VITALITY_SUITE.policies(),
+    )
+    assert report.decision == "pass"
 
 
 @pytest.mark.parametrize("metric", ["traceability", "safety"])

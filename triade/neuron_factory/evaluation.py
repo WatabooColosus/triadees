@@ -158,7 +158,17 @@ class NeuronEvaluationCoordinator:
         ):
             raise ValueError("candidate_score no coincide con la evaluación")
         expected_delta = candidate.aggregate_score - baseline.aggregate_score
-        if not math.isclose(comparison.absolute_delta, expected_delta, abs_tol=1e-9):
+        # `compare_evaluations` (triade/evaluation/runner.py:158) redondea
+        # `absolute_delta` a 6 decimales. Comparar contra el delta sin redondear
+        # con abs_tol=1e-9 es imposible de satisfacer para cualquier puntuación
+        # con decimales reales: el propio comparador del sistema producía valores
+        # que esta validación rechazaba, bloqueando el ciclo de automejora para
+        # datos no triviales (hallazgo 2026-07-31, ejecución real del pipeline).
+        # Los tests no lo detectaban porque usaban números exactos (0.70→0.88).
+        # Se compara con la misma precisión con la que se produce.
+        if not math.isclose(
+            comparison.absolute_delta, round(expected_delta, 6), abs_tol=1e-9
+        ):
             raise ValueError("absolute_delta inconsistente")
         expected_decision = (
             "improved"
