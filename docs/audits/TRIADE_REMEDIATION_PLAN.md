@@ -4,7 +4,8 @@
 **Origen:** hallazgos de `TRIADE_GAPS_AND_RISKS.md` (2×P0, 5×P1, 10×P2, 1×P3),
 todos con evidencia de archivo:línea y datos de la DB real.
 
-**Este documento es un plan. No se ha ejecutado ninguna corrección.**
+**Estado:** A1, A2 y B1 **ejecutados y verificados en producción** (ver §7).
+El resto sigue siendo plan, no ejecutado.
 
 ---
 
