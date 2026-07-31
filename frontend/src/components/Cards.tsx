@@ -876,6 +876,8 @@ export function LoraApprovalCard() {
   const [busy, setBusy] = useState<string | null>(null)
   const [lastResult, setLastResult] = useState<any>(null)
 
+  const [serving, setServing] = useState<any>(null)
+
   async function load() {
     try {
       const res = await liveApi('/api/governance/peft/pending-approval')
@@ -883,6 +885,11 @@ export function LoraApprovalCard() {
       setError(null)
     } catch (e: any) {
       setError(e.message || 'Error al consultar aprobaciones pendientes')
+    }
+    try {
+      setServing(await liveApi('/api/governance/peft/status'))
+    } catch {
+      setServing(null)
     }
   }
 
@@ -924,6 +931,16 @@ export function LoraApprovalCard() {
       {error && <div style={{ fontSize: 11, color: '#ef4444' }}>{error}</div>}
       {!error && !hasPending && (
         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Nada esperando aprobación ahora mismo.</div>
+      )}
+      {serving?.serving_truth?.effective_state === 'approved_not_served' && (
+        <div style={{
+          marginTop: 6, padding: '6px 8px', borderRadius: 6, fontSize: 11,
+          background: 'var(--bg-base)', border: '1px solid #f59e0b', color: 'var(--text-primary)',
+        }}>
+          <strong style={{ color: '#f59e0b' }}>Aprobado, pero NO en servicio.</strong>{' '}
+          Hay un adaptador aprobado y registrado, pero la inferencia real sale por
+          Ollama y no consulta este slot: <strong>no influye en ninguna respuesta</strong>.
+        </div>
       )}
       {hasPending && (
         <>

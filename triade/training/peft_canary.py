@@ -205,11 +205,32 @@ class PeftCanaryServer:
                     "SELECT * FROM peft_canary_events ORDER BY id DESC LIMIT 20"
                 )
             ]
+        active_in_db = bool(row and str(row["status"]) == "active")
         return {
             "status": "ok",
             "serving": dict(row) if row else {"status": "base_only"},
             "loaded_in_process": self._loaded_adapter,
             "recent_events": recent,
+            # Verdad de servicio (auditoría 2026-07-31, P0-01). `peft_serving_state`
+            # podía decir slot=production/status=active mientras NINGÚN componente
+            # de la ruta de inferencia leía ese slot: las respuestas salen por HTTP
+            # a Ollama, que no recibe adaptador. Se expone explícitamente para que
+            # ningún panel ni decisión interprete "active" como "está sirviendo".
+            "served_by_inference": False,
+            "serving_truth": {
+                "adapter_approved_and_registered": active_in_db,
+                "loaded_in_this_process": self._loaded_adapter is not None,
+                "used_by_production_inference": False,
+                "effective_state": "approved_not_served"
+                if active_in_db
+                else "base_only",
+                "reason": (
+                    "La inferencia de producción usa Ollama (proceso externo) y no "
+                    "consulta peft_serving_state. Un adaptador marcado 'active' aquí "
+                    "no influye en ninguna respuesta real. Para servirlo haría falta "
+                    "fusionarlo como modelo Ollama o mover la inferencia al motor PEFT."
+                ),
+            },
         }
 
     def pending_approval(self) -> dict[str, Any]:
