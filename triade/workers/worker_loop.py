@@ -863,6 +863,21 @@ class WorkerLoop:
             "unverifiable",
         }:
             return ExecutionResult(status="observed", executed=False, message=message)
+        if raw_status == "deferred":
+            # "Todavía no hay evidencia" no es "esto falló". Tratarlo como fallo
+            # descartaría candidatas válidas por haber llegado antes que sus
+            # datos, y un canary nunca llegaría a acumular observaciones: cada
+            # ciclo sin informes nuevos contaría como intento fallido.
+            return ExecutionResult(
+                status="deferred",
+                executed=False,
+                retryable=True,
+                error_code=str(result.get("defer_cause") or "deferred"),
+                message=message,
+                artifacts=evidence,
+                evidence=evidence,
+                resource_usage=resource_usage,
+            )
         if raw_status in {"error", "failed"}:
             return ExecutionResult(
                 status="failed",
@@ -1152,6 +1167,9 @@ class WorkerLoop:
                     "neuron_education_cycle": self._neuron_education_cycle,
                     "write_governed_text_artifact": self._write_governed_text_artifact,
                     "self_improvement_evaluation": self._self_improvement_evaluation,
+                    "self_improvement_canary_observation": (
+                        self._self_improvement_canary_observation
+                    ),
                 }
                 outcome = self.task_executor.execute_callable(
                     handlers[task.task_type],
@@ -1481,7 +1499,10 @@ class WorkerLoop:
         """
         import sqlite3 as _sqlite3
 
-        from triade.evaluation.vitality_provider import VitalityEvaluationProvider
+        from triade.evaluation.provider_registry import (
+            DEFAULT_EVALUATION_PROVIDER,
+            build_evaluation_provider,
+        )
         from triade.self_improvement.orchestrator import SelfImprovementOrchestrator
 
         payload = task.payload if isinstance(task.payload, dict) else {}
@@ -1576,7 +1597,32 @@ class WorkerLoop:
                 }
             )
 
-        provider = VitalityEvaluationProvider(self.db_path)
+        # Idempotencia: si ya existe una candidata viva para esta terna, no se
+        # crea una segunda. Dos candidatas para la misma (propuesta, neurona,
+        # versión) serían dos verdades incompatibles sobre el mismo cambio.
+        existing = self._existing_candidate(proposal_id, neuron_id, version)
+        if existing is not None:
+            return _stamp(
+                {
+                    "status": "observed",
+                    "reason": "ya existe una candidata equivalente en curso",
+                    "idempotent": True,
+                    "candidate_id": existing,
+                    "neuron_id": neuron_id,
+                    "version": version,
+                }
+            )
+
+        # El provider sale de un registro cerrado. Permitir un nombre arbitrario
+        # dejaría que la propuesta eligiera su propio examinador.
+        try:
+            provider = build_evaluation_provider(
+                str(payload.get("evaluation_provider") or DEFAULT_EVALUATION_PROVIDER),
+                self.db_path,
+            )
+        except ValueError as exc:
+            return _stamp({"status": "blocked", "reason": str(exc)})
+
         artifact_cutoff = str(payload.get("evaluated_since") or "")
 
         def _provider(candidate_id: str, artifact: dict[str, Any]):
@@ -1585,6 +1631,11 @@ class WorkerLoop:
                 reference["created_at"] = artifact_cutoff
             return provider(candidate_id, reference)
 
+        self._record_improvement_event(
+            "self_improvement_started",
+            run_ref,
+            {"proposal_id": proposal_id, "neuron_id": neuron_id, "version": version},
+        )
         try:
             result = SelfImprovementOrchestrator(self.db_path).run_once(
                 proposal_id,
@@ -1592,12 +1643,42 @@ class WorkerLoop:
                 version=version,
                 configuration=dict(payload.get("configuration") or {"mode": "safe"}),
                 evaluation_provider=_provider,
+                canary_traffic_percent=int(payload.get("canary_traffic_percent") or 10),
+                canary_tolerance=float(payload.get("canary_tolerance") or 0.02),
+                canary_min_observations=int(
+                    payload.get("canary_min_observations") or 3
+                ),
+                canary_max_observations=int(
+                    payload.get("canary_max_observations") or 10
+                ),
             )
         except (ValueError, KeyError) as exc:
-            # Evidencia insuficiente o contrato incumplido: es un resultado
-            # legítimo del gate, no un fallo del worker. No se promueve nada.
+            message = str(exc)
+            # "Todavía no hay evidencia" no es lo mismo que "esto no sirve". Si
+            # se tratara igual, una candidata perfectamente válida quedaría
+            # descartada por haber llegado antes que sus datos. Se difiere para
+            # reintentar cuando el sistema haya operado más.
+            if "evidencia insuficiente" in message:
+                self._record_improvement_event(
+                    "self_improvement_deferred",
+                    run_ref,
+                    {"proposal_id": proposal_id, "reason": message},
+                )
+                return _stamp(
+                    {
+                        "status": "deferred",
+                        "reason": message,
+                        "defer_cause": "insufficient_candidate_observations",
+                        "retryable": True,
+                    }
+                )
+            self._record_improvement_event(
+                "self_improvement_failed",
+                run_ref,
+                {"proposal_id": proposal_id, "reason": message},
+            )
             return _stamp(
-                {"status": "observed", "reason": f"ciclo no promovible: {exc}"}
+                {"status": "observed", "reason": f"ciclo no promovible: {message}"}
             )
 
         _stamp(result)
@@ -1616,12 +1697,123 @@ class WorkerLoop:
                 result["failure_learning"] = FailureLearningLoop(self.db_path).harvest()
             except (sqlite3.Error, ValueError, KeyError, OSError) as exc:
                 result["failure_learning"] = {"error": f"{type(exc).__name__}: {exc}"}
+
+        # Eventos explícitos por estado terminal del orquestador. El mejor
+        # estado que esta tarea puede alcanzar es `canary_running`: nunca
+        # promueve a estable por su cuenta.
+        orchestrator_status = str(result.get("status") or "")
+        self._record_improvement_event(
+            {
+                "canary_running": "candidate_canary_started",
+                "quarantined": "candidate_quarantined",
+            }.get(orchestrator_status, "candidate_evaluated"),
+            run_ref,
+            {
+                "proposal_id": proposal_id,
+                "candidate_id": result.get("candidate_id"),
+                "orchestrator_status": orchestrator_status,
+            },
+        )
+        result["stable_promotion_performed"] = False
         # El estado que devuelve el orquestador (promoted/quarantined/
         # canary_running) no es un estado de tarea: se reporta como observación
         # para que el ejecutor no lo interprete como éxito de promoción.
         result["orchestrator_status"] = result.get("status")
         result["status"] = "observed"
         return result
+
+    def _existing_candidate(
+        self, proposal_id: str, neuron_id: str, version: str
+    ) -> str | None:
+        """`candidate_id` de una candidata viva para esta terna, si la hay."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            if not conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='improvement_candidate_links'"
+            ).fetchone():
+                return None
+            row = conn.execute(
+                """SELECT candidate_id FROM improvement_candidate_links
+                WHERE proposal_id = ? AND neuron_id = ? AND version = ?
+                  AND status NOT IN ('rejected','cancelled')
+                ORDER BY rowid DESC LIMIT 1""",
+                (proposal_id, neuron_id, version),
+            ).fetchone()
+        return str(row["candidate_id"]) if row else None
+
+    def _record_improvement_event(
+        self, event: str, run_ref: str, payload: dict[str, Any]
+    ) -> None:
+        """Deja rastro de cada etapa. Nunca puede tumbar el ciclo."""
+        try:
+            self.store.record_event(
+                event,
+                f"Automejora: {event}",
+                run_ref=run_ref,
+                status="observed",
+                payload=payload,
+            )
+        except WORKER_OPERATION_ERRORS:
+            # Perder una traza es malo; perder el ciclo por no poder trazarlo,
+            # peor. El resultado canónico ya queda en los artefactos.
+            pass
+
+    def _self_improvement_canary_observation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Acumula observaciones reales sobre el canary abierto.
+
+        Separada de la evaluación a propósito: esperar dentro de `run_once()` a
+        que ocurran suficientes conversaciones significaría sostener un lease
+        durante horas. Aquí cada ciclo aporta lo que haya y se va.
+
+        No promueve a estable. Un canary graduado dice "sobrevivió la ventana sin
+        degradar", no "consolidado".
+        """
+        from triade.self_improvement.canary_observation import (
+            CanaryObservationCollector,
+        )
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+        collector = CanaryObservationCollector(self.db_path)
+        result = collector.observe_once(
+            candidate_id=str(payload.get("candidate_id") or "") or None,
+            max_reports=int(payload.get("max_reports") or 5),
+        )
+        status = str(result.get("status") or "")
+
+        if status == "no_canary":
+            return {**result, "status": "no_target", "run_ref": run_ref}
+        if status == "insufficient_candidate_observations":
+            # No es un fallo: es que todavía no hay con qué decidir.
+            return {
+                **result,
+                "status": "deferred",
+                "defer_cause": "insufficient_candidate_observations",
+                "retryable": True,
+                "run_ref": run_ref,
+            }
+
+        self._record_improvement_event(
+            {
+                "rolled_back": "candidate_rolled_back",
+                "graduated": "candidate_canary_graduated",
+            }.get(status, "candidate_canary_observed"),
+            run_ref,
+            {
+                "canary_id": result.get("canary_id"),
+                "candidate_id": result.get("candidate_id"),
+                "canary_status": status,
+                "observation_count": result.get("observation_count"),
+            },
+        )
+        return {
+            **result,
+            "canary_status": status,
+            "status": "observed",
+            "run_ref": run_ref,
+        }
 
     def _write_governed_text_artifact(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
