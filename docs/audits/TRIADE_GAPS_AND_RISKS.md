@@ -2,8 +2,9 @@
 
 **SHA:** `e3cba75` · **Fecha:** 2026-07-31
 **Cobertura de esta versión:** Fases 1, 2, 3 (parcial), 4 (metabolismo), 5 y 9
-(workers, estados, SQLite) y 11 (LoRA serving). Las
-fases 6, 7, 8, 10 y 12–16 no están cubiertas; los riesgos que se descubran allí **no** están en
+(workers, estados, SQLite), 6 y 7 (runner, invariantes, contexto) y 11 (LoRA
+serving). Las
+fases 8, 10 y 12–16 no están cubiertas; los riesgos que se descubran allí **no** están en
 esta lista todavía.
 
 Clasificación: **P0** crítico · **P1** alto · **P2** medio · **P3** bajo.
@@ -141,6 +142,36 @@ repositorio.**
 
 **Corrección mínima propuesta:** ejecutar `PRAGMA journal_mode=WAL` en el
 bootstrap de la conexión, junto al `busy_timeout` ya existente.
+
+---
+
+### P1-05 · La memoria episódica no tiene ámbito por usuario ni sesión (riesgo latente)
+
+**[E]** `InputPacket` (`triade/core/contracts.py:88-94`) no tiene `session_id` ni
+`user_id`. `Bodega.recall()` (`bodega.py:29-37`) tampoco los acepta.
+`_search_episodic()` (`bodega.py:506-520`) consulta con cláusulas `LIKE` sobre
+`content/summary/title/tags` **sin ninguna condición de ámbito**.
+
+→ Cualquier run puede recuperar episodios de cualquier run anterior, de cualquier
+origen.
+
+**Valoración honesta [I]:** hoy **no hay fuga real** porque Tríade es un sistema
+local monousuario, y bajo ese modelo la ausencia de ámbito es razonable.
+
+**Pero [E] hay tres vectores que ya apuntan a multiusuario:**
+`triade/core/user_session.py` + tabla `user_sessions` en el esquema;
+`apps/public_relay_app.py` desplegado como superficie **pública** (Procfile,
+railway.json) con `/api/register`; y federación con nodos Android reales.
+
+**Riesgo:** el día que entre un segundo origen, no existe mecanismo alguno que
+impida el cruce de memoria. Se clasifica **P1 latente**, no incidente activo.
+El campo `source` del `InputPacket` sería el anclaje natural, pero **[E]** no se
+usa para filtrar el recall.
+
+**Contraste [E]:** el estado temporal del Cristal **sí** está correctamente
+acotado por `session_id`/`context_key`/`project_id` (`bodega.py:205,232,248,255`),
+así que la invariante 11 del encargo sí se cumple. El problema es específico de la
+memoria episódica.
 
 ---
 
