@@ -282,8 +282,6 @@ verificó si esos 8 lectores tienen fallback correcto o degradan en silencio.
 
 ---
 
-## P3 — Bajo
-
 ### P2-10 · QualiaBus: crecimiento no acotado y 99 % del histórico sin consumir
 
 **[E]** Cinco tablas qualia acumulan ~10.800 filas (`qualia_states` 2798,
@@ -313,6 +311,8 @@ contenido de los paquetes. Cierto en sentido estricto, pero se puede leer como s
 Central razonara sobre las experiencias, y no es el caso.
 
 ---
+
+## P3 — Bajo
 
 ### P3-01 · Dos ejecutores de workers configurados sobre la misma base de datos
 
