@@ -21,20 +21,35 @@ from pathlib import Path
 
 import triade.core.worker_autostart as autostart
 
+#: Configuración mínima que activa la rama `alive`, que es la que se colgaba.
+_CONFIG = {"workers_always_on": True, "workers_autostart": True}
+
 
 def _call_with_timeout(fn, seconds: float = 20.0) -> bool:
-    """`True` si `fn` termina a tiempo; `False` si se quedó colgada."""
+    """`True` si `fn` termina **sin excepción** a tiempo.
+
+    La primera versión solo miraba si el hilo terminaba, y por eso daba verde
+    cuando `fn` reventaba de inmediato: un `TypeError` por firma equivocada
+    "terminaba a tiempo". Una prueba de deadlock que pasa porque la función ni
+    siquiera se ejecutó es peor que no tenerla.
+    """
     done = threading.Event()
+    failure: list[BaseException] = []
 
     def runner() -> None:
         try:
             fn()
+        except BaseException as exc:  # noqa: BLE001 - se re-lanza abajo
+            failure.append(exc)
         finally:
             done.set()
 
     thread = threading.Thread(target=runner, daemon=True)
     thread.start()
-    return done.wait(timeout=seconds)
+    finished = done.wait(timeout=seconds)
+    if failure:
+        raise failure[0]
+    return finished
 
 
 def test_status_does_not_deadlock_on_its_own_lock(tmp_path: Path) -> None:
@@ -62,13 +77,11 @@ def test_ensure_workers_alive_returns_while_workers_are_running(
     fake_thread = threading.Thread(target=spin, daemon=True)
     fake_thread.start()
     monkeypatch.setattr(autostart, "_WORKER_THREAD", fake_thread)
-    monkeypatch.setenv("TRIADE_WORKERS_ALWAYS_ON", "true")
-    monkeypatch.setenv("TRIADE_WORKERS_AUTOSTART", "true")
 
     try:
         completed = _call_with_timeout(
             lambda: autostart.ensure_workers_alive(
-                db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs"
+                _CONFIG, db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs"
             )
         )
         assert completed, "ensure_workers_alive se colgo con los workers vivos"
@@ -82,13 +95,11 @@ def test_the_lock_is_free_after_the_call(tmp_path: Path, monkeypatch) -> None:  
     fake_thread = threading.Thread(target=lambda: running.wait(timeout=30), daemon=True)
     fake_thread.start()
     monkeypatch.setattr(autostart, "_WORKER_THREAD", fake_thread)
-    monkeypatch.setenv("TRIADE_WORKERS_ALWAYS_ON", "true")
-    monkeypatch.setenv("TRIADE_WORKERS_AUTOSTART", "true")
 
     try:
         _call_with_timeout(
             lambda: autostart.ensure_workers_alive(
-                db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs"
+                _CONFIG, db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs"
             )
         )
         acquired = autostart._WORKER_LOCK.acquire(timeout=5)
