@@ -57,11 +57,23 @@ class RuntimeRecovery:
                 raise RuntimeError("sqlite_quick_check_failed")
             if start_workers:
                 actions.append({"action": "start_workers", "result": start_workers()})
-            heartbeat_ok = verify_heartbeat() if verify_heartbeat else True
-            actions.append({"action": "verify_heartbeat", "result": bool(heartbeat_ok)})
-            if not heartbeat_ok:
-                raise RuntimeError("new_heartbeat_not_observed")
-            state, error = "runtime_recovered", None
+            # Sin verificador NO se puede afirmar que el runtime volvió a latir.
+            # Antes se asumía True por defecto y se marcaba 'runtime_recovered':
+            # eso produjo 510 recuperaciones declaradas exitosas que nunca
+            # comprobaron su postcondición (auditoría 2026-07-31, P1-01).
+            if verify_heartbeat is None:
+                actions.append(
+                    {"action": "verify_heartbeat", "result": None, "skipped": True}
+                )
+                state, error = "unverified", None
+            else:
+                heartbeat_ok = bool(verify_heartbeat())
+                actions.append(
+                    {"action": "verify_heartbeat", "result": heartbeat_ok}
+                )
+                if not heartbeat_ok:
+                    raise RuntimeError("new_heartbeat_not_observed")
+                state, error = "runtime_recovered", None
         except (
             OSError,
             ImportError,

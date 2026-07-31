@@ -37,6 +37,12 @@ _ALWAYS_ON_LOCK = threading.Lock()
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from triade.core.identity_continuity import IdentityContinuity
     from triade.core.runtime_scope import is_test_runtime
+    from triade.memory.db_pragmas import ensure_durability_pragmas
+
+    # Antes de cualquier otra cosa: garantizar WAL. Es idempotente y persistente,
+    # pero si la base se creara desde cero sin esto arrancaría en journal_mode
+    # 'delete' y no soportaría la concurrencia real del sistema (P1-04).
+    app.state.durability_pragmas = ensure_durability_pragmas()
 
     identity = IdentityContinuity(
         os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
