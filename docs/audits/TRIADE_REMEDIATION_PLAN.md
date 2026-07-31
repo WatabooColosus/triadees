@@ -337,3 +337,57 @@ honesta pasa a ser:
 
 **El punto 3 no es técnico y no lo puede resolver una auditoría.** Es una decisión
 sobre qué significa "independiente" para este proyecto.
+
+---
+
+## 8. Ejecución manual controlada del pipeline `neuron_factory` (2026-07-31)
+
+Disparada por un humano, sobre **base temporal** (producción intacta). Es la
+primera vez que este pipeline corre de extremo a extremo.
+
+| Paso | Resultado |
+|---|---|
+| 1. Especificación registrada | estado `specified` |
+| 2. Candidato creado | estado `created` |
+| 3. Ejecución en sandbox | estado `executed`, 1 fila en `neuron_candidate_executions` |
+| 4. **Caso mejora** (0.70 → 0.88) | `measurement=improved`, `regression=pass`, **`promotable=True`** |
+| 5. **Caso degradación** (0.90 → 0.50) | `measurement=regressed`, `regression=fail`, **`promotable=False`** |
+| Resultado | `regression_reports` = 2 filas, `regression_quarantine` = 1 |
+
+**[E] El pipeline completo funciona y discrimina correctamente.** No es teórico.
+
+**Corrección de un dato previo:** `sandbox_executions` (0 filas en producción) **no
+es** la tabla de este pipeline; `SandboxExecutionEngine` escribe en
+`neuron_candidate_executions` (`neuron_factory/execution.py:29,85`). La tabla
+`sandbox_executions` pertenece a `AutonomousSandbox`, otro componente.
+
+### 8.1 La barra automática real de promoción (verificada en código)
+
+`require_improvement()` (`learning/evidence_bridge.py:185-200`) exige **todo** esto:
+
+1. `decision == "improved"` — mejora medida, no declarada.
+2. **Cero** regresiones críticas.
+3. Evidencia antes/después **completa** (baseline y candidate presentes).
+4. Si `regression_required`, debe existir `regression_report_id`.
+
+`promote()` (`neuron_factory/evaluation.py:90-99`) añade: la especificación debe
+estar en estado `evaluated`.
+
+`MetricPolicy` (`regression/gate.py:19-26`) tiene por defecto
+**`max_absolute_drop = 0.0`**: tolerancia **cero** a cualquier caída.
+
+**[I] Valoración:** es una barra de cuatro condiciones acumulativas con tolerancia
+cero por defecto, más cuarentena automática al fallar. Es una barra **estricta de
+verdad**, no un trámite.
+
+### 8.2 Lo que la barra NO resuelve
+
+**El problema de independencia sigue en pie y no se arregla subiendo umbrales.**
+`evaluation_role: "independent_required"` exige un evaluador independiente; el que
+C1 conectaría es **el mismo sistema midiéndose a sí mismo**. Un umbral más alto
+sobre una medición propia sigue siendo una medición propia.
+
+**[NV] No verificado:** de dónde saldrían `baseline` y `candidate` en un ciclo
+autónomo. En esta prueba los proporcioné yo. En producción, **quien genere esas
+puntuaciones determina todo el resultado** — y ese es el punto real de confianza,
+no el umbral.
