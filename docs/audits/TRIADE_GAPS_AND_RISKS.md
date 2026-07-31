@@ -1,8 +1,9 @@
 # TRIADE_GAPS_AND_RISKS.md — Riesgos clasificados
 
 **SHA:** `e3cba75` · **Fecha:** 2026-07-31
-**Cobertura de esta versión:** Fases 1, 2, 3 (parcial) y 4 (metabolismo). Las
-fases 5–16 no están cubiertas; los riesgos que se descubran allí **no** están en
+**Cobertura de esta versión:** Fases 1, 2, 3 (parcial), 4 (metabolismo), 5 y 9
+(workers, estados, SQLite). Las
+fases 6, 7, 8 y 10–16 no están cubiertas; los riesgos que se descubran allí **no** están en
 esta lista todavía.
 
 Clasificación: **P0** crítico · **P1** alto · **P2** medio · **P3** bajo.
@@ -85,6 +86,28 @@ por antigüedad independiente del estado del ciclo.
 
 ---
 
+### P1-04 · WAL activo en la DB pero no garantizado por el código
+
+**[E]** La DB de producción está en `journal_mode=wal` (consultado en vivo), y
+`busy_timeout=5000` **sí** lo fija el código (`triade/runtime/task_leases.py:78`).
+
+**[E] Pero ningún archivo del repositorio establece `journal_mode`.** `grep` de
+`journal_mode` sobre `triade/`, `apps/`, `scripts/` (sin tests) → **cero
+asignaciones**. WAL está activo porque se activó manualmente en algún momento y es
+una propiedad persistente del fichero.
+
+**Riesgo [I]:** ante un despliegue nuevo, un restore a fichero nuevo o un entorno
+de CI, la base arrancaría en `journal_mode=delete`: sin lecturas concurrentes
+durante escritura. Con la concurrencia real de este sistema (2 procesos + 7 hilos +
+subprocesos por tarea), la probabilidad de `database is locked` sube
+sustancialmente. **El comportamiento de producción no es reproducible desde el
+repositorio.**
+
+**Corrección mínima propuesta:** ejecutar `PRAGMA journal_mode=WAL` en el
+bootstrap de la conexión, junto al `busy_timeout` ya existente.
+
+---
+
 ## P2 — Medio
 
 ### P2-01 · Endpoint informa un hilo vivo que está muerto
@@ -154,6 +177,41 @@ esas funciones nunca se han prestado.
 **[E]** `metabolic_receipts`: 4453 `execute/success` frente a 4325 `verify/passed`.
 **[NV]** No se determinó si son verificaciones fallidas, omitidas o desfase de
 escritura. Requiere una fase dedicada.
+
+---
+
+### P2-07 · Dos tablas son consumidor sin productor (`goals`, `neuron_certifications`)
+
+**[E]** `goals`: **cero** `INSERT`/`UPDATE` en todo el código de producción; único
+lector `triade/consciousness/salience.py:103`
+(`SELECT title, description FROM goals WHERE status='active' LIMIT 5`); solo
+`tests/test_consciousness.py` escribe. Tabla vacía en producción, igual que
+`goal_dependencies`.
+→ El cálculo de saliencia lee objetivos que nunca se crean; degrada en silencio a
+lista vacía. **[I]** La planificación autónoma por objetivos no existe en ejecución.
+
+**[E]** `neuron_certifications`: cero writers en producción **y en tests**; único
+lector `triade/neuron_factory/certification.py:46`. Coherente con que
+`neuron_factory/` no esté conectado al ciclo 24/7.
+
+### P2-08 · Ausencia de `CHECK` sobre `autonomous_tasks.status`
+
+**[E]** `migrations/009_runtime_resilience.sql:7` define
+`status TEXT NOT NULL DEFAULT 'pending'` **sin `CHECK`**. El vocabulario de estados
+(al menos 10 valores distintos entre `task_leases.py` y `worker_loop.py`) no está
+restringido a nivel de esquema: un error tipográfico crearía un estado inválido
+silencioso, potencialmente invisible para los barridos de recuperación (que filtran
+por listas explícitas de estados).
+
+**Atenuante [E]:** existe `autonomous_task_transitions` (migración 012) con FK y
+auditoría de `from_status`/`to_status`, lo que permite detectarlo a posteriori.
+
+### P2-09 · `semantic_memory` vacía con 8 lectores
+
+**[E]** 0 filas, 1 writer, 8 readers. La memoria semántica real vive en
+`semantic_documents` + `semantic_embeddings`. **[H]** Vestigio del esquema anterior
+que varios módulos siguen consultando obteniendo siempre vacío. **[NV]** No se
+verificó si esos 8 lectores tienen fallback correcto o degradan en silencio.
 
 ---
 
