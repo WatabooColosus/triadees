@@ -381,6 +381,59 @@ class AutonomousTaskStore:
             retry_after=retry_after,
         )
 
+    def defer_unstarted(
+        self,
+        task_id: str,
+        worker_id: str,
+        lease_generation: int,
+        reason: str,
+        *,
+        delay_seconds: int = 5,
+    ) -> bool:
+        """Devuelve a la cola una tarea arrendada que nunca llegó a ejecutarse.
+
+        `claim()` incrementa `attempt` al arrendar, y `defer()` deja ese intento
+        consumido. Para una tarea que **corrió** eso es correcto: el intento
+        existió. Pero cuando se rechaza el despacho —carril lleno, clave de
+        exclusión tomada, backpressure— la tarea no ha hecho absolutamente nada.
+        Contar ese intento gastaría los tres disponibles por el mero hecho de
+        haber esperado turno, y mataría la tarea sin haberla intentado jamás.
+
+        Por eso aquí se descuenta el intento al devolverla. La distinción
+        importa más cuanto más concurrencia hay: con varios carriles compitiendo,
+        los rechazos por turno son normales y no deben parecer fracasos.
+        """
+        now = _iso()
+        retry_after = _iso(_now() + timedelta(seconds=max(0, delay_seconds)))
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            current = conn.execute(
+                """SELECT status,attempt FROM autonomous_tasks
+                WHERE task_id=? AND worker_id=? AND lease_generation=?""",
+                (task_id, worker_id, lease_generation),
+            ).fetchone()
+            if current is None or str(current["status"]) != "leased":
+                # Si ya está 'running' es que alguien la arrancó: no se toca.
+                conn.commit()
+                return False
+            previous = str(current["status"])
+            changed = conn.execute(
+                """UPDATE autonomous_tasks
+                SET status='deferred',retry_after=?,last_error=?,
+                    attempt=MAX(0,attempt-1),lease_expires_at=NULL,updated_at=?
+                WHERE task_id=? AND worker_id=? AND lease_generation=? AND status='leased'""",
+                (retry_after, reason, now, task_id, worker_id, lease_generation),
+            ).rowcount
+            if changed == 1:
+                conn.execute(
+                    """INSERT INTO autonomous_task_transitions
+                    (task_id,worker_id,lease_generation,from_status,to_status,reason,created_at)
+                    VALUES(?,?,?,?,'deferred',?,?)""",
+                    (task_id, worker_id, lease_generation, previous, reason, now),
+                )
+            conn.commit()
+        return changed == 1
+
     def fail(
         self,
         task_id: str,
@@ -610,7 +663,9 @@ class AutonomousTaskStore:
                     WHERE task_id=? AND status='leased'""",
                     (now_iso, tid),
                 )
-                _record(tid, wid, lgen, "leased", "recovered", "orphaned_lease_recovered")
+                _record(
+                    tid, wid, lgen, "leased", "recovered", "orphaned_lease_recovered"
+                )
                 result["leased_recovered"] += 1
                 result["fencing_invalidated"] += 1
 
@@ -640,7 +695,14 @@ class AutonomousTaskStore:
                         WHERE task_id=? AND status='running' AND result_ref=?""",
                         (now_iso, tid, ref),
                     )
-                    _record(tid, wid, lgen, "running", "completed", "artifact_found_during_recovery")
+                    _record(
+                        tid,
+                        wid,
+                        lgen,
+                        "running",
+                        "completed",
+                        "artifact_found_during_recovery",
+                    )
                     result["running_recovered"] += 1
                 else:
                     conn.execute(
@@ -650,7 +712,14 @@ class AutonomousTaskStore:
                         WHERE task_id=? AND status='running'""",
                         (now_iso, tid),
                     )
-                    _record(tid, wid, lgen, "running", "completion_uncertain", "recovery_no_artifact")
+                    _record(
+                        tid,
+                        wid,
+                        lgen,
+                        "running",
+                        "completion_uncertain",
+                        "recovery_no_artifact",
+                    )
                     result["running_uncertain"] += 1
                 result["fencing_invalidated"] += 1
 
@@ -671,7 +740,14 @@ class AutonomousTaskStore:
                         WHERE task_id=? AND status='retry_wait'""",
                         (now_iso, tid),
                     )
-                    _record(tid, wid, lgen, "retry_wait", "retry_wait", "stale_ownership_cleaned")
+                    _record(
+                        tid,
+                        wid,
+                        lgen,
+                        "retry_wait",
+                        "retry_wait",
+                        "stale_ownership_cleaned",
+                    )
                 result["retry_wait_preserved"] += 1
 
             # ── 6. deferred: preservar, solo limpiar owner ────────
@@ -691,7 +767,14 @@ class AutonomousTaskStore:
                         WHERE task_id=? AND status='deferred'""",
                         (now_iso, tid),
                     )
-                    _record(tid, wid, lgen, "deferred", "deferred", "stale_ownership_cleaned")
+                    _record(
+                        tid,
+                        wid,
+                        lgen,
+                        "deferred",
+                        "deferred",
+                        "stale_ownership_cleaned",
+                    )
                 result["deferred_preserved"] += 1
 
             # ── 7. completion_uncertain restantes (no reconciliables) ──

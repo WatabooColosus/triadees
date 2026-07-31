@@ -29,8 +29,14 @@ class WorkerStateStore:
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+        # `busy_timeout` es lo que separa "esperar mi turno" de "database is
+        # locked". Sin él, en cuanto dos tareas escriben a la vez —y con
+        # concurrencia gobernada eso es lo normal, no la excepción— la segunda
+        # falla al instante en vez de reintentar. `AutonomousTaskStore` ya lo
+        # hacía; este store no, y era el punto por donde iba a romperse.
+        conn = sqlite3.connect(self.db_path, timeout=5)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout=5000;")
         conn.execute("PRAGMA foreign_keys = ON;")
         return conn
 
@@ -421,7 +427,11 @@ class WorkerStateStore:
             lock_file=lock if stale_pid is not None else None,
         )
         if autonomous.get("status") in ("live_owner", "live_lease"):
-            return {"status": "live_owner", "pid": autonomous.get("pid"), "deduplicated": 0}
+            return {
+                "status": "live_owner",
+                "pid": autonomous.get("pid"),
+                "deduplicated": 0,
+            }
 
         return {
             "status": "recovered" if stale_pid is not None else "clean",
