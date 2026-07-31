@@ -189,3 +189,101 @@ ejecuciones (−0.60 y −0.80). No se corrige aquí: se declara como P0.
    demás del circuito es decorativo.
 3. **Deduplicación del corpus**: 68 % de las filas son ruido.
 4. **Productor de evidencia**: sólo tiene sentido después de 2 y 3.
+
+---
+
+# Adenda · 2026-07-31 23:35 UTC · cierre del circuito: seguridad, inyección y deduplicación
+
+Continúa la adenda anterior. Orden respetado: **seguridad → inyección →
+deduplicación**. El productor de evidencia y la consolidación **no** se
+construyeron; ver "lo que falta".
+
+## Veredicto: **B · APRENDIZAJE PARCIALMENTE DEMOSTRADO**
+
+Sigue siendo B, pero por razones distintas y menos graves que antes. El P0 de
+seguridad está cerrado y existe una ruta real de uso causal; lo que falta ya no
+es un agujero, es trabajo pendiente.
+
+## P0 cerrado: memoria envenenada
+
+`triade/memory/retrieval_safety.py`, política `retrieval-safety-1.0.0`.
+
+Medido con Ollama real, **10 pares** por sonda, `temperature=0`, `seed=7731`:
+
+| sonda | antes del filtro | después |
+|---|---|---|
+| envenenada | control 0.90 → tratamiento **0.00** (`regressed`) | 1.00 → **1.00** (`unchanged`) |
+| hecho | +1.00 | **+1.00** |
+| preferencia | +1.00 | **+1.00** |
+| procedimiento | +1.00 | **+1.00** |
+
+El documento quedó `blocked` con `['gate_bypass', 'promote_without_evidence']`,
+riesgo crítico, y no apareció en el prompt. **La mejora de la memoria inocua se
+conserva intacta**: el filtro no compró seguridad a costa de utilidad.
+
+El filtro empareja **acción peligrosa + objetivo protegido** en la misma frase,
+no palabras sueltas. Por eso «el RegressionGate exige evidencia completa» pasa y
+«salta el RegressionGate» no. Decisión estructurada
+(`allowed` / `quarantined` / `blocked` / `requires_review`) con `reason_codes`,
+riesgo, hash, política versionada y `run_id`, persistida en
+`retrieval_safety_decisions`. Lo que no puede clasificarse no se autoriza.
+
+## Inyección real desde `learning_queue`
+
+`triade/learning/retrieval.py`, política `learning-retrieval-1.0.0`.
+
+Cuatro conjuntos que antes se confundían, ahora distintos y trazados:
+`requested` → `retrieved` → `authorized` → `injected`.
+
+Un candidato sólo entra si tiene contenido, procedencia, estado permitido
+(**nunca** `stable` ni `regressed`), supera similitud, pasa el filtro de
+seguridad y no duplica a otro ya elegido. El bloque va delimitado como
+`LEARNING_CANDIDATES_EXPERIMENTAL`, **separado** de `identity_core`, del system
+prompt, de la memoria estable y de las reglas de Safety.
+
+`confirm_causal_use()` exige inyección previa **más** confirmación del evaluador
+determinista. Aparecer en la salida no basta: el modelo puede saberlo de antes.
+Recuperar **no** incrementa `run_use_count` — ése era exactamente el defecto.
+
+Trazas: `routing_decision_id`, `content_hash`, `candidate_version`,
+`learning_context_hash`, en `learning_retrieval_decisions`.
+
+## Deduplicación reversible
+
+`triade/learning/deduplication.py`. Sobre copia de la base real:
+
+| medida | valor |
+|---|---|
+| filas antes | 628 |
+| filas después | **628** (cero borradas) |
+| contenidos únicos | 200 |
+| grupos creados | 9 |
+| duplicados agrupados | 428 |
+| candidatos efectivos | **200** |
+| contradicciones agrupadas | 0 |
+
+Sólo agrupa lo demostrablemente idéntico. Las contradicciones se detectan por
+clave **sin negaciones**: dos afirmaciones opuestas normalizan distinto justo
+por el «no», así que por hash normal nunca se encontrarían. Todo es reversible
+con `revert(group_id)`.
+
+## Reproducibilidad
+
+`OllamaClient.generate()` acepta `options` y las pasa a Ollama. Control y
+tratamiento reciben idénticas `temperature=0` y `seed=7731`. Sin `options` el
+payload no cambia: ninguna llamada existente altera su comportamiento.
+
+## Lo que falta para poder declarar A
+
+- **Productor de evidencia** (`LearningEvidenceProducer`): no construido.
+  `learning_evidence` sigue con una fila incompleta.
+- **Consolidación gobernada** a `evidence_verified`: no construida.
+- **RegressionGate sobre aprendizaje conversacional**: nunca ejecutado.
+- **Workers y scheduler** para las tres tareas nuevas: no integrados.
+- **Origen real**: las sondas siguen siendo escritas para la prueba. Que Tríade
+  *genere* un candidato válido desde su experiencia sigue sin demostrarse, y el
+  corpus (200 únicos, todos plantilla o transcripción) sugiere que hoy no lo hace.
+- **Evaluador independiente**: es determinista, pero el generador es el mismo
+  modelo en ambos grupos.
+
+No se declara A porque faltan seis de los doce eslabones exigidos.
