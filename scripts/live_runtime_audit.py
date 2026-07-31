@@ -138,21 +138,37 @@ def systemd_units() -> dict[str, str]:
 
 
 def locks() -> dict[str, Any]:
-    """Un lock sin dueño vivo es peor que no tener lock."""
+    """Un lock sin dueño vivo es peor que no tener lock.
+
+    El lock del worker NO está en la raíz del repo sino en `runs_dir`
+    (`background_service.py:25`). Mirar solo en la raíz hacía concluir "no hay
+    lock" con los workers activos — una lectura tranquilizadora y falsa, que es
+    la peor clase de error en una auditoría.
+    """
     result: dict[str, Any] = {}
-    for name in (".triade_workers.lock", ".triade_stop"):
-        path = REPO / name
+    candidates = (
+        REPO / "runs/background/.triade_workers.lock",
+        REPO / ".triade_workers.lock",
+        REPO / ".triade_stop",
+    )
+    for path in candidates:
+        name = str(path.relative_to(REPO))
         if not path.exists():
             result[name] = {"present": False}
             continue
         raw = path.read_text(encoding="utf-8", errors="replace")[:400]
         owner_alive = None
-        match = re.search(r"\b(\d{2,7})\b", raw)
-        if match:
-            pid = match.group(1)
+        pid = ""
+        try:
+            pid = str(json.loads(raw).get("pid") or "")
+        except (ValueError, TypeError):
+            match = re.search(r"\b(\d{2,7})\b", raw)
+            pid = match.group(1) if match else ""
+        if pid:
             owner_alive = Path(f"/proc/{pid}").exists()
         result[name] = {
             "present": True,
+            "pid": pid,
             "age_seconds": round(time.time() - path.stat().st_mtime, 1),
             "content": raw,
             "owner_alive": owner_alive,
