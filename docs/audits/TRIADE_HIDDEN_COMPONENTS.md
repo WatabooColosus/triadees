@@ -1,9 +1,9 @@
 # TRIADE_HIDDEN_COMPONENTS.md — Componentes que no se ven a simple vista
 
 **SHA:** `e3cba75` · **Fecha:** 2026-07-31
-**Cobertura:** metabolismo (Fase 4) + hallazgos de Fases 2–3. Las áreas de las
-Fases 5–16 (workers en detalle, runner, neuronas, memoria, modelos, LoRA, Qualia)
-**no** están cubiertas aquí todavía.
+**Cobertura:** metabolismo (Fase 4), QualiaBus (Fase 12) + hallazgos de Fases 2–3.
+Las áreas de las Fases 8, 10 y 13–16 (neuronas, Model Router, pruebas E2E,
+remediación) **no** están cubiertas aquí todavía.
 
 Marcas: **[E]** evidencia · **[I]** inferencia · **[H]** hipótesis · **[NV]** no verificado.
 
@@ -153,9 +153,78 @@ como "en curso" que nadie ejecutará nunca.
 
 ## 5. Pendiente de censar [NV]
 
-No cubierto todavía en ninguna fase ejecutada: QualiaBus y sus 4 tipos de paquete
-(¿tienen consumidor real?), Cristal temporal (¿influye en decisiones?),
+No cubierto todavía en ninguna fase ejecutada (QualiaBus **sí** se cubrió, ver §6):
+Cristal temporal (¿influye en decisiones?),
 contradiction detection / cuarentena semántica, `goals` y planificación autónoma,
 `GovernedPlanDispatcher` (ya sabido: probado sin caller de producción),
 `neuron_factory` (ya sabido: solo self_improvement + dashboards), censo exhaustivo
 de `except` silenciosos, TODO/FIXME, y funciones llamadas solo por tests.
+
+---
+
+## 6. QualiaBus — conectado, pero con el 99 % de sus datos sin consumir (Fase 12)
+
+### 6.1 Está conectado de verdad (corrige una sospecha inicial)
+
+**[E]** `QUALIA` es un singleton definido en `triade/core/qualia.py:374`
+(`QUALIA = QualiaEngine()`), **no** en `triade/qualia/`. Sus consumidores reales
+fuera del módulo:
+
+| Consumidor | Línea | Qué hace |
+|---|---|---|
+| `core/context_engine.py:77-78` | `QUALIA.snapshot()` + `QualiaBus.report()` | **alimenta el contexto vivo del chat** |
+| `core/bodega_global_context.py:132` | `QUALIA.snapshot()` | contexto global de Bodega |
+| `core/runner.py:1217` | `QualiaBus(...)` | publica experiencias del run |
+| `services/supervisor.py:537,710` | `QUALIA.snapshot()` | ciclo 24/7 |
+| `workers/worker_loop.py:1322` | `QualiaBus(...)` | publica desde workers |
+| `core/living_report.py:38`, `apps/services.py:1139-1167` | `QUALIA.snapshot()` | informes/API |
+
+**Conclusión [E]: QualiaBus NO es un componente huérfano.** Su salida llega
+realmente al contexto que se envía al modelo.
+
+### 6.2 Pero lo que se consume es una fracción mínima
+
+**[E]** Volumen acumulado real en producción:
+
+| Tabla | Filas |
+|---|---|
+| `qualia_states` | 2798 |
+| `qualia_signals` | 2635 |
+| `qualia_central_packets` | 2635 |
+| `qualia_storage_packets` | 2635 |
+| `qualia_experiences` | 2080 |
+
+**[E]** Lo que realmente se lee:
+
+- `QualiaEngine._qualia_bus_snapshot()` (`core/qualia.py:116-150`) → solo
+  `store.counts()` (**`SELECT COUNT(*)`**, `store.py:344,347`) y
+  `store.latest_state()` (`store.py:327`).
+- `build_qualia_report()` (`qualia/reports.py:11-24`) → `list_*` con
+  **`limit: int = 20`** por defecto, y la consulta subyacente es
+  `SELECT * FROM {table} ORDER BY rowid DESC LIMIT ?` (`store.py:395,400`).
+
+**[I] Consecuencia:** de ~2635 paquetes por tipo, el sistema solo vuelve a leer
+**los 20 más recientes** (y en el snapshot, únicamente el número total). Más del
+**99 %** de `CentralKnowledgePacket` y `StorageMemoryPacket` acumulados **nunca se
+vuelven a consultar**.
+
+Matiz de honestidad: esto es *archivo histórico*, no código muerto. La diferencia
+importa: el pipeline funciona y su salida reciente sí influye. Lo que no existe es
+consumo del histórico.
+
+### 6.3 Sin política de retención — crecimiento no acotado
+
+**[E]** `grep` de `DELETE FROM qualia` / `retention` / `purge` / `cleanup` sobre
+`triade/qualia/` y `core/qualia.py` → **cero resultados**.
+
+**[I]** Las cinco tablas crecen indefinidamente (≈10.800 filas acumuladas) mientras
+solo se leen 20 por tipo. Sin límite superior ni limpieza. Clasificado **P2-10**.
+
+### 6.4 Precisión sobre la afirmación del README
+
+El README del proyecto sostiene que *"Central consume resumen autorizado"*.
+**[E]** Lo que Central recibe vía `context_engine` es el `snapshot`, cuyo bloque
+`qualia_bus` contiene **conteos agregados** (`experiences_count`, `signals_count`,
+…) más `latest_state`. Es decir: **un resumen numérico**, no el contenido de los
+paquetes. La afirmación es cierta en sentido estricto, pero puede leerse como si
+Central razonara sobre las experiencias, y no es el caso.

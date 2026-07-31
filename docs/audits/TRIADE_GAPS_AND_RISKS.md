@@ -2,9 +2,9 @@
 
 **SHA:** `e3cba75` · **Fecha:** 2026-07-31
 **Cobertura de esta versión:** Fases 1, 2, 3 (parcial), 4 (metabolismo), 5 y 9
-(workers, estados, SQLite), 6 y 7 (runner, invariantes, contexto) y 11 (LoRA
-serving). Las
-fases 8, 10 y 12–16 no están cubiertas; los riesgos que se descubran allí **no** están en
+(workers, estados, SQLite), 6 y 7 (runner, invariantes, contexto), 11 (LoRA
+serving) y 12 (QualiaBus). Las
+fases 8, 10 y 13–16 no están cubiertas; los riesgos que se descubran allí **no** están en
 esta lista todavía.
 
 Clasificación: **P0** crítico · **P1** alto · **P2** medio · **P3** bajo.
@@ -283,6 +283,36 @@ verificó si esos 8 lectores tienen fallback correcto o degradan en silencio.
 ---
 
 ## P3 — Bajo
+
+### P2-10 · QualiaBus: crecimiento no acotado y 99 % del histórico sin consumir
+
+**[E]** Cinco tablas qualia acumulan ~10.800 filas (`qualia_states` 2798,
+`qualia_signals`/`central_packets`/`storage_packets` 2635 c/u,
+`qualia_experiences` 2080).
+
+**[E]** Lo que realmente se lee: `QualiaEngine._qualia_bus_snapshot()`
+(`core/qualia.py:116-150`) usa solo `store.counts()` (`SELECT COUNT(*)`,
+`store.py:344,347`) y `store.latest_state()`; `build_qualia_report()`
+(`qualia/reports.py:11-24`) lee con `limit=20` por defecto
+(`SELECT * ... ORDER BY rowid DESC LIMIT ?`, `store.py:395,400`).
+
+→ De ~2635 paquetes por tipo, solo se releen **los 20 más recientes**. Más del
+**99 %** del histórico nunca se vuelve a consultar.
+
+**[E]** `grep` de `DELETE FROM qualia` / `retention` / `purge` / `cleanup` sobre
+`triade/qualia/` y `core/qualia.py` → **cero resultados**: no hay política de
+retención. Crecimiento indefinido.
+
+**Matiz [I]:** no es código muerto — el pipeline funciona y su salida *reciente*
+sí llega al contexto del modelo. Lo inexistente es el consumo del histórico y
+cualquier límite de crecimiento.
+
+**Precisión sobre el README:** afirma que *"Central consume resumen autorizado"*.
+**[E]** Lo que Central recibe son **conteos agregados** + `latest_state`, no el
+contenido de los paquetes. Cierto en sentido estricto, pero se puede leer como si
+Central razonara sobre las experiencias, y no es el caso.
+
+---
 
 ### P3-01 · Dos ejecutores de workers configurados sobre la misma base de datos
 
