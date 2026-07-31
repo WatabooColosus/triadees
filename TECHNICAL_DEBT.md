@@ -3,6 +3,51 @@
 Corte: 2026-07-30. SHA documental base: `8f44814`. Esta lista es canónica;
 los reportes anteriores son históricos cuando la contradicen.
 
+## P0 — CORREGIDO (parcial): `last_governor_decision` vacío deja Always-On congelado en `observe_only`
+
+Reportado en vivo por el usuario tras la auditoría de educación: la Cabina
+Viva volvió a mostrar `configured_mode=full_local_guarded` /
+`effective_mode=observe_only` / `degradado=true` con la misma razón
+contradictoria ("...permitido") que se había corregido en la Fase 1
+(`7d4b78d`). **No era el mismo bug reapareciendo** — verificado con
+evidencia distinta:
+
+- `decide_work_mode()` con condiciones reales (load 2–6, RAM 25GB libre, GPU
+  libre) devuelve correctamente `full_local_guarded` sin degradar —
+  confirmado con llamada directa.
+- Los eventos reales `work_mode_decided` en `worker_events` mostraban
+  `effective=full_local` correcto en **cada ciclo automático**, sin
+  excepción, durante toda la ventana observada.
+- Instrumentado con logging directo en el proceso real (no inferido):
+  `get_internal_runtime_governor_status()` devuelve `{}` (vacío)
+  **periódicamente**, con una cadencia que coincide con el ciclo de
+  self-test (`self_test_every_cycles=5`, `triade/services/supervisor.py`).
+  Cuando `governor={}`, `build_always_on_status()` (`always_on.py`) tiene
+  `if governor:` — un dict vacío es falsy — así que el bloque entero que
+  actualiza `effective_mode`/`degraded_by_governor` se salta por completo,
+  dejando el estado congelado en lo último que hubiera (a veces
+  `observe_only` heredado de un momento anterior del arranque).
+
+**No identificada con certeza la causa exacta de por qué
+`last_governor_decision` queda vacío periódicamente** (hipótesis no
+confirmada: alguna llamada dentro del ciclo de self-test —
+`run_self_test_cycle` → `build_runtime_heartbeat` →
+`get_internal_runtime_state` → `get_internal_runtime_supervisor` — con
+`db_path`/`runs_dir` en una forma distinta dispara la lógica de
+recreación del singleton `_SUPERVISOR` en `internal_runtime.py`, sirviendo
+un objeto nuevo con `last_governor_decision={}`; no se confirmó con
+certeza en el tiempo disponible). **Corregido el síntoma de forma segura y
+verificada**, no la causa exacta: cuando `governor` viene vacío,
+`build_always_on_status()` ahora recalcula una decisión fresca en el acto
+(`decide_work_mode` + `build_resource_probe` + `check_ollama_blood`, las
+mismas funciones puras/de solo-lectura que ya se usan en el arranque) en
+vez de servir un valor potencialmente obsoleto. Verificado en vivo:
+correcto inmediatamente tras el fix, y **correcto de nuevo tras superar la
+ventana del siguiente ciclo de self-test** (320s de observación
+ininterrumpida, sin fallback registrado como fallido). Pendiente para una
+sesión dedicada: confirmar la causa raíz exacta de por qué el cache se
+vacía, en vez de solo compensarla.
+
 ## Auditoría integral 2026-07-31 (post bebb270/9be6f33/5219e00) — 3 bugs P0 más, todos CORREGIDOS
 
 Auditoría de extremo a extremo pedida explícitamente sobre el circuito real

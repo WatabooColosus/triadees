@@ -179,6 +179,30 @@ def build_always_on_status() -> dict[str, Any]:
         _ALWAYS_ON_STATE["runtime_degraded"] = False
         _ALWAYS_ON_STATE["runtime_degradation_reason"] = None
         governor = get_internal_runtime_governor_status()
+        if not governor:
+            # last_governor_decision cacheado vino vacio (observado en vivo,
+            # 2026-07-31: periodico, ~cada ciclo de self-test). Antes esto
+            # dejaba el estado congelado en lo ultimo que hubiera -- a veces
+            # "observe_only" heredado del arranque -- hasta la proxima
+            # actualizacion. Se recalcula aqui mismo, sincrono, en vez de
+            # servir un valor potencialmente obsoleto o nunca inicializado.
+            try:
+                from triade.core.ollama_blood import check_ollama_blood
+                from triade.core.resource_probe import build_resource_probe
+
+                configured_for_probe = str(
+                    _ALWAYS_ON_STATE.get("configured_mode") or "observe_only"
+                )
+                governor = decide_work_mode(
+                    build_resource_probe(), check_ollama_blood(), configured_for_probe
+                )
+            except (OSError, RuntimeError, ValueError, TypeError, KeyError) as exc:
+                record_internal_runtime_event(
+                    "always_on_governor_fallback_failed",
+                    "always_on",
+                    {"error": str(exc)},
+                )
+                governor = {}
         if governor:
             configured = str(_ALWAYS_ON_STATE.get("configured_mode") or "observe_only")
             dynamic_mode = str(governor.get("effective_mode") or configured)
