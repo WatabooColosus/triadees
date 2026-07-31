@@ -2,12 +2,48 @@
 
 **SHA:** `e3cba75` · **Fecha:** 2026-07-31
 **Cobertura de esta versión:** Fases 1, 2, 3 (parcial), 4 (metabolismo), 5 y 9
-(workers, estados, SQLite). Las
-fases 6, 7, 8 y 10–16 no están cubiertas; los riesgos que se descubran allí **no** están en
+(workers, estados, SQLite) y 11 (LoRA serving). Las
+fases 6, 7, 8, 10 y 12–16 no están cubiertas; los riesgos que se descubran allí **no** están en
 esta lista todavía.
 
 Clasificación: **P0** crítico · **P1** alto · **P2** medio · **P3** bajo.
 Marcas: **[E]** evidencia · **[I]** inferencia · **[H]** hipótesis · **[NV]** no verificado.
+
+---
+
+## P0 — Crítico
+
+### P0-01 · El LoRA marcado `active` en producción no toca ninguna inferencia real
+
+**[E]** `peft_serving_state` contiene una fila `slot='production'`,
+`status='active'`, `approved_by='Santiago'` (aprobación humana real).
+
+**[E]** Pero `grep -rln "governed_peft_active_slot\|peft_serving_state"` sobre
+`triade/` y `apps/` (sin tests) devuelve **solo los dos módulos que la escriben**
+(`training/peft_canary.py`, `training/serving_governance.py`). **Cero lectores en
+`triade/models/`, `core/runner.py` y `core/central.py`** — la ruta que genera las
+respuestas nunca consulta el slot.
+
+**[E]** `model_router.py` tiene **0** menciones de adapter/lora/peft.
+`ollama_client.py` tiene 1, y es la palabra "adapter" del docstring como patrón de
+diseño. El payload real enviado a Ollama (`ollama_client.py:83-91`) es solo
+`{"model": <nombre>}`: no existe parámetro de adaptador.
+
+**[I] Causa estructural:** el canary carga el adaptador con PEFT dentro del proceso
+Python, mientras la conversación sale por HTTP a Ollama (proceso externo). Son dos
+motores distintos que no se cruzan.
+
+**Severidad P0 — matiz importante:** no es un riesgo de *seguridad* (de hecho el
+resultado es el más conservador: ningún peso auto-entrenado influye en las
+respuestas, y el gate humano funcionó). Es un fallo de **honestidad del estado**:
+el sistema afirma `production/active` sobre algo que no presta servicio. Toda
+decisión basada en ese campo es incorrecta.
+
+**[E] Incoherencia adicional:** `governed_peft_active_slot` tiene **0 filas**
+mientras `peft_serving_state` tiene 1 activa. Dos tablas del mismo hecho en
+desacuerdo.
+
+Detalle completo en `TRIADE_LORA_SERVING_TRUTH.md`.
 
 ---
 
