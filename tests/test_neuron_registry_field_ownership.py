@@ -50,9 +50,7 @@ def _touch(db: Path, name: str, **columns: str) -> None:
     """Fija columnas a un valor centinela, para detectar escrituras espurias."""
     conn = sqlite3.connect(db)
     sets = ", ".join(f"{c} = ?" for c in columns)
-    conn.execute(
-        f"UPDATE neurons SET {sets} WHERE name = ?", (*columns.values(), name)
-    )
+    conn.execute(f"UPDATE neurons SET {sets} WHERE name = ?", (*columns.values(), name))
     conn.commit()
     conn.close()
 

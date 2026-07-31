@@ -45,7 +45,9 @@ def _spec(name: str = "Neurona Visual", **kwargs: object) -> NeuronSpec:
 
 def _triggers(db: Path, name: str) -> list[str]:
     conn = sqlite3.connect(db)
-    row = conn.execute("SELECT triggers FROM neurons WHERE name = ?", (name,)).fetchone()
+    row = conn.execute(
+        "SELECT triggers FROM neurons WHERE name = ?", (name,)
+    ).fetchone()
     conn.close()
     raw = row[0] if row else "[]"
     return list(json.loads(raw or "[]"))

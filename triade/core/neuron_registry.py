@@ -261,6 +261,8 @@ class NeuronRegistry:
         values, silent = self._spec_values(spec, contract_payload)
         explicit = set(explicit_fields or ())
 
+        clause: str
+        extra: list[Any]
         if conflict_policy == "create_only":
             clause, extra = "DO NOTHING", []
         elif conflict_policy == "replace_definition":
