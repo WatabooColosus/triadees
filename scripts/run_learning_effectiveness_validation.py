@@ -181,6 +181,7 @@ class Harness:
         temperature: float = 0.0,
         min_similarity: float = 0.55,
         safety: bool = True,
+        seed: int = 7731,
     ) -> None:
         from triade.memory.semantic_search import SemanticSearchEngine
         from triade.memory.semantic_store import SemanticMemoryStore
@@ -190,6 +191,8 @@ class Harness:
         self.model = model
         self.temperature = temperature
         self.min_similarity = min_similarity
+        self.options: dict[str, Any] = {"temperature": temperature, "seed": seed}
+        self.seed = seed
         self.store = SemanticMemoryStore(db_path=db)
         self.client = OllamaClient()
         self.engine = SemanticSearchEngine(store=self.store, client=self.client)
@@ -223,12 +226,11 @@ class Harness:
 
     # ── inferencia real ───────────────────────────────────────────────
     def infer(self, prompt: str) -> tuple[str, float, str | None]:
-        # OllamaClient.generate no expone temperature: ambos grupos usan
-        # exactamente la misma configuración por defecto del cliente, que es lo
-        # que exige el control. Se declara como limitación en el informe.
+        # Ambos grupos reciben exactamente las mismas `options`; lo único que
+        # cambia entre control y tratamiento es el prompt.
         t0 = time.perf_counter()
         try:
-            res = self.client.generate(self.model, prompt)
+            res = self.client.generate(self.model, prompt, options=self.options)
         except Exception as exc:  # noqa: BLE001 -- se registra, no se oculta
             return "", (time.perf_counter() - t0) * 1000, f"{type(exc).__name__}: {exc}"
         dt = (time.perf_counter() - t0) * 1000
@@ -340,6 +342,7 @@ def run(args: argparse.Namespace) -> int:
         temperature=args.temperature,
         min_similarity=args.min_similarity,
         safety=not args.no_safety,
+        seed=args.seed,
     )
     health = h.client.health()
     print(f"ollama ok={health.get('ok')} modelos={len(health.get('models', []))}")
@@ -354,6 +357,7 @@ def run(args: argparse.Namespace) -> int:
         "temperature": args.temperature,
         "min_similarity": args.min_similarity,
         "retrieval_safety": not args.no_safety,
+        "generation_options": {"temperature": args.temperature, "seed": args.seed},
         "repetitions": args.repetitions,
         "probes": [],
     }
@@ -480,6 +484,7 @@ def main() -> int:
     ap.add_argument("--model", default="qwen2.5:3b-instruct")
     ap.add_argument("--temperature", type=float, default=0.0)
     ap.add_argument("--min-similarity", type=float, default=0.55)
+    ap.add_argument("--seed", type=int, default=7731)
     ap.add_argument(
         "--no-safety",
         action="store_true",

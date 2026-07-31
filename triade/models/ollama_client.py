@@ -78,8 +78,19 @@ class OllamaClient:
         self.timeout = timeout
 
     def generate(
-        self, model: str, prompt: str, system: str | None = None
+        self,
+        model: str,
+        prompt: str,
+        system: str | None = None,
+        options: dict[str, Any] | None = None,
     ) -> ModelResult:
+        """Genera texto. `options` viaja tal cual al campo `options` de Ollama.
+
+        Sirve para fijar `temperature`, `seed` o `top_p` cuando una evaluación
+        necesita ser reproducible. Sin `options` el comportamiento no cambia:
+        se omite el campo y Ollama aplica sus propios valores por defecto, que
+        es lo que hacían todas las llamadas existentes.
+        """
         payload: dict[str, Any] = {
             "model": model,
             "prompt": prompt,
@@ -87,6 +98,8 @@ class OllamaClient:
         }
         if system:
             payload["system"] = system
+        if options:
+            payload["options"] = dict(options)
 
         data = json.dumps(payload).encode("utf-8")
         request = urllib.request.Request(
