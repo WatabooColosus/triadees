@@ -438,7 +438,27 @@ class WorkerLoop:
             def dispatch_cycle() -> dict[str, Any]:
                 summary["iterations"] += 1
                 scheduled = self.scheduler.schedule_cycle(run_ref, config)
-                return {"scheduled": len(scheduled), "drained": drain_queue()}
+                drained = drain_queue()
+                if pool is not None:
+                    # Snapshot vivo, no solo al cerrar: si únicamente se
+                    # registrara en el shutdown, el observador siempre vería
+                    # `running: 0` y no sabría nunca qué estuvo corriendo a la vez.
+                    summary["concurrency"] = pool.snapshot(queued=pool.pending_count())
+                    summary["concurrency"]["running_tasks"] = [
+                        {
+                            "task_id": entry.task_id,
+                            "task_type": entry.task_type,
+                            "lane": entry.lane,
+                            "resource_class": entry.resource_class,
+                            "thread": entry.thread_name,
+                            "lease_generation": entry.lease_generation,
+                            "started_at": entry.started_at,
+                            "running_seconds": round(time.time() - entry.started_at, 3),
+                            "exclusive_keys": sorted(entry.keys),
+                        }
+                        for entry in pool.registry.running_tasks()
+                    ]
+                return {"scheduled": len(scheduled), "drained": drained}
 
             dispatch_interval = max(0.001, float(config.sleep_seconds))
             live_scheduler.add_job(
@@ -482,7 +502,6 @@ class WorkerLoop:
             # Parada ordenada: se deja de aceptar, se espera un período acotado y
             # lo que siga vivo se reporta —nunca se marca como completado—.
             if pool is not None:
-                summary["concurrency"] = pool.snapshot()
                 summary["concurrency_shutdown"] = pool.shutdown(
                     wait_seconds=float(config.concurrency_shutdown_seconds)
                 )
