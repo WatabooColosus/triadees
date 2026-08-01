@@ -1,7 +1,48 @@
 # Deuda técnica vigente · Tríade Ω
 
-Corte: 2026-07-30. SHA documental base: `8f44814`. Esta lista es canónica;
+Corte: 2026-08-01. SHA documental base: `8f44814`. Esta lista es canónica;
 los reportes anteriores son históricos cuando la contradicen.
+
+## P0 — CORREGIDO: el cuelgue de `test_concurrent_status_calls`
+
+Causa determinada y cerrada con evidencia. Detalle completo en
+[`docs/METABOLISM_STATUS_HANG_ROOT_CAUSE.md`](docs/METABOLISM_STATUS_HANG_ROOT_CAUSE.md).
+En corto: `_acquire_process_lock` cerraba el descriptor y **después** lo
+guardaba en `self._lock_fd`; el número volvía a la piscina de libres, se lo
+llevaba el siguiente `open()` del proceso, y `_release_process_lock` cerraba el
+fichero de otro. Cuando ese otro era una base SQLite con transacción viva, la
+conexión moría con `disk I/O error` dejando su bloqueo POSIX **huérfano**, y los
+lectores esperaban a nadie. Sólo se veía en la suite completa porque depende de
+qué descriptor se recicle.
+
+De paso, tres cosas más del mismo camino: el lock se derivaba sólo del **nombre**
+del fichero de base (dos `test.db` distintas colisionaban), `_release` borraba
+locks ajenos con `unlink` incondicional, y `status()` hacía `load_config()`
+dentro del lock — lo que **ponía `cycle_count` a cero** cada vez que alguien
+consultaba el estado, por un `GET` que no pide clave.
+
+Verificado: suite completa **con** el test y sin `--deselect`, 1749 pruebas, 0
+fallos, 100 %; 100 repeticiones del nodo; `mypy triade` limpio. El test entra en
+`RUNTIME_TESTS` de la matriz de concurrencia, cuyo trabajo `serial` **sí**
+bloquea el PR.
+
+## P0 — ABIERTO: un run que cierra con tareas vivas retiene el lock para siempre
+
+`worker_loop.py:544` pone `_retain_lock_for_active_tasks = True` cuando el run
+termina con tareas huérfanas, y el `finally` conserva el fichero de lock a
+propósito. El comentario dice que no queda huérfano porque
+`recover_interrupted_runtime` lo recupera cuando el proceso muera — y ahí está
+el fallo: `state_store.py:390` devuelve `live_owner` **siempre que el PID esté
+vivo**, y en el runtime siempre-activo ese PID es el de `uvicorn`, que vive toda
+la sesión. El lock retenido no se recupera nunca mientras la app siga en pie.
+
+Es literalmente "una tarea puede detener todo el sistema". No es un parche:
+necesita un contrato de autoridad con lease, generación y heartbeat, de modo que
+un PID vivo deje de bastar para validar un lock y la última tarea en terminar
+libere la autoridad. Hay pruebas que hoy fijan el contrato actual
+(`test_worker_runtime_recovery.py:32`, `test_worker_lifecycle_hardening.py:30`,
+`test_orphaned_task_recovery.py:83` esperan `live_owner`), así que el cambio
+tiene que rehacerlas a conciencia, no saltárselas.
 
 ## P0 — CORREGIDO (parcial): `last_governor_decision` vacío deja Always-On congelado en `observe_only`
 
@@ -587,3 +628,44 @@ documentación.
 Una deuda solo se cierra con código, pruebas, evidencia runtime, documentación y
 ruta de recuperación. Actividad, persistencia o etiquetas no sustituyen efecto,
 recuperación útil ni aprendizaje validado.
+
+## P2 — DOCUMENTADO, no corregido: el gobernador degrada a `cooldown` en cada arranque frío
+
+Reportado en vivo: `razon_degradacion = "Load average (24.24) muy alto para 8
+CPUs.; Modo solicitado 'full_local' excede permitido 'cooldown'. Degradado."`
+tras reiniciar. **No lo causan los Living Workers.** Regla en
+`resource_governor.py`: `load_1min > cpu_count * 2` → `cooldown`; con 8 CPUs el
+umbral es 16.
+
+Evidencia (`worker_events`, `event_type='work_mode_decided'`):
+
+| hora | load | efectivo |
+|---|---|---|
+| 03:31:38 — 2 s tras `last_start_at` | 59,83 | cooldown |
+| 03:32:39 | 24,24 | cooldown |
+| 03:33:41 en adelante | 2,x | `full_local` |
+
+En 482 decisiones registradas sólo **3** degradaron por load, y las tres son la
+primera decisión de un ciclo de arranque. Cero en régimen estable.
+
+Mecanismo: el `lifespan` de `apps/single_port_app.py` llama
+`start_workers_if_configured` → `ensure_workers_alive` → `_decide_worker_mode` →
+`build_resource_probe()` en el mismo bloque que verifica identidad, siembra
+neuronas fundacionales y lanza `start_model_acquisition_background` (que arranca
+los `llama-server`). Lee `/proc/loadavg` en el pico exacto del arranque, y
+`load_1min` es una media con inercia de un minuto: describe el minuto *anterior*,
+no la capacidad presente.
+
+Agravante medido: `/proc/loadavg` es del **host** (919 procesos totales frente a
+39 dentro del contenedor) mientras `cpu_count` sale de `os.cpu_count()` del
+cgroup. Se comparan magnitudes distintas. `/proc/pressure/cpu` daba
+`full avg10=0.00` — el contenedor no estaba ahogado en ningún momento.
+
+Se deja **sin corregir a propósito**: degradar dos minutos en un arranque frío es
+conservador, y elegir entre una gracia de arranque, `load_5min` o presión PSI es
+una decisión de producto, no una corrección. Lo que sí faltaba es cobertura: la
+regla no tenía ninguna prueba (`tests/test_resource_governor.py` fijaba
+`load_1min=1.0` en todos los casos). Añadidas
+`test_high_load_average_forces_cooldown` y
+`test_load_average_just_under_the_threshold_does_not_degrade`, para que un
+cambio en esa regla sea visible y no una deriva.

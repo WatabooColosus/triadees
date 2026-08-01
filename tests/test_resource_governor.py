@@ -226,3 +226,62 @@ def test_no_shell_true_in_governor():
     for mod in (decide_work_mode, build_permission_profile):
         src = inspect.getsource(mod)
         assert "subprocess" not in src, f"{mod.__name__} contiene subprocess"
+
+
+def test_high_load_average_forces_cooldown() -> None:
+    """La regla que degrada el runtime tras cada reinicio no tenía prueba.
+
+    `load_1min > cpu_count * 2` fuerza `cooldown`. Con 8 CPUs el umbral es 16.
+    Los tres únicos casos en 482 decisiones registradas fueron la **primera**
+    decisión de un ciclo de arranque (59,83 y 24,24 medidos el 2026-08-01, y
+    30,37 el 2026-07-31); dos ciclos después el modo vuelve solo a
+    `full_local`. Es un falso positivo autolimitado: `load_1min` es una media
+    con inercia de un minuto, y el gobernador la lee dos segundos después de
+    arrancar, cuando describe la tormenta de arranque anterior y no la
+    capacidad presente.
+
+    Se fija el comportamiento tal cual es hoy. Si algún día se le pone una
+    gracia de arranque o se pasa a `load_5min`/PSI, que sea un cambio visible
+    y no una deriva.
+    """
+    from triade.core.resource_governor import decide_work_mode
+
+    probe = {
+        "limits": {
+            "ram_available_gb": 25.0,
+            "disk_free_gb": 100,
+            "tier": "high",
+            "cpu_count": 8,
+        },
+        "cpu": {"load_1min": 24.24},
+        "power": {"ac_connected": True, "battery_percent": None},
+        "thermal": {"thermal_status": "ok"},
+        "warnings": [],
+    }
+    blood = {"status": "ok", "can_reason": True, "can_embed": True}
+    decision = decide_work_mode(probe, blood, "full_local")
+    assert decision["effective_mode"] == "cooldown"
+    assert "Load average (24.24) muy alto para 8 CPUs" in decision["reason"]
+    assert "excede permitido 'cooldown'" in decision["reason"]
+
+
+def test_load_average_just_under_the_threshold_does_not_degrade() -> None:
+    """16.0 con 8 CPUs no degrada: la regla es estrictamente mayor."""
+    from triade.core.resource_governor import decide_work_mode
+
+    probe = {
+        "limits": {
+            "ram_available_gb": 25.0,
+            "disk_free_gb": 100,
+            "tier": "high",
+            "cpu_count": 8,
+        },
+        "cpu": {"load_1min": 16.0},
+        "power": {"ac_connected": True, "battery_percent": None},
+        "thermal": {"thermal_status": "ok"},
+        "warnings": [],
+    }
+    blood = {"status": "ok", "can_reason": True, "can_embed": True}
+    decision = decide_work_mode(probe, blood, "full_local")
+    assert decision["effective_mode"] == "full_local"
+    assert "Load average" not in decision["reason"]
