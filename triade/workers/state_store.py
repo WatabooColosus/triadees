@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -386,7 +387,10 @@ class WorkerStateStore:
           otra puerta.
         """
         now = utc_now()
-        with self._connect() as conn:
+        # `closing`: es una lectura, no necesita transacción, y sí necesita
+        # soltar la conexión en el acto. Este método se llama en cada
+        # `recover_interrupted_runtime`, o sea en cada arranque de worker.
+        with closing(self._connect()) as conn:
             pending = conn.execute(
                 "SELECT 1 FROM worker_tasks WHERE run_ref = ? AND status IN ('claimed','running') LIMIT 1",
                 (run_ref,),
