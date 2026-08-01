@@ -79,6 +79,26 @@ def test_timeout_produces_retry_or_dead_letter(tmp_path: Path) -> None:
 
 
 def test_worker_timeout_never_publishes_completed(tmp_path: Path) -> None:
+    """Una tarea que expira no puede acabar publicada como completada.
+
+    Antes esto se comprobaba mirando **la última fila creada** y exigiendo
+    `retry_wait`. Dos problemas, y el segundo es peor:
+
+    1. La ejecución deja **dos** `pulse_check`: el que encola la prueba y el que
+       el propio loop programa. Normalmente los dos expiran, pero a veces el
+       segundo se salta —legítimamente— porque el primero acaba de correr y
+       `AdaptiveScheduler.should_skip_task` respeta su intervalo
+       (`adaptive_interval_not_elapsed`). Cuál de los dos queda "última por
+       `created_at`" es una carrera, y con concurrencia sale más a menudo.
+       Reproducido en local 1 de cada 5 veces; en CI cayó en py3.12.
+    2. La prueba se llama `never_publishes_completed` y **no comprobaba en
+       ningún sitio que nada acabara en `completed`**. Afirmaba un detalle de
+       ordenación en vez de su propio invariante.
+
+    Ahora afirma lo que dice su nombre, sobre todas las filas. Es más estricta,
+    no menos: saltarse un duplicado es comportamiento correcto; publicar como
+    completada una tarea que expiró, jamás.
+    """
     db = tmp_path / "worker.db"
     loop = WorkerLoop(
         db_path=db,
@@ -99,11 +119,21 @@ def test_worker_timeout_never_publishes_completed(tmp_path: Path) -> None:
     )
     with sqlite3.connect(db) as conn:
         conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT status FROM autonomous_tasks ORDER BY created_at DESC LIMIT 1"
-        ).fetchone()
-    assert row is not None
-    assert row["status"] == "retry_wait"
+        filas = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT task_type, status, last_error FROM autonomous_tasks"
+            ).fetchall()
+        ]
+
+    assert filas, "la ejecución no dejó ninguna tarea registrada"
+    completadas = [f for f in filas if f["status"] == "completed"]
+    assert not completadas, (
+        f"una tarea que expiró se publicó como completada: {completadas}"
+    )
+    assert any(f["status"] == "retry_wait" for f in filas), (
+        f"ninguna tarea quedó en reintento tras expirar: {filas}"
+    )
 
 
 def test_timeout_moves_partial_artifacts_to_quarantine(tmp_path: Path) -> None:
