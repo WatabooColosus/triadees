@@ -287,3 +287,66 @@ payload no cambia: ninguna llamada existente altera su comportamiento.
   modelo en ambos grupos.
 
 No se declara A porque faltan seis de los doce eslabones exigidos.
+
+---
+
+# Adenda · 2026-08-01 00:10 UTC · por qué el usuario no veía nada
+
+## Veredicto: **«Tríade muestra actividad, pero no aprendizaje efectivo»**
+
+## La causa principal
+
+**No existía ninguna vista de saber, y lo poco que se mostraba estaba mal
+etiquetado.** `/api/knowledge/*` devolvía 404. Y `learning_journal` llamaba
+`candidates_verified` a los candidatos en `internally_checked` —el estado
+atascado, el que significa que **nadie** tiene evidencia— y `evidence_created`
+a filas de `neuron_evidence`, que es otra tabla.
+
+Resultado: la Cabina Viva mostraba «verificados: 49, evidencia: 49» con **cero**
+saberes reales. El usuario veía números que parecían aprendizaje y, con razón,
+no encontraba el aprendizaje por ningún lado.
+
+## Causas secundarias
+
+| # | causa | estado |
+|---|---|---|
+| B | Los candidatos son transcripciones de runs y plantillas | confirmado: 633 filas, ~200 únicos |
+| G | Generan evidencia pero no consolidan | confirmado: 1 fila, con baseline/candidate/comparison en `null` |
+| H | Consolidan pero la UI no los muestra | **era la principal**; corregido |
+| J/K | Workers no ejecutan las tareas de aprendizaje | confirmado: `never_scheduled` |
+| O | El proceso corre código viejo | **descartado**: `/api/runtime/build` confirma `f46ace3` y la DB real |
+
+Descartadas con evidencia: la rama y el SHA en ejecución son correctos, la DB es
+`triade/memory/triade.db` (111 MB), y el working directory es el repo.
+
+## Estado real medido
+
+```
+stable: 0 · evidence_verified: 0 · experimental: 0
+candidates: 633 · rejected: 0 · quarantined: 0 · duplicates: 0
+```
+
+Las tablas de los componentes construidos ayer
+(`retrieval_safety_decisions`, `learning_retrieval_decisions`,
+`learning_candidate_groups`) **no existen en producción**: son librería con
+tests, sin llamador. Eso es exactamente lo que `/api/learning/tasks` reporta
+ahora como `never_scheduled`, en vez de fingir actividad.
+
+## Qué puede hacer el usuario ahora
+
+```bash
+curl -s localhost:8010/api/runtime/build        # SHA, rama y DB en ejecución
+curl -s localhost:8010/api/knowledge/summary    # cuántos saberes hay, de verdad
+curl -s localhost:8010/api/learning/activity    # qué ha pasado
+curl -s localhost:8010/api/learning/tasks       # qué corre y si tuvo efecto
+```
+
+Y en la Cabina Viva, la tarjeta **«Saber y aprendizaje»**.
+
+Detalle en `docs/USER_VISIBLE_LEARNING.md`.
+
+## Lo que sigue sin poder afirmarse
+
+No se declara «Tríade tiene saberes visibles y usados» porque **el número real es
+cero**. Lo que cambió es que ahora ese cero es visible, explicado y verificable,
+en vez de estar tapado por un contador mal nombrado.
