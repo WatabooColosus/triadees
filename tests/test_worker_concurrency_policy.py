@@ -362,3 +362,54 @@ def test_every_effectful_lane_is_serial() -> None:
     for task_type, policy in TASK_CONCURRENCY_POLICY.items():
         if policy.lane in {"memory_write", "critical_mutation"}:
             assert policy.max_concurrency == 1, task_type
+
+
+def test_pending_learning_review_cannot_overlap_with_itself() -> None:
+    """La revisión de aprendizaje escribe. No puede correr dos veces a la vez.
+
+    Estaba clasificada como `read_only` con concurrencia 4 y sin clave de
+    exclusión, y eso era sencillamente falso: `_pending_learning_review` hace
+    `pipe.evaluate()` y `pipe.verify()`, es decir lee, decide y **escribe**
+    sobre las mismas filas de la cola de aprendizaje.
+
+    La carrera, observada en CI (py3.11, `TRIADE_WORKER_CONCURRENCY=1`):
+
+        worker_0: list_candidates(status='evaluated') -> [X]
+        worker_1: list_candidates(status='evaluated') -> [X]
+        worker_0: verify(X)  -> X pasa a 'internally_checked'
+        worker_1: verify(X)  -> ValueError: Solo se verifica un candidato en
+                                estado 'evaluated' (actual: internally_checked)
+
+    Ese `ValueError` es el que ponía rojo `test_worker_learning_integration`, el
+    test por el que la concurrencia estuvo apagada. Nunca se reprodujo en local
+    porque depende de que dos obreros listen la misma fila en la misma ventana.
+
+    No sirve una clave de exclusión por candidato: el handler **no recibe** un
+    candidato, se los busca él. Lo que toca es que sea serial.
+    """
+    registry = _registry(max_concurrent_tasks=4, read_only_workers=4)
+    first = registry.try_admit("t1", "pending_learning_review", {})
+    assert first.admitted
+    second = registry.try_admit("t2", "pending_learning_review", {})
+    assert not second.admitted, (
+        "dos revisiones de aprendizaje se solaparon: "
+        f"{registry.snapshot(queued=0)['running_tasks']}"
+    )
+
+
+def test_tasks_that_write_the_learning_queue_are_not_read_only() -> None:
+    """Ningún escritor de la cola de aprendizaje puede vivir en `read_only`.
+
+    `read_only` significa "observa y reporta, no escribe estado estable". Si un
+    tipo de tarea escribe, su sitio es `memory_write`, que es serial.
+    """
+    escritores = {
+        "pending_learning_review",
+        "learning_candidate_generation",
+        "learning_candidate_deduplication",
+    }
+    for task_type in escritores:
+        lane = policy_for(task_type).lane
+        assert lane != "read_only", (
+            f"{task_type} escribe la cola de aprendizaje y está en '{lane}'"
+        )
