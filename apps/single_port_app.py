@@ -25,6 +25,7 @@ from apps.routes.api import router as api_router
 from apps.routes.auth import router as auth_router
 from apps.routes.governance import router as governance_router
 from apps.routes.health import router as health_router
+from apps.routes.knowledge import router as knowledge_router
 from apps.routes.ui import router as ui_router
 from triade.core.life_pulse import LIFE_PULSE
 from triade.federation.node_live_registry import NODE_LIVE_REGISTRY
@@ -214,6 +215,7 @@ async def public_guarded_mode(request: Request, call_next):
 
 app.include_router(health_router)
 app.include_router(api_router)
+app.include_router(knowledge_router)
 app.include_router(ui_router)
 
 
