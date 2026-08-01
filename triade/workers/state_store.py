@@ -374,11 +374,73 @@ class WorkerStateStore:
             "state": self.get_state("workers") or {},
         }
 
+    def _run_still_has_work_in_flight(self, run_ref: str) -> bool:
+        """¿Le queda a este run trabajo de verdad en vuelo?
+
+        Dos fuentes, porque hay dos caminos de ejecución:
+
+        - `worker_tasks` reclamadas o corriendo por este run;
+        - `autonomous_tasks` arrendadas a este run (`worker_id = run_ref`) con
+          el lease **sin caducar**. La fila sola no basta: un worker muerto a
+          media tarea la dejaría ahí para siempre, que es el mismo agujero por
+          otra puerta.
+        """
+        now = utc_now()
+        with self._connect() as conn:
+            pending = conn.execute(
+                "SELECT 1 FROM worker_tasks WHERE run_ref = ? AND status IN ('claimed','running') LIMIT 1",
+                (run_ref,),
+            ).fetchone()
+            if pending is not None:
+                return True
+            try:
+                leased = conn.execute(
+                    """SELECT 1 FROM autonomous_tasks
+                    WHERE worker_id = ? AND status IN ('leased','running')
+                      AND lease_expires_at IS NOT NULL AND lease_expires_at > ?
+                    LIMIT 1""",
+                    (run_ref, now),
+                ).fetchone()
+            except sqlite3.OperationalError:
+                # La tabla de leases puede no existir todavía en una base recién
+                # creada. Sin ella no hay trabajo en vuelo que demostrar.
+                return False
+        return leased is not None
+
+    def _retained_lock_still_holds_authority(self, run_ref: str | None) -> bool:
+        """¿Puede este lock seguir mandando, con su proceso vivo?
+
+        La autoridad del runtime pertenece a un RUN, no a un proceso. Antes se
+        devolvía `live_owner` con sólo ver el PID vivo, y en el runtime
+        siempre-activo ese PID es el de `uvicorn`: un run cerrado hace horas
+        mantenía bloqueado el sistema entero mientras la app siguiera en pie.
+
+        Se conserva la autoridad —dirección conservadora— salvo que se pueda
+        **demostrar** que ya no toca:
+
+        - sin `run_ref`: lock de una versión anterior, no hay nada que probar;
+        - run desconocido en esta base: tampoco se puede probar (fencing: no se
+          le quita el lock a quien no sabemos que terminó);
+        - run no terminal: está trabajando;
+        - run terminal con trabajo en vuelo: sus tareas siguen escribiendo.
+
+        Sólo cae en el caso restante: run terminal y sin una sola tarea viva.
+        """
+        if not run_ref:
+            return True
+        run = self.get_worker_run(run_ref)
+        if run is None:
+            return True
+        if str(run.get("status") or "") in ("running", ""):
+            return True
+        return self._run_still_has_work_in_flight(run_ref)
+
     def recover_interrupted_runtime(self, lock_file: str | Path) -> dict[str, Any]:
         """Recupera locks/runs huérfanos y compacta la cola pendiente.
 
-        Solo considera huérfano un lock cuyo PID ya no existe. Nunca toca un
-        proceso vivo y conserva una tarea por clave lógica para replay seguro.
+        Un lock es intocable mientras su dueño mande de verdad. Que el PID esté
+        vivo ya no basta: ver `_retained_lock_still_holds_authority`. Conserva
+        una tarea por clave lógica para replay seguro.
         """
         lock = Path(lock_file)
         stale_pid: int | None = None
@@ -387,8 +449,16 @@ class WorkerStateStore:
             stale_pid = inspection.pid
             if inspection.status == "invalid":
                 return {"status": "invalid_lock", "pid": None, "deduplicated": 0}
-            if inspection.status == "live":
-                return {"status": "live_owner", "pid": stale_pid, "deduplicated": 0}
+            if (
+                inspection.status == "live"
+                and self._retained_lock_still_holds_authority(inspection.run_ref)
+            ):
+                return {
+                    "status": "live_owner",
+                    "pid": stale_pid,
+                    "run_ref": inspection.run_ref,
+                    "deduplicated": 0,
+                }
             try:
                 lock.unlink()
             except FileNotFoundError:

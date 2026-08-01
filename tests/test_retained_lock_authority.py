@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 from triade.runtime.process_lock import RuntimeProcessLock
@@ -99,7 +100,15 @@ def test_expired_lease_does_not_keep_the_authority_alive(tmp_path):
 
     leases = AutonomousTaskStore(db)
     task_id = leases.enqueue("pulse_check", {"n": 2}, idempotency_key="k2")["task_id"]
-    assert leases.claim_task(task_id, worker_id="run-caducado", lease_seconds=-600)
+    # `claim_task` recorta el lease a un mínimo de 1 s (`max(1, lease_seconds)`),
+    # así que un valor negativo no sirve para fabricar la caducidad: hay que
+    # dejar que caduque de verdad.
+    assert leases.claim_task(task_id, worker_id="run-caducado", lease_seconds=1)
+    time.sleep(1.2)
+    assert leases.get(task_id)["status"] == "leased", (
+        "la tarea dejó de estar arrendada por otra vía; el caso ya no es el que "
+        "esta prueba quiere fijar"
+    )
 
     _lock_owned_by_this_process(lock, run_ref="run-caducado")
 
@@ -169,3 +178,57 @@ def test_dead_process_is_recovered_regardless_of_its_run(tmp_path):
     assert result["status"] == "recovered"
     assert not lock.exists()
     assert os.getpid() != 99999999
+
+
+def test_the_loop_stamps_the_owning_run_into_the_lock(tmp_path):
+    """El contrato sólo sirve si el lock real lo lleva escrito.
+
+    `run()` toma el lock antes de que exista `run_ref` —tiene que ser así, o
+    vuelve la carrera TOCTOU—, así que el dueño se sella justo después. Sin
+    este sellado, todo lo anterior es código muerto en producción.
+
+    El fichero se borra al terminar el run, así que se lee **en vuelo**: se
+    intercepta la primera llamada a `set_state`, que es la instrucción
+    siguiente al sellado, y se copia el lock tal cual está en disco en ese
+    instante. Lo que se comprueba es el fichero real escrito por el camino
+    real.
+    """
+    from triade.workers.worker_loop import WorkerLoop
+
+    db = tmp_path / "triade.db"
+    lock = tmp_path / "worker.lock"
+    loop = WorkerLoop(
+        db_path=db,
+        runs_dir=tmp_path / "runs",
+        lock_file=lock,
+        stop_file=tmp_path / "stop",
+    )
+
+    seen: list[dict] = []
+    original_set_state = loop.store.set_state
+
+    def capture(key, value):
+        if not seen and lock.exists():
+            seen.append(json.loads(lock.read_text(encoding="utf-8")))
+        return original_set_state(key, value)
+
+    loop.store.set_state = capture  # type: ignore[method-assign]
+
+    result = loop.run(
+        WorkerRunConfig(
+            runs_dir=str(tmp_path / "runs"),
+            lock_file=str(lock),
+            stop_file=str(tmp_path / "stop"),
+            max_iterations=1,
+            dry_run=True,
+        )
+    )
+    run_ref = result.get("run_ref")
+    assert run_ref, f"el run no arrancó: {result}"
+    assert seen, "no se pudo observar el lock en vuelo"
+
+    stamped = seen[0]
+    assert stamped["run_ref"] == run_ref, (
+        f"el lock no lleva el run dueño: {stamped.get('run_ref')!r} != {run_ref!r}"
+    )
+    assert stamped["pid"] == os.getpid()
