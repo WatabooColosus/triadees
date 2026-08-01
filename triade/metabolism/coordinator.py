@@ -81,7 +81,16 @@ class MetabolicCoordinator:
                 os.O_CREAT | os.O_EXCL | os.O_WRONLY,
             )
             os.write(lock_fd, str(os.getpid()).encode())
-            os.close(lock_fd)
+            # El descriptor se mantiene ABIERTO hasta el release. No es que haga
+            # falta para sostener el lock —quien lo sostiene es la existencia del
+            # fichero más el PID vivo—, sino para que su número no vuelva a la
+            # piscina de descriptores libres. Aquí se cerraba antes de guardarlo
+            # en `self._lock_fd`, y `_release_process_lock` acababa cerrando un
+            # número que el kernel ya le había reasignado a otro: en Linux
+            # `open()` devuelve siempre el libre más bajo, así que la víctima era
+            # el siguiente fichero que abriera el proceso. Cuando tocaba una
+            # conexión SQLite, la conexión moría con `disk I/O error` dejando su
+            # bloqueo POSIX huérfano, y los lectores esperaban a nadie.
             self._lock_fd = lock_fd
             return None
         except FileExistsError:
