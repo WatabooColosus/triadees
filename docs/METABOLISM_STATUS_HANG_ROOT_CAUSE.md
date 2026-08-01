@@ -41,8 +41,8 @@ La respuesta estaba en el lock de proceso, tres capas más abajo.
 ```python
 lock_fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
 os.write(lock_fd, str(os.getpid()).encode())
-os.close(lock_fd)          # ← cerrado aquí
-self._lock_fd = lock_fd    # ← y guardado después, ya muerto
+os.close(lock_fd)  # ← cerrado aquí
+self._lock_fd = lock_fd  # ← y guardado después, ya muerto
 ```
 
 `self._lock_fd` guardaba un número de descriptor **ya cerrado**. En Linux
@@ -51,7 +51,7 @@ llevaba el siguiente fichero que abriera el proceso. Y `_release_process_lock`
 lo cerraba:
 
 ```python
-os.close(self._lock_fd)   # cierra el fichero de otro
+os.close(self._lock_fd)  # cierra el fichero de otro
 ```
 
 Medido, no supuesto:
