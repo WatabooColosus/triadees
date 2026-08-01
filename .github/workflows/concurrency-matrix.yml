@@ -25,6 +25,8 @@ on:
     paths:
       - "triade/workers/**"
       - "triade/runtime/**"
+      - "triade/metabolism/**"
+      - "tests/test_metabolism.py"
       - "tests/test_worker*"
       - "tests/test_*concurrency*"
       - "tests/test_*lease*"
@@ -39,7 +41,14 @@ env:
   # Subconjunto sensible al modo de ejecución. Incluye el test que rompió
   # (`test_worker_learning_integration`) para que su fallo vuelva a verse aquí,
   # aislado y repetible, en vez de mezclado con 1500 pruebas más.
+  # `tests/test_metabolism.py` entra aquí porque contiene
+  # `test_concurrent_status_calls`, el que colgaba la suite entera: diez hilos
+  # martilleando `status()` mientras el coordinador vive. Estaba fuera de esta
+  # matriz —nunca se ejecutó en los dos modos— y por eso su causa siguió
+  # abierta tanto tiempo. El trabajo `serial` SÍ es bloqueante, así que a
+  # partir de aquí una regresión del metabolismo rompe el PR.
   RUNTIME_TESTS: >-
+    tests/test_metabolism.py
     tests/test_worker_loop.py
     tests/test_worker_cli.py
     tests/test_worker_api.py
@@ -77,7 +86,7 @@ jobs:
       - name: Run runtime tests without concurrency
         env:
           TRIADE_WORKER_CONCURRENCY: "0"
-        run: pytest -q --durations=15 ${{ env.RUNTIME_TESTS }}
+        run: pytest -q --durations=15 -o faulthandler_timeout=180 ${{ env.RUNTIME_TESTS }}
 
   concurrent:
     name: runtime tests (concurrent, py${{ matrix.python }} run ${{ matrix.attempt }})
@@ -89,6 +98,11 @@ jobs:
     # una capacidad que aún no se entiende. Pasa a bloqueante el día que se
     # active la concurrencia por defecto — y no antes, para no acostumbrarse a
     # ver rojo y dejar de mirarlo.
+    #
+    # Sigue sin bloquear, y la razón es concreta: lo que falla aquí es
+    # `test_worker_learning_integration`, que es otro asunto y sigue abierto.
+    # El cuelgue de `test_concurrent_status_calls` sí está cerrado, pero eso no
+    # da por buena la concurrencia entera.
     continue-on-error: true
     strategy:
       fail-fast: false
@@ -118,7 +132,7 @@ jobs:
       - name: Run runtime tests with governed concurrency
         env:
           TRIADE_WORKER_CONCURRENCY: "1"
-        run: pytest -q --durations=15 ${{ env.RUNTIME_TESTS }}
+        run: pytest -q --durations=15 -o faulthandler_timeout=180 ${{ env.RUNTIME_TESTS }}
       - name: Governed concurrency validation on a database copy
         if: always()
         env:
