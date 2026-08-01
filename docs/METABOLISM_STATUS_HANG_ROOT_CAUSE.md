@@ -138,17 +138,32 @@ copiar el diccionario.
 - Cada defecto tiene prueba que falla antes y pasa después
   (`TestStatusIsARead`, `TestProcessLock`).
 
+## El rojo que se estaba atribuyendo mal
+
+Durante la verificación salió algo que no se buscaba. El trabajo `concurrent` de
+la matriz llevaba rojo permanente, y tanto el workflow como los informes lo
+atribuían a `test_worker_learning_integration`. No era cierto: en los seis
+trabajos del run (py3.11 ×3 y py3.12 ×3) el paso de pytest terminó **al 100 %**,
+ese test incluido.
+
+Lo que fallaba era el paso siguiente,
+`Governed concurrency validation on a database copy`, y por una comprobación
+imposible de cumplir en CI: exigía que la copia conservara `verification_reports`
+**reales**, y un runner limpio no tiene ninguno. Estaba afirmando una condición
+del entorno, no una propiedad del código.
+
+Corregido: ahora comprueba que la copia sea **fiel** al origen —eso sí es
+propiedad de `copy_production_db`, y se verifica en los dos entornos— y se
+declara `[N/A]` cuando el origen no tiene informes. Un "no aplica" no cuenta ni
+como superado ni como fallido: confundirlo con "pasó" sería peor que el rojo.
+Local, con la base real: 19/19 y 213 de 213 informes preservados.
+
+Es el daño típico de un rojo permanente: deja de mirarse, y acaba tapando la
+causa real durante semanas.
+
 ## Lo que esto NO cierra
 
-`test_worker_learning_integration` sigue rojo en el trabajo concurrente de la
-matriz, y sigue sin causa determinada. Por eso el trabajo `concurrent` conserva
-`continue-on-error: true` y la concurrencia de los *workers* sigue apagada por
-defecto. Cerrar un cuelgue no da por buena una capacidad entera.
-
-Queda además abierto, y es un P0 distinto (ver `TECHNICAL_DEBT.md`): un run que
-cierra con tareas vivas conserva el lock de los *workers*
-(`_retain_lock_for_active_tasks`), y `recover_interrupted_runtime` sólo lo
-recupera si el PID murió. En el runtime siempre-activo el PID es el de
-`uvicorn`, que vive toda la sesión: el lock retenido no se recupera nunca. Es
-literalmente "una tarea puede detener todo el sistema", y necesita un contrato
-de autoridad con lease y generación, no un parche.
+La concurrencia de los *workers* sigue **apagada por defecto**, y el trabajo
+`concurrent` sigue con `continue-on-error: true` una vuelta más: el trabajo
+entero todavía no se ha visto verde de punta a punta ni una sola vez. Pasa a
+bloqueante cuando lo esté, no por deducción.

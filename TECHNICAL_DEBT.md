@@ -26,7 +26,7 @@ fallos, 100 %; 100 repeticiones del nodo; `mypy triade` limpio. El test entra en
 `RUNTIME_TESTS` de la matriz de concurrencia, cuyo trabajo `serial` **sí**
 bloquea el PR.
 
-## P0 — ABIERTO: un run que cierra con tareas vivas retiene el lock para siempre
+## P0 — CORREGIDO: un run que cierra con tareas vivas retenía el lock para siempre
 
 `worker_loop.py:544` pone `_retain_lock_for_active_tasks = True` cuando el run
 termina con tareas huérfanas, y el `finally` conserva el fichero de lock a
@@ -36,13 +36,52 @@ el fallo: `state_store.py:390` devuelve `live_owner` **siempre que el PID esté
 vivo**, y en el runtime siempre-activo ese PID es el de `uvicorn`, que vive toda
 la sesión. El lock retenido no se recupera nunca mientras la app siga en pie.
 
-Es literalmente "una tarea puede detener todo el sistema". No es un parche:
-necesita un contrato de autoridad con lease, generación y heartbeat, de modo que
-un PID vivo deje de bastar para validar un lock y la última tarea en terminar
-libere la autoridad. Hay pruebas que hoy fijan el contrato actual
+Era literalmente "una tarea puede detener todo el sistema".
+
+**Corregido:** la autoridad pertenece ahora a un RUN, no a un proceso. El lock
+declara su dueño (`run_ref`, sellado tras `create_worker_run` y sólo si el
+fichero sigue siendo nuestro) y se conserva la autoridad únicamente mientras se
+pueda sostener: sin `run_ref` rige el contrato de siempre; un run desconocido en
+esta base es intocable (fencing); un run no terminal está trabajando; un run
+terminal con trabajo en vuelo sigue mandando. Sólo cae el caso restante — run
+terminal y sin una sola tarea viva — que era el agujero.
+
+"Trabajo en vuelo" son dos fuentes: `worker_tasks` en `claimed`/`running` de ese
+run, y `autonomous_tasks` arrendadas a él con el lease **sin caducar**. La fila
+sola no basta: un worker muerto a media tarea la dejaría ahí para siempre, el
+mismo agujero por otra puerta. Como el lease tiene TTL acotado, la recuperación
+está garantizada aunque nadie llegue a marcar la tarea como terminada.
+
+Las tres pruebas que fijaban el contrato anterior y esperan `live_owner`
 (`test_worker_runtime_recovery.py:32`, `test_worker_lifecycle_hardening.py:30`,
-`test_orphaned_task_recovery.py:83` esperan `live_owner`), así que el cambio
-tiene que rehacerlas a conciencia, no saltárselas.
+`test_orphaned_task_recovery.py:83`) **siguen verdes sin tocarlas**: un lock
+legacy sin `run_ref` no cambia de comportamiento. Ocho pruebas nuevas en
+`tests/test_retained_lock_authority.py`, incluida una que lee el fichero de lock
+real en vuelo para demostrar que el sellado llega a producción y no es código
+muerto.
+
+## P1 — CORREGIDO: el rojo permanente del trabajo concurrente estaba mal atribuido
+
+El trabajo `concurrent` de `concurrency-matrix.yml` llevaba rojo permanente, y
+tanto el workflow como los informes lo atribuían a
+`test_worker_learning_integration`. **No era cierto.** En los seis trabajos del
+run del 2026-08-01 (py3.11 ×3, py3.12 ×3) el paso de pytest terminó al 100 %,
+ese test incluido.
+
+Lo que fallaba era el paso siguiente,
+`Governed concurrency validation on a database copy`: una de sus comprobaciones
+exigía que la copia conservara `verification_reports` **reales**, y un runner
+limpio no tiene ninguno. Afirmaba una condición del entorno, no una propiedad
+del código, así que era imposible de cumplir en CI.
+
+Corregido en `scripts/run_concurrency_and_lease_validation.py`: la comprobación
+verifica ahora que la copia sea **fiel** al origen —propiedad real de
+`copy_production_db`, verificable en los dos entornos— y se declara `[N/A]`
+cuando el origen no tiene informes, sin contar como superada ni como fallida.
+Local con la base real: 19/19, 213 de 213 informes preservados.
+
+Es el daño típico de un rojo permanente: deja de mirarse y acaba tapando la
+causa real.
 
 ## P0 — CORREGIDO (parcial): `last_governor_decision` vacío deja Always-On congelado en `observe_only`
 

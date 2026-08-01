@@ -2,15 +2,26 @@ name: Concurrency Matrix
 
 # Por qué existe este workflow
 # ---------------------------
-# La concurrencia gobernada está implementada y verificada localmente, pero se
-# apagó por defecto porque al activarla `test_worker_learning_integration` pasó
-# de verde en `main` a rojo en la rama, y el fallo **no se reprodujo** localmente
-# —ni limitando a 2 CPU ni sin Ollama—. Un fallo que no se entiende no se activa
+# La concurrencia gobernada se apagó por defecto porque al activarla
+# `test_worker_learning_integration` pasó de verde en `main` a rojo en la rama, y
+# el fallo no se reprodujo localmente. Un fallo que no se entiende no se activa
 # por defecto.
 #
-# Lo que faltaba era poder observarlo donde ocurre. Este workflow ejecuta el
-# MISMO subconjunto de pruebas en las dos configuraciones, para que la diferencia
-# sea atribuible a la concurrencia y no al entorno:
+# ACTUALIZACIÓN 2026-08-01, con evidencia: eso ya no es lo que pasa. En los seis
+# trabajos concurrentes del último run (py3.11 ×3 y py3.12 ×3) el paso de pytest
+# terminó al 100 %, `test_worker_learning_integration` incluido. Lo único rojo
+# era el paso siguiente, `Governed concurrency validation on a database copy`, y
+# por una razón que no tenía nada que ver con la concurrencia: una de sus
+# comprobaciones exigía que la copia conservara `verification_reports` REALES, y
+# un runner limpio no tiene ninguno. Era imposible de cumplir en CI. Ese rojo
+# permanente se venía atribuyendo al test de aprendizaje sin comprobarlo, que es
+# exactamente el daño que hace un rojo que nadie mira. Corregido: la
+# comprobación ahora verifica que la copia sea FIEL —una propiedad del código— y
+# se declara "no aplicable" cuando el origen no tiene informes.
+#
+# Este workflow ejecuta el MISMO subconjunto de pruebas en las dos
+# configuraciones, para que la diferencia sea atribuible a la concurrencia y no
+# al entorno:
 #
 #   TRIADE_WORKER_CONCURRENCY=0  ->  comportamiento secuencial de siempre
 #   TRIADE_WORKER_CONCURRENCY=1  ->  carriles, pool y exclusiones activos
@@ -99,10 +110,11 @@ jobs:
     # active la concurrencia por defecto — y no antes, para no acostumbrarse a
     # ver rojo y dejar de mirarlo.
     #
-    # Sigue sin bloquear, y la razón es concreta: lo que falla aquí es
-    # `test_worker_learning_integration`, que es otro asunto y sigue abierto.
-    # El cuelgue de `test_concurrent_status_calls` sí está cerrado, pero eso no
-    # da por buena la concurrencia entera.
+    # Sigue sin bloquear UNA VUELTA MÁS, a propósito. Los seis trabajos del
+    # último run tuvieron el pytest en verde y la única causa de rojo ya está
+    # corregida, pero el trabajo entero todavía no se ha visto verde de punta a
+    # punta ni una sola vez. Pasa a bloqueante cuando lo esté — no antes, y no
+    # por deducción.
     continue-on-error: true
     strategy:
       fail-fast: false

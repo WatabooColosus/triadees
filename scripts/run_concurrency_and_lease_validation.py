@@ -54,10 +54,27 @@ class Report:
         self.checks: list[dict[str, Any]] = []
 
     def check(self, name: str, passed: bool, detail: str = "") -> bool:
-        self.checks.append({"name": name, "passed": bool(passed), "detail": detail})
+        self.checks.append(
+            {"name": name, "passed": bool(passed), "detail": detail, "skipped": False}
+        )
         mark = "OK  " if passed else "FALLO"
         print(f"  [{mark}] {name}" + (f" — {detail}" if detail else ""))
         return bool(passed)
+
+    def skip(self, name: str, reason: str) -> None:
+        """Registra lo que este entorno no puede demostrar.
+
+        No es lo mismo "pasó" que "aquí no aplica", y confundirlos es peor que
+        cualquiera de los dos. Una comprobación que depende de datos reales de
+        producción no puede pasar en un runner limpio — y tampoco debe dar rojo
+        eternamente, porque un rojo permanente deja de mirarse y acaba tapando
+        un rojo de verdad. Se registra aparte, se imprime aparte, y no cuenta ni
+        como superada ni como fallida.
+        """
+        self.checks.append(
+            {"name": name, "passed": True, "detail": reason, "skipped": True}
+        )
+        print(f"  [N/A ] {name} — {reason}")
 
     @property
     def ok(self) -> bool:
@@ -295,13 +312,35 @@ def validate_sqlite(report: Report, db_path: Path) -> None:
 def validate_self_improvement(report: Report, db_path: Path) -> None:
     print("\n== Ciclo de automejora sobre datos reales ==")
     conn = sqlite3.connect(db_path)
-    reports = conn.execute("SELECT COUNT(*) FROM verification_reports").fetchone()[0]
-    conn.close()
-    report.check(
-        "la copia conserva los informes de verificacion reales",
-        int(reports) > 0,
-        f"{reports} informes",
+    reports = int(
+        conn.execute("SELECT COUNT(*) FROM verification_reports").fetchone()[0]
     )
+    conn.close()
+    source = sqlite3.connect(f"file:{PRODUCTION_DB}?mode=ro", uri=True)
+    origin = int(
+        source.execute("SELECT COUNT(*) FROM verification_reports").fetchone()[0]
+    )
+    source.close()
+
+    # Lo que esta comprobación quiere demostrar es que la COPIA ES FIEL, que es
+    # una propiedad de `copy_production_db`. Antes exigía `reports > 0`, que no
+    # es una propiedad del código sino del entorno: en un runner limpio la base
+    # no tiene informes reales que preservar, así que el trabajo concurrente de
+    # CI llevaba rojo permanente por algo imposible de cumplir ahí — y ese rojo
+    # se venía atribuyendo a `test_worker_learning_integration`, que en realidad
+    # pasa.
+    if origin == 0:
+        report.skip(
+            "la copia conserva los informes de verificacion reales",
+            "la base de origen no tiene informes reales que preservar "
+            "(entorno limpio, no hay nada que demostrar)",
+        )
+    else:
+        report.check(
+            "la copia conserva los informes de verificacion reales",
+            reports == origin,
+            f"{reports} de {origin} informes",
+        )
 
     from triade.evaluation.provider_registry import build_evaluation_provider
 
@@ -357,8 +396,9 @@ def main() -> int:
         "database_copy": str(db_path),
         "production_untouched": True,
         "checks": report.checks,
-        "passed": sum(1 for c in report.checks if c["passed"]),
-        "total": len(report.checks),
+        "passed": sum(1 for c in report.checks if c["passed"] and not c["skipped"]),
+        "skipped": sum(1 for c in report.checks if c["skipped"]),
+        "total": sum(1 for c in report.checks if not c["skipped"]),
         "limitations": [
             (
                 "La vitalidad compara ventanas antes/despues sobre informes "
@@ -376,6 +416,11 @@ def main() -> int:
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     print(f"\n{summary['passed']}/{summary['total']} comprobaciones superadas")
+    if summary["skipped"]:
+        print(
+            f"{summary['skipped']} no aplicables en este entorno "
+            "(ni superadas ni fallidas)"
+        )
     print(f"Evidencia: {workdir / 'validation.json'}")
     return 0 if report.ok else 1
 
