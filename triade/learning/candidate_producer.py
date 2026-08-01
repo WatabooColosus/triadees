@@ -56,11 +56,16 @@ _VERBOS_PREFERENCIA = (
     r"(?:usa\w*|use\w*|pon\w*|escrib\w*|empie\w*|empez\w*|comien\w*|"
     r"inici\w*|inclu\w*|formate\w*|orden\w*)"
 )
+# «siempre|nunca» + un verbo cualquiera, en vez de una lista cerrada. Ir
+# añadiendo verbos de uno en uno dejaba fuera media lengua: «muestra siempre»
+# es tan explícito como «usa siempre». Lo que decide que sea aprendible no es
+# el verbo, sino que el filtro de seguridad y la sonda objetiva lo aprueben
+# después.
+_DIRECTIVA = r"(?:siempre|nunca|jamas)\s+[a-z]{3,}|[a-z]{3,}\s+(?:siempre|nunca)"
 _PREFERENCIA = re.compile(
-    rf"\b(?:prefiero|prefiere|quiero que|siempre\s+{_VERBOS_PREFERENCIA}|"
-    rf"{_VERBOS_PREFERENCIA}\s+siempre|"
-    r"a partir de ahora|de ahora en adelante|por norma|por regla|"
-    rf"usa primero|nunca\s+{_VERBOS_PREFERENCIA})\b"
+    rf"\b(?:prefiero|prefiere|quiero que|{_DIRECTIVA}|"
+    rf"{_VERBOS_PREFERENCIA}\s+primero|"
+    r"a partir de ahora|de ahora en adelante|por norma|por regla)\b"
 )
 _CORRECCION = re.compile(
     r"\b(?:no es|no era|est(?:a|á|aba)\s+mal|incorrecto|equivocado|"
