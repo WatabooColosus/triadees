@@ -163,7 +163,10 @@ causa real durante semanas.
 
 ## Lo que esto NO cierra
 
-La concurrencia de los *workers* sigue **apagada por defecto**, y el trabajo
-`concurrent` sigue con `continue-on-error: true` una vuelta más: el trabajo
-entero todavía no se ha visto verde de punta a punta ni una sola vez. Pasa a
-bloqueante cuando lo esté, no por deducción.
+Nada, en cuanto a la concurrencia: con la causa cerrada y el rojo mal atribuido
+corregido, la concurrencia gobernada se **encendió por defecto** el mismo día
+(2026-08-01) y el trabajo `concurrent` pasó a **bloqueante**. Ver
+`docs/WORKER_CONCURRENCY_ARCHITECTURE.md`.
+
+Lo que sí sigue abierto es de otro orden: este documento describe un cuelgue
+cerrado, no una garantía sobre todo el runtime.

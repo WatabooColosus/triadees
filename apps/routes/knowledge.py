@@ -68,7 +68,7 @@ def runtime_build() -> dict[str, Any]:
         "db_size_bytes": db.stat().st_size if db.exists() else 0,
         "python_version": platform.python_version(),
         "working_directory": os.getcwd(),
-        "worker_concurrency": os.getenv("TRIADE_WORKER_CONCURRENCY", "0"),
+        "worker_concurrency": os.getenv("TRIADE_WORKER_CONCURRENCY", "1"),
         "learning_enabled": os.getenv("TRIADE_POST_RUN_LEARNING", "0"),
         "knowledge_visibility_version": VISIBILITY_VERSION,
     }

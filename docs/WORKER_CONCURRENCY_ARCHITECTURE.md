@@ -1,13 +1,23 @@
 # Concurrencia gobernada en los Living Workers
 
-> Estado: **implementada y probada, pero APAGADA por defecto.**
-> Se activa con `TRIADE_WORKER_CONCURRENCY=1` o `concurrency_enabled=True`.
+> Estado: **ENCENDIDA por defecto** desde el 2026-08-01.
+> Se apaga con `TRIADE_WORKER_CONCURRENCY=0` o `concurrency_enabled=False`.
 >
-> Se activó por defecto y CI —que estaba verde en `main`— se puso rojo en
-> `test_worker_learning_integration`. El fallo no se reprodujo localmente ni
-> limitando a 2 CPU ni sin Ollama, así que **no está entendido**. Activar por
-> defecto algo cuyo modo de fallo no se comprende es exactamente lo que este
-> runtime existe para no hacer. Apagada, el drenaje es el secuencial de siempre.
+> Estuvo apagada porque al activarla `test_worker_learning_integration` pasaba
+> de verde en `main` a rojo en la rama, y el fallo no se reprodujo localmente.
+> Ese diagnóstico dio su resultado, y no era el que se creía: en los seis
+> trabajos concurrentes de la matriz (py3.11 ×3, py3.12 ×3) el paso de pytest
+> termina **al 100 %**, ese test incluido. El rojo que se le atribuía venía de
+> otro paso, con una comprobación que exigía datos reales de producción en un
+> runner limpio — imposible de cumplir allí, y ya corregida.
+>
+> Los límites siguen siendo los conservadores: 3 tareas a la vez como mucho, y
+> un solo hilo para escritura de memoria y para mutación crítica. Encenderla no
+> es soltar el freno de mano.
+>
+> El trabajo `concurrent` de la matriz **bloquea** desde el mismo commit: es el
+> modo que corre en producción. El `serial` también bloquea, porque es la vuelta
+> atrás, y una vuelta atrás que no se prueba no es una vuelta atrás.
 
 ## El problema que resuelve
 

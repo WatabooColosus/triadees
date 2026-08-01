@@ -708,3 +708,46 @@ regla no tenía ninguna prueba (`tests/test_resource_governor.py` fijaba
 `test_high_load_average_forces_cooldown` y
 `test_load_average_just_under_the_threshold_does_not_degrade`, para que un
 cambio en esa regla sea visible y no una deriva.
+
+## P2 — ACOTADO, no cerrado: 739 conexiones SQLite que quedan a merced del recolector
+
+`with sqlite3.connect(...) as conn:` **no cierra** la conexión: abre y cierra
+transacción. Un escáner AST sobre `triade/`, `apps/` y `scripts/` encuentra
+**739 conexiones sin cerrar en 150 ficheros**. Cada una vive hasta que pasa el
+recolector.
+
+Con un solo hilo eso es sólo desperdicio. Con hilos, no: el recolector puede
+finalizar una conexión desde un hilo distinto del que la creó. Se manifestó como
+`Fatal Python error: Segmentation fault` **dentro de** `Garbage-collecting`, en
+py3.11, de forma intermitente y sólo con `TRIADE_WORKER_CONCURRENCY=1`, con la
+pila apuntando a `AutonomousTaskStore._connect`. Cerrar las de `task_leases.py`
+llevó py3.11 concurrente de 3/3 rojo a 3/3 verde.
+
+**Cerradas:** `triade/runtime/**` y `triade/workers/**` (82 conexiones en 6
+ficheros), que son las que corren con hilos de verdad. El idioma es
+`with closing(self._connect()) as conn, conn:` — las dos, y en ese orden:
+commit primero, cierre después.
+
+**Pendientes:** las ~657 restantes, encabezadas por
+`memory/hypothalamus_store.py` (15), `os/knowledge_graph.py` (15),
+`core/bodega.py` (14), `evolution/lab.py` (14), `core/neuron_missions.py` (13),
+`core/planning_graph.py` (13).
+
+Deliberadamente **no** se reescriben en bloque: cada una tiene su propia
+semántica de commit según el `isolation_level` de su `_connect`, y cambiarlas a
+ciegas es más peligroso que la fuga que arreglan. Se cierran cuando su módulo
+pase a ejecutarse con hilos, y con sus pruebas delante.
+
+Para encontrarlas:
+
+```python
+# with <algo>connect(...) sin closing() alrededor
+[
+    n
+    for n in ast.walk(tree)
+    if isinstance(n, ast.With)
+    for it in n.items
+    if "connect(" in ast.unparse(it.context_expr)
+    and "closing(" not in ast.unparse(it.context_expr)
+]
+```

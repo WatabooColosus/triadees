@@ -263,15 +263,29 @@ def test_running_tasks_expose_traceable_fields() -> None:
 # ── configuración ───────────────────────────────────────────────────────
 
 
-def test_concurrency_is_off_unless_someone_asks_for_it(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    """Apagada por defecto: se activó por defecto y CI se puso rojo.
+def test_concurrency_is_on_by_default(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Encendida por defecto desde 2026-08-01.
 
-    El fallo (`test_worker_learning_integration`) no se reprodujo localmente ni
-    limitando a 2 CPU ni sin Ollama, asi que no esta entendido. Activar por
-    defecto algo cuyo modo de fallo no se comprende es justo lo que este runtime
-    existe para no hacer.
+    Estuvo apagada porque al activarla `test_worker_learning_integration` se
+    ponia rojo en CI. Eso ya no describe la realidad: los seis trabajos
+    concurrentes de la matriz (py3.11 x3, py3.12 x3) terminan el pytest al
+    100 %, ese test incluido. El rojo que se le atribuia venia de otro paso, con
+    una comprobacion que exigia datos reales de produccion en un runner limpio.
+
+    Los limites siguen siendo los conservadores: encender la concurrencia no es
+    soltar el freno de mano.
     """
     monkeypatch.delenv("TRIADE_WORKER_CONCURRENCY", raising=False)
+    settings = WorkerRunConfig().concurrency_settings()
+    assert settings.enabled is True
+    assert settings.max_concurrent_tasks == 3
+    assert settings.memory_write_workers == 1
+    assert settings.critical_mutation_workers == 1
+
+
+def test_concurrency_can_be_switched_off_by_environment(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """La vuelta atras es una variable de entorno, sin desplegar codigo."""
+    monkeypatch.setenv("TRIADE_WORKER_CONCURRENCY", "0")
     settings = WorkerRunConfig().concurrency_settings()
     assert settings.enabled is False
     assert settings.effective_global_limit() == 1
@@ -284,6 +298,13 @@ def test_concurrency_can_be_switched_on_by_environment(monkeypatch) -> None:  # 
     assert settings.max_concurrent_tasks == 3
     assert settings.critical_mutation_workers == 1
     assert settings.memory_write_workers == 1
+
+
+def test_explicit_flag_off_still_wins_over_the_default() -> None:
+    """Lo explicito manda en los dos sentidos, no solo para encender."""
+    settings = WorkerRunConfig(concurrency_enabled=False).concurrency_settings()
+    assert settings.enabled is False
+    assert settings.effective_global_limit() == 1
 
 
 def test_explicit_flag_still_wins_over_the_default() -> None:
