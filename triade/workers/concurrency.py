@@ -97,7 +97,25 @@ _GLOBAL_KEYS = frozenset({GLOBAL_PROMOTION_KEY})
 TASK_CONCURRENCY_POLICY: dict[str, TaskConcurrencyPolicy] = {
     # ── read_only: observan y reportan, no escriben estado estable ──────
     "pulse_check": TaskConcurrencyPolicy("read_only", 4, "light"),
-    "pending_learning_review": TaskConcurrencyPolicy("read_only", 4, "light"),
+    # Estuvo en `read_only` con concurrencia 4 y sin clave de exclusión, y eso
+    # era sencillamente falso: `_pending_learning_review` hace `pipe.evaluate()`
+    # y `pipe.verify()`, o sea lee, decide y **escribe** sobre las mismas filas
+    # de la cola de aprendizaje.
+    #
+    # Esa clasificación es la causa del fallo que tuvo la concurrencia apagada
+    # durante semanas. Dos obreros listaban el mismo candidato, uno lo movía y
+    # el otro se estrellaba:
+    #
+    #     worker_0: list_candidates(status='evaluated') -> [X]
+    #     worker_1: list_candidates(status='evaluated') -> [X]
+    #     worker_0: verify(X)  -> X pasa a 'internally_checked'
+    #     worker_1: verify(X)  -> ValueError: Solo se verifica un candidato en
+    #                             estado 'evaluated' (actual: internally_checked)
+    #
+    # No sirve una clave de exclusión por candidato: el handler **no recibe** un
+    # candidato, se los busca él. Lo que toca es que sea serial, igual que
+    # `learning_candidate_deduplication`, que tiene la misma forma.
+    "pending_learning_review": TaskConcurrencyPolicy("memory_write", 1, "light"),
     # Extraer una proposición de un run es barato y no escribe estado estable
     # más allá de la cola de candidatos.
     "learning_candidate_generation": TaskConcurrencyPolicy(
