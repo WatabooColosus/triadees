@@ -30,5 +30,5 @@ def test_worker_state_store_creates_tables_and_records_task(tmp_path: Path) -> N
         "unit", "ok", run_ref="worker-test", task_id=claimed.id, task_type="pulse_check"
     )
     store.finish_worker_run("worker-test", "completed", {"tasks_completed": 1})
-    assert store.status()["task_counts"]["completed"] == 1
+    assert store.status()["legacy_task_counts"]["completed"] == 1
     assert store.list_events(run_ref="worker-test")[0]["event_type"] == "unit"

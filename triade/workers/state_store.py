@@ -352,12 +352,39 @@ class WorkerStateStore:
 
     def status(self) -> dict[str, Any]:
         with closing(self._connect()) as conn, conn:
-            task_counts = {
+            # `task_counts` cuenta el camino que DE VERDAD se ejecuta.
+            #
+            # Salía de `worker_tasks`, y esa tabla dejó de escribirse el
+            # 2026-07-29 cuando la ejecución migró a `autonomous_tasks` con
+            # leases. Nadie movió el contador detrás. Medido en producción el
+            # 2026-08-01: `worker_tasks` con 0 filas en 24 h y el panel diciendo
+            # "1802 completadas" desde hacía tres días, mientras el organismo
+            # cerraba ~520 tareas cada diez minutos. Quien mirara la Cabina Viva
+            # concluía que Tríade estaba parada.
+            #
+            # No es un número mal calculado: es un número que dejó de existir.
+            # Lo consumen `App.tsx` y `observability_view.pending_tasks`, así
+            # que la mentira llegaba hasta la pantalla.
+            #
+            # Lo heredado no se borra —esas 1802 filas son historia cierta— pero
+            # deja de llamarse "las tareas" y pasa a `legacy_task_counts`.
+            legacy_task_counts = {
                 row["status"]: int(row["c"])
                 for row in conn.execute(
                     "SELECT status, COUNT(*) AS c FROM worker_tasks GROUP BY status"
                 ).fetchall()
             }
+            try:
+                task_counts = {
+                    row["status"]: int(row["c"])
+                    for row in conn.execute(
+                        "SELECT status, COUNT(*) AS c FROM autonomous_tasks GROUP BY status"
+                    ).fetchall()
+                }
+            except sqlite3.OperationalError:
+                # Base recién creada sin la tabla de leases todavía. Se informa
+                # de lo heredado antes que de nada, pero nunca en silencio.
+                task_counts = dict(legacy_task_counts)
             run_counts = {
                 row["status"]: int(row["c"])
                 for row in conn.execute(
@@ -370,6 +397,7 @@ class WorkerStateStore:
             "status": "ok",
             "mode": "triade-living-workers",
             "task_counts": task_counts,
+            "legacy_task_counts": legacy_task_counts,
             "run_counts": run_counts,
             "last_run": last_run,
             "state": self.get_state("workers") or {},

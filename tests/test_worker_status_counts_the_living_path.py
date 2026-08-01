@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from triade.runtime.legacy_compatibility import LegacyCompatibilityController
 from triade.runtime.task_leases import AutonomousTaskStore
 from triade.workers.state_store import WorkerStateStore
 
@@ -59,9 +60,18 @@ def test_the_legacy_table_keeps_its_own_named_counter(tmp_path: Path) -> None:
 
     Hay 1802 filas reales en `worker_tasks` de cuando ese era el camino. Siguen
     siendo historia cierta. Lo que no puede es seguir llamándose "las tareas".
+
+    Y no es que la tabla se abandonara por descuido: `019_legacy_retirement.sql`
+    instala un trigger que **aborta** cualquier escritura
+    (`legacy_worker_task_writes_disabled`). Estaba retirada a propósito, y el
+    panel seguía contándola. Para escribir en ella hay que pedir compatibilidad
+    heredada explícitamente, que es lo que hace esta prueba.
     """
     db = tmp_path / "triade.db"
     store = WorkerStateStore(db)
+    LegacyCompatibilityController(db).set_compatibility(
+        enabled=True, actor="test", reason="fijar el contador heredado"
+    )
     tarea = store.enqueue_task("pulse_check", {})
     claimed = store.claim_next_task()
     assert claimed is not None

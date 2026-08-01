@@ -21,7 +21,10 @@ def test_stale_lock_and_duplicate_queue_are_recovered(tmp_path):
     assert result["deduplicated"] == 2
     assert not lock.exists()
     assert store.get_worker_run("old-worker")["status"] == "interrupted"
-    assert store.status()["task_counts"] == {"pending": 1, "skipped": 2}
+    # `task_counts` cuenta ahora el camino vivo (`autonomous_tasks`). Lo que esta
+    # prueba mira es la recuperacion de la cola HEREDADA, que conserva su propio
+    # contador con un nombre que dice lo que es.
+    assert store.status()["legacy_task_counts"] == {"pending": 1, "skipped": 2}
 
 
 def test_live_lock_is_never_removed(tmp_path):
