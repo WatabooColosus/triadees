@@ -123,7 +123,7 @@ class LearningRetriever:
         *,
         safety_policy: RetrievalSafetyPolicy | None = None,
         allowed_states: frozenset[str] = DEFAULT_ALLOWED_STATES,
-        min_similarity: float = 0.25,
+        min_similarity: float = 0.12,
     ) -> None:
         self.db_path = Path(db_path)
         self.safety_policy = safety_policy or RetrievalSafetyPolicy()
@@ -260,8 +260,22 @@ class LearningRetriever:
         return self.retrieve_decision(query, **kwargs).matches
 
     @staticmethod
-    def _similarity(query_tokens: set[str], content: str) -> float:
-        """Jaccard sobre tokens: determinista y sin depender de un modelo.
+    def _same_stem(a: str, b: str) -> bool:
+        """Dos tokens cuentan como el mismo si comparten una raíz larga.
+
+        Sin esto, «informe» e «informes» o «empezar» y «empieza» son palabras
+        distintas, y una preferencia declarada en infinitivo no se recupera al
+        preguntar por ella conjugada. Se exige una raíz de 5 caracteres para no
+        emparejar cosas como «casa» y «caso».
+        """
+        if a == b:
+            return True
+        corto, largo = (a, b) if len(a) <= len(b) else (b, a)
+        return len(corto) >= 5 and largo.startswith(corto[:5])
+
+    @classmethod
+    def _similarity(cls, query_tokens: set[str], content: str) -> float:
+        """Jaccard sobre raíces: determinista y sin depender de un modelo.
 
         La similitud semántica vive en `SemanticSearchEngine`; aquí interesa
         que la elegibilidad sea reproducible en un test sin Ollama.
@@ -269,10 +283,13 @@ class LearningRetriever:
         content_tokens = _tokens(content)
         if not content_tokens:
             return 0.0
-        inter = len(query_tokens & content_tokens)
-        if not inter:
+        emparejados = {
+            q for q in query_tokens if any(cls._same_stem(q, c) for c in content_tokens)
+        }
+        if not emparejados:
             return 0.0
-        return inter / len(query_tokens | content_tokens)
+        union = len(query_tokens) + len(content_tokens) - len(emparejados)
+        return len(emparejados) / union if union else 0.0
 
     # ── uso causal ───────────────────────────────────────────────────
     @staticmethod
