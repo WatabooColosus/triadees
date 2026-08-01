@@ -125,6 +125,53 @@ class TestProcessLock:
         c.stop(timeout=5)
         assert not lock_path.exists()
 
+    def test_release_never_closes_someone_elses_descriptor(
+        self, tmp_path: Path
+    ) -> None:
+        """Soltar el lock no puede cerrar el fichero de otro.
+
+        `_acquire_process_lock` cerraba el descriptor y **acto seguido** lo
+        guardaba en `self._lock_fd`. El número quedaba libre, el kernel se lo
+        daba al siguiente `open()` del proceso —una conexión SQLite, un
+        socket— y `_release_process_lock` lo cerraba por debajo a su verdadero
+        dueño. No es teórico: en Linux `open()` devuelve siempre el descriptor
+        libre más bajo, así que la reasignación es determinista.
+        """
+        c = _coordinator(tmp_path, max_cycles=0, interval_seconds=60)
+        assert c._acquire_process_lock() is None
+
+        victim_path = tmp_path / "de_otro.txt"
+        victim_path.write_text("contenido ajeno", encoding="utf-8")
+        with victim_path.open("rb") as victim:
+            c._release_process_lock()
+            assert victim.read() == b"contenido ajeno"
+
+    def test_live_sqlite_connection_survives_the_release(
+        self, tmp_path: Path
+    ) -> None:
+        """La consecuencia real: una transacción viva sobrevive al release.
+
+        Cuando el descriptor reciclado era el de una base SQLite, cerrarlo
+        rompía la conexión con `disk I/O error` **dejando su bloqueo POSIX
+        huérfano**: la transacción ya no podía ni confirmar ni deshacer, y
+        cualquier otro lector se quedaba esperando un bloqueo que nadie iba a
+        soltar. Ese es el camino de "fd mal gestionado" a "cuelgue".
+        """
+        c = _coordinator(tmp_path, max_cycles=0, interval_seconds=60)
+        assert c._acquire_process_lock() is None
+
+        victim_db = tmp_path / "otra_base.db"
+        conn = sqlite3.connect(victim_db, timeout=2)
+        try:
+            conn.execute("CREATE TABLE t(x)")
+            conn.execute("BEGIN EXCLUSIVE")
+            conn.execute("INSERT INTO t VALUES (1)")
+            c._release_process_lock()
+            conn.commit()
+            assert conn.execute("SELECT COUNT(*) FROM t").fetchone()[0] == 1
+        finally:
+            conn.close()
+
 
 class TestDryRun:
     def test_dry_run_does_not_execute(self, tmp_path: Path) -> None:
