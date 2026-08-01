@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from triade.learning.post_run import schedule_learning_from_run
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
@@ -970,6 +971,35 @@ class TriadeRunner:
             central_quality,
         )
         memory_diff = self.bodega.store_episode(input_packet, output)
+        # El run acaba de cerrarse: aquí nace el aprendizaje GOBERNADO.
+        #
+        # Ojo: no es que antes no se aprendiera. `RunLearningService`
+        # (más abajo, línea ~1080) ya ingiere un candidato por cada run —177 de
+        # `conversation` en la base, 53 en 24 h—. Pero lo hace de dos maneras
+        # que conviene cambiar:
+        #
+        # - **En línea, dentro del camino de respuesta.** Aprender no debería
+        #   poder retrasar una conversación, y ahí lo hace.
+        # - **Volcando la transcripción entera** (`run_id: … input: … response:
+        #   …`) como si fuera una proposición. No lo es: es un pegote. Se salta
+        #   `ExperienceLearningCandidateProducer`, que es el extractor con
+        #   filtros de seguridad que `learning_candidate_generation` sí usa.
+        #
+        # Esto encola ese camino gobernado: una fila en SQLite, sin inferencia
+        # ni red, y sin lanzar jamás. Apagado por defecto
+        # (`TRIADE_POST_RUN_LEARNING`) porque encender el aprendizaje automático
+        # sobre conversaciones reales es una decisión, no un efecto colateral de
+        # desplegar. Los dos caminos conviven a propósito hasta que el gobernado
+        # esté probado en producción; entonces se retira el volcado en línea.
+        governed_learning_task = schedule_learning_from_run(
+            self.bodega.db_path,
+            run_id=input_packet.run_id,
+            message=input_packet.user_input,
+            response=output.response,
+            model_id=output.model_name,
+            outcome=output.status,
+            timestamp=output.timestamp,
+        )
         temporal_state = {
             "status": crystal.temporal_status,
             "q_delta": crystal.q_delta,
@@ -996,6 +1026,7 @@ class TriadeRunner:
 
         output.memory_diff = {
             **memory_diff,
+            "governed_learning_task": governed_learning_task,
             "signal_id": signal_id,
             "crystal_id": crystal_id,
             "safety_id": safety_id,

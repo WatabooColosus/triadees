@@ -110,7 +110,12 @@ def test_a_broken_queue_never_breaks_the_conversation(tmp_path: Path) -> None:
     Si la cola no se puede escribir, el usuario recibe su respuesta igual y el
     fallo queda dicho — no tragado. Sin `except Exception: pass`.
     """
-    db = tmp_path / "no" / "existe" / "triade.db"
+    # Un directorio que no existe NO sirve: el store lo crea. Hace falta un
+    # fallo real — aquí un fichero donde debería haber un directorio, que hace
+    # imposible crear la base.
+    bloqueo = tmp_path / "soy_un_fichero"
+    bloqueo.write_text("no soy un directorio", encoding="utf-8")
+    db = bloqueo / "triade.db"
 
     out = schedule_learning_from_run(
         db, run_id="run-5", message="hola", response="hola", enabled=True
