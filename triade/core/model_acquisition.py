@@ -305,4 +305,7 @@ def ensure_specialized_model_neurons(
             evidence_required=["test_report", "regression_report"],
         ),
     ]
-    return [spec.name for spec in specs if registry.register(spec)]
+    # `create_if_missing` y no `register`: esto es una rutina de arranque, y
+    # asegurar que una neurona existe no puede borrar lo que aprendió mientras
+    # estaba viva.
+    return [spec.name for spec in specs if registry.create_if_missing(spec)]

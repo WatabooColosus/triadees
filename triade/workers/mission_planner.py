@@ -77,6 +77,7 @@ class MissionPlanner:
         tasks.extend(self._plan_neuron_formation())
         tasks.extend(self._plan_research_curriculum())
         tasks.extend(self._plan_neuron_education())
+        tasks.extend(self._plan_self_improvement())
         if os.getenv("TRIADE_BACKUP_KEY"):
             tasks.append(
                 PlannedTask(
@@ -129,6 +130,45 @@ class MissionPlanner:
         except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.research_curriculum", exc, db_path=self.db_path
+            )
+        return []
+
+    def _plan_self_improvement(self) -> list[PlannedTask]:
+        """Agenda el ciclo de automejora SOLO si hay propuestas ya aprobadas.
+
+        Nunca crea ni aprueba propuestas: si ningún humano ha aprobado nada, no
+        hay nada que planificar y el ciclo no se dispara. Así el bucle no gira en
+        vacío ni se auto-alimenta.
+        """
+        try:
+            with self._connect() as conn:
+                table = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' "
+                    "AND name='improvement_proposals'"
+                ).fetchone()
+                if not table:
+                    return []
+                row = conn.execute(
+                    "SELECT COUNT(*) cnt FROM improvement_proposals "
+                    "WHERE status = 'approved'"
+                ).fetchone()
+            count = int(row["cnt"] or 0) if row else 0
+            if count:
+                return [
+                    PlannedTask(
+                        task_type="self_improvement_evaluation",
+                        priority=38,
+                        reason=(
+                            f"{count} propuesta(s) aprobada(s) por un humano "
+                            "esperando verificación"
+                        ),
+                        source="human_approved_improvement",
+                        planner_score=0.65,
+                    )
+                ]
+        except MISSION_PLANNER_ERRORS as exc:
+            record_internal_error(
+                "mission_planner.self_improvement", exc, db_path=self.db_path
             )
         return []
 
@@ -203,6 +243,55 @@ class MissionPlanner:
                             reason=f"{lr_cnt} candidatos con transición ejecutable (candidate/evaluated)",
                             source="mission_planner_baseline",
                             planner_score=min(1.0, 0.5 + lr_cnt / 20),
+                        )
+                    )
+
+                # learning_candidate_deduplication: solo si hay candidatos sin
+                # agrupar. Sin esta condición la tarea correría eternamente sin
+                # efecto, que es justo lo que hace parecer vivo un panel muerto.
+                try:
+                    sin_grupo = conn.execute(
+                        """SELECT COUNT(*) AS cnt FROM learning_queue q
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM learning_candidate_groups g
+                            WHERE g.member_candidate_id = q.candidate_id
+                               OR g.canonical_candidate_id = q.candidate_id)"""
+                    ).fetchone()
+                    sin_grupo_cnt = int(sin_grupo["cnt"] or 0) if sin_grupo else 0
+                except sqlite3.Error:
+                    # La tabla aún no existe: entonces todo está sin agrupar.
+                    sin_grupo_cnt = lr_cnt or 1
+                if sin_grupo_cnt > 1:
+                    tasks.append(
+                        PlannedTask(
+                            task_type="learning_candidate_deduplication",
+                            priority=6,
+                            reason=f"{sin_grupo_cnt} candidatos sin agrupar",
+                            source="mission_planner_baseline",
+                            planner_score=min(1.0, 0.4 + sin_grupo_cnt / 200),
+                        )
+                    )
+
+                # learning_evidence_generation: un candidato elegible por ciclo.
+                # Gasta inferencias, así que se pide de uno en uno.
+                elegible = conn.execute(
+                    """SELECT candidate_id FROM learning_queue
+                    WHERE status = 'internally_checked'
+                      AND source_type = 'experience'
+                      AND NOT EXISTS (
+                        SELECT 1 FROM learning_evidence e
+                        WHERE e.candidate_id = learning_queue.candidate_id)
+                    ORDER BY id DESC LIMIT 1"""
+                ).fetchone()
+                if elegible:
+                    tasks.append(
+                        PlannedTask(
+                            task_type="learning_evidence_generation",
+                            priority=7,
+                            reason=f"candidato {elegible['candidate_id']} sin evidencia",
+                            source="mission_planner_baseline",
+                            planner_score=0.8,
+                            payload={"candidate_id": str(elegible["candidate_id"])},
                         )
                     )
 

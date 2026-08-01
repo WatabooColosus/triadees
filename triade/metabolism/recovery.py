@@ -31,9 +31,7 @@ class RecoveryManager:
             logger.warning("recover_interrupted_cycles_failed: %s", exc)
         return recovered
 
-    def _mark_cycle_interrupted(
-        self, conn: sqlite3.Connection, cycle_id: int
-    ) -> None:
+    def _mark_cycle_interrupted(self, conn: sqlite3.Connection, cycle_id: int) -> None:
         now = datetime.now(UTC).isoformat()
         conn.execute(
             """UPDATE metabolic_cycle

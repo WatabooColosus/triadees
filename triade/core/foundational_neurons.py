@@ -116,7 +116,11 @@ def ensure_foundational_neurons(
             created_by="Wataboo · Agencia Digital / foundational_bootstrap",
             policy="foundational_active_but_governed",
         )
-        neuron_id = registry.register(
+        # `create_if_missing` y no `register`: esta rutina corre en cada
+        # arranque y declara triggers fijos, así que re-registrar devolvía las
+        # diez fundacionales a `every_session, relevant_context` cada vez que
+        # se reiniciaba el servidor, borrando lo que hubieran aprendido.
+        neuron_id = registry.create_if_missing(
             spec,
             contract_payload={
                 "foundational": True,

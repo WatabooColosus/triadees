@@ -41,6 +41,16 @@ def test_worker_reviews_learning_and_marks_verified_as_used_in_run(
     )
 
     updated = pipe.get_candidate(candidate["candidate_id"])
-    assert result["status"] == "completed"
+    # El mensaje incluye los errores a propósito. Este test falló en CI con
+    # concurrencia activa 3 de 3 veces, y `assert 'completed_with_errors' ==
+    # 'completed'` no decía **qué** había fallado: hubo que adivinar entre CPU,
+    # Ollama y versión de Python sin ningún dato. Un fallo que no se explica a sí
+    # mismo cuesta una ronda entera de CI por hipótesis.
+    assert result["status"] == "completed", (
+        f"status={result['status']} errores={result.get('errors')} "
+        f"completadas={result.get('tasks_completed')} "
+        f"bloqueadas={result.get('tasks_blocked')} "
+        f"concurrencia={result.get('concurrency')}"
+    )
     assert updated["status"] == "internally_checked"
     assert int(updated["run_use_count"] or 0) == 0

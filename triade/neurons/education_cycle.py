@@ -128,7 +128,11 @@ class NeuronEducationCycle:
                 # Filas anteriores a 2026-07-31 usan 'material_insufficient';
                 # filas nuevas usan 'insufficient_material' (mismo caso, ver
                 # run_once()). Se fusionan para no fragmentar el conteo.
-                key = "insufficient_material" if row["state"] == "material_insufficient" else str(row["state"])
+                key = (
+                    "insufficient_material"
+                    if row["state"] == "material_insufficient"
+                    else str(row["state"])
+                )
                 counts[key] = counts.get(key, 0) + int(row["count"])
             recent = [
                 dict(row)

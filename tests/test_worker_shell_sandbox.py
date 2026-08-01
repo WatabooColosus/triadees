@@ -75,9 +75,7 @@ def test_shell_execute_success_never_rolls_back(
         )
         return {"status": "ok", "command_key": kwargs["command_key"], "returncode": 0}
 
-    monkeypatch.setattr(
-        "triade.core.safe_shell.run_autonomous", fake_run_autonomous
-    )
+    monkeypatch.setattr("triade.core.safe_shell.run_autonomous", fake_run_autonomous)
 
     result = loop._shell_execute(
         _make_task(watch_dir), "run-test-2", tmp_path / "task_dir", None
@@ -108,9 +106,7 @@ def test_shell_execute_failure_with_changes_rolls_back(
             "returncode": 1,
         }
 
-    monkeypatch.setattr(
-        "triade.core.safe_shell.run_autonomous", fake_run_autonomous
-    )
+    monkeypatch.setattr("triade.core.safe_shell.run_autonomous", fake_run_autonomous)
 
     result = loop._shell_execute(
         _make_task(watch_dir), "run-test-3", tmp_path / "task_dir", None
@@ -131,9 +127,7 @@ def test_shell_execute_without_working_dir_is_unaffected(
         assert kwargs["working_dir"] is None
         return {"status": "ok", "command_key": kwargs["command_key"], "returncode": 0}
 
-    monkeypatch.setattr(
-        "triade.core.safe_shell.run_autonomous", fake_run_autonomous
-    )
+    monkeypatch.setattr("triade.core.safe_shell.run_autonomous", fake_run_autonomous)
 
     task = WorkerTask(
         id=2,

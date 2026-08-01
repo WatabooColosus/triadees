@@ -154,7 +154,18 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
 - Regla innegociable: ninguna neurona puede modificar `identity_core`.
 
 ### Living Workers 🟢
-- `triade/workers/` — scheduler, task_queue, worker_loop, background_service, state_store. Ejecuta ciclos acotados y auditables en `runs/background/`.
+- `triade/workers/` — scheduler, task_queue, worker_loop, background_service, state_store, **concurrency**. Ejecuta ciclos acotados y auditables en `runs/background/`.
+- ⚠ **[ACTUALIZADO 2026-07-31]** son **21 task types**: a los 19 de abajo se
+  suman `self_improvement_evaluation` y `self_improvement_canary_observation`
+  (ver `docs/SELF_IMPROVEMENT_RUNTIME.md`).
+- 🔀 **[NUEVO 2026-07-31]** El drenaje dejó de ser secuencial.
+  `triade/workers/concurrency.py` define cinco carriles con límites explícitos
+  (`read_only` 4, `research` 2, `evaluation` 2, `memory_write` 1,
+  `critical_mutation` 1) y claves de exclusión por `neuron_id` / `candidate_id`
+  / `proposal_id` / `canary_id`. Las mutaciones críticas siguen **seriales** y
+  el lease v2 sigue siendo la única autoridad de propiedad; el pool no reclama
+  ni cierra tareas. `concurrency_enabled=False` reproduce el comportamiento
+  secuencial anterior. Ver `docs/WORKER_CONCURRENCY_ARCHITECTURE.md`.
 - ⚠ **[VERIFICADO 2026-07-30]** son **19 task types reales**, no 10 — el
   README subestima la lista. A los 10 documentados (pulse_check,
   pending_learning_review, semantic_memory_governance,

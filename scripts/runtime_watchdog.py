@@ -23,9 +23,7 @@ def _heartbeat_cycle() -> int | None:
         return None
 
 
-def _make_heartbeat_verifier(
-    baseline: int | None, *, timeout_seconds: float = 20.0
-):
+def _make_heartbeat_verifier(baseline: int | None, *, timeout_seconds: float = 20.0):
     """Devuelve un verificador que exige que el heartbeat AVANCE tras recuperar.
 
     Antes de 2026-07-31 no se pasaba verificador y `runtime_recovery` asumía

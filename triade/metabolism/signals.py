@@ -57,7 +57,9 @@ class SignalBus:
                         signal.status,
                         signal.reason,
                         signal.timestamp,
-                        json.dumps(signal.budget_used.to_dict() if signal.budget_used else {}),
+                        json.dumps(
+                            signal.budget_used.to_dict() if signal.budget_used else {}
+                        ),
                     ),
                 )
         except (ImportError, OSError, RuntimeError) as exc:

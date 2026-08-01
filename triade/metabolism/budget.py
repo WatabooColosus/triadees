@@ -56,7 +56,10 @@ class BudgetTracker:
         daily = self._period_usage(kind, now - 86400)
 
         limits = {
-            "cpu_seconds": (self.HOURLY_LIMITS["cpu_seconds"], self.DAILY_LIMITS["cpu_seconds"]),
+            "cpu_seconds": (
+                self.HOURLY_LIMITS["cpu_seconds"],
+                self.DAILY_LIMITS["cpu_seconds"],
+            ),
         }
         if kind in limits:
             h_limit, d_limit = limits[kind]

@@ -193,10 +193,12 @@ def test_learning_journal_counts_candidates(tmp_path: Path) -> None:
 
     assert journal["status"] == "ok"
     assert journal["cycles_last_24h"] >= 1
-    assert journal["evidence_created"] >= 1
+    assert journal["neuron_evidence_created"] >= 1
     assert journal["candidates_created"] >= 1
     assert journal["candidates_evaluated"] >= 1
-    assert journal["candidates_verified"] >= 1
+    # `internally_checked` es "revisado sin evidencia", no "verificado".
+    assert journal["candidates_internally_checked"] >= 1
+    assert journal["candidates_verified_with_evidence"] == 0
     assert journal["candidates_consolidated"] >= 1
     assert journal["candidates_rejected"] >= 1
     assert journal["truth"].startswith("Aprender significa")

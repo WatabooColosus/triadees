@@ -10,7 +10,7 @@ from triade.core.neuron_missions import (
     NeuronMission,
     NeuronMissionStore,
 )
-from triade.workers.contracts import WorkerRunConfig
+from triade.workers.contracts import WORKER_TASK_TYPES, WorkerRunConfig
 from triade.workers.mission_planner import MissionPlanner
 from triade.workers.scheduler import WorkerScheduler
 
@@ -172,10 +172,20 @@ def test_planner_deduplicates_task_types_without_distinct_targets(
 def test_scheduler_task_types_include_governed_education() -> None:
     scheduler = WorkerScheduler(db_path=":memory:")
     types = scheduler.task_types()
-    assert len(types) == 19
+    # Se comprueba contra la fuente de verdad y no contra un número escrito a
+    # mano: añadir un tipo no debe romper este test, pero olvidarse de
+    # registrarlo en el scheduler sí.
+    assert set(types) == set(WORKER_TASK_TYPES)
     assert "pulse_check" in types
     assert "neuron_candidate_formation" in types
     assert "research_curriculum" in types
     assert "encrypted_backup" in types
     assert "neuron_education_cycle" in types
     assert "write_governed_text_artifact" in types
+    assert "self_improvement_evaluation" in types
+    # El canary se observa en ciclos posteriores, no dentro de la evaluación.
+    assert "self_improvement_canary_observation" in types
+    # El aprendizaje productivo: extraer, deduplicar y medir.
+    assert "learning_candidate_generation" in types
+    assert "learning_candidate_deduplication" in types
+    assert "learning_evidence_generation" in types

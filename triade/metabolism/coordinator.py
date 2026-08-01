@@ -40,7 +40,9 @@ class MetabolicCoordinator:
         self._thread: threading.Thread | None = None
         self._current_cycle_id: int | None = None
         self._lock_fd: int | None = None
-        self._process_lock_path = Path(f"/tmp/.triade_metabolism_{self.db_path.name}.lock")
+        self._process_lock_path = Path(
+            f"/tmp/.triade_metabolism_{self.db_path.name}.lock"
+        )
 
         self.health = HealthSensors(db_path)
         self.needs_queue = NeedsQueue(db_path)
@@ -220,9 +222,7 @@ class MetabolicCoordinator:
             base["scheduler"] = self.scheduler.snapshot()
             base["budget"] = self.budget.snapshot()
             base["receipt_counts"] = self.receipts.count_by_status()
-            base["thread_alive"] = bool(
-                self._thread and self._thread.is_alive()
-            )
+            base["thread_alive"] = bool(self._thread and self._thread.is_alive())
             return base
 
     # ── Core cycle ─────────────────────────────────────────────────
@@ -283,7 +283,10 @@ class MetabolicCoordinator:
             self._consolidate(verified, cycle_id)
         except (OSError, RuntimeError, ValueError, sqlite3.Error) as exc:
             self.signals.emit(
-                cycle_id, "cycle", "failed", str(exc),
+                cycle_id,
+                "cycle",
+                "failed",
+                str(exc),
                 budget_used=ResourceUsageReceipt(
                     duration_ms=(time.monotonic() - started) * 1000
                 ),
@@ -330,14 +333,20 @@ class MetabolicCoordinator:
         for need in needs:
             if self.needs_queue.is_on_cooldown(need):
                 self.receipts.record(
-                    cycle_id, need.need_id, "evaluate", "skipped",
+                    cycle_id,
+                    need.need_id,
+                    "evaluate",
+                    "skipped",
                     error="on_cooldown",
                 )
                 continue
             ok, reason = self.budget.check_cycle_budget(cycle_id, need.estimated_cost)
             if not ok:
                 self.receipts.record(
-                    cycle_id, need.need_id, "evaluate", "skipped",
+                    cycle_id,
+                    need.need_id,
+                    "evaluate",
+                    "skipped",
                     error=reason,
                 )
                 continue
@@ -370,7 +379,10 @@ class MetabolicCoordinator:
         for need in needs:
             if self._dry_run:
                 self.receipts.record(
-                    cycle_id, need.need_id, "execute", "dry_run",
+                    cycle_id,
+                    need.need_id,
+                    "execute",
+                    "dry_run",
                     evidence={"dry_run": True},
                 )
                 results.append({"need_id": need.need_id, "status": "dry_run"})
@@ -379,9 +391,7 @@ class MetabolicCoordinator:
             results.append(result)
         return results
 
-    def _execute_need(
-        self, need: MetabolicNeed, cycle_id: int
-    ) -> dict[str, Any]:
+    def _execute_need(self, need: MetabolicNeed, cycle_id: int) -> dict[str, Any]:
         started = time.monotonic()
         cpu_start = time.process_time()
         try:
@@ -396,14 +406,21 @@ class MetabolicCoordinator:
             )
             if status in ("success",):
                 self.receipts.record(
-                    cycle_id, need.need_id, "execute", "success",
+                    cycle_id,
+                    need.need_id,
+                    "execute",
+                    "success",
                     budget_used=usage,
                 )
                 self._update_need_status(need.need_id, "completed")
             else:
                 self.receipts.record(
-                    cycle_id, need.need_id, "execute", status,
-                    budget_used=usage, error=detail,
+                    cycle_id,
+                    need.need_id,
+                    "execute",
+                    status,
+                    budget_used=usage,
+                    error=detail,
                 )
                 self._update_need_status(need.need_id, status)
             return {
@@ -421,23 +438,31 @@ class MetabolicCoordinator:
                 duration_ms=(time.monotonic() - started) * 1000,
             )
             self.receipts.record(
-                cycle_id, need.need_id, "execute", "error",
-                budget_used=usage, error=str(exc),
+                cycle_id,
+                need.need_id,
+                "execute",
+                "error",
+                budget_used=usage,
+                error=str(exc),
             )
             self._update_need_status(need.need_id, "error")
-            return {"need_id": need.need_id, "kind": need.kind, "status": "error", "detail": str(exc)}
+            return {
+                "need_id": need.need_id,
+                "kind": need.kind,
+                "status": "error",
+                "detail": str(exc),
+            }
 
     @staticmethod
     def _measure_rss_mb() -> float:
         try:
             import psutil
+
             return psutil.Process().memory_info().rss / (1024 * 1024)
         except (ImportError, OSError):
             return 0.0
 
-    def _run_need_action(
-        self, need: MetabolicNeed, cycle_id: int
-    ) -> tuple[str, str]:
+    def _run_need_action(self, need: MetabolicNeed, cycle_id: int) -> tuple[str, str]:
         kind = need.kind
         if kind == "health_check":
             return self._action_health_check()
@@ -506,21 +531,25 @@ class MetabolicCoordinator:
         for result in executed:
             if result.get("status") in ("success", "dry_run"):
                 self.receipts.record(
-                    cycle_id, result["need_id"], "verify", "passed",
+                    cycle_id,
+                    result["need_id"],
+                    "verify",
+                    "passed",
                     evidence={"status": result["status"]},
                 )
                 verified.append(result)
             else:
                 self.receipts.record(
-                    cycle_id, result["need_id"], "verify", "failed",
+                    cycle_id,
+                    result["need_id"],
+                    "verify",
+                    "failed",
                     error=result.get("detail", ""),
                 )
                 verified.append(result)
         return verified
 
-    def _consolidate(
-        self, verified: list[dict[str, Any]], cycle_id: int
-    ) -> None:
+    def _consolidate(self, verified: list[dict[str, Any]], cycle_id: int) -> None:
         passed = sum(1 for v in verified if v.get("status") in ("success", "dry_run"))
         failed = len(verified) - passed
         summary = {"passed": passed, "failed": failed, "total": len(verified)}
@@ -533,7 +562,9 @@ class MetabolicCoordinator:
         except (sqlite3.Error, OSError) as exc:
             logger.warning("consolidate_update_failed: %s", exc)
         self.signals.emit(
-            cycle_id, "consolidate", "completed",
+            cycle_id,
+            "consolidate",
+            "completed",
             f"consolidated_{len(verified)}_results",
         )
 
@@ -553,9 +584,14 @@ class MetabolicCoordinator:
                 raise
         try:
             with sqlite3.connect(self.db_path, timeout=2) as conn:
-                cols = {str(row[1]) for row in conn.execute("PRAGMA table_info(metabolic_cycle)")}
+                cols = {
+                    str(row[1])
+                    for row in conn.execute("PRAGMA table_info(metabolic_cycle)")
+                }
                 if "summary_json" not in cols:
-                    conn.execute("ALTER TABLE metabolic_cycle ADD COLUMN summary_json TEXT DEFAULT '{}'")
+                    conn.execute(
+                        "ALTER TABLE metabolic_cycle ADD COLUMN summary_json TEXT DEFAULT '{}'"
+                    )
         except (sqlite3.Error, OSError) as exc:
             logger.warning("summary_json_column_add_failed: %s", exc)
 
@@ -605,7 +641,9 @@ class MetabolicCoordinator:
         recovered = self.recovery.recover_interrupted_cycles()
         if recovered:
             self.signals.emit(
-                0, "recovery", "completed",
+                0,
+                "recovery",
+                "completed",
                 f"recovered_{len(recovered)}_interrupted_cycles",
             )
 

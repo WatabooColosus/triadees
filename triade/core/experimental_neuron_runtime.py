@@ -15,6 +15,7 @@ Regla innegociable: ninguna neurona puede modificar identity_core.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Literal
 
 from .contracts import (
@@ -154,10 +155,33 @@ def should_activate(
     ):
         reasons.append("domain:memory_governance matched input/context")
 
+    # Lo que la neurona DECLARA saber atender. La tabla `neurons` tiene una
+    # columna `triggers` desde el principio y 11 de 13 neuronas la rellenan;
+    # nadie la leía. Sin esto, una neurona solo podía activarse si su dominio
+    # estaba en la cadena de arriba —escrita a mano, con cuatro dominios— o si
+    # un trozo de su nombre aparecía en el texto.
+    #
+    # El efecto medido era perverso: `neurona-llamo-santiago-wataboo-creador`
+    # acumulaba 43 activaciones reales porque su nombre está hecho de palabras
+    # de conversación, mientras `Neurona Visual` y `Neurona de Código y
+    # Reparación` llevaban 0 en 35 pulsos. El routing premiaba a las neuronas
+    # bautizadas con fragmentos de chat y mataba de hambre a las construidas
+    # para trabajar. Y sin una sola activación no sintética, esas dos no pueden
+    # alcanzar `stable` jamás.
+    matched_trigger = _matching_trigger(neuron, text)
+    if matched_trigger:
+        reasons.append(f"trigger declarado coincide: {matched_trigger}")
+
+    # El fallback por nombre se conserva —quitarlo dejaría sin activarse a las
+    # neuronas que hoy funcionan así— pero se le aplica el mismo filtro de verbos
+    # de intención. Medido: `neurona-quiero-informacion-sobre-banda` capturaba
+    # «quiero aprender a dibujar en madera» porque «quiero» está en su nombre.
+    # Un nombre que empieza con una muletilla no puede reclamar media
+    # conversación.
     if name and any(
         part in text
         for part in name.replace("neurona-", "").split("-")
-        if len(part) >= 5
+        if len(part) >= 5 and part not in _GENERIC_NAME_TOKENS
     ):
         reasons.append("name token matched input/context")
 
@@ -165,6 +189,75 @@ def should_activate(
         "active": bool(reasons),
         "reasons": reasons,
     }
+
+
+#: Trozos de nombre que no distinguen nada. Las neuronas creadas desde una frase
+#: de chat se llaman como esa frase, así que su nombre arrastra muletillas.
+_GENERIC_NAME_TOKENS = frozenset(
+    [
+        "quiero",
+        "quisiera",
+        "necesito",
+        "podrias",
+        "puedes",
+        "informacion",
+        "ayuda",
+        "favor",
+        "gracias",
+        "saber",
+        "sobre",
+        "como",
+        "cuando",
+        "donde",
+        "porque",
+        "quien",
+        "cual",
+    ]
+)
+
+#: Triggers de ciclo de vida, no términos que un usuario escriba. Si se buscaran
+#: en el texto activarían siempre o nunca, y la evidencia dejaría de significar
+#: algo. Once de trece neuronas los declaran.
+_LIFECYCLE_TRIGGERS = frozenset(
+    {
+        "every_session",
+        "relevant_context",
+        "candidate_state_review",
+        "always",
+        "on_demand",
+    }
+)
+
+
+def _matching_trigger(neuron: dict[str, Any], text: str) -> str:
+    """Primer trigger declarado que aparece en el texto, o cadena vacía.
+
+    Tolera que `triggers` venga como lista ya decodificada, como JSON, o roto:
+    un contrato mal formado no puede tumbar el ciclo cognitivo entero.
+    """
+    raw = neuron.get("triggers")
+    values: list[Any]
+    if isinstance(raw, list):
+        values = raw
+    elif isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return ""
+        values = parsed if isinstance(parsed, list) else []
+    else:
+        return ""
+
+    for value in values:
+        trigger = str(value).strip().lower()
+        # `intent:build_or_update` y similares: se compara la parte útil.
+        if ":" in trigger:
+            trigger = trigger.split(":", 1)[1]
+        if len(trigger) < 4 or trigger in _LIFECYCLE_TRIGGERS:
+            continue
+        if trigger in text:
+            return trigger
+    return ""
 
 
 def build_contribution(

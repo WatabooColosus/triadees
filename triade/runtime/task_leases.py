@@ -280,8 +280,22 @@ class AutonomousTaskStore:
         return changed == 1
 
     def reconcile_uncertain_completions(self) -> dict[str, int]:
+        """Resuelve `completion_uncertain`: o completa, o cierra diciendo por qué.
+
+        Lo que hacía antes era contar las irresolubles (`failed += 1`) y dejarlas
+        donde estaban. Como nada más las tocaba, se acumulaban indefinidamente:
+        la auditoría en vivo del 2026-07-31 encontró 12, la más antigua de 20
+        horas atrás. `completion_uncertain` no es terminal ni activo — es limbo —
+        y como la monitorización lo cuenta entre las tareas vivas, el sistema
+        **afirmaba actividad que no existía**.
+
+        Sin artefacto no se reintenta: no sabemos si el efecto llegó a aplicarse,
+        y repetir un `goal_safe_command` podría aplicarlo dos veces. Se cierra
+        como `dead_letter` con la razón explícita, y la decisión de reencolar
+        queda en manos de un humano que pueda mirar el caso.
+        """
         completed = 0
-        failed = 0
+        dead_lettered = 0
         with self._connect() as conn:
             rows = conn.execute(
                 """SELECT task_id,worker_id,lease_generation,result_ref
@@ -289,18 +303,55 @@ class AutonomousTaskStore:
             ).fetchall()
         for row in rows:
             ref = str(row["result_ref"] or "")
+            task_id = str(row["task_id"])
             if ref and Path(ref).is_file():
                 completed += int(
                     self.finalize_completion(
-                        str(row["task_id"]),
+                        task_id,
                         str(row["worker_id"]),
                         int(row["lease_generation"]),
                         ref,
                     )
                 )
             else:
-                failed += 1
-        return {"completed": completed, "still_uncertain": failed}
+                dead_lettered += int(
+                    self._close_uncertain_without_artifact(
+                        task_id,
+                        str(row["worker_id"] or ""),
+                        int(row["lease_generation"]),
+                    )
+                )
+        return {
+            "completed": completed,
+            # Se conserva la clave por compatibilidad con quien la lea: ahora
+            # siempre es 0, porque ninguna se queda sin resolver.
+            "still_uncertain": 0,
+            "dead_lettered": dead_lettered,
+        }
+
+    def _close_uncertain_without_artifact(
+        self, task_id: str, worker_id: str, lease_generation: int
+    ) -> bool:
+        now = _iso()
+        reason = "uncertain_without_artifact:no_evidence_of_completion"
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            changed = conn.execute(
+                """UPDATE autonomous_tasks SET status='dead_letter',
+                last_error=COALESCE(last_error||'; ','')||?,
+                lease_expires_at=NULL,updated_at=?
+                WHERE task_id=? AND status='completion_uncertain'""",
+                (reason, now, task_id),
+            ).rowcount
+            if changed == 1:
+                conn.execute(
+                    """INSERT INTO autonomous_task_transitions
+                    (task_id,worker_id,lease_generation,from_status,to_status,reason,created_at)
+                    VALUES(?,?,?,'completion_uncertain','dead_letter',?,?)""",
+                    (task_id, worker_id, lease_generation, reason, now),
+                )
+            conn.commit()
+        return changed == 1
 
     def block(
         self, task_id: str, worker_id: str, lease_generation: int, reason: str
@@ -380,6 +431,59 @@ class AutonomousTaskStore:
             reason=reason,
             retry_after=retry_after,
         )
+
+    def defer_unstarted(
+        self,
+        task_id: str,
+        worker_id: str,
+        lease_generation: int,
+        reason: str,
+        *,
+        delay_seconds: int = 5,
+    ) -> bool:
+        """Devuelve a la cola una tarea arrendada que nunca llegó a ejecutarse.
+
+        `claim()` incrementa `attempt` al arrendar, y `defer()` deja ese intento
+        consumido. Para una tarea que **corrió** eso es correcto: el intento
+        existió. Pero cuando se rechaza el despacho —carril lleno, clave de
+        exclusión tomada, backpressure— la tarea no ha hecho absolutamente nada.
+        Contar ese intento gastaría los tres disponibles por el mero hecho de
+        haber esperado turno, y mataría la tarea sin haberla intentado jamás.
+
+        Por eso aquí se descuenta el intento al devolverla. La distinción
+        importa más cuanto más concurrencia hay: con varios carriles compitiendo,
+        los rechazos por turno son normales y no deben parecer fracasos.
+        """
+        now = _iso()
+        retry_after = _iso(_now() + timedelta(seconds=max(0, delay_seconds)))
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            current = conn.execute(
+                """SELECT status,attempt FROM autonomous_tasks
+                WHERE task_id=? AND worker_id=? AND lease_generation=?""",
+                (task_id, worker_id, lease_generation),
+            ).fetchone()
+            if current is None or str(current["status"]) != "leased":
+                # Si ya está 'running' es que alguien la arrancó: no se toca.
+                conn.commit()
+                return False
+            previous = str(current["status"])
+            changed = conn.execute(
+                """UPDATE autonomous_tasks
+                SET status='deferred',retry_after=?,last_error=?,
+                    attempt=MAX(0,attempt-1),lease_expires_at=NULL,updated_at=?
+                WHERE task_id=? AND worker_id=? AND lease_generation=? AND status='leased'""",
+                (retry_after, reason, now, task_id, worker_id, lease_generation),
+            ).rowcount
+            if changed == 1:
+                conn.execute(
+                    """INSERT INTO autonomous_task_transitions
+                    (task_id,worker_id,lease_generation,from_status,to_status,reason,created_at)
+                    VALUES(?,?,?,?,'deferred',?,?)""",
+                    (task_id, worker_id, lease_generation, previous, reason, now),
+                )
+            conn.commit()
+        return changed == 1
 
     def fail(
         self,
@@ -567,7 +671,10 @@ class AutonomousTaskStore:
         # ── 2. Reconciliar completion_uncertain existentes ──────────
         reconciled = self.reconcile_uncertain_completions()
         result["uncertain_completed"] = reconciled["completed"]
-        result["uncertain_quarantined"] = reconciled["still_uncertain"]
+        # "Cuarentenadas" son ahora las que se cerraron como `dead_letter` por no
+        # tener artefacto. Antes esta cifra contaba las que se quedaban en limbo,
+        # que es precisamente lo que ya no ocurre.
+        result["uncertain_quarantined"] = reconciled["dead_lettered"]
 
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -610,7 +717,9 @@ class AutonomousTaskStore:
                     WHERE task_id=? AND status='leased'""",
                     (now_iso, tid),
                 )
-                _record(tid, wid, lgen, "leased", "recovered", "orphaned_lease_recovered")
+                _record(
+                    tid, wid, lgen, "leased", "recovered", "orphaned_lease_recovered"
+                )
                 result["leased_recovered"] += 1
                 result["fencing_invalidated"] += 1
 
@@ -640,7 +749,14 @@ class AutonomousTaskStore:
                         WHERE task_id=? AND status='running' AND result_ref=?""",
                         (now_iso, tid, ref),
                     )
-                    _record(tid, wid, lgen, "running", "completed", "artifact_found_during_recovery")
+                    _record(
+                        tid,
+                        wid,
+                        lgen,
+                        "running",
+                        "completed",
+                        "artifact_found_during_recovery",
+                    )
                     result["running_recovered"] += 1
                 else:
                     conn.execute(
@@ -650,7 +766,14 @@ class AutonomousTaskStore:
                         WHERE task_id=? AND status='running'""",
                         (now_iso, tid),
                     )
-                    _record(tid, wid, lgen, "running", "completion_uncertain", "recovery_no_artifact")
+                    _record(
+                        tid,
+                        wid,
+                        lgen,
+                        "running",
+                        "completion_uncertain",
+                        "recovery_no_artifact",
+                    )
                     result["running_uncertain"] += 1
                 result["fencing_invalidated"] += 1
 
@@ -671,7 +794,14 @@ class AutonomousTaskStore:
                         WHERE task_id=? AND status='retry_wait'""",
                         (now_iso, tid),
                     )
-                    _record(tid, wid, lgen, "retry_wait", "retry_wait", "stale_ownership_cleaned")
+                    _record(
+                        tid,
+                        wid,
+                        lgen,
+                        "retry_wait",
+                        "retry_wait",
+                        "stale_ownership_cleaned",
+                    )
                 result["retry_wait_preserved"] += 1
 
             # ── 6. deferred: preservar, solo limpiar owner ────────
@@ -691,7 +821,14 @@ class AutonomousTaskStore:
                         WHERE task_id=? AND status='deferred'""",
                         (now_iso, tid),
                     )
-                    _record(tid, wid, lgen, "deferred", "deferred", "stale_ownership_cleaned")
+                    _record(
+                        tid,
+                        wid,
+                        lgen,
+                        "deferred",
+                        "deferred",
+                        "stale_ownership_cleaned",
+                    )
                 result["deferred_preserved"] += 1
 
             # ── 7. completion_uncertain restantes (no reconciliables) ──

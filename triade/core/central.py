@@ -869,7 +869,14 @@ class Central:
                 if isinstance(getattr(input_packet, "context", None), dict)
                 else None
             )
-            return (
+            # El bloque de saberes va aparte y rotulado: mezclarlo con la
+            # memoria semántica le daría la misma autoridad que a las reglas.
+            verified_block = ""
+            if isinstance(getattr(input_packet, "context", None), dict):
+                verified_block = str(
+                    input_packet.context.get("verified_knowledge_block") or ""
+                )
+            return (f"{verified_block}\n" if verified_block else "") + (
                 f"Identidad: {identity}\n"
                 f"Usuario: {input_packet.user_input}\n"
                 f"Intención: {signals.intent}\n"

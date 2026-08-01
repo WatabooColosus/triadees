@@ -116,12 +116,26 @@ def ensure_workers_alive(
             return dict(_WORKER_STATE)
         if alive:
             _WORKER_STATE.update({"active": True, "status": "running"})
-            return build_workers_always_on_status(db_path=db_path, runs_dir=runs_dir)
-        if _WORKER_STATE.get("last_start_at") and watchdog:
-            _WORKER_STATE["restart_attempts"] = (
-                int(_WORKER_STATE.get("restart_attempts", 0) or 0) + 1
-            )
-        _WORKER_STATE.update({"status": "starting", "last_error": None})
+            already_running = True
+        else:
+            already_running = False
+            if _WORKER_STATE.get("last_start_at") and watchdog:
+                _WORKER_STATE["restart_attempts"] = (
+                    int(_WORKER_STATE.get("restart_attempts", 0) or 0) + 1
+                )
+            _WORKER_STATE.update({"status": "starting", "last_error": None})
+
+    if already_running:
+        # **Fuera** del `with`, y esa es toda la corrección. Llamar aquí dentro a
+        # `build_workers_always_on_status()` era un autobloqueo: esa función
+        # vuelve a pedir `_WORKER_LOCK`, que no es reentrante. El hilo se quedaba
+        # esperándose a sí mismo **sin soltar el lock**, y con él se colgaba todo
+        # el que lo necesitara: los 50 hilos del pool de FastAPI acabaron ahí, y
+        # la Cabina Viva se quedaba en "Cargando…" para siempre.
+        #
+        # Solo se disparaba con los workers vivos — es decir, exactamente cuando
+        # alguien mira el panel para ver si están vivos.
+        return build_workers_always_on_status(db_path=db_path, runs_dir=runs_dir)
 
     def _run() -> None:
         try:

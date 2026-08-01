@@ -5,6 +5,7 @@ from typing import Any, ClassVar
 
 from .neuron_missions import NeuronMissionStore
 from .neuron_registry import NeuronRegistry
+from .stable_promotion_gate import stable_promotion_approval
 from .stable_promotion_readiness import evaluate_stable_readiness
 
 
@@ -161,6 +162,29 @@ class NeuronAutopromoter:
             },
         }
 
+    def _stable_approval_block(self, n: dict[str, Any]) -> dict[str, Any] | None:
+        """`None` si hay permiso para promover; el evento de bloqueo si no.
+
+        Pasar los umbrales de readiness demuestra que la neurona *puede*
+        promoverse. Que *deba* hacerlo es una decisión de gobierno, y hasta ahora
+        no la tomaba nadie: se promovía sola.
+        """
+        name = str(n.get("name", "?"))
+        decision = stable_promotion_approval(name)
+        if decision["approved"]:
+            return None
+        return {
+            "type": "autopromotion_skipped",
+            "severity": "info",
+            "status": "not_promoted",
+            "message": (
+                f"Neurona '{name}' lista para stable, pero la promoción estable "
+                "requiere aprobación humana."
+            ),
+            "reason": decision["reason"],
+            "payload": {"name": name, "approval": decision},
+        }
+
     def _promote_experimental_to_stable(
         self, n: dict[str, Any]
     ) -> dict[str, Any] | None:
@@ -231,6 +255,12 @@ class NeuronAutopromoter:
                     "required": self.STABLE_THRESHOLDS["min_external_verifications"],
                 },
             }
+
+        # Último control antes de lo irreversible. Los umbrales de readiness
+        # demuestran que la neurona *puede* promoverse; esto decide que *debe*.
+        blocked = self._stable_approval_block(n)
+        if blocked is not None:
+            return blocked
 
         try:
             self.registry.update_status(name, "stable")

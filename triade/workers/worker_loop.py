@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import sqlite3
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -50,11 +51,51 @@ from triade.runtime.task_leases import AutonomousTaskStore
 from triade.runtime.wake_bus import runtime_wake_event
 
 from .adaptive_scheduler import AdaptiveScheduler
-from .contracts import WorkerRunConfig, WorkerTask, new_worker_run_id
+from .concurrency import GovernedTaskPool, policy_for
+from .contracts import (
+    WORKER_TASK_TYPES,
+    WorkerRunConfig,
+    WorkerTask,
+    new_worker_run_id,
+)
 from .neuron_mission_executor import NeuronMissionExecutor
 from .scheduler import WorkerScheduler
 from .state_store import WorkerStateStore
 from .task_queue import WorkerTaskQueue
+
+#: `summary` es el único estado en memoria que varias tareas mutan a la vez, y
+#: `+=` sobre un dict no es atómico en CPython.
+#:
+#: El lock vive a nivel de módulo, no en `WorkerLoop`, y no por gusto:
+#: `GovernedTaskExecutor` ejecuta cada handler en un proceso `spawn` aparte para
+#: poder imponer el timeout, lo que obliga a **picklear el método enlazado** y con
+#: él la instancia entera. Un `threading.Lock` como atributo la haría impicklable
+#: y rompería la ejecución de todas las tareas. La contención es irrelevante: se
+#: sostiene durante un par de incrementos.
+_SUMMARY_LOCK = threading.Lock()
+
+
+def _auto_approval_enabled() -> bool:
+    """¿Puede la política aprobar propuestas sin firma humana? **Sí, por defecto.**
+
+    Esto estaba en `0`, y era el gate en el sitio equivocado. Proponer una mejora
+    es reversible: la propuesta solo abre la puerta a investigar, construir una
+    candidata y medirla en sandbox. Nada de eso cambia el organismo. Exigir una
+    persona ahí no añadía seguridad —el gate de salida sigue igual de duro— pero
+    dejaba el circuito de aprendizaje **inerte esperando a alguien**, y convertía
+    la aprobación en un trámite que se firma sin mirar.
+
+    El gate se ha movido a donde importa: `stable_promotion_gate`, en el paso
+    experimental → estable, que es el irreversible y que hasta ahora **no pedía
+    permiso a nadie**.
+
+    Sigue apagable con `TRIADE_SELF_IMPROVEMENT_AUTO_APPROVE=0`. Cuando aprueba
+    la política, se registra como `auto:threshold_policy`, nunca como humana.
+    """
+    return os.getenv(
+        "TRIADE_SELF_IMPROVEMENT_AUTO_APPROVE", "1"
+    ).strip().lower() not in {"0", "false", "no"}
+
 
 WORKER_OPERATION_ERRORS = (
     OSError,
@@ -183,6 +224,8 @@ class WorkerLoop:
         )
         self.live_heartbeat = LiveHeartbeat(db_path=self.db_path)
         self.legacy_reconciler = LegacyTaskReconciler(self.db_path)
+        # Se activa solo si el run termina con tareas todavia vivas.
+        self._retain_lock_for_active_tasks = False
 
     def run(self, config: WorkerRunConfig | None = None) -> dict[str, Any]:
         config = config or WorkerRunConfig(
@@ -286,6 +329,10 @@ class WorkerLoop:
             self.legacy_reconciler.reconcile()
             wake_event = runtime_wake_event(self.db_path)
             live_scheduler = EventDrivenScheduler(wake_event=wake_event)
+            # Un único pool por run. Con `concurrency_enabled=False` es `None` y
+            # el drenaje vuelve a ser exactamente el secuencial de antes.
+            settings = config.concurrency_settings()
+            pool = GovernedTaskPool(settings) if settings.enabled else None
 
             def drain_queue() -> int:
                 drained = 0
@@ -294,16 +341,37 @@ class WorkerLoop:
                     max_seconds=config.max_seconds_per_drain,
                     per_type=config.max_tasks_per_type_per_drain,
                 )
+                # Antes de nada, retirar lo que ya terminó en el pool. Es lo que
+                # convierte el drenaje en no bloqueante: no se espera a ninguna
+                # tarea concreta, se recoge lo que haya acabado.
+                self._reap_finished(pool, summary)
                 # Los reintentos y tareas recuperadas v2 sobreviven aunque su
                 # fila legacy ya no esté pendiente.
+                deadline = budget.started + budget.max_seconds
                 while not budget.exhausted:
+                    # A los tipos excluidos por presupuesto se suman los que
+                    # ahora mismo no cabrían por carril lleno: así no se arrienda
+                    # algo solo para devolverlo acto seguido, ni se bloquea el
+                    # drenaje detrás de un carril saturado pudiendo atender otro.
+                    saturated = self._saturated_task_types(pool)
                     leased = self.autonomous_tasks.claim(
                         run_ref,
                         lease_seconds=max(60, int(config.task_timeout * 2)),
-                        excluded_task_types=budget.excluded_types,
+                        excluded_task_types=budget.excluded_types | saturated,
                     )
                     if leased is None:
-                        break
+                        if not saturated:
+                            break
+                        # Puede que sí hubiera trabajo y solo faltara sitio.
+                        # Terminar aquí dejaría esas tareas sin correr en modo
+                        # `once`, donde no hay un ciclo siguiente.
+                        pool_wait = pool
+                        if pool_wait is None:
+                            break
+                        pool_wait.wait_for_slot(0.25)
+                        if self._reap_finished(pool_wait, summary) == 0:
+                            break
+                        continue
                     drained += 1
                     budget.record(str(leased["task_type"]))
                     if not self.backpressure.allows(
@@ -311,15 +379,16 @@ class WorkerLoop:
                         effectful=str(leased["task_type"])
                         not in self.READ_ONLY_TASKS_WITHOUT_BLOOD,
                     ):
-                        self.autonomous_tasks.defer(
+                        # No llegó a ejecutarse: el intento no se cuenta.
+                        self.autonomous_tasks.defer_unstarted(
                             str(leased["task_id"]),
                             run_ref,
                             int(leased["lease_generation"]),
                             "resource_backpressure",
                         )
                         continue
-                    self._execute_autonomous_task(
-                        leased, run_ref, artifact_dir, config, summary
+                    self._dispatch_autonomous_task(
+                        leased, run_ref, artifact_dir, config, summary, pool, deadline
                     )
                 while not budget.exhausted:
                     task = self.queue.claim_next()
@@ -363,15 +432,36 @@ class WorkerLoop:
                             payload={"autonomous_task_id": governed.get("task_id")},
                         )
                         continue
-                    self._execute_autonomous_task(
-                        leased, run_ref, artifact_dir, config, summary
+                    self._dispatch_autonomous_task(
+                        leased, run_ref, artifact_dir, config, summary, pool, deadline
                     )
+                self._reap_finished(pool, summary)
                 return drained
 
             def dispatch_cycle() -> dict[str, Any]:
                 summary["iterations"] += 1
                 scheduled = self.scheduler.schedule_cycle(run_ref, config)
-                return {"scheduled": len(scheduled), "drained": drain_queue()}
+                drained = drain_queue()
+                if pool is not None:
+                    # Snapshot vivo, no solo al cerrar: si únicamente se
+                    # registrara en el shutdown, el observador siempre vería
+                    # `running: 0` y no sabría nunca qué estuvo corriendo a la vez.
+                    summary["concurrency"] = pool.snapshot(queued=pool.pending_count())
+                    summary["concurrency"]["running_tasks"] = [
+                        {
+                            "task_id": entry.task_id,
+                            "task_type": entry.task_type,
+                            "lane": entry.lane,
+                            "resource_class": entry.resource_class,
+                            "thread": entry.thread_name,
+                            "lease_generation": entry.lease_generation,
+                            "started_at": entry.started_at,
+                            "running_seconds": round(time.time() - entry.started_at, 3),
+                            "exclusive_keys": sorted(entry.keys),
+                        }
+                        for entry in pool.registry.running_tasks()
+                    ]
+                return {"scheduled": len(scheduled), "drained": drained}
 
             dispatch_interval = max(0.001, float(config.sleep_seconds))
             live_scheduler.add_job(
@@ -402,15 +492,56 @@ class WorkerLoop:
                 if config.once:
                     break
                 if summary["iterations"] < target_iterations:
-                    wake_reason = live_scheduler.wait(maximum_seconds=5.0)
+                    # Con tareas en vuelo se espera poco, para volver a recoger
+                    # resultados pronto en vez de dormir sobre ellos.
+                    idle = pool is None or pool.pending_count() == 0
+                    wake_reason = live_scheduler.wait(
+                        maximum_seconds=5.0 if idle else 0.5
+                    )
                     if wake_reason == "event":
                         drain_queue()
+                    elif not idle:
+                        self._reap_finished(pool, summary)
+            # Parada ordenada. Reportar las tareas vivas NO basta: mientras una
+            # tarea corre, este run sigue siendo el dueño de su lease, y declarar
+            # el run terminado permitiría que otro worker arrancara sobre la
+            # misma base creyendo que no hay nadie. Así que se espera de verdad.
+            if pool is not None:
+                shutdown_report = pool.shutdown(
+                    wait_seconds=float(config.concurrency_shutdown_seconds)
+                )
+                if shutdown_report.get("still_running"):
+                    hard_deadline = time.monotonic() + max(
+                        60.0, float(config.task_timeout) * 2
+                    )
+                    while (
+                        pool.registry.running_count()
+                        and time.monotonic() < hard_deadline
+                    ):
+                        pool.wait_for_slot(1.0)
+                        self._reap_finished(pool, summary)
+                    shutdown_report["still_running"] = pool.registry.running_count()
+                    shutdown_report["orphans"] = [
+                        {"task_id": entry.task_id, "task_type": entry.task_type}
+                        for entry in pool.registry.running_tasks()
+                    ]
+                summary["concurrency_shutdown"] = shutdown_report
+                self._reap_finished(pool, summary)
             summary["live_scheduler"] = live_scheduler.snapshot()
             summary["heartbeat"] = self.live_heartbeat.snapshot()
             summary["autonomous_tasks_governed"] = True
+            orphaned = int(
+                (summary.get("concurrency_shutdown") or {}).get("still_running") or 0
+            )
             status = (
                 "completed" if not summary.get("errors") else "completed_with_errors"
             )
+            if orphaned:
+                # Estado propio: ni "completado" (no lo está) ni "fallido" (no
+                # falló). Que se note en el estado, no solo en un campo del
+                # summary que nadie mira.
+                status = "completed_with_active_tasks"
+                self._retain_lock_for_active_tasks = True
             self.store.finish_worker_run(run_ref, status, summary)
             self.store.set_state(
                 "workers",
@@ -461,10 +592,150 @@ class WorkerLoop:
                 **summary,
             }
         finally:
-            try:
-                self.lock_file.unlink()
-            except FileNotFoundError:
-                pass
+            if getattr(self, "_retain_lock_for_active_tasks", False):
+                # Se conserva el lock a propósito. Soltarlo con tareas todavía
+                # vivas dejaría entrar a otro worker sobre la misma base, que es
+                # exactamente la doble ejecución que este runtime existe para
+                # impedir. No queda huérfano: `recover_interrupted_runtime`
+                # comprueba si el PID sigue vivo y recupera el lock caduco
+                # cuando el proceso muera.
+                self.store.record_event(
+                    "worker_lock_retained",
+                    "Lock conservado: quedaban tareas vivas al cerrar el run",
+                    run_ref=run_ref,
+                    status="observed",
+                    payload={"lock_file": str(self.lock_file)},
+                )
+            else:
+                try:
+                    self.lock_file.unlink()
+                except FileNotFoundError:
+                    pass
+
+    def _dispatch_autonomous_task(
+        self,
+        leased: dict[str, Any],
+        run_ref: str,
+        artifact_dir: Path,
+        config: WorkerRunConfig,
+        summary: dict[str, Any],
+        pool: GovernedTaskPool | None,
+        wait_deadline: float = 0.0,
+    ) -> bool:
+        """Manda la tarea al pool, o la ejecuta en línea si no hay concurrencia.
+
+        La ejecución sigue siendo la misma función de siempre
+        (`_execute_autonomous_task`): aquí solo se decide **dónde** corre. No se
+        duplica ni una línea de la lógica de cierre, precisamente para que no
+        existan dos sitios capaces de cerrar una tarea.
+
+        Los dos rechazos posibles no son el mismo problema y no se tratan igual:
+
+        - **Falta de sitio** (carril o límite global llenos) es transitorio. Se
+          espera un poco a que se libere un hueco, recogiendo mientras lo que
+          termine. Diferir aquí rompería el modo `once`, donde no hay un ciclo
+          siguiente que recoja lo diferido: la tarea simplemente no correría.
+        - **Clave de exclusión tomada** es semántico: otra tarea está mutando esa
+          misma candidata. Esperar no ayudaría dentro de este drenaje, así que se
+          devuelve a la cola de inmediato.
+
+        En ambos casos, devolver a la cola **no consume intento**: esperar turno
+        no es fracasar.
+        """
+        if pool is None:
+            self._execute_autonomous_task(
+                leased, run_ref, artifact_dir, config, summary
+            )
+            return True
+
+        task_id = str(leased["task_id"])
+        lease_generation = int(leased["lease_generation"])
+        payload = dict(leased.get("payload") or {})
+
+        def _run() -> dict[str, Any]:
+            return self._execute_autonomous_task(
+                leased, run_ref, artifact_dir, config, summary
+            )
+
+        while True:
+            decision = pool.submit(
+                task_id,
+                str(leased["task_type"]),
+                payload,
+                _run,
+                lease_generation=lease_generation,
+            )
+            if decision.admitted:
+                return True
+            capacity_bound = decision.reason in {"global_limit", "lane_limit"}
+            if not capacity_bound or time.monotonic() >= wait_deadline:
+                break
+            # Espera a que se libere **algún** hueco, nunca a una tarea concreta.
+            pool.wait_for_slot(0.25)
+            self._reap_finished(pool, summary)
+
+        self.autonomous_tasks.defer_unstarted(
+            task_id,
+            run_ref,
+            lease_generation,
+            f"concurrency:{decision.reason}",
+        )
+        return False
+
+    @staticmethod
+    def _saturated_task_types(pool: GovernedTaskPool | None) -> set[str]:
+        """Tipos que ahora mismo no cabrían, para no arrendarlos en vano.
+
+        Es una optimización, no una garantía: entre calcular esto y reclamar, el
+        estado puede cambiar. La garantía real la da `RunningTaskRegistry`, que
+        comprueba y toma las exclusiones bajo el mismo lock.
+        """
+        if pool is None:
+            return set()
+        snapshot = pool.snapshot()
+        if int(snapshot["running"]) >= int(snapshot["global_limit"]):
+            return set(WORKER_TASK_TYPES)
+        full = {
+            lane
+            for lane, state in snapshot["lanes"].items()
+            if int(state["running"]) >= int(state["limit"])
+        }
+        if not full:
+            return set()
+        return {
+            task_type
+            for task_type in WORKER_TASK_TYPES
+            if policy_for(task_type).lane in full
+        }
+
+    def _reap_finished(
+        self, pool: GovernedTaskPool | None, summary: dict[str, Any]
+    ) -> int:
+        """Retira los futuros terminados y deja constancia de los que reventaron.
+
+        Una excepción que escapa de `_execute_autonomous_task` no puede quedarse
+        muda dentro del hilo: la tarea ya se cerró (o no) por su propio camino,
+        pero el run debe reflejar que algo falló.
+        """
+        if pool is None:
+            return 0
+        finished = pool.collect_finished()
+        for task_id, future in finished:
+            error = future.exception()
+            if error is not None:
+                message = f"{type(error).__name__}: {error}"
+                with _SUMMARY_LOCK:
+                    summary.setdefault("errors", []).append(
+                        f"concurrent_task_crashed:{task_id}:{message}"
+                    )
+                record_internal_error(
+                    "worker_loop.concurrent_task",
+                    error if isinstance(error, Exception) else message,
+                    run_id=str(summary.get("run_ref") or ""),
+                    payload={"autonomous_task_id": task_id},
+                    db_path=self.db_path,
+                )
+        return len(finished)
 
     def _execute_autonomous_task(
         self,
@@ -474,7 +745,12 @@ class WorkerLoop:
         config: WorkerRunConfig,
         summary: dict[str, Any],
     ) -> dict[str, Any]:
-        """Ejecuta una tarea solo después de adquirir su lease v2."""
+        """Ejecuta una tarea solo después de adquirir su lease v2.
+
+        Puede correr en el hilo principal (modo serial) o en un hilo del pool.
+        Todo lo que toca —stores, artefactos, lease— abre su propia conexión
+        SQLite dentro del hilo que la usa; no se hereda ninguna del principal.
+        """
         autonomous_task_id = str(leased["task_id"])
         lease_generation = int(leased["lease_generation"])
         payload = dict(leased.get("payload") or {})
@@ -587,12 +863,13 @@ class WorkerLoop:
                 "error": execution.message,
             }
 
-        if execution.status == "blocked":
-            summary["tasks_blocked"] += 1
-        elif execution.status in {"failed", "dead_letter", "timeout", "lease_lost"}:
-            summary["errors"].append(result.get("error") or "task_failed")
-        elif execution.status == "completed":
-            summary["tasks_completed"] += 1
+        with _SUMMARY_LOCK:
+            if execution.status == "blocked":
+                summary["tasks_blocked"] += 1
+            elif execution.status in {"failed", "dead_letter", "timeout", "lease_lost"}:
+                summary["errors"].append(result.get("error") or "task_failed")
+            elif execution.status == "completed":
+                summary["tasks_completed"] += 1
         result["execution_result"] = execution.model_dump(mode="json")
         if legacy_id is not None:
             canonical = self.autonomous_tasks.get(autonomous_task_id) or {}
@@ -650,6 +927,21 @@ class WorkerLoop:
             "unverifiable",
         }:
             return ExecutionResult(status="observed", executed=False, message=message)
+        if raw_status == "deferred":
+            # "Todavía no hay evidencia" no es "esto falló". Tratarlo como fallo
+            # descartaría candidatas válidas por haber llegado antes que sus
+            # datos, y un canary nunca llegaría a acumular observaciones: cada
+            # ciclo sin informes nuevos contaría como intento fallido.
+            return ExecutionResult(
+                status="deferred",
+                executed=False,
+                retryable=True,
+                error_code=str(result.get("defer_cause") or "deferred"),
+                message=message,
+                artifacts=evidence,
+                evidence=evidence,
+                resource_usage=resource_usage,
+            )
         if raw_status in {"error", "failed"}:
             return ExecutionResult(
                 status="failed",
@@ -938,6 +1230,19 @@ class WorkerLoop:
                     "encrypted_backup": self._encrypted_backup,
                     "neuron_education_cycle": self._neuron_education_cycle,
                     "write_governed_text_artifact": self._write_governed_text_artifact,
+                    "self_improvement_evaluation": self._self_improvement_evaluation,
+                    "self_improvement_canary_observation": (
+                        self._self_improvement_canary_observation
+                    ),
+                    "learning_candidate_generation": (
+                        self._learning_candidate_generation
+                    ),
+                    "learning_candidate_deduplication": (
+                        self._learning_candidate_deduplication
+                    ),
+                    "learning_evidence_generation": (
+                        self._learning_evidence_generation
+                    ),
                 }
                 outcome = self.task_executor.execute_callable(
                     handlers[task.task_type],
@@ -1245,6 +1550,344 @@ class WorkerLoop:
         result["stable_neuron_promotion"] = False
         return result
 
+    def _self_improvement_evaluation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Ejecuta el ciclo de automejora sobre propuestas YA APROBADAS por un humano.
+
+        Este handler **no crea ni aprueba propuestas**. `create_candidate`
+        (`self_improvement/bridge.py:102`) exige que la propuesta esté en estado
+        `approved`, y `approve()` (`:67`) exige un `approved_by` no vacío. Es decir:
+        un humano decide **qué dirección** se intenta; la máquina hace la
+        **verificación rigurosa** (sandbox → medición → regression gate → canary),
+        que es donde una firma humana no aportaría nada verificable.
+
+        La medición no la declara el propio candidato: `VitalityEvaluationProvider`
+        lee las cinco puntuaciones que el `Verifier` ya escribió en
+        `verification_reports` durante runs reales, contra la suite inmutable
+        `triade-vitality`. Si no hay evidencia suficiente, **falla en vez de
+        adivinar**.
+
+        Procesa **una** propuesta por ciclo, deliberadamente.
+        """
+        import sqlite3 as _sqlite3
+
+        from triade.evaluation.provider_registry import (
+            DEFAULT_EVALUATION_PROVIDER,
+            build_evaluation_provider,
+        )
+        from triade.self_improvement.orchestrator import SelfImprovementOrchestrator
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+
+        with _sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = _sqlite3.Row
+            # En una base nueva la tabla puede no existir todavía; un worker no
+            # debe caerse por eso.
+            if not conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='improvement_proposals'"
+            ).fetchone():
+                return {
+                    "status": "no_target",
+                    "reason": "no hay registro de propuestas de mejora todavía",
+                    "run_ref": run_ref,
+                }
+            row = conn.execute(
+                """SELECT proposal_id, payload_json FROM improvement_proposals
+                   WHERE status = 'approved' ORDER BY rowid ASC LIMIT 1"""
+            ).fetchone()
+            pending = (
+                None
+                if row is not None
+                else conn.execute(
+                    """SELECT proposal_id, payload_json FROM improvement_proposals
+                       WHERE status = 'open' ORDER BY rowid ASC LIMIT 1"""
+                ).fetchone()
+            )
+
+        approver = "human"
+        if row is None and pending is not None and _auto_approval_enabled():
+            # Aprobación por política, no humana. Decisión explícita del
+            # responsable (2026-07-31): prefiere umbral altísimo a una firma que
+            # no puede verificar. La búsqueda no queda sin límites: las
+            # propuestas nacen de brechas MEDIDAS (ImprovementSignal con
+            # observed/target/impact/confidence) y hay cooldown por señal
+            # (self_improvement/store.py:144). El rigor se sostiene en el gate de
+            # salida —tolerancia cero en trazabilidad y safety, suite inmutable—
+            # no en una firma previa.
+            # Se registra `auto:threshold_policy` para que NUNCA parezca que un
+            # humano aprobó algo que no aprobó.
+            from triade.self_improvement.bridge import ImprovementNeuronFactoryBridge
+
+            proposal_id = str(pending["proposal_id"])
+            try:
+                ImprovementNeuronFactoryBridge(self.db_path).approve(
+                    proposal_id, approved_by="auto:threshold_policy"
+                )
+            except (ValueError, KeyError) as exc:
+                return {
+                    "status": "observed",
+                    "reason": f"auto-aprobación rechazada: {exc}",
+                    "proposal_id": proposal_id,
+                    "run_ref": run_ref,
+                }
+            approver = "auto:threshold_policy"
+            row = pending
+
+        if row is None:
+            return {
+                "status": "no_target",
+                "reason": (
+                    "no hay propuestas aprobadas"
+                    if _auto_approval_enabled()
+                    else "no hay propuestas aprobadas por un humano"
+                ),
+                "run_ref": run_ref,
+            }
+
+        proposal_id = str(row["proposal_id"])
+
+        def _stamp(payload_out: dict[str, Any]) -> dict[str, Any]:
+            """Todo camino de salida declara quién aprobó. Sin excepciones.
+
+            Si el aprobador solo apareciera en el camino feliz, un fallo temprano
+            borraría la única señal de que la propuesta se aprobó sin humano.
+            """
+            payload_out["proposal_id"] = proposal_id
+            payload_out["run_ref"] = run_ref
+            payload_out["approved_by"] = approver
+            payload_out["human_approved_proposal"] = approver == "human"
+            return payload_out
+
+        neuron_id = str(payload.get("neuron_id") or "")
+        version = str(payload.get("version") or "")
+        if not neuron_id or not version:
+            return _stamp(
+                {
+                    "status": "blocked",
+                    "reason": "la propuesta aprobada no declara neuron_id/version",
+                }
+            )
+
+        # Idempotencia: si ya existe una candidata viva para esta terna, no se
+        # crea una segunda. Dos candidatas para la misma (propuesta, neurona,
+        # versión) serían dos verdades incompatibles sobre el mismo cambio.
+        existing = self._existing_candidate(proposal_id, neuron_id, version)
+        if existing is not None:
+            return _stamp(
+                {
+                    "status": "observed",
+                    "reason": "ya existe una candidata equivalente en curso",
+                    "idempotent": True,
+                    "candidate_id": existing,
+                    "neuron_id": neuron_id,
+                    "version": version,
+                }
+            )
+
+        # El provider sale de un registro cerrado. Permitir un nombre arbitrario
+        # dejaría que la propuesta eligiera su propio examinador.
+        try:
+            provider = build_evaluation_provider(
+                str(payload.get("evaluation_provider") or DEFAULT_EVALUATION_PROVIDER),
+                self.db_path,
+            )
+        except ValueError as exc:
+            return _stamp({"status": "blocked", "reason": str(exc)})
+
+        artifact_cutoff = str(payload.get("evaluated_since") or "")
+
+        def _provider(candidate_id: str, artifact: dict[str, Any]):
+            reference = dict(artifact)
+            if artifact_cutoff:
+                reference["created_at"] = artifact_cutoff
+            return provider(candidate_id, reference)
+
+        self._record_improvement_event(
+            "self_improvement_started",
+            run_ref,
+            {"proposal_id": proposal_id, "neuron_id": neuron_id, "version": version},
+        )
+        try:
+            result = SelfImprovementOrchestrator(self.db_path).run_once(
+                proposal_id,
+                neuron_id=neuron_id,
+                version=version,
+                configuration=dict(payload.get("configuration") or {"mode": "safe"}),
+                evaluation_provider=_provider,
+                canary_traffic_percent=int(payload.get("canary_traffic_percent") or 10),
+                canary_tolerance=float(payload.get("canary_tolerance") or 0.02),
+                canary_min_observations=int(
+                    payload.get("canary_min_observations") or 3
+                ),
+                canary_max_observations=int(
+                    payload.get("canary_max_observations") or 10
+                ),
+            )
+        except (ValueError, KeyError) as exc:
+            message = str(exc)
+            # "Todavía no hay evidencia" no es lo mismo que "esto no sirve". Si
+            # se tratara igual, una candidata perfectamente válida quedaría
+            # descartada por haber llegado antes que sus datos. Se difiere para
+            # reintentar cuando el sistema haya operado más.
+            if "evidencia insuficiente" in message:
+                self._record_improvement_event(
+                    "self_improvement_deferred",
+                    run_ref,
+                    {"proposal_id": proposal_id, "reason": message},
+                )
+                return _stamp(
+                    {
+                        "status": "deferred",
+                        "reason": message,
+                        "defer_cause": "insufficient_candidate_observations",
+                        "retryable": True,
+                    }
+                )
+            self._record_improvement_event(
+                "self_improvement_failed",
+                run_ref,
+                {"proposal_id": proposal_id, "reason": message},
+            )
+            return _stamp(
+                {"status": "observed", "reason": f"ciclo no promovible: {message}"}
+            )
+
+        _stamp(result)
+        result["stable_memory_written"] = False
+
+        # Aprender del fallo. Antes de esto, `quarantined` era terminal: el gate
+        # sabía qué métrica cayó y cuánto, y nadie leía ese detalle. Ahora cada
+        # reprobación se archiva como lección por (capacidad, métrica) —
+        # compartida entre neuronas— y se emite una señal dirigida a la métrica
+        # que realmente falló. No relaja el gate: solo alimenta el intento
+        # siguiente. Nunca puede tumbar el ciclo.
+        if result.get("orchestrator_status") in {"quarantined", "rejected"}:
+            try:
+                from triade.self_improvement.failure_learning import FailureLearningLoop
+
+                result["failure_learning"] = FailureLearningLoop(self.db_path).harvest()
+            except (sqlite3.Error, ValueError, KeyError, OSError) as exc:
+                result["failure_learning"] = {"error": f"{type(exc).__name__}: {exc}"}
+
+        # Eventos explícitos por estado terminal del orquestador. El mejor
+        # estado que esta tarea puede alcanzar es `canary_running`: nunca
+        # promueve a estable por su cuenta.
+        orchestrator_status = str(result.get("status") or "")
+        self._record_improvement_event(
+            {
+                "canary_running": "candidate_canary_started",
+                "quarantined": "candidate_quarantined",
+            }.get(orchestrator_status, "candidate_evaluated"),
+            run_ref,
+            {
+                "proposal_id": proposal_id,
+                "candidate_id": result.get("candidate_id"),
+                "orchestrator_status": orchestrator_status,
+            },
+        )
+        result["stable_promotion_performed"] = False
+        # El estado que devuelve el orquestador (promoted/quarantined/
+        # canary_running) no es un estado de tarea: se reporta como observación
+        # para que el ejecutor no lo interprete como éxito de promoción.
+        result["orchestrator_status"] = result.get("status")
+        result["status"] = "observed"
+        return result
+
+    def _existing_candidate(
+        self, proposal_id: str, neuron_id: str, version: str
+    ) -> str | None:
+        """`candidate_id` de una candidata viva para esta terna, si la hay."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            if not conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='improvement_candidate_links'"
+            ).fetchone():
+                return None
+            row = conn.execute(
+                """SELECT candidate_id FROM improvement_candidate_links
+                WHERE proposal_id = ? AND neuron_id = ? AND version = ?
+                  AND status NOT IN ('rejected','cancelled')
+                ORDER BY rowid DESC LIMIT 1""",
+                (proposal_id, neuron_id, version),
+            ).fetchone()
+        return str(row["candidate_id"]) if row else None
+
+    def _record_improvement_event(
+        self, event: str, run_ref: str, payload: dict[str, Any]
+    ) -> None:
+        """Deja rastro de cada etapa. Nunca puede tumbar el ciclo."""
+        try:
+            self.store.record_event(
+                event,
+                f"Automejora: {event}",
+                run_ref=run_ref,
+                status="observed",
+                payload=payload,
+            )
+        except WORKER_OPERATION_ERRORS:
+            # Perder una traza es malo; perder el ciclo por no poder trazarlo,
+            # peor. El resultado canónico ya queda en los artefactos.
+            pass
+
+    def _self_improvement_canary_observation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Acumula observaciones reales sobre el canary abierto.
+
+        Separada de la evaluación a propósito: esperar dentro de `run_once()` a
+        que ocurran suficientes conversaciones significaría sostener un lease
+        durante horas. Aquí cada ciclo aporta lo que haya y se va.
+
+        No promueve a estable. Un canary graduado dice "sobrevivió la ventana sin
+        degradar", no "consolidado".
+        """
+        from triade.self_improvement.canary_observation import (
+            CanaryObservationCollector,
+        )
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+        collector = CanaryObservationCollector(self.db_path)
+        result = collector.observe_once(
+            candidate_id=str(payload.get("candidate_id") or "") or None,
+            max_reports=int(payload.get("max_reports") or 5),
+        )
+        status = str(result.get("status") or "")
+
+        if status == "no_canary":
+            return {**result, "status": "no_target", "run_ref": run_ref}
+        if status == "insufficient_candidate_observations":
+            # No es un fallo: es que todavía no hay con qué decidir.
+            return {
+                **result,
+                "status": "deferred",
+                "defer_cause": "insufficient_candidate_observations",
+                "retryable": True,
+                "run_ref": run_ref,
+            }
+
+        self._record_improvement_event(
+            {
+                "rolled_back": "candidate_rolled_back",
+                "graduated": "candidate_canary_graduated",
+            }.get(status, "candidate_canary_observed"),
+            run_ref,
+            {
+                "canary_id": result.get("canary_id"),
+                "candidate_id": result.get("candidate_id"),
+                "canary_status": status,
+                "observation_count": result.get("observation_count"),
+            },
+        )
+        return {
+            **result,
+            "canary_status": status,
+            "status": "observed",
+            "run_ref": run_ref,
+        }
+
     def _write_governed_text_artifact(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
@@ -1418,6 +2061,176 @@ class WorkerLoop:
             "processed": processed,
             "stable_memory_written": False,
             "qualia": qualia,
+        }
+
+    # ── Aprendizaje productivo ───────────────────────────────────────────
+    # Las tres etapas que antes sólo existían en `scripts/run_knowledge_zero_to_one.py`.
+    # El script demostraba el circuito; estos handlers lo hacen ocurrir solo.
+
+    def _learning_candidate_generation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Extrae una proposición aprendible de un run ya terminado.
+
+        Se ejecuta después de responder al usuario: aprender nunca puede
+        retrasar una conversación.
+        """
+        from triade.learning.candidate_producer import (
+            ExperienceLearningCandidateProducer,
+        )
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+        source_run_id = str(payload.get("source_run_id") or "")
+        mensaje = str(payload.get("message") or "")
+        role = str(payload.get("role") or "user")
+        if not source_run_id or not mensaje:
+            return {
+                "status": "completed",
+                "effect": "no_op",
+                "skipped_reason": "payload_incompleto",
+                "stable_memory_written": False,
+            }
+
+        producer = ExperienceLearningCandidateProducer(self.db_path)
+        resultado = producer.produce(
+            run_id=source_run_id,
+            message=mensaje,
+            role=role,
+            domain=str(payload.get("domain") or "conversation"),
+        )
+        if not resultado.candidates:
+            return {
+                "status": "completed",
+                "effect": "no_op",
+                "skipped_reason": resultado.rejected[0]["reason"]
+                if resultado.rejected
+                else "sin_aprendizaje",
+                "stable_memory_written": False,
+            }
+
+        candidato = resultado.candidates[0]
+        creado = producer.persist(candidato)
+        (task_dir / "candidate.json").write_text(
+            json.dumps(candidato.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return {
+            "status": "completed",
+            "effect": "candidate_created" if creado else "duplicate_skipped",
+            "candidate_id": candidato.candidate_id,
+            "candidate_type": candidato.type,
+            "created": creado,
+            "stable_memory_written": False,
+        }
+
+    def _learning_candidate_deduplication(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Agrupa duplicados sin borrar filas. Idempotente y reversible."""
+        from triade.learning.deduplication import LearningDeduplicator
+
+        dedup = LearningDeduplicator(self.db_path)
+        reporte = dedup.analyze()
+        escritos = dedup.apply(reporte)
+        (task_dir / "dedup.json").write_text(
+            json.dumps(reporte.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return {
+            "status": "completed",
+            # Una tarea que corre y no agrupa nada no es un éxito: es un no-op,
+            # y decirlo evita que el panel parezca vivo sin estarlo.
+            "effect": "grouped" if escritos else "no_op",
+            "processed_count": reporte.total_rows,
+            "grouped_count": escritos,
+            "unique_contents": reporte.unique_contents,
+            "rows_deleted": 0,
+            "stable_memory_written": False,
+        }
+
+    def _learning_evidence_generation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Mide un candidato con control/tratamiento y lo verifica si mejora.
+
+        La revisión va en el mismo handler porque comparte el lease del
+        candidato: separarla abriría una ventana en la que otro obrero podría
+        promover con evidencia a medio escribir.
+        """
+        from triade.learning.evidence_producer import LearningEvidenceProducer
+        from triade.learning.knowledge_probe import build_probe
+        from triade.models.ollama_client import OllamaClient
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+        candidate_id = str(payload.get("candidate_id") or "")
+        if not candidate_id:
+            return {
+                "status": "completed",
+                "effect": "no_op",
+                "skipped_reason": "sin_candidate_id",
+                "stable_memory_written": False,
+            }
+
+        sonda = build_probe(self.db_path, candidate_id)
+        if sonda is None:
+            return {
+                "status": "completed",
+                "effect": "no_op",
+                "skipped_reason": "sin_prueba_objetiva",
+                "candidate_id": candidate_id,
+                "stable_memory_written": False,
+            }
+
+        client = OllamaClient()
+        if not client.health().get("ok"):
+            # Esperar recursos no puede gastar un intento del candidato.
+            return {
+                "status": "deferred",
+                "effect": "deferred",
+                "skipped_reason": "ollama_no_disponible",
+                "candidate_id": candidate_id,
+                "stable_memory_written": False,
+            }
+
+        def generate(prompt: str) -> str:
+            r = client.generate(
+                config.model if hasattr(config, "model") else "qwen2.5:3b-instruct",
+                prompt,
+                options={"temperature": 0, "seed": 7731},
+            )
+            return str(getattr(r, "text", "") or "")
+
+        producer = LearningEvidenceProducer(
+            self.db_path, generate=generate, temperature=0.0, seed=7731
+        )
+        outcome = producer.produce(
+            candidate_id=candidate_id,
+            question=sonda.question,
+            evaluator=sonda.evaluator,
+            repetitions=int(payload.get("repetitions") or 5),
+        )
+        (task_dir / "evidence.json").write_text(
+            json.dumps(outcome.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        promocion = {"promoted": False, "reason": f"decision={outcome.decision}"}
+        if outcome.decision == "improved":
+            promocion = producer.promote_if_verified(candidate_id)
+
+        return {
+            "status": "completed",
+            "effect": f"evidence_{outcome.decision}",
+            "candidate_id": candidate_id,
+            "decision": outcome.decision,
+            "control_mean": outcome.control_mean,
+            "treatment_mean": outcome.treatment_mean,
+            "absolute_delta": outcome.absolute_delta,
+            "regression_report_id": outcome.regression_report_id,
+            "promoted": promocion.get("promoted", False),
+            "promotion_reason": promocion.get("reason"),
+            # `evidence_verified` no es `stable`: eso exige firma humana G3.
+            "stable_memory_written": False,
         }
 
     def _semantic_memory_governance(
@@ -1981,7 +2794,9 @@ class WorkerLoop:
             try:
                 from triade.core.autonomous_sandbox import AutonomousSandbox
 
-                sandbox = AutonomousSandbox(db_path=self.db_path, runs_dir=self.runs_dir)
+                sandbox = AutonomousSandbox(
+                    db_path=self.db_path, runs_dir=self.runs_dir
+                )
                 current_files = [f for f in watch_dir.rglob("*") if f.is_file()]
                 snapshot_after = sandbox.create_snapshot(current_files)
                 changed = sorted(

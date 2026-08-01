@@ -154,8 +154,7 @@ class LifePulseEngine:
             self._thread.start()
             if self.continuous_run_enabled:
                 c_alive = bool(
-                    self._continuous_thread
-                    and self._continuous_thread.is_alive()
+                    self._continuous_thread and self._continuous_thread.is_alive()
                 )
                 if not c_alive:
                     self._continuous_thread = threading.Thread(

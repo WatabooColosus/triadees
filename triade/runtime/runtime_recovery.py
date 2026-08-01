@@ -68,9 +68,7 @@ class RuntimeRecovery:
                 state, error = "unverified", None
             else:
                 heartbeat_ok = bool(verify_heartbeat())
-                actions.append(
-                    {"action": "verify_heartbeat", "result": heartbeat_ok}
-                )
+                actions.append({"action": "verify_heartbeat", "result": heartbeat_ok})
                 if not heartbeat_ok:
                     raise RuntimeError("new_heartbeat_not_observed")
                 state, error = "runtime_recovered", None

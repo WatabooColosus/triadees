@@ -74,7 +74,9 @@ def test_completion_uncertain_is_reconciled(tmp_path: Path) -> None:
     )
     artifacts.publish(staging)
     result = store.reconcile_uncertain_completions()
-    assert result == {"completed": 1, "still_uncertain": 0}
+    # `dead_lettered` cuenta las que no tienen artefacto y por tanto no pueden
+    # resolverse; antes se quedaban en `completion_uncertain` indefinidamente.
+    assert result == {"completed": 1, "still_uncertain": 0, "dead_lettered": 0}
     assert store.get(task["task_id"])["status"] == "completed"
 
 

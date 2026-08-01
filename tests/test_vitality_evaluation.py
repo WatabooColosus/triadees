@@ -152,7 +152,16 @@ def _seed(db: Path, count: int, created_prefix: str) -> None:
         for i in range(count):
             conn.execute(
                 "INSERT INTO verification_reports VALUES (?,?,?,?,?,?,?,?)",
-                (f"run-{i}", "ok", 0.74, 0.90, 0.88, 0.85, 0.95, f"{created_prefix}{i:02d}"),
+                (
+                    f"run-{i}",
+                    "ok",
+                    0.74,
+                    0.90,
+                    0.88,
+                    0.85,
+                    0.95,
+                    f"{created_prefix}{i:02d}",
+                ),
             )
 
 
