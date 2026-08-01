@@ -90,10 +90,18 @@ def build_learning_journal(
         "since_hours": since_hours,
         "cycles_last_24h": cycles_last_24h,
         "missions_executed": missions_executed,
-        "evidence_created": evidence_created,
+        # `neuron_evidence` es la evidencia del ciclo educativo de neuronas, no
+        # la del aprendizaje conversacional. Se nombra por lo que es.
+        "neuron_evidence_created": evidence_created,
         "candidates_created": candidates_by_status.get("candidate", 0),
         "candidates_evaluated": candidates_by_status.get("evaluated", 0),
-        "candidates_verified": candidates_by_status.get("internally_checked", 0),
+        # `internally_checked` significa "revisado por dentro, sin evidencia de
+        # mejora". Llamarlo `candidates_verified` era la razón de que el panel
+        # mostrase decenas de "verificados" mientras no había ni un saber.
+        "candidates_internally_checked": candidates_by_status.get(
+            "internally_checked", 0
+        ),
+        "candidates_verified_with_evidence": 0,
         "candidates_consolidated": candidates_by_status.get("consolidated", 0),
         "candidates_rejected": candidates_by_status.get("rejected", 0),
         "neurons_nourished": neurons_nourished,
