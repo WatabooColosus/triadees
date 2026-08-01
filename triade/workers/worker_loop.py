@@ -1234,6 +1234,15 @@ class WorkerLoop:
                     "self_improvement_canary_observation": (
                         self._self_improvement_canary_observation
                     ),
+                    "learning_candidate_generation": (
+                        self._learning_candidate_generation
+                    ),
+                    "learning_candidate_deduplication": (
+                        self._learning_candidate_deduplication
+                    ),
+                    "learning_evidence_generation": (
+                        self._learning_evidence_generation
+                    ),
                 }
                 outcome = self.task_executor.execute_callable(
                     handlers[task.task_type],
@@ -2052,6 +2061,176 @@ class WorkerLoop:
             "processed": processed,
             "stable_memory_written": False,
             "qualia": qualia,
+        }
+
+    # ── Aprendizaje productivo ───────────────────────────────────────────
+    # Las tres etapas que antes sólo existían en `scripts/run_knowledge_zero_to_one.py`.
+    # El script demostraba el circuito; estos handlers lo hacen ocurrir solo.
+
+    def _learning_candidate_generation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Extrae una proposición aprendible de un run ya terminado.
+
+        Se ejecuta después de responder al usuario: aprender nunca puede
+        retrasar una conversación.
+        """
+        from triade.learning.candidate_producer import (
+            ExperienceLearningCandidateProducer,
+        )
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+        source_run_id = str(payload.get("source_run_id") or "")
+        mensaje = str(payload.get("message") or "")
+        role = str(payload.get("role") or "user")
+        if not source_run_id or not mensaje:
+            return {
+                "status": "completed",
+                "effect": "no_op",
+                "skipped_reason": "payload_incompleto",
+                "stable_memory_written": False,
+            }
+
+        producer = ExperienceLearningCandidateProducer(self.db_path)
+        resultado = producer.produce(
+            run_id=source_run_id,
+            message=mensaje,
+            role=role,
+            domain=str(payload.get("domain") or "conversation"),
+        )
+        if not resultado.candidates:
+            return {
+                "status": "completed",
+                "effect": "no_op",
+                "skipped_reason": resultado.rejected[0]["reason"]
+                if resultado.rejected
+                else "sin_aprendizaje",
+                "stable_memory_written": False,
+            }
+
+        candidato = resultado.candidates[0]
+        creado = producer.persist(candidato)
+        (task_dir / "candidate.json").write_text(
+            json.dumps(candidato.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return {
+            "status": "completed",
+            "effect": "candidate_created" if creado else "duplicate_skipped",
+            "candidate_id": candidato.candidate_id,
+            "candidate_type": candidato.type,
+            "created": creado,
+            "stable_memory_written": False,
+        }
+
+    def _learning_candidate_deduplication(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Agrupa duplicados sin borrar filas. Idempotente y reversible."""
+        from triade.learning.deduplication import LearningDeduplicator
+
+        dedup = LearningDeduplicator(self.db_path)
+        reporte = dedup.analyze()
+        escritos = dedup.apply(reporte)
+        (task_dir / "dedup.json").write_text(
+            json.dumps(reporte.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return {
+            "status": "completed",
+            # Una tarea que corre y no agrupa nada no es un éxito: es un no-op,
+            # y decirlo evita que el panel parezca vivo sin estarlo.
+            "effect": "grouped" if escritos else "no_op",
+            "processed_count": reporte.total_rows,
+            "grouped_count": escritos,
+            "unique_contents": reporte.unique_contents,
+            "rows_deleted": 0,
+            "stable_memory_written": False,
+        }
+
+    def _learning_evidence_generation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Mide un candidato con control/tratamiento y lo verifica si mejora.
+
+        La revisión va en el mismo handler porque comparte el lease del
+        candidato: separarla abriría una ventana en la que otro obrero podría
+        promover con evidencia a medio escribir.
+        """
+        from triade.learning.evidence_producer import LearningEvidenceProducer
+        from triade.learning.knowledge_probe import build_probe
+        from triade.models.ollama_client import OllamaClient
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+        candidate_id = str(payload.get("candidate_id") or "")
+        if not candidate_id:
+            return {
+                "status": "completed",
+                "effect": "no_op",
+                "skipped_reason": "sin_candidate_id",
+                "stable_memory_written": False,
+            }
+
+        sonda = build_probe(self.db_path, candidate_id)
+        if sonda is None:
+            return {
+                "status": "completed",
+                "effect": "no_op",
+                "skipped_reason": "sin_prueba_objetiva",
+                "candidate_id": candidate_id,
+                "stable_memory_written": False,
+            }
+
+        client = OllamaClient()
+        if not client.health().get("ok"):
+            # Esperar recursos no puede gastar un intento del candidato.
+            return {
+                "status": "deferred",
+                "effect": "deferred",
+                "skipped_reason": "ollama_no_disponible",
+                "candidate_id": candidate_id,
+                "stable_memory_written": False,
+            }
+
+        def generate(prompt: str) -> str:
+            r = client.generate(
+                config.model if hasattr(config, "model") else "qwen2.5:3b-instruct",
+                prompt,
+                options={"temperature": 0, "seed": 7731},
+            )
+            return str(getattr(r, "text", "") or "")
+
+        producer = LearningEvidenceProducer(
+            self.db_path, generate=generate, temperature=0.0, seed=7731
+        )
+        outcome = producer.produce(
+            candidate_id=candidate_id,
+            question=sonda.question,
+            evaluator=sonda.evaluator,
+            repetitions=int(payload.get("repetitions") or 5),
+        )
+        (task_dir / "evidence.json").write_text(
+            json.dumps(outcome.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        promocion = {"promoted": False, "reason": f"decision={outcome.decision}"}
+        if outcome.decision == "improved":
+            promocion = producer.promote_if_verified(candidate_id)
+
+        return {
+            "status": "completed",
+            "effect": f"evidence_{outcome.decision}",
+            "candidate_id": candidate_id,
+            "decision": outcome.decision,
+            "control_mean": outcome.control_mean,
+            "treatment_mean": outcome.treatment_mean,
+            "absolute_delta": outcome.absolute_delta,
+            "regression_report_id": outcome.regression_report_id,
+            "promoted": promocion.get("promoted", False),
+            "promotion_reason": promocion.get("reason"),
+            # `evidence_verified` no es `stable`: eso exige firma humana G3.
+            "stable_memory_written": False,
         }
 
     def _semantic_memory_governance(

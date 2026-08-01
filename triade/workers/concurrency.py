@@ -98,6 +98,20 @@ TASK_CONCURRENCY_POLICY: dict[str, TaskConcurrencyPolicy] = {
     # ── read_only: observan y reportan, no escriben estado estable ──────
     "pulse_check": TaskConcurrencyPolicy("read_only", 4, "light"),
     "pending_learning_review": TaskConcurrencyPolicy("read_only", 4, "light"),
+    # Extraer una proposición de un run es barato y no escribe estado estable
+    # más allá de la cola de candidatos.
+    "learning_candidate_generation": TaskConcurrencyPolicy(
+        "memory_write", 1, "light", ("source_run_id",)
+    ),
+    # La deduplicación toca `learning_candidate_groups`: serial, o dos obreros
+    # crearían dos canónicos para el mismo texto.
+    "learning_candidate_deduplication": TaskConcurrencyPolicy(
+        "memory_write", 1, "light"
+    ),
+    # La evidencia gasta inferencias: una por candidato, y pocas a la vez.
+    "learning_evidence_generation": TaskConcurrencyPolicy(
+        "evaluation", 1, "model", ("candidate_id",)
+    ),
     "federation_inbox_review": TaskConcurrencyPolicy("read_only", 4, "io"),
     "system_debt_scan": TaskConcurrencyPolicy("read_only", 4, "light"),
     "bodega_global_review": TaskConcurrencyPolicy("read_only", 4, "light"),

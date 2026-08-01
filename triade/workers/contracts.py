@@ -43,6 +43,9 @@ WorkerTaskType = Literal[
     "write_governed_text_artifact",
     "self_improvement_evaluation",
     "self_improvement_canary_observation",
+    "learning_candidate_generation",
+    "learning_candidate_deduplication",
+    "learning_evidence_generation",
 ]
 
 WORKER_TASK_TYPES: tuple[str, ...] = (
@@ -72,6 +75,11 @@ WORKER_TASK_TYPES: tuple[str, ...] = (
     # El canary no se observa dentro de la evaluación: acumula observaciones
     # reales entre ciclos del worker, en tareas posteriores e idempotentes.
     "self_improvement_canary_observation",
+    # El aprendizaje productivo: extraer, deduplicar y medir. Cada etapa es un
+    # tipo distinto porque tienen carril, coste y exclusividad distintos.
+    "learning_candidate_generation",
+    "learning_candidate_deduplication",
+    "learning_evidence_generation",
 )
 
 TERMINAL_TASK_STATUSES = {"completed", "failed", "blocked", "skipped"}

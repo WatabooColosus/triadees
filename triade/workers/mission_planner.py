@@ -246,6 +246,55 @@ class MissionPlanner:
                         )
                     )
 
+                # learning_candidate_deduplication: solo si hay candidatos sin
+                # agrupar. Sin esta condición la tarea correría eternamente sin
+                # efecto, que es justo lo que hace parecer vivo un panel muerto.
+                try:
+                    sin_grupo = conn.execute(
+                        """SELECT COUNT(*) AS cnt FROM learning_queue q
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM learning_candidate_groups g
+                            WHERE g.member_candidate_id = q.candidate_id
+                               OR g.canonical_candidate_id = q.candidate_id)"""
+                    ).fetchone()
+                    sin_grupo_cnt = int(sin_grupo["cnt"] or 0) if sin_grupo else 0
+                except sqlite3.Error:
+                    # La tabla aún no existe: entonces todo está sin agrupar.
+                    sin_grupo_cnt = lr_cnt or 1
+                if sin_grupo_cnt > 1:
+                    tasks.append(
+                        PlannedTask(
+                            task_type="learning_candidate_deduplication",
+                            priority=6,
+                            reason=f"{sin_grupo_cnt} candidatos sin agrupar",
+                            source="mission_planner_baseline",
+                            planner_score=min(1.0, 0.4 + sin_grupo_cnt / 200),
+                        )
+                    )
+
+                # learning_evidence_generation: un candidato elegible por ciclo.
+                # Gasta inferencias, así que se pide de uno en uno.
+                elegible = conn.execute(
+                    """SELECT candidate_id FROM learning_queue
+                    WHERE status = 'internally_checked'
+                      AND source_type = 'experience'
+                      AND NOT EXISTS (
+                        SELECT 1 FROM learning_evidence e
+                        WHERE e.candidate_id = learning_queue.candidate_id)
+                    ORDER BY id DESC LIMIT 1"""
+                ).fetchone()
+                if elegible:
+                    tasks.append(
+                        PlannedTask(
+                            task_type="learning_evidence_generation",
+                            priority=7,
+                            reason=f"candidato {elegible['candidate_id']} sin evidencia",
+                            source="mission_planner_baseline",
+                            planner_score=0.8,
+                            payload={"candidate_id": str(elegible["candidate_id"])},
+                        )
+                    )
+
                 # semantic_memory_governance: solo si hay documentos o actividad
                 sm = conn.execute(
                     """SELECT COUNT(*) as cnt FROM semantic_memory
