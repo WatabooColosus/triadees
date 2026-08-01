@@ -239,18 +239,36 @@ class MetabolicCoordinator:
         return self.stop()
 
     def status(self) -> dict[str, Any]:
+        """Foto del organismo. No lo reconfigura, no lo reinicia, no espera.
+
+        Aquí había dos cosas que no son de un camino de lectura:
+
+        - `self.load_config()`, que relee el YAML de disco y **reconstruye
+          `self.scheduler`** cuando el hilo no está vivo. Medido: con
+          `cycle_count` real en 7, `status()` devolvía 0 y dejaba 0. Preguntar
+          cuántos ciclos llevaba el metabolismo lo ponía a cero — y
+          `GET /api/runtime/metabolism/status` no pide clave. Recargar
+          configuración es trabajo de `load_config()` y `start()`, que se
+          llaman a propósito.
+        - la consulta SQLite **dentro** de `self._lock`. Es la forma exacta del
+          volcado que colgaba la suite: un hilo dentro del SELECT reteniendo el
+          lock y los demás haciendo cola detrás. La E/S se hace ahora fuera; el
+          lock sólo cubre copiar el diccionario.
+        """
+        receipt_counts = self.receipts.count_by_status()
+        budget = self.budget.snapshot()
+        policy = self.policy.snapshot()
         with self._lock:
-            self.load_config()
             base = dict(self._status)
             base["cycle_count"] = self.scheduler.cycle_count
             base["current_cycle_id"] = self._current_cycle_id
             base["enabled"] = self._enabled
             base["mode"] = self._mode
             base["dry_run"] = self._dry_run
-            base["policy"] = self.policy.snapshot()
+            base["policy"] = policy
             base["scheduler"] = self.scheduler.snapshot()
-            base["budget"] = self.budget.snapshot()
-            base["receipt_counts"] = self.receipts.count_by_status()
+            base["budget"] = budget
+            base["receipt_counts"] = receipt_counts
             base["thread_alive"] = bool(self._thread and self._thread.is_alive())
             return base
 
