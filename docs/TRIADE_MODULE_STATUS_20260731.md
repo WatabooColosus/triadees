@@ -418,3 +418,66 @@ gastar una sola inferencia. `promoted: False`.
 - **`stable`** sigue en 0, y así debe ser: exige firma humana G3.
 - Los 633 candidatos antiguos siguen sin evidencia; el productor nuevo sólo
   afecta a lo que se genere de ahora en adelante.
+
+---
+
+# Adenda · 2026-08-01 01:00 UTC · el aprendizaje deja de depender del script
+
+## Veredicto: **B/C mezclado, declarado con precisión**
+
+Ninguna de las cinco frases del encargo encaja sola, así que uso la que más se
+acerca sin exagerar: **«Tríade usa saberes en producción, y genera saberes por
+sus propios handlers, pero todavía no se ha observado el ciclo completo
+disparado por el scheduler en segundo plano.»**
+
+Lo que **sí** cambió respecto a la adenda anterior:
+
+- El **runner productivo** ya inyecta saberes verificados en cada conversación.
+- Las **tres etapas son handlers reales del worker**, con su carril, su
+  exclusividad y su entrada en el planner.
+- El circuito completo se ejecutó **sin `scripts/run_knowledge_zero_to_one.py`**.
+
+## El circuito por los handlers del worker
+
+| etapa | handler | efecto medido |
+|---|---|---|
+| 1 | `_learning_candidate_generation` | `candidate_created`, tipo `preference` |
+| 2 | `_learning_candidate_deduplication` | `grouped` 428, **0 filas borradas** |
+| 3 | `_learning_evidence_generation` | `evidence_improved`, control **0.00** → tratamiento **1.00**, delta **+1.00**, gate `rep-ev-6a26ccc87ad84289`, promovido |
+
+`evidence_verified` pasó de **1 a 2**. `stable` sigue en **0**, y ninguna etapa
+escribe memoria estable.
+
+## Uso en conversación real
+
+`triade/learning/production_injection.py` entra en `runner.py` antes de generar.
+Sólo `evidence_verified` y `stable`, máximo 3 por run, bloque rotulado como
+información contextual sin autoridad sobre identidad, Safety ni constitución.
+
+- Consulta pertinente → inyecta los dos saberes.
+- «¿Cuál es la capital de Francia?» → **no inyecta nada**.
+- Candidato envenenado → creado para auditoría, **nunca usado**.
+
+## Dos correcciones de diseño
+
+1. **`stable` estaba en `BLOCKED_STATES`** del retriever, y esa comprobación
+   corría antes que `allowed_states`: un saber estable no habría podido entrar
+   nunca en producción.
+2. **La detección de preferencias era una lista cerrada de verbos.** «muestra
+   siempre» se perdía. Ahora se reconoce la directiva («siempre|nunca» + verbo);
+   lo que decide que algo sea aprendible es el filtro de seguridad y la sonda,
+   no el verbo.
+
+## Lo que NO se demostró
+
+- **El ciclo disparado por el scheduler en segundo plano.** Las tareas están
+  registradas, tienen política de concurrencia y el planner las agenda, con
+  tests que lo fijan; pero la demostración E2E llamó a los handlers
+  directamente. No he observado el ciclo completo naciendo solo de un mensaje
+  de Cabina Viva.
+- **El enganche `run terminado → agenda candidate generation`**: el planner
+  agenda deduplicación y evidencia, pero la generación de candidatos todavía no
+  se dispara sola al cerrar un run.
+- La ventana de observación de 60 minutos de la Fase 12.
+- El workflow de CI de la Fase 11.
+- El triaje del corpus histórico (Fase 9): los 633 antiguos siguen sin tocar.
