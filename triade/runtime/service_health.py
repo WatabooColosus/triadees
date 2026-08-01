@@ -119,19 +119,30 @@ class ServiceHealth:
                     ).fetchone()
                     last_done_at = last_done[0] if last_done else None
                     metrics["last_task_completed_at"] = last_done_at
-                    completed_recently = (
-                        last_done_at is not None
-                        and self._age_seconds(last_done_at, now)
+                    # Progreso NO es sólo "algo se completó". Una tarea que
+                    # cambia de estado —se reclama, se reintenta, se reconcilia
+                    # un lease vencido— también ha avanzado. Medirlo sólo por
+                    # completadas declaraba atascado un organismo que estaba
+                    # trabajando, y hacía que reconciliar no contara como
+                    # progreso aunque hubiera movido la cola.
+                    last_move = conn.execute(
+                        "SELECT MAX(updated_at) FROM autonomous_tasks"
+                    ).fetchone()
+                    last_move_at = last_move[0] if last_move else None
+                    metrics["last_task_transition_at"] = last_move_at
+                    moved_recently = (
+                        last_move_at is not None
+                        and self._age_seconds(last_move_at, now)
                         <= self.cycle_stale_seconds
                     )
                     metrics["work_available"] = bool(eligible or in_flight)
-                    # Atascado = hay trabajo que hacer, es viejo, y no se ha
-                    # cerrado nada en la ventana. Sin trabajo no hay atasco: eso
-                    # es `idle`, y se decide más abajo.
+                    # Atascado = hay trabajo que hacer, es viejo, y la cola no se
+                    # ha movido en la ventana. Sin trabajo no hay atasco: eso es
+                    # `idle`, y se decide más abajo.
                     if (
                         age is not None
                         and age > self.cycle_stale_seconds
-                        and not completed_recently
+                        and not moved_recently
                     ):
                         reasons.append("queue_not_progressing")
                         stalled = True

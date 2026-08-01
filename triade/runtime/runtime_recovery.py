@@ -27,6 +27,37 @@ class RuntimeRecovery:
         self.snapshot_dir.mkdir(parents=True, exist_ok=True)
         self.tasks = AutonomousTaskStore(self.db_path)
 
+    def reconcile(self, cause: str) -> dict[str, Any]:
+        """Escalón barato: reconciliar sin tocar los workers.
+
+        La causa más común de un atasco es un lease vencido, y arreglarla no
+        necesita parar nada. `recover()` paraba los workers **antes** de
+        intentar siquiera esto: mataba tareas sanas que iban bien para rescatar
+        una que no.
+
+        No toma snapshot ni escribe evento de recuperación a propósito: no es
+        una recuperación, es mantenimiento. Si no basta, quien llama escala a
+        `recover()`, que sí deja rastro completo.
+        """
+        actions: list[dict[str, Any]] = []
+        recovered = self.tasks.recover_expired()
+        actions.append({"action": "recover_expired_leases", "task_ids": recovered})
+        try:
+            with sqlite3.connect(self.db_path, timeout=5) as conn:
+                integrity = str(conn.execute("PRAGMA quick_check").fetchone()[0])
+        except sqlite3.Error as exc:
+            actions.append({"action": "sqlite_quick_check", "error": str(exc)})
+            return {"stage": "reconcile_failed", "cause": cause, "actions": actions}
+        actions.append({"action": "sqlite_quick_check", "result": integrity})
+        if integrity != "ok":
+            return {"stage": "reconcile_failed", "cause": cause, "actions": actions}
+        return {
+            "stage": "reconciled",
+            "cause": cause,
+            "actions": actions,
+            "recovered_leases": len(recovered),
+        }
+
     def recover(
         self,
         cause: str,
