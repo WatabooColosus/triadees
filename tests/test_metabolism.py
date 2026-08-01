@@ -125,6 +125,52 @@ class TestProcessLock:
         c.stop(timeout=5)
         assert not lock_path.exists()
 
+    def test_two_databases_with_the_same_name_do_not_share_a_lock(
+        self, tmp_path: Path
+    ) -> None:
+        """El lock identifica una base, no un nombre de fichero.
+
+        Se derivaba de `/tmp/.triade_metabolism_{db_path.name}.lock`, es decir
+        **sólo del nombre**. Dos bases distintas llamadas igual —el caso
+        normal en pruebas, donde todas son `test.db`— se bloqueaban entre sí
+        sin compartir un solo byte de estado.
+        """
+        db_a = tmp_path / "a" / "test.db"
+        db_b = tmp_path / "b" / "test.db"
+        db_a.parent.mkdir()
+        db_b.parent.mkdir()
+        ca = MetabolicCoordinator(db_path=str(db_a))
+        cb = MetabolicCoordinator(db_path=str(db_b))
+
+        assert ca._process_lock_path != cb._process_lock_path
+        try:
+            assert ca._acquire_process_lock() is None
+            assert cb._acquire_process_lock() is None
+        finally:
+            ca._release_process_lock()
+            cb._release_process_lock()
+
+    def test_release_does_not_delete_a_lock_it_does_not_own(
+        self, tmp_path: Path
+    ) -> None:
+        """Soltar sin ser dueño no borra el lock ajeno.
+
+        `_release_process_lock` hacía `unlink` incondicional. Un coordinador
+        que nunca llegó a adquirirlo —o que ya lo soltó— podía dejar sin
+        protección al que sí lo tenía.
+        """
+        owner = _coordinator(tmp_path, max_cycles=0, interval_seconds=60)
+        intruder = _coordinator(tmp_path, max_cycles=0, interval_seconds=60)
+        assert owner._acquire_process_lock() is None
+        try:
+            assert intruder._acquire_process_lock() == "another_process_holds_lock"
+            intruder._release_process_lock()
+            assert owner._process_lock_path.exists(), (
+                "el intruso borró el lock de otro"
+            )
+        finally:
+            owner._release_process_lock()
+
     def test_release_never_closes_someone_elses_descriptor(
         self, tmp_path: Path
     ) -> None:
