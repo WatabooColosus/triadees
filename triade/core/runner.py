@@ -234,6 +234,23 @@ class TriadeRunner:
         self.safety = Safety()
         self.verifier = Verifier()
 
+    def _inject_verified_knowledge(self, input_packet: Any) -> Any:
+        """Recupera saberes verificados y los deja en el contexto del run."""
+        from triade.learning.production_injection import ProductionKnowledgeInjector
+
+        injector = ProductionKnowledgeInjector(self.db_path)
+        injection = injector.build(
+            str(getattr(input_packet, "user_input", "") or ""),
+            run_id=str(getattr(input_packet, "run_id", "") or "run"),
+        )
+        if injection.block:
+            contexto = getattr(input_packet, "context", None)
+            if isinstance(contexto, dict):
+                contexto["verified_knowledge_block"] = injection.block
+                contexto["verified_knowledge_ids"] = injection.injected_ids
+        injector.persist(injection)
+        return injection
+
     def _select_models(
         self,
         manual_hypothalamus: str | None,
@@ -499,6 +516,11 @@ class TriadeRunner:
         safety = self.safety.review(signals, plan, crystal=crystal, memory=memory)
         safety_id = self.bodega.store_safety(safety)
         sandbox_result = None
+
+        # Saberes verificados al contexto, ANTES de generar. Sólo
+        # `evidence_verified` y `stable`: un candidato sin evidencia no influye
+        # en lo que lee una persona. Si esto falla, la conversación sigue.
+        self._inject_verified_knowledge(input_packet)
 
         if safety.status == "blocked":
             output = self.central.respond(input_packet, signals, memory, crystal, plan)

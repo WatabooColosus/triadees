@@ -186,7 +186,10 @@ class LearningRetriever:
                     {"candidate_id": cid, "reason": "no_provenance"}
                 )
                 continue
-            if status in BLOCKED_STATES:
+            # `allowed_states` manda sobre la lista de bloqueados: en evaluación
+            # `stable` viaja por otra vía y aquí estorba, pero en una
+            # conversación productiva es precisamente lo que debe entrar.
+            if status in BLOCKED_STATES and status not in self.allowed_states:
                 decision.skipped.append(
                     {"candidate_id": cid, "reason": f"blocked_state:{status}"}
                 )
