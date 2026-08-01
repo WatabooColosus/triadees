@@ -224,9 +224,7 @@ class TestProcessLock:
         try:
             assert intruder._acquire_process_lock() == "another_process_holds_lock"
             intruder._release_process_lock()
-            assert owner._process_lock_path.exists(), (
-                "el intruso borró el lock de otro"
-            )
+            assert owner._process_lock_path.exists(), "el intruso borró el lock de otro"
         finally:
             owner._release_process_lock()
 
@@ -251,9 +249,7 @@ class TestProcessLock:
             c._release_process_lock()
             assert victim.read() == b"contenido ajeno"
 
-    def test_live_sqlite_connection_survives_the_release(
-        self, tmp_path: Path
-    ) -> None:
+    def test_live_sqlite_connection_survives_the_release(self, tmp_path: Path) -> None:
         """La consecuencia real: una transacción viva sobrevive al release.
 
         Cuando el descriptor reciclado era el de una base SQLite, cerrarlo
