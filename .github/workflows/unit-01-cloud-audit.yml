@@ -1,0 +1,256 @@
+name: Unidad 01 Cloud Audit
+
+on:
+  push:
+    branches:
+      - audit/unit-01-cloud
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  TRIADE_DISABLE_BACKGROUND: "1"
+  TRIADE_POST_RUN_LEARNING: "1"
+  TRIADE_PUBLIC_GUARDED: "0"
+
+jobs:
+  code-and-tests:
+    name: Código completo, estática y suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Record immutable execution context
+        run: |
+          mkdir -p artifacts/unit-01
+          {
+            echo "utc=$(date -u +%FT%TZ)"
+            echo "sha=$(git rev-parse HEAD)"
+            echo "branch=${GITHUB_REF_NAME}"
+            echo "event=${GITHUB_EVENT_NAME}"
+            echo "python=$(python --version 2>&1)"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            echo "cpu_count=$(nproc)"
+          } | tee artifacts/unit-01/execution-context.txt
+          git status --short | tee artifacts/unit-01/git-status.txt
+          git log --oneline -30 | tee artifacts/unit-01/git-log.txt
+
+      - name: Install project and audit tools
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install -r requirements.txt
+          pip install pytest-cov ruff mypy
+          pip install -e .
+          pip freeze | sort > artifacts/unit-01/pip-freeze.txt
+
+      - name: Inventory every tracked path and Python module
+        run: |
+          git ls-files | sort > artifacts/unit-01/tracked-files.txt
+          find triade apps tests scripts -type f 2>/dev/null | sort > artifacts/unit-01/runtime-tree.txt
+          python - <<'PY' | tee artifacts/unit-01/python-inventory.json
+          import ast, json
+          from pathlib import Path
+
+          roots = [Path("triade"), Path("apps"), Path("scripts"), Path("tests")]
+          out = []
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in sorted(root.rglob("*.py")):
+                  item = {"path": str(path), "bytes": path.stat().st_size}
+                  try:
+                      tree = ast.parse(path.read_text(encoding="utf-8"))
+                      item["functions"] = [n.name for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+                      item["classes"] = [n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+                      item["imports"] = len([n for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom))])
+                      item["syntax_ok"] = True
+                  except Exception as exc:
+                      item["syntax_ok"] = False
+                      item["error"] = f"{type(exc).__name__}: {exc}"
+                  out.append(item)
+          print(json.dumps({"files": out, "count": len(out)}, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Compile all Python sources
+        run: python -m compileall -q triade apps scripts tests
+
+      - name: Ruff
+        run: ruff check triade apps scripts tests --output-format=github
+
+      - name: Mypy
+        run: mypy triade
+
+      - name: Full pytest suite with coverage
+        env:
+          TRIADE_DB_PATH: ${{ runner.temp }}/unit01-tests.db
+          TRIADE_RUNS_DIR: ${{ runner.temp }}/unit01-runs
+        run: |
+          pytest \
+            --durations=40 \
+            -o faulthandler_timeout=240 \
+            --cov=triade \
+            --cov=apps \
+            --cov-report=term-missing \
+            --cov-report=xml:artifacts/unit-01/coverage.xml \
+            --cov-report=html:artifacts/unit-01/htmlcov \
+            --junitxml=artifacts/unit-01/pytest.xml \
+            2>&1 | tee artifacts/unit-01/pytest-full.log
+
+      - name: Search executable entrypoints and high-risk primitives
+        if: always()
+        run: |
+          {
+            echo "## Entrypoints"
+            grep -RInE "FastAPI\(|uvicorn|if __name__ == ['\"]__main__['\"]|def main\(" triade apps scripts *.py 2>/dev/null || true
+            echo
+            echo "## Process, shell, network and destructive primitives"
+            grep -RInE "subprocess|os\.system|Popen\(|shell=True|requests\.|httpx\.|socket\.|unlink\(|rmtree\(|DROP TABLE|DELETE FROM" triade apps scripts 2>/dev/null || true
+            echo
+            echo "## Broad exception handling"
+            grep -RInE "except Exception|except BaseException" triade apps scripts 2>/dev/null || true
+          } > artifacts/unit-01/static-risk-scan.txt
+
+      - name: Upload complete audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-01-code-and-tests-${{ github.sha }}
+          path: artifacts/unit-01/
+          retention-days: 14
+          if-no-files-found: error
+
+  localhost-runtime:
+    name: Localhost 8010, API y run real aislado
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Prepare isolated runtime
+        run: |
+          mkdir -p artifacts/unit-01-runtime runtime/runs
+          echo "sha=$(git rev-parse HEAD)" > artifacts/unit-01-runtime/context.txt
+          echo "utc=$(date -u +%FT%TZ)" >> artifacts/unit-01-runtime/context.txt
+
+      - name: Start Tríade on localhost:8010
+        env:
+          TRIADE_DB_PATH: ${{ github.workspace }}/runtime/triade-unit01.db
+          TRIADE_AUTH_DB_PATH: ${{ github.workspace }}/runtime/triade-unit01.db
+          TRIADE_RUNS_DIR: ${{ github.workspace }}/runtime/runs
+          TRIADE_DISABLE_BACKGROUND: "1"
+          TRIADE_POST_RUN_LEARNING: "1"
+        run: |
+          set -o pipefail
+          python -m uvicorn apps.single_port_app:app --host 127.0.0.1 --port 8010 \
+            > artifacts/unit-01-runtime/uvicorn.log 2>&1 &
+          echo $! > artifacts/unit-01-runtime/uvicorn.pid
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8010/healthz > artifacts/unit-01-runtime/healthz.json; then
+              echo "ready on attempt ${attempt}" | tee artifacts/unit-01-runtime/readiness.txt
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "server did not become ready" >&2
+          cat artifacts/unit-01-runtime/uvicorn.log >&2
+          exit 1
+
+      - name: Exercise public HTTP surface
+        run: |
+          set -o pipefail
+          for path in /health /healthz /api/health /api/runtime/build /openapi.json /; do
+            safe=$(echo "$path" | sed 's#^/##; s#[/?&=]#_#g')
+            [ -n "$safe" ] || safe=root
+            curl -sS -D "artifacts/unit-01-runtime/${safe}.headers" \
+              "http://127.0.0.1:8010${path}" \
+              -o "artifacts/unit-01-runtime/${safe}.body"
+          done
+
+      - name: Run CLI diagnostics against isolated state
+        env:
+          TRIADE_DB_PATH: ${{ github.workspace }}/runtime/triade-unit01.db
+          TRIADE_RUNS_DIR: ${{ github.workspace }}/runtime/runs
+        run: |
+          set +e
+          python triade_digimon.py doctor > artifacts/unit-01-runtime/cli-doctor.log 2>&1
+          echo $? > artifacts/unit-01-runtime/cli-doctor.exit
+          python triade_digimon.py runtime heartbeat > artifacts/unit-01-runtime/cli-heartbeat.log 2>&1
+          echo $? > artifacts/unit-01-runtime/cli-heartbeat.exit
+          python triade_digimon.py workers status > artifacts/unit-01-runtime/cli-workers-status.log 2>&1
+          echo $? > artifacts/unit-01-runtime/cli-workers-status.exit
+          exit 0
+
+      - name: Inspect resulting SQLite state
+        if: always()
+        run: |
+          python - <<'PY' | tee artifacts/unit-01-runtime/sqlite-inspection.json
+          import json, sqlite3
+          from pathlib import Path
+          db = Path("runtime/triade-unit01.db")
+          result = {"exists": db.exists(), "bytes": db.stat().st_size if db.exists() else 0}
+          if db.exists():
+              con = sqlite3.connect(db)
+              con.row_factory = sqlite3.Row
+              try:
+                  tables = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+                  result["tables"] = tables
+                  counts = {}
+                  for table in tables:
+                      try:
+                          counts[table] = con.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+                      except sqlite3.Error as exc:
+                          counts[table] = f"error:{exc}"
+                  result["counts"] = counts
+                  result["integrity_check"] = con.execute("PRAGMA integrity_check").fetchone()[0]
+                  result["journal_mode"] = con.execute("PRAGMA journal_mode").fetchone()[0]
+              finally:
+                  con.close()
+          print(json.dumps(result, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Stop server and preserve logs
+        if: always()
+        run: |
+          if [ -f artifacts/unit-01-runtime/uvicorn.pid ]; then
+            kill "$(cat artifacts/unit-01-runtime/uvicorn.pid)" 2>/dev/null || true
+            sleep 2
+          fi
+          ps aux > artifacts/unit-01-runtime/processes-final.txt
+          cp -a runtime artifacts/unit-01-runtime/runtime-state || true
+
+      - name: Upload runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-01-localhost-runtime-${{ github.sha }}
+          path: artifacts/unit-01-runtime/
+          retention-days: 14
+          if-no-files-found: error
