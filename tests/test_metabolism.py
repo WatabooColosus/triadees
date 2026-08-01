@@ -103,6 +103,65 @@ class TestLifecycle:
         assert status["status"] == "stopped"
 
 
+class TestStatusIsARead:
+    """`status()` describe el organismo. No lo reconfigura ni lo reinicia.
+
+    `GET /api/runtime/metabolism/status` no pide clave: cualquiera que mire el
+    panel entraba por aquí.
+    """
+
+    def test_status_does_not_reset_the_cycle_counter(self, tmp_path: Path) -> None:
+        """Medido antes del arreglo: contador real 7, `status()` devolvía 0 y
+        dejaba 0. Preguntar cuántos ciclos llevaba el metabolismo lo ponía a
+        cero."""
+        c = _coordinator(tmp_path)
+        c.load_config()
+        c.scheduler._cycle_count = 7
+        assert c.status()["cycle_count"] == 7
+        assert c.scheduler.cycle_count == 7
+
+    def test_status_does_not_rebuild_the_scheduler(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path)
+        c.load_config()
+        before = id(c.scheduler)
+        c.status()
+        assert id(c.scheduler) == before
+
+    def test_status_does_not_reread_the_config_from_disk(self, tmp_path: Path) -> None:
+        """Una lectura no depende del disco. `status()` hacía `load_config()`
+        dentro del lock: seis llamadas al sistema y ~8 KB leídos por consulta,
+        con todos los demás hilos esperando detrás."""
+        c = _coordinator(tmp_path)
+        c.load_config()
+        assert c._enabled is True
+        (tmp_path / "triade.yml").unlink()
+        assert c.status()["enabled"] is True
+
+    def test_status_does_not_hold_the_lock_while_touching_the_database(
+        self, tmp_path: Path
+    ) -> None:
+        """La consulta SQLite se hacía **dentro** de `self._lock`.
+
+        Es la forma exacta del volcado que colgaba la suite: un hilo dentro de
+        un SELECT reteniendo el lock, y el resto haciendo cola. Con la E/S
+        fuera, el lock sólo cubre la copia del diccionario.
+        """
+        c = _coordinator(tmp_path)
+        c.load_config()
+        observed: list[bool] = []
+        original = c.receipts.count_by_status
+
+        def spy() -> dict[str, int]:
+            observed.append(c._lock.acquire(blocking=False))
+            if observed[-1]:
+                c._lock.release()
+            return original()
+
+        c.receipts.count_by_status = spy  # type: ignore[method-assign]
+        c.status()
+        assert observed == [True], "la consulta a la base corrió con el lock tomado"
+
+
 class TestProcessLock:
     def test_lock_prevents_second_coordinator(self, tmp_path: Path) -> None:
         c1 = _coordinator(tmp_path, enabled=True, max_cycles=0, interval_seconds=60)
