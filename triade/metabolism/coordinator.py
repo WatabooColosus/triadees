@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -40,8 +41,16 @@ class MetabolicCoordinator:
         self._thread: threading.Thread | None = None
         self._current_cycle_id: int | None = None
         self._lock_fd: int | None = None
+        # El lock identifica UNA BASE, no un nombre de fichero. Derivarlo solo
+        # de `db_path.name` hacía que dos bases distintas llamadas igual se
+        # bloquearan entre sí — el caso normal en pruebas, donde todas son
+        # `test.db`. El nombre legible se conserva delante para que el fichero
+        # siga diciendo de qué es; el hash de la ruta absoluta es lo que
+        # distingue.
+        _abs_db = os.path.abspath(str(self.db_path))
+        _db_key = hashlib.sha256(_abs_db.encode("utf-8")).hexdigest()[:16]
         self._process_lock_path = Path(
-            f"/tmp/.triade_metabolism_{self.db_path.name}.lock"
+            f"/tmp/.triade_metabolism_{self.db_path.name}_{_db_key}.lock"
         )
 
         self.health = HealthSensors(db_path)
@@ -105,15 +114,26 @@ class MetabolicCoordinator:
             return f"lock_acquire_failed:{exc}"
 
     def _release_process_lock(self) -> None:
-        if self._lock_fd is not None:
-            try:
-                os.close(self._lock_fd)
-            except OSError:
-                pass
-            self._lock_fd = None
+        # Se toma el descriptor y se anula en el mismo paso: quien llegue
+        # segundo —`stop()` y el propio `_run_loop` sueltan los dos— encuentra
+        # `None` y no vuelve a cerrar ni a borrar. Doble release es idempotente.
+        lock_fd, self._lock_fd = self._lock_fd, None
+        if lock_fd is None:
+            # Nunca lo tuvimos, o ya lo soltamos. Borrar el fichero aquí sería
+            # dejar sin protección a su dueño real.
+            return
         try:
-            self._process_lock_path.unlink(missing_ok=True)
+            os.close(lock_fd)
         except OSError:
+            pass
+        try:
+            # Compare-and-delete: sólo se borra si el fichero sigue diciendo
+            # que es nuestro. Si un tercero ya lo recuperó y lo reescribió, es
+            # suyo, y no nos toca tocarlo.
+            holder = self._process_lock_path.read_text(encoding="utf-8").strip()
+            if holder == str(os.getpid()):
+                self._process_lock_path.unlink(missing_ok=True)
+        except (OSError, ValueError):
             pass
 
     # ── Config ──────────────────────────────────────────────────────
