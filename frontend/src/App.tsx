@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import './index.css'
 import { CabinaViva } from './components/CabinaViva'
 import ErrorBoundary from './components/ErrorBoundary'
+import { SaberYAprendizajeCard } from './components/Cards'
 
 const BASE = ''
 
@@ -567,6 +568,9 @@ function ObservabilityTab() {
       api('/api/observability?limit=20'),
       api('/api/runtime/heartbeat?since_hours=24&limit=20'),
       api('/api/runtime/learning-journal?since_hours=24&limit=20'),
+      api('/api/knowledge/summary'),
+      api('/api/learning/activity?limit=12'),
+      api('/api/runtime/build'),
       api('/api/runtime/neuron-nutrition?mode=balanced_background&limit=5'),
       api('/api/models/ollama/cognitive-health'),
       api('/api/models/ollama/blood'),
@@ -574,10 +578,13 @@ function ObservabilityTab() {
       const observability = results[0].status === 'fulfilled' ? results[0].value : null
       const heartbeat = results[1].status === 'fulfilled' ? results[1].value : null
       const learningJournal = results[2].status === 'fulfilled' ? results[2].value : null
-      const nutrition = results[3].status === 'fulfilled' ? results[3].value : null
-      const cognitiveHealth = results[4].status === 'fulfilled' ? results[4].value : null
-      const ollamaBlood = results[5].status === 'fulfilled' ? results[5].value : null
-      setData({ observability, heartbeat, learning_journal: learningJournal, nutrition, cognitive_health: cognitiveHealth, ollama_blood: ollamaBlood })
+      const knowledgeSummary = results[3].status === 'fulfilled' ? results[3].value : null
+      const learningActivity = results[4].status === 'fulfilled' ? results[4].value : null
+      const build = results[5].status === 'fulfilled' ? results[5].value : null
+      const nutrition = results[6].status === 'fulfilled' ? results[6].value : null
+      const cognitiveHealth = results[7].status === 'fulfilled' ? results[7].value : null
+      const ollamaBlood = results[8].status === 'fulfilled' ? results[8].value : null
+      setData({ observability, heartbeat, learning_journal: learningJournal, knowledge_summary: knowledgeSummary, learning_activity: learningActivity, build, nutrition, cognitive_health: cognitiveHealth, ollama_blood: ollamaBlood })
       const rejectedObservability = results[0].status === 'rejected' ? results[0] : null
       setError(rejectedObservability ? rejectedObservability.reason?.message || 'Error al cargar observabilidad' : '')
     })
@@ -747,14 +754,16 @@ function ObservabilityTab() {
             <span style={{ color: 'var(--text-muted)' }}>No hay memory_trace en el último run.</span>
           )}
         </Card>
+        <SaberYAprendizajeCard summary={data.knowledge_summary} activity={data.learning_activity} build={data.build} />
         <Card title="Aprendizaje vivo 24h" color="#14b8a6">
           <KVTable data={{
             cycles_last_24h: learningJournal.cycles_last_24h,
             missions_executed: learningJournal.missions_executed,
-            evidence_created: learningJournal.evidence_created,
+            neuron_evidence_created: learningJournal.neuron_evidence_created,
             candidates_created: learningJournal.candidates_created,
             candidates_evaluated: learningJournal.candidates_evaluated,
-            candidates_verified: learningJournal.candidates_verified,
+            revisados_sin_evidencia: learningJournal.candidates_internally_checked,
+            verificados_con_evidencia: learningJournal.candidates_verified_with_evidence,
             candidates_consolidated: learningJournal.candidates_consolidated,
             candidates_rejected: learningJournal.candidates_rejected,
             neurons_nourished: learningJournal.neurons_nourished,

@@ -377,10 +377,11 @@ export function LearningJournalCard({ data }: { data: any }) {
       <KVTable data={{
         ciclos_24h: data.cycles_last_24h,
         misiones: data.missions_executed,
-        evidencia: data.evidence_created,
+        evidencia_neuronal: data.neuron_evidence_created,
         candidatos: data.candidates_created,
         evaluados: data.candidates_evaluated,
-        verificados: data.candidates_verified,
+        revisados_sin_evidencia: data.candidates_internally_checked,
+        verificados_con_evidencia: data.candidates_verified_with_evidence,
         consolidados: data.candidates_consolidated,
         rechazados: data.candidates_rejected,
         neuronas_nutridas: data.neurons_nourished,
@@ -1050,5 +1051,86 @@ export function NeuronEducationCard() {
         </div>
       )}
     </Card>
+  )
+}
+
+const ESTADO_SABER: Record<string, { label: string; color: string }> = {
+  stable: { label: 'Estable', color: '#22c55e' },
+  evidence_verified: { label: 'Verificado (experimental)', color: '#3b82f6' },
+  experimental: { label: 'Experimental', color: '#eab308' },
+  candidate: { label: 'Candidato', color: '#94a3b8' },
+  rejected: { label: 'Rechazado', color: '#ef4444' },
+  quarantined: { label: 'Cuarentena', color: '#f97316' },
+  duplicate: { label: 'Duplicado', color: '#64748b' },
+}
+
+/**
+ * Lo que Tríade sabe, separado de lo que solamente tiene apuntado.
+ *
+ * Un candidato no es un saber: se muestran en columnas distintas a propósito,
+ * porque confundirlos era justo lo que hacía parecer que había aprendizaje
+ * donde solo había actividad.
+ */
+export function SaberYAprendizajeCard({ summary, activity, build }: { summary: any; activity: any; build: any }) {
+  if (!summary || summary.status === 'error') {
+    return <UnavailableBlock label="Saber y aprendizaje" error={summary?.error} />
+  }
+  const utilizables = (summary.stable || 0) + (summary.evidence_verified || 0)
+  const eventos = activity?.events || []
+
+  return (
+    <Card title="Saber y aprendizaje" color="#3b82f6">
+      <div style={{ display: 'flex', gap: 16, marginBottom: 10, flexWrap: 'wrap' }}>
+        <Metrica label="Saberes utilizables" valor={utilizables} color={utilizables > 0 ? '#22c55e' : '#94a3b8'} destacado />
+        <Metrica label="Estables" valor={summary.stable} color="#22c55e" />
+        <Metrica label="Verificados" valor={summary.evidence_verified} color="#3b82f6" />
+        <Metrica label="Experimentales" valor={summary.experimental} color="#eab308" />
+        <Metrica label="Candidatos" valor={summary.candidates} color="#94a3b8" />
+        <Metrica label="Rechazados" valor={summary.rejected} color="#ef4444" />
+        <Metrica label="Cuarentena" valor={summary.quarantined} color="#f97316" />
+        <Metrica label="Duplicados" valor={summary.duplicates} color="#64748b" />
+      </div>
+
+      <div style={{ fontSize: 12, color: utilizables > 0 ? 'var(--text)' : '#f97316', marginBottom: 10 }}>
+        {summary.status}
+      </div>
+
+      <KVTable data={{
+        usados_hoy: summary.used_today,
+        aprendidos_hoy: summary.learned_today,
+        ultimo_aprendizaje: summary.last_learning_at || '—',
+        ultimo_uso: summary.last_learning_used_at || '—',
+      }} />
+
+      {build && (
+        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+          Código en ejecución: <code>{build.git_sha_short}</code> · rama {build.branch} · DB {build.db_exists ? 'ok' : 'AUSENTE'}
+        </div>
+      )}
+
+      {eventos.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Actividad reciente</div>
+          {eventos.slice(0, 8).map((e: any) => (
+            <div key={e.event_id} style={{ fontSize: 11, display: 'flex', gap: 6, padding: '2px 0' }}>
+              <span style={{ color: ESTADO_SABER[e.status]?.color || 'var(--text-muted)', minWidth: 130 }}>{e.type}</span>
+              <span style={{ color: 'var(--text-muted)' }}>{String(e.timestamp || '').slice(0, 19)}</span>
+              <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {String(e.knowledge_id || e.candidate_id || '').slice(0, 28)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function Metrica({ label, valor, color, destacado }: { label: string; valor: number; color: string; destacado?: boolean }) {
+  return (
+    <div style={{ minWidth: 88 }}>
+      <div style={{ fontSize: destacado ? 26 : 20, fontWeight: 600, color }}>{valor ?? 0}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</div>
+    </div>
   )
 }
