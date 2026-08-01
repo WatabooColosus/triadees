@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,7 @@ class LiveHeartbeat:
         return conn
 
     def _ensure_table(self) -> None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS live_runtime_heartbeat (
                 singleton INTEGER PRIMARY KEY CHECK(singleton=1), cycle INTEGER NOT NULL,
@@ -38,7 +39,7 @@ class LiveHeartbeat:
         memory = psutil.virtual_memory()
         self.cycle += 1
         wall = time.time()
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute(
                 """INSERT INTO live_runtime_heartbeat
                 (singleton,cycle,wall_timestamp,monotonic_timestamp,duration_ms,pid,ram_available_mb)
@@ -56,7 +57,7 @@ class LiveHeartbeat:
                 ),
             )
         duration_ms = (time.monotonic() - started) * 1000.0
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute(
                 "UPDATE live_runtime_heartbeat SET duration_ms=? WHERE singleton=1",
                 (duration_ms,),
@@ -71,7 +72,7 @@ class LiveHeartbeat:
         }
 
     def snapshot(self) -> dict[str, Any]:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT * FROM live_runtime_heartbeat WHERE singleton=1"

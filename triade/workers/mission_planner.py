@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -112,7 +113,7 @@ class MissionPlanner:
 
     def _plan_research_curriculum(self) -> list[PlannedTask]:
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn, conn:
                 row = conn.execute(
                     "SELECT COUNT(*) AS cnt FROM neurons WHERE status IN ('experimental','candidate','candidate_reviewable')"
                 ).fetchone()
@@ -141,7 +142,7 @@ class MissionPlanner:
         vacío ni se auto-alimenta.
         """
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn, conn:
                 table = conn.execute(
                     "SELECT 1 FROM sqlite_master WHERE type='table' "
                     "AND name='improvement_proposals'"
@@ -175,7 +176,7 @@ class MissionPlanner:
     def _plan_neuron_education(self) -> list[PlannedTask]:
         """Educa solo neuronas experimentales con revisión vencida o sin competencia."""
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn, conn:
                 table = conn.execute(
                     "SELECT 1 FROM sqlite_master WHERE type='table' AND name='neuron_competencies'"
                 ).fetchone()
@@ -228,7 +229,7 @@ class MissionPlanner:
         )
 
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn, conn:
                 # pending_learning_review: solo si hay work que hacer
                 lr = conn.execute(
                     """SELECT COUNT(*) as cnt FROM learning_queue
@@ -353,7 +354,7 @@ class MissionPlanner:
         """Encola revisión de candidatos de aprendizaje pendientes."""
         tasks: list[PlannedTask] = []
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn, conn:
                 rows = conn.execute(
                     """SELECT id, title, source_type, risk_level, confidence, status
                     FROM learning_queue
@@ -396,7 +397,7 @@ class MissionPlanner:
         """Reintenta tareas fallidas recientes (una vez)."""
         tasks: list[PlannedTask] = []
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn, conn:
                 rows = conn.execute(
                     """SELECT id, task_type, error, payload_json
                     FROM worker_tasks
@@ -439,7 +440,7 @@ class MissionPlanner:
         """Programa consolidación solo tras validación real en runs."""
         tasks: list[PlannedTask] = []
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn, conn:
                 row = conn.execute(
                     """SELECT COUNT(*) as cnt FROM learning_queue
                     WHERE status = 'validated_in_runs'"""
@@ -477,7 +478,7 @@ class MissionPlanner:
             missions = store.list_missions(status="experimental", limit=5)
             missions.extend(store.list_missions(status="stable", limit=5))
             for m in missions:
-                with self._connect() as conn:
+                with closing(self._connect()) as conn, conn:
                     evidence = conn.execute(
                         """SELECT id,source,refs_json FROM neuron_evidence
                         WHERE mission_id=? AND source NOT IN ('worker','experimental_light_pulse')
@@ -525,7 +526,7 @@ class MissionPlanner:
         """Revisa inbox de federación si hay nodos con mensajes."""
         tasks: list[PlannedTask] = []
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn, conn:
                 row = conn.execute(
                     """SELECT COUNT(*) as cnt FROM federated_exchange_log
                     WHERE decision = 'pending'
@@ -560,7 +561,7 @@ class MissionPlanner:
         """Detecta deuda del sistema que puede generar candidatos."""
         tasks: list[PlannedTask] = []
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn, conn:
                 row = conn.execute(
                     """SELECT COUNT(*) as cnt FROM runs WHERE status = 'ok'
                     AND source NOT LIKE 'system_pulse%'
@@ -602,7 +603,7 @@ class MissionPlanner:
         """Evalúa si hay candidatos neuronales sin training."""
         tasks: list[PlannedTask] = []
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn, conn:
                 row = conn.execute(
                     """SELECT COUNT(*) as cnt FROM neurons
                     WHERE status IN ('candidate', 'candidate_reviewable')"""

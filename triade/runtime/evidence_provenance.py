@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -53,7 +54,7 @@ class EvidenceProvenanceStore:
             Path(__file__).resolve().parents[1]
             / "memory/migrations/016_evidence_provenance.sql"
         )
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.executescript(migration.read_text(encoding="utf-8"))
 
     def _connect(self) -> sqlite3.Connection:
@@ -104,7 +105,7 @@ class EvidenceProvenanceStore:
             trust_level=trust_level,
             verification_status=verification_status,
         )
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute(
                 "INSERT INTO governed_evidence VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 tuple(record.model_dump().values()),
@@ -112,7 +113,7 @@ class EvidenceProvenanceStore:
         return record
 
     def get(self, evidence_id: str) -> EvidenceRecord | None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             row = conn.execute(
                 "SELECT * FROM governed_evidence WHERE evidence_id=?", (evidence_id,)
             ).fetchone()
@@ -130,7 +131,7 @@ class EvidenceProvenanceStore:
         if self.get(evidence_id) is None:
             raise KeyError("evidence_not_found")
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn, conn:
                 conn.execute(
                     "INSERT INTO evidence_consumptions VALUES(?,?,?,?,?,?)",
                     (
