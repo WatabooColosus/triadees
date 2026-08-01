@@ -94,9 +94,15 @@ def test_health_prefers_progress_heartbeat_over_daemon_start_time(
         process_running=True, ollama_probe={"ok": True}
     )
 
-    assert status.state == "healthy"
+    # `idle`, no `healthy`: esta base monta la cola VACÍA con el latido fresco,
+    # que es la definición exacta de "sano y sin nada que hacer". Antes decía
+    # `healthy` sólo porque `idle` no existía. Lo que esta prueba fija —que el
+    # latido de progreso mande sobre el arranque del demonio, y que no se
+    # declare atasco— sigue igual de firme.
+    assert status.state == "idle"
     assert status.metrics["heartbeat_source"] == "live_runtime_heartbeat"
     assert "worker_cycle_stalled" not in status.reasons
+    assert "queue_not_progressing" not in status.reasons
 
 
 def test_recovery_snapshots_recovers_lease_and_checks_heartbeat(tmp_path):

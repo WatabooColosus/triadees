@@ -12,8 +12,17 @@ from typing import Any, Literal
 from triade.core.resource_probe import build_resource_probe
 
 HealthState = Literal[
-    "healthy", "degraded", "stalled", "recovering", "critical", "stopped"
+    "healthy", "idle", "degraded", "stalled", "recovering", "critical", "stopped"
 ]
+
+#: Estados de `autonomous_tasks` que cuentan como trabajo elegible: hay algo que
+#: hacer AHORA. `retry_wait` y `deferred` quedan fuera a propósito — están
+#: esperando su momento, y no avanzar mientras esperan es lo correcto, no un
+#: síntoma.
+ELIGIBLE_STATUSES = ("pending", "queued", "recovered")
+
+#: Estados en vuelo: alguien los tiene tomados.
+IN_FLIGHT_STATUSES = ("leased", "running", "claimed")
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,23 +80,69 @@ class ServiceHealth:
                         "SELECT name FROM sqlite_master WHERE type='table'"
                     )
                 }
+                # La cola que decide si el organismo avanza es `autonomous_tasks`.
+                # Esto leía `worker_tasks`, retirada por trigger desde
+                # `019_legacy_retirement.sql` y sin una fila nueva desde el
+                # 2026-07-29: la señal que debía detectar un atasco miraba un
+                # cadáver, así que la cola siempre parecía vacía y `stalled` no
+                # se disparaba nunca.
                 if "worker_tasks" in tables:
-                    counts = {
+                    metrics["legacy_queue"] = {
                         str(row[0]): int(row[1])
                         for row in conn.execute(
                             "SELECT status,COUNT(*) FROM worker_tasks GROUP BY status"
                         )
                     }
+                if "autonomous_tasks" in tables:
+                    counts = {
+                        str(row[0]): int(row[1])
+                        for row in conn.execute(
+                            "SELECT status,COUNT(*) FROM autonomous_tasks GROUP BY status"
+                        )
+                    }
                     metrics["queue"] = counts
+                    eligible = sum(counts.get(s, 0) for s in ELIGIBLE_STATUSES)
+                    in_flight = sum(counts.get(s, 0) for s in IN_FLIGHT_STATUSES)
+                    metrics["eligible_pending_tasks"] = eligible
+                    metrics["active_tasks"] = in_flight
+                    placeholders = ",".join(
+                        "?" * len(ELIGIBLE_STATUSES + IN_FLIGHT_STATUSES)
+                    )
                     oldest = conn.execute(
-                        "SELECT created_at FROM worker_tasks WHERE status IN ('pending','running','claimed') ORDER BY created_at LIMIT 1"
+                        f"SELECT created_at FROM autonomous_tasks WHERE status IN ({placeholders}) ORDER BY created_at LIMIT 1",
+                        ELIGIBLE_STATUSES + IN_FLIGHT_STATUSES,
                     ).fetchone()
                     age = self._age_seconds(oldest[0], now) if oldest else None
                     metrics["oldest_active_task_seconds"] = age
+                    last_done = conn.execute(
+                        "SELECT MAX(updated_at) FROM autonomous_tasks WHERE status='completed'"
+                    ).fetchone()
+                    last_done_at = last_done[0] if last_done else None
+                    metrics["last_task_completed_at"] = last_done_at
+                    # Progreso NO es sólo "algo se completó". Una tarea que
+                    # cambia de estado —se reclama, se reintenta, se reconcilia
+                    # un lease vencido— también ha avanzado. Medirlo sólo por
+                    # completadas declaraba atascado un organismo que estaba
+                    # trabajando, y hacía que reconciliar no contara como
+                    # progreso aunque hubiera movido la cola.
+                    last_move = conn.execute(
+                        "SELECT MAX(updated_at) FROM autonomous_tasks"
+                    ).fetchone()
+                    last_move_at = last_move[0] if last_move else None
+                    metrics["last_task_transition_at"] = last_move_at
+                    moved_recently = (
+                        last_move_at is not None
+                        and self._age_seconds(last_move_at, now)
+                        <= self.cycle_stale_seconds
+                    )
+                    metrics["work_available"] = bool(eligible or in_flight)
+                    # Atascado = hay trabajo que hacer, es viejo, y la cola no se
+                    # ha movido en la ventana. Sin trabajo no hay atasco: eso es
+                    # `idle`, y se decide más abajo.
                     if (
                         age is not None
                         and age > self.cycle_stale_seconds
-                        and counts.get("completed", 0) == 0
+                        and not moved_recently
                     ):
                         reasons.append("queue_not_progressing")
                         stalled = True
@@ -167,6 +222,13 @@ class ServiceHealth:
             state = "stalled"
         elif reasons:
             state = "degraded"
+        elif metrics.get("work_available") is False:
+            # Sano y sin nada que hacer. No es lo mismo que sano y trabajando, y
+            # para quien vigila 24/7 esa diferencia es justo la que separa una
+            # noche tranquila de un organismo parado. Sólo se declara `idle`
+            # cuando se pudo mirar la cola viva: si no se pudo, `work_available`
+            # no existe y no se inventa.
+            state = "idle"
         else:
             state = "healthy"
         return RuntimeHealth(

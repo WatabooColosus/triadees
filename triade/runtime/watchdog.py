@@ -52,14 +52,46 @@ class RuntimeWatchdog:
                     "reason": "recovery_budget_exhausted",
                 }
             else:
+                # Escalón 1: reconciliar sin tocar a nadie. La causa más común
+                # de un atasco es un lease vencido, y arreglarla no necesita
+                # parar el loop. Antes se paraban los workers ANTES de intentar
+                # esto, o sea que se mataban tareas sanas que iban bien para
+                # rescatar una que no.
+                #
+                # Sólo para `stalled`: `critical` (integridad) y `stopped` (no
+                # hay proceso) no se arreglan reconciliando, y fingir que sí
+                # retrasaría el escalón que hace falta.
+                reconciled = None
+                if status.state == "stalled":
+                    reconciled = self.recovery.reconcile(",".join(status.reasons))
+                    if reconciled.get("stage") == "reconciled":
+                        recheck = self.health.inspect(
+                            process_running=process_running, ollama_probe=ollama_probe
+                        )
+                        reconciled["health_after"] = recheck.state
+                        if recheck.state not in {"stalled", "critical", "stopped"}:
+                            # Bastó. No se consume presupuesto: no hubo
+                            # recuperación, hubo mantenimiento.
+                            payload["recovery"] = reconciled
+                            payload["recovery_attempts"] = self._recoveries
+                            return payload
+                # Escalón 2: no bastó. Ahora sí se para y se arranca, y esto sí
+                # deja rastro de recuperación con snapshot.
                 self._recoveries += 1
-                payload["recovery"] = self.recovery.recover(
+                escalated = self.recovery.recover(
                     ",".join(status.reasons),
                     stop_workers=stop_workers,
                     start_workers=start_workers,
                     verify_heartbeat=verify_heartbeat,
                 )
-        elif status.state == "healthy":
+                if reconciled is not None:
+                    escalated["reconcile_first"] = reconciled
+                payload["recovery"] = escalated
+        elif status.state in {"healthy", "idle"}:
+            # `idle` es un estado sano: significa "no hay nada que hacer", no
+            # "sigo roto". Si no devolviera el presupuesto, un organismo que se
+            # recupera y se queda sin trabajo lo agotaría a la tercera y dejaría
+            # de recuperarse estando perfectamente.
             self._recoveries = 0
         payload["recovery_attempts"] = self._recoveries
         return payload
