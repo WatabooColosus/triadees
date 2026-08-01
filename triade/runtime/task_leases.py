@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -49,7 +50,7 @@ class AutonomousTaskStore:
             Path(__file__).resolve().parents[1]
             / "memory/migrations/013_lease_fencing.sql",
         ]
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             for migration in migrations:
                 conn.executescript(migration.read_text(encoding="utf-8"))
             self._ensure_fencing_columns(conn)
@@ -73,6 +74,23 @@ class AutonomousTaskStore:
             )
 
     def _connect(self) -> sqlite3.Connection:
+        """Conexión de vida corta. **Ciérrala tú**: `with closing(...)`.
+
+        `with conn:` NO cierra —abre y cierra transacción— así que cada llamada
+        dejaba una conexión viva hasta que el recolector se acordara de ella.
+        Con `isolation_level=None` esto es autocommit y los commits son
+        explícitos, así que `closing()` no cambia una coma de la semántica: sólo
+        libera cuando toca.
+
+        Por qué importa: `AutonomousTaskStore()` se construye en el
+        `__init__` de `WorkerTaskQueue`, que se construye en el de
+        `WorkerLoop`. Cada worker dejaba conexiones SQLite a merced del GC, y
+        con concurrencia el recolector puede finalizarlas desde un hilo distinto
+        del que las creó. En py3.11 eso se manifestó como
+        `Fatal Python error: Segmentation fault` **durante** `Garbage-collecting`
+        —con la pila apuntando aquí— de forma intermitente y sólo con
+        `TRIADE_WORKER_CONCURRENCY=1`.
+        """
         conn = sqlite3.connect(self.db_path, timeout=5, isolation_level=None)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA busy_timeout=5000")
@@ -99,7 +117,7 @@ class AutonomousTaskStore:
         now = _iso()
         task_id = f"task-{uuid4().hex}"
         canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
             existing = conn.execute(
                 "SELECT * FROM autonomous_tasks WHERE idempotency_key=?",
@@ -138,7 +156,7 @@ class AutonomousTaskStore:
             raise ValueError("worker_id_required")
         now = _now()
         expires = _iso(now + timedelta(seconds=max(1, lease_seconds)))
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
             exclusions = sorted(excluded_task_types or ())
             exclusion_sql = ""
@@ -189,7 +207,7 @@ class AutonomousTaskStore:
         now = _now()
         now_iso = _iso(now)
         expires = _iso(now + timedelta(seconds=max(1, lease_seconds)))
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
             changed = conn.execute(
                 """UPDATE autonomous_tasks SET status='leased',worker_id=?,lease_acquired_at=?,
@@ -224,7 +242,7 @@ class AutonomousTaskStore:
                 _iso(now),
             ),
         )
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             conn.execute(
                 """INSERT INTO autonomous_lease_heartbeats
                 (task_id,worker_id,lease_generation,renewed,created_at) VALUES(?,?,?,?,?)""",
@@ -261,7 +279,7 @@ class AutonomousTaskStore:
         if not Path(result_ref).is_file():
             return False
         now = _iso()
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
             changed = conn.execute(
                 """UPDATE autonomous_tasks SET status='completed',updated_at=?,
@@ -296,7 +314,7 @@ class AutonomousTaskStore:
         """
         completed = 0
         dead_lettered = 0
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             rows = conn.execute(
                 """SELECT task_id,worker_id,lease_generation,result_ref
                 FROM autonomous_tasks WHERE status='completion_uncertain'"""
@@ -334,7 +352,7 @@ class AutonomousTaskStore:
     ) -> bool:
         now = _iso()
         reason = "uncertain_without_artifact:no_evidence_of_completion"
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
             changed = conn.execute(
                 """UPDATE autonomous_tasks SET status='dead_letter',
@@ -456,7 +474,7 @@ class AutonomousTaskStore:
         """
         now = _iso()
         retry_after = _iso(_now() + timedelta(seconds=max(0, delay_seconds)))
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
             current = conn.execute(
                 """SELECT status,attempt FROM autonomous_tasks
@@ -560,7 +578,7 @@ class AutonomousTaskStore:
         if status not in ALL_STATES:
             raise ValueError(f"unknown_status:{status}")
         now = _iso()
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
             current = conn.execute(
                 """SELECT status FROM autonomous_tasks
@@ -607,7 +625,7 @@ class AutonomousTaskStore:
 
     def recover_expired(self) -> list[str]:
         now = _iso()
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
             rows = conn.execute(
                 "SELECT task_id FROM autonomous_tasks WHERE status IN ('leased','running') AND lease_expires_at<=?",
@@ -676,7 +694,7 @@ class AutonomousTaskStore:
         # que es precisamente lo que ya no ocurre.
         result["uncertain_quarantined"] = reconciled["dead_lettered"]
 
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
 
             def _record(
@@ -846,7 +864,7 @@ class AutonomousTaskStore:
         return result
 
     def get(self, task_id: str) -> dict[str, Any] | None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             row = conn.execute(
                 "SELECT * FROM autonomous_tasks WHERE task_id=?", (task_id,)
             ).fetchone()
@@ -860,7 +878,7 @@ class AutonomousTaskStore:
         assignment: str,
         values: tuple[Any, ...],
     ) -> bool:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             changed = conn.execute(
                 f"UPDATE autonomous_tasks SET {assignment} WHERE task_id=? AND worker_id=? AND lease_generation=? AND status IN ('leased','running')",
                 (*values, task_id, worker_id, lease_generation),

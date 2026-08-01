@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -45,7 +46,7 @@ class WorkerStateStore:
             raise FileNotFoundError(
                 f"No existe el esquema de memoria: {self.schema_path}"
             )
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.executescript(self.schema_path.read_text(encoding="utf-8"))
             for migration in self.migration_paths:
                 if migration.exists():
@@ -81,7 +82,7 @@ class WorkerStateStore:
     def create_worker_run(
         self, run_ref: str, config: WorkerRunConfig, artifact_dir: str | Path
     ) -> dict[str, Any]:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute(
                 """INSERT OR REPLACE INTO worker_runs
                 (run_ref, status, mode, dry_run, max_iterations, sleep_seconds, started_at, artifact_dir, summary_json)
@@ -116,7 +117,7 @@ class WorkerStateStore:
         summary: dict[str, Any],
         error: str | None = None,
     ) -> None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute(
                 "UPDATE worker_runs SET status = ?, finished_at = ?, summary_json = ?, error = ? WHERE run_ref = ?",
                 (
@@ -133,14 +134,14 @@ class WorkerStateStore:
             )
 
     def get_worker_run(self, run_ref: str) -> dict[str, Any] | None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             row = conn.execute(
                 "SELECT * FROM worker_runs WHERE run_ref = ?", (run_ref,)
             ).fetchone()
         return self._decode(row) if row else None
 
     def list_worker_runs(self, limit: int = 20) -> list[dict[str, Any]]:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             rows = conn.execute(
                 "SELECT * FROM worker_runs ORDER BY id DESC LIMIT ?", (limit,)
             ).fetchall()
@@ -153,7 +154,7 @@ class WorkerStateStore:
         priority: int = 50,
         run_ref: str | None = None,
     ) -> WorkerTask:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             cursor = conn.execute(
                 """INSERT INTO worker_tasks (task_type, status, priority, payload_json, created_at, run_ref)
                 VALUES (?, 'pending', ?, ?, ?, ?)""",
@@ -173,7 +174,7 @@ class WorkerStateStore:
         )
 
     def claim_next_task(self) -> WorkerTask | None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT * FROM worker_tasks WHERE status = 'pending' ORDER BY priority ASC, id ASC LIMIT 1"
@@ -188,7 +189,7 @@ class WorkerStateStore:
         return task
 
     def link_delegated_task(self, legacy_id: int, autonomous_task_id: str) -> bool:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             changed = conn.execute(
                 """UPDATE worker_tasks SET autonomous_task_id=?,migration_status='delegated',
                 delegated_at=?,migration_error=NULL WHERE id=? AND migration_status IN ('delegating','delegated')""",
@@ -197,7 +198,7 @@ class WorkerStateStore:
         return changed == 1
 
     def return_delegation_to_pending(self, legacy_id: int, error: str) -> None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute(
                 """UPDATE worker_tasks SET status='pending',migration_status='pending',
                 started_at=NULL,migration_error=? WHERE id=? AND migration_status IN ('delegating','delegated')""",
@@ -213,7 +214,7 @@ class WorkerStateStore:
         *,
         run_ref: str,
     ) -> bool:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             canonical = conn.execute(
                 "SELECT status FROM autonomous_tasks WHERE task_id=?",
                 (autonomous_task_id,),
@@ -224,7 +225,7 @@ class WorkerStateStore:
         migration_status = (
             "mirrored_completed" if status == "completed" else "mirrored_failed"
         )
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             changed = conn.execute(
                 """UPDATE worker_tasks SET status=?,result_json=?,finished_at=?,run_ref=?,
                 migration_status=?,reconciled_at=?,migration_error=NULL
@@ -243,7 +244,7 @@ class WorkerStateStore:
         return changed == 1
 
     def get_task(self, task_id: int) -> WorkerTask | None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             row = conn.execute(
                 "SELECT * FROM worker_tasks WHERE id = ?", (task_id,)
             ).fetchone()
@@ -252,7 +253,7 @@ class WorkerStateStore:
     def list_tasks(
         self, status: str | None = None, limit: int = 50
     ) -> list[dict[str, Any]]:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             if status:
                 rows = conn.execute(
                     "SELECT * FROM worker_tasks WHERE status = ? ORDER BY id DESC LIMIT ?",
@@ -273,7 +274,7 @@ class WorkerStateStore:
         error: str | None = None,
         run_ref: str | None = None,
     ) -> None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute(
                 """UPDATE worker_tasks SET status = ?, result_json = ?, safety_status = ?, finished_at = ?, error = ?, run_ref = COALESCE(?, run_ref)
                 WHERE id = ?""",
@@ -299,7 +300,7 @@ class WorkerStateStore:
         status: str = "ok",
         payload: dict[str, Any] | None = None,
     ) -> int:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             cursor = conn.execute(
                 """INSERT INTO worker_events (run_ref, task_id, task_type, event_type, status, message, payload_json, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -322,7 +323,7 @@ class WorkerStateStore:
     def list_events(
         self, limit: int = 50, run_ref: str | None = None
     ) -> list[dict[str, Any]]:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             if run_ref:
                 rows = conn.execute(
                     "SELECT * FROM worker_events WHERE run_ref = ? ORDER BY id DESC LIMIT ?",
@@ -335,7 +336,7 @@ class WorkerStateStore:
         return [self._decode(row) for row in rows]
 
     def set_state(self, key: str, value: dict[str, Any]) -> None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute(
                 """INSERT INTO worker_state (key, value_json, updated_at) VALUES (?, ?, ?)
                 ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at""",
@@ -343,14 +344,14 @@ class WorkerStateStore:
             )
 
     def get_state(self, key: str) -> dict[str, Any] | None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             row = conn.execute(
                 "SELECT * FROM worker_state WHERE key = ?", (key,)
             ).fetchone()
         return self._decode(row).get("value_json") if row else None
 
     def status(self) -> dict[str, Any]:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             task_counts = {
                 row["status"]: int(row["c"])
                 for row in conn.execute(
@@ -374,11 +375,76 @@ class WorkerStateStore:
             "state": self.get_state("workers") or {},
         }
 
+    def _run_still_has_work_in_flight(self, run_ref: str) -> bool:
+        """¿Le queda a este run trabajo de verdad en vuelo?
+
+        Dos fuentes, porque hay dos caminos de ejecución:
+
+        - `worker_tasks` reclamadas o corriendo por este run;
+        - `autonomous_tasks` arrendadas a este run (`worker_id = run_ref`) con
+          el lease **sin caducar**. La fila sola no basta: un worker muerto a
+          media tarea la dejaría ahí para siempre, que es el mismo agujero por
+          otra puerta.
+        """
+        now = utc_now()
+        # `closing`: es una lectura, no necesita transacción, y sí necesita
+        # soltar la conexión en el acto. Este método se llama en cada
+        # `recover_interrupted_runtime`, o sea en cada arranque de worker.
+        with closing(self._connect()) as conn:
+            pending = conn.execute(
+                "SELECT 1 FROM worker_tasks WHERE run_ref = ? AND status IN ('claimed','running') LIMIT 1",
+                (run_ref,),
+            ).fetchone()
+            if pending is not None:
+                return True
+            try:
+                leased = conn.execute(
+                    """SELECT 1 FROM autonomous_tasks
+                    WHERE worker_id = ? AND status IN ('leased','running')
+                      AND lease_expires_at IS NOT NULL AND lease_expires_at > ?
+                    LIMIT 1""",
+                    (run_ref, now),
+                ).fetchone()
+            except sqlite3.OperationalError:
+                # La tabla de leases puede no existir todavía en una base recién
+                # creada. Sin ella no hay trabajo en vuelo que demostrar.
+                return False
+        return leased is not None
+
+    def _retained_lock_still_holds_authority(self, run_ref: str | None) -> bool:
+        """¿Puede este lock seguir mandando, con su proceso vivo?
+
+        La autoridad del runtime pertenece a un RUN, no a un proceso. Antes se
+        devolvía `live_owner` con sólo ver el PID vivo, y en el runtime
+        siempre-activo ese PID es el de `uvicorn`: un run cerrado hace horas
+        mantenía bloqueado el sistema entero mientras la app siguiera en pie.
+
+        Se conserva la autoridad —dirección conservadora— salvo que se pueda
+        **demostrar** que ya no toca:
+
+        - sin `run_ref`: lock de una versión anterior, no hay nada que probar;
+        - run desconocido en esta base: tampoco se puede probar (fencing: no se
+          le quita el lock a quien no sabemos que terminó);
+        - run no terminal: está trabajando;
+        - run terminal con trabajo en vuelo: sus tareas siguen escribiendo.
+
+        Sólo cae en el caso restante: run terminal y sin una sola tarea viva.
+        """
+        if not run_ref:
+            return True
+        run = self.get_worker_run(run_ref)
+        if run is None:
+            return True
+        if str(run.get("status") or "") in ("running", ""):
+            return True
+        return self._run_still_has_work_in_flight(run_ref)
+
     def recover_interrupted_runtime(self, lock_file: str | Path) -> dict[str, Any]:
         """Recupera locks/runs huérfanos y compacta la cola pendiente.
 
-        Solo considera huérfano un lock cuyo PID ya no existe. Nunca toca un
-        proceso vivo y conserva una tarea por clave lógica para replay seguro.
+        Un lock es intocable mientras su dueño mande de verdad. Que el PID esté
+        vivo ya no basta: ver `_retained_lock_still_holds_authority`. Conserva
+        una tarea por clave lógica para replay seguro.
         """
         lock = Path(lock_file)
         stale_pid: int | None = None
@@ -387,14 +453,22 @@ class WorkerStateStore:
             stale_pid = inspection.pid
             if inspection.status == "invalid":
                 return {"status": "invalid_lock", "pid": None, "deduplicated": 0}
-            if inspection.status == "live":
-                return {"status": "live_owner", "pid": stale_pid, "deduplicated": 0}
+            if (
+                inspection.status == "live"
+                and self._retained_lock_still_holds_authority(inspection.run_ref)
+            ):
+                return {
+                    "status": "live_owner",
+                    "pid": stale_pid,
+                    "run_ref": inspection.run_ref,
+                    "deduplicated": 0,
+                }
             try:
                 lock.unlink()
             except FileNotFoundError:
                 pass
 
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute("UPDATE worker_tasks SET status='completed' WHERE status='ok'")
             conn.execute("UPDATE worker_tasks SET status='failed' WHERE status='error'")
             interrupted = conn.execute(
@@ -454,7 +528,7 @@ class WorkerStateStore:
         self, task_type: str, payload: dict[str, Any]
     ) -> WorkerTask | None:
         logical = self._logical_task_key(task_type, payload)
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             rows = conn.execute(
                 "SELECT * FROM worker_tasks WHERE task_type=? AND status IN ('pending','running','claimed') ORDER BY id ASC",
                 (task_type,),

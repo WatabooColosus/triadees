@@ -13,8 +13,20 @@ from .concurrency import ConcurrencySettings
 
 
 def _concurrency_enabled_default() -> bool:
-    """La concurrencia se activa por decisión explícita, no por omisión."""
-    return os.getenv("TRIADE_WORKER_CONCURRENCY", "0").strip().lower() in {
+    """Concurrencia gobernada **encendida** por defecto desde 2026-08-01.
+
+    Estuvo apagada porque al activarla `test_worker_learning_integration` se
+    ponía rojo en CI y el fallo no se reprodujo localmente. Eso ya no describe
+    la realidad: en los seis trabajos concurrentes de la matriz (py3.11 ×3 y
+    py3.12 ×3) el paso de pytest termina al 100 %, ese test incluido. El rojo
+    que se le atribuía venía de otro paso, con una comprobación que exigía datos
+    reales de producción en un runner limpio — imposible de cumplir allí, y ya
+    corregida.
+
+    Se apaga con `TRIADE_WORKER_CONCURRENCY=0`. Ese interruptor es la vuelta
+    atrás: una variable de entorno, sin desplegar código.
+    """
+    return os.getenv("TRIADE_WORKER_CONCURRENCY", "1").strip().lower() in {
         "1",
         "true",
         "yes",
@@ -122,16 +134,19 @@ class WorkerRunConfig:
     max_tasks_per_drain: int = 20
     max_seconds_per_drain: float = 2.0
     max_tasks_per_type_per_drain: int = 4
-    # Concurrencia gobernada. **Apagada por defecto**, y no por timidez: se
-    # activó por defecto, y CI —que estaba verde en `main`— se puso rojo en
-    # `test_worker_learning_integration`. El fallo no se reprodujo localmente ni
-    # limitando a 2 CPU ni sin Ollama, así que no está entendido. Activar por
-    # defecto algo cuyo modo de fallo no se comprende es exactamente lo que este
-    # runtime existe para no hacer.
+    # Concurrencia gobernada. **Encendida por defecto** desde 2026-08-01, con la
+    # evidencia que faltaba: los seis trabajos concurrentes de la matriz
+    # (py3.11 ×3, py3.12 ×3) terminan el pytest al 100 %, incluido
+    # `test_worker_learning_integration` — el test por el que se apagó. El rojo
+    # que se le atribuía era de otro paso y por una comprobación imposible de
+    # cumplir en un runner limpio, ya corregida.
     #
-    # Se activa explícitamente con `TRIADE_WORKER_CONCURRENCY=1` o pasando
-    # `concurrency_enabled=True`. Apagada, el drenaje es el secuencial de
-    # siempre, bit a bit.
+    # Los límites siguen siendo los conservadores: 3 tareas a la vez como mucho,
+    # y un solo hilo para escritura de memoria y para mutación crítica. Encender
+    # la concurrencia no es soltar el freno de mano.
+    #
+    # Se apaga con `TRIADE_WORKER_CONCURRENCY=0` o `concurrency_enabled=False`.
+    # Apagada, el drenaje vuelve a ser el secuencial de siempre, bit a bit.
     concurrency_enabled: bool = field(default_factory=_concurrency_enabled_default)
     max_concurrent_tasks: int = 3
     read_only_workers: int = 2

@@ -14,22 +14,36 @@ class LockInspection:
     status: str
     pid: int | None
     reason: str
+    run_ref: str | None = None
+    """Run dueño de la autoridad, si el lock lo declara.
+
+    Un lock sin `run_ref` es de una versión anterior: no hay nada que
+    comprobar, y se respeta al proceso vivo como siempre.
+    """
 
 
 class RuntimeProcessLock:
     @staticmethod
-    def payload(pid: int | None = None) -> bytes:
+    def payload(pid: int | None = None, run_ref: str | None = None) -> bytes:
+        """Contenido del fichero de lock.
+
+        `run_ref` importa: la autoridad del runtime pertenece a un RUN, no a un
+        proceso. Sin él, un lock retenido no se puede distinguir de uno vivo más
+        que por si el proceso respira — y en el runtime siempre-activo el
+        proceso es `uvicorn`, que respira toda la sesión.
+        """
         actual_pid = pid or os.getpid()
         cmdline = RuntimeProcessLock.command_line(actual_pid)
-        return json.dumps(
-            {
-                "pid": actual_pid,
-                "command_line": cmdline,
-                "start_time": RuntimeProcessLock.start_time(actual_pid),
-                "expected_token": "triade",
-                "created_at": datetime.now(UTC).isoformat(),
-            }
-        ).encode()
+        body: dict[str, object] = {
+            "pid": actual_pid,
+            "command_line": cmdline,
+            "start_time": RuntimeProcessLock.start_time(actual_pid),
+            "expected_token": "triade",
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+        if run_ref:
+            body["run_ref"] = run_ref
+        return json.dumps(body).encode()
 
     @staticmethod
     def command_line(pid: int) -> str:
@@ -87,8 +101,10 @@ class RuntimeProcessLock:
             pid = int(payload["pid"])
         except (KeyError, TypeError, ValueError):
             return LockInspection("invalid", None, "pid_missing")
+        run_ref = payload.get("run_ref")
+        owner_run = str(run_ref) if isinstance(run_ref, str) and run_ref else None
         if not cls.pid_alive(pid):
-            return LockInspection("stale", pid, "process_missing")
+            return LockInspection("stale", pid, "process_missing", owner_run)
 
         # Señal primaria: starttime del kernel. Si el lock grabó un
         # start_time y no coincide con el del ocupante actual del PID, es
@@ -106,7 +122,9 @@ class RuntimeProcessLock:
                 and actual_start is not None
                 and recorded_start_int != actual_start
             ):
-                return LockInspection("stale", pid, "process_identity_mismatch")
+                return LockInspection(
+                    "stale", pid, "process_identity_mismatch", owner_run
+                )
 
         # Respaldo para locks legacy sin start_time: heurística de cmdline
         # (relajada a propósito — un token constante no puede ser estricto
@@ -115,10 +133,10 @@ class RuntimeProcessLock:
         expected = str(payload.get("expected_token") or "").strip()
         recorded = str(payload.get("command_line") or "").strip()
         if not actual:
-            return LockInspection("stale", pid, "empty_cmdline")
+            return LockInspection("stale", pid, "empty_cmdline", owner_run)
         if recorded and recorded != actual and (not expected or expected not in actual):
-            return LockInspection("stale", pid, "process_identity_mismatch")
-        return LockInspection("live", pid, "process_identity_verified")
+            return LockInspection("stale", pid, "process_identity_mismatch", owner_run)
+        return LockInspection("live", pid, "process_identity_verified", owner_run)
 
     @staticmethod
     def pid_alive(pid: int) -> bool:

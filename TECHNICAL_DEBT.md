@@ -1,7 +1,87 @@
 # Deuda técnica vigente · Tríade Ω
 
-Corte: 2026-07-30. SHA documental base: `8f44814`. Esta lista es canónica;
+Corte: 2026-08-01. SHA documental base: `8f44814`. Esta lista es canónica;
 los reportes anteriores son históricos cuando la contradicen.
+
+## P0 — CORREGIDO: el cuelgue de `test_concurrent_status_calls`
+
+Causa determinada y cerrada con evidencia. Detalle completo en
+[`docs/METABOLISM_STATUS_HANG_ROOT_CAUSE.md`](docs/METABOLISM_STATUS_HANG_ROOT_CAUSE.md).
+En corto: `_acquire_process_lock` cerraba el descriptor y **después** lo
+guardaba en `self._lock_fd`; el número volvía a la piscina de libres, se lo
+llevaba el siguiente `open()` del proceso, y `_release_process_lock` cerraba el
+fichero de otro. Cuando ese otro era una base SQLite con transacción viva, la
+conexión moría con `disk I/O error` dejando su bloqueo POSIX **huérfano**, y los
+lectores esperaban a nadie. Sólo se veía en la suite completa porque depende de
+qué descriptor se recicle.
+
+De paso, tres cosas más del mismo camino: el lock se derivaba sólo del **nombre**
+del fichero de base (dos `test.db` distintas colisionaban), `_release` borraba
+locks ajenos con `unlink` incondicional, y `status()` hacía `load_config()`
+dentro del lock — lo que **ponía `cycle_count` a cero** cada vez que alguien
+consultaba el estado, por un `GET` que no pide clave.
+
+Verificado: suite completa **con** el test y sin `--deselect`, 1749 pruebas, 0
+fallos, 100 %; 100 repeticiones del nodo; `mypy triade` limpio. El test entra en
+`RUNTIME_TESTS` de la matriz de concurrencia, cuyo trabajo `serial` **sí**
+bloquea el PR.
+
+## P0 — CORREGIDO: un run que cierra con tareas vivas retenía el lock para siempre
+
+`worker_loop.py:544` pone `_retain_lock_for_active_tasks = True` cuando el run
+termina con tareas huérfanas, y el `finally` conserva el fichero de lock a
+propósito. El comentario dice que no queda huérfano porque
+`recover_interrupted_runtime` lo recupera cuando el proceso muera — y ahí está
+el fallo: `state_store.py:390` devuelve `live_owner` **siempre que el PID esté
+vivo**, y en el runtime siempre-activo ese PID es el de `uvicorn`, que vive toda
+la sesión. El lock retenido no se recupera nunca mientras la app siga en pie.
+
+Era literalmente "una tarea puede detener todo el sistema".
+
+**Corregido:** la autoridad pertenece ahora a un RUN, no a un proceso. El lock
+declara su dueño (`run_ref`, sellado tras `create_worker_run` y sólo si el
+fichero sigue siendo nuestro) y se conserva la autoridad únicamente mientras se
+pueda sostener: sin `run_ref` rige el contrato de siempre; un run desconocido en
+esta base es intocable (fencing); un run no terminal está trabajando; un run
+terminal con trabajo en vuelo sigue mandando. Sólo cae el caso restante — run
+terminal y sin una sola tarea viva — que era el agujero.
+
+"Trabajo en vuelo" son dos fuentes: `worker_tasks` en `claimed`/`running` de ese
+run, y `autonomous_tasks` arrendadas a él con el lease **sin caducar**. La fila
+sola no basta: un worker muerto a media tarea la dejaría ahí para siempre, el
+mismo agujero por otra puerta. Como el lease tiene TTL acotado, la recuperación
+está garantizada aunque nadie llegue a marcar la tarea como terminada.
+
+Las tres pruebas que fijaban el contrato anterior y esperan `live_owner`
+(`test_worker_runtime_recovery.py:32`, `test_worker_lifecycle_hardening.py:30`,
+`test_orphaned_task_recovery.py:83`) **siguen verdes sin tocarlas**: un lock
+legacy sin `run_ref` no cambia de comportamiento. Ocho pruebas nuevas en
+`tests/test_retained_lock_authority.py`, incluida una que lee el fichero de lock
+real en vuelo para demostrar que el sellado llega a producción y no es código
+muerto.
+
+## P1 — CORREGIDO: el rojo permanente del trabajo concurrente estaba mal atribuido
+
+El trabajo `concurrent` de `concurrency-matrix.yml` llevaba rojo permanente, y
+tanto el workflow como los informes lo atribuían a
+`test_worker_learning_integration`. **No era cierto.** En los seis trabajos del
+run del 2026-08-01 (py3.11 ×3, py3.12 ×3) el paso de pytest terminó al 100 %,
+ese test incluido.
+
+Lo que fallaba era el paso siguiente,
+`Governed concurrency validation on a database copy`: una de sus comprobaciones
+exigía que la copia conservara `verification_reports` **reales**, y un runner
+limpio no tiene ninguno. Afirmaba una condición del entorno, no una propiedad
+del código, así que era imposible de cumplir en CI.
+
+Corregido en `scripts/run_concurrency_and_lease_validation.py`: la comprobación
+verifica ahora que la copia sea **fiel** al origen —propiedad real de
+`copy_production_db`, verificable en los dos entornos— y se declara `[N/A]`
+cuando el origen no tiene informes, sin contar como superada ni como fallida.
+Local con la base real: 19/19, 213 de 213 informes preservados.
+
+Es el daño típico de un rojo permanente: deja de mirarse y acaba tapando la
+causa real.
 
 ## P0 — CORREGIDO (parcial): `last_governor_decision` vacío deja Always-On congelado en `observe_only`
 
@@ -587,3 +667,87 @@ documentación.
 Una deuda solo se cierra con código, pruebas, evidencia runtime, documentación y
 ruta de recuperación. Actividad, persistencia o etiquetas no sustituyen efecto,
 recuperación útil ni aprendizaje validado.
+
+## P2 — DOCUMENTADO, no corregido: el gobernador degrada a `cooldown` en cada arranque frío
+
+Reportado en vivo: `razon_degradacion = "Load average (24.24) muy alto para 8
+CPUs.; Modo solicitado 'full_local' excede permitido 'cooldown'. Degradado."`
+tras reiniciar. **No lo causan los Living Workers.** Regla en
+`resource_governor.py`: `load_1min > cpu_count * 2` → `cooldown`; con 8 CPUs el
+umbral es 16.
+
+Evidencia (`worker_events`, `event_type='work_mode_decided'`):
+
+| hora | load | efectivo |
+|---|---|---|
+| 03:31:38 — 2 s tras `last_start_at` | 59,83 | cooldown |
+| 03:32:39 | 24,24 | cooldown |
+| 03:33:41 en adelante | 2,x | `full_local` |
+
+En 482 decisiones registradas sólo **3** degradaron por load, y las tres son la
+primera decisión de un ciclo de arranque. Cero en régimen estable.
+
+Mecanismo: el `lifespan` de `apps/single_port_app.py` llama
+`start_workers_if_configured` → `ensure_workers_alive` → `_decide_worker_mode` →
+`build_resource_probe()` en el mismo bloque que verifica identidad, siembra
+neuronas fundacionales y lanza `start_model_acquisition_background` (que arranca
+los `llama-server`). Lee `/proc/loadavg` en el pico exacto del arranque, y
+`load_1min` es una media con inercia de un minuto: describe el minuto *anterior*,
+no la capacidad presente.
+
+Agravante medido: `/proc/loadavg` es del **host** (919 procesos totales frente a
+39 dentro del contenedor) mientras `cpu_count` sale de `os.cpu_count()` del
+cgroup. Se comparan magnitudes distintas. `/proc/pressure/cpu` daba
+`full avg10=0.00` — el contenedor no estaba ahogado en ningún momento.
+
+Se deja **sin corregir a propósito**: degradar dos minutos en un arranque frío es
+conservador, y elegir entre una gracia de arranque, `load_5min` o presión PSI es
+una decisión de producto, no una corrección. Lo que sí faltaba es cobertura: la
+regla no tenía ninguna prueba (`tests/test_resource_governor.py` fijaba
+`load_1min=1.0` en todos los casos). Añadidas
+`test_high_load_average_forces_cooldown` y
+`test_load_average_just_under_the_threshold_does_not_degrade`, para que un
+cambio en esa regla sea visible y no una deriva.
+
+## P2 — ACOTADO, no cerrado: 739 conexiones SQLite que quedan a merced del recolector
+
+`with sqlite3.connect(...) as conn:` **no cierra** la conexión: abre y cierra
+transacción. Un escáner AST sobre `triade/`, `apps/` y `scripts/` encuentra
+**739 conexiones sin cerrar en 150 ficheros**. Cada una vive hasta que pasa el
+recolector.
+
+Con un solo hilo eso es sólo desperdicio. Con hilos, no: el recolector puede
+finalizar una conexión desde un hilo distinto del que la creó. Se manifestó como
+`Fatal Python error: Segmentation fault` **dentro de** `Garbage-collecting`, en
+py3.11, de forma intermitente y sólo con `TRIADE_WORKER_CONCURRENCY=1`, con la
+pila apuntando a `AutonomousTaskStore._connect`. Cerrar las de `task_leases.py`
+llevó py3.11 concurrente de 3/3 rojo a 3/3 verde.
+
+**Cerradas:** `triade/runtime/**` y `triade/workers/**` (82 conexiones en 6
+ficheros), que son las que corren con hilos de verdad. El idioma es
+`with closing(self._connect()) as conn, conn:` — las dos, y en ese orden:
+commit primero, cierre después.
+
+**Pendientes:** las ~657 restantes, encabezadas por
+`memory/hypothalamus_store.py` (15), `os/knowledge_graph.py` (15),
+`core/bodega.py` (14), `evolution/lab.py` (14), `core/neuron_missions.py` (13),
+`core/planning_graph.py` (13).
+
+Deliberadamente **no** se reescriben en bloque: cada una tiene su propia
+semántica de commit según el `isolation_level` de su `_connect`, y cambiarlas a
+ciegas es más peligroso que la fuga que arreglan. Se cierran cuando su módulo
+pase a ejecutarse con hilos, y con sus pruebas delante.
+
+Para encontrarlas:
+
+```python
+# with <algo>connect(...) sin closing() alrededor
+[
+    n
+    for n in ast.walk(tree)
+    if isinstance(n, ast.With)
+    for it in n.items
+    if "connect(" in ast.unparse(it.context_expr)
+    and "closing(" not in ast.unparse(it.context_expr)
+]
+```

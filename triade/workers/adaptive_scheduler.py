@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -81,7 +82,7 @@ class AdaptiveScheduler:
         return conn
 
     def _ensure_tables(self) -> None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute(_HISTORY_TABLE)
             conn.execute(_METRICS_TABLE)
 
@@ -99,7 +100,7 @@ class AdaptiveScheduler:
             task_type, duration_ms, success, resource_score
         )
 
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute(
                 """INSERT INTO scheduler_history
                    (task_type, run_ref, started_at, finished_at, duration_ms, success, resource_score, interval_recommended)
@@ -174,7 +175,7 @@ class AdaptiveScheduler:
 
     def get_recommended_interval(self, task_type: str) -> float:
         """Retorna el intervalo recomendado para un tipo de tarea."""
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             row = conn.execute(
                 "SELECT avg_interval_ms FROM scheduler_metrics WHERE task_type = ?",
                 (task_type,),
@@ -190,7 +191,7 @@ class AdaptiveScheduler:
         if not self.resource_ledger.allows(self.task_class(task_type)):
             return True
         interval = self.get_recommended_interval(task_type)
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             row = conn.execute(
                 "SELECT last_run_at, success_rate FROM scheduler_metrics WHERE task_type = ?",
                 (task_type,),
@@ -218,7 +219,7 @@ class AdaptiveScheduler:
 
     def get_task_priority(self, task_type: str) -> float:
         """Calcula prioridad dinámica (0.0-1.0) basada en urgencia y rendimiento."""
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             row = conn.execute(
                 "SELECT success_rate, sample_count, last_run_at FROM scheduler_metrics WHERE task_type = ?",
                 (task_type,),
@@ -233,7 +234,7 @@ class AdaptiveScheduler:
 
     def get_all_metrics(self) -> dict[str, Any]:
         """Retorna métricas de todos los tipos de tarea."""
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             rows = conn.execute(
                 "SELECT * FROM scheduler_metrics ORDER BY task_type"
             ).fetchall()
@@ -276,7 +277,7 @@ class AdaptiveScheduler:
     def cleanup_old_history(self, max_age_days: int = 30) -> int:
         """Limpia historial antiguo."""
         cutoff = time.time() - max_age_days * 86400
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             cursor = conn.execute(
                 "DELETE FROM scheduler_history WHERE started_at < ?", (cutoff,)
             )

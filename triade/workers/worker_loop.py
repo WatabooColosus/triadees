@@ -227,6 +227,24 @@ class WorkerLoop:
         # Se activa solo si el run termina con tareas todavia vivas.
         self._retain_lock_for_active_tasks = False
 
+    def _stamp_lock_owner(self, run_ref: str) -> None:
+        """Escribe en el lock a qué run pertenece la autoridad.
+
+        Sólo se sella si el fichero sigue siendo nuestro (mismo PID). Si otro lo
+        recuperó entre medias, reescribirlo sería robarle la autoridad — que es
+        exactamente lo que este contrato existe para impedir.
+        """
+        try:
+            current = json.loads(self.lock_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        if not isinstance(current, dict) or current.get("pid") != os.getpid():
+            return
+        try:
+            self.lock_file.write_bytes(RuntimeProcessLock.payload(run_ref=run_ref))
+        except OSError:
+            return
+
     def run(self, config: WorkerRunConfig | None = None) -> dict[str, Any]:
         config = config or WorkerRunConfig(
             runs_dir=str(self.runs_dir),
@@ -315,6 +333,14 @@ class WorkerLoop:
             "runtime_recovery": recovery,
         }
         self.store.create_worker_run(run_ref, config, artifact_dir)
+        # El lock se tomó antes de existir `run_ref` —tenía que ser así, o la
+        # carrera TOCTOU vuelve—, así que ahora se le sella el dueño. Sin esto,
+        # un lock retenido sólo se distingue de uno vivo por si el proceso
+        # respira, y en el runtime siempre-activo respira toda la sesión.
+        # Se reescribe DESPUÉS de `create_worker_run` para que el run ya exista
+        # en la base cuando alguien inspeccione: un run desconocido se respeta,
+        # y eso dejaría la autoridad retenida por la razón equivocada.
+        self._stamp_lock_owner(run_ref)
         self.store.set_state(
             "workers",
             {

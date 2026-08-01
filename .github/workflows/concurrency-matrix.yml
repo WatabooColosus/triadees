@@ -2,18 +2,31 @@ name: Concurrency Matrix
 
 # Por qué existe este workflow
 # ---------------------------
-# La concurrencia gobernada está implementada y verificada localmente, pero se
-# apagó por defecto porque al activarla `test_worker_learning_integration` pasó
-# de verde en `main` a rojo en la rama, y el fallo **no se reprodujo** localmente
-# —ni limitando a 2 CPU ni sin Ollama—. Un fallo que no se entiende no se activa
-# por defecto.
+# La concurrencia gobernada estuvo APAGADA por defecto: al activarla,
+# `test_worker_learning_integration` pasó de verde en `main` a rojo en la rama, y
+# el fallo no se reprodujo localmente. Un fallo que no se entiende no se activa
+# por defecto, y este workflow existía para poder observarlo donde ocurre.
 #
-# Lo que faltaba era poder observarlo donde ocurre. Este workflow ejecuta el
-# MISMO subconjunto de pruebas en las dos configuraciones, para que la diferencia
-# sea atribuible a la concurrencia y no al entorno:
+# ENCENDIDA POR DEFECTO desde el 2026-08-01, porque ese diagnóstico dio su
+# resultado y no era el que se creía. En los seis trabajos concurrentes
+# (py3.11 ×3 y py3.12 ×3) el paso de pytest terminó al 100 %,
+# `test_worker_learning_integration` incluido. Lo único rojo era el paso
+# siguiente, `Governed concurrency validation on a database copy`, y por una
+# razón sin relación con la concurrencia: una de sus comprobaciones exigía que
+# la copia conservara `verification_reports` REALES, y un runner limpio no tiene
+# ninguno. Imposible de cumplir en CI. Ese rojo permanente se venía atribuyendo
+# al test de aprendizaje sin comprobarlo — el daño exacto que hace un rojo que
+# nadie mira. Corregido: la comprobación verifica ahora que la copia sea FIEL
+# —propiedad del código— y se declara "no aplicable" cuando el origen no tiene
+# informes.
 #
-#   TRIADE_WORKER_CONCURRENCY=0  ->  comportamiento secuencial de siempre
-#   TRIADE_WORKER_CONCURRENCY=1  ->  carriles, pool y exclusiones activos
+# Este workflow ejecuta el MISMO subconjunto de pruebas en las dos
+# configuraciones, y ahora los dos trabajos BLOQUEAN:
+#
+#   TRIADE_WORKER_CONCURRENCY=1  ->  el modo que corre en producción
+#   TRIADE_WORKER_CONCURRENCY=0  ->  la vuelta atrás, que también hay que probar
+#
+# Una vuelta atrás que no se prueba no es una vuelta atrás, es una esperanza.
 #
 # El trabajo concurrente se repite varias veces a propósito: una carrera que
 # aparece una de cada cinco ejecuciones es indistinguible de "verde" si solo se
@@ -25,6 +38,8 @@ on:
     paths:
       - "triade/workers/**"
       - "triade/runtime/**"
+      - "triade/metabolism/**"
+      - "tests/test_metabolism.py"
       - "tests/test_worker*"
       - "tests/test_*concurrency*"
       - "tests/test_*lease*"
@@ -39,7 +54,14 @@ env:
   # Subconjunto sensible al modo de ejecución. Incluye el test que rompió
   # (`test_worker_learning_integration`) para que su fallo vuelva a verse aquí,
   # aislado y repetible, en vez de mezclado con 1500 pruebas más.
+  # `tests/test_metabolism.py` entra aquí porque contiene
+  # `test_concurrent_status_calls`, el que colgaba la suite entera: diez hilos
+  # martilleando `status()` mientras el coordinador vive. Estaba fuera de esta
+  # matriz —nunca se ejecutó en los dos modos— y por eso su causa siguió
+  # abierta tanto tiempo. Los dos trabajos bloquean, así que a partir de aquí
+  # una regresión del metabolismo rompe el PR en cualquiera de los dos modos.
   RUNTIME_TESTS: >-
+    tests/test_metabolism.py
     tests/test_worker_loop.py
     tests/test_worker_cli.py
     tests/test_worker_api.py
@@ -77,19 +99,21 @@ jobs:
       - name: Run runtime tests without concurrency
         env:
           TRIADE_WORKER_CONCURRENCY: "0"
-        run: pytest -q --durations=15 ${{ env.RUNTIME_TESTS }}
+        run: pytest -q --durations=15 -o faulthandler_timeout=180 ${{ env.RUNTIME_TESTS }}
 
   concurrent:
     name: runtime tests (concurrent, py${{ matrix.python }} run ${{ matrix.attempt }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # NO bloquea el PR todavía, y decirlo importa: la concurrencia está apagada
-    # por defecto, así que un fallo aquí no afecta a lo que se ejecuta en
-    # producción. Este trabajo existe para DIAGNOSTICAR, no para dar por buena
-    # una capacidad que aún no se entiende. Pasa a bloqueante el día que se
-    # active la concurrencia por defecto — y no antes, para no acostumbrarse a
-    # ver rojo y dejar de mirarlo.
-    continue-on-error: true
+    # BLOQUEA. Este trabajo dejó de ser diagnóstico el día que la concurrencia
+    # se encendió por defecto (2026-08-01): a partir de ahí es el modo que corre
+    # en producción, y un fallo aquí es un fallo de lo que se está ejecutando de
+    # verdad. Se quitó `continue-on-error` en el mismo commit que invirtió el
+    # defecto, porque lo contrario —encenderla y seguir tolerando rojo aquí— es
+    # la peor de las dos combinaciones posibles.
+    #
+    # Las tres repeticiones siguen siendo el punto: una carrera que aparece una
+    # de cada cinco ejecuciones es indistinguible de "verde" si sólo se mira una.
     strategy:
       fail-fast: false
       matrix:
@@ -118,7 +142,7 @@ jobs:
       - name: Run runtime tests with governed concurrency
         env:
           TRIADE_WORKER_CONCURRENCY: "1"
-        run: pytest -q --durations=15 ${{ env.RUNTIME_TESTS }}
+        run: pytest -q --durations=15 -o faulthandler_timeout=180 ${{ env.RUNTIME_TESTS }}
       - name: Governed concurrency validation on a database copy
         if: always()
         env:
@@ -144,10 +168,14 @@ jobs:
         run: |
           echo "serial:     ${{ needs.serial.result }}"
           echo "concurrent: ${{ needs.concurrent.result }}"
-          # El serial SÍ es bloqueante: es el modo que corre en producción hoy.
+          # Los DOS bloquean, y por razones distintas.
+          #
+          # `concurrent` es el modo que corre en producción desde que la
+          # concurrencia se encendió por defecto (2026-08-01).
+          #
+          # `serial` es la vuelta atrás: se apaga con
+          # `TRIADE_WORKER_CONCURRENCY=0`, sin desplegar código. Una vuelta
+          # atrás que no se prueba no es una vuelta atrás, es una esperanza.
           test "${{ needs.serial.result }}" = "success"
-          if [ "${{ needs.concurrent.result }}" != "success" ]; then
-            echo "::warning::La concurrencia falla en CI. Sigue apagada por defecto."
-          else
-            echo "La concurrencia pasó las 3 repeticiones en este runner."
-          fi
+          test "${{ needs.concurrent.result }}" = "success"
+          echo "Los dos modos pasan: el que corre y aquel al que se puede volver."
