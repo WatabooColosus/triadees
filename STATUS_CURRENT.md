@@ -64,6 +64,34 @@ sleep 6   # esperar a que suelte el puerto antes de relanzar
 **Base de producción**: `triade/memory/triade.db` (WAL, ~141 MB, 107 tablas).
 `data/triade.db` está vacía y no es la real.
 
+### URL pública
+
+```
+https://8010-01kyngxf5vrjegqz9xrck5fwrf.cloudspaces.litng.ai/
+```
+
+**No se deriva del hostname del cloudspace.** El host actual es
+`cs-01kz05gd8rh0sbn85qachsgzp2` y construir la URL a partir de él devuelve 404.
+La buena es la de arriba.
+
+### Si la web da 502
+
+**Un 502 no es un fallo de Tríade.** Lo devuelve el proxy del Studio cuando no
+hay nada escuchando en el 8010. La aplicación, cuando está viva, no sirve 5xx.
+
+Comprobar en este orden:
+
+```bash
+grep -cE '" 5[0-9][0-9] ' logs/studio-web.log   # 0 => la app no fallo
+pgrep -f 'uvicorn apps.single_port_app'          # vacio => esta parada
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8010/api/health
+```
+
+Si está parada, relanzarla con el bloque de arriba. **Causa más frecuente:
+alguien paró el runtime para correr la suite completa** (§7) — son ~7 minutos
+con la URL pública caída. Es una consecuencia conocida del procedimiento, no una
+avería.
+
 ---
 
 ## 3 · Qué funciona, con su comprobación
@@ -201,9 +229,16 @@ TRIADE_WORKER_CONCURRENCY=0
 
 ### Suite completa
 
+> **Tira la web durante ~7 minutos.** Hay que parar el runtime o las pruebas
+> fallan en falso por contención con la base de producción, y con el 8010 vacío
+> el proxy del Studio devuelve **502**. Es esperado. Avisar antes si hay alguien
+> mirando el panel, y comprobar que vuelve al terminar.
+
 ```bash
 for p in $(pgrep -f 'uvicorn apps.single_port_app'); do kill $p; done
 python -m pytest -p no:randomly     # 1809 pruebas, ~6:30
+# y RELANZAR la app (bloque de §2); luego:
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8010/api/health   # 200
 ```
 
 `ruff check .` reporta ~667 `EXE002` («ejecutable sin shebang») en todo el repo:
