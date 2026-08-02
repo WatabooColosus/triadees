@@ -106,11 +106,18 @@ class NeuronEducationApplicationRecorder:
             "WHERE na.neuron_id = ? AND na.activated = 1"
         )
         params: list[Any] = [neuron_id]
+        # `datetime()` en ambos lados y no comparación de texto: las dos tablas
+        # escriben formatos distintos --`neuron_activity` usa espacio
+        # (`2026-08-02 08:23:23`), la sesión usa ISO con `T` y desfase-- y en
+        # texto el espacio (0x20) ordena ANTES que la `T` (0x54). Un run
+        # posterior a la lección el MISMO día salía «anterior»: se descartaba de
+        # las aplicaciones y entraba en el baseline, invirtiendo justo la
+        # medida que esta pieza existe para hacer.
         if desde is not None:
-            sql += " AND na.created_at > ?"
+            sql += " AND datetime(na.created_at) > datetime(?)"
             params.append(desde)
         if hasta is not None:
-            sql += " AND na.created_at <= ?"
+            sql += " AND datetime(na.created_at) <= datetime(?)"
             params.append(hasta)
         return list(conn.execute(sql + " ORDER BY na.run_id", params))
 
