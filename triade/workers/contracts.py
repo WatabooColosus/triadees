@@ -8,6 +8,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from triade.core.contracts import utc_now
+from triade.runtime.task_status import TERMINAL
 
 from .concurrency import ConcurrencySettings
 
@@ -94,7 +95,12 @@ WORKER_TASK_TYPES: tuple[str, ...] = (
     "learning_evidence_generation",
 )
 
-TERMINAL_TASK_STATUSES = {"completed", "failed", "blocked", "skipped"}
+# Era `{"completed", "failed", "blocked", "skipped"}`: dejaba fuera `observed`,
+# `dead_letter`, `timeout`, `lease_lost`, `dry_run` y `cancelled`. Sólo los dos
+# primeros son 327 filas en produccion —el 7 % de la cola— que se habrian
+# contado como si siguieran vivas. No lo hicieron porque este nombre no lo usaba
+# nadie, pero estaba puesto para que alguien lo usara.
+TERMINAL_TASK_STATUSES = TERMINAL
 
 
 def new_worker_run_id() -> str:

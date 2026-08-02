@@ -11,21 +11,18 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-ACTIVE = {
-    "pending",
-    "queued",
-    "leased",
-    "running",
-    "retry_wait",
-    "recovered",
-    "deferred",
-    "completion_uncertain",
-}
-TERMINAL_SUCCESS = {"completed"}
-TERMINAL_NON_SUCCESS = {"blocked", "skipped", "dry_run", "observed", "cancelled"}
-TERMINAL_FAILURE = {"failed", "dead_letter", "timeout", "lease_lost"}
-TERMINAL = TERMINAL_SUCCESS | TERMINAL_NON_SUCCESS | TERMINAL_FAILURE
-ALL_STATES = ACTIVE | TERMINAL
+# El vocabulario vivía aquí, que es donde se escribe. Se movió a
+# `task_status.py` para que los demás módulos puedan importarlo en vez de
+# redeclararlo —que es lo que venían haciendo, y divergiendo—. Se reexporta con
+# los mismos nombres: quien ya lo importaba de aquí no se entera.
+from triade.runtime.task_status import (  # noqa: F401
+    ACTIVE,
+    ALL_STATES,
+    TERMINAL,
+    TERMINAL_FAILURE,
+    TERMINAL_NON_SUCCESS,
+    TERMINAL_SUCCESS,
+)
 
 
 def _now() -> datetime:
