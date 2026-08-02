@@ -129,3 +129,47 @@ def test_runtime_full_local_does_not_touch_identity_core(tmp_path):
     assert before == after
     assert report["status"] == "ok"
     assert "learning_doctor" in report["summary"]
+
+
+class TestMotivoDeCacheVaciaDelGobernador:
+    """Las dos causas de caché vacía tienen que poder distinguirse.
+
+    Antes las dos devolvían un diccionario vacío, así que el diagnóstico se
+    quedaba en el síntoma: se recalculaba la decisión sin poder confirmar por
+    qué había faltado.
+    """
+
+    def test_sin_supervisor_en_este_proceso(self, monkeypatch) -> None:
+        import triade.core.internal_runtime as ir
+
+        monkeypatch.setattr(ir, "_SUPERVISOR", None)
+
+        assert ir.get_internal_runtime_governor_status() == {}
+        assert ir.governor_status_reason() == ir.GOVERNOR_EMPTY_NO_SUPERVISOR
+
+    def test_supervisor_nuevo_sin_ciclo_cerrado(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        import triade.core.internal_runtime as ir
+        from triade.services.supervisor import InternalRuntimeSupervisor
+
+        # Recién construido: la decisión se cachea al final de `run_once()`.
+        nuevo = InternalRuntimeSupervisor(
+            db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs"
+        )
+        monkeypatch.setattr(ir, "_SUPERVISOR", nuevo)
+
+        assert ir.get_internal_runtime_governor_status() == {}
+        assert ir.governor_status_reason() == ir.GOVERNOR_EMPTY_NOT_DECIDED_YET
+
+    def test_con_decision_no_hay_motivo(self, monkeypatch, tmp_path: Path) -> None:
+        import triade.core.internal_runtime as ir
+        from triade.services.supervisor import InternalRuntimeSupervisor
+
+        supervisor = InternalRuntimeSupervisor(
+            db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs"
+        )
+        supervisor.last_governor_decision = {"effective_mode": "full_local"}
+        monkeypatch.setattr(ir, "_SUPERVISOR", supervisor)
+
+        assert ir.governor_status_reason() is None
