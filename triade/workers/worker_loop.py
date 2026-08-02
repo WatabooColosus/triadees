@@ -1604,7 +1604,15 @@ class WorkerLoop:
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
         from triade.neurons import NeuronEducationCycle
+        from triade.neurons.education_applications import (
+            NeuronEducationApplicationRecorder,
+        )
         from triade.neurons.education_resolver import NeuronEducationResolver
+
+        # El orden importa: primero se registra lo que ocurrió, luego se decide
+        # sobre ello. Al revés, el resolutor decidiría sobre una tabla vacía y
+        # devolvería `insufficient_evidence` para siempre.
+        registro = NeuronEducationApplicationRecorder(self.db_path).record_once()
 
         # Primero se resuelve lo pendiente, luego se prepara más. Al revés, el
         # ciclo acumulaba lecciones en `lesson_prepared` para siempre: 7 sesiones
@@ -1618,6 +1626,7 @@ class WorkerLoop:
 
         result = NeuronEducationCycle(self.db_path).run_once()
         result["run_ref"] = run_ref
+        result["education_applications"] = registro
         result["education_resolution"] = resolucion
         result["stable_memory_written"] = False
         # Promover a estable es HUMAN_REQUIRED. El resolutor sólo mueve
