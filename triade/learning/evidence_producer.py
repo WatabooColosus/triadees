@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 import statistics
 import uuid
 from collections.abc import Callable
@@ -212,12 +213,48 @@ class LearningEvidenceProducer:
                 return f"blocked:{s.get('reason')}"
         return "blocked:no_elegible"
 
+    def _same_run_candidates(self, candidate_id: str) -> set[str]:
+        """Todo lo que salió del mismo run que el candidato medido.
+
+        Un run genera hoy dos filas: la proposición atómica que extrae el camino
+        gobernado y el volcado de la transcripción que escribe el camino
+        antiguo — y ese volcado **contiene la frase original con el dato
+        dentro**. Excluyendo solo el candidato bajo medición, el hermano seguía
+        siendo recuperable y el brazo de control recibía la respuesta: acertaba
+        5 de 5 y toda medición salía `neutral`. Es la razón de que 349
+        generaciones de evidencia no produjeran ni un saber.
+
+        Un experimento sobre un run no puede usar como control nada derivado de
+        ese mismo run.
+        """
+        try:
+            with sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True) as conn:
+                conn.row_factory = sqlite3.Row
+                fila = conn.execute(
+                    "SELECT source_ref FROM learning_queue WHERE candidate_id=?",
+                    (candidate_id,),
+                ).fetchone()
+                if fila is None or not str(fila["source_ref"] or "").strip():
+                    return {candidate_id}
+                hermanos = conn.execute(
+                    "SELECT candidate_id FROM learning_queue WHERE source_ref=?",
+                    (str(fila["source_ref"]),),
+                ).fetchall()
+        except sqlite3.Error:
+            # Sin poder resolver los hermanos no se puede garantizar un control
+            # limpio. Se excluye lo que se sabe y la contaminación la detecta
+            # igualmente la comprobación de `_build_prompt`.
+            return {candidate_id}
+        return {str(r["candidate_id"]) for r in hermanos} | {candidate_id}
+
     def _build_prompt(
         self, question: str, candidate_id: str, grupo: str, run_id: str
     ) -> tuple[str, Any]:
         if grupo == "control":
             decision = self.retriever.retrieve_decision(
-                question, run_id=run_id, exclude_candidate_ids={candidate_id}
+                question,
+                run_id=run_id,
+                exclude_candidate_ids=self._same_run_candidates(candidate_id),
             )
         else:
             decision = self.retriever.retrieve_decision(
