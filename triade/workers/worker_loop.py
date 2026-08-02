@@ -41,6 +41,7 @@ from triade.runtime.effect_receipt import EffectReceipt
 from triade.runtime.event_scheduler import EventDrivenScheduler
 from triade.runtime.execution_result import ExecutionResult
 from triade.runtime.governed_task_executor import GovernedTaskExecutor
+from triade.constitution.autonomy import authorize_task
 from triade.runtime.lease_heartbeat import LeaseHeartbeat
 from triade.runtime.legacy_task_reconciler import LegacyTaskReconciler
 from triade.runtime.live_heartbeat import LiveHeartbeat
@@ -1218,6 +1219,40 @@ class WorkerLoop:
                 status="blocked",
                 payload=result,
             )
+        elif not (
+            autonomy := authorize_task(
+                task.task_type, task.payload if isinstance(task.payload, dict) else {}
+            )
+        ).allowed:
+            # El registro de autonomía existía con pruebas y **no gobernaba
+            # nada**: contrato sin consumidor, el patrón que esta auditoría
+            # persigue. Aquí es donde se consulta.
+            #
+            # No duplica a Safety: Safety revisa el contenido de la petición,
+            # esto revisa si la *operación* puede avanzar sin una persona. Un
+            # tipo de tarea sin operación declarada cae aquí por defecto, que es
+            # lo que evita que un tipo nuevo herede permisos que nadie le dio.
+            result = {
+                "status": "blocked",
+                "reason": autonomy.reason,
+                "autonomy": autonomy.to_dict(),
+            }
+            self.store.finish_task(
+                _integer_task_id(task.id) or 0,
+                "blocked",
+                result,
+                safety.status,
+                run_ref=run_ref,
+            )
+            self.store.record_event(
+                "task_blocked_by_autonomy",
+                autonomy.reason,
+                run_ref=run_ref,
+                task_id=_integer_task_id(task.id),
+                task_type=task.task_type,
+                status="blocked",
+                payload=result,
+            )
         elif config.dry_run:
             result = {
                 "status": "dry_run",
@@ -1569,10 +1604,24 @@ class WorkerLoop:
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
         from triade.neurons import NeuronEducationCycle
+        from triade.neurons.education_resolver import NeuronEducationResolver
+
+        # Primero se resuelve lo pendiente, luego se prepara más. Al revés, el
+        # ciclo acumulaba lecciones en `lesson_prepared` para siempre: 7 sesiones
+        # con `post_score` a NULL y `result='uncertain'`, y la hipótesis de cada
+        # una en `pending` sin que nadie la cerrara.
+        #
+        # El resolutor es conservador por diseño: sin runs medidos suficientes
+        # devuelve `insufficient_evidence` y deja la sesión viva. Eso no es un
+        # fallo, es negarse a promover por autorreporte.
+        resolucion = NeuronEducationResolver(self.db_path).resolve_once()
 
         result = NeuronEducationCycle(self.db_path).run_once()
         result["run_ref"] = run_ref
+        result["education_resolution"] = resolucion
         result["stable_memory_written"] = False
+        # Promover a estable es HUMAN_REQUIRED. El resolutor sólo mueve
+        # versiones experimentales, que son reversibles y quedan marcadas.
         result["stable_neuron_promotion"] = False
         return result
 

@@ -87,6 +87,12 @@ class GoalOrchestrator:
             "worker_task_type": resolution.worker_task_type,
             "attempt": 1,
             "max_attempts": 3,
+            # Constancia de que el gobierno ya se ejerció: si la capacidad
+            # hubiera exigido una persona, este código no se alcanza --el goal
+            # se detiene arriba en `awaiting_approval`--. La puerta de autonomía
+            # del worker lo registra en vez de volver a decidirlo, que serían
+            # dos gobiernos con contratos distintos sobre lo mismo.
+            "autonomy_precleared": "capability_resolver",
         }
         task = self.queue.enqueue(
             resolution.worker_task_type, payload=payload, priority=15
