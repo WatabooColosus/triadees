@@ -79,6 +79,7 @@ class MissionPlanner:
         tasks.extend(self._plan_research_curriculum())
         tasks.extend(self._plan_neuron_education())
         tasks.extend(self._plan_self_improvement())
+        tasks.extend(self._plan_canary_observation())
         if os.getenv("TRIADE_BACKUP_KEY"):
             tasks.append(
                 PlannedTask(
@@ -170,6 +171,55 @@ class MissionPlanner:
         except MISSION_PLANNER_ERRORS as exc:
             record_internal_error(
                 "mission_planner.self_improvement", exc, db_path=self.db_path
+            )
+        return []
+
+    def _plan_canary_observation(self) -> list[PlannedTask]:
+        """Observa el canary abierto, si lo hay.
+
+        `self_improvement_canary_observation` tenía handler completo, política de
+        concurrencia y clave de exclusión, y **ningún productor en todo el
+        repositorio**. Un canary se abría en `canary_running` y no se observaba
+        jamás: ni graduaba, ni se revertía, ni acumulaba observaciones.
+
+        El productor va aquí y no dentro de la evaluación por lo que dice el
+        propio handler: esperar dentro de `run_once()` a que ocurran suficientes
+        conversaciones significaría sostener un lease durante horas. Cada ciclo
+        aporta lo que haya y se va.
+        """
+        try:
+            with closing(self._connect()) as conn, conn:
+                if not conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' "
+                    "AND name='improvement_canaries'"
+                ).fetchone():
+                    return []
+                fila = conn.execute(
+                    "SELECT canary_id, candidate_id FROM improvement_canaries "
+                    "WHERE status = 'running' ORDER BY created_at LIMIT 1"
+                ).fetchone()
+            if fila is None:
+                return []
+            candidate_id = str(fila["candidate_id"] or "")
+            return [
+                PlannedTask(
+                    task_type="self_improvement_canary_observation",
+                    priority=36,
+                    reason=(
+                        f"canary {fila['canary_id']} abierto: acumular "
+                        "observaciones para decidir graduación o rollback"
+                    ),
+                    source="open_canary",
+                    planner_score=0.6,
+                    payload={
+                        "candidate_id": candidate_id,
+                        "canary_id": str(fila["canary_id"] or ""),
+                    },
+                )
+            ]
+        except MISSION_PLANNER_ERRORS as exc:
+            record_internal_error(
+                "mission_planner.canary_observation", exc, db_path=self.db_path
             )
         return []
 
