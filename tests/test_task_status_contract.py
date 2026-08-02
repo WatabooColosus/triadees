@@ -117,3 +117,24 @@ class TestLosSensoresMiranLaColaViva:
 
         assert SystemSenses(db_path=vacia).active_workers() == 0
         assert HealthSensors(db_path=vacia)._check_queue()["pending"] == 0
+
+
+class TestLosTiposDeTareaSonUnaSolaLista:
+    """El `Literal` y la tupla se mantenían a mano en paralelo.
+
+    Idénticas por ahora, pero eso sólo aguanta hasta que alguien añada un tipo
+    en una y se olvide de la otra: el tipo existiría para el validador y no
+    para el registro, o al revés.
+    """
+
+    def test_la_tupla_se_deriva_del_literal(self) -> None:
+        from typing import get_args
+
+        from triade.workers.contracts import WORKER_TASK_TYPES, WorkerTaskType
+
+        assert WORKER_TASK_TYPES == get_args(WorkerTaskType)
+
+    def test_no_hay_tipos_repetidos(self) -> None:
+        from triade.workers.contracts import WORKER_TASK_TYPES
+
+        assert len(set(WORKER_TASK_TYPES)) == len(WORKER_TASK_TYPES)
