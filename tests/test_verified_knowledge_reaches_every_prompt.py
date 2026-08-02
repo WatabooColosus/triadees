@@ -27,7 +27,7 @@ aparecer en el prompt. Si no, la traza miente.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from triade.core.central import Central
 
@@ -54,7 +54,9 @@ class _Signals:
 
 
 class _Memory:
-    semantic_matches: list[dict[str, Any]] = []
+    # `ClassVar` y no atributo de instancia: es un doble compartido a
+    # proposito, y una lista mutable como default de clase la marca `RUF012`.
+    semantic_matches: ClassVar[list[dict[str, Any]]] = []
 
 
 class _Vacio:

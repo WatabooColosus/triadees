@@ -155,7 +155,11 @@ class HealthSensors:
                     )
                 }
                 if "autonomous_tasks" not in tables:
-                    return {"ok": True, "pending": 0, "note": "no_autonomous_tasks_table"}
+                    return {
+                        "ok": True,
+                        "pending": 0,
+                        "note": "no_autonomous_tasks_table",
+                    }
                 marcadores, estados = sql_placeholders(ELIGIBLE)
                 pending = conn.execute(
                     f"SELECT COUNT(*) FROM autonomous_tasks WHERE status IN ({marcadores})",
