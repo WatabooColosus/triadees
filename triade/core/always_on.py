@@ -14,8 +14,8 @@ from typing import Any
 from triade.core.config import load_config
 from triade.core.internal_runtime import (
     get_internal_runtime_governor_status,
-    governor_status_reason,
     get_internal_runtime_supervisor,
+    governor_status_reason,
     record_internal_runtime_event,
     start_internal_runtime_background,
     stop_internal_runtime_background,
