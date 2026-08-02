@@ -157,14 +157,47 @@ class NeuronEducationCycle:
         }
 
     def _target(self) -> dict[str, Any] | None:
+        """Elige a quién educar, prefiriendo a quien luego se puede medir.
+
+        Ordenaba por `retention_score ASC, n.id ASC`, así que siempre ganaba la
+        experimental de menor id. En producción eso significaba las neuronas 11
+        y 12, que **sólo se activan en runs `pulse-*`** — y esos runs no generan
+        `verification_reports`. Sus lecciones no podían evaluarse nunca:
+        `neuron_education_applications` quedaba a cero y el resolutor sólo podía
+        responder `insufficient_evidence`. Mientras tanto la neurona 6471, con
+        63 runs medibles, no llegaba jamás a `lesson_prepared`.
+
+        Educar a quien nadie puede medir es trabajo perdido: produce lecciones
+        que no se pueden certificar ni revertir.
+
+        **Prioriza, no excluye.** Si ninguna evaluable tiene revisión pendiente,
+        se sigue educando a la que haya: dejar fuera para siempre a una neurona
+        sería otra decisión silenciosa. Lo que cambia es el orden, no el derecho.
+        """
         with self.store.connect() as conn:
+            tablas = {
+                str(r[0])
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            # En una base recién migrada puede no existir todavía la medición.
+            # Sin ella el criterio no aplica y se conserva el orden de siempre.
+            if {"neuron_activity", "verification_reports"} <= tablas:
+                medible = """(SELECT COUNT(DISTINCT na.run_id)
+                    FROM neuron_activity na
+                    JOIN verification_reports vr ON vr.run_id = na.run_id
+                    WHERE na.neuron_id = n.id AND na.activated = 1) > 0"""
+            else:
+                medible = "0"
             row = conn.execute(
-                """SELECT n.id,n.name,n.domain,n.mission,m.id mission_id,
-                COALESCE(c.retention_score,0) retention_score, c.next_review
+                f"""SELECT n.id,n.name,n.domain,n.mission,m.id mission_id,
+                COALESCE(c.retention_score,0) retention_score, c.next_review,
+                {medible} AS measurable
                 FROM neurons n LEFT JOIN neuron_missions m ON m.neuron_id=n.id
                 LEFT JOIN neuron_competencies c ON c.neuron_id=n.id AND c.domain=n.domain
                 WHERE n.status='experimental' AND (c.next_review IS NULL OR c.next_review<=?)
-                ORDER BY retention_score ASC,n.id ASC LIMIT 1""",
+                ORDER BY measurable DESC, retention_score ASC, n.id ASC LIMIT 1""",
                 (utc_now(),),
             ).fetchone()
         return dict(row) if row else None
