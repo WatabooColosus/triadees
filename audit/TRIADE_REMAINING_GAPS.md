@@ -171,10 +171,20 @@ lesson_prepared (6471)
 
 La decisión fue `neutral`, no una mejora fabricada.
 
-**Qué falta**: que el currículo elija neuronas evaluables, o que los runs
-`pulse-*` generen medición. Mientras no ocurra una de las dos, la educación
-neuronal seguirá en 0 % **observado en producción** aunque su maquinaria esté
-completa y probada.
+**CORREGIDO** el mismo día (`9041efc`): `_target()` ordena ahora por
+`measurable DESC, retention_score ASC, n.id ASC`. Prioriza, no excluye — si
+ninguna evaluable tiene revisión pendiente se sigue educando a la que haya, y
+si la base aún no tiene medición el criterio no aplica.
 
-Es un caso distinto a los anteriores de esta auditoría: aquí no falta el
-productor ni el consumidor. Falta que se crucen.
+Verificado con datos reales: venciendo a la vez la revisión de la 11 (no
+medible) y la 7052 (5 runs medibles), antes elegía la 11 y ahora elige la 7052.
+
+**Lo que queda por observar**: en el momento del corte, las seis neuronas
+experimentales estaban en cooldown de repetición espaciada, así que `_target()`
+devuelve `None` — comportamiento correcto, no un fallo. Las primeras revisiones
+medibles vencían unos 35 minutos después. **La primera sesión
+`lesson_prepared` sobre una neurona evaluable todavía no se ha observado en
+producción**, y hasta que ocurra la educación neuronal sigue en 0 % observado.
+
+Era un caso distinto a los anteriores: no faltaba el productor ni el consumidor.
+Faltaba que se cruzaran.

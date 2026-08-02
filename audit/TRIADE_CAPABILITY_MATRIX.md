@@ -33,13 +33,13 @@ solo una capacidad funcional.
 | 17 | Registro de autonomía | sí | sí | sí | sí | — | — | sí | sí | bajo | **VERIFIED** | gobierna el despacho del worker; 61 pruebas; sello `autonomy_precleared` para no duplicar gobierno |
 | 18 | Doctor de aprendizaje continuo | sí | sí | sí | sí | — | — | sí | — | bajo | **VERIFIED** | `doctor continuous-learning` → `healthy` con procedencia |
 | 19 | Educación neuronal → lección | sí | sí | sí | sí | sí | sí | sí | sí | bajo | **PARTIAL** | 7 sesiones en `lesson_prepared` |
-| 20 | Educación neuronal → medir, resolver y revertir | sí | sí | sí | sí | sí | sí | sí | sí | medio | **PARTIAL** | circuito completo verificado en copia real: 15 aplicaciones → baseline 0.8565 → post 0.8473 → `neutral`. **No observado en producción**: las neuronas que se educan no son las que se miden (ver P1-05) |
+| 20 | Educación neuronal → medir, resolver y revertir | sí | sí | sí | sí | sí | sí | sí | sí | medio | **PARTIAL** | circuito completo verificado en copia real: 15 aplicaciones → baseline 0.8565 → post 0.8473 → `neutral`. **No observado en producción**: P1-05 corregido (`9041efc`), pero al cierre todas las experimentales estaban en cooldown |
 | 21 | Canary: productor de observación | sí | sí | sí | **no** | sí | sí | sí | sí | medio | **PARTIAL** | P1-02 cerrado en código; sin canary abierto que observar |
 | 22 | Memoria semántica | sí | sí | sí | sí | sí | sí | sí | sí | bajo | **VERIFIED** | heredado: control 0.00 → tratamiento 1.00 |
 | 23 | Observabilidad con procedencia | sí | sí | sí | sí | — | — | sí | — | bajo | **VERIFIED** | endpoints cuadran con SQL; ventana declarada |
 | 24 | Persistencia tras reinicio | sí | sí | sí | sí | sí | sí | sí | sí | bajo | **VERIFIED** | varios reinicios sin pérdida ni duplicación |
 | 25 | Degradación sin Ollama | sí | sí | sí | **no** | — | — | sí | sí | medio | **NOT_OBSERVED** | no inyectado: habría degradado el runtime del usuario |
-| 26 | Suite y CI | sí | sí | — | sí | — | — | — | — | bajo | **VERIFIED** | **1.923 pruebas, 0 fallos** |
+| 26 | Suite y CI | sí | sí | — | sí | — | — | — | — | bajo | **VERIFIED** | **1.929 pruebas, 0 fallos** |
 | 27 | Long-run 2 h / 24 h / 72 h | sí | sí | — | **en curso** | — | — | sí | — | medio | **NOT_OBSERVED** | ventana de 2 h lanzada; 24 h y 72 h pendientes |
 
 ---
