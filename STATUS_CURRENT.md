@@ -1,7 +1,7 @@
 # Estado actual · Tríade Ω
 
-**Corte: 2026-08-02.** SHA base de este corte: rama `audit/triade-integral-20260802`
-sobre `75e71e7`.
+**Corte: 2026-08-02 (segundo).** Rama `audit/triade-continuous-learning-runtime`.
+El detalle de este corte está en §10; las secciones 1-9 ya lo reflejan.
 
 Este documento es la **página viva** del proyecto: qué funciona demostrado, qué
 no, cómo operarlo y cómo comprobar cada afirmación. Es el punto de entrada; el
@@ -20,12 +20,14 @@ detalle vive en `audit/` y en `TECHNICAL_DEBT.md`.
 
 | Dominio | Estado | Verificado |
 |---|---|---|
-| Runtime always-on y recuperación | operativo | 6/8 capacidades |
-| Memoria y observabilidad | operativo | 4/4 |
-| Aprendizaje desde conversación | operativo con un eslabón abierto | 5/9 |
-| Educación neuronal y automejora | **no cierra el circuito** | 0/3 |
+| Runtime always-on y recuperación | operativo | 75 % |
+| **Aprendizaje continuo** | **cerrado y verificado** | **88 %** |
+| Memoria y observabilidad | operativo | 100 % |
+| Gobierno y diagnóstico | contrato sin consumidor | 50 % |
+| Educación neuronal y canary | **no cierra el circuito** | 0 % |
+| Entorno y certificación | ventanas largas pendientes | 33 % |
 
-No hay porcentaje global: sería un número inventado. La matriz completa de 26
+No hay porcentaje global: sería un número inventado. La matriz completa de 27
 capacidades está en [`audit/TRIADE_CAPABILITY_MATRIX.md`](audit/TRIADE_CAPABILITY_MATRIX.md).
 
 ---
@@ -161,9 +163,10 @@ reintentos, no se disfrazan de completados.
 
 | ID | Qué | Impacto |
 |---|---|---|
-| **P1-03** | El saber verificado **se inyecta** en el prompt de producción pero el modelo de 3B lo ignora. Acierta 5/5 en el prompt aislado del experimento. | Inyección ≠ influencia. Se miden en prompts distintos |
-| **P1-01** | La educación neuronal muere en `lesson_prepared`. `neuron_education_applications`: **0 filas**; `neuron_certifications`: **0** | No hay aplicación, ni medición, ni rollback |
-| **P1-02** | `self_improvement_canary_observation`: handler completo, **cero productores** en todo el repo | Un canary que arranca no se observa nunca |
+| **P1-01** | La educación neuronal muere en `lesson_prepared`. `neuron_education_applications`: **0 filas**; `neuron_certifications`: **0** | No hay aplicación, ni medición, ni rollback. **Bloqueo principal** |
+| **P1-04** | El registro de autonomía existe y está probado pero **no gobierna ningún handler** | Contrato sin consumidor: el patrón que esta auditoría persigue |
+| ~~P1-02~~ | ~~canary sin productor~~ | **CERRADO** 2026-08-02 (`12ee1fc`) |
+| ~~P1-03~~ | ~~el saber no influía en la respuesta~~ | **CERRADO** 2026-08-02 (`056e9bd`): no era el modelo, era la rama de auditoría del prompt |
 | **P3-01** | `HealthSensors._check_queue` cuenta sobre `worker_tasks`, retirada | Sensor ciego (no causa falso negativo) |
 | **P3-02** | `memory_consolidation_review`: declarado, con política y handler, **sin productor** | Tipo muerto |
 | **I-1** | Renovación de lease: cableada, pero `autonomous_lease_heartbeats` tiene 3 filas del 30-jul | **Incertidumbre**, no defecto confirmado |
@@ -198,12 +201,15 @@ Cosas que han costado horas y volverán a morder:
 
 ## 6 · Siguiente iteración, por orden
 
-1. **P1-03** — que el saber verificado influya en el prompt real. Medir con la
+1. **P1-04** — conectar el registro de autonomía a los handlers reales.
+2. **P1-01** — diseñar el resolutor de la educación neuronal.
+3. Cumplir las ventanas de 24 h y 72 h.
+4. *(cerrado)* ~~P1-03~~ — que el saber verificado influya en el prompt real. Medir con la
    misma vara: control/tratamiento sobre el prompt **de producción**, no sobre
    uno aislado. Sin esa medición, ajustar el prompt es opinión.
 2. **Retirar la ruta antigua** de aprendizaje, con migración de los 180 volcados.
    Ya hay evidencia dura del daño que hacía.
-3. **I-1** con una sonda de tarea larga; luego P1-02, P3-01, P3-02.
+6. **I-1** con una sonda de tarea larga; luego P3-01 y P3-02.
 4. **Diseñar el resolutor de la educación neuronal** (P1-01), con contrato de
    pruebas primero: versión anterior, diff, evidencia, baseline, métricas
    posteriores y rollback.
@@ -268,3 +274,74 @@ es el bit de ejecución del Studio, no deuda de código, e idéntico en `main`.
 | 2026-08-02 | `audit/triade-integral-20260802` | Auditoría integral. P0 de recuperación de leases cerrado. Aprendizaje gobernado encendido en producción con filtro de seguridad en extracción y control aislado. Primer saber nacido de una conversación real |
 | 2026-08-01 | `75e71e7` | Salud por progreso, watchdog escalonado, aprendizaje gobernado conectado (apagado) |
 | 2026-08-01 | `1b8bc1f` | Concurrencia gobernada encendida por defecto |
+
+---
+
+## 10 · Corte 2026-08-02 · aprendizaje continuo cerrado
+
+Segunda auditoría del día, rama `audit/triade-continuous-learning-runtime`.
+
+**El circuito de aprendizaje desde conversaciones está cerrado y verificado en
+producción**, de la conversación al uso posterior. Pasó del 11 % al 88 %
+verificado. Faltaban tres eslabones, y los tres eran invisibles hasta encender
+el circuito:
+
+1. El **control contaminado** por la ruta antigua (invalidaba toda medición).
+2. El **filtro de seguridad ausente** en la extracción.
+3. La **rama de auditoría del prompt** descartaba el saber verificado — y esto
+   corrige una conclusión falsa de la iteración anterior: no era que el modelo
+   de 3B ignorase el bloque, es que el bloque no llegaba.
+
+### Comprobación rápida del aprendizaje
+
+```bash
+python triade_digimon.py doctor continuous-learning
+```
+
+Devuelve `off`, `idle`, `stalled` o `healthy`, y **cada apartado declara de qué
+tabla sale y en qué ventana**. Resuelve la configuración por entorno → `.env` →
+defecto, y dice de dónde salió cada valor: el doctor corre desde una shell que
+no tiene las variables del runtime, y mirar sólo `os.environ` daba `off` con el
+aprendizaje encendido.
+
+### Registro de autonomía
+
+`triade/constitution/autonomy.py` responde en un solo sitio qué puede hacer
+Tríade sin permiso: `AUTO_SAFE`, `AUTO_EXPERIMENTAL`, `HUMAN_REQUIRED`,
+`FORBIDDEN`. Lo no declarado es `HUMAN_REQUIRED` — se falla cerrado.
+
+**Está construido y probado pero todavía no gobierna ningún handler.** Es
+contrato sin consumidor, que es justo el patrón que esta auditoría persigue.
+Conectarlo es lo primero de la iteración siguiente.
+
+### Inventario regenerable
+
+```bash
+python scripts/build_system_inventory.py    # -> audit/TRIADE_TASK_WIRING.md
+```
+
+714 módulos, 641 clases, 6.066 funciones, 24 tipos de tarea, 51 variables
+`TRIADE_*`. El artefacto avisa de su propio límite: sólo ve literales, así que
+marca como huérfanos cuatro tipos que se encolan con `task_type` en variable y
+no están rotos.
+
+### Validación de ventana larga
+
+```bash
+python scripts/run_long_validation.py --hours 2  --label v1
+python scripts/run_long_validation.py --hours 24 --label v2
+python scripts/run_long_validation.py --hours 72 --label v3
+```
+
+Escribe JSONL en `artifacts/long-run/`. **Si el SHA cambia a mitad, la ventana
+se invalida** y el fichero lo dice: reutilizar evidencia de otro commit es la
+forma más fácil de certificar algo que nunca corrió.
+
+### Veredicto de este corte
+
+**OPERATIVO CON LIMITACIONES.** Detalle y porcentajes por subsistema en
+[`audit/TRIADE_CAPABILITY_MATRIX.md`](audit/TRIADE_CAPABILITY_MATRIX.md).
+
+Lo que impide declararlo OPERATIVO: la educación neuronal no pasa de
+`lesson_prepared` (0 % verificado), las ventanas de 24 h y 72 h no se han
+cumplido, y el registro de autonomía aún no gobierna.

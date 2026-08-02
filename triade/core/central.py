@@ -886,7 +886,21 @@ class Central:
                 f"Investigación web candidata: {json.dumps(web_research or {}, ensure_ascii=False)[:3000]}\n"
                 "Respuesta:"
             )
-        return json.dumps(
+        # El saber verificado también vale en modo diagnóstico. Esta rama lo
+        # descartaba, y el disparador (`_wants_internal_audit`) salta con
+        # palabras corrientes: «auditoría», «trazabilidad», «cristal», «debug».
+        # Resultado: una conversación legítima sobre auditoría perdía todo lo
+        # aprendido, y la traza seguía diciendo que se había inyectado.
+        #
+        # Va fuera del JSON y rotulado, igual que en la rama conversacional: no
+        # es un campo del volcado, es contexto con menos autoridad que las
+        # reglas.
+        verified_block_audit = ""
+        if isinstance(getattr(input_packet, "context", None), dict):
+            verified_block_audit = str(
+                input_packet.context.get("verified_knowledge_block") or ""
+            )
+        volcado = json.dumps(
             {
                 "identity": identity,
                 "user_input": input_packet.user_input,
@@ -897,6 +911,9 @@ class Central:
             },
             ensure_ascii=False,
             indent=2,
+        )
+        return (
+            f"{verified_block_audit}\n{volcado}" if verified_block_audit else volcado
         )
 
     @staticmethod
