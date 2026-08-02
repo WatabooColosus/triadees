@@ -919,6 +919,18 @@ def main() -> None:
     doctor_parser = subparsers.add_parser(
         "doctor", help="Diagnostica instalación local de Tríade"
     )
+    doctor_parser.add_argument(
+        "topic",
+        nargs="?",
+        choices=["continuous-learning"],
+        help="Diagnóstico específico. Sin argumento, revisa la instalación.",
+    )
+    doctor_parser.add_argument(
+        "--window-hours",
+        type=int,
+        default=24,
+        help="Ventana del diagnóstico de aprendizaje continuo",
+    )
     add_common_args(doctor_parser)
 
     analyze_parser = subparsers.add_parser(
@@ -1607,6 +1619,15 @@ def main() -> None:
         return
 
     if args.command == "doctor":
+        if getattr(args, "topic", None) == "continuous-learning":
+            from triade.learning.doctor import ContinuousLearningDoctor
+
+            print_json(
+                ContinuousLearningDoctor(
+                    args.db, window_hours=args.window_hours
+                ).diagnose()
+            )
+            return
         runner = make_runner(args)
         result = runner.doctor()
         print_json(result)
