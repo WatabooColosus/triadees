@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
+from triade.runtime.task_status import ELIGIBLE, IN_FLIGHT, sql_placeholders
 
 log = logging.getLogger(__name__)
 
@@ -189,22 +190,29 @@ class SystemSenses:
             return True
 
     def active_workers(self) -> int:
+        """Tareas en manos de un worker ahora mismo.
+
+        Contaba `worker_tasks.status='running'`: la cola legacy, retirada por
+        trigger en `019_legacy_retirement.sql` y sin una escritura desde el
+        2026-07-29. Medido el 2026-08-02 sobre producción, este sensor devolvía
+        **0 con dos tareas corriendo** y 1.497 ejecutadas en las últimas 24 h.
+
+        No es un contador de más: es el hipotálamo, que regula la carga
+        cognitiva. Percibía un sistema ocioso mientras trabajaba a destajo, así
+        que nunca tenía motivo para frenar nada.
+        """
         try:
             conn = sqlite3.connect(str(self.db_path))
             conn.row_factory = sqlite3.Row
             if not conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='worker_tasks'"
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='autonomous_tasks'"
             ).fetchone():
                 conn.close()
                 return 0
-            cols = {
-                r[1] for r in conn.execute("PRAGMA table_info(worker_tasks)").fetchall()
-            }
-            if "status" not in cols:
-                conn.close()
-                return 0
+            marcadores, estados = sql_placeholders(IN_FLIGHT)
             row = conn.execute(
-                "SELECT COUNT(*) as c FROM worker_tasks WHERE status = 'running'"
+                f"SELECT COUNT(*) as c FROM autonomous_tasks WHERE status IN ({marcadores})",
+                estados,
             ).fetchone()
             conn.close()
             return int(row["c"]) if row else 0
@@ -261,22 +269,26 @@ class SystemSenses:
             return 0.0
 
     def pending_tasks(self) -> int:
+        """Trabajo esperando a que alguien lo tome.
+
+        Mismo caso que `active_workers`: contaba `worker_tasks`, congelada desde
+        el 2026-07-29. Se cuentan los ocho estados elegibles de la cola v2 y no
+        sólo `pending`/`queued`: una tarea en `retry_wait`, `recovered` o
+        `deferred` también está esperando, y dejarlas fuera volvería a
+        subestimar la cola.
+        """
         try:
             conn = sqlite3.connect(str(self.db_path))
             conn.row_factory = sqlite3.Row
             if not conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='worker_tasks'"
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='autonomous_tasks'"
             ).fetchone():
                 conn.close()
                 return 0
-            cols = {
-                r[1] for r in conn.execute("PRAGMA table_info(worker_tasks)").fetchall()
-            }
-            if "status" not in cols:
-                conn.close()
-                return 0
+            marcadores, estados = sql_placeholders(ELIGIBLE)
             row = conn.execute(
-                "SELECT COUNT(*) as c FROM worker_tasks WHERE status IN ('pending', 'queued')"
+                f"SELECT COUNT(*) as c FROM autonomous_tasks WHERE status IN ({marcadores})",
+                estados,
             ).fetchone()
             conn.close()
             return int(row["c"]) if row else 0
