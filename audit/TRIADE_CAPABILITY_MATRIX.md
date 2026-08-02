@@ -33,13 +33,13 @@ solo una capacidad funcional.
 | 17 | Registro de autonomía | sí | sí | sí | sí | — | — | sí | sí | bajo | **VERIFIED** | gobierna el despacho del worker; 61 pruebas; sello `autonomy_precleared` para no duplicar gobierno |
 | 18 | Doctor de aprendizaje continuo | sí | sí | sí | sí | — | — | sí | — | bajo | **VERIFIED** | `doctor continuous-learning` → `healthy` con procedencia |
 | 19 | Educación neuronal → lección | sí | sí | sí | sí | sí | sí | sí | sí | bajo | **PARTIAL** | 7 sesiones en `lesson_prepared` |
-| 20 | Educación neuronal → resolver y revertir | sí | sí | sí | parcial | sí | sí | sí | sí | medio | **PARTIAL** | resolutor conectado al ciclo; verificado en copia de producción. Falta el productor de `neuron_education_applications`: sin runs medidos devuelve `insufficient_evidence`, que es lo honesto |
+| 20 | Educación neuronal → medir, resolver y revertir | sí | sí | sí | sí | sí | sí | sí | sí | medio | **PARTIAL** | circuito completo verificado en copia real: 15 aplicaciones → baseline 0.8565 → post 0.8473 → `neutral`. **No observado en producción**: las neuronas que se educan no son las que se miden (ver P1-05) |
 | 21 | Canary: productor de observación | sí | sí | sí | **no** | sí | sí | sí | sí | medio | **PARTIAL** | P1-02 cerrado en código; sin canary abierto que observar |
 | 22 | Memoria semántica | sí | sí | sí | sí | sí | sí | sí | sí | bajo | **VERIFIED** | heredado: control 0.00 → tratamiento 1.00 |
 | 23 | Observabilidad con procedencia | sí | sí | sí | sí | — | — | sí | — | bajo | **VERIFIED** | endpoints cuadran con SQL; ventana declarada |
 | 24 | Persistencia tras reinicio | sí | sí | sí | sí | sí | sí | sí | sí | bajo | **VERIFIED** | varios reinicios sin pérdida ni duplicación |
 | 25 | Degradación sin Ollama | sí | sí | sí | **no** | — | — | sí | sí | medio | **NOT_OBSERVED** | no inyectado: habría degradado el runtime del usuario |
-| 26 | Suite y CI | sí | sí | — | sí | — | — | — | — | bajo | **VERIFIED** | **1.910 pruebas, 0 fallos** |
+| 26 | Suite y CI | sí | sí | — | sí | — | — | — | — | bajo | **VERIFIED** | **1.923 pruebas, 0 fallos** |
 | 27 | Long-run 2 h / 24 h / 72 h | sí | sí | — | **en curso** | — | — | sí | — | medio | **NOT_OBSERVED** | ventana de 2 h lanzada; 24 h y 72 h pendientes |
 
 ---
@@ -51,7 +51,7 @@ solo una capacidad funcional.
 | Runtime always-on y recuperación (1-8) | 6 | 1 | 0 | 1 | **75 %** |
 | Aprendizaje continuo (9-16) | 7 | 1 | 0 | 0 | **88 %** |
 | Gobierno y diagnóstico (17-18) | 2 | 0 | 0 | 0 | **100 %** |
-| Educación neuronal y canary (19-21) | 0 | 3 | 0 | 0 | **0 % verificado, 0 desconectado** |
+| Educación neuronal y canary (19-21) | 0 | 3 | 0 | 0 | **0 % en producción; circuito completo verificado en copia** |
 | Memoria y observabilidad (22-24) | 3 | 0 | 0 | 0 | **100 %** |
 | Entorno y certificación (25-27) | 1 | 0 | 0 | 2 | **33 %** |
 
@@ -77,12 +77,14 @@ recupera solo. La observabilidad declara su procedencia.
 
 **No se puede declarar OPERATIVO** porque:
 
-1. **Falta el productor de `neuron_education_applications`.** El resolutor
-   existe, decide y revierte, pero sin runs medidos devuelve
-   `insufficient_evidence` — que es la respuesta honesta, no un éxito. El
-   circuito de la §16 del encargo no está cerrado hasta que algo registre cómo
-   le fue a la neurona en runs posteriores.
+1. **P1-05 · las neuronas que se educan no son las que se miden.** El circuito
+   está completo y verificado sobre copia real, pero en producción no puede
+   cerrarse: las 7 sesiones en `lesson_prepared` son de las neuronas 11 y 12,
+   que **sólo se activan en runs `pulse-*`** — y esos runs no generan
+   `verification_reports`. La neurona 6471, con 63 runs medibles, nunca llega a
+   `lesson_prepared` porque su currículo termina en `insufficient_material`.
+   Mientras el currículo elija neuronas no evaluables, la medición no tiene
+   sujeto.
 2. Las ventanas de 24 h y 72 h no se han cumplido (§28).
-3. `neuron_education_applications` sigue con **0 filas** en producción. La
-   decisión `improved` está probada en aislamiento y sobre copia, **no
-   observada en runtime real**.
+3. La decisión `improved` está probada en aislamiento; en copia real salió
+   `neutral`. **Ninguna decisión se ha observado en runtime de producción.**

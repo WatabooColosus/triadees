@@ -133,3 +133,48 @@ Lo digo explícitamente para que nadie lo lea como verificado:
    posteriores y rollback.
 6. Retirar la ruta antigua **solo** cuando 2 haya corrido en sombra sin
    divergencias.
+
+---
+
+## E · Corte 2026-08-02 (tercero) · el circuito neuronal cierra, pero sin sujeto
+
+### P1-05 · Las neuronas que se educan no son las que se miden
+
+Apareció al construir el productor de `neuron_education_applications`, y es más
+importante que el propio productor.
+
+| Neurona | Runs medibles (con `verification_reports`) | Sesiones de educación |
+|---|---|---|
+| 6471 · `neurona-llamo-santiago-wataboo-creador` | **63**, score medio 0.854 | ninguna pasa de `insufficient_material` |
+| 11 · Neurona Visual | **0** | 3 en `lesson_prepared` |
+| 12 · Neurona de Código y Reparación | **0** | 4 en `lesson_prepared` |
+
+Las neuronas 11 y 12 **sólo se activan en runs `pulse-*`** —los chequeos de
+fondo— y esos runs no generan informe de verificación. Su última activación fue
+el 2026-07-29 02:08, **antes** de que se prepararan sus lecciones.
+
+Consecuencia: el productor es correcto y devuelve 0 aplicaciones para las 7
+sesiones reales, no por un defecto suyo sino porque **no hay nada que medir**.
+El resolutor responde `insufficient_evidence`, que es lo honesto.
+
+**El circuito completo sí está verificado**, sobre copia fiel de producción y
+con datos reales, sembrando una sesión para la neurona que sí se mide:
+
+```
+lesson_prepared (6471)
+→ 15 aplicaciones de runs reales medidos
+→ baseline 0.8565 (runs previos, misma neurona, misma métrica)
+→ post 0.8473 · delta −0.0092 · 1 regresión de safety
+→ neutral («dentro del ruido»)
+→ applied_neutral · evidencia pending → neutral · rollback_ref conservado
+```
+
+La decisión fue `neutral`, no una mejora fabricada.
+
+**Qué falta**: que el currículo elija neuronas evaluables, o que los runs
+`pulse-*` generen medición. Mientras no ocurra una de las dos, la educación
+neuronal seguirá en 0 % **observado en producción** aunque su maquinaria esté
+completa y probada.
+
+Es un caso distinto a los anteriores de esta auditoría: aquí no falta el
+productor ni el consumidor. Falta que se crucen.
