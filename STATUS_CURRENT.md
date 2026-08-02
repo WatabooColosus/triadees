@@ -268,3 +268,74 @@ es el bit de ejecución del Studio, no deuda de código, e idéntico en `main`.
 | 2026-08-02 | `audit/triade-integral-20260802` | Auditoría integral. P0 de recuperación de leases cerrado. Aprendizaje gobernado encendido en producción con filtro de seguridad en extracción y control aislado. Primer saber nacido de una conversación real |
 | 2026-08-01 | `75e71e7` | Salud por progreso, watchdog escalonado, aprendizaje gobernado conectado (apagado) |
 | 2026-08-01 | `1b8bc1f` | Concurrencia gobernada encendida por defecto |
+
+---
+
+## 10 · Corte 2026-08-02 · aprendizaje continuo cerrado
+
+Segunda auditoría del día, rama `audit/triade-continuous-learning-runtime`.
+
+**El circuito de aprendizaje desde conversaciones está cerrado y verificado en
+producción**, de la conversación al uso posterior. Pasó del 11 % al 88 %
+verificado. Faltaban tres eslabones, y los tres eran invisibles hasta encender
+el circuito:
+
+1. El **control contaminado** por la ruta antigua (invalidaba toda medición).
+2. El **filtro de seguridad ausente** en la extracción.
+3. La **rama de auditoría del prompt** descartaba el saber verificado — y esto
+   corrige una conclusión falsa de la iteración anterior: no era que el modelo
+   de 3B ignorase el bloque, es que el bloque no llegaba.
+
+### Comprobación rápida del aprendizaje
+
+```bash
+python triade_digimon.py doctor continuous-learning
+```
+
+Devuelve `off`, `idle`, `stalled` o `healthy`, y **cada apartado declara de qué
+tabla sale y en qué ventana**. Resuelve la configuración por entorno → `.env` →
+defecto, y dice de dónde salió cada valor: el doctor corre desde una shell que
+no tiene las variables del runtime, y mirar sólo `os.environ` daba `off` con el
+aprendizaje encendido.
+
+### Registro de autonomía
+
+`triade/constitution/autonomy.py` responde en un solo sitio qué puede hacer
+Tríade sin permiso: `AUTO_SAFE`, `AUTO_EXPERIMENTAL`, `HUMAN_REQUIRED`,
+`FORBIDDEN`. Lo no declarado es `HUMAN_REQUIRED` — se falla cerrado.
+
+**Está construido y probado pero todavía no gobierna ningún handler.** Es
+contrato sin consumidor, que es justo el patrón que esta auditoría persigue.
+Conectarlo es lo primero de la iteración siguiente.
+
+### Inventario regenerable
+
+```bash
+python scripts/build_system_inventory.py    # -> audit/TRIADE_TASK_WIRING.md
+```
+
+714 módulos, 641 clases, 6.066 funciones, 24 tipos de tarea, 51 variables
+`TRIADE_*`. El artefacto avisa de su propio límite: sólo ve literales, así que
+marca como huérfanos cuatro tipos que se encolan con `task_type` en variable y
+no están rotos.
+
+### Validación de ventana larga
+
+```bash
+python scripts/run_long_validation.py --hours 2  --label v1
+python scripts/run_long_validation.py --hours 24 --label v2
+python scripts/run_long_validation.py --hours 72 --label v3
+```
+
+Escribe JSONL en `artifacts/long-run/`. **Si el SHA cambia a mitad, la ventana
+se invalida** y el fichero lo dice: reutilizar evidencia de otro commit es la
+forma más fácil de certificar algo que nunca corrió.
+
+### Veredicto de este corte
+
+**OPERATIVO CON LIMITACIONES.** Detalle y porcentajes por subsistema en
+[`audit/TRIADE_CAPABILITY_MATRIX.md`](audit/TRIADE_CAPABILITY_MATRIX.md).
+
+Lo que impide declararlo OPERATIVO: la educación neuronal no pasa de
+`lesson_prepared` (0 % verificado), las ventanas de 24 h y 72 h no se han
+cumplido, y el registro de autonomía aún no gobierna.
