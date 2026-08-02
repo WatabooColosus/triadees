@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-PRODUCER_VERSION = "candidate-producer-1.0.0"
+PRODUCER_VERSION = "candidate-producer-1.1.0"
 
 CandidateType = Literal["fact", "preference", "correction", "procedure", "rule"]
 
@@ -163,6 +163,11 @@ class ExperienceLearningCandidateProducer:
             return result
 
         normalizado = _normalize(texto)
+        # El riesgo sale del contenido, no de un literal. Estaba fijo a "low",
+        # así que el candidato más peligroso posible se guardaba anunciando que
+        # era de riesgo bajo.
+        veredicto = self._safety_verdict(texto)
+        riesgo = str(getattr(veredicto, "risk_level", None) or "low")
         candidato = LearningCandidate(
             candidate_id=f"exp-{uuid.uuid4().hex[:16]}",
             content=texto,
@@ -175,7 +180,7 @@ class ExperienceLearningCandidateProducer:
             provenance=f"run:{run_id}|role:{role}",
             explicitness_score=self._explicitness(texto, tipo),
             verifiability="deterministic" if tipo != "rule" else "declarative",
-            risk_level="low",
+            risk_level=riesgo,
             content_hash=_sha(texto),
             **extra,
         )
@@ -196,7 +201,35 @@ class ExperienceLearningCandidateProducer:
             return "autorreferencial_o_transcripcion"
         if _ESPECULACION.search(norm):
             return "especulativo"
+        veredicto = self._safety_verdict(texto)
+        if veredicto is not None and veredicto.decision != "allowed":
+            return f"inseguro:{veredicto.decision}:{','.join(veredicto.reason_codes)}"
         return None
+
+    def _safety_verdict(self, texto: str) -> Any:
+        """Veredicto de la **misma** política que gobierna la recuperación.
+
+        Este filtro faltaba entero. Una instrucción para anular la identidad y
+        desactivar el RegressionGate se aceptaba como `preference` con
+        explicitud 0.80 y se guardaba con `risk_level='low'`. No llegaba a
+        envenenar una conversación porque `RetrievalSafetyPolicy` la bloquea al
+        recuperarla, pero eso dejaba toda la defensa en una sola puerta y el
+        corpus contaminado con el ataque etiquetado como riesgo bajo.
+
+        Se reutiliza la política existente a propósito: un segundo criterio de
+        seguridad escrito aparte es un criterio que acabará divergiendo del
+        primero. Si no se puede clasificar, se aprende nada — el fallo es hacia
+        el lado seguro.
+        """
+        from triade.memory.retrieval_safety import RetrievalSafetyPolicy
+
+        try:
+            return RetrievalSafetyPolicy().classify(
+                {"content": texto, "source": "learning_candidate"},
+                run_id="candidate-extraction",
+            )
+        except (ValueError, TypeError, re.error):
+            return None
 
     @staticmethod
     def _classify(texto: str) -> tuple[CandidateType | None, dict[str, Any]]:

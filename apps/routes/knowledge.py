@@ -12,7 +12,7 @@ import os
 import platform
 import sqlite3
 import subprocess
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -99,6 +99,11 @@ def knowledge_detail(knowledge_id: str) -> dict[str, Any]:
     if item is None:
         raise HTTPException(status_code=404, detail=f"No existe saber: {knowledge_id}")
     return item.to_dict()
+
+
+def _desde_hace_24h() -> str:
+    """Corte de la ventana, en el mismo formato ISO que escriben las tablas."""
+    return (datetime.now(UTC) - timedelta(hours=24)).isoformat()
 
 
 def _rows(sql: str, params: tuple = ()) -> list[dict[str, Any]]:
@@ -235,9 +240,15 @@ def learning_tasks() -> dict[str, Any]:
         "pending_learning_review",
         "stable_consolidation_review",
     )
+    # La consulta declara su ventana. No la tenía: los campos se llamaban
+    # `*_24h` y contaban el histórico entero. En producción eso hacía que
+    # `pending_learning_review` reportase 205 ejecuciones "de 24 h" cuando en
+    # 24 h reales habían corrido 40.
     filas = _rows(
         "SELECT task_type, status, count(*) n, max(updated_at) last_run"
-        " FROM autonomous_tasks GROUP BY task_type, status"
+        " FROM autonomous_tasks WHERE updated_at > ?"
+        " GROUP BY task_type, status",
+        (_desde_hace_24h(),),
     )
     por_tipo: dict[str, dict[str, Any]] = {
         t: {
@@ -271,11 +282,21 @@ def learning_tasks() -> dict[str, Any]:
         por_tipo[t]["last_run"] = fila.get("last_run")
         por_tipo[t]["reason"] = ""
 
-    resumen = _service().summary()
+    # El efecto se mide en la misma ventana que las ejecuciones. Antes salía de
+    # un contador global de por vida (`resumen.evidence_verified`), así que un
+    # único saber verificado —creado una vez, por un script— etiquetaba a todos
+    # los tipos como `produced_knowledge` para siempre. El panel llegó a decir
+    # `produced_knowledge` junto a `learned_today: 0`.
+    saberes_en_ventana = _rows(
+        "SELECT count(*) n FROM learning_queue"
+        " WHERE status IN ('evidence_verified','stable') AND updated_at > ?",
+        (_desde_hace_24h(),),
+    )
+    hubo_saber = int(saberes_en_ventana[0]["n"]) > 0 if saberes_en_ventana else False
     for datos in por_tipo.values():
         if datos["scheduled_24h"] == 0:
             datos["last_effect"] = "never_scheduled"
-        elif resumen.evidence_verified == 0 and resumen.stable == 0:
+        elif not hubo_saber:
             datos["last_effect"] = "alive_but_no_effect"
             datos["reason"] = (
                 "La tarea se ejecuta, pero ningún candidato llegó a ser saber."

@@ -751,3 +751,130 @@ Para encontrarlas:
     and "closing(" not in ast.unparse(it.context_expr)
 ]
 ```
+
+---
+
+# Auditoría integral 2026-08-02 (rama `audit/triade-integral-20260802`)
+
+Corte nuevo. Método: mapa de cableado por AST sobre los 703 ficheros Python,
+contrastado contra la base de producción y contra el runtime vivo. Detalle
+completo en [`audit/TRIADE_BREAKAGE_LOG.md`](audit/TRIADE_BREAKAGE_LOG.md);
+estado del proyecto en [`STATUS_CURRENT.md`](STATUS_CURRENT.md).
+
+## P0 — CORREGIDO: el supervisor de leases nunca se activaba
+
+`HealthSensors._check_leases()` contaba `worker_tasks.status='claimed'`: la cola
+legacy, sin una sola fila `claimed` en toda su historia y sin escrituras desde
+2026-07-29. Devolvía `ok` siempre, así que la necesidad `lease_supervision` no
+nacía nunca y `AutonomousTaskStore.recover_expired()` **no se llamaba jamás en
+producción**: cero recibos en 8.137 ciclos desde el 30-jul.
+
+Encontrado en runtime vivo: dos `neuron_education_cycle` llevaban 12 y 6 minutos
+en `running` con el lease vencido, `updated_at` congelado y nadie
+recuperándolas, mientras el resto de la cola avanzaba y el sistema se declaraba
+sano. Con el carril `evaluation` en máximo 2, dos tareas colgadas lo agotan
+entero y bloquean la educación neuronal sin que nada lo reporte.
+
+`recover_expired()` estaba **bien escrita** —cubre `leased` y `running`—. No
+faltaba lógica: faltaba el productor. Mismo patrón que arregló `e0105c2` para el
+panel; el sensor de salud se quedó fuera.
+
+Verificado en vivo con inyección de fallo: recuperación en menos de 30 s, con la
+necesidad emitida a prioridad 75 y los primeros recibos de `lease_supervision`
+de toda la historia del sistema.
+
+## P1 — CORREGIDO: la ruta antigua de aprendizaje invalidaba todos los experimentos
+
+Sólo se vio al **encender** el aprendizaje gobernado; apagado era invisible.
+
+Un run genera dos filas en `learning_queue`: la proposición atómica del camino
+gobernado y el volcado de transcripción del camino antiguo — y ese volcado
+contiene la frase original **con el dato dentro**.
+`LearningEvidenceProducer._build_prompt()` excluía del control únicamente el
+candidato bajo medición, así que el hermano del mismo run seguía siendo
+recuperable y el brazo de control recibía la respuesta:
+
+    control 1.0   tratamiento 1.0   delta 0.0   ->  "neutral", siempre
+
+**Las 349 generaciones de evidencia que no produjeron ni un saber no eran
+candidatos malos: era el experimento invalidado de origen.** Con el control
+aislado por `source_ref`: control 0.0, tratamiento 1.0, `improved`, y el primer
+saber nacido de una conversación real.
+
+Regla fijada: un experimento sobre un run no puede usar como control nada
+derivado de ese mismo run.
+
+## P2 — CORREGIDO: el extractor de aprendizaje no filtraba ataques a la identidad
+
+`_reject_reason()` comprobaba rol, longitud, autorreferencia y especulación, y
+nada más. Una instrucción para anular la identidad y desactivar el
+RegressionGate se aceptaba como `preference` con explicitud 0.80 y se persistía
+con `risk_level='low'` — un literal fijo, no derivado del contenido.
+
+No llegaba a envenenar una conversación porque `RetrievalSafetyPolicy` lo
+bloquea al recuperarlo, pero eso dejaba toda la defensa en una sola puerta.
+Ahora se reutiliza esa misma política en la extracción y el riesgo sale del
+veredicto.
+
+## P2 — CORREGIDO: `/api/learning/tasks` mentía sobre su ventana y sobre su efecto
+
+La consulta no tenía filtro temporal: los campos se llamaban `*_24h` y contaban
+el histórico entero. `pending_learning_review` reportaba `scheduled_24h = 205`
+cuando en 24 h reales habían corrido **23**.
+
+Y `last_effect` salía de un contador global de por vida: con un único saber
+verificado, todos los tipos quedaban etiquetados `produced_knowledge` para
+siempre. El panel llegó a decir `produced_knowledge` junto a `learned_today: 0`.
+
+Trampa al verificarlo: `datetime('now','-1 day')` de SQLite devuelve
+`2026-08-01 03:55:12` (espacio) mientras las tablas guardan
+`2026-08-01T03:55:12.027832+00:00` (`T`). Como `'T' > ' '` en comparación
+lexicográfica, ese corte deja pasar filas del mismo día natural pero anteriores
+al corte. El corte debe generarse en el mismo formato ISO que se almacena.
+
+## P1 — ABIERTO: inyección no es influencia
+
+El saber verificado **se inyecta** en el prompt de producción —probado en
+`runs/<run>/input.json`, al principio del prompt, antes de `Identidad:`— y aun
+así el modelo de 3B lo ignora. El mismo saber acierta **5 de 5** en el prompt
+aislado del experimento de evidencia.
+
+El experimento mide influencia en un prompt aislado, no en el de producción. Son
+dos cosas distintas y hasta ahora se confundían. Cualquier ajuste de prompt sin
+medir sobre el prompt real es opinión.
+
+## P1 — ABIERTO: la educación neuronal no aplica ni mide
+
+21 sesiones; 7 llegan a `lesson_prepared` con `baseline_score` y `post_score` a
+NULL y `applied_run_count` 0. `neuron_education_applications`: **0 filas**.
+`neuron_certifications`: **0**.
+
+El tramo `aplicación → runs de evaluación → medición antes/después → decisión
+improved/neutral/degraded → consolidación o rollback` **no existe**.
+`lesson_prepared` no es prueba de aprendizaje efectivo.
+
+## P1 — ABIERTO: `self_improvement_canary_observation` sin productor
+
+Tipo declarado, política de concurrencia, handler completo, y **cero sitios en
+todo el repo** que construyan una tarea de ese tipo (verificado por AST, no por
+grep). Cero ejecuciones históricas. Un canary que arranca no se observa nunca:
+no gradúa, no se revierte, no acumula observaciones.
+
+## P3 — ABIERTO: dos restos sobre la cola retirada
+
+- `HealthSensors._check_queue()` cuenta `worker_tasks.status='pending'`: mismo
+  defecto que el P0, mismo fichero. Acotado: su único consumidor es el `healthy`
+  agregado y siempre devuelve `ok`, así que no provoca falso negativo.
+- `memory_consolidation_review`: declarado, con política e intervalo adaptativo
+  y handler, **sin productor** y sin una sola ejecución.
+  `mission_planner._plan_memory_consolidation()` encola
+  `stable_consolidation_review`, no éste.
+
+## Incertidumbre explícita — renovación de lease
+
+`autonomous_lease_heartbeats` tiene **3 filas, todas del 30-jul**, pese a que
+`LeaseHeartbeat` está realmente cableado (`worker_loop.py:801,1278`, intervalo
+≤15 s). No se pudo determinar si la explicación es benigna —casi ninguna tarea
+supera el primer intervalo— o si la renovación no dispara en tareas largas.
+**No es un defecto confirmado.** Se resuelve con una sonda que duerma más de
+tres intervalos y observando si aparecen filas con `renewed=1`.
