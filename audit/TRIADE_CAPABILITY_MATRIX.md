@@ -30,16 +30,16 @@ solo una capacidad funcional.
 | 14 | Evidencia causal control/tratamiento | sí | sí | sí | sí | sí | sí | sí | sí | medio | **VERIFIED** | control 0.0 · tratamiento 1.0 · `improved`, inferencia real |
 | 15 | Consolidación a saber verificado | sí | sí | sí | sí | sí | — | sí | sí | medio | **VERIFIED** | 1 → 2, encolada por el planner solo |
 | 16 | Inyección en respuesta posterior | sí | sí | sí | sí | sí | — | sí | sí | bajo | **VERIFIED** | P1-03 cerrado: el saber aparece en la respuesta |
-| 17 | Registro de autonomía | sí | **no** | sí | — | — | — | sí | — | bajo | **PARTIAL** | contrato y 41 pruebas; **no gobierna ningún handler todavía** |
+| 17 | Registro de autonomía | sí | sí | sí | sí | — | — | sí | sí | bajo | **VERIFIED** | gobierna el despacho del worker; 61 pruebas; sello `autonomy_precleared` para no duplicar gobierno |
 | 18 | Doctor de aprendizaje continuo | sí | sí | sí | sí | — | — | sí | — | bajo | **VERIFIED** | `doctor continuous-learning` → `healthy` con procedencia |
 | 19 | Educación neuronal → lección | sí | sí | sí | sí | sí | sí | sí | sí | bajo | **PARTIAL** | 7 sesiones en `lesson_prepared` |
-| 20 | Educación neuronal → aplicar y medir | **no** | **no** | no | **no** | no | no | no | no | alto | **DISCONNECTED** | P1-01: `neuron_education_applications` = **0** |
+| 20 | Educación neuronal → resolver y revertir | sí | sí | sí | parcial | sí | sí | sí | sí | medio | **PARTIAL** | resolutor conectado al ciclo; verificado en copia de producción. Falta el productor de `neuron_education_applications`: sin runs medidos devuelve `insufficient_evidence`, que es lo honesto |
 | 21 | Canary: productor de observación | sí | sí | sí | **no** | sí | sí | sí | sí | medio | **PARTIAL** | P1-02 cerrado en código; sin canary abierto que observar |
 | 22 | Memoria semántica | sí | sí | sí | sí | sí | sí | sí | sí | bajo | **VERIFIED** | heredado: control 0.00 → tratamiento 1.00 |
 | 23 | Observabilidad con procedencia | sí | sí | sí | sí | — | — | sí | — | bajo | **VERIFIED** | endpoints cuadran con SQL; ventana declarada |
 | 24 | Persistencia tras reinicio | sí | sí | sí | sí | sí | sí | sí | sí | bajo | **VERIFIED** | varios reinicios sin pérdida ni duplicación |
 | 25 | Degradación sin Ollama | sí | sí | sí | **no** | — | — | sí | sí | medio | **NOT_OBSERVED** | no inyectado: habría degradado el runtime del usuario |
-| 26 | Suite y CI | sí | sí | — | sí | — | — | — | — | bajo | **VERIFIED** | **1.875 pruebas, 0 fallos** |
+| 26 | Suite y CI | sí | sí | — | sí | — | — | — | — | bajo | **VERIFIED** | **1.910 pruebas, 0 fallos** |
 | 27 | Long-run 2 h / 24 h / 72 h | sí | sí | — | **en curso** | — | — | sí | — | medio | **NOT_OBSERVED** | ventana de 2 h lanzada; 24 h y 72 h pendientes |
 
 ---
@@ -50,8 +50,8 @@ solo una capacidad funcional.
 |---|---|---|---|---|---|
 | Runtime always-on y recuperación (1-8) | 6 | 1 | 0 | 1 | **75 %** |
 | Aprendizaje continuo (9-16) | 7 | 1 | 0 | 0 | **88 %** |
-| Gobierno y diagnóstico (17-18) | 1 | 1 | 0 | 0 | **50 %** |
-| Educación neuronal y canary (19-21) | 0 | 2 | 1 | 0 | **0 %** |
+| Gobierno y diagnóstico (17-18) | 2 | 0 | 0 | 0 | **100 %** |
+| Educación neuronal y canary (19-21) | 0 | 3 | 0 | 0 | **0 % verificado, 0 desconectado** |
 | Memoria y observabilidad (22-24) | 3 | 0 | 0 | 0 | **100 %** |
 | Entorno y certificación (25-27) | 1 | 0 | 0 | 2 | **33 %** |
 
@@ -77,9 +77,12 @@ recupera solo. La observabilidad declara su procedencia.
 
 **No se puede declarar OPERATIVO** porque:
 
-1. El segundo circuito exigido —educación neuronal con evaluación antes/después
-   y rollback— **no existe más allá de `lesson_prepared`** (§16 del encargo).
+1. **Falta el productor de `neuron_education_applications`.** El resolutor
+   existe, decide y revierte, pero sin runs medidos devuelve
+   `insufficient_evidence` — que es la respuesta honesta, no un éxito. El
+   circuito de la §16 del encargo no está cerrado hasta que algo registre cómo
+   le fue a la neurona en runs posteriores.
 2. Las ventanas de 24 h y 72 h no se han cumplido (§28).
-3. El registro de autonomía está construido y probado pero **aún no gobierna**
-   ningún handler: es contrato sin consumidor, exactamente el patrón que esta
-   auditoría persigue. Queda declarado PARTIAL, no como hecho consumado.
+3. `neuron_education_applications` sigue con **0 filas** en producción. La
+   decisión `improved` está probada en aislamiento y sobre copia, **no
+   observada en runtime real**.

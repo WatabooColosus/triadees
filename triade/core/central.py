@@ -912,9 +912,7 @@ class Central:
             ensure_ascii=False,
             indent=2,
         )
-        return (
-            f"{verified_block_audit}\n{volcado}" if verified_block_audit else volcado
-        )
+        return f"{verified_block_audit}\n{volcado}" if verified_block_audit else volcado
 
     @staticmethod
     def _response_ignores_current_question(user_input: str, response: str) -> bool:

@@ -39,6 +39,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 POLICY_VERSION = "autonomy-1.0.0"
 
@@ -76,6 +77,12 @@ OPERATION_REGISTRY: dict[str, AutonomyClass] = {
     "rollback_degradation": AutonomyClass.AUTO_EXPERIMENTAL,
     "consolidate_low_risk_knowledge": AutonomyClass.AUTO_EXPERIMENTAL,
     "restore_in_sandbox": AutonomyClass.AUTO_EXPERIMENTAL,
+    # Escribe ficheros, pero acotado y reversible: `GovernedFileWriteCapability`
+    # rechaza cualquier destino fuera de `authorized_root` con `PermissionError`
+    # y deja `backup_ref`, `rollback_target` y `rollback_manifest`. Clasificarlo
+    # como infraestructura de produccion fue un exceso por mi parte: bloqueaba
+    # un camino que ya tenia su gobierno y su vuelta atras.
+    "write_governed_artifact": AutonomyClass.AUTO_EXPERIMENTAL,
     # ── HUMAN_REQUIRED · una persona puede autorizarlo ───────────────
     "modify_identity_core": AutonomyClass.HUMAN_REQUIRED,
     "delete_data_permanently": AutonomyClass.HUMAN_REQUIRED,
@@ -96,6 +103,17 @@ OPERATION_REGISTRY: dict[str, AutonomyClass] = {
     "operate_real_accounts": AutonomyClass.FORBIDDEN,
     "publish_externally": AutonomyClass.FORBIDDEN,
 }
+
+#: Autoridades cuyo gobierno previo se acepta como ya ejercido.
+#:
+#: `capability_resolver` decide por capacidad concreta y `GoalOrchestrator`
+#: detiene el goal en `awaiting_approval` cuando hace falta una persona. Una
+#: tarea que llega a la cola con este sello ya pasó ese filtro: volver a
+#: decidirlo aquí serían dos gobiernos con contratos distintos sobre lo mismo.
+#:
+#: La lista es cerrada a propósito. Un sello inventado no vale, y ninguno abre
+#: una operación `FORBIDDEN`.
+PRECLEARING_AUTHORITIES: frozenset[str] = frozenset({"capability_resolver"})
 
 #: Clases que pueden ejecutarse sin intervención humana.
 AUTONOMOUS_CLASSES = frozenset(
@@ -179,3 +197,110 @@ def authorize(operation: str | None) -> AutonomyDecision:
         requires_human=clase is AutonomyClass.HUMAN_REQUIRED,
         reason=motivo,
     )
+
+
+#: Qué operación es cada tipo de tarea de los Living Workers.
+#:
+#: `test_ningun_tipo_se_queda_sin_operacion` falla si alguien añade un tipo y no
+#: lo clasifica aquí. Sin esa prueba, un tipo nuevo heredaría permisos que nadie
+#: le concedió, que es como llegan las cosas peligrosas a producción.
+TASK_OPERATION: dict[str, str] = {
+    # ── trabajo de fondo del aprendizaje continuo ────────────────────
+    "learning_candidate_generation": "create_learning_candidate",
+    "learning_candidate_deduplication": "deduplicate_candidates",
+    "learning_evidence_generation": "generate_evidence",
+    "pending_learning_review": "evaluate_candidate",
+    "memory_consolidation_review": "contrast_with_memory",
+    "stable_consolidation_review": "consolidate_low_risk_knowledge",
+    "semantic_memory_governance": "contrast_with_memory",
+    # ── observación e informes ───────────────────────────────────────
+    "pulse_check": "measure_results",
+    "system_debt_scan": "produce_report",
+    "bodega_global_review": "produce_report",
+    "federation_inbox_review": "produce_report",
+    "encrypted_backup": "create_backup",
+    # ── investigación en fuentes permitidas ──────────────────────────
+    "goal_research": "research_allowed_sources",
+    "research_curriculum": "research_allowed_sources",
+    # ── neuronas: experimentar sí, estabilizar no ────────────────────
+    "neuron_candidate_formation": "create_experimental_neuron",
+    "experimental_neuron_activity": "use_knowledge_experimental",
+    "neuron_education_cycle": "prepare_lesson",
+    # Promover una experimental avanza sola pero queda marcada y con
+    # rollback; promover a estable es otra cosa y exige humano.
+    "neuron_autopromotion": "promote_experimental_version",
+    # ── automejora ───────────────────────────────────────────────────
+    "self_improvement_evaluation": "run_internal_tests",
+    "self_improvement_canary_observation": "measure_results",
+    # ── lo que toca el mundo fuera de la base ────────────────────────
+    "write_governed_text_artifact": "write_governed_artifact",
+    "goal_install": "install_software",
+    "goal_lora_train": "maintain_experimental_version",
+    # No es shell libre: la capacidad resuelve contra una lista permitida.
+    # Aun así muta el sistema, así que no avanza sin una persona.
+    "goal_safe_command": "modify_production_infrastructure",
+}
+
+
+def authorize_operation(
+    operation: str | None, payload: dict[str, Any] | None = None
+) -> AutonomyDecision:
+    """Autoriza una operación teniendo en cuenta la aprobación humana.
+
+    `HUMAN_REQUIRED` no significa «nunca»: significa que hace falta una persona.
+    Cuando el payload trae `human_approved`, esa persona ya pasó — es la
+    convención que usa `approve_install()` al encolar. Ignorarla rompería un
+    camino que ya tenía su gobierno.
+
+    `FORBIDDEN` no se abre con una bandera. Nunca.
+    """
+    base = authorize(operation)
+    if base.allowed or base.autonomy_class is AutonomyClass.FORBIDDEN:
+        return base
+    datos = payload if isinstance(payload, dict) else {}
+    if bool(datos.get("human_approved")):
+        return AutonomyDecision(
+            operation=base.operation,
+            autonomy_class=base.autonomy_class,
+            allowed=True,
+            requires_human=False,
+            reason="Autorizada por una persona: el payload trae `human_approved`.",
+        )
+    sello = str(datos.get("autonomy_precleared") or "").strip()
+    if sello in PRECLEARING_AUTHORITIES:
+        return AutonomyDecision(
+            operation=base.operation,
+            autonomy_class=base.autonomy_class,
+            allowed=True,
+            requires_human=False,
+            reason=(
+                f"Gobierno previo de `{sello}`: la decisión ya se tomó antes de "
+                "encolar y no se re-decide aquí."
+            ),
+        )
+    return base
+
+
+def authorize_task(
+    task_type: str | None, payload: dict[str, Any] | None = None
+) -> AutonomyDecision:
+    """Autoriza un tipo de tarea de los Living Workers.
+
+    Un tipo sin operación declarada cae en `HUMAN_REQUIRED` por el mismo camino
+    que cualquier operación desconocida: se falla cerrado.
+    """
+    nombre = str(task_type or "").strip()
+    operacion = TASK_OPERATION.get(nombre)
+    if operacion is None:
+        decision = authorize(nombre or None)
+        return AutonomyDecision(
+            operation=nombre or "<vacío>",
+            autonomy_class=decision.autonomy_class,
+            allowed=False,
+            requires_human=True,
+            reason=(
+                f"El tipo de tarea {nombre!r} no tiene operación declarada en "
+                "el registro de autonomía: se exige humano por defecto."
+            ),
+        )
+    return authorize_operation(operacion, payload)
