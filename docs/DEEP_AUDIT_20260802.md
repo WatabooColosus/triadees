@@ -120,8 +120,8 @@ Python (`executor.py:131-161`). `sha256`, `echo`, contar palabras. Y reporta
 campos de seguridad **hardcodeados** independientemente de lo que pase:
 
 ```python
-result["network_used"] = False      # executor.py:102 — literal, no medido
-result["shell_used"] = False         # executor.py:103 — literal, no medido
+result["network_used"] = False  # executor.py:102 — literal, no medido
+result["shell_used"] = False  # executor.py:103 — literal, no medido
 result["writes_outside_sandbox"] = False
 ```
 
@@ -551,7 +551,7 @@ El segundo cerrojo, para escrituras reales, es `require_key`
 ```python
 def require_key(value):
     expected = os.getenv("TRIADE_API_KEY")
-    if expected and value != expected:      # si expected es "" o None → no entra
+    if expected and value != expected:  # si expected es "" o None → no entra
         raise HTTPException(401, ...)
 ```
 
@@ -629,7 +629,7 @@ una garantía falsa.
 
 ```python
 def enforce(self, limits):
-    violations = []          # nunca se rellena
+    violations = []  # nunca se rellena
     return {"status": "enforced" if not violations else ...}
 ```
 
