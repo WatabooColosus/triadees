@@ -173,7 +173,7 @@ jobs:
             > artifacts/unit-01-runtime/uvicorn.log 2>&1 &
           echo $! > artifacts/unit-01-runtime/uvicorn.pid
           for attempt in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8010/healthz > artifacts/unit-01-runtime/healthz.json; then
+            if curl -fsS http://127.0.0.1:8010/api/health > artifacts/unit-01-runtime/health.json; then
               echo "ready on attempt ${attempt}" | tee artifacts/unit-01-runtime/readiness.txt
               exit 0
             fi
