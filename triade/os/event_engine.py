@@ -13,6 +13,7 @@ from typing import Any
 
 from triade.core.contracts import utc_now
 from triade.os.contracts import SEVERITY_ORDER, EventRule
+from triade.runtime.task_status import ACTIVE, ELIGIBLE, sql_placeholders
 
 # ── Reglas built-in ──────────────────────────────────────────
 
@@ -224,9 +225,14 @@ class EventEngine:
 
         WorkerTaskQueue(self.db_path)
         with self._connect() as conn:
+            # Listaba siete estados a mano y le faltaba `completion_uncertain`:
+            # una tarea que se ejecutó sin poder probar su efecto se contaba
+            # como inexistente y el motor encolaba una duplicada.
+            marcadores, estados = sql_placeholders(ACTIVE)
             row = conn.execute(
-                "SELECT COUNT(*) AS c FROM autonomous_tasks WHERE task_type = ? AND status IN ('pending','queued','leased','running','retry_wait','recovered','deferred')",
-                (action,),
+                f"SELECT COUNT(*) AS c FROM autonomous_tasks WHERE task_type = ? "
+                f"AND status IN ({marcadores})",
+                (action, *estados),
             ).fetchone()
         return int(row["c"]) > 0
 
@@ -281,9 +287,21 @@ class EventEngine:
             total_events = conn.execute(
                 "SELECT COUNT(*) AS c FROM worker_events"
             ).fetchone()["c"]
-            pending_tasks = conn.execute(
-                "SELECT COUNT(*) AS c FROM worker_tasks WHERE status = 'pending'"
-            ).fetchone()["c"]
+            # Contaba `worker_tasks`, retirada por trigger en
+            # `019_legacy_retirement.sql` y sin escrituras desde el 2026-07-29:
+            # el doctor informaba siempre de 0 tareas generadas. El propio
+            # motor ya encolaba en `autonomous_tasks` unas lineas mas arriba, o
+            # sea que contaba una cola distinta de la que llenaba.
+            marcadores, estados = sql_placeholders(ELIGIBLE)
+            pending_tasks = 0
+            if conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='autonomous_tasks'"
+            ).fetchone():
+                pending_tasks = conn.execute(
+                    f"SELECT COUNT(*) AS c FROM autonomous_tasks "
+                    f"WHERE status IN ({marcadores})",
+                    estados,
+                ).fetchone()["c"]
         return {
             "status": "ok",
             "rules_count": len(self._rules),
