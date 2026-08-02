@@ -257,7 +257,7 @@ RetrievalSafetyPolicy.classify(benigno)   -> decision='allowed'
 |---|---|---|---|
 | `/api/knowledge/summary` `evidence_verified` | 1 | 1 | sí |
 | `/api/knowledge/summary` `candidates`+`duplicates` | 227+428=655 | `internally_checked` 655 | sí |
-| `/api/learning/tasks` `scheduled_24h` (`pending_learning_review`) | **205** | 24 h reales: **40** | **no** → P2-01 |
+| `/api/learning/tasks` `scheduled_24h` (`pending_learning_review`) | **205** | 24 h reales: **23** | **no** → P2-01 |
 | `/api/learning/tasks` `last_effect` | `produced_knowledge` | `learned_today: 0` | **no** → P2-01 |
 
 ---

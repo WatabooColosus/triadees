@@ -190,7 +190,14 @@ WHERE task_type='self_improvement_canary_observation';"   # 0
 calculaban con `SELECT ... FROM autonomous_tasks GROUP BY task_type, status`,
 **sin filtro temporal**. Eran totales de por vida con nombre de ventana.
 Medido: `pending_learning_review` reportaba `scheduled_24h = 205` cuando en 24 h
-reales habían corrido **40**. Inflado 5×.
+reales habían corrido **23**. Inflado casi 9×.
+
+> Trampa al verificar esto: `datetime('now','-1 day')` de SQLite devuelve
+> `2026-08-01 03:55:12` (con espacio) mientras las tablas guardan
+> `2026-08-01T03:55:12.027832+00:00` (con `T`). Como `'T' > ' '` en comparación
+> lexicográfica, esa consulta incluye filas más antiguas que el corte y da 40 en
+> vez de 23. El corte debe generarse en el mismo formato ISO que se almacena,
+> que es lo que hace `_desde_hace_24h()`.
 
 **Síntoma 2 — efecto.** `last_effect` salía de un contador global de por vida:
 

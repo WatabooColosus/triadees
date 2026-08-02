@@ -100,6 +100,34 @@ class TestVentanaDeclarada:
     def test_completed_24h_respeta_la_ventana(self, client: TestClient) -> None:
         assert _fila(client)["completed_24h"] == 2
 
+    def test_el_corte_usa_el_formato_que_se_almacena(self, client: TestClient) -> None:
+        """El corte debe ser ISO con `T`, como lo que guardan las tablas.
+
+        Trampa real, encontrada al verificar esta misma corrección:
+        `datetime('now','-1 day')` de SQLite devuelve `2026-08-01 03:55:12` (con
+        espacio) mientras `updated_at` guarda `2026-08-01T03:55:12.027832+00:00`
+        (con `T`). Como `'T' > ' '` en comparación lexicográfica, ese corte deja
+        pasar filas **del mismo día natural pero anteriores al corte**.
+
+        Este caso es el único que lo detecta: una fila de hace 30 h cae en el día
+        anterior y se excluye bien con cualquiera de los dos formatos. Una de
+        hace 25 h, no.
+        """
+        import apps.routes.knowledge as mod
+
+        with sqlite3.connect(mod.DB_PATH) as conn:
+            conn.execute(
+                "INSERT INTO autonomous_tasks (task_id,task_type,status,created_at,"
+                "updated_at) VALUES ('t-borde',?,'completed',?,?)",
+                (TIPO, _iso(25), _iso(25)),
+            )
+            conn.commit()
+
+        assert _fila(client)["scheduled_24h"] == 2, (
+            "una ejecución de hace 25 h entró en la ventana de 24 h: el corte "
+            "no está en el mismo formato que la columna que compara"
+        )
+
 
 class TestEfectoDeclarado:
     def test_sin_saber_nuevo_en_la_ventana_no_es_produced_knowledge(
