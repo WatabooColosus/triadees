@@ -14,6 +14,7 @@ from typing import Any
 
 from triade.core.contracts import utc_now
 from triade.os.contracts import NeuronPriority
+from triade.runtime.task_status import ACTIVE, sql_placeholders
 
 
 class NeuronScheduler:
@@ -225,13 +226,18 @@ class NeuronScheduler:
             queue = WorkerTaskQueue(self.db_path)
 
             with self._connect() as conn:
+                # Listaba siete estados a mano y le faltaba
+                # `completion_uncertain`: una tarea que se ejecutó sin poder
+                # probar su efecto no se veía aquí y se programaba otra igual
+                # para la misma neurona.
+                marcadores, estados = sql_placeholders(ACTIVE)
                 existing = conn.execute(
-                    """SELECT task_id AS id FROM autonomous_tasks
+                    f"""SELECT task_id AS id FROM autonomous_tasks
                     WHERE task_type='experimental_neuron_activity'
-                    AND status IN ('pending','queued','leased','running','retry_wait','recovered','deferred')
+                    AND status IN ({marcadores})
                     AND CAST(json_extract(payload_json, '$.neuron_id') AS INTEGER)=?
                     ORDER BY created_at ASC LIMIT 1""",
-                    (p.neuron_id,),
+                    (*estados, p.neuron_id),
                 ).fetchone()
                 if existing:
                     scheduled.append(

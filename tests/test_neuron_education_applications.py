@@ -280,3 +280,44 @@ class TestNoGiraEnVacio:
         assert (
             NeuronEducationApplicationRecorder(ruta).record_once()["sessions_seen"] == 0
         )
+
+
+class TestFormatosDeFechaMezclados:
+    """El caso real: las dos tablas no escriben la fecha igual.
+
+    En producción `neuron_activity.created_at` usa espacio
+    (`2026-08-02 08:23:23`) y la sesión usa ISO con `T` y desfase
+    (`2026-08-02T03:38:27.340611+00:00`). Comparando como texto, el espacio
+    (0x20) ordena ANTES que la `T` (0x54): un run POSTERIOR a la lección el
+    mismo día salía «anterior». Se caía de las aplicaciones y entraba en el
+    baseline, que es exactamente invertir la medida.
+
+    Los demás tests de este fichero escriben ambos lados con `T`, así que
+    pasaban con el fallo puesto.
+    """
+
+    def test_run_posterior_el_mismo_dia_cuenta_como_aplicacion(
+        self, tmp_path: Path
+    ) -> None:
+        db = _db(tmp_path)
+        # Lección a las 00:00 del 30; el run es 8 h DESPUÉS, en formato espacio.
+        _run(db, "run-mismo-dia", cuando="2026-07-30 08:23:23")
+
+        NeuronEducationApplicationRecorder(db).record_once()
+
+        aplicaciones = _aplicaciones(db)
+        assert [r["run_id"] for r in aplicaciones] == ["run-mismo-dia"]
+        # Y no puede haberse contado además como baseline.
+        assert _sesion(db)["baseline_score"] is None
+
+    def test_run_anterior_el_mismo_dia_sigue_siendo_baseline(
+        self, tmp_path: Path
+    ) -> None:
+        db = _db(tmp_path)
+        # Lección a las 00:00 del 30; este run es del 29 por la tarde.
+        _run(db, "run-previo", cuando="2026-07-29 18:00:00", scores=(0.5,) * 5)
+
+        NeuronEducationApplicationRecorder(db).record_once()
+
+        assert _aplicaciones(db) == []
+        assert _sesion(db)["baseline_score"] == 0.5

@@ -8,6 +8,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 from triade.runtime.effect_receipt import EffectReceipt
+from triade.runtime.task_status import TERMINAL_FAILURE
 
 ExecutionStatus = Literal[
     "completed",
@@ -48,7 +49,7 @@ class ExecutionResult(BaseModel):
     @model_validator(mode="after")
     def enforce_truth(self) -> ExecutionResult:
         non_executed = {"blocked", "skipped", "dry_run", "observed", "deferred"}
-        failures = {"failed", "dead_letter", "timeout", "lease_lost"}
+        failures = TERMINAL_FAILURE
         if self.status == "completed":
             if not self.executed:
                 raise ValueError("completed_requires_executed_true")

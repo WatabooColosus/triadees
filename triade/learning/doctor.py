@@ -29,6 +29,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from triade.runtime.task_status import ACTIVE
+
 DOCTOR_VERSION = "continuous-learning-doctor-1.0.0"
 
 #: Ventana por defecto de todo lo que aquí se llame «reciente».
@@ -42,7 +44,12 @@ LEARNING_TASK_TYPES = (
 )
 
 #: Estados no terminales de la cola gobernada.
-ACTIVE_STATUSES = ("pending", "queued", "leased", "running", "retry_wait", "recovered")
+#:
+#: Era una tupla escrita a mano a la que le faltaban `deferred` y
+#: `completion_uncertain`, añadidos después en la cola sin que esta copia se
+#: enterara: una tarea diferida era invisible para el doctor y visible para el
+#: planificador. Se ordena para que el `IN (...)` sea estable entre ejecuciones.
+ACTIVE_STATUSES = tuple(sorted(ACTIVE))
 
 
 def _cutoff(hours: int) -> str:

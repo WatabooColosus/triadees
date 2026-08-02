@@ -12,6 +12,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar
 
+from triade.constitution.autonomy import authorize_task
 from triade.core.background_neurons import candidates_from_system_debt
 from triade.core.contracts import (
     MemoryPacket,
@@ -41,7 +42,6 @@ from triade.runtime.effect_receipt import EffectReceipt
 from triade.runtime.event_scheduler import EventDrivenScheduler
 from triade.runtime.execution_result import ExecutionResult
 from triade.runtime.governed_task_executor import GovernedTaskExecutor
-from triade.constitution.autonomy import authorize_task
 from triade.runtime.lease_heartbeat import LeaseHeartbeat
 from triade.runtime.legacy_task_reconciler import LegacyTaskReconciler
 from triade.runtime.live_heartbeat import LiveHeartbeat
@@ -49,6 +49,7 @@ from triade.runtime.process_lock import RuntimeProcessLock
 from triade.runtime.resource_ledger import ResourceLedger, ResourceMeasurementCollector
 from triade.runtime.task_artifacts import CanonicalTaskArtifacts
 from triade.runtime.task_leases import AutonomousTaskStore
+from triade.runtime.task_status import TERMINAL_FAILURE
 from triade.runtime.wake_bus import runtime_wake_event
 
 from .adaptive_scheduler import AdaptiveScheduler
@@ -893,7 +894,7 @@ class WorkerLoop:
         with _SUMMARY_LOCK:
             if execution.status == "blocked":
                 summary["tasks_blocked"] += 1
-            elif execution.status in {"failed", "dead_letter", "timeout", "lease_lost"}:
+            elif execution.status in TERMINAL_FAILURE:
                 summary["errors"].append(result.get("error") or "task_failed")
             elif execution.status == "completed":
                 summary["tasks_completed"] += 1

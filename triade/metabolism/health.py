@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from triade.runtime.task_status import ELIGIBLE, sql_placeholders
+
 
 class HealthSensors:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
@@ -131,6 +133,19 @@ class HealthSensors:
             return {"ok": False, "error": type(exc).__name__}
 
     def _check_queue(self) -> dict[str, Any]:
+        """Trabajo esperando en la cola viva.
+
+        El gemelo de `_check_leases`, con el mismo fallo y encontrado después:
+        contaba `worker_tasks.status='pending'`, la cola legacy, retirada por
+        trigger en `019_legacy_retirement.sql` y sin una escritura desde el
+        2026-07-29. Devolvía `pending: 0` siempre, así que un atasco real no
+        podía detectarse: el sensor miraba un cadáver.
+
+        Se cuentan los estados elegibles de la cola v2, no sólo `pending`. Una
+        tarea en `retry_wait` o `recovered` también es trabajo esperando, y
+        contar sólo uno de los ocho volvería a subestimar la cola — más
+        despacio, pero igual.
+        """
         try:
             with sqlite3.connect(self.db_path, timeout=2) as conn:
                 tables = {
@@ -139,10 +154,16 @@ class HealthSensors:
                         "SELECT name FROM sqlite_master WHERE type='table'"
                     )
                 }
-                if "worker_tasks" not in tables:
-                    return {"ok": True, "pending": 0}
+                if "autonomous_tasks" not in tables:
+                    return {
+                        "ok": True,
+                        "pending": 0,
+                        "note": "no_autonomous_tasks_table",
+                    }
+                marcadores, estados = sql_placeholders(ELIGIBLE)
                 pending = conn.execute(
-                    "SELECT COUNT(*) FROM worker_tasks WHERE status='pending'"
+                    f"SELECT COUNT(*) FROM autonomous_tasks WHERE status IN ({marcadores})",
+                    estados,
                 ).fetchone()[0]
                 return {"ok": int(pending) < 100, "pending": int(pending)}
         except (sqlite3.Error, OSError) as exc:

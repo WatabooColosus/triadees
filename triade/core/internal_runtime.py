@@ -42,12 +42,46 @@ def get_internal_runtime_supervisor(
         return _SUPERVISOR
 
 
+#: Por qué vino vacía la última decisión del gobernador. Ver
+#: `governor_status_reason()`.
+GOVERNOR_EMPTY_NO_SUPERVISOR = "no_supervisor_in_this_process"
+GOVERNOR_EMPTY_NOT_DECIDED_YET = "supervisor_new_no_cycle_completed"
+
+
 def get_internal_runtime_governor_status() -> dict[str, Any]:
     """Devuelve la última decisión dinámica sin crear un supervisor nuevo."""
     with _LOCK:
         if _SUPERVISOR is None:
             return {}
         return dict(_SUPERVISOR.last_governor_decision)
+
+
+def governor_status_reason() -> str | None:
+    """Por qué está vacía la decisión cacheada, o `None` si no lo está.
+
+    Las dos causas de vacío son distintas y hasta ahora se veían iguales —las
+    dos devolvían un diccionario vacío—, y por eso el diagnóstico se quedó en el
+    síntoma:
+
+    * **no hay supervisor en ESTE proceso.** El singleton es de módulo, así que
+      sólo existe donde se arrancó el hilo de fondo. Un handler ejecutado en un
+      proceso `spawn` lo ve `None` siempre, no de vez en cuando.
+    * **el supervisor es nuevo y aún no ha cerrado un ciclo.** La decisión se
+      cachea al final de `run_once()`, así que entre construir el supervisor y
+      terminar su primer ciclo la caché está vacía con todo el derecho.
+
+    Lo segundo no es raro: la vida del singleton es la del proceso, y el 2026-08-02
+    hubo **15 arranques** de runtime en un día —comprobado contando `run_ref`
+    distintos en los eventos `work_mode_decided`, sin un solo solapamiento entre
+    ellos, es decir procesos que se suceden y no instancias que conviven—. Cada
+    arranque reabre esa ventana.
+    """
+    with _LOCK:
+        if _SUPERVISOR is None:
+            return GOVERNOR_EMPTY_NO_SUPERVISOR
+        if not _SUPERVISOR.last_governor_decision:
+            return GOVERNOR_EMPTY_NOT_DECIDED_YET
+        return None
 
 
 def start_internal_runtime_background(
@@ -147,6 +181,11 @@ def get_internal_runtime_state(
         "counters": snapshot.get("counters", {}),
         "last_events": snapshot.get("last_events", []),
         "last_context_snapshot": snapshot.get("last_context_snapshot", {}),
+        # Se caía de este diccionario aunque `snapshot()` sí la trae. Sin ella,
+        # `/api/runtime/status` no permitía ver desde fuera si la caché del
+        # gobernador estaba vacía, que es justo lo que había que diagnosticar.
+        "last_governor_decision": snapshot.get("last_governor_decision", {}),
+        "governor_status_reason": governor_status_reason(),
         "safety_policy": snapshot.get("safety_policy", {}),
         "files": snapshot.get("files", {}),
     }

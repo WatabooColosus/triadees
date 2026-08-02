@@ -15,6 +15,7 @@ from triade.core.config import load_config
 from triade.core.internal_runtime import (
     get_internal_runtime_governor_status,
     get_internal_runtime_supervisor,
+    governor_status_reason,
     record_internal_runtime_event,
     start_internal_runtime_background,
     stop_internal_runtime_background,
@@ -180,12 +181,28 @@ def build_always_on_status() -> dict[str, Any]:
         _ALWAYS_ON_STATE["runtime_degradation_reason"] = None
         governor = get_internal_runtime_governor_status()
         if not governor:
-            # last_governor_decision cacheado vino vacio (observado en vivo,
-            # 2026-07-31: periodico, ~cada ciclo de self-test). Antes esto
-            # dejaba el estado congelado en lo ultimo que hubiera -- a veces
-            # "observe_only" heredado del arranque -- hasta la proxima
-            # actualizacion. Se recalcula aqui mismo, sincrono, en vez de
-            # servir un valor potencialmente obsoleto o nunca inicializado.
+            # Recalcular aqui, sincrono, sigue siendo lo correcto: servir la
+            # ultima decision cacheada podria dar un modo heredado del arranque.
+            # Lo que faltaba era la CAUSA, que ahora se registra en vez de
+            # deducirse. Son dos, y antes se veian iguales:
+            #
+            #  - `no_supervisor_in_this_process`: el singleton es de modulo y
+            #    solo existe donde arranco el hilo de fondo; en un proceso
+            #    `spawn` esta vacio SIEMPRE, no periodicamente;
+            #  - `supervisor_new_no_cycle_completed`: la decision se cachea al
+            #    final de `run_once()`, asi que un supervisor recien construido
+            #    la tiene vacia con todo el derecho.
+            #
+            # Lo segundo explica el patron «periodico» que se observo el
+            # 2026-07-31: la vida del singleton es la del proceso, y el
+            # 2026-08-02 hubo 15 arranques de runtime en un dia (15 `run_ref`
+            # distintos en los eventos `work_mode_decided`, sin un solo
+            # solapamiento). Cada arranque reabre la ventana.
+            record_internal_runtime_event(
+                "always_on_governor_cache_empty",
+                "always_on",
+                {"reason": governor_status_reason()},
+            )
             try:
                 from triade.core.ollama_blood import check_ollama_blood
                 from triade.core.resource_probe import build_resource_probe

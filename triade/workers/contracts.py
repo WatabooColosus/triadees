@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 from uuid import uuid4
 
 from triade.core.contracts import utc_now
+from triade.runtime.task_status import TERMINAL
 
 from .concurrency import ConcurrencySettings
 
@@ -53,33 +54,6 @@ WorkerTaskType = Literal[
     "encrypted_backup",
     "neuron_education_cycle",
     "write_governed_text_artifact",
-    "self_improvement_evaluation",
-    "self_improvement_canary_observation",
-    "learning_candidate_generation",
-    "learning_candidate_deduplication",
-    "learning_evidence_generation",
-]
-
-WORKER_TASK_TYPES: tuple[str, ...] = (
-    "pulse_check",
-    "pending_learning_review",
-    "semantic_memory_governance",
-    "neuron_candidate_formation",
-    "experimental_neuron_activity",
-    "neuron_autopromotion",
-    "federation_inbox_review",
-    "memory_consolidation_review",
-    "stable_consolidation_review",
-    "system_debt_scan",
-    "bodega_global_review",
-    "goal_research",
-    "goal_safe_command",
-    "research_curriculum",
-    "goal_install",
-    "goal_lora_train",
-    "encrypted_backup",
-    "neuron_education_cycle",
-    "write_governed_text_artifact",
     # La educación prepara lecciones; la evaluación somete una candidata a
     # sandbox, medición y gates. Son etapas distintas del mismo grafo y por eso
     # no comparten tipo de tarea.
@@ -92,9 +66,21 @@ WORKER_TASK_TYPES: tuple[str, ...] = (
     "learning_candidate_generation",
     "learning_candidate_deduplication",
     "learning_evidence_generation",
-)
+]
 
-TERMINAL_TASK_STATUSES = {"completed", "failed", "blocked", "skipped"}
+#: Se deriva del `Literal`, no se reescribe. Las dos listas se venían
+#: manteniendo a mano en paralelo —24 entradas cada una, idénticas por ahora—,
+#: y eso sólo aguanta hasta que alguien añada un tipo de tarea en una y se
+#: olvide de la otra. Entonces el tipo existiría para el validador y no para el
+#: registro, o al revés.
+WORKER_TASK_TYPES: tuple[str, ...] = get_args(WorkerTaskType)
+
+# Era `{"completed", "failed", "blocked", "skipped"}`: dejaba fuera `observed`,
+# `dead_letter`, `timeout`, `lease_lost`, `dry_run` y `cancelled`. Sólo los dos
+# primeros son 327 filas en produccion —el 7 % de la cola— que se habrian
+# contado como si siguieran vivas. No lo hicieron porque este nombre no lo usaba
+# nadie, pero estaba puesto para que alguien lo usara.
+TERMINAL_TASK_STATUSES = TERMINAL
 
 
 def new_worker_run_id() -> str:
