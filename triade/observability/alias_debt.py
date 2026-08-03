@@ -28,6 +28,24 @@ Tres señales, porque los alias no siempre se parecen en el nombre
 Todo sale de la misma evidencia que el resto de grafos: el AST del repositorio y
 SQLite en solo lectura. Nada se escribe y nada se supone: cuando una tabla no
 puede comprobarse, no se acusa.
+
+Lo que este detector NO ve, y por qué importa saberlo
+-----------------------------------------------------
+Un informe con falsos positivos deja de leerse, y entonces la deuda de alias
+vuelve a buscarse como antes: a mano. Estas son las tres categorías conocidas en
+`dead_status_value`, comprobadas sobre el repositorio real el 2026-08-03:
+
+1. **Escrituras parametrizadas.** `SET status = ?` no dice qué valor escribe.
+   `longitudinal.py` escribe así, y por eso sus estados aparecen como muertos.
+2. **Código de migración.** `UPDATE … SET status='internally_checked' WHERE
+   status='verified'` compara un valor legado a propósito, para retirarlo. Es
+   una comparación legítima de algo que nadie debe escribir ya.
+3. **Módulos cuya tabla no existe en la base viva.** `longitudinal_memories` no
+   está creada: sus estados no son alias, son un subsistema entero que nunca ha
+   tocado producción — otra deuda, pero de otra clase.
+
+Las tres se reconocen mirando el fichero señalado. Ninguna invalida la señal:
+`validated_in_runs` salió de aquí, y era el corte terminal del aprendizaje.
 """
 
 from __future__ import annotations
