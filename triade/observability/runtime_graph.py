@@ -114,6 +114,15 @@ _SQL_KEYWORDS = frozenset(
 #: `FROM` también aparece en SQL sobre catálogos internos y en falsos positivos.
 _SQL_NOISE = {"sqlite_master", "sqlite_sequence", "pragma"} | _SQL_KEYWORDS
 
+#: Marca que ocupa el hueco de un valor interpolado en una f-string.
+_DYNAMIC_MARK = "\x00DYN\x00"
+#: Acceso a una tabla cuyo nombre se decide en tiempo de ejecución.
+_SQL_DYNAMIC_READ = re.compile(r"\b(?:FROM|JOIN)\s+" + re.escape(_DYNAMIC_MARK))
+_SQL_DYNAMIC_WRITE = re.compile(
+    r"\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM)\s+"
+    + re.escape(_DYNAMIC_MARK)
+)
+
 
 def _sql_literals(path: Path) -> list[tuple[str, int]]:
     """Cadenas del módulo que contienen SQL, con su línea.
@@ -129,12 +138,33 @@ def _sql_literals(path: Path) -> list[tuple[str, int]]:
         return []
     found: list[tuple[str, int]] = []
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+        if isinstance(node, ast.JoinedStr):
+            text = _flatten_fstring(node)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            text = node.value
+        else:
             continue
-        if not _SQL_VERB.search(node.value):
+        if not _SQL_VERB.search(text):
             continue
-        found.append((node.value, getattr(node, "lineno", 0)))
+        found.append((text, getattr(node, "lineno", 0)))
     return found
+
+
+def _flatten_fstring(node: ast.JoinedStr) -> str:
+    """Aplana una f-string dejando una marca donde va el valor interpolado.
+
+    `f"SELECT * FROM {table}"` es SQL de pleno derecho, pero el nombre de la
+    tabla no está en el texto. Si se ignora, el lector desaparece del grafo; si
+    se toma el texto crudo, `{table}` no encaja con nada. La marca permite
+    detectar el acceso sin inventar a qué tabla apunta.
+    """
+    parts: list[str] = []
+    for value in node.values:
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            parts.append(value.value)
+        else:
+            parts.append(_DYNAMIC_MARK)
+    return "".join(parts)
 
 
 def open_readonly(db_path: Path | None) -> sqlite3.Connection | None:
@@ -196,15 +226,24 @@ def build_table_graph(
     readers: dict[str, set[str]] = {}
     writers: dict[str, set[str]] = {}
     evidence: dict[tuple[str, str, str], str] = {}
+    #: Módulo → línea del primer acceso con nombre de tabla interpolado.
+    dynamic_reads: dict[str, int] = {}
+    dynamic_writes: dict[str, int] = {}
+    declared_by: dict[str, set[str]] = {}
 
     for path in iter_python_files(root):
         relative = path.relative_to(root).as_posix()
         for statement, lineno in _sql_literals(path):
-            declared.update(
-                m.group(1).lower()
-                for m in _SQL_CREATE.finditer(statement)
-                if m.group(1).lower() not in _SQL_KEYWORDS
-            )
+            for match in _SQL_CREATE.finditer(statement):
+                table = match.group(1).lower()
+                if table in _SQL_KEYWORDS:
+                    continue
+                declared.add(table)
+                declared_by.setdefault(relative, set()).add(table)
+            if _SQL_DYNAMIC_READ.search(statement):
+                dynamic_reads.setdefault(relative, lineno)
+            if _SQL_DYNAMIC_WRITE.search(statement):
+                dynamic_writes.setdefault(relative, lineno)
             for pattern, bucket, relation in (
                 (_SQL_READ, readers, "reads"),
                 (_SQL_WRITE, writers, "writes"),
@@ -217,6 +256,25 @@ def build_table_graph(
                     key = (relative, table, relation)
                     if key not in evidence:
                         evidence[key] = f"{relative}:{lineno}"
+
+    # Un módulo que consulta `f"SELECT * FROM {table}"` es lector real de las
+    # tablas cuyo esquema él mismo declara. Sin esto, `qualia/store.py` —que crea
+    # las cinco tablas de Qualia y las lee por un helper genérico— aparecía con
+    # cero lectores, y de ahí salía la conclusión falsa de que Qualia se escribe
+    # y nadie la consume. La atribución se limita a lo que el módulo declara:
+    # fuera de ahí no hay forma honesta de saber a qué tabla apunta.
+    for relative, lineno in sorted(dynamic_reads.items()):
+        for table in declared_by.get(relative, set()):
+            readers.setdefault(table, set()).add(relative)
+            evidence.setdefault(
+                (relative, table, "reads"), f"{relative}:{lineno} (tabla interpolada)"
+            )
+    for relative, lineno in sorted(dynamic_writes.items()):
+        for table in declared_by.get(relative, set()):
+            writers.setdefault(table, set()).add(relative)
+            evidence.setdefault(
+                (relative, table, "writes"), f"{relative}:{lineno} (tabla interpolada)"
+            )
 
     known = set(live) | declared | set(readers) | set(writers)
     # Sin base viva no hay forma de distinguir una tabla real de un falso

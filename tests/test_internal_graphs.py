@@ -292,3 +292,40 @@ def test_neural_graph_is_read_only(tmp_path: Path) -> None:
     assert any(node.node_id == "neuron:12" for node in nodes)
     assert any(edge.relation == "uses_neuron" for edge in edges)
     assert db.read_bytes() == before
+
+
+def test_dynamic_table_access_counts_as_a_reader(tmp_path: Path) -> None:
+    """`f"SELECT * FROM {table}"` es un lector real, no un hueco en el grafo.
+
+    Es el patrón de `qualia/store.py`: crea sus tablas y las lee por un helper
+    genérico. Sin reconocerlo, esas tablas aparecían con cero lectores y de ahí
+    salía la conclusión falsa de que Qualia se escribe y nadie la consume.
+    """
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pkg" / "store.py").write_text(
+        "import sqlite3\n\n\n"
+        "TABLES = ('signals',)\n\n\n"
+        "def init(conn):\n"
+        '    conn.execute("CREATE TABLE IF NOT EXISTS signals (id INTEGER)")\n\n\n'
+        "def read(conn, table):\n"
+        '    return conn.execute(f"SELECT * FROM {table} LIMIT 5").fetchall()\n',
+        encoding="utf-8",
+    )
+    db = tmp_path / "triade.db"
+    connection = sqlite3.connect(db)
+    connection.executescript(
+        "CREATE TABLE signals (id INTEGER);INSERT INTO signals VALUES (1);"
+    )
+    connection.commit()
+    connection.close()
+
+    nodes, edges = build_table_graph(root, db_path=db)
+
+    signals = next(n for n in nodes if n.node_id == "table:signals")
+    assert signals.metadata["readers"] == 1, "el acceso interpolado es una lectura"
+    assert signals.state == "active", "con filas y lector no puede ser legacy"
+    assert any(
+        e.target == "table:signals" and "interpolada" in e.evidence for e in edges
+    ), "la evidencia debe decir que el nombre de tabla se resolvió en ejecución"
