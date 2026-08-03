@@ -1,0 +1,460 @@
+"""Grafos derivados del código real: módulos, llamadas y entrypoints.
+
+Complementa `file_graph`, que describe el sistema de archivos. Aquí sólo entra
+lo que puede demostrarse leyendo el AST del repositorio: un import se resuelve a
+un fichero que existe, una llamada se registra cuando el símbolo destino es
+único, y un entrypoint se declara cuando alguien lo arranca de verdad.
+
+Nada de esto consulta la documentación ni la base viva.
+"""
+
+from __future__ import annotations
+
+import ast
+import re
+from collections.abc import Iterator
+from dataclasses import dataclass
+from pathlib import Path
+
+from .contracts import GraphEdge, GraphNode
+
+SKIP_PARTS = {
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".git",
+    "node_modules",
+    ".venv",
+    "venv",
+    "site-packages",
+}
+SENSITIVE_NAMES = {".env", ".ssh", "secrets", "credentials"}
+
+#: Ficheros de arranque que no son Python pero deciden qué Python se ejecuta.
+_LAUNCH_CONFIG_GLOBS = (
+    "Procfile",
+    "Dockerfile",
+    "Dockerfile.*",
+    "systemd/*.service",
+    ".github/workflows/*.yml",
+    ".github/workflows/*.yaml",
+)
+_MODULE_LAUNCH = re.compile(r"python[0-9.]*\s+-m\s+([A-Za-z_][\w.]*)")
+_UVICORN_LAUNCH = re.compile(r"(?:uvicorn|--factory)\s+([A-Za-z_][\w.]*):(\w+)")
+_SCRIPT_LAUNCH = re.compile(r"python[0-9.]*\s+([\w./-]+\.py)")
+
+
+def _is_sensitive(path: Path) -> bool:
+    return any(part.lower() in SENSITIVE_NAMES for part in path.parts)
+
+
+def iter_python_files(root: Path) -> Iterator[Path]:
+    """Recorre el repositorio en orden estable, saltando ruido y secretos."""
+    for path in sorted(root.rglob("*.py")):
+        relative = path.relative_to(root)
+        if any(part in SKIP_PARTS for part in relative.parts):
+            continue
+        if _is_sensitive(relative):
+            continue
+        yield path
+
+
+def module_name(root: Path, path: Path) -> str:
+    """Nombre punteado del módulo tal y como lo vería un `import`."""
+    relative = path.relative_to(root)
+    parts = list(relative.parts)
+    if parts[-1] == "__init__.py":
+        parts = parts[:-1]
+    else:
+        parts[-1] = parts[-1][: -len(".py")]
+    return ".".join(parts)
+
+
+@dataclass(frozen=True, slots=True)
+class ModuleIndex:
+    """Índice de módulos internos: el único universo que podemos resolver."""
+
+    by_module: dict[str, str]
+    by_path: dict[str, str]
+
+    def resolve(self, dotted: str) -> str | None:
+        """Devuelve la ruta del módulo interno, o el paquete que lo contiene."""
+        candidate = dotted
+        while candidate:
+            if candidate in self.by_module:
+                return self.by_module[candidate]
+            candidate = candidate.rpartition(".")[0]
+        return None
+
+
+def build_module_index(root: Path) -> ModuleIndex:
+    by_module: dict[str, str] = {}
+    by_path: dict[str, str] = {}
+    for path in iter_python_files(root):
+        relative = path.relative_to(root).as_posix()
+        dotted = module_name(root, path)
+        by_module[dotted] = relative
+        by_path[relative] = dotted
+    return ModuleIndex(by_module=by_module, by_path=by_path)
+
+
+def _parse(path: Path) -> ast.Module | None:
+    try:
+        return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, UnicodeDecodeError, SyntaxError, ValueError):
+        return None
+
+
+def _absolute_module(dotted: str | None, level: int, current: str) -> str | None:
+    """Traduce un import relativo (`from . import x`) a su nombre absoluto."""
+    if not level:
+        return dotted
+    base = current.split(".")
+    # Un módulo `a.b.c` está dentro del paquete `a.b`; un `__init__` ya es su paquete.
+    package = base[:-1] if len(base) > 1 else base
+    trimmed = package[: len(package) - (level - 1)] if level > 1 else package
+    if not trimmed:
+        return dotted
+    return ".".join([*trimmed, dotted]) if dotted else ".".join(trimmed)
+
+
+def build_import_graph(
+    root: Path, index: ModuleIndex | None = None
+) -> tuple[list[GraphNode], list[GraphEdge]]:
+    """Grafo 1: módulos e imports, con el destino resuelto a fichero real.
+
+    Los imports externos se conservan como nodos aparte para poder auditar
+    dependencias, pero nunca se confunden con módulos del repositorio.
+    """
+    root = root.resolve()
+    index = index or build_module_index(root)
+    nodes: dict[str, GraphNode] = {}
+    edges: list[GraphEdge] = []
+    imported: set[str] = set()
+
+    for relative, dotted in sorted(index.by_path.items()):
+        node_id = f"module:{relative}"
+        nodes[node_id] = GraphNode(
+            node_id,
+            "module",
+            dotted,
+            "active",
+            {"path": relative, "internal": True},
+        )
+
+    for relative, dotted in sorted(index.by_path.items()):
+        tree = _parse(root / relative)
+        if tree is None:
+            nodes[f"module:{relative}"] = GraphNode(
+                f"module:{relative}",
+                "module",
+                dotted,
+                "unknown",
+                {"path": relative, "internal": True, "unparsable": True},
+            )
+            continue
+        source = f"module:{relative}"
+        for item in ast.walk(tree):
+            targets: list[str] = []
+            if isinstance(item, ast.Import):
+                targets = [alias.name for alias in item.names]
+            elif isinstance(item, ast.ImportFrom):
+                absolute = _absolute_module(item.module, item.level, dotted)
+                if absolute is None:
+                    continue
+                # `from pkg import mod` puede apuntar a un submódulo o a un símbolo.
+                targets = [absolute, *(f"{absolute}.{a.name}" for a in item.names)]
+            else:
+                continue
+            for target in targets:
+                resolved = index.resolve(target)
+                if resolved is not None:
+                    if resolved == relative:
+                        continue
+                    target_id = f"module:{resolved}"
+                    imported.add(target_id)
+                    relation = "imports"
+                else:
+                    root_package = target.partition(".")[0]
+                    target_id = f"external:{root_package}"
+                    nodes.setdefault(
+                        target_id,
+                        GraphNode(
+                            target_id,
+                            "module",
+                            root_package,
+                            "unknown",
+                            {"internal": False},
+                        ),
+                    )
+                    relation = "imports_external"
+                edge = GraphEdge(
+                    source,
+                    target_id,
+                    relation,
+                    f"{relative}:{getattr(item, 'lineno', 0)}",
+                )
+                if edge not in edges:
+                    edges.append(edge)
+
+    for node_id, node in nodes.items():
+        if not node.metadata.get("internal") or node_id in imported:
+            continue
+        nodes[node_id] = GraphNode(
+            node.node_id,
+            node.kind,
+            node.label,
+            "disconnected",
+            {**node.metadata, "imported_by": 0},
+        )
+
+    return sorted(nodes.values(), key=lambda n: n.node_id), edges
+
+
+@dataclass(frozen=True, slots=True)
+class SymbolTable:
+    """Símbolos definidos por fichero, y su índice global por nombre simple."""
+
+    definitions: dict[str, tuple[str, int]]
+    by_name: dict[str, list[str]]
+
+
+def build_symbol_table(root: Path, index: ModuleIndex) -> SymbolTable:
+    definitions: dict[str, tuple[str, int]] = {}
+    by_name: dict[str, list[str]] = {}
+    for relative in sorted(index.by_path):
+        tree = _parse(root / relative)
+        if tree is None:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(
+                node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+            ):
+                continue
+            symbol_id = f"symbol:{relative}:{node.name}"
+            if symbol_id in definitions:
+                continue
+            definitions[symbol_id] = (relative, node.lineno)
+            by_name.setdefault(node.name, []).append(symbol_id)
+    return SymbolTable(definitions=definitions, by_name=by_name)
+
+
+def _called_name(node: ast.Call) -> str | None:
+    func = node.func
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def build_call_graph(
+    root: Path, index: ModuleIndex | None = None
+) -> tuple[list[GraphNode], list[GraphEdge]]:
+    """Grafo 2: llamadas entre funciones y clases demostrables estáticamente.
+
+    Sólo se registra la arista cuando el nombre invocado corresponde a **una**
+    definición en todo el repositorio. Si hay homónimos no se adivina: el
+    símbolo se marca como ambiguo y la llamada no se dibuja.
+    """
+    root = root.resolve()
+    index = index or build_module_index(root)
+    symbols = build_symbol_table(root, index)
+
+    nodes: dict[str, GraphNode] = {}
+    for symbol_id, (relative, lineno) in symbols.definitions.items():
+        name = symbol_id.rpartition(":")[2]
+        nodes[symbol_id] = GraphNode(
+            symbol_id,
+            "class" if name[:1].isupper() else "function",
+            name,
+            "unknown",
+            {
+                "path": relative,
+                "line": lineno,
+                "ambiguous": len(symbols.by_name[name]) > 1,
+            },
+        )
+
+    edges: list[GraphEdge] = []
+    called: set[str] = set()
+    for relative in sorted(index.by_path):
+        tree = _parse(root / relative)
+        if tree is None:
+            continue
+        # Cada llamada se atribuye a la función que la contiene, no al fichero.
+        stack: list[str] = []
+        for node, enclosing in _walk_with_scope(tree, relative, stack):
+            if not isinstance(node, ast.Call):
+                continue
+            name = _called_name(node)
+            if name is None:
+                continue
+            candidates = symbols.by_name.get(name)
+            if not candidates or len(candidates) != 1:
+                continue
+            target = candidates[0]
+            if enclosing is None or enclosing == target:
+                continue
+            called.add(target)
+            edge = GraphEdge(
+                enclosing,
+                target,
+                "calls",
+                f"{relative}:{getattr(node, 'lineno', 0)}",
+            )
+            if edge not in edges:
+                edges.append(edge)
+
+    for symbol_id, node in nodes.items():
+        state = "active" if symbol_id in called else "disconnected"
+        nodes[symbol_id] = GraphNode(
+            node.node_id,
+            node.kind,
+            node.label,
+            state,
+            {**node.metadata, "called": symbol_id in called},
+        )
+
+    return sorted(nodes.values(), key=lambda n: n.node_id), edges
+
+
+def _walk_with_scope(
+    tree: ast.Module, relative: str, stack: list[str]
+) -> Iterator[tuple[ast.AST, str | None]]:
+    """Recorre el AST anotando en qué símbolo definido está cada nodo."""
+
+    def visit(node: ast.AST) -> Iterator[tuple[ast.AST, str | None]]:
+        pushed = False
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            stack.append(f"symbol:{relative}:{node.name}")
+            pushed = True
+        yield node, stack[-1] if stack else None
+        for child in ast.iter_child_nodes(node):
+            yield from visit(child)
+        if pushed:
+            stack.pop()
+
+    for child in ast.iter_child_nodes(tree):
+        yield from visit(child)
+
+
+def build_entrypoint_graph(
+    root: Path, index: ModuleIndex | None = None
+) -> tuple[list[GraphNode], list[GraphEdge]]:
+    """Grafo 3: entrypoints reales y quién los arranca.
+
+    Un guard `__main__` prueba que el fichero *puede* ejecutarse solo. Que
+    alguien lo ejecute de verdad sólo lo prueban Procfile, Dockerfile, unidades
+    systemd, workflows y `[project.scripts]`.
+    """
+    root = root.resolve()
+    index = index or build_module_index(root)
+    nodes: dict[str, GraphNode] = {}
+    edges: list[GraphEdge] = []
+
+    for relative in sorted(index.by_path):
+        tree = _parse(root / relative)
+        if tree is None:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.If):
+                continue
+            if not _is_main_guard(node.test):
+                continue
+            node_id = f"entrypoint:{relative}"
+            nodes[node_id] = GraphNode(
+                node_id,
+                "file",
+                relative,
+                "unknown",
+                {
+                    "path": relative,
+                    "module": index.by_path[relative],
+                    "kind": "main_guard",
+                    "line": node.lineno,
+                    "launchers": 0,
+                },
+            )
+            break
+
+    for launcher, target, evidence in _iter_launchers(root, index):
+        node_id = f"entrypoint:{target}"
+        existing = nodes.get(node_id)
+        metadata = (
+            dict(existing.metadata)
+            if existing
+            else {
+                "path": target,
+                "module": index.by_path.get(target, target),
+                "kind": "launched",
+                "launchers": 0,
+            }
+        )
+        metadata["launchers"] = int(metadata.get("launchers", 0)) + 1
+        nodes[node_id] = GraphNode(node_id, "file", target, "active", metadata)
+        launcher_id = f"launcher:{launcher}"
+        nodes.setdefault(
+            launcher_id,
+            GraphNode(launcher_id, "file", launcher, "active", {"path": launcher}),
+        )
+        edge = GraphEdge(launcher_id, node_id, "launches", evidence)
+        if edge not in edges:
+            edges.append(edge)
+
+    for node_id, node in nodes.items():
+        if not node_id.startswith("entrypoint:"):
+            continue
+        if node.metadata.get("launchers"):
+            continue
+        nodes[node_id] = GraphNode(
+            node.node_id, node.kind, node.label, "disconnected", node.metadata
+        )
+
+    return sorted(nodes.values(), key=lambda n: n.node_id), edges
+
+
+def _is_main_guard(test: ast.expr) -> bool:
+    if not isinstance(test, ast.Compare) or not isinstance(test.left, ast.Name):
+        return False
+    if test.left.id != "__name__":
+        return False
+    return any(
+        isinstance(c, ast.Constant) and c.value == "__main__" for c in test.comparators
+    )
+
+
+def _iter_launchers(root: Path, index: ModuleIndex) -> Iterator[tuple[str, str, str]]:
+    """Extrae (lanzador, fichero lanzado, evidencia) de la configuración real."""
+    sources: list[Path] = []
+    for pattern in _LAUNCH_CONFIG_GLOBS:
+        sources.extend(sorted(root.glob(pattern)))
+    pyproject = root / "pyproject.toml"
+    if pyproject.exists():
+        sources.append(pyproject)
+
+    for source in sources:
+        if not source.is_file():
+            continue
+        try:
+            text = source.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        launcher = source.relative_to(root).as_posix()
+        for pattern in (_MODULE_LAUNCH, _UVICORN_LAUNCH):
+            for match in pattern.finditer(text):
+                resolved = index.resolve(match.group(1))
+                if resolved:
+                    yield launcher, resolved, f"{launcher}: {match.group(0).strip()}"
+        for match in _SCRIPT_LAUNCH.finditer(text):
+            candidate = match.group(1).lstrip("./")
+            if candidate in index.by_path:
+                yield launcher, candidate, f"{launcher}: {match.group(0).strip()}"
+        if source.name == "pyproject.toml":
+            for match in re.finditer(
+                r'^\s*[\w-]+\s*=\s*"([\w.]+):\w+"', text, re.MULTILINE
+            ):
+                resolved = index.resolve(match.group(1))
+                if resolved:
+                    yield launcher, resolved, f"{launcher}: {match.group(0).strip()}"
