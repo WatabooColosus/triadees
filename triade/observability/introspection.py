@@ -246,9 +246,19 @@ def build_debt_report(
 
 
 def _entry(values: list[str], evidence: str) -> dict[str, Any]:
+    """Una categoría de deuda: cuánta, unos ejemplos y de dónde salió.
+
+    `items` lleva la lista **completa** además de la muestra. El panel enseña
+    `sample` para no volcar cien nombres en pantalla, pero un contador cuyo
+    detalle no se puede recuperar no es auditable: al triar los 100 elementos,
+    29 quedaban fuera de toda clasificación sólo porque el informe los había
+    recortado. La muestra es para leer; la lista completa es para responder.
+    """
+    ordenados = sorted(values)
     return {
-        "count": len(values),
-        "sample": sorted(values)[:SAMPLE],
+        "count": len(ordenados),
+        "sample": ordenados[:SAMPLE],
+        "items": ordenados,
         "evidence": evidence,
     }
 
