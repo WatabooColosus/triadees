@@ -4,90 +4,83 @@
 
 ## Identificación
 
-- Rama: `feat/claude-external-supervisor`
-- Commit base del ciclo: `5757e64`
-- PR: #69
+- Rama: `main`
+- Commit del ciclo: `b43db93`
 - Fecha de auditoría: 2026-08-03
-- Entorno ejecutado: Lightning Studio, NVIDIA L4 24 GB · 8 CPU · 31 GB RAM.
-  Ollama 11434 con seis modelos presentes; app en 8010 arrancada y verificada;
-  base viva `triade/memory/triade.db` (107 tablas) abierta siempre en `mode=ro`.
+- Runtime: reiniciado a las 08:00 UTC con `.env` cargado. Watchdog en proceso
+  (latido cada 60 s), governor de recursos por ciclo, backup diario activo.
+- Entorno: Lightning Studio, NVIDIA L4 24 GB · 8 CPU · 31 GB RAM. Ollama en
+  11434; app en 8010 bajo `nohup uvicorn`; base viva `triade/memory/triade.db`
+  abierta siempre en `mode=ro` para auditar.
 
-## Estado verificable
+## Cómo leer la deuda sin engañarse
 
-Las cifras salen de `artifacts/internal_graphs/`, regenerable con
-`python scripts/build_internal_graphs.py --output artifacts/internal_graphs`.
-No hay porcentajes globales: cada celda cita el grafo que la sostiene.
+`/api/internal-graphs/debt`, o:
 
-**Antes de citar cualquier cifra, comprobar la edad del artefacto.** Desde
-D-009 la lectura la regenera sola cuando pasa de 15 min
-(`TRIADE_GRAPHS_STALE_SECONDS`), pero la respuesta de esa misma petición todavía
-describe la generación anterior: es la siguiente la que trae lo nuevo. El campo
-`refresh` de `/api/internal-graphs/debt` dice si está al día, caducado o
-reconstruyéndose. Antes de D-009 nadie los regeneraba en el Studio y el panel
-llegó a repetir una medición de hacía dos horas como si fuera actual (F-033).
+    python scripts/build_internal_graphs.py --output artifacts/internal_graphs
 
-**`debt_items_total` no es un marcador.** Baja también cuando se borra el
-escritor de una tabla vacía, que es una degradación (F-034). Un descenso hay que
-explicarlo por categoría antes de leerlo como mejora.
+Tres reglas antes de citar la cifra:
 
-| Área | Estado | Evidencia | Vigencia |
-|---|---|---|---|
-| Seguridad e identidad | PARTIAL | `.env` y `.git` viajan enmascarados como `crypt:<sha256>` y sin contenido (`test_graphs_never_expose_secrets`). `identity_core` intacto, 6 filas, no tocado en este ciclo | 2026-08-03 |
-| Grafo físico | VERIFIED | `file_graph.json`: 14 524 nodos, 22 ocultos inventariados, directorios de datos contados sin expandir | 2026-08-03 |
-| Grafo de imports | VERIFIED | `import_graph.json`: 803 módulos, 5 303 aristas, 403 sin importador (54 en `triade/` y `apps/`) | 2026-08-03 |
-| Grafo de llamadas | PARTIAL | `call_graph.json`: 6 753 símbolos, 9 850 llamadas resueltas. Sólo estático: no ve despacho dinámico | 2026-08-03 |
-| Grafo de entrypoints | VERIFIED | `entrypoint_graph.json`: 77 entrypoints, 14 con lanzador real, 63 sin nadie que los arranque | 2026-08-03 |
-| Grafo neural/runtime | VERIFIED | `neural_graph.json`: 402 nodos y 1 282 aristas desde SQLite en solo lectura | 2026-08-03 |
-| LIFE_PULSE | VERIFIED | `vital_chain_graph.json`: `metabolic_cycle` 5 048 filas con actividad en 24 h | 2026-08-03 |
-| Workers y scheduler | PARTIAL | `worker_graph.json`: 24 tipos declarados, 24 con handler, 9 con cero ejecuciones históricas | 2026-08-03 |
-| SQLite y Bodega | PARTIAL | `table_graph.json`: 279 tablas referidas en código, 107 vivas. 11 vivas sin lector, 31 con escritor y cero filas | 2026-08-03 |
-| Aprendizaje y educación | DISCONNECTED | `neuron_education_applications` 0 filas con 6 lectores y 5 escritores: el ciclo educativo nunca se aplica | 2026-08-03 |
-| Qualia y Cristal | UNPROVEN_ACTIVITY | `qualia_*` suman ~16 600 filas y ningún lector en el código: se escribe y no se consume | 2026-08-03 |
-| CI y pruebas | PARTIAL | Suite completa ejecutada en este ciclo; `tests/test_internal_graphs.py` 13 pruebas. `schemas.sql` incompleto hace que el planner se pruebe truncado (F-011) | 2026-08-03 |
+1. **Comprobar la edad.** La estructura sale de artefactos. Desde D-009 la
+   lectura los regenera sola al pasar de 15 min, pero *esa misma respuesta*
+   describe la generación anterior: es la siguiente la que trae lo nuevo. El
+   campo `refresh` dice si está al día, caducado o reconstruyéndose.
+2. **Un descenso no es una mejora.** `debt_items_total` baja también al borrar un
+   escritor o un fichero. Explicar por categoría antes de celebrar.
+3. **Una subida tampoco es un empeoramiento.** El 2026-08-03 pasó de 56 a 111 al
+   dejar de esconder dos categorías, y de ahí a 63 al corregir tres defectos de
+   medición. La deuda no se movió tanto como la honestidad del contador.
+
+## Deuda medida — 63 elementos (2026-08-03, grafos regenerados)
+
+| categoría | n | naturaleza |
+|---|---|---|
+| tables with writer and no rows | 20 | Órganos completos que **nunca se han ejercitado**: todas tienen lector *y* escritor (1–3 cada una). `goals`, `kg_*`, `capability_registry`. No es código muerto: es capacidad sin estrenar |
+| entrypoints without launcher | 17 | Herramientas de auditoría reales (86–335 líneas) que nadie sabe ejecutar sin leer el código |
+| tables without reader or writer | 9 | Todas con 0 filas. Contrato pendiente: `benchmark_*` es el banco de pruebas que bloquea la autoevolución |
+| task types never executed | 8 | Con handler cableado. Falta que se cumpla su precondición, no código |
+| tables written never read | 5 | Se mide y nadie consume la medida |
+| modules without importer | 3 | 554 líneas, cero referencias. Por decisión del operador (D-017) **no se borran: se conectarán** |
+| declared services not running | 0 | Se mide por efecto desde F-052 |
+| backup protection gaps | 0 | Clave rotada y copia verificada el 2026-08-03 |
+| vital chain gaps | 1 | El eslabón `plan` sin escrituras desde el 1 de agosto (F-056) |
+
+## Lo que se reparó en este ciclo
+
+| # | qué estaba roto | prueba de que ya no |
+|---|---|---|
+| F-033 | El panel de deuda servía artefactos de horas como medición actual | Regeneración en segundo plano, no bloqueante: 0,4 s la petición, 55 s la reconstrucción |
+| F-037/F-038 | El planner elegía 1 candidato de 665 y lo reintentaba para siempre | 20 evidencias nuevas en 40 min, sobre candidatos distintos |
+| F-040 | El watchdog llevaba 3 días sin ejecutarse | Latido cada 60 s desde el reinicio |
+| F-042 | Un `sqlite3.Error` abortaba todo `_plan_baseline` en instalación nueva | Prueba sobre base recién creada |
+| F-043 | El worker gastaba sin consultar al metabolismo | Señal `worker_cycle_governor` por ciclo |
+| F-046/F-047 | Cuatro días sin backup, en silencio, y clave perdida | Clave rotada, copia verificada con simulacro de restauración |
+| F-050 | `/api/runtime/build` informaba del repo, no del código cargado | `code_matches_repo` en la respuesta |
+| F-052 | Tres defectos de medición contaban deuda inexistente | 68 → 63 |
+| F-053 | El sandbox declaraba límites que no aplicaba | Consumo medido y comparado; `sandbox_replay` con filas |
+
+## Lo abierto, por riesgo
+
+1. **F-055 (Alta)** — `federated_inference_probe` y `browser_benchmark` devuelven
+   `random.randint()` como si fuera medición, por el mismo camino que un
+   resultado real.
+2. **F-056 (Alta)** — el eslabón `plan` no escribe desde el 1 de agosto: el
+   sistema ejecuta sin replanificar.
+3. **F-039 (Media)** — `improvement_proposals` e `improvement_canaries` no
+   existen como tablas: `create_proposal` sólo lo llaman los tests.
+4. **F-045 (Media)** — `metabolic_signals` tiene 3 escritores y ningún lector.
+5. **F-044 (Media)** — `deploy/systemd/` declara servicios que aquí se cumplen
+   en proceso; las unidades describen un despliegue que no existe.
+6. **F-051 (Media)** — una conexión SSE abierta impide el cierre ordenado
+   indefinidamente.
+7. **F-054 (Baja)** — los `False` de red y escrituras del sandbox son ciertos por
+   construcción, sin instrumentación que lo respalde.
 
 ## Cadena vital medida
 
 `LIFE_PULSE → necesidad → plan → tarea → cola → worker → ejecución → verificación
 → aprendizaje → Bodega → efecto futuro`
 
-Diez de los once eslabones tienen filas y actividad en 24 h. El undécimo, `Bodega`,
-es el que se estrecha: `episodic_memory` 241 filas y `semantic_memory` 0. Ese
-estrechamiento es lo que se trabajó en este ciclo (F-002).
-
-## Fase activa
-
-Fase 2 cerrada (grafos verificables) y Fase 4 abierta (memoria y aprendizaje).
-
-## Bloqueos actuales
-
-- F-005: Qualia escribe ~16 600 filas que nadie lee. Bloquea afirmar que Qualia
-  influye en el comportamiento.
-- F-006: la educación neuronal no registra ni una aplicación.
-- F-011: el esquema de pruebas no refleja la base viva, así que la suite puede
-  pasar sobre rutas que en producción se comportan de otro modo.
-
-## Aprendizaje a partir del error (F-018)
-
-Aprobado por el operador el 2026-08-03. Seis estados terminales —`failed`,
-`timeout`, `dead_letter`, `lease_lost`, `blocked`, `cancelled`— dejan un
-candidato de aprendizaje con la causa dentro. `completed` y `skipped` no
-enseñan nada y no ingestan.
-
-El límite es la parte que sostiene el permiso: el candidato **nunca** es
-evidencia. `PRODUCTION_STATES` sigue siendo `{evidence_verified, stable}`, así
-que un error acumula hacia el umbral sin cambiar lo que Tríade responde hasta
-que gane evidencia. Fijado por `tests/test_failures_become_knowledge.py`.
-
-## Última mejora comprobada
-
-F-002: `semantic_memory_governance` pasó de imposible a encolable. La compuerta
-del planner contaba sobre una tabla retirada con 0 filas; ahora cuenta sobre el
-almacén vivo, que tiene 186 documentos `candidate`. Verificado contra la base de
-producción en solo lectura y con una prueba que falla sin el arreglo.
-
-## Próximo paso verificable
-
-Cerrar F-014 por el otro extremo: `bodega._search_semantic` sigue recuperando de
-`semantic_memory` y por tanto devuelve siempre vacío. Son 11 lectores apuntando a
-la tabla retirada; requieren mapeo de columnas (`key`/`value` frente a
-`document_id`/`content`) y por eso no entraron en este ciclo.
+Todos los eslabones escriben en el último minuto salvo **plan** (F-056).
+`semantic_memory` y `neuron_education_applications` siguen a 0 filas: la Bodega
+recibe episodios pero no consolida semántica, y el ciclo educativo no se aplica.
