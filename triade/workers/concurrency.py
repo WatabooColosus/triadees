@@ -158,7 +158,6 @@ TASK_CONCURRENCY_POLICY: dict[str, TaskConcurrencyPolicy] = {
         "evaluation", 1, "model", ("version_id",)
     ),
     # ── memory_write: escriben memoria gobernada; serial ────────────────
-    "memory_consolidation_review": TaskConcurrencyPolicy("memory_write", 1, "light"),
     "stable_consolidation_review": TaskConcurrencyPolicy("memory_write", 1, "light"),
     "semantic_memory_governance": TaskConcurrencyPolicy("memory_write", 1, "light"),
     "encrypted_backup": TaskConcurrencyPolicy("memory_write", 1, "io"),

@@ -42,7 +42,19 @@ WorkerTaskType = Literal[
     "experimental_neuron_activity",
     "neuron_autopromotion",
     "federation_inbox_review",
-    "memory_consolidation_review",
+    # `memory_consolidation_review` se retiró el 2026-08-03, aprobado por el
+    # operador. No estaba desconectado por descuido: era un cascarón. Su handler
+    # listaba candidatos `internally_checked`, anotaba `awaiting_real_run_evidence`
+    # y no avanzaba ninguno —su propio test asertaba `run_use_count == 0`—, y
+    # además construía un SemanticMemoryStore y un SemanticMemoryGovernance para
+    # descartarlos. Sin productor desde que `_plan_memory_consolidation` pasó a
+    # planificar `stable_consolidation_review`, acumuló 208 ejecuciones hasta el
+    # 29-jul y ninguna desde entonces.
+    #
+    # Lo sustituye la vía de evidencia —`learning_evidence_generation` mide y
+    # `stable_consolidation_review` consolida—, que es el único caso en que el
+    # criterio del operador admite retirar en vez de conectar: superado por otro
+    # vivo que hace lo mismo. Las 208 filas históricas se conservan.
     "stable_consolidation_review",
     "system_debt_scan",
     "bodega_global_review",

@@ -1369,7 +1369,6 @@ class WorkerLoop:
                     "experimental_neuron_activity": self._experimental_neuron_activity,
                     "neuron_autopromotion": self._neuron_autopromotion,
                     "federation_inbox_review": self._federation_inbox_review,
-                    "memory_consolidation_review": self._memory_consolidation_review,
                     "stable_consolidation_review": self._stable_consolidation_review,
                     "system_debt_scan": self._system_debt_scan,
                     "bodega_global_review": self._bodega_global_review,
@@ -2717,32 +2716,6 @@ class WorkerLoop:
             "doctor": federation.doctor(),
             "recent_exchanges": [dict(row) for row in rows],
             "external_network": False,
-        }
-
-    def _memory_consolidation_review(
-        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
-    ) -> dict[str, Any]:
-        pipe = LearningPipeline(db_path=self.db_path)
-        SemanticMemoryStore(db_path=self.db_path)
-        SemanticMemoryGovernance(db_path=self.db_path)
-        sandbox = WorkerSandbox(task_dir)
-        promoted = []
-        for candidate in pipe.list_candidates(status="internally_checked", limit=5):
-            sb = sandbox.run(
-                "analyze_memory_candidate", candidate, timeout=config.task_timeout
-            )
-            if sb.get("status") != "ok" or not candidate.get("source_ref"):
-                continue
-            promoted.append(
-                {
-                    "candidate_id": candidate.get("candidate_id"),
-                    "action": "awaiting_real_run_evidence",
-                }
-            )
-        return {
-            "status": "completed",
-            "run_tracking_updates": promoted,
-            "stable_memory_written": False,
         }
 
     def _peft_canary_observation(

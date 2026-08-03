@@ -241,9 +241,12 @@ def main() -> None:
         "> - `bodega_global_review`: lo produce `os/event_engine.py` desde el",
         ">   campo `action` de una regla, no desde un literal de tarea.",
         ">",
-        "> El único huérfano real confirmado es `memory_consolidation_review`:",
-        "> `_plan_memory_consolidation()` encola `stable_consolidation_review`,",
-        "> no éste. Dos nombres cercanos, uno muerto.",
+        "> `memory_consolidation_review` era el único huérfano real confirmado —",
+        "> `_plan_memory_consolidation()` encola `stable_consolidation_review`, no",
+        "> éste: dos nombres cercanos, uno muerto—. Se retiró el 2026-08-03 tras",
+        "> comprobar que su handler no avanzaba ningún candidato y que la vía de",
+        "> evidencia lo sustituye por completo. Sus 208 ejecuciones históricas",
+        "> siguen en la cola.",
         "",
         (
             "\n".join(f"- `{t}`" for t in huerfanas)

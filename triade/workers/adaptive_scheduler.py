@@ -54,7 +54,6 @@ class AdaptiveScheduler:
         "experimental_neuron_activity": 240.0,
         "neuron_autopromotion": 360.0,
         "federation_inbox_review": 120.0,
-        "memory_consolidation_review": 300.0,
         "stable_consolidation_review": 600.0,
         "system_debt_scan": 600.0,
         "bodega_global_review": 180.0,

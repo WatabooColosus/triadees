@@ -210,7 +210,6 @@ TASK_OPERATION: dict[str, str] = {
     "learning_candidate_deduplication": "deduplicate_candidates",
     "learning_evidence_generation": "generate_evidence",
     "pending_learning_review": "evaluate_candidate",
-    "memory_consolidation_review": "contrast_with_memory",
     "stable_consolidation_review": "consolidate_low_risk_knowledge",
     "semantic_memory_governance": "contrast_with_memory",
     # ── observación e informes ───────────────────────────────────────
