@@ -106,3 +106,33 @@ def test_una_frase_sin_orden_sigue_siendo_conversacion(
     resolucion = resolver.resolve("el documento estaba muy bien redactado")
     assert resolucion.actionable is False
     assert resolucion.capability == "conversation"
+
+
+@pytest.mark.parametrize(
+    "pregunta",
+    [
+        # Las dos que dejaron goals esperando aprobación humana desde julio.
+        "puedes crear imagenes?",
+        "tu podrias descargar la forma optima de hacer las cosas",
+        "¿puedes crear imagenes?",
+        "sabes compilar el frontend?",
+        "oye, puedes compilar el frontend",
+        "hola me puedes investigar algo",
+        "cómo investigo esto?",
+        "es posible instalar numpy",
+    ],
+)
+def test_una_pregunta_no_abre_un_expediente(
+    resolver: CapabilityResolver, pregunta: str
+) -> None:
+    """Preguntar por una capacidad no puede crear un goal que nadie cierra.
+
+    `"puedes crear imagenes?"` resolvía a `repo_modification` y dejó un goal en
+    `awaiting_approval` desde el 2026-07-29; `"tu podrias descargar…"` hizo lo
+    mismo con `environment_install` el 1-ago. Nadie los leía y nadie avisaba.
+    """
+    resolucion = resolver.resolve(pregunta)
+    assert resolucion.actionable is False
+    assert resolucion.capability == "conversation"
+    assert resolucion.worker_task_type is None
+    assert resolucion.requires_human_approval is False
