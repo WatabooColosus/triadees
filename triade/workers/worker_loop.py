@@ -186,6 +186,14 @@ class WorkerSandbox:
         return result
 
 
+#: Estados de los que sí se aprende (F-018, aprobado el 2026-08-03). Un
+#: `completed` no enseña nada; un fallo, un bloqueo o un gate bajo sí. Se
+#: excluye `skipped` porque suele ser trámite y no incidente.
+_STATUSES_WORTH_LEARNING = frozenset(
+    {"failed", "timeout", "dead_letter", "lease_lost", "blocked", "cancelled"}
+)
+
+
 class WorkerLoop:
     READ_ONLY_TASKS_WITHOUT_BLOOD = frozenset(
         {
@@ -1402,6 +1410,8 @@ class WorkerLoop:
                     task_type=task.task_type,
                     payload=result,
                 )
+                if persisted_status in _STATUSES_WORTH_LEARNING:
+                    self._learn_from_failure(run_ref, task, persisted_status, result)
                 if task.payload.get("goal_id"):
                     from triade.core.goal_orchestrator import GoalOrchestrator
 
@@ -2689,6 +2699,54 @@ class WorkerLoop:
             "qualia": qualia,
         }
 
+    def _learn_from_failure(
+        self,
+        run_ref: str,
+        task: WorkerTask,
+        status: str,
+        result: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Convierte un fallo o un gate bajo en conocimiento candidato.
+
+        F-018, aprobado por el operador el 2026-08-03. Hasta ahora un fallo se
+        registraba en `worker_events` y ahí moría: el sistema volvía a
+        equivocarse igual porque nada de lo aprendido sobrevivía al evento.
+
+        El candidato entra como `candidate`, nunca como evidencia. Sólo
+        `evidence_verified` y `stable` llegan al prompt, de modo que el saber se
+        acumula hacia el umbral sin cambiar todavía lo que Tríade responde. Esa
+        separación es la que impide que un error se convierta en doctrina por el
+        mero hecho de haber ocurrido.
+        """
+        error = str(result.get("error") or result.get("reason") or "").strip()
+        observation = f"La tarea {task.task_type} terminó en {status}."
+        if error:
+            observation += f" Motivo: {error[:400]}"
+        return self._publish_qualia_experience(
+            run_ref,
+            task.task_type,
+            "worker_failure",
+            observation,
+            extracted_pattern=json.dumps(
+                {"task_type": task.task_type, "status": status, "error": error[:200]},
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            # El candidato guarda el `proposed_learning` como contenido, no la
+            # observación. Si la causa no viaja aquí, se pierde: quien evalúe
+            # después leería «evitar que falle» sin saber por qué falló.
+            proposed_learning=(
+                f"Evitar que {task.task_type} vuelva a terminar en {status}."
+                + (f" Causa observada: {error[:300]}" if error else "")
+            ),
+            # Un fallo es información de baja confianza: describe lo que pasó una
+            # vez, no una regla. La confianza la tiene que ganar con evidencia.
+            confidence=0.3,
+            risk="medium",
+            usefulness=0.6,
+            ingest_learning=True,
+        )
+
     def _system_debt_scan(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
@@ -2732,6 +2790,12 @@ class WorkerLoop:
                 if report.get("debt_items_total")
                 else ""
             ),
+            # F-018, aprobado por el operador el 2026-08-03: la deuda medida sí
+            # genera conocimiento. Entra como `candidate`, no como evidencia:
+            # sólo `evidence_verified` y `stable` llegan al prompt, así que el
+            # saber se acumula hacia el umbral sin influir todavía en lo que
+            # Tríade responde. Una deuda de 0 no enseña nada y no se ingesta.
+            ingest_learning=bool(report.get("debt_items_total")),
         )
         return {
             "status": "observed",
