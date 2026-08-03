@@ -2692,17 +2692,51 @@ class WorkerLoop:
     def _system_debt_scan(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
-        content = "Worker detectó deuda operacional: mantener vivo el ciclo observar→evaluar→sandbox→memoria experimental→medición."
+        """Mide la deuda estructural leyendo los grafos internos.
+
+        Durante 600 ejecuciones esta tarea devolvió siempre la misma frase fija
+        —"mantener vivo el ciclo observar→evaluar…"— sin escanear nada. Decía
+        que había detectado deuda operacional y no había mirado el sistema.
+
+        Ahora lee los grafos internos, que son los que sí recorren el
+        repositorio y la base: tipos de tarea sin ejecutar, tablas que se
+        escriben y nadie lee, módulos sin importador, entrypoints sin lanzador y
+        eslabones de la cadena vital sin latido. El escaneo del AST se reutiliza
+        mientras esté fresco; la parte que cambia entre ciclos se lee siempre.
+        """
+        from triade.observability.introspection import (
+            build_debt_report,
+            summarise_for_humans,
+        )
+
+        report = build_debt_report(
+            Path(__file__).resolve().parents[2],
+            db_path=Path(self.db_path),
+        )
+        content = summarise_for_humans(report)
         qualia = self._publish_qualia_experience(
             run_ref,
             "system_debt_scan",
             "worker_debt",
-            "Deuda operacional detectada: ciclo observar→evaluar→sandbox→memoria experimental→medición.",
-            proposed_learning="Mantener vivo el ciclo de observación y evaluación continua.",
+            content,
+            extracted_pattern=json.dumps(
+                {
+                    name: entry["count"]
+                    for name, entry in report.get("items", {}).items()
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            proposed_learning=(
+                "Reducir la deuda estructural medida en los grafos internos."
+                if report.get("debt_items_total")
+                else ""
+            ),
         )
         return {
             "status": "observed",
             "observation": content,
+            "debt": report,
             "learning_candidate": None,
             "truth": "worker_self_observation_not_learning_evidence",
             "qualia": qualia,

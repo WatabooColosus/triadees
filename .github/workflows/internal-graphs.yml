@@ -1,0 +1,29 @@
+name: Internal Graphs
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-graphs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install project
+        run: pip install -e .
+      - name: Run graph tests
+        run: pytest -q tests/test_internal_graphs.py tests/test_internal_graphs_live.py
+      - name: Build the seven internal graphs
+        run: python scripts/build_internal_graphs.py --output artifacts/internal_graphs
+      - name: Upload graph evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: internal-graphs-${{ github.sha }}
+          path: artifacts/internal_graphs
+          if-no-files-found: error
