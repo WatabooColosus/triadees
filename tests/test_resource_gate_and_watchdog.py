@@ -180,3 +180,63 @@ def test_el_estado_del_watchdog_es_observable() -> None:
     estado = watchdog_autostart.watchdog_status()
     for clave in ("enabled", "active", "status", "ticks", "last_tick_at", "last_error"):
         assert clave in estado, clave
+
+
+def test_el_watchdog_revive_el_hilo_de_workers_caido(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Estuvieron muertos 7 minutos y nadie lo notó: nadie los miraba.
+
+    `worker_autostart` sabe reiniciar, pero sólo cuando alguien llama a
+    `ensure_workers_alive()`, y quien llamaba era un endpoint HTTP. Sin petición
+    humana, un hilo caído seguía caído.
+    """
+    llamadas: list[str] = []
+    import triade.core.worker_autostart as autostart
+
+    monkeypatch.setattr(
+        autostart, "build_workers_always_on_status", lambda: {"thread_alive": False}
+    )
+    monkeypatch.setattr(
+        autostart, "ensure_workers_alive", lambda cfg: llamadas.append("revivido")
+    )
+
+    assert watchdog_autostart._ensure_workers_alive() is True
+    assert llamadas == ["revivido"]
+
+
+def test_el_watchdog_no_revive_lo_que_ya_esta_vivo(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import triade.core.worker_autostart as autostart
+
+    monkeypatch.setattr(
+        autostart, "build_workers_always_on_status", lambda: {"thread_alive": True}
+    )
+    monkeypatch.setattr(
+        autostart,
+        "ensure_workers_alive",
+        lambda cfg: pytest.fail("no debía tocar un hilo vivo"),
+    )
+
+    assert watchdog_autostart._ensure_workers_alive() is False
+
+
+def test_el_watchdog_respeta_una_parada_pedida(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Revivir algo que alguien paró a propósito es desobedecer, no vigilar."""
+    import triade.core.worker_autostart as autostart
+
+    monkeypatch.setattr(
+        autostart,
+        "build_workers_always_on_status",
+        lambda: {"thread_alive": False, "stop_requested": True},
+    )
+    monkeypatch.setattr(
+        autostart,
+        "ensure_workers_alive",
+        lambda cfg: pytest.fail("una parada pedida no se revierte sola"),
+    )
+
+    assert watchdog_autostart._ensure_workers_alive() is False

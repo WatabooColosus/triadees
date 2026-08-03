@@ -48,6 +48,7 @@ _STATE: dict[str, Any] = {
     "last_tick_at": None,
     "last_state": None,
     "last_error": None,
+    "worker_restarts": 0,
 }
 
 
@@ -122,6 +123,7 @@ def _loop(db_path: Path) -> None:
                 verify_heartbeat=_heartbeat_verifier(baseline),
             )
             health = result.get("health") or {}
+            revividos = _ensure_workers_alive()
             with _LOCK:
                 _STATE.update(
                     {
@@ -130,6 +132,8 @@ def _loop(db_path: Path) -> None:
                         "last_state": health.get("state"),
                         "last_error": None,
                         "status": "running",
+                        "worker_restarts": int(_STATE.get("worker_restarts", 0))
+                        + (1 if revividos else 0),
                     }
                 )
         except (OSError, RuntimeError, ValueError, sqlite3.Error) as exc:
@@ -139,6 +143,42 @@ def _loop(db_path: Path) -> None:
             with _LOCK:
                 _STATE.update({"last_error": str(exc), "status": "degraded"})
         time.sleep(interval)
+
+
+def _ensure_workers_alive() -> bool:
+    """Revive el hilo de Living Workers si se ha muerto. Devuelve si lo revivió.
+
+    El 2026-08-03 los workers arrancaron con la app, el hilo salió a los pocos
+    segundos y **estuvieron muertos siete minutos sin que nada lo notara**:
+    `last_error` en blanco, `restart_attempts` en 0 y cero tareas nuevas en la
+    cola. `worker_autostart` tiene reinicio con `watchdog: true`, pero sólo se
+    evalúa cuando alguien llama a `ensure_workers_alive()`, y quien lo llamaba
+    era un endpoint HTTP: sin una petición humana, un hilo caído seguía caído.
+
+    Vigilar que los órganos sigan latiendo es exactamente el trabajo de este
+    hilo, así que la comprobación va aquí. Un fallo no puede tumbar el watchdog:
+    dejar de vigilar por no poder revivir sería cambiar un problema por dos.
+    """
+    try:
+        from triade.core.always_on import load_always_on_config
+        from triade.core.worker_autostart import (
+            build_workers_always_on_status,
+            ensure_workers_alive,
+        )
+
+        antes = build_workers_always_on_status()
+        if antes.get("thread_alive") or antes.get("status") == "disabled":
+            return False
+        if antes.get("stop_requested"):
+            # Una parada pedida a propósito no es una caída: revivirla sería
+            # desobedecer, y el watchdog no está para eso.
+            return False
+        logger.warning("workers_thread_dead: reviviendo desde el watchdog")
+        ensure_workers_alive(load_always_on_config())
+        return True
+    except (ImportError, OSError, RuntimeError, ValueError, sqlite3.Error) as exc:
+        logger.warning("worker_revive_failed: %s", exc)
+        return False
 
 
 def _heartbeat_cycle() -> int | None:
