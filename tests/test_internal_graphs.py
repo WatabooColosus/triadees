@@ -378,3 +378,31 @@ def test_documented_tools_are_not_confused_with_dead_code(tmp_path: Path) -> Non
     assert by_id["entrypoint:scripts/documented.py"].state == "legacy"
     assert by_id["entrypoint:scripts/documented.py"].metadata["documented"] is True
     assert by_id["entrypoint:scripts/forgotten.py"].state == "disconnected"
+
+
+def test_package_init_is_reachable_through_its_modules(tmp_path: Path) -> None:
+    """Python ejecuta el `__init__.py` al importar cualquier módulo del paquete.
+
+    Contarlo como huérfano marcaba como código muerto el `__init__` de paquetes
+    en uso, incluido el del propio módulo de observabilidad: una conclusión que
+    el import que lo carga desmiente.
+    """
+    root = tmp_path / "repo"
+    (root / "pkg" / "sub").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pkg" / "sub" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pkg" / "sub" / "tool.py").write_text(
+        "def go():\n    return 1\n", encoding="utf-8"
+    )
+    (root / "main.py").write_text(
+        "from pkg.sub.tool import go\n\n\ndef run():\n    return go()\n",
+        encoding="utf-8",
+    )
+
+    nodes, _ = build_import_graph(root)
+
+    by_id = {n.node_id: n for n in nodes}
+    assert by_id["module:pkg/sub/tool.py"].state == "active"
+    # Ninguno de los dos `__init__` se nombra, pero ambos se ejecutan.
+    assert by_id["module:pkg/sub/__init__.py"].state == "active"
+    assert by_id["module:pkg/__init__.py"].state == "active"

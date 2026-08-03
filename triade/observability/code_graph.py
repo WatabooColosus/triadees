@@ -212,6 +212,19 @@ def build_import_graph(
                 if edge not in edges:
                     edges.append(edge)
 
+    # Python ejecuta el `__init__.py` de un paquete al importar cualquier módulo
+    # de dentro, aunque nadie lo nombre. Contarlo como huérfano marcaba como
+    # código muerto el `__init__` de paquetes en uso —incluido el de este mismo
+    # módulo—, que es una conclusión que el propio import desmiente.
+    for node_id in list(imported):
+        relative = node_id.partition(":")[2]
+        parts = relative.split("/")[:-1]
+        while parts:
+            package_init = f"module:{'/'.join([*parts, '__init__.py'])}"
+            if package_init in nodes:
+                imported.add(package_init)
+            parts.pop()
+
     for node_id, node in nodes.items():
         if not node.metadata.get("internal") or node_id in imported:
             continue
