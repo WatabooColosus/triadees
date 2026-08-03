@@ -209,12 +209,62 @@ async function load(name) {
 
 function buildTabs() {
   const nav = document.getElementById("tabs");
+  const debt = document.createElement("button");
+  debt.textContent = "⚠ Dónde se rompe";
+  debt.dataset.g = "debt";
+  debt.addEventListener("click", loadDebt);
+  nav.appendChild(debt);
   for (const g of GRAPHS) {
     const b = document.createElement("button");
     b.textContent = NAMES[g]; b.dataset.g = g;
     b.addEventListener("click", () => load(g));
     nav.appendChild(b);
   }
+}
+
+// La deuda no es un grafo: es la lista de lo que está roto, con su evidencia y
+// ejemplos concretos para poder ir a mirarlo.
+async function loadDebt() {
+  document.querySelectorAll("#tabs button").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.g === "debt")));
+  svg.innerHTML = "";
+  setStatus("midiendo deuda…");
+  const res = await fetch("/api/internal-graphs/debt");
+  const d = await res.json();
+  const box = document.getElementById("detail");
+  if (d.status !== "measured") {
+    box.innerHTML = `<p class="empty">No medible: ${escapeHtml(d.reason || "")}. ` +
+      `Genera los grafos con <code>python scripts/build_internal_graphs.py</code>.</p>`;
+    setStatus("sin grafos generados");
+    document.getElementById("counts").innerHTML = "";
+    return;
+  }
+  const entries = Object.entries(d.items).sort((a, b) => b[1].count - a[1].count);
+  document.getElementById("counts").innerHTML =
+    `<span class="chip"><b>${d.debt_items_total}</b> elementos de deuda</span>` +
+    `<span class="chip">grafos de hace ${Math.round(d.graphs_age_seconds / 60)} min</span>`;
+  box.innerHTML = `<h2>Deuda estructural</h2>` + entries.map(([name, e]) => `
+    <div class="edge-item">
+      <b>${escapeHtml(name.replace(/_/g, " "))}</b> — ${e.count}<br>
+      <code>${escapeHtml(e.evidence)}</code>
+      ${e.sample.length ? "<br>" + e.sample.map(s => escapeHtml(s)).join("<br>") : ""}
+    </div>`).join("");
+  // Se pintan como barras: la longitud es el recuento, no una estimación.
+  const max = Math.max(...entries.map(([, e]) => e.count), 1);
+  const g = el("g", { transform: "translate(40,40)" });
+  entries.forEach(([name, e], i) => {
+    const w = (e.count / max) * Math.max(200, (svg.clientWidth || 700) - 260);
+    const bar = el("rect", {
+      x: 0, y: i * 46, width: Math.max(w, 2), height: 26, rx: 4,
+      fill: e.count ? colorOf("disconnected") : colorOf("active")
+    });
+    g.appendChild(bar);
+    const label = el("text", { x: 6, y: i * 46 + 18, fill: "#fff", "font-size": 12 });
+    label.textContent = `${e.count}  ${name.replace(/_/g, " ")}`;
+    g.appendChild(label);
+  });
+  svg.appendChild(g);
+  setStatus(`${d.debt_items_total} elementos de deuda medidos`);
 }
 
 function buildLegend(legend) {

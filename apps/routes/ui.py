@@ -26,6 +26,7 @@ from apps.internal_graphs_live import (
     event_stream,
     node_detail,
 )
+from apps.internal_graphs_live import _db_path as _graphs_db_path
 from triade.core.life_pulse import LIFE_PULSE
 from triade.core.ui_manifest import build_ui_manifest
 
@@ -105,6 +106,23 @@ def internal_graph_node(name: str, node_id: str) -> dict[str, Any]:
         return node_detail(name, node_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/api/internal-graphs/debt")
+def internal_graphs_debt() -> dict[str, Any]:
+    """Dónde se rompe el sistema, en elementos concretos con su evidencia.
+
+    Es el mismo informe que consume el worker de deuda: una sola medición para
+    quien mira desde fuera y para quien decide desde dentro.
+    """
+    from triade.observability.introspection import (
+        build_debt_report,
+        summarise_for_humans,
+    )
+
+    report = build_debt_report(ROOT, _graphs_db_path(), allow_build=False)
+    report["summary"] = summarise_for_humans(report)
+    return report
 
 
 @router.get("/api/internal-graphs/snapshot")

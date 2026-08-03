@@ -131,8 +131,60 @@ def _serialise(nodes: list[Any], edges: list[Any], *, kind: str) -> dict[str, An
     }
 
 
+#: Nombre servido → artefacto en disco. El generador, el supervisor, CI y esta
+#: API leen exactamente los mismos ficheros: un solo grafo, cuatro consumidores.
+ARTIFACT_STEMS = {
+    "physical": "file_graph",
+    "imports": "import_graph",
+    "calls": "call_graph",
+    "entrypoints": "entrypoint_graph",
+    "workers": "worker_graph",
+    "tables": "table_graph",
+    "organs": "organ_graph",
+    "vital_chain": "vital_chain_graph",
+    "neural": "neural_graph",
+}
+ARTIFACT_DIR = ROOT / "artifacts" / "internal_graphs"
+#: Seis horas, igual que la introspección interna. Es la misma pregunta.
+_ARTIFACT_MAX_AGE_SECONDS = 6 * 60 * 60
+
+
+def _from_artifact(name: str) -> dict[str, Any] | None:
+    """Reutiliza el grafo ya generado si sigue fresco.
+
+    Construirlo en caliente cuesta hasta 45 s de AST, y durante ese tiempo la
+    página no muestra nada: parece rota. El artefacto ya existe —lo escribe el
+    generador y lo sube CI— así que se sirve tal cual y se recalcula sólo
+    cuando caduca.
+    """
+    path = ARTIFACT_DIR / f"{ARTIFACT_STEMS[name]}.json"
+    if not path.exists():
+        return None
+    if time.time() - path.stat().st_mtime > _ARTIFACT_MAX_AGE_SECONDS:
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    nodes = payload.get("nodes") or []
+    counts: dict[str, int] = {}
+    for node in nodes:
+        state = str(node.get("state", "unknown"))
+        node["color"] = color_for(state)
+        counts[state] = counts.get(state, 0) + 1
+    return {
+        "graph": name,
+        "nodes": nodes,
+        "edges": payload.get("edges") or [],
+        "states": counts,
+        "source": "artifact",
+        "generated_at": path.stat().st_mtime,
+        "simulated": False,
+    }
+
+
 def build_graph(name: str, *, limit: int | None = None) -> dict[str, Any]:
-    """Construye un grafo por nombre, con caché corta para los estructurales."""
+    """Sirve un grafo por nombre: artefacto fresco si lo hay, si no lo construye."""
     if name not in GRAPH_BUILDERS:
         raise KeyError(f"Grafo desconocido: {name}")
     now = time.time()
@@ -143,6 +195,12 @@ def build_graph(name: str, *, limit: int | None = None) -> dict[str, Any]:
         and now - cached[0] < _STRUCTURAL_TTL_SECONDS
     ):
         return cached[1]
+
+    if name not in _LIVE_GRAPHS:
+        artifact = _from_artifact(name)
+        if artifact is not None:
+            _cache[name] = (now, artifact)
+            return artifact
 
     db_path = _db_path()
     index = build_module_index(ROOT)
