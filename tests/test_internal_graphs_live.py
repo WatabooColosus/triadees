@@ -247,3 +247,27 @@ def test_pulse_carries_actions_and_advances_its_cursor(
     # Un tercer pulso no repite la acción ya entregada.
     third, _ = internal_graphs_live.build_pulse(advanced)
     assert third["events"] == []
+
+
+def test_failures_stand_out_from_routine_activity(tmp_path: Path) -> None:
+    """Si todo cae en `unknown`, un fallo real pasa desapercibido."""
+    db = _db(tmp_path)
+    cursor = latest_cursor(db)
+    with sqlite3.connect(db) as conn:
+        for i, (task, status) in enumerate(
+            [
+                ("internal_runtime", "info"),
+                ("goal_lora_train", "dead_letter"),
+                ("pulse_check", "completion_uncertain"),
+            ],
+            start=1,
+        ):
+            conn.execute(
+                "INSERT INTO worker_events (task_type, event_type, status, created_at)"
+                " VALUES (?, 'task_completed', ?, ?)",
+                (task, status, f"2026-08-03T04:00:0{i}"),
+            )
+
+    events, _ = read_new_events(db, cursor)
+
+    assert [e["status"] for e in events] == ["active", "failed", "unknown"]

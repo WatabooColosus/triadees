@@ -55,23 +55,64 @@ VITAL_CHAIN: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
     ),
 )
 
+#: En este repositorio el SQL se escribe en mayúsculas, y esa convención es lo
+#: único que separa `UPDATE tabla` de un docstring que empieza por «Update».
+#: Sin distinguir mayúsculas, "Update cognitive load from real sensor data"
+#: producía una tabla llamada `cognitive`.
 _SQL_WRITE = re.compile(
     r"\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM|"
-    r"CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?)\s+[\"'`\[]?([a-z_][a-z0-9_]*)",
-    re.IGNORECASE,
+    r"CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?)\s+[\"'`\[]?([a-z_][a-z0-9_]*)"
 )
-_SQL_READ = re.compile(r"\b(?:FROM|JOIN)\s+[\"'`\[]?([a-z_][a-z0-9_]*)", re.IGNORECASE)
+_SQL_READ = re.compile(r"\b(?:FROM|JOIN)\s+[\"'`\[]?([a-z_][a-z0-9_]*)")
 _SQL_CREATE = re.compile(
-    r"\bCREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+[\"'`\[]?([a-z_][a-z0-9_]*)",
-    re.IGNORECASE,
+    r"\bCREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+[\"'`\[]?([a-z_][a-z0-9_]*)"
 )
 #: Marca de que una cadena es SQL y no prosa que casualmente contiene `from`.
 _SQL_VERB = re.compile(
-    r"\b(?:SELECT|INSERT\s+INTO|INSERT\s+OR|UPDATE|DELETE\s+FROM|CREATE\s+TABLE)\b",
-    re.IGNORECASE,
+    r"\b(?:SELECT|INSERT\s+INTO|INSERT\s+OR|UPDATE|DELETE\s+FROM|CREATE\s+TABLE)\b"
+)
+#: Palabras que nunca son un nombre de tabla aunque el regex las capture.
+#: `ON CONFLICT DO UPDATE SET` daba una tabla `set`; `CREATE TABLE IF NOT
+#: EXISTS` partido en varias líneas daba una tabla `if`.
+_SQL_KEYWORDS = frozenset(
+    {
+        "set",
+        "if",
+        "not",
+        "exists",
+        "select",
+        "from",
+        "where",
+        "into",
+        "values",
+        "table",
+        "index",
+        "or",
+        "and",
+        "replace",
+        "ignore",
+        "temp",
+        "temporary",
+        "virtual",
+        "using",
+        "as",
+        "on",
+        "conflict",
+        "do",
+        "nothing",
+        "update",
+        "delete",
+        "insert",
+        "distinct",
+        "case",
+        "when",
+        "then",
+        "else",
+        "end",
+    }
 )
 #: `FROM` también aparece en SQL sobre catálogos internos y en falsos positivos.
-_SQL_NOISE = {"sqlite_master", "sqlite_sequence", "pragma", "select", "where"}
+_SQL_NOISE = {"sqlite_master", "sqlite_sequence", "pragma"} | _SQL_KEYWORDS
 
 
 def _sql_literals(path: Path) -> list[tuple[str, int]]:
@@ -159,7 +200,11 @@ def build_table_graph(
     for path in iter_python_files(root):
         relative = path.relative_to(root).as_posix()
         for statement, lineno in _sql_literals(path):
-            declared.update(m.group(1).lower() for m in _SQL_CREATE.finditer(statement))
+            declared.update(
+                m.group(1).lower()
+                for m in _SQL_CREATE.finditer(statement)
+                if m.group(1).lower() not in _SQL_KEYWORDS
+            )
             for pattern, bucket, relation in (
                 (_SQL_READ, readers, "reads"),
                 (_SQL_WRITE, writers, "writes"),

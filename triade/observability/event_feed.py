@@ -216,6 +216,29 @@ def _action(table: str, data: dict[str, Any]) -> str:
     return table
 
 
+#: Un fallo tiene que saltar a la vista. Si casi todo cae en `unknown`, el
+#: registro se vuelve gris y un error real pasa desapercibido: los servicios
+#: escriben `info` y eso dejaba el 90 % de las líneas sin estado.
+_FAILED_STATUSES = frozenset(
+    {"failed", "error", "dead_letter", "timeout", "lease_lost", "cancelled", "blocked"}
+)
+_ACTIVE_STATUSES = frozenset(
+    {
+        "ok",
+        "info",
+        "completed",
+        "observed",
+        "running",
+        "claimed",
+        "pending",
+        "started",
+        "success",
+    }
+)
+#: Estados que existen pero no afirman nada: se muestran como tales.
+_AMBIGUOUS_STATUSES = frozenset({"completion_uncertain", "skipped", "dry_run"})
+
+
 def _status(data: dict[str, Any]) -> str:
     """Estado normalizado, con el mismo vocabulario que los nodos del grafo."""
     raw = data.get("status")
@@ -224,8 +247,10 @@ def _status(data: dict[str, Any]) -> str:
     if raw is None:
         raw = data.get("to_status")
     value = str(raw or "").lower()
-    if value in {"failed", "error", "dead_letter", "timeout", "lease_lost"}:
+    if value in _FAILED_STATUSES:
         return "failed"
-    if value in {"ok", "completed", "observed", "running", "claimed", "pending"}:
+    if value in _ACTIVE_STATUSES:
         return "active"
+    if value in _AMBIGUOUS_STATUSES:
+        return "unknown"
     return "unknown"
