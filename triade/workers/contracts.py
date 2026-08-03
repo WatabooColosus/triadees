@@ -42,7 +42,19 @@ WorkerTaskType = Literal[
     "experimental_neuron_activity",
     "neuron_autopromotion",
     "federation_inbox_review",
-    "memory_consolidation_review",
+    # `memory_consolidation_review` se retiró el 2026-08-03, aprobado por el
+    # operador. No estaba desconectado por descuido: era un cascarón. Su handler
+    # listaba candidatos `internally_checked`, anotaba `awaiting_real_run_evidence`
+    # y no avanzaba ninguno —su propio test asertaba `run_use_count == 0`—, y
+    # además construía un SemanticMemoryStore y un SemanticMemoryGovernance para
+    # descartarlos. Sin productor desde que `_plan_memory_consolidation` pasó a
+    # planificar `stable_consolidation_review`, acumuló 208 ejecuciones hasta el
+    # 29-jul y ninguna desde entonces.
+    #
+    # Lo sustituye la vía de evidencia —`learning_evidence_generation` mide y
+    # `stable_consolidation_review` consolida—, que es el único caso en que el
+    # criterio del operador admite retirar en vez de conectar: superado por otro
+    # vivo que hace lo mismo. Las 208 filas históricas se conservan.
     "stable_consolidation_review",
     "system_debt_scan",
     "bodega_global_review",
@@ -61,6 +73,11 @@ WorkerTaskType = Literal[
     # El canary no se observa dentro de la evaluación: acumula observaciones
     # reales entre ciclos del worker, en tareas posteriores e idempotentes.
     "self_improvement_canary_observation",
+    # El canary PEFT se observaba sólo desde `scripts/run_phase_13_lora_canary.py`.
+    # La única versión inscrita llevaba desde el 2026-07-29 en `canary` al 5 % con
+    # una sola observación: ni graduaba ni revertía, exactamente el mismo agujero
+    # que tenía el canary de automejora antes de tener productor.
+    "peft_canary_observation",
     # El aprendizaje productivo: extraer, deduplicar y medir. Cada etapa es un
     # tipo distinto porque tienen carril, coste y exclusividad distintos.
     "learning_candidate_generation",

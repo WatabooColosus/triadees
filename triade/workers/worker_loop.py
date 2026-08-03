@@ -1369,7 +1369,6 @@ class WorkerLoop:
                     "experimental_neuron_activity": self._experimental_neuron_activity,
                     "neuron_autopromotion": self._neuron_autopromotion,
                     "federation_inbox_review": self._federation_inbox_review,
-                    "memory_consolidation_review": self._memory_consolidation_review,
                     "stable_consolidation_review": self._stable_consolidation_review,
                     "system_debt_scan": self._system_debt_scan,
                     "bodega_global_review": self._bodega_global_review,
@@ -1394,6 +1393,7 @@ class WorkerLoop:
                     "learning_evidence_generation": (
                         self._learning_evidence_generation
                     ),
+                    "peft_canary_observation": self._peft_canary_observation,
                 }
                 outcome = self.task_executor.execute_callable(
                     handlers[task.task_type],
@@ -2718,41 +2718,96 @@ class WorkerLoop:
             "external_network": False,
         }
 
-    def _memory_consolidation_review(
+    def _peft_canary_observation(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
-        pipe = LearningPipeline(db_path=self.db_path)
-        SemanticMemoryStore(db_path=self.db_path)
-        SemanticMemoryGovernance(db_path=self.db_path)
-        sandbox = WorkerSandbox(task_dir)
-        promoted = []
-        for candidate in pipe.list_candidates(status="internally_checked", limit=5):
-            sb = sandbox.run(
-                "analyze_memory_candidate", candidate, timeout=config.task_timeout
-            )
-            if sb.get("status") != "ok" or not candidate.get("source_ref"):
-                continue
-            promoted.append(
-                {
-                    "candidate_id": candidate.get("candidate_id"),
-                    "action": "awaiting_real_run_evidence",
-                }
-            )
+        """Genera con el adaptador en canary y registra la observación.
+
+        Mide lo que este eslabón puede medir: que el adaptador **sirve** sin
+        degradarse en fallo. Que además sea mejor que la base ya lo decidió
+        `enroll()` con las métricas OOD y de olvido catastrófico del manifiesto;
+        repetir aquí esa evaluación exigiría el conjunto de validación completo y
+        no cabe en un ciclo de worker.
+
+        La activación no se toca: sigue exigiendo firma humana nombrada.
+        """
+        from triade.training.peft_canary import PeftCanaryServer
+        from triade.training.serving_governance import GovernedPeftServing
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+        version_id = str(payload.get("version_id") or "")
+        adapter_path = str(payload.get("adapter_path") or "")
+        if not version_id or not adapter_path:
+            return {
+                "status": "completed",
+                "effect": "no_op",
+                "skipped_reason": "sin_version_o_adaptador",
+                "stable_memory_written": False,
+            }
+        if not Path(adapter_path).exists():
+            return {
+                "status": "completed",
+                "effect": "no_op",
+                "skipped_reason": "adaptador_ausente_en_disco",
+                "version_id": version_id,
+                "stable_memory_written": False,
+            }
+
+        adapters_root = Path(adapter_path).parent
+        generacion = PeftCanaryServer(self.db_path, adapters_root).generate(
+            adapter_path,
+            "Responde exactamente: canary-ok",
+            max_new_tokens=48,
+        )
+        completada = generacion.get("status") == "completed" and bool(
+            generacion.get("response")
+        )
+        serving = GovernedPeftServing(self.db_path, adapters_root)
+        observacion = serving.observe(
+            version_id,
+            # La escala la fija `baseline_quality` en la inscripción; 1.0 pasa y
+            # -10.0 hunde el canary, igual que en la verificación de fase 13.
+            quality=1.0 if completada else -10.0,
+            latency_ms=float(generacion.get("latency_ms") or 0.0),
+            success=completada,
+            evidence_ref=f"worker:{run_ref}:peft-canary-generation",
+        )
+        (task_dir / "peft_canary_observation.json").write_text(
+            json.dumps(
+                {"generation": generacion, "observation": observacion},
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
         return {
             "status": "completed",
-            "run_tracking_updates": promoted,
+            "effect": f"canary_{observacion.get('status')}",
+            "version_id": version_id,
+            "canary_status": observacion.get("status"),
+            "latency_ms": generacion.get("latency_ms"),
+            "activation_requires_human": True,
             "stable_memory_written": False,
         }
 
     def _stable_consolidation_review(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
-        """Revisa candidatos con evidencia suficiente y solo entonces permite consolidar."""
+        """Revisa candidatos con evidencia suficiente y solo entonces permite consolidar.
+
+        Listaba únicamente `validated_in_runs`, un estado con cero filas en toda
+        la vida de la base: aunque la tarea llegase, el bucle no iteraba nunca.
+        `evidence_verified` es la otra puerta a la misma medición y es la que el
+        productor de evidencia usa hoy. Los umbrales no cambian: quien decide
+        sigue siendo `pipe.consolidate()`.
+        """
         pipe = LearningPipeline(db_path=self.db_path)
         sandbox = WorkerSandbox(task_dir)
         consolidated = []
         rejected = []
-        for candidate in pipe.list_candidates(status="validated_in_runs", limit=5):
+        for candidate in pipe.list_candidates(
+            status=("validated_in_runs", "evidence_verified"), limit=5
+        ):
             sb = sandbox.run(
                 "analyze_memory_candidate", candidate, timeout=config.task_timeout
             )

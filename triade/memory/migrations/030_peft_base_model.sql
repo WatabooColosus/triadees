@@ -1,0 +1,14 @@
+-- El modelo base al que pertenece cada adaptador.
+--
+-- `governed_peft_versions` no tenía dónde guardarlo, así que la gobernanza de
+-- servido no podía expresar a qué modelo aplica un adaptador. Los dos
+-- adaptadores entrenados declaran `Qwen/Qwen2.5-0.5B-Instruct` en su manifiesto
+-- y el runtime sirve qwen2.5:3b-instruct, qwen3:4b, gemma3:4b y otros: nada
+-- impedía activar un adaptador de 0.5B sobre un modelo de 4B, ni sobre una
+-- familia distinta.
+--
+-- Se añade con DEFAULT '' porque las filas existentes son anteriores al campo.
+-- Una cadena vacía significa «procedencia desconocida», y `activate()` la
+-- rechaza igual que a un modelo no servido: no se activa lo que no se puede
+-- verificar.
+ALTER TABLE governed_peft_versions ADD COLUMN base_model TEXT NOT NULL DEFAULT '';

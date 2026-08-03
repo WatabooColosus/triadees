@@ -119,11 +119,11 @@ def test_saturated_types_cover_only_the_full_lane() -> None:
         return "done"
 
     try:
-        pool.submit("m1", "memory_consolidation_review", {}, blocking)
+        pool.submit("m1", "semantic_memory_governance", {}, blocking)
         assert inside.wait(timeout=10)
         saturated = WorkerLoop._saturated_task_types(pool)
         # El carril memory_write esta lleno...
-        assert "memory_consolidation_review" in saturated
+        assert "semantic_memory_governance" in saturated
         assert "stable_consolidation_review" in saturated
         # ...pero los demas siguen reclamables.
         assert "pulse_check" not in saturated

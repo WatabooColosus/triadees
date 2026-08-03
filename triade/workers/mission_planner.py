@@ -17,6 +17,7 @@ from typing import Any
 from triade.core.error_bus import record_internal_error
 from triade.core.neuron_missions import NeuronMissionStore
 from triade.learning.knowledge_probe import extract_target
+from triade.learning.pipeline import LearningPipeline
 
 MISSION_PLANNER_ERRORS = (
     sqlite3.Error,
@@ -87,6 +88,7 @@ class MissionPlanner:
         tasks.extend(self._plan_neuron_education())
         tasks.extend(self._plan_self_improvement())
         tasks.extend(self._plan_canary_observation())
+        tasks.extend(self._plan_peft_canary_observation())
         # La condición miraba sólo `TRIADE_BACKUP_KEY`, y `encrypted_backup.py`
         # acepta además `TRIADE_BACKUP_KEY_FILE`: con la clave en fichero, la
         # tarea no se planificaba aunque el backup fuese perfectamente posible.
@@ -379,22 +381,56 @@ class MissionPlanner:
                 # existe todavía, y sin este `except` el `sqlite3.Error` se
                 # llevaba por delante **todo** el bloque base —dedupe, gobernanza
                 # semántica, autopromoción—, no sólo esta rama.
+                # 3. Ordenaba sólo por `id DESC`, y eso dejaba fuera justo a los
+                #    candidatos que más se han usado. La medición y el uso real
+                #    son dos ejes independientes: `mark_used_in_run` sube el
+                #    contador, pero para promover exige además evidencia del
+                #    Measurement Core. El 2026-08-03 las dos poblaciones eran
+                #    **disjuntas**: los 16 candidatos con uso probado (hasta 44
+                #    usos, media 0.934) eran los ids 1..16 —los primeros que se
+                #    escribieron— y caían en las posiciones 632..647 de este
+                #    escaneo, con `EVIDENCE_SCAN_LIMIT = 200`. Nunca entraban en
+                #    la tanda. Las 976 ejecuciones de `learning_evidence_generation`
+                #    midieron siempre candidatos sin un solo uso, y ningún
+                #    candidato del sistema llegó jamás a tener los dos ejes a la
+                #    vez: cero promociones a `validated_in_runs` en toda la vida
+                #    de la base.
+                #
+                #    Ahora el uso acumulado manda sobre la novedad. No es una
+                #    preferencia estética: medir lo que ya se está usando es lo
+                #    único que puede cerrar la cadena hasta consolidación.
+                #    `run_use_count` no está en `schemas.sql`: la añade la
+                #    migración de `LearningPipeline`. Ordenar por una columna que
+                #    puede no existir todavía rompía la consulta **y su
+                #    fallback**, y con las dos rotas se caía el bloque baseline
+                #    entero —dedupe, gobernanza semántica, autopromoción— igual
+                #    que describe el comentario de arriba. Se comprueba antes en
+                #    vez de confiar en el `except`.
+                columnas = {
+                    str(fila[1])
+                    for fila in conn.execute("PRAGMA table_info(learning_queue)")
+                }
+                orden = (
+                    "ORDER BY run_use_count DESC, id DESC LIMIT ?"
+                    if "run_use_count" in columnas
+                    else "ORDER BY id DESC LIMIT ?"
+                )
                 try:
                     elegibles = conn.execute(
-                        """SELECT candidate_id, content FROM learning_queue
+                        f"""SELECT candidate_id, content FROM learning_queue
                         WHERE status = 'internally_checked'
                           AND NOT EXISTS (
                             SELECT 1 FROM learning_evidence e
                             WHERE e.candidate_id = learning_queue.candidate_id)
-                        ORDER BY id DESC LIMIT ?""",
+                        {orden}""",
                         (self.EVIDENCE_SCAN_LIMIT,),
                     ).fetchall()
                 except sqlite3.Error:
                     # Sin tabla de evidencia, ningún candidato la tiene.
                     elegibles = conn.execute(
-                        """SELECT candidate_id, content FROM learning_queue
+                        f"""SELECT candidate_id, content FROM learning_queue
                         WHERE status = 'internally_checked'
-                        ORDER BY id DESC LIMIT ?""",
+                        {orden}""",
                         (self.EVIDENCE_SCAN_LIMIT,),
                     ).fetchall()
                 medible = next(
@@ -567,14 +603,80 @@ class MissionPlanner:
             )
         return tasks
 
+    def _plan_peft_canary_observation(self) -> list[PlannedTask]:
+        """Observa el canary PEFT abierto, si lo hay.
+
+        `GovernedPeftServing` está bien construido —integridad, dataset
+        autorizado, métricas OOD, rechazo de olvido catastrófico y activación con
+        firma humana— pero nadie lo alimentaba: su único llamador era
+        `scripts/run_phase_13_lora_canary.py`. La versión inscrita el 2026-07-29
+        llevaba cinco días en `canary` al 5 % con **una** observación, la de su
+        propio minuto de creación. Ni graduaba ni revertía.
+
+        Es el mismo agujero que tenía `self_improvement_canary_observation` antes
+        de tener productor, y se cierra igual: cada ciclo aporta lo que haya y se
+        va. La activación sigue siendo humana; esto sólo acumula la evidencia
+        sobre la que decidir.
+        """
+        try:
+            with closing(self._connect()) as conn, conn:
+                if not conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' "
+                    "AND name='governed_peft_versions'"
+                ).fetchone():
+                    return []
+                fila = conn.execute(
+                    "SELECT version_id, adapter_path FROM governed_peft_versions "
+                    "WHERE status = 'canary' ORDER BY created_at LIMIT 1"
+                ).fetchone()
+            if fila is None:
+                return []
+            return [
+                PlannedTask(
+                    task_type="peft_canary_observation",
+                    priority=34,
+                    reason=(
+                        f"canary PEFT {fila['version_id']} abierto: acumular "
+                        "observaciones para decidir graduación o rollback"
+                    ),
+                    source="open_peft_canary",
+                    planner_score=0.6,
+                    payload={
+                        "version_id": str(fila["version_id"] or ""),
+                        "adapter_path": str(fila["adapter_path"] or ""),
+                    },
+                )
+            ]
+        except MISSION_PLANNER_ERRORS as exc:
+            record_internal_error(
+                "mission_planner.peft_canary", exc, db_path=self.db_path
+            )
+        return []
+
     def _plan_memory_consolidation(self) -> list[PlannedTask]:
-        """Programa consolidación solo tras validación real en runs."""
+        """Programa consolidación sólo si hay algo que el handler pueda consolidar.
+
+        Pedía `status = 'validated_in_runs'` y esa tabla tenía cero filas desde
+        siempre, así que la tarea no se encoló ni una vez: la última etapa del
+        aprendizaje era inalcanzable. La medición hoy termina en
+        `evidence_verified` —misma exigencia de mejora medida—, y esa vía no
+        estaba contemplada aquí.
+
+        La cuenta replica además los dos umbrales numéricos de
+        `LearningPipeline.consolidate()`. Si sólo mirase el estado, encolaría una
+        tarea que el handler rechazaría entera por `run_uses` insuficiente, y
+        volvería a encolarla el ciclo siguiente: el mismo livelock que ya costó
+        465 intentos idénticos en la rama de evidencia (F-037).
+        """
         tasks: list[PlannedTask] = []
         try:
             with closing(self._connect()) as conn, conn:
                 row = conn.execute(
                     """SELECT COUNT(*) as cnt FROM learning_queue
-                    WHERE status = 'validated_in_runs'"""
+                    WHERE status IN ('validated_in_runs', 'evidence_verified')
+                      AND run_use_count >= ?
+                      AND avg_outcome_score >= ?""",
+                    (LearningPipeline.MIN_RUN_USES, LearningPipeline.MIN_OUTCOME_SCORE),
                 ).fetchone()
                 cnt = int(row["cnt"] or 0) if row else 0
             if cnt > 0:

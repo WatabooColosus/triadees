@@ -61,13 +61,20 @@ def record_learning_usage_from_output(
         if not response_text:
             return result
 
+        # Los estados vienen del pipeline y no se reescriben aquí: mantener la
+        # lista a mano fue justo lo que dejó fuera a `evidence_verified`. Un
+        # candidato promovido por evidencia dejaba de contar usos, y sin usos no
+        # llegaba nunca al mínimo que exige `consolidate()`.
+        estados = LearningPipeline.CONSOLIDATABLE_STATES
+        marcas = ",".join("?" * len(estados))
         with _connect(db_path) as conn:
             rows = conn.execute(
-                """SELECT id, candidate_id, title, content, domain, source_ref, status
+                f"""SELECT id, candidate_id, title, content, domain, source_ref, status
                 FROM learning_queue
-                WHERE status IN ('internally_checked', 'validated_in_runs')
+                WHERE status IN ({marcas})
                 ORDER BY confidence DESC
-                LIMIT 30"""
+                LIMIT 30""",
+                estados,
             ).fetchall()
 
         matched: list[dict[str, Any]] = []

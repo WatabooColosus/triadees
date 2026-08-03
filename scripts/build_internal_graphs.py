@@ -59,7 +59,7 @@ def build_all(
         (
             "worker_graph",
             "workers_and_task_types",
-            *build_worker_graph(root, index, db_path),
+            *build_worker_graph(root, index, db_path, import_edges),
         ),
         (
             "table_graph",

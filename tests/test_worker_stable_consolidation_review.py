@@ -80,37 +80,3 @@ def test_stable_consolidation_review_skips_unvalidated(tmp_path: Path) -> None:
     )
     assert result["status"] == "completed"
     assert len(result["consolidated"]) == 0
-
-
-def test_memory_consolidation_review_marks_used(tmp_path: Path) -> None:
-    pipe = LearningPipeline(db_path=tmp_path / "triade.db")
-    cid = pipe.ingest(
-        content="Candidato verified para tracking.",
-        source_type="document",
-        source_ref="test:tracking",
-        title="Tracking test",
-        domain="test",
-        risk_level="low",
-    )["candidate_id"]
-    pipe.evaluate(cid)
-    pipe.verify(cid)
-
-    loop = WorkerLoop(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs")
-    result = loop._memory_consolidation_review(
-        type(
-            "FakeTask",
-            (),
-            {
-                "id": 1,
-                "task_type": "memory_consolidation_review",
-                "to_dict": dict,
-            },
-        )(),
-        "run-test-tracking",
-        tmp_path / "runs" / "tracking-test",
-        type("FakeConfig", (), {"task_timeout": 30.0, "dry_run": False})(),
-    )
-    assert result["status"] == "completed"
-    assert len(result["run_tracking_updates"]) >= 1
-    updated = pipe.get_candidate(cid)
-    assert updated["run_use_count"] == 0

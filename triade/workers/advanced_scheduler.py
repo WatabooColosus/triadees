@@ -365,7 +365,6 @@ class AdvancedScheduler:
         "experimental_neuron_activity",
         "neuron_autopromotion",
         "federation_inbox_review",
-        "memory_consolidation_review",
         "stable_consolidation_review",
         "system_debt_scan",
         "bodega_global_review",

@@ -73,11 +73,14 @@ def test_failed_canary_blocks_activation(tmp_path: Path) -> None:
 def test_activation_persists_and_rollback_restores_base(tmp_path: Path) -> None:
     db = tmp_path / "db"
     path = adapter(tmp_path / "adapters", db)
-    serving = GovernedPeftServing(db, tmp_path / "adapters")
+    # El modelo base del manifiesto tiene que estar entre los servidos: activar
+    # un adaptador sobre un modelo que el runtime no sirve deja el slot de
+    # producción apuntando a algo inservible.
+    serving = GovernedPeftServing(db, tmp_path / "adapters", served_models=["base"])
     version = serving.enroll(path)["version_id"]
     serving.observe(version, quality=1, latency_ms=1, success=True, evidence_ref="e")
     assert serving.activate(version, approved_by="reviewer")["status"] == "active"
-    restarted = GovernedPeftServing(db, tmp_path / "adapters")
+    restarted = GovernedPeftServing(db, tmp_path / "adapters", served_models=["base"])
     assert restarted.status()["version_id"] == version
     assert restarted.rollback(approved_by="reviewer")["status"] == "rolled_back"
     assert restarted.status()["status"] == "base_only"

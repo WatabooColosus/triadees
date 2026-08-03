@@ -44,7 +44,6 @@ def test_lane_assignment_matches_the_governance_intent() -> None:
         "research_curriculum": "research",
         "self_improvement_evaluation": "evaluation",
         "self_improvement_canary_observation": "evaluation",
-        "memory_consolidation_review": "memory_write",
         "stable_consolidation_review": "memory_write",
         "neuron_autopromotion": "critical_mutation",
         "goal_lora_train": "critical_mutation",
