@@ -329,3 +329,52 @@ def test_dynamic_table_access_counts_as_a_reader(tmp_path: Path) -> None:
     assert any(
         e.target == "table:signals" and "interpolada" in e.evidence for e in edges
     ), "la evidencia debe decir que el nombre de tabla se resolvió en ejecución"
+
+
+def test_relative_imports_inside_a_package_resolve(tmp_path: Path) -> None:
+    """`from .x import y` dentro de un `__init__.py` apunta al propio paquete.
+
+    Tratar `a/b/__init__.py` como si estuviera *dentro* de `a.b` sube un nivel
+    de más y resuelve a `a.x`, que no existe. El módulo real quedaba sin
+    importador y el grafo lo daba por muerto: pasaba con 10 módulos reales.
+    """
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text(
+        "from .helper import work\n\n__all__ = ['work']\n", encoding="utf-8"
+    )
+    (root / "pkg" / "helper.py").write_text(
+        "def work():\n    return 1\n", encoding="utf-8"
+    )
+
+    nodes, edges = build_import_graph(root)
+
+    by_id = {n.node_id: n for n in nodes}
+    assert by_id["module:pkg/helper.py"].state == "active"
+    assert any(
+        e.source == "module:pkg/__init__.py" and e.target == "module:pkg/helper.py"
+        for e in edges
+    )
+
+
+def test_documented_tools_are_not_confused_with_dead_code(tmp_path: Path) -> None:
+    """Una utilidad que la documentación explica cómo ejecutar no es deuda."""
+    root = tmp_path / "repo"
+    (root / "scripts").mkdir(parents=True)
+    (root / "pkg").mkdir()
+    (root / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+    for name in ("documented.py", "forgotten.py"):
+        (root / "scripts" / name).write_text(
+            'def main():\n    return 0\n\n\nif __name__ == "__main__":\n    main()\n',
+            encoding="utf-8",
+        )
+    (root / "README.md").write_text(
+        "Para auditar: `python scripts/documented.py`\n", encoding="utf-8"
+    )
+
+    nodes, _ = build_entrypoint_graph(root)
+
+    by_id = {n.node_id: n for n in nodes}
+    assert by_id["entrypoint:scripts/documented.py"].state == "legacy"
+    assert by_id["entrypoint:scripts/documented.py"].metadata["documented"] is True
+    assert by_id["entrypoint:scripts/forgotten.py"].state == "disconnected"

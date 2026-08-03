@@ -106,13 +106,22 @@ def _parse(path: Path) -> ast.Module | None:
         return None
 
 
-def _absolute_module(dotted: str | None, level: int, current: str) -> str | None:
-    """Traduce un import relativo (`from . import x`) a su nombre absoluto."""
+def _absolute_module(
+    dotted: str | None, level: int, current: str, *, is_package: bool = False
+) -> str | None:
+    """Traduce un import relativo (`from . import x`) a su nombre absoluto.
+
+    La distinción que importa: un módulo `a.b.c` vive *dentro* del paquete
+    `a.b`, pero un `a/b/__init__.py` **es** el paquete `a.b`. Tratar los dos
+    igual sube un nivel de más en los `__init__`, y entonces
+    `from .bootstrap import x` dentro de `triade/capabilities/__init__.py`
+    resolvía a `triade.bootstrap`, que no existe. El módulo real quedaba sin
+    importador y el grafo lo daba por muerto.
+    """
     if not level:
         return dotted
     base = current.split(".")
-    # Un módulo `a.b.c` está dentro del paquete `a.b`; un `__init__` ya es su paquete.
-    package = base[:-1] if len(base) > 1 else base
+    package = base if is_package else (base[:-1] if len(base) > 1 else base)
     trimmed = package[: len(package) - (level - 1)] if level > 1 else package
     if not trimmed:
         return dotted
@@ -160,7 +169,12 @@ def build_import_graph(
             if isinstance(item, ast.Import):
                 targets = [alias.name for alias in item.names]
             elif isinstance(item, ast.ImportFrom):
-                absolute = _absolute_module(item.module, item.level, dotted)
+                absolute = _absolute_module(
+                    item.module,
+                    item.level,
+                    dotted,
+                    is_package=relative.endswith("__init__.py"),
+                )
                 if absolute is None:
                     continue
                 # `from pkg import mod` puede apuntar a un submódulo o a un símbolo.
@@ -403,16 +417,40 @@ def build_entrypoint_graph(
         if edge not in edges:
             edges.append(edge)
 
+    documented = _documented_paths(root)
     for node_id, node in nodes.items():
         if not node_id.startswith("entrypoint:"):
             continue
         if node.metadata.get("launchers"):
             continue
+        # Una herramienta que la documentación explica cómo ejecutar no es
+        # código muerto: es manual. Meterla en el mismo saco que un fichero
+        # que nadie nombra convierte 45 utilidades vivas en deuda inventada.
+        cited = node.label in documented or Path(node.label).name in documented
         nodes[node_id] = GraphNode(
-            node.node_id, node.kind, node.label, "disconnected", node.metadata
+            node.node_id,
+            node.kind,
+            node.label,
+            "legacy" if cited else "disconnected",
+            {**node.metadata, "documented": cited},
         )
 
     return sorted(nodes.values(), key=lambda n: n.node_id), edges
+
+
+def _documented_paths(root: Path) -> set[str]:
+    """Rutas y nombres de fichero citados en documentación o workflows."""
+    blob: list[str] = []
+    for pattern in ("*.md", "docs/**/*.md", ".github/**/*.yml", ".github/**/*.yaml"):
+        for path in sorted(root.glob(pattern)):
+            try:
+                blob.append(path.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                continue
+    text = "\n".join(blob)
+    return {token for token in re.findall(r"[\w./-]+\.py", text)} | {
+        Path(token).name for token in re.findall(r"[\w./-]+\.py", text)
+    }
 
 
 def _is_main_guard(test: ast.expr) -> bool:
