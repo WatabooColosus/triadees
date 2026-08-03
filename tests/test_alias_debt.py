@@ -142,3 +142,22 @@ def test_el_liston_de_pista_es_mas_bajo_que_el_de_acusacion() -> None:
     """La pista acompaña a un hallazgo que ya se sostiene por su forma."""
     assert HINT_THRESHOLD < SIMILARITY_THRESHOLD
     assert similarity("semantic_memory", "semantic_documents") >= HINT_THRESHOLD
+
+
+def test_un_estado_devuelto_por_return_cuenta_como_escrito(tmp_path) -> None:
+    """`return "candidate_reviewable"` escribe: quien llama guarda lo devuelto.
+
+    Sin esto el detector acusaba a `candidate_reviewable`, que
+    `neuron_formation_pipeline.py` produce en dos returns. Los falsos positivos
+    son lo único que puede matar a este detector: un informe en el que hay que
+    descartar a mano deja de leerse.
+    """
+    (tmp_path / "lector.py").write_text(
+        "SQL = \"SELECT * FROM neurons WHERE status = 'candidate_reviewable'\"\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "productor.py").write_text(
+        'def clasificar():\n    return "candidate_reviewable"\n', encoding="utf-8"
+    )
+
+    assert find_dead_status_values(tmp_path) == []

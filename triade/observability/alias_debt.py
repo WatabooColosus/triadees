@@ -80,6 +80,12 @@ _ASSIGNED_SQL = re.compile(
 _ASSIGNED_PY = re.compile(
     rf"\b({'|'.join(STATUS_COLUMNS)})\s*=\s*\"([a-z][a-z0-9_]{{2,}})\""
 )
+#: `return "candidate_reviewable"` también escribe un estado: quien llama guarda
+#: lo devuelto. Sin esto el detector acusaba a `candidate_reviewable`, que
+#: `neuron_formation_pipeline.py` produce en dos returns — un falso positivo, y
+#: los falsos positivos son lo único que puede matar a este detector: un informe
+#: en el que hay que descartar a mano deja de leerse.
+_RETURNED_PY = re.compile(r"\breturn\s+\"([a-z][a-z0-9_]{2,})\"")
 _LITERAL_IN_LIST = re.compile(_QUOTED)
 
 
@@ -272,6 +278,8 @@ def _status_literals(root: Path) -> tuple[dict[str, set[str]], dict[str, set[str
         for _columna, valor in _ASSIGNED_SQL.findall(texto):
             escritos.setdefault(valor, set()).add(relativo)
         for _columna, valor in _ASSIGNED_PY.findall(texto):
+            escritos.setdefault(valor, set()).add(relativo)
+        for valor in _RETURNED_PY.findall(texto):
             escritos.setdefault(valor, set()).add(relativo)
         for _columna, valor in _COMPARED.findall(texto):
             comparados.setdefault(valor, set()).add(relativo)
