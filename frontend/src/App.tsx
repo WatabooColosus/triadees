@@ -3,6 +3,7 @@ import './index.css'
 import { CabinaViva } from './components/CabinaViva'
 import ErrorBoundary from './components/ErrorBoundary'
 import { SaberYAprendizajeCard } from './components/Cards'
+import { GrafosInternos } from './components/GrafosInternos'
 
 const BASE = ''
 
@@ -27,12 +28,13 @@ async function api(path: string, opts?: RequestInit) {
   return res.json()
 }
 
-type Tab = 'chat' | 'system' | 'observability' | 'router' | 'models' | 'federation' | 'memory' | 'neurons' | 'cabin'
+type Tab = 'chat' | 'system' | 'observability' | 'graphs' | 'router' | 'models' | 'federation' | 'memory' | 'neurons' | 'cabin'
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'chat', label: 'Chat', icon: '💬' },
   { key: 'system', label: 'Sistema', icon: '⚙' },
   { key: 'observability', label: 'Observabilidad', icon: '⌁' },
+  { key: 'graphs', label: 'Grafos internos', icon: '🕸' },
   { key: 'cabin', label: 'Cabina Viva', icon: '🖥' },
   { key: 'router', label: 'Router', icon: '🔀' },
   { key: 'models', label: 'Modelos', icon: '🧠' },
@@ -165,6 +167,7 @@ export default function App() {
         {tab === 'chat' && <ChatTab apiKey={apiKey} />}
         {tab === 'system' && <SystemTab />}
         {tab === 'observability' && <ObservabilityTab />}
+        {tab === 'graphs' && <ErrorBoundary><GrafosInternos /></ErrorBoundary>}
         {tab === 'router' && <RouterTab />}
         {tab === 'models' && <ModelsTab />}
         {tab === 'federation' && <FederationTab apiKey={apiKey} />}
