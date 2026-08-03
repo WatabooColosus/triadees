@@ -117,6 +117,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         record_internal_runtime_event(
             "workers_autostart_checked", "single_port_app", workers_result
         )
+        # El watchdog se arranca aquí por la misma razón que los workers: la
+        # unidad `deploy/systemd/triade-watchdog.service` describe un despliegue
+        # que en el Studio no existe —el runtime corre bajo `nohup uvicorn`—, y
+        # por eso llevaba días sin ejecutarse con `runtime_health_snapshots`
+        # congelada (F-040).
+        from triade.runtime.watchdog_autostart import start_watchdog_if_enabled
+
+        watchdog_result = start_watchdog_if_enabled(cfg)
+        record_internal_runtime_event(
+            "runtime_watchdog_checked", "single_port_app", watchdog_result
+        )
         metabolism_result = None
         try:
             from triade.metabolism.coordinator import get_coordinator
@@ -135,6 +146,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 "foundational_neurons": foundational_result,
                 "model_acquisition": model_acquisition_result,
                 "metabolism": metabolism_result,
+                "runtime_watchdog": watchdog_result,
             }
     except (
         OSError,

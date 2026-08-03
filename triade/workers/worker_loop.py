@@ -305,6 +305,41 @@ class WorkerLoop:
         blood_policy = ollama_blood_policy("worker_cycle", blood)
         from triade.services.event_bus import publish_event
 
+        # F-043: hasta aquí el único freno del ciclo era si Ollama respondía.
+        # Si el modelo contestaba, el worker trabajaba —con el disco al 99 %, con
+        # la RAM agotada o con la máquina térmicamente limitada—. El metabolismo
+        # medía todo eso y lo escribía en `metabolic_signals`, pero nadie se lo
+        # preguntaba: sus lectores eran rutas HTTP, es decir, un humano.
+        #
+        # El governor ya decidía esto en el arranque de los workers
+        # (`worker_autostart.py:261`), una sola vez. Los recursos cambian durante
+        # la sesión; la decisión tiene que tomarse en cada ciclo.
+        governor = self._governor_decision(blood, run_ref)
+        if governor.get("allowed_mode") == "blocked":
+            publish_event(
+                "worker_cycle_blocked_by_resources",
+                "worker_loop",
+                {"reason": governor.get("reason"), "limits": governor.get("limits")},
+                severity="warning",
+                db_path=self.db_path,
+                run_ref=run_ref,
+            )
+            # El lock se suelta aquí sí o sí. Conservarlo tiene sentido cuando
+            # quedan tareas vivas; aquí no ha empezado ninguna, y un lock
+            # retenido por falta de disco impediría arrancar también cuando el
+            # disco vuelva. Sería cambiar una parada por un bloqueo permanente.
+            try:
+                self.lock_file.unlink()
+            except FileNotFoundError:
+                pass
+            return {
+                "status": "blocked",
+                "run_ref": run_ref,
+                "reason": "resources_exhausted",
+                "governor": governor,
+                "message": str(governor.get("reason") or "recursos insuficientes"),
+            }
+
         publish_event(
             "ollama_blood_checked",
             "worker_loop",
@@ -647,6 +682,52 @@ class WorkerLoop:
                     self.lock_file.unlink()
                 except FileNotFoundError:
                     pass
+
+    def _governor_decision(
+        self, blood: dict[str, Any], run_ref: str
+    ) -> dict[str, Any]:
+        """Pregunta al governor si este ciclo puede gastar, y lo deja anotado.
+
+        El metabolismo existe para que el sistema consuma sin caerse, pero medía
+        sin frenar: `metabolic_signals` tenía un escritor y ningún lector, y el
+        worker —el que gasta— no lo consultaba en ninguna línea (F-043). Aquí se
+        cierra ese lazo con el governor que ya existía y que sólo se usaba una
+        vez, al arrancar los workers.
+
+        Un fallo leyendo recursos no puede parar el trabajo: si no se puede
+        medir, se devuelve `unknown` y el ciclo sigue. Frenar por no saber sería
+        cambiar una parada de recursos por una parada de sensor.
+        """
+        try:
+            from triade.core.resource_governor import decide_work_mode
+            from triade.core.resource_probe import build_resource_probe
+
+            probe = build_resource_probe()
+            decision = decide_work_mode(probe, blood, "balanced_background")
+        except (ImportError, OSError, RuntimeError, ValueError) as exc:
+            return {"allowed_mode": "unknown", "reason": f"probe_failed: {exc}"}
+
+        limits = probe.get("limits", {}) if isinstance(probe, dict) else {}
+        decision["limits"] = {
+            "ram_available_gb": limits.get("ram_available_gb"),
+            "disk_free_gb": limits.get("disk_free_gb"),
+            "load_1min": (probe.get("cpu") or {}).get("load_1min"),
+        }
+        # La señal se registra siempre, permita o no: una decisión de recursos
+        # que sólo se ve cuando bloquea no se puede auditar después.
+        try:
+            from triade.metabolism.signals import SignalBus
+
+            SignalBus(self.db_path).emit(
+                cycle=0,
+                stage="worker_cycle_governor",
+                status=str(decision.get("allowed_mode") or "unknown"),
+                reason=str(decision.get("reason") or "")[:500],
+                need_id=run_ref,
+            )
+        except (ImportError, TypeError, ValueError, sqlite3.Error):
+            pass
+        return decision
 
     def _dispatch_autonomous_task(
         self,
