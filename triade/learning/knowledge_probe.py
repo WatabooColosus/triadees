@@ -27,6 +27,43 @@ _DISTINTIVO = re.compile(
     r"(?:\b[A-Z][A-Z0-9]{2,}(?:[-_][A-Z0-9]+)+\b|\b[A-Z]{2,}::|\b[a-z]+_[a-z_]+\b)"
 )
 
+#: Identificadores de andamiaje: aparecen en todo el repositorio, en los propios
+#: enunciados y en el vocabulario común de cualquier modelo. No cumplen el
+#: requisito que este módulo declara —«un dato concreto que el modelo no sabría
+#: por su cuenta»— y por eso no pueden ser el hueco de una pregunta.
+#:
+#: Medido el 2026-08-03: los candidatos con más uso real del sistema (hasta 44
+#: usos) extraían `mission_id` como dato distintivo, y la pregunta resultante era
+#: «…debe evaluarse con evidencia local trazable por ___ y run_ref…». La
+#: respuesta estaba implícita en el propio enunciado, así que el brazo de control
+#: acertaba 5 de 5 sin haber aprendido nada: `control 1.0, tratamiento 1.0,
+#: delta 0.0 -> neutral`, siempre. No eran candidatos malos, era una sonda
+#: inválida — el mismo patrón que la contaminación del control de agosto, por
+#: otra puerta.
+_ANDAMIAJE = frozenset(
+    {
+        "mission_id",
+        "run_ref",
+        "run_id",
+        "source_ref",
+        "candidate_id",
+        "task_type",
+        "task_id",
+        "goal_id",
+        "node_id",
+        "evidence_ref",
+        "db_path",
+        "created_at",
+        "updated_at",
+        "parent_id",
+        "step_id",
+        "neuron_id",
+        "report_id",
+        "risk_level",
+        "source_type",
+    }
+)
+
 _PREGUNTAS = {
     "preference": "Según la preferencia registrada, {sujeto}",
     "fact": "Según lo registrado, {sujeto}",
@@ -56,8 +93,16 @@ def extract_target(content: str) -> str | None:
 
     Se prefiere el token más largo: entre `WRK` y `VEREDICTO-TRIADE`, el
     segundo es mucho más difícil de acertar por casualidad.
+
+    Los identificadores de andamiaje se descartan aunque sean el único
+    candidato: preguntar por `mission_id` no mide aprendizaje, mide si el modelo
+    conoce el vocabulario del repositorio —y lo conoce—. Sin dato distintivo real
+    el candidato es inmedible, que es una respuesta legítima de este módulo.
     """
-    candidatos = _DISTINTIVO.findall(str(content or ""))
+    texto = str(content or "")
+    candidatos = [
+        token for token in _DISTINTIVO.findall(texto) if token not in _ANDAMIAJE
+    ]
     if not candidatos:
         return None
     return max(candidatos, key=len)
