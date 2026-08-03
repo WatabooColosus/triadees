@@ -65,6 +65,10 @@ class AdaptiveScheduler:
         "goal_lora_train": 0.0,
         "encrypted_backup": 86400.0,
         "neuron_education_cycle": 900.0,
+        # Cada observación carga modelo base + adaptador en GPU y tarda ~12 s.
+        # Media hora entre observaciones acumula evidencia sin competir con la
+        # inferencia de producción por la VRAM.
+        "peft_canary_observation": 1800.0,
     }
 
     EMA_ALPHA = 0.3

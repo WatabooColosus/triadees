@@ -61,6 +61,11 @@ WorkerTaskType = Literal[
     # El canary no se observa dentro de la evaluación: acumula observaciones
     # reales entre ciclos del worker, en tareas posteriores e idempotentes.
     "self_improvement_canary_observation",
+    # El canary PEFT se observaba sólo desde `scripts/run_phase_13_lora_canary.py`.
+    # La única versión inscrita llevaba desde el 2026-07-29 en `canary` al 5 % con
+    # una sola observación: ni graduaba ni revertía, exactamente el mismo agujero
+    # que tenía el canary de automejora antes de tener productor.
+    "peft_canary_observation",
     # El aprendizaje productivo: extraer, deduplicar y medir. Cada etapa es un
     # tipo distinto porque tienen carril, coste y exclusividad distintos.
     "learning_candidate_generation",

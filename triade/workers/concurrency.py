@@ -152,6 +152,11 @@ TASK_CONCURRENCY_POLICY: dict[str, TaskConcurrencyPolicy] = {
     "self_improvement_canary_observation": TaskConcurrencyPolicy(
         "evaluation", 2, "light", ("candidate_id", "canary_id")
     ),
+    # Carga un modelo base más el adaptador en GPU: serial y clase `model`. Dos
+    # a la vez se pelearían por la VRAM con la inferencia de producción.
+    "peft_canary_observation": TaskConcurrencyPolicy(
+        "evaluation", 1, "model", ("version_id",)
+    ),
     # ── memory_write: escriben memoria gobernada; serial ────────────────
     "memory_consolidation_review": TaskConcurrencyPolicy("memory_write", 1, "light"),
     "stable_consolidation_review": TaskConcurrencyPolicy("memory_write", 1, "light"),

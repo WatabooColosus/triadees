@@ -88,6 +88,7 @@ class MissionPlanner:
         tasks.extend(self._plan_neuron_education())
         tasks.extend(self._plan_self_improvement())
         tasks.extend(self._plan_canary_observation())
+        tasks.extend(self._plan_peft_canary_observation())
         # La condición miraba sólo `TRIADE_BACKUP_KEY`, y `encrypted_backup.py`
         # acepta además `TRIADE_BACKUP_KEY_FILE`: con la clave en fichero, la
         # tarea no se planificaba aunque el backup fuese perfectamente posible.
@@ -601,6 +602,56 @@ class MissionPlanner:
                 db_path=self.db_path,
             )
         return tasks
+
+    def _plan_peft_canary_observation(self) -> list[PlannedTask]:
+        """Observa el canary PEFT abierto, si lo hay.
+
+        `GovernedPeftServing` está bien construido —integridad, dataset
+        autorizado, métricas OOD, rechazo de olvido catastrófico y activación con
+        firma humana— pero nadie lo alimentaba: su único llamador era
+        `scripts/run_phase_13_lora_canary.py`. La versión inscrita el 2026-07-29
+        llevaba cinco días en `canary` al 5 % con **una** observación, la de su
+        propio minuto de creación. Ni graduaba ni revertía.
+
+        Es el mismo agujero que tenía `self_improvement_canary_observation` antes
+        de tener productor, y se cierra igual: cada ciclo aporta lo que haya y se
+        va. La activación sigue siendo humana; esto sólo acumula la evidencia
+        sobre la que decidir.
+        """
+        try:
+            with closing(self._connect()) as conn, conn:
+                if not conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' "
+                    "AND name='governed_peft_versions'"
+                ).fetchone():
+                    return []
+                fila = conn.execute(
+                    "SELECT version_id, adapter_path FROM governed_peft_versions "
+                    "WHERE status = 'canary' ORDER BY created_at LIMIT 1"
+                ).fetchone()
+            if fila is None:
+                return []
+            return [
+                PlannedTask(
+                    task_type="peft_canary_observation",
+                    priority=34,
+                    reason=(
+                        f"canary PEFT {fila['version_id']} abierto: acumular "
+                        "observaciones para decidir graduación o rollback"
+                    ),
+                    source="open_peft_canary",
+                    planner_score=0.6,
+                    payload={
+                        "version_id": str(fila["version_id"] or ""),
+                        "adapter_path": str(fila["adapter_path"] or ""),
+                    },
+                )
+            ]
+        except MISSION_PLANNER_ERRORS as exc:
+            record_internal_error(
+                "mission_planner.peft_canary", exc, db_path=self.db_path
+            )
+        return []
 
     def _plan_memory_consolidation(self) -> list[PlannedTask]:
         """Programa consolidación sólo si hay algo que el handler pueda consolidar.

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -15,10 +17,39 @@ MIGRATION = (
     Path(__file__).resolve().parent.parent
     / "memory/migrations/029_lora_serving_governance.sql"
 )
+#: Se aplica aparte porque `ALTER TABLE ADD COLUMN` no admite `IF NOT EXISTS` en
+#: SQLite y este constructor corre en cada instanciación.
+MIGRATION_BASE_MODEL = (
+    Path(__file__).resolve().parent.parent / "memory/migrations/030_peft_base_model.sql"
+)
 
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def normalize_model_id(model: str) -> str:
+    """Reduce un identificador de modelo a una clave comparable entre proveedores.
+
+    Un adaptador declara su base en formato HuggingFace
+    (`Qwen/Qwen2.5-0.5B-Instruct`) y el runtime sirve etiquetas de Ollama
+    (`qwen2.5:3b-instruct`). Sin una clave común no se puede responder a la única
+    pregunta que importa antes de activar: ¿este adaptador es de este modelo?
+
+    Se descarta la organización y se eliminan los separadores, que es lo único
+    que varía entre proveedores: `Qwen/Qwen2.5-0.5B-Instruct` y
+    `qwen2.5:0.5b-instruct` coinciden, `google/gemma-3-4b` y `gemma3:4b`
+    también, y `qwen2.5:3b-instruct` no coincide con ninguno de los dos.
+
+    Es deliberadamente estricta. Ante un nombre que no sepa reducir devuelve algo
+    que no casará con nada, y `activate()` bloquea: para una puerta de seguridad,
+    equivocarse hacia «no compatible» es el lado correcto.
+    """
+    texto = str(model or "").strip().lower()
+    if not texto:
+        return ""
+    texto = texto.rpartition("/")[2]
+    return re.sub(r"[^a-z0-9.]+", "", texto)
 
 
 def build_integrity_bundle(adapter_path: str | Path) -> dict[str, Any]:
@@ -39,12 +70,25 @@ def build_integrity_bundle(adapter_path: str | Path) -> dict[str, Any]:
 
 
 class GovernedPeftServing:
-    def __init__(self, db_path: str | Path, adapters_root: str | Path) -> None:
+    def __init__(
+        self,
+        db_path: str | Path,
+        adapters_root: str | Path,
+        served_models: Sequence[str] | None = None,
+    ) -> None:
         self.db_path = Path(db_path)
         self.adapters_root = Path(adapters_root).resolve()
+        #: Modelos que el runtime sirve de verdad. Si no se inyectan se
+        #: preguntan a Ollama en el momento de activar, que es cuando importa.
+        self.served_models = list(served_models) if served_models is not None else None
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(SCHEMA.read_text(encoding="utf-8"))
             conn.executescript(MIGRATION.read_text(encoding="utf-8"))
+            columnas = {
+                fila[1] for fila in conn.execute("PRAGMA table_info(governed_peft_versions)")
+            }
+            if "base_model" not in columnas:
+                conn.executescript(MIGRATION_BASE_MODEL.read_text(encoding="utf-8"))
 
     def enroll(
         self, adapter_path: str | Path, *, traffic_percent: float = 5.0
@@ -64,12 +108,23 @@ class GovernedPeftServing:
             raise ValueError("ood_or_forgetting_metrics_missing")
         if float(metrics["forgetting_regression"]) > 0:
             raise ValueError("catastrophic_forgetting_regression")
+        # El manifiesto ya declaraba a qué modelo pertenece el adaptador y se
+        # descartaba al inscribirlo. Sin ese dato, la gobernanza no podía impedir
+        # activar un adaptador de 0.5B sobre el modelo de 3B que sirve el
+        # runtime, ni sobre otra familia entera.
+        base_model = str(manifest.get("base_model") or "").strip()
+        if not base_model:
+            raise ValueError("adapter_base_model_missing")
         baseline_quality = -float(metrics["baseline_validation_loss"])
         version_id = f"peft-{uuid.uuid4().hex}"
         now = _now()
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
-                "INSERT INTO governed_peft_versions VALUES (?, ?, ?, ?, 'canary', ?, ?, ?, NULL, NULL, ?, ?)",
+                """INSERT INTO governed_peft_versions
+                (version_id, adapter_path, integrity_sha256, dataset_id, status,
+                 traffic_percent, baseline_quality, rollback_ref, approved_by,
+                 previous_version_id, created_at, updated_at, base_model)
+                VALUES (?, ?, ?, ?, 'canary', ?, ?, ?, NULL, NULL, ?, ?, ?)""",
                 (
                     version_id,
                     str(root),
@@ -80,6 +135,7 @@ class GovernedPeftServing:
                     f"peft:{version_id}:restore_previous",
                     now,
                     now,
+                    base_model,
                 ),
             )
         return {
@@ -87,6 +143,7 @@ class GovernedPeftServing:
             "status": "canary",
             "dataset_id": dataset_id,
             "traffic_percent": traffic_percent,
+            "base_model": base_model,
         }
 
     def observe(
@@ -135,7 +192,7 @@ class GovernedPeftServing:
             return {"status": "blocked", "reason": "named_human_approval_required"}
         with sqlite3.connect(self.db_path) as conn:
             row = conn.execute(
-                "SELECT status FROM governed_peft_versions WHERE version_id=?",
+                "SELECT status, base_model FROM governed_peft_versions WHERE version_id=?",
                 (version_id,),
             ).fetchone()
             observations = conn.execute(
@@ -144,6 +201,18 @@ class GovernedPeftServing:
             ).fetchone()[0]
             if not row or row[0] != "canary" or observations < 1:
                 return {"status": "blocked", "reason": "passing_canary_required"}
+            # Un adaptador entrenado sobre un modelo que el runtime no sirve no
+            # puede aplicarse a nada. Activarlo dejaría el slot de producción
+            # apuntando a algo inservible, y con firma humana encima.
+            base_model = str(row[1] or "")
+            compatible = self._served_matching(base_model)
+            if not compatible:
+                return {
+                    "status": "blocked",
+                    "reason": "base_model_not_served",
+                    "base_model": base_model or "UNKNOWN",
+                    "served_models": self._resolve_served_models(),
+                }
             current = conn.execute(
                 "SELECT version_id FROM governed_peft_active_slot WHERE slot='production'"
             ).fetchone()
@@ -203,6 +272,34 @@ class GovernedPeftServing:
                 "updated_at": row[2],
             }
         )
+
+    def _resolve_served_models(self) -> list[str]:
+        """Modelos servidos: los inyectados, o los que Ollama declare ahora.
+
+        Se pregunta en el momento de activar y no al construir: entre una cosa y
+        otra pueden pasar días, y lo que importa es qué hay servido cuando el
+        adaptador iría a producción. Si Ollama no responde, la lista queda vacía
+        y `activate()` bloquea — sin evidencia no se activa.
+        """
+        if self.served_models is not None:
+            return list(self.served_models)
+        try:
+            from triade.models.ollama_client import OllamaClient
+
+            salud = OllamaClient().health()
+            return [str(m) for m in (salud.get("models") or [])]
+        except (OSError, ImportError, RuntimeError, ValueError, TypeError, KeyError):
+            return []
+
+    def _served_matching(self, base_model: str) -> list[str]:
+        clave = normalize_model_id(base_model)
+        if not clave:
+            return []
+        return [
+            servido
+            for servido in self._resolve_served_models()
+            if normalize_model_id(servido) == clave
+        ]
 
     def _verify_blobs(
         self, adapter_path: str | Path
