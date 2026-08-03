@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from apps import internal_graphs_live
 from apps.single_port_app import app
+from triade.observability.event_feed import latest_cursor, read_new_events
 from triade.observability.introspection import (
     build_debt_report,
     summarise_for_humans,
@@ -33,6 +34,9 @@ def _db(tmp_path: Path) -> Path:
         CREATE TABLE runs (run_id TEXT PRIMARY KEY, status TEXT, created_at TEXT);
         CREATE TABLE autonomous_tasks (id INTEGER PRIMARY KEY, run_id TEXT, status TEXT, task_type TEXT);
         CREATE TABLE worker_tasks (id INTEGER PRIMARY KEY, task_type TEXT, created_at TEXT);
+        CREATE TABLE worker_events (id INTEGER PRIMARY KEY AUTOINCREMENT, run_ref TEXT,
+            task_id TEXT, task_type TEXT, event_type TEXT, status TEXT, message TEXT,
+            payload_json TEXT, created_at TEXT);
         INSERT INTO runs VALUES ('real-run', 'running', '2026-08-02T23:00:00Z');
         INSERT INTO autonomous_tasks VALUES (1, 'real-run', 'running', 'pulse_check');
         """
@@ -68,7 +72,7 @@ def test_pulse_carries_live_signals_not_structure(
     monkeypatch.setenv("TRIADE_DB_PATH", str(_db(tmp_path)))
     internal_graphs_live._cache.clear()
 
-    pulse = internal_graphs_live.build_pulse()
+    pulse, _ = internal_graphs_live.build_pulse()
 
     assert pulse["simulated"] is False
     assert pulse["legend"], "el color viaja con el pulso para que la UI no lo invente"
@@ -169,3 +173,77 @@ def test_debt_summary_is_readable_and_carries_numbers(tmp_path: Path) -> None:
     # Lo que va a Qualia debe poder serializarse sin perder los recuentos.
     counts = {name: entry["count"] for name, entry in report["items"].items()}
     assert json.loads(json.dumps(counts, sort_keys=True)) == counts
+
+
+# --- Las acciones reales, según ocurren --------------------------------------
+
+
+def test_feed_starts_in_the_present_not_in_the_history(tmp_path: Path) -> None:
+    """Volcar el historial en el primer pulso sería presentar lo viejo como nuevo."""
+    db = _db(tmp_path)
+    cursor = latest_cursor(db)
+    events, _ = read_new_events(db, cursor)
+    assert events == []
+
+
+def test_feed_is_complete_and_verifiable(tmp_path: Path) -> None:
+    """Nada se salta entre lecturas, y cada acción apunta a su fila."""
+    db = _db(tmp_path)
+    cursor = latest_cursor(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS worker_events ("
+            "id INTEGER PRIMARY KEY, run_ref TEXT, task_id TEXT, task_type TEXT,"
+            " event_type TEXT, status TEXT, message TEXT, payload_json TEXT,"
+            " created_at TEXT)"
+        )
+        for i, (task, status) in enumerate(
+            [("pulse_check", "ok"), ("goal_lora_train", "failed")], start=1
+        ):
+            conn.execute(
+                "INSERT INTO worker_events (task_type, event_type, status, created_at)"
+                " VALUES (?, 'task_completed', ?, ?)",
+                (task, status, f"2026-08-03T03:00:0{i}"),
+            )
+
+    events, advanced = read_new_events(db, cursor)
+
+    assert len(events) == 2
+    assert [e["action"] for e in events] == [
+        "pulse_check · task_completed",
+        "goal_lora_train · task_completed",
+    ]
+    assert [e["status"] for e in events] == ["active", "failed"]
+    assert events[0]["node_id"] == "task_type:pulse_check"
+    for event in events:
+        assert event["evidence"].startswith("sqlite:worker_events.id=")
+        assert event["simulated"] is False
+
+    # El cursor avanzó: una segunda lectura no repite lo ya entregado.
+    again, _ = read_new_events(db, advanced)
+    assert again == []
+
+
+def test_pulse_carries_actions_and_advances_its_cursor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TRIADE_DB_PATH", str(_db(tmp_path)))
+    internal_graphs_live._cache.clear()
+
+    first, cursor = internal_graphs_live.build_pulse()
+    assert first["events"] == []
+    assert first["schema_version"] == 4
+
+    with sqlite3.connect(tmp_path / "triade.db") as conn:
+        conn.execute(
+            "INSERT INTO worker_events (task_type, event_type, status, created_at)"
+            " VALUES ('pulse_check', 'task_completed', 'ok', '2026-08-03T03:00:00')"
+        )
+
+    second, advanced = internal_graphs_live.build_pulse(cursor)
+
+    assert [e["action"] for e in second["events"]] == ["pulse_check · task_completed"]
+    assert second["cursor"]["worker_events"] == advanced.positions["worker_events"]
+    # Un tercer pulso no repite la acción ya entregada.
+    third, _ = internal_graphs_live.build_pulse(advanced)
+    assert third["events"] == []

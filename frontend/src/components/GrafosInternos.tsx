@@ -28,6 +28,10 @@ type Node = {
 }
 type Edge = { source: string; target: string; relation: string; evidence: string }
 type Graph = { nodes: Node[]; edges: Edge[]; states: Record<string, number>; source?: string }
+type LiveEvent = {
+  source: string; row_id: number; at: string | null; graph: string
+  node_id: string | null; action: string; status: string; evidence: string
+}
 type DebtEntry = { count: number; sample: string[]; evidence: string }
 type Debt = {
   status: string; reason?: string; summary?: string
@@ -44,11 +48,13 @@ export function GrafosInternos() {
   const [detail, setDetail] = useState<any>(null)
   const [status, setStatus] = useState('cargando…')
   const [error, setError] = useState('')
+  const [actions, setActions] = useState<LiveEvent[]>([])
+  const [hot, setHot] = useState<Set<string>>(new Set())
   const [pan, setPan] = useState({ x: 0, y: 0, k: 1 })
   const drag = useRef<{ x: number; y: number } | null>(null)
 
-  /* Pulso vivo: sólo señales de SQLite, nunca la estructura. Repinta el estado
-   * de los nodos del grafo abierto sin recargarlo. */
+  /* Pulso vivo: acciones ocurridas y señales de SQLite, nunca la estructura.
+   * Las acciones llegan por cursor, así que ninguna se pierde entre pulsos. */
   useEffect(() => {
     const source = new EventSource('/api/internal-graphs/stream')
     source.addEventListener('pulse', (ev: any) => {
@@ -59,6 +65,13 @@ export function GrafosInternos() {
         `${p.database?.tables ?? '—'} tablas · integridad ${p.database?.integrity ?? '—'} · ` +
         `carga ${Number(load).toFixed(2)}`)
       setGraph((prev) => prev ? applySignals(prev, p.signals, view) : prev)
+      const incoming: LiveEvent[] = p.events || []
+      if (incoming.length) {
+        setActions(prev => [...incoming].reverse().concat(prev).slice(0, 200))
+        /* Un nodo que acaba de actuar se marca; el destello dura un pulso. */
+        setHot(new Set(incoming.map(e => e.node_id).filter(Boolean) as string[]))
+        window.setTimeout(() => setHot(new Set()), 1600)
+      }
     })
     source.onerror = () => setStatus('stream desconectado · reintentando')
     return () => source.close()
@@ -147,8 +160,11 @@ export function GrafosInternos() {
                     const p = positions.get(n.node_id)
                     if (!p) return null
                     return (
-                      <circle key={n.node_id} cx={p.x} cy={p.y} r={selected === n.node_id ? 9 : 6}
-                        fill={n.color} stroke={selected === n.node_id ? '#fff' : '#0d1117'} strokeWidth={1.5}
+                      <circle key={n.node_id} cx={p.x} cy={p.y}
+                        r={hot.has(n.node_id) ? 12 : selected === n.node_id ? 9 : 6}
+                        fill={n.color}
+                        stroke={hot.has(n.node_id) || selected === n.node_id ? '#fff' : '#0d1117'}
+                        strokeWidth={hot.has(n.node_id) ? 2.5 : 1.5}
                         style={{ cursor: 'pointer' }}
                         onClick={ev => { ev.stopPropagation(); openNode(n.node_id) }}>
                         <title>{`${n.label} · ${n.state}`}</title>
@@ -166,6 +182,45 @@ export function GrafosInternos() {
             : <NodePanel graph={graph} detail={detail} shownCount={shown.length} />}
         </div>
       </div>
+
+      <AccionesEnVivo actions={actions} />
+    </div>
+  )
+}
+
+/* El registro de acciones es la prueba de que el grafo se mueve con el sistema
+ * y no con un temporizador: cada línea es una fila real que se puede ir a ver. */
+function AccionesEnVivo({ actions }: { actions: LiveEvent[] }) {
+  return (
+    <div style={{
+      border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)',
+      padding: 10, maxHeight: 190, overflowY: 'auto',
+    }}>
+      <h4 style={{ fontSize: 11, margin: '0 0 6px', color: 'var(--text-muted)' }}>
+        ACCIONES EN VIVO {actions.length ? `· ${actions.length}` : ''}
+      </h4>
+      {!actions.length
+        ? <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+            Esperando a que el sistema actúe. Sólo se muestra lo que ocurre desde
+            que abriste esta vista, nunca el historial.
+          </p>
+        : actions.map(a => (
+          <div key={`${a.source}-${a.row_id}`} style={{
+            display: 'flex', gap: 8, fontSize: 11, padding: '2px 0',
+            borderBottom: '1px solid var(--border)',
+          }}>
+            <span style={{ color: 'var(--text-muted)', minWidth: 58 }}>
+              {a.at ? a.at.slice(11, 19) : '—'}
+            </span>
+            <span style={{
+              minWidth: 56,
+              color: a.status === 'failed' ? '#b03030'
+                : a.status === 'active' ? '#1b7f4b' : 'var(--text-muted)',
+            }}>{a.status}</span>
+            <span style={{ flex: 1 }}>{a.action}</span>
+            <code style={{ color: 'var(--accent)', fontSize: 10 }}>{a.evidence}</code>
+          </div>
+        ))}
     </div>
   )
 }

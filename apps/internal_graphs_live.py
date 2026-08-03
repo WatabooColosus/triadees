@@ -28,6 +28,7 @@ from triade.observability.code_graph import (
     build_import_graph,
     build_module_index,
 )
+from triade.observability.event_feed import FeedCursor, latest_cursor, read_new_events
 from triade.observability.file_graph import build_file_graph
 from triade.observability.neural_graph import build_neural_graph
 from triade.observability.render import color_for, legend
@@ -347,24 +348,40 @@ def build_signals() -> dict[str, Any]:
     }
 
 
-def build_pulse() -> dict[str, Any]:
-    """Latido del stream: señales vivas, recursos y salud de la base."""
-    return {
-        "schema_version": 3,
+def build_pulse(cursor: FeedCursor | None = None) -> tuple[dict[str, Any], FeedCursor]:
+    """Latido del stream: acciones ocurridas, señales, recursos y salud.
+
+    Las acciones son lo que hace que el grafo se mueva solo en vez de limitarse
+    a informar. Se leen por cursor, así que entre dos pulsos no se pierde
+    ninguna aunque el cliente tarde o el proceso se reinicie.
+    """
+    db_path = _db_path()
+    cursor = cursor if cursor is not None else latest_cursor(db_path)
+    events, advanced = read_new_events(db_path, cursor)
+    payload = {
+        "schema_version": 4,
         "generated_at": time.time(),
+        "events": events,
+        "cursor": advanced.to_dict(),
         "signals": build_signals(),
         "legend": legend(),
         "resources": _resource_snapshot(),
-        "database": _database_health(_db_path()),
+        "database": _database_health(db_path),
         "simulated": False,
     }
+    return payload, advanced
 
 
 def event_stream(interval_seconds: float = 2.0) -> Iterator[str]:
-    """Entrega pulsos SSE; una desconexión del cliente termina el generador."""
+    """Entrega pulsos SSE; una desconexión del cliente termina el generador.
+
+    El cursor arranca en el presente: quien se conecta ve lo que ocurre desde
+    ese momento, no un volcado del historial disfrazado de ahora.
+    """
+    cursor = latest_cursor(_db_path())
     while True:
         try:
-            payload = build_pulse()
+            payload, cursor = build_pulse(cursor)
             yield (
                 "event: pulse\n"
                 f"data: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
