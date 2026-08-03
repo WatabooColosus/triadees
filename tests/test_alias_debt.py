@@ -118,7 +118,7 @@ def test_un_estado_que_nadie_escribe_es_una_condicion_muerta(tmp_path) -> None:
         encoding="utf-8",
     )
     (tmp_path / "producer.py").write_text(
-        'UPDATE = "UPDATE learning_queue SET status = \'evidence_verified\'"\n',
+        "UPDATE = \"UPDATE learning_queue SET status = 'evidence_verified'\"\n",
         encoding="utf-8",
     )
 

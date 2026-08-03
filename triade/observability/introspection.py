@@ -303,9 +303,7 @@ def _backup_protection_gaps(root: Path) -> dict[str, Any]:
                 f"({copias[0].name})"
             )
         sin_huella = [
-            copia.name
-            for copia in copias
-            if not _manifest_key_fingerprint(copia)
+            copia.name for copia in copias if not _manifest_key_fingerprint(copia)
         ]
         if sin_huella:
             gaps.append(
@@ -351,7 +349,11 @@ def _declared_services_not_running(
     """
     unit_dir = root / "deploy" / "systemd"
     if not unit_dir.is_dir():
-        return {"count": 0, "sample": [], "evidence": "sin deploy/systemd: NEEDS_EVIDENCE"}
+        return {
+            "count": 0,
+            "sample": [],
+            "evidence": "sin deploy/systemd: NEEDS_EVIDENCE",
+        }
 
     declared: list[tuple[str, str]] = []
     for unit in sorted(unit_dir.glob("*.service")):
@@ -423,7 +425,9 @@ def _service_effect_evidence(
     # que hace que `runtime_health_snapshots` deje de figurar como escrita y nunca
     # leída: ahora tiene un lector, y el grafo lo demuestra.
     if "watchdog" in marker:
-        return _recent_row(db_path, "SELECT MAX(created_at) FROM runtime_health_snapshots")
+        return _recent_row(
+            db_path, "SELECT MAX(created_at) FROM runtime_health_snapshots"
+        )
     if "workers" in marker:
         return _recent_row(db_path, "SELECT MAX(updated_at) FROM autonomous_tasks")
     if "backup" in marker:

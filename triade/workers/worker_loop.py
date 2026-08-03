@@ -32,7 +32,6 @@ from triade.core.safety import Safety
 from triade.federation.federation import Federation
 from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_governance import SemanticMemoryGovernance
-from triade.memory.semantic_store import SemanticMemoryStore
 from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
 from triade.runtime.atomic_completion import AtomicCompletionCoordinator

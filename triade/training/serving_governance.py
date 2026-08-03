@@ -85,7 +85,8 @@ class GovernedPeftServing:
             conn.executescript(SCHEMA.read_text(encoding="utf-8"))
             conn.executescript(MIGRATION.read_text(encoding="utf-8"))
             columnas = {
-                fila[1] for fila in conn.execute("PRAGMA table_info(governed_peft_versions)")
+                fila[1]
+                for fila in conn.execute("PRAGMA table_info(governed_peft_versions)")
             }
             if "base_model" not in columnas:
                 conn.executescript(MIGRATION_BASE_MODEL.read_text(encoding="utf-8"))

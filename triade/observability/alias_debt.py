@@ -150,9 +150,7 @@ def piece_weights(names: Iterable[str]) -> dict[str, float]:
     }
 
 
-def similarity(
-    left: str, right: str, weights: dict[str, float] | None = None
-) -> float:
+def similarity(left: str, right: str, weights: dict[str, float] | None = None) -> float:
     """Parecido entre dos nombres, ponderado por la rareza de lo que comparten."""
     a, b = _pieces(left), _pieces(right)
     if not a or not b:
@@ -256,7 +254,10 @@ def find_lexical_aliases(perfiles: dict[str, dict[str, Any]]) -> list[AliasFindi
             if otro["rows"] <= 0:
                 continue
             grado = similarity(muerta, viva, pesos)
-            if grado >= SIMILARITY_THRESHOLD and grado > mejor.get(muerta, ("", 0.0))[1]:
+            if (
+                grado >= SIMILARITY_THRESHOLD
+                and grado > mejor.get(muerta, ("", 0.0))[1]
+            ):
                 mejor[muerta] = (viva, grado)
 
     hallazgos: list[AliasFinding] = []
