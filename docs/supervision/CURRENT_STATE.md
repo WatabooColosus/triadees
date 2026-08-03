@@ -18,6 +18,18 @@ Las cifras salen de `artifacts/internal_graphs/`, regenerable con
 `python scripts/build_internal_graphs.py --output artifacts/internal_graphs`.
 No hay porcentajes globales: cada celda cita el grafo que la sostiene.
 
+**Antes de citar cualquier cifra, comprobar la edad del artefacto.** Desde
+D-009 la lectura la regenera sola cuando pasa de 15 min
+(`TRIADE_GRAPHS_STALE_SECONDS`), pero la respuesta de esa misma petición todavía
+describe la generación anterior: es la siguiente la que trae lo nuevo. El campo
+`refresh` de `/api/internal-graphs/debt` dice si está al día, caducado o
+reconstruyéndose. Antes de D-009 nadie los regeneraba en el Studio y el panel
+llegó a repetir una medición de hacía dos horas como si fuera actual (F-033).
+
+**`debt_items_total` no es un marcador.** Baja también cuando se borra el
+escritor de una tabla vacía, que es una degradación (F-034). Un descenso hay que
+explicarlo por categoría antes de leerlo como mejora.
+
 | Área | Estado | Evidencia | Vigencia |
 |---|---|---|---|
 | Seguridad e identidad | PARTIAL | `.env` y `.git` viajan enmascarados como `crypt:<sha256>` y sin contenido (`test_graphs_never_expose_secrets`). `identity_core` intacto, 6 filas, no tocado en este ciclo | 2026-08-03 |

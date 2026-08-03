@@ -21,10 +21,12 @@ from fastapi.responses import (
 
 from apps.internal_graphs_live import (
     GRAPH_BUILDERS,
+    REFRESHER,
     build_graph,
     build_live_snapshot,
     event_stream,
     node_detail,
+    refresh_artifacts,
 )
 from apps.internal_graphs_live import _db_path as _graphs_db_path
 from triade.core.life_pulse import LIFE_PULSE
@@ -114,14 +116,28 @@ def internal_graphs_debt() -> dict[str, Any]:
 
     Es el mismo informe que consume el worker de deuda: una sola medición para
     quien mira desde fuera y para quien decide desde dentro.
+
+    La estructura sale de artefactos, no de un escaneo en caliente, así que la
+    respuesta declara siempre su edad y su estado de refresco. Sin eso, la cifra
+    se lee como medición de ahora cuando puede ser de hace horas: fue
+    exactamente lo que ocurrió el 2026-08-03, cuando el panel siguió contando
+    31 módulos huérfanos ya borrados.
     """
     from triade.observability.introspection import (
         build_debt_report,
         summarise_for_humans,
     )
 
+    trigger = refresh_artifacts()
+    # El estado se toma *antes* del informe, no después. Si se leyera al final,
+    # una reconstrucción que termina en mitad de la petición devolvería
+    # `running: false` junto a un informe medido con los ficheros de antes, y la
+    # interfaz dejaría de preguntar justo cuando iba a llegar lo nuevo.
+    status = REFRESHER.status()
     report = build_debt_report(ROOT, _graphs_db_path(), allow_build=False)
     report["summary"] = summarise_for_humans(report)
+    report["refresh"] = {**status, "trigger": trigger}
+    LIFE_PULSE.record_action("internal_graphs_debt")
     return report
 
 

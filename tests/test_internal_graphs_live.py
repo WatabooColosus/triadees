@@ -22,6 +22,7 @@ from triade.observability.introspection import (
     summarise_for_humans,
     unexecuted_task_types,
 )
+from triade.observability.refresh import GraphRefresher
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -162,6 +163,33 @@ def test_debt_report_says_unknown_instead_of_inventing(tmp_path: Path) -> None:
     assert report["status"] == "unknown"
     assert report["items"] == {}
     assert "no medible" in summarise_for_humans(report).lower()
+
+
+def test_debt_endpoint_declares_la_edad_y_el_refresco(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La cifra no puede viajar sin decir de cuándo es ni si se está rehaciendo.
+
+    Con `allow_build=False`, el informe describe artefactos que pueden llevar
+    horas parados. Quien lo lee tiene que poder distinguir una medición de ahora
+    de una de antes del último commit.
+    """
+    from apps.routes import ui as ui_routes
+
+    refresher = GraphRefresher(REPO_ROOT, tmp_path / "graphs", stale_seconds=99999)
+    monkeypatch.setattr(ui_routes, "REFRESHER", refresher)
+    monkeypatch.setattr(ui_routes, "refresh_artifacts", lambda **_: "fresh")
+
+    with TestClient(app) as client:
+        payload = client.get("/api/internal-graphs/debt").json()
+
+    refresh = payload["refresh"]
+    assert refresh["trigger"] == "fresh"
+    assert refresh["running"] is False
+    assert "stale" in refresh and "stale_after_seconds" in refresh
+    assert refresh["last_error"] is None
+    if payload["status"] == "measured":
+        assert payload["graphs_age_seconds"] >= 0
 
 
 def test_debt_summary_is_readable_and_carries_numbers(tmp_path: Path) -> None:

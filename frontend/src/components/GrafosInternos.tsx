@@ -33,10 +33,15 @@ type LiveEvent = {
   node_id: string | null; action: string; status: string; evidence: string
 }
 type DebtEntry = { count: number; sample: string[]; evidence: string }
+type Refresh = {
+  running: boolean; stale: boolean; stale_after_seconds: number
+  age_seconds: number | null; last_build_seconds: number | null
+  builds: number; last_error: string | null; trigger?: string
+}
 type Debt = {
   status: string; reason?: string; summary?: string
   debt_items_total?: number; graphs_age_seconds?: number
-  items: Record<string, DebtEntry>
+  items: Record<string, DebtEntry>; refresh?: Refresh
 }
 
 export function GrafosInternos() {
@@ -95,6 +100,15 @@ export function GrafosInternos() {
   }, [])
 
   useEffect(() => { loadGraph(view) }, [view, loadGraph])
+
+  /* Mientras se reconstruyen los grafos se vuelve a preguntar. Sin esto la
+   * regeneración termina y el panel sigue enseñando la cifra vieja hasta que
+   * alguien cambia de pestaña: la acción se completaría sin verse. */
+  useEffect(() => {
+    if (view !== 'debt' || !debt?.refresh?.running) return
+    const timer = window.setTimeout(() => loadGraph('debt'), 5000)
+    return () => window.clearTimeout(timer)
+  }, [view, debt, loadGraph])
 
   async function openNode(nodeId: string) {
     setSelected(nodeId)
@@ -248,6 +262,7 @@ function DebtPanel({ debt }: { debt: Debt | null }) {
     )
   }
   const entries = Object.entries(debt.items).sort((a, b) => b[1].count - a[1].count)
+  const r = debt.refresh
   return (
     <div style={{ fontSize: 12 }}>
       <h3 style={{ fontSize: 13, margin: '0 0 8px' }}>
@@ -255,7 +270,15 @@ function DebtPanel({ debt }: { debt: Debt | null }) {
       </h3>
       <p style={{ color: 'var(--text-muted)', fontSize: 11 }}>
         grafos de hace {Math.round((debt.graphs_age_seconds || 0) / 60)} min
+        {r?.running
+          ? ' · reconstruyendo…'
+          : r?.stale ? ' · caducados' : ' · al día'}
       </p>
+      {r?.last_error && (
+        <p style={{ color: 'var(--danger, #d66)', fontSize: 10, margin: '0 0 6px' }}>
+          la última reconstrucción falló: {r.last_error}
+        </p>
+      )}
       {entries.map(([name, e]) => (
         <div key={name} style={{ padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
           <b>{name.replace(/_/g, ' ')}</b> — {e.count}

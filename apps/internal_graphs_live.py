@@ -31,6 +31,7 @@ from triade.observability.code_graph import (
 from triade.observability.event_feed import FeedCursor, latest_cursor, read_new_events
 from triade.observability.file_graph import build_file_graph
 from triade.observability.neural_graph import build_neural_graph
+from triade.observability.refresh import GraphRefresher
 from triade.observability.render import color_for, legend
 from triade.observability.runtime_graph import (
     VITAL_CHAIN,
@@ -149,6 +150,20 @@ ARTIFACT_DIR = ROOT / "artifacts" / "internal_graphs"
 #: Seis horas, igual que la introspección interna. Es la misma pregunta.
 _ARTIFACT_MAX_AGE_SECONDS = 6 * 60 * 60
 
+#: Un único refrescador para todo el proceso: las rutas de grafo y la de deuda
+#: leen los mismos ficheros, así que tienen que compartir también quién los
+#: reconstruye. Dos refrescadores serían dos escaneos simultáneos de 53 s.
+REFRESHER = GraphRefresher(ROOT, ARTIFACT_DIR, _db_path())
+
+
+def refresh_artifacts(*, force: bool = False) -> str:
+    """Lanza la reconstrucción en segundo plano si el artefacto ha caducado.
+
+    Se llama desde cada lectura y no espera: quien pregunta recibe lo que hay
+    ahora, con su edad declarada, y la respuesta siguiente ya trae lo nuevo.
+    """
+    return REFRESHER.request(force=force)
+
 
 def _from_artifact(name: str) -> dict[str, Any] | None:
     """Reutiliza el grafo ya generado si sigue fresco.
@@ -195,11 +210,19 @@ def build_graph(name: str, *, limit: int | None = None) -> dict[str, Any]:
         and name not in _LIVE_GRAPHS
         and now - cached[0] < _STRUCTURAL_TTL_SECONDS
     ):
+        # El grafo cacheado puede repetirse un minuto; su estado de refresco no,
+        # porque de él depende que la interfaz sepa si debe volver a preguntar.
+        cached[1]["refresh"] = REFRESHER.status()
         return cached[1]
 
     if name not in _LIVE_GRAPHS:
+        # Se pide la regeneración antes de servir, no después: si el artefacto
+        # está caducado, esta respuesta sale vieja pero declarada, y la próxima
+        # ya lee lo nuevo sin que nadie haya esperado 53 s.
+        refresh_artifacts()
         artifact = _from_artifact(name)
         if artifact is not None:
+            artifact["refresh"] = REFRESHER.status()
             _cache[name] = (now, artifact)
             return artifact
 
