@@ -346,11 +346,21 @@ class MissionPlanner:
                         )
                     )
 
-                # semantic_memory_governance: solo si hay documentos o actividad
+                # semantic_memory_governance: solo si hay documentos o actividad.
+                #
+                # Contaba sobre `semantic_memory`, que quedó atrás cuando la
+                # ingesta pasó a `semantic_documents`: 0 filas frente a 186
+                # `candidate`, así que `sm_cnt` era siempre 0 y la tarea no se
+                # encoló ni una vez en 4 777. El handler existía; la condición
+                # que lo pide, no.
+                #
+                # El corte usa `strftime(...'T'...)` porque las tablas guardan
+                # ISO-8601 con `T` y `datetime('now')` con espacio: comparados
+                # como texto, la ventana se ensancha sola.
                 sm = conn.execute(
-                    """SELECT COUNT(*) as cnt FROM semantic_memory
+                    """SELECT COUNT(*) as cnt FROM semantic_documents
                     WHERE status IN ('candidate', 'experimental')
-                    OR updated_at > datetime('now', '-6 hours')"""
+                    OR updated_at > strftime('%Y-%m-%dT%H:%M:%S', 'now', '-6 hours')"""
                 ).fetchone()
                 sm_cnt = int(sm["cnt"] or 0) if sm else 0
                 if sm_cnt > 0:

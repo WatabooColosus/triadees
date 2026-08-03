@@ -11,6 +11,8 @@ from triade.core.neuron_missions import (
     NeuronMission,
     NeuronMissionStore,
 )
+from triade.learning.evidence_bridge import LearningEvidenceBridge
+from triade.memory.semantic_store import SemanticMemoryStore
 from triade.workers.mission_planner import MissionPlanner, PlannedTask
 
 
@@ -189,3 +191,40 @@ def test_plan_records_internal_error_when_query_fails(tmp_path: Path) -> None:
     errors = query_internal_errors(scope="mission_planner.baseline", db_path=db_path)
     assert errors
     assert errors[0]["payload"]["context"]["operation"] == "baseline_sql_queries"
+
+
+def test_semantic_governance_is_planned_from_the_live_store(tmp_path: Path) -> None:
+    """La compuerta debe mirar donde la ingesta escribe de verdad.
+
+    El almacén semántico vivo es `semantic_documents`: ahí escribe
+    `SemanticMemoryStore` y sobre esos documentos actúa
+    `SemanticMemoryGovernance`. La tabla `semantic_memory` quedó atrás y en
+    producción lleva 0 filas frente a 186 documentos `candidate`. Mientras la
+    condición consulte la tabla retirada, `semantic_memory_governance` no se
+    encola nunca: 0 ejecuciones en 4 777 tareas.
+    """
+    db_path = make_db(tmp_path)
+    # `schemas.sql` no declara `learning_evidence` ni `semantic_documents`: las
+    # crean sus propios módulos al inicializarse. Sin ellas el bloque baseline
+    # aborta en la consulta anterior y nunca llega a la compuerta semántica, que
+    # es justo lo que este test tiene que ejercitar.
+    LearningEvidenceBridge(db_path=db_path)
+    store = SemanticMemoryStore(db_path=db_path)
+    store.upsert_document(
+        content="Los grafos internos se generan desde el AST, no desde la documentación.",
+        domain="observabilidad",
+        source_type="manual",
+        source_ref="tests/test_mission_planner.py",
+    )
+    with sqlite3.connect(db_path) as conn:
+        # La tabla retirada sigue existiendo y sigue vacía, como en producción.
+        assert conn.execute("SELECT COUNT(*) FROM semantic_memory").fetchone()[0] == 0
+        assert (
+            conn.execute("SELECT COUNT(*) FROM semantic_documents").fetchone()[0] == 1
+        )
+
+    tasks = MissionPlanner(db_path=db_path).plan_cycle()
+
+    governance = [t for t in tasks if t.task_type == "semantic_memory_governance"]
+    assert governance, "un documento candidate debe encolar la gobernanza semántica"
+    assert "1" in governance[0].reason
