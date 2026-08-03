@@ -231,6 +231,13 @@ TASK_OPERATION: dict[str, str] = {
     # ── automejora ───────────────────────────────────────────────────
     "self_improvement_evaluation": "run_internal_tests",
     "self_improvement_canary_observation": "measure_results",
+    # Observar el canary PEFT es medir, no activar: genera con el adaptador ya
+    # inscrito y anota el resultado. La activación sigue exigiendo firma humana
+    # nombrada en `GovernedPeftServing.activate()`, que es otra puerta y otra
+    # decisión. Sin esta línea el tipo quedaba bloqueado con «se exige humano
+    # por defecto» —el registro haciendo bien su trabajo— y el planner lo
+    # reencolaba cada ciclo: 17 tareas bloqueadas en veinte minutos.
+    "peft_canary_observation": "measure_results",
     # ── lo que toca el mundo fuera de la base ────────────────────────
     "write_governed_text_artifact": "write_governed_artifact",
     "goal_install": "install_software",
