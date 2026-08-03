@@ -89,6 +89,24 @@ def _scan_sources(root: Path) -> tuple[set[str], dict[str, set[str]]]:
     return migrados, parametrizados
 
 
+def _readers_reachable(tabla: str, root: Path, alcanzables: set[str]) -> list[str]:
+    """Ficheros que leen la tabla y que además alguien ejecuta."""
+    patron = re.compile(
+        rf"\bFROM\s+{re.escape(tabla)}\b|\bJOIN\s+{re.escape(tabla)}\b", re.IGNORECASE
+    )
+    vivos: list[str] = []
+    for relativo in sorted(alcanzables):
+        if not relativo.endswith(".py"):
+            continue
+        try:
+            texto = (root / relativo).read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if patron.search(texto):
+            vivos.append(relativo)
+    return vivos
+
+
 def _classify_status(
     valor: str,
     ficheros: list[str],
@@ -187,9 +205,25 @@ def triage(root: Path, db: Path, cache: Path) -> dict[str, Any]:
                 "tables_with_writer_and_no_rows",
             }:
                 escritores = int(perfil.get("writers") or 0)
-                if escritores == 0:
+                # Un lector sin escritor sólo es un corte si alguien lo ejecuta.
+                # `neuron_certifications` tenía 1 lector y 0 escritores, y la
+                # regla lo llamó corte confirmado: pero su lector,
+                # `neuron_factory/certification.py`, no lo alcanza ningún
+                # entrypoint arrancado. Nadie recibe nunca ese caso vacío, así
+                # que es una capacidad sin terminar, no una rotura en marcha.
+                lectores_vivos = _readers_reachable(nombre, root, alcanzables)
+                if escritores == 0 and lectores_vivos:
                     clase, sev = "confirmed_break", "high"
-                    ev = "hay lector y ningún escritor: siempre devuelve el caso vacío"
+                    ev = (
+                        "hay lector alcanzable desde un entrypoint y ningún "
+                        "escritor: siempre devuelve el caso vacío"
+                    )
+                elif escritores == 0:
+                    clase, sev = "incomplete_subsystem", "medium"
+                    ev = (
+                        "sin escritor, y su lector no lo alcanza ningún "
+                        "entrypoint arrancado: capacidad sin terminar"
+                    )
                 else:
                     clase, sev = "incomplete_subsystem", "medium"
                     ev = (
