@@ -2747,12 +2747,21 @@ class WorkerLoop:
     def _stable_consolidation_review(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
-        """Revisa candidatos con evidencia suficiente y solo entonces permite consolidar."""
+        """Revisa candidatos con evidencia suficiente y solo entonces permite consolidar.
+
+        Listaba únicamente `validated_in_runs`, un estado con cero filas en toda
+        la vida de la base: aunque la tarea llegase, el bucle no iteraba nunca.
+        `evidence_verified` es la otra puerta a la misma medición y es la que el
+        productor de evidencia usa hoy. Los umbrales no cambian: quien decide
+        sigue siendo `pipe.consolidate()`.
+        """
         pipe = LearningPipeline(db_path=self.db_path)
         sandbox = WorkerSandbox(task_dir)
         consolidated = []
         rejected = []
-        for candidate in pipe.list_candidates(status="validated_in_runs", limit=5):
+        for candidate in pipe.list_candidates(
+            status=("validated_in_runs", "evidence_verified"), limit=5
+        ):
             sb = sandbox.run(
                 "analyze_memory_candidate", candidate, timeout=config.task_timeout
             )

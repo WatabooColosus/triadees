@@ -13,7 +13,8 @@ Reglas innegociables (alineadas con docs/LEARNING.md y docs/SAFETY.md):
 - La consolidación reutiliza la gobernanza semántica 1.9E (candidate→experimental
   →stable con razón y evidencia) como motor de memoria estable.
 - Una memoria solo puede pasar a consolidated/stable si:
-  - está verified o validated_in_runs
+  - está en `CONSOLIDATABLE_STATES` (internally_checked, validated_in_runs o
+    evidence_verified; las tres exigen la misma medición antes/después)
   - tiene source_ref
   - tiene mínimo 3 usos en runs (run_use_count >= 3)
   - promedio outcome_score >= 0.70
@@ -26,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -89,6 +91,24 @@ class LearningPipeline:
     CONFIDENCE_GATE = 0.45
     MIN_RUN_USES = 3
     MIN_OUTCOME_SCORE = 0.70
+
+    #: Estados desde los que un candidato puede seguir acumulando uso real y
+    #: optar a consolidación. `evidence_verified` entró aquí el 2026-08-03: lo
+    #: escribe `evidence_producer.promote_if_verified()` tras pasar el mismo
+    #: `require_improvement()` que exigía la vía `validated_in_runs`, así que no
+    #: es un estado más débil sino el mismo gate por otra puerta. Mientras no
+    #: estuvo en esta lista, un candidato promovido por evidencia quedaba fuera
+    #: de `mark_used_in_run` y de `consolidate` a la vez: dejaba de sumar usos y
+    #: no podía consolidarse. Seis candidatos llevaban ahí desde el 1-ago.
+    #:
+    #: Esto NO relaja ningún umbral: `consolidate()` sigue exigiendo
+    #: `run_use_count >= MIN_RUN_USES` y `avg_outcome_score >= MIN_OUTCOME_SCORE`
+    #: sea cual sea el estado de entrada.
+    CONSOLIDATABLE_STATES: tuple[str, ...] = (
+        "internally_checked",
+        "validated_in_runs",
+        "evidence_verified",
+    )
 
     def __init__(
         self,
@@ -395,9 +415,10 @@ class LearningPipeline:
             raise ValueError(
                 "outcome_score positivo requiere evidence_ref real y trazable"
             )
-        if row["status"] not in ("internally_checked", "validated_in_runs"):
+        if row["status"] not in self.CONSOLIDATABLE_STATES:
             raise ValueError(
-                f"Solo se marca uso de candidatos internally_checked/validated_in_runs (actual: {row['status']})."
+                f"Solo se marca uso de candidatos "
+                f"{'/'.join(self.CONSOLIDATABLE_STATES)} (actual: {row['status']})."
             )
 
         scores_raw = row["run_outcome_scores"] or "[]"
@@ -477,9 +498,10 @@ class LearningPipeline:
             raise ValueError(
                 "Ollama no disponible para consolidación stable y no hay aprobación humana explícita."
             )
-        if row["status"] not in ("internally_checked", "validated_in_runs"):
+        if row["status"] not in self.CONSOLIDATABLE_STATES:
             raise ValueError(
-                f"Solo se consolida un candidato 'internally_checked' o 'validated_in_runs' (actual: {row['status']})."
+                f"Solo se consolida un candidato "
+                f"{'/'.join(self.CONSOLIDATABLE_STATES)} (actual: {row['status']})."
             )
         if not row["source_ref"]:
             raise ValueError("No se consolida memoria estable sin source_ref.")
@@ -712,13 +734,17 @@ class LearningPipeline:
         return candidate
 
     def list_candidates(
-        self, status: str | None = None, limit: int = 50
+        self, status: str | Sequence[str] | None = None, limit: int = 50
     ) -> list[dict[str, Any]]:
+        """Lista candidatos por estado; `status` admite uno o varios."""
         with self._connect() as conn:
             if status:
+                estados = (status,) if isinstance(status, str) else tuple(status)
+                marcas = ",".join("?" * len(estados))
                 rows = conn.execute(
-                    "SELECT * FROM learning_queue WHERE status = ? ORDER BY id DESC LIMIT ?",
-                    (status, limit),
+                    f"SELECT * FROM learning_queue WHERE status IN ({marcas}) "
+                    "ORDER BY id DESC LIMIT ?",
+                    (*estados, limit),
                 ).fetchall()
             else:
                 rows = conn.execute(
