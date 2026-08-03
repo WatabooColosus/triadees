@@ -451,6 +451,51 @@ def build_entrypoint_graph(
     return sorted(nodes.values(), key=lambda n: n.node_id), edges
 
 
+def reachable_modules(
+    root: Path,
+    index: ModuleIndex | None = None,
+    import_edges: list[GraphEdge] | None = None,
+) -> set[str]:
+    """Módulos alcanzables por imports desde un entrypoint que alguien arranca.
+
+    Un `__main__` prueba que un fichero *puede* ejecutarse; sólo Procfile,
+    Dockerfile, systemd, workflows y `[project.scripts]` prueban que alguien lo
+    arranca. Se parte de esos y se sigue la cadena de imports.
+
+    Esto es lo que separa «tiene importadores» de «el sistema lo conecta»: un
+    módulo importado únicamente por otro que jamás se ejecuta está tan
+    denervado como uno que nadie nombra, y la cuenta de importadores no
+    distingue los dos casos.
+    """
+    root = root.resolve()
+    index = index or build_module_index(root)
+    if import_edges is None:
+        _nodes, import_edges = build_import_graph(root, index)
+
+    adjacency: dict[str, set[str]] = {}
+    for edge in import_edges:
+        if edge.relation != "imports":
+            continue
+        source = edge.source.partition(":")[2]
+        adjacency.setdefault(source, set()).add(edge.target.partition(":")[2])
+
+    entry_nodes, _entry_edges = build_entrypoint_graph(root, index)
+    pending = [
+        str(node.metadata.get("path") or "")
+        for node in entry_nodes
+        if int(node.metadata.get("launchers") or 0) > 0
+    ]
+    reached = {path for path in pending if path}
+    queue = list(reached)
+    while queue:
+        current = queue.pop()
+        for target in adjacency.get(current, ()):
+            if target not in reached:
+                reached.add(target)
+                queue.append(target)
+    return reached
+
+
 def _documented_paths(root: Path) -> set[str]:
     """Rutas y nombres de fichero citados en documentación o workflows."""
     blob: list[str] = []

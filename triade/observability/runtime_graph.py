@@ -17,7 +17,13 @@ import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 
-from .code_graph import ModuleIndex, build_module_index, iter_python_files
+from .code_graph import (
+    ModuleIndex,
+    build_import_graph,
+    build_module_index,
+    iter_python_files,
+    reachable_modules,
+)
 from .contracts import GraphEdge, GraphNode
 
 #: Órgano → prefijos de ruta reales. Un órgano sin carpeta no se dibuja.
@@ -386,7 +392,10 @@ def _handler_map(root: Path, relative: str) -> dict[str, str]:
 
 
 def build_worker_graph(
-    root: Path, index: ModuleIndex | None = None, db_path: Path | None = None
+    root: Path,
+    index: ModuleIndex | None = None,
+    db_path: Path | None = None,
+    import_edges: list[GraphEdge] | None = None,
 ) -> tuple[list[GraphNode], list[GraphEdge]]:
     """Grafo 4: workers, tipos de tarea y su ejecución demostrada.
 
@@ -405,11 +414,79 @@ def build_worker_graph(
         if relative.startswith("triade/workers/")
         and not relative.endswith("__init__.py")
     ]
+
+    # El estado de cada módulo se escribía a mano como "active" por el mero
+    # hecho de que el fichero existiera, y sólo se emitían dos relaciones
+    # —`contracts → tipo` y `tipo → worker_loop`—, así que ningún módulo tenía
+    # nunca ni entrada ni salida: 11 de 13 salían aislados y en verde a la vez.
+    # El grafo no podía detectar denervación en la propia carpeta que audita, y
+    # dibujaba como desconectado el espinazo vivo del planificador
+    # (`worker_loop → scheduler → mission_planner → adaptive_scheduler → task_queue`).
+    #
+    # Ahora las dos cosas salen de la misma evidencia: los imports reales del
+    # AST y la alcanzabilidad desde un entrypoint que alguien arranca.
+    # Reutilizable desde fuera igual que en `build_organ_graph`: releer el AST
+    # del repositorio entero cuesta ~10 s, y el generador ya lo tiene calculado.
+    if import_edges is None:
+        _import_nodes, import_edges = build_import_graph(root, index)
+    reachable = reachable_modules(root, index, import_edges)
+    importers: dict[str, set[str]] = {}
+    for edge in import_edges:
+        if edge.relation != "imports":
+            continue
+        source = edge.source.partition(":")[2]
+        target = edge.target.partition(":")[2]
+        if target.startswith("triade/workers/"):
+            importers.setdefault(target, set()).add(source)
+
     for relative in worker_modules:
         node_id = f"worker_module:{relative}"
+        entrantes = importers.get(relative, set())
+        vivos = sorted(entrantes & reachable)
         nodes[node_id] = GraphNode(
-            node_id, "module", index.by_path[relative], "active", {"path": relative}
+            node_id,
+            "module",
+            index.by_path[relative],
+            # Importado sólo por código que jamás se ejecuta está tan denervado
+            # como el que nadie nombra: los dos casos se separan en metadata.
+            "active" if relative in reachable else "disconnected",
+            {
+                "path": relative,
+                "importers": len(entrantes),
+                "live_importers": vivos,
+                "reachable_from_entrypoint": relative in reachable,
+            },
         )
+
+    # Aristas módulo↔módulo dentro de la carpeta, y desde los importadores de
+    # fuera que están vivos. Los importadores muertos no se dibujan: pintarlos
+    # sugeriría una conexión que no llega a ejecutarse nunca.
+    for target, entrantes in sorted(importers.items()):
+        for source in sorted(entrantes):
+            if source not in reachable and source not in worker_modules:
+                continue
+            source_id = (
+                f"worker_module:{source}"
+                if source.startswith("triade/workers/")
+                else f"module:{source}"
+            )
+            if source_id not in nodes and not source.startswith("triade/workers/"):
+                nodes[source_id] = GraphNode(
+                    source_id,
+                    "module",
+                    index.by_path.get(source, source),
+                    "active",
+                    {"path": source, "external_to_workers": True},
+                )
+            if source_id in nodes:
+                edges.append(
+                    GraphEdge(
+                        source_id,
+                        f"worker_module:{target}",
+                        "imports",
+                        f"{source} importa {index.by_path.get(target, target)}",
+                    )
+                )
 
     contracts = "triade/workers/contracts.py"
     loop = "triade/workers/worker_loop.py"
