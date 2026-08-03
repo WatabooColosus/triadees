@@ -165,6 +165,59 @@ def test_debt_report_says_unknown_instead_of_inventing(tmp_path: Path) -> None:
     assert "no medible" in summarise_for_humans(report).lower()
 
 
+def test_un_servicio_declarado_y_parado_es_deuda(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """El watchdog estaba escrito, inervado, declarado como servicio y parado.
+
+    No aparecía en ninguna categoría: en el grafo de entrypoints salía `legacy`,
+    un estado que se creó para no llamar deuda a 45 utilidades manuales y que de
+    paso escondió los órganos de vigilancia. Una herramienta que se lanza a mano
+    y un servicio declarado que no corre no se distinguen por si alguien los citó
+    en un `.md`.
+    """
+    from triade.observability import introspection
+
+    units = tmp_path / "deploy" / "systemd"
+    units.mkdir(parents=True)
+    (units / "triade-fantasma.service").write_text(
+        "[Service]\nExecStart=/usr/bin/python scripts/no_existe_este_proceso.py\n",
+        encoding="utf-8",
+    )
+    (units / "triade-viva.service").write_text(
+        "[Service]\nExecStart=/usr/bin/python scripts/runtime_vivo.py\n",
+        encoding="utf-8",
+    )
+    # El process table se fija: la prueba mide la comparación, no qué corre hoy
+    # en esta máquina. Se compara por el argumento distintivo y no por la ruta
+    # del intérprete, porque el runtime real arranca con otro binario de Python
+    # y compararlo entero daría todo por parado.
+    monkeypatch.setattr(
+        introspection,
+        "_running_commands",
+        lambda: ["/otro/prefijo/bin/python scripts/runtime_vivo.py --flag"],
+    )
+
+    entry = introspection._declared_services_not_running(tmp_path)
+
+    assert entry["count"] == 1, entry["sample"]
+    assert "triade-fantasma.service" in entry["sample"][0]
+    assert "/proc" in entry["evidence"]
+
+
+def test_una_tabla_sin_lector_ni_escritor_sigue_siendo_deuda(tmp_path: Path) -> None:
+    """Borrar al escritor no puede bajar la deuda: eso es degradar, no arreglar."""
+    cache = tmp_path / "graphs"
+    report = build_debt_report(REPO_ROOT, _db(tmp_path), cache, max_age_seconds=0)
+
+    assert "tables_without_reader_or_writer" in report["items"]
+    entry = report["items"]["tables_without_reader_or_writer"]
+    assert entry["evidence"], "una categoría sin evidencia no mide nada"
+    assert report["debt_items_total"] == sum(
+        e["count"] for e in report["items"].values()
+    )
+
+
 def test_debt_endpoint_declares_la_edad_y_el_refresco(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -139,14 +139,16 @@ def build_debt_report(
     tables = _load(cache_dir, "table_graph")
     if tables:
         nodes = [n for n in tables["nodes"] if n["node_id"].startswith("table:")]
-        write_only, never_written = [], []
+        write_only, never_written, abandoned = [], [], []
         for node in nodes:
             rows = rows_by_table.get(node["label"])
             if rows is None:
                 continue
             readers = node["metadata"].get("readers", 0)
             writers = node["metadata"].get("writers", 0)
-            if rows > 0 and readers == 0 and writers > 0:
+            if readers == 0 and writers == 0:
+                abandoned.append(node["label"])
+            elif rows > 0 and readers == 0 and writers > 0:
                 write_only.append(node["label"])
             elif rows == 0 and writers > 0:
                 never_written.append(node["label"])
@@ -157,6 +159,16 @@ def build_debt_report(
         items["tables_with_writer_and_no_rows"] = _entry(
             never_written,
             "table_graph.json para escritores; filas leídas en vivo",
+        )
+        # Sin esta categoría la deuda se podía reducir borrando al escritor.
+        # `benchmark_results`, `benchmark_tasks` y `federated_merge_log` salieron
+        # del recuento el 2026-08-03 al quedarse sin escritor, sin haber ganado
+        # una sola fila: salieron por degradación (F-034). Una tabla que existe
+        # en la base y a la que ya no apunta ningún código sigue siendo deuda, y
+        # además es la única que nadie iba a echar de menos.
+        items["tables_without_reader_or_writer"] = _entry(
+            abandoned,
+            "table_graph.json: tabla viva sin lector ni escritor en el código",
         )
 
     imports = _load(cache_dir, "import_graph")
@@ -181,6 +193,7 @@ def build_debt_report(
         items["entrypoints_without_launcher"] = _entry(
             unlaunched, "entrypoint_graph.json: guard __main__ que nadie arranca"
         )
+    items["declared_services_not_running"] = _declared_services_not_running(root)
 
     items["vital_chain_gaps"] = _vital_chain_gaps(db_path)
 
@@ -204,6 +217,85 @@ def _entry(values: list[str], evidence: str) -> dict[str, Any]:
         "sample": sorted(values)[:SAMPLE],
         "evidence": evidence,
     }
+
+
+def _declared_services_not_running(root: Path) -> dict[str, Any]:
+    """Unidades de `deploy/systemd/` sin un proceso vivo que las cumpla.
+
+    Es la categoría que faltaba, y faltaba justo donde más duele: el watchdog y
+    el backup están declarados como servicios, el grafo los ve, su código está
+    inervado —`triade/runtime/watchdog.py` lo importan 5 módulos— y **nadie los
+    arranca**. En el entrypoint_graph salían como `legacy`, un estado que se
+    inventó para no llamar deuda a 45 utilidades manuales, y que de paso los
+    escondió.
+
+    Una utilidad que se ejecuta a mano y un órgano de vigilancia parado no se
+    distinguen por si alguien los citó en un `.md`: se distinguen por si algo
+    declaró que debían estar corriendo. Un fichero `.service` es esa
+    declaración.
+
+    La evidencia es el process table, no el repositorio: «detenido» sólo se
+    puede medir en vivo. Sin `/proc` legible, devuelve `NEEDS_EVIDENCE` en lugar
+    de afirmar que todo está bien.
+    """
+    unit_dir = root / "deploy" / "systemd"
+    if not unit_dir.is_dir():
+        return {"count": 0, "sample": [], "evidence": "sin deploy/systemd: NEEDS_EVIDENCE"}
+
+    declared: list[tuple[str, str]] = []
+    for unit in sorted(unit_dir.glob("*.service")):
+        for line in unit.read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.startswith("ExecStart="):
+                declared.append((unit.name, line.split("=", 1)[1].strip()))
+                break
+
+    running = _running_commands()
+    if running is None:
+        return {
+            "count": 0,
+            "sample": [],
+            "evidence": "process table ilegible: NEEDS_EVIDENCE",
+        }
+
+    stopped: list[str] = []
+    for unit_name, exec_start in declared:
+        # Se compara por el argumento distintivo —el script o el módulo—, no por
+        # la ruta del intérprete: el runtime real corre bajo `nohup` con otro
+        # binario de Python y compararlo entero daría todo por parado.
+        marker = next(
+            (
+                part
+                for part in reversed(exec_start.split())
+                if part.endswith(".py") or ":" in part or part == "serve"
+            ),
+            exec_start,
+        )
+        if not any(marker in cmd for cmd in running):
+            stopped.append(f"{unit_name} → {marker}")
+
+    return {
+        "count": len(stopped),
+        "sample": sorted(stopped)[:SAMPLE],
+        "evidence": "deploy/systemd/*.service frente a /proc/*/cmdline",
+    }
+
+
+def _running_commands() -> list[str] | None:
+    """Líneas de comando vivas, o `None` si no se pueden leer."""
+    proc = Path("/proc")
+    if not proc.is_dir():
+        return None
+    commands: list[str] = []
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            raw = (entry / "cmdline").read_bytes()
+        except OSError:
+            continue
+        if raw:
+            commands.append(raw.replace(b"\x00", b" ").decode("utf-8", "replace"))
+    return commands
 
 
 def _vital_chain_gaps(db_path: Path | None) -> dict[str, Any]:

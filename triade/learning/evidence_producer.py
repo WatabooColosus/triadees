@@ -146,6 +146,7 @@ class LearningEvidenceProducer:
                 f"insufficient_evidence: {repetitions} repeticiones, "
                 f"mínimo {MIN_REPETITIONS}"
             )
+            self._record_attempt(outcome, capability)
             return outcome
 
         # ¿El candidato puede siquiera inyectarse? Si el filtro de seguridad lo
@@ -158,6 +159,7 @@ class LearningEvidenceProducer:
         if candidate_id not in sonda.injected_ids:
             outcome.decision = "blocked"
             outcome.reason = self._block_reason(sonda, candidate_id)
+            self._record_attempt(outcome, capability)
             return outcome
 
         match = sonda.matches[0]
@@ -205,6 +207,23 @@ class LearningEvidenceProducer:
         outcome.absolute_delta = round(outcome.treatment_mean - outcome.control_mean, 4)
 
         return self._decide_and_persist(outcome, capability, question)
+
+    def _record_attempt(self, outcome: EvidenceOutcome, capability: str) -> None:
+        """Persiste un intento que terminó sin comparación.
+
+        Sin esto el candidato queda igual que antes de intentarlo y el planner
+        lo vuelve a elegir para siempre (F-037). Que falle el registro no puede
+        tumbar la tarea: el veredicto es información, no el trabajo.
+        """
+        try:
+            self.bridge.record_inconclusive(
+                outcome.candidate_id,
+                decision=outcome.decision,
+                reason=outcome.reason,
+                capability=capability,
+            )
+        except (ValueError, sqlite3.Error):
+            pass
 
     @staticmethod
     def _block_reason(decision: Any, candidate_id: str) -> str:

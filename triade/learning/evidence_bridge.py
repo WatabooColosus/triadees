@@ -113,6 +113,46 @@ class LearningEvidenceBridge:
             )
         return self.get(candidate_id) or {}
 
+    def record_inconclusive(
+        self,
+        candidate_id: str,
+        *,
+        decision: str,
+        reason: str,
+        capability: str = "conversational_learning",
+    ) -> dict[str, Any]:
+        """Deja constancia de un intento que no llegó a producir comparación.
+
+        Un candidato al que no se le puede hacer el experimento —porque no tiene
+        dato comprobable, porque el filtro de recuperación lo retiene— no puede
+        quedar sin rastro. Si queda, el planner lo vuelve a elegir en el ciclo
+        siguiente y en todos los demás: es el livelock de F-037, 465 intentos
+        sobre el mismo candidato diciendo siempre lo mismo.
+
+        La fila se escribe con la decisión real, que nunca está en
+        `PROMOTABLE_DECISIONS`, así que `require_improvement()` la rechaza igual.
+        No se afirma nada que no se haya medido: se afirma que no se pudo medir,
+        que es un hecho distinto de no haberlo intentado.
+        """
+        if decision in self.PROMOTABLE_DECISIONS:
+            raise ValueError(
+                f"{decision} es promocionable: exige comparación real, no un veredicto"
+            )
+        self.declare_hypothesis(
+            candidate_id,
+            hypothesis=f"Intento sin comparación: {reason.strip() or decision}"[:500],
+            capability=capability,
+            subject_id=candidate_id,
+        )
+        now = utc_now()
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE learning_evidence SET decision=?, updated_at=? "
+                "WHERE candidate_id=?",
+                (decision, now, candidate_id),
+            )
+        return self.get(candidate_id) or {}
+
     def record_comparison(
         self,
         candidate_id: str,

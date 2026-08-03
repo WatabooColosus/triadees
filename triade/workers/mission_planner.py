@@ -16,6 +16,7 @@ from typing import Any
 
 from triade.core.error_bus import record_internal_error
 from triade.core.neuron_missions import NeuronMissionStore
+from triade.learning.knowledge_probe import extract_target
 
 MISSION_PLANNER_ERRORS = (
     sqlite3.Error,
@@ -55,6 +56,12 @@ class PlannedTask:
 
 class MissionPlanner:
     """Planifica tareas basándose en el estado real del sistema."""
+
+    #: Cuántos candidatos se miran por ciclo buscando uno medible. Se recorre en
+    #: memoria una tanda ya ordenada, no los 665: si en los 200 más recientes no
+    #: hay ninguno con un dato comprobable, el problema es la cosecha de
+    #: candidatos y no la selección.
+    EVIDENCE_SCAN_LIMIT = 200
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
@@ -324,25 +331,69 @@ class MissionPlanner:
                     )
 
                 # learning_evidence_generation: un candidato elegible por ciclo.
-                # Gasta inferencias, así que se pide de uno en uno.
-                elegible = conn.execute(
-                    """SELECT candidate_id FROM learning_queue
-                    WHERE status = 'internally_checked'
-                      AND source_type = 'experience'
-                      AND NOT EXISTS (
-                        SELECT 1 FROM learning_evidence e
-                        WHERE e.candidate_id = learning_queue.candidate_id)
-                    ORDER BY id DESC LIMIT 1"""
-                ).fetchone()
-                if elegible:
+                # Gasta inferencias, así que se pide de uno en uno. Ese ritmo es
+                # el único freno real de esta rama —el worker no consulta al
+                # metabolismo—, así que no se toca.
+                #
+                # Dos correcciones sobre la selección anterior (F-037):
+                #
+                # 1. Filtraba por `source_type='experience'` y de los 665
+                #    candidatos `internally_checked` sólo **uno** lo cumplía. Los
+                #    otros 664 —`tool`, `conversation`, `qualia_bus`, `web`— no
+                #    eran menos aprendizaje: quedaban fuera sin motivo escrito.
+                # 2. Elegía sin mirar si el candidato es medible. Cuando no lo
+                #    era, el handler salía con `no_op` sin escribir en
+                #    `learning_evidence`, el `NOT EXISTS` seguía siendo cierto y
+                #    el planner volvía a elegir el mismo para siempre: 400 de las
+                #    400 últimas tareas sobre el mismo `candidate_id`, y los 465
+                #    eventos registrados diciendo `sin_prueba_objetiva`.
+                #
+                # Ahora se pide una tanda por antigüedad y se entrega el primero
+                # que `build_probe` sabe convertir en pregunta con respuesta
+                # comprobable. Preguntarle a la sonda aquí cuesta una regex sobre
+                # el contenido ya leído; equivocarse costaba un ciclo entero.
+                #
+                # El `try` no es decorativo: `learning_evidence` no está en
+                # `schemas.sql`, la crea `LearningEvidenceBridge` la primera vez
+                # que se usa. En una instalación recién montada la tabla no
+                # existe todavía, y sin este `except` el `sqlite3.Error` se
+                # llevaba por delante **todo** el bloque base —dedupe, gobernanza
+                # semántica, autopromoción—, no sólo esta rama.
+                try:
+                    elegibles = conn.execute(
+                        """SELECT candidate_id, content FROM learning_queue
+                        WHERE status = 'internally_checked'
+                          AND NOT EXISTS (
+                            SELECT 1 FROM learning_evidence e
+                            WHERE e.candidate_id = learning_queue.candidate_id)
+                        ORDER BY id DESC LIMIT ?""",
+                        (self.EVIDENCE_SCAN_LIMIT,),
+                    ).fetchall()
+                except sqlite3.Error:
+                    # Sin tabla de evidencia, ningún candidato la tiene.
+                    elegibles = conn.execute(
+                        """SELECT candidate_id, content FROM learning_queue
+                        WHERE status = 'internally_checked'
+                        ORDER BY id DESC LIMIT ?""",
+                        (self.EVIDENCE_SCAN_LIMIT,),
+                    ).fetchall()
+                medible = next(
+                    (
+                        fila
+                        for fila in elegibles
+                        if extract_target(str(fila["content"] or ""))
+                    ),
+                    None,
+                )
+                if medible is not None:
                     tasks.append(
                         PlannedTask(
                             task_type="learning_evidence_generation",
                             priority=7,
-                            reason=f"candidato {elegible['candidate_id']} sin evidencia",
+                            reason=f"candidato {medible['candidate_id']} sin evidencia",
                             source="mission_planner_baseline",
                             planner_score=0.8,
-                            payload={"candidate_id": str(elegible["candidate_id"])},
+                            payload={"candidate_id": str(medible["candidate_id"])},
                         )
                     )
 
@@ -618,8 +669,36 @@ class MissionPlanner:
         return tasks
 
     def _plan_system_debt(self) -> list[PlannedTask]:
-        """Detecta deuda del sistema que puede generar candidatos."""
+        """Programa el escaneo de deuda, priorizado por la deuda ya medida.
+
+        Hasta aquí la prioridad salía de una proporción entre runs y episodios:
+        un indicio indirecto que no sabe nada de módulos sin importador ni de
+        tablas que nadie lee. Los grafos internos sí lo saben, y estaban sólo
+        para que los mirara un auditor externo —`unexecuted_task_types()`, cuyo
+        docstring dice "atajo para quien quiera actuar sobre la deuda", no la
+        llamaba nadie salvo un test—.
+
+        Ahora el informe entra en la planificación: cuanta más deuda medida, más
+        prioridad tiene volver a mirarse. Se lee con `allow_build=False` porque
+        planificar no puede costar un escaneo del AST; si no hay grafos, se cae
+        al indicio anterior en vez de quedarse ciego.
+        """
         tasks: list[PlannedTask] = []
+        medido = self._debt_snapshot()
+        if medido is not None:
+            total, resumen = medido
+            if total:
+                tasks.append(
+                    PlannedTask(
+                        task_type="system_debt_scan",
+                        priority=max(10, 45 - min(35, total)),
+                        reason=f"deuda estructural medida: {resumen}",
+                        source="internal_graphs",
+                        planner_score=min(1.0, total / 60),
+                        payload={"debt_items_total": total, "evidence": resumen},
+                    )
+                )
+            return tasks
         try:
             with closing(self._connect()) as conn, conn:
                 row = conn.execute(
@@ -658,6 +737,38 @@ class MissionPlanner:
                 db_path=self.db_path,
             )
         return tasks
+
+    def _debt_snapshot(self) -> tuple[int, str] | None:
+        """Deuda medida en los grafos, o `None` si no hay grafos que leer.
+
+        `None` no es cero: significa "no lo sé". Quien llama debe caer al indicio
+        anterior, nunca dar por bueno que no hay deuda.
+        """
+        try:
+            from triade.observability.introspection import build_debt_report
+
+            report = build_debt_report(
+                Path(__file__).resolve().parents[2],
+                db_path=self.db_path,
+                allow_build=False,
+            )
+        except Exception as exc:  # noqa: BLE001 — la planificación no puede caer
+            record_internal_error(
+                "mission_planner.debt_snapshot",
+                exc,
+                payload={"module": __name__, "function": "_debt_snapshot"},
+                db_path=self.db_path,
+            )
+            return None
+        if report.get("status") != "measured":
+            return None
+        items = report.get("items") or {}
+        peores = sorted(
+            ((name, entry["count"]) for name, entry in items.items() if entry["count"]),
+            key=lambda pair: -pair[1],
+        )[:3]
+        resumen = ", ".join(f"{name.replace('_', ' ')} {count}" for name, count in peores)
+        return int(report.get("debt_items_total") or 0), resumen or "sin categorías"
 
     def _plan_neuron_formation(self) -> list[PlannedTask]:
         """Evalúa si hay candidatos neuronales sin training."""

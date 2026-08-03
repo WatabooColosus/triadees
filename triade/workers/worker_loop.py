@@ -2268,6 +2268,21 @@ class WorkerLoop:
 
         sonda = build_probe(self.db_path, candidate_id)
         if sonda is None:
+            # El veredicto se registra antes de salir. Mientras no se registró,
+            # el `NOT EXISTS` del planner seguía siendo cierto y volvía a elegir
+            # el mismo candidato: 465 intentos idénticos (F-037). El planner ya
+            # no debería mandar aquí a un candidato inmedible —usa la misma
+            # sonda para elegir—, pero una tarea encolada a mano sí puede.
+            from triade.learning.evidence_bridge import LearningEvidenceBridge
+
+            try:
+                LearningEvidenceBridge(db_path=self.db_path).record_inconclusive(
+                    candidate_id,
+                    decision="not_measurable",
+                    reason="sin dato distintivo que preguntar",
+                )
+            except (ValueError, sqlite3.Error):
+                pass
             return {
                 "status": "completed",
                 "effect": "no_op",
