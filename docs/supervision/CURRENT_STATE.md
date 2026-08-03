@@ -54,6 +54,18 @@ Fase 2 cerrada (grafos verificables) y Fase 4 abierta (memoria y aprendizaje).
 - F-011: el esquema de pruebas no refleja la base viva, así que la suite puede
   pasar sobre rutas que en producción se comportan de otro modo.
 
+## Aprendizaje a partir del error (F-018)
+
+Aprobado por el operador el 2026-08-03. Seis estados terminales —`failed`,
+`timeout`, `dead_letter`, `lease_lost`, `blocked`, `cancelled`— dejan un
+candidato de aprendizaje con la causa dentro. `completed` y `skipped` no
+enseñan nada y no ingestan.
+
+El límite es la parte que sostiene el permiso: el candidato **nunca** es
+evidencia. `PRODUCTION_STATES` sigue siendo `{evidence_verified, stable}`, así
+que un error acumula hacia el umbral sin cambiar lo que Tríade responde hasta
+que gane evidencia. Fijado por `tests/test_failures_become_knowledge.py`.
+
 ## Última mejora comprobada
 
 F-002: `semantic_memory_governance` pasó de imposible a encolable. La compuerta
