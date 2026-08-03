@@ -110,8 +110,10 @@ def _classify_status(
         return (
             "detector_false_positive",
             "info",
-            f"escritura parametrizada (SET status = ?) en {con_param[0]}: "
-            "el valor no es visible al análisis estático",
+            (
+                f"escritura parametrizada (SET status = ?) en {con_param[0]}: "
+                "el valor no es visible al análisis estático"
+            ),
         )
     # ¿El módulo que lo compara opera sobre una tabla que no existe?
     for fichero in ficheros:
@@ -119,13 +121,17 @@ def _classify_status(
             texto = (root / fichero).read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        referidas = set(re.findall(r"\bFROM\s+([a-z_][a-z0-9_]*)", texto, re.IGNORECASE))
+        referidas = set(
+            re.findall(r"\bFROM\s+([a-z_][a-z0-9_]*)", texto, re.IGNORECASE)
+        )
         if referidas and not (referidas & tablas_vivas):
             return (
                 "incomplete_subsystem",
                 "medium",
-                f"{fichero} opera sobre tablas ausentes en la base viva: "
-                f"{sorted(referidas)[:3]}",
+                (
+                    f"{fichero} opera sobre tablas ausentes en la base viva: "
+                    f"{sorted(referidas)[:3]}"
+                ),
             )
     return (
         "confirmed_break",
@@ -159,14 +165,19 @@ def triage(root: Path, db: Path, cache: Path) -> dict[str, Any]:
             evidencia_alias = detalle.get("evidence") or {}
             perfil = perfiles.get(nombre, {})
 
-            if categoria == "alias_debt_dead_status_value":
+            if categoria in {
+                "alias_debt_dead_status_value",
+                "alias_debt_suspected_dead_status",
+            }:
                 ficheros = evidencia_alias.get("compared_in") or []
                 clase, sev, ev = _classify_status(
                     nombre, ficheros, migrados, parametrizados, tablas_vivas, root
                 )
                 fuente = ficheros[0] if ficheros else ""
-            elif nombre and nombre not in tablas_vivas and categoria.startswith(
-                ("alias_debt", "tables_")
+            elif (
+                nombre
+                and nombre not in tablas_vivas
+                and categoria.startswith(("alias_debt", "tables_"))
             ):
                 clase, sev = "incomplete_subsystem", "medium"
                 ev = "la tabla no existe en la base viva: circuito nunca cerrado"
@@ -248,8 +259,7 @@ def main() -> int:
 
     informe = triage(Path(args.root), Path(args.db), Path(args.cache))
     salida = Path(
-        args.output
-        or f"artifacts/debt/debt-triage-{datetime.now(UTC):%Y%m%d}.json"
+        args.output or f"artifacts/debt/debt-triage-{datetime.now(UTC):%Y%m%d}.json"
     )
     salida.parent.mkdir(parents=True, exist_ok=True)
     salida.write_text(

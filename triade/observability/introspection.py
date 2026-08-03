@@ -218,7 +218,14 @@ def build_debt_report(
     alias = build_alias_debt(
         root, table_profiles=profiles_from_artifact(_load(cache_dir, "table_graph"))
     )
-    for senal in ("orphan_reader", "lexical_alias", "dead_status_value"):
+    # `suspected_dead_status` entra igual que los demás: rebajar la confianza de
+    # un hallazgo no es motivo para esconderlo del contador.
+    for senal in (
+        "orphan_reader",
+        "lexical_alias",
+        "dead_status_value",
+        "suspected_dead_status",
+    ):
         hallazgos = [h for h in alias["findings"] if h["signal"] == senal]
         items[f"alias_debt_{senal}"] = _entry(
             [h["dead"] for h in hallazgos],

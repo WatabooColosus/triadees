@@ -104,6 +104,29 @@ _ASSIGNED_PY = re.compile(
 #: los falsos positivos son lo único que puede matar a este detector: un informe
 #: en el que hay que descartar a mano deja de leerse.
 _RETURNED_PY = re.compile(r"\breturn\s+\"([a-z][a-z0-9_]{2,})\"")
+#: Un estado se escribe de más formas de las que una sola regex ve. Estas cuatro
+#: salieron del triaje del 2026-08-03: los cuatro únicos `dead_status_value`
+#: clasificados como corte confirmado resultaron ser, uno por uno, una forma de
+#: escritura no modelada. Ninguno era un corte.
+#:
+#: `DEFAULT 'detected'` en el CREATE TABLE — la fila nace con ese estado.
+_DEFAULT_SQL = re.compile(rf"\bDEFAULT\s+{_QUOTED}", re.IGNORECASE)
+#: `{"status": "x"}` — literal de diccionario, incluido dentro de `update(...)`.
+_DICT_LITERAL = re.compile(
+    rf"[\"']({'|'.join(STATUS_COLUMNS)})[\"']\s*:\s*\"([a-z][a-z0-9_]{{2,}})\""
+)
+#: `estado["status"] = "x"` — asignación de clave.
+_DICT_ITEM = re.compile(
+    rf"\[[\"']({'|'.join(STATUS_COLUMNS)})[\"']\]\s*=\s*\"([a-z][a-z0-9_]{{2,}})\""
+)
+#: `state, error = "runtime_recovered", None` — desempaquetado de tupla.
+_TUPLE_ASSIGN = re.compile(
+    rf"\b({'|'.join(STATUS_COLUMNS)})\s*,\s*\w+\s*=\s*\"([a-z][a-z0-9_]{{2,}})\""
+)
+#: `SET status = ?` — el valor no es visible al análisis estático.
+_PARAM_WRITE = re.compile(
+    rf"\bSET\s+({'|'.join(STATUS_COLUMNS)})\s*=\s*\?", re.IGNORECASE
+)
 _LITERAL_IN_LIST = re.compile(_QUOTED)
 
 
@@ -116,6 +139,21 @@ class AliasFinding:
     dead: str
     live: str
     detail: str
+    #: Cuánto se sostiene la acusación. `confirmed` sólo cuando toda la
+    #: evidencia necesaria está presente; `suspected` cuando el análisis
+    #: estático no puede ver algo que podría desmentirla —típicamente una
+    #: escritura parametrizada—. Un informe que acusa en absoluto sobre
+    #: evidencia incompleta se gana que dejen de leerlo.
+    confidence: str = "confirmed"
+    #: Qué tipo de prueba sostiene el hallazgo: `static` (sólo AST/regex),
+    #: `runtime` (además filas o ejecuciones de la base viva).
+    evidence_kind: str = "static"
+    #: ¿Se comprobó contra la base viva, o sólo contra el código?
+    runtime_verified: bool = False
+    #: ¿El escritor, si existe, lo alcanza algún entrypoint arrancado?
+    reachable_writer: bool | None = None
+    #: ¿El lector lo alcanza algún entrypoint arrancado?
+    reachable_reader: bool | None = None
     evidence: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -141,8 +179,11 @@ def piece_weights(names: Iterable[str]) -> dict[str, float]:
         cuantos += 1
         for pieza in _pieces(nombre):
             total[pieza] = total.get(pieza, 0) + 1
-    if not cuantos:
-        return {}
+    # Con cero o un solo nombre no hay rareza que medir —y `log(1)` es cero, que
+    # dividía por cero—. Se devuelve peso uniforme: sin conjunto con el que
+    # comparar, ninguna pieza es más distintiva que otra.
+    if cuantos < 2:
+        return dict.fromkeys(total, 1.0)
     return {
         pieza: math.log(cuantos / veces) / math.log(cuantos)
         for pieza, veces in total.items()
@@ -300,12 +341,38 @@ def _status_literals(root: Path) -> tuple[dict[str, set[str]], dict[str, set[str
             escritos.setdefault(valor, set()).add(relativo)
         for valor in _RETURNED_PY.findall(texto):
             escritos.setdefault(valor, set()).add(relativo)
+        for valor in _DEFAULT_SQL.findall(texto):
+            escritos.setdefault(valor, set()).add(relativo)
+        for _columna, valor in _DICT_LITERAL.findall(texto):
+            escritos.setdefault(valor, set()).add(relativo)
+        for _columna, valor in _DICT_ITEM.findall(texto):
+            escritos.setdefault(valor, set()).add(relativo)
+        for _columna, valor in _TUPLE_ASSIGN.findall(texto):
+            escritos.setdefault(valor, set()).add(relativo)
         for _columna, valor in _COMPARED.findall(texto):
             comparados.setdefault(valor, set()).add(relativo)
         for _columna, lista in _COMPARED_IN.findall(texto):
             for valor in _LITERAL_IN_LIST.findall(lista):
                 comparados.setdefault(valor, set()).add(relativo)
     return comparados, escritos
+
+
+def _parameterised_writers(root: Path) -> set[str]:
+    """Módulos que escriben un estado sin decir cuál: `SET status = ?`.
+
+    El valor viaja como parámetro, así que el análisis estático no puede saber
+    qué se escribió. No convierte el hallazgo en falso —puede seguir siendo un
+    corte— pero sí lo baja de acusación a sospecha.
+    """
+    opacos: set[str] = set()
+    for path in iter_python_files(root):
+        try:
+            texto = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if _PARAM_WRITE.search(texto):
+            opacos.add(path.relative_to(root).as_posix())
+    return opacos
 
 
 def find_dead_status_values(root: Path) -> list[AliasFinding]:
@@ -318,6 +385,7 @@ def find_dead_status_values(root: Path) -> list[AliasFinding]:
     siempre.
     """
     comparados, escritos = _status_literals(root)
+    parametrizados = _parameterised_writers(root)
     hallazgos: list[AliasFinding] = []
     for valor, ficheros in sorted(comparados.items()):
         if valor in escritos:
@@ -328,20 +396,33 @@ def find_dead_status_values(root: Path) -> list[AliasFinding]:
             key=lambda par: par[1],
             default=("", 0.0),
         )
+        # Si alguno de los ficheros que lo comparan escribe esa columna con
+        # `SET status = ?`, el valor enviado no es visible: acusar en absoluto
+        # sería afirmar más de lo que la evidencia sostiene.
+        opacos = sorted(set(ficheros) & parametrizados)
+        sospecha = bool(opacos)
         hallazgos.append(
             AliasFinding(
-                signal="dead_status_value",
+                signal="suspected_dead_status" if sospecha else "dead_status_value",
                 kind="status",
                 dead=valor,
                 live=pariente[0] if pariente[1] >= SIMILARITY_THRESHOLD else "",
                 detail=(
-                    f"`{valor}` se compara en {len(ficheros)} fichero(s) y no lo "
-                    "escribe nadie: la condición es cero para siempre"
+                    f"`{valor}` se compara en {len(ficheros)} fichero(s) y "
+                    + (
+                        "hay escritura parametrizada que podría producirlo: "
+                        "el análisis estático no puede confirmarlo ni negarlo"
+                        if sospecha
+                        else "no lo escribe nadie: la condición es cero para siempre"
+                    )
                 ),
+                confidence="suspected" if sospecha else "confirmed",
+                evidence_kind="static",
                 evidence={
                     "compared_in": sorted(ficheros)[:5],
                     "closest_written_value": pariente[0],
                     "similarity": round(pariente[1], 2),
+                    "parameterised_writers": opacos[:5],
                 },
             )
         )
