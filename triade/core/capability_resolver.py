@@ -32,13 +32,45 @@ class CapabilityResolver:
         re.IGNORECASE,
     )
 
+    #: Verbos de redacción. `corrige`/`repara` quedan fuera a propósito: son
+    #: modificación de código y tienen que seguir cayendo en `repo_modification`,
+    #: que exige aprobación humana. Enrutar «corrige el archivo x.py» a la
+    #: escritura de texto saltaría esa puerta.
+    ESCRITURA = re.compile(
+        r"\b(escribe|escribir|redacta|redactar|documenta|documentar|"
+        r"anota|anotar|genera|generar|crea|crear)\b",
+        re.IGNORECASE,
+    )
+    #: Sustantivos que nombran un entregable, no una respuesta de chat. Fuera
+    #: quedan «resumen», «nota» y «texto» a propósito: «escribe un resumen» se
+    #: pide en conversación y contestarlo con un fichero sorprendería. Fuera
+    #: también «archivo» y «fichero», porque cualquier `.py` lo es y eso volvería
+    #: a cruzarse con la modificación de código.
+    ARTEFACTO_TEXTO = re.compile(
+        r"\b(documento|informe|reporte|acta|minuta|artefacto)\b",
+        re.IGNORECASE,
+    )
+
     def resolve(self, request: str) -> CapabilityResolution:
         text = " ".join(str(request).strip().split())
         low = text.lower()
-        if not text or not self.ACTION.search(text):
+        if not text:
             return self._none("No es una orden operativa explícita.")
 
-        if "write_governed_text_artifact" in low:
+        # La única forma de activar esta capacidad era escribir su identificador
+        # interno literal en la petición: `if "write_governed_text_artifact" in
+        # low`. Nadie pide nada así, y por eso el tipo de tarea acumulaba cero
+        # ejecuciones teniendo handler, política de concurrencia y clave de
+        # exclusión. Estaba muerta por construcción, no por falta de código.
+        #
+        # Va antes de la compuerta `ACTION` en vez de añadir los verbos de
+        # redacción a esa lista: ampliarla haría accionables peticiones que hoy
+        # son conversación, y todas acabarían en `unsupported_action` creando un
+        # goal bloqueado. Esta regla es más estricta que `ACTION`, no más laxa:
+        # exige verbo de redacción **y** sustantivo de entregable.
+        if "write_governed_text_artifact" in low or (
+            self.ESCRITURA.search(low) and self.ARTEFACTO_TEXTO.search(low)
+        ):
             return CapabilityResolution(
                 True,
                 "write_governed_text_artifact",
@@ -50,6 +82,9 @@ class CapabilityResolver:
                 "low",
                 "Escritura de texto limitada a una raíz autorizada y con rollback.",
             )
+
+        if not self.ACTION.search(text):
+            return self._none("No es una orden operativa explícita.")
 
         if re.search(
             r"\b(instala|instalar|descarga|descargar|pip|npm|apt|paquete|dependencia|driver)\b",
