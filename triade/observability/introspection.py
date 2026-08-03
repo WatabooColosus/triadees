@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +38,8 @@ DEFAULT_MAX_AGE_SECONDS = 6 * 60 * 60
 #: Cuántos ejemplos acompañan a cada recuento. Suficiente para actuar, no tanto
 #: como para llenar la Bodega de ruido.
 SAMPLE = 10
+#: Tablas que mantiene SQLite y que ningún código debe tocar.
+SQLITE_INTERNAL_TABLES = frozenset({"sqlite_sequence", "sqlite_stat1", "sqlite_stat4"})
 
 
 def _is_fresh(cache_dir: Path, max_age_seconds: float) -> bool:
@@ -147,6 +151,12 @@ def build_debt_report(
                 continue
             readers = node["metadata"].get("readers", 0)
             writers = node["metadata"].get("writers", 0)
+            if node["label"] in SQLITE_INTERNAL_TABLES:
+                # `sqlite_sequence` la mantiene el propio motor para las columnas
+                # `AUTOINCREMENT`. Que ningún código la nombre es lo correcto:
+                # contarla como deuda es pedirle al repositorio que gestione algo
+                # que no es suyo.
+                continue
             if readers == 0 and writers == 0:
                 abandoned.append(node["label"])
             elif rows > 0 and readers == 0 and writers > 0:
@@ -194,7 +204,9 @@ def build_debt_report(
         items["entrypoints_without_launcher"] = _entry(
             unlaunched, "entrypoint_graph.json: guard __main__ que nadie arranca"
         )
-    items["declared_services_not_running"] = _declared_services_not_running(root)
+    items["declared_services_not_running"] = _declared_services_not_running(
+        root, db_path
+    )
     items["backup_protection_gaps"] = _backup_protection_gaps(root)
 
     items["vital_chain_gaps"] = _vital_chain_gaps(db_path)
@@ -296,7 +308,9 @@ def _manifest_key_fingerprint(backup: Path) -> str | None:
         return None
 
 
-def _declared_services_not_running(root: Path) -> dict[str, Any]:
+def _declared_services_not_running(
+    root: Path, db_path: Path | None = None
+) -> dict[str, Any]:
     """Unidades de `deploy/systemd/` sin un proceso vivo que las cumpla.
 
     Es la categoría que faltaba, y faltaba justo donde más duele: el watchdog y
@@ -347,14 +361,91 @@ def _declared_services_not_running(root: Path) -> dict[str, Any]:
             ),
             exec_start,
         )
-        if not any(marker in cmd for cmd in running):
-            stopped.append(f"{unit_name} → {marker}")
+        if any(marker in cmd for cmd in running):
+            continue
+        # No hay proceso con ese nombre, pero la pregunta que importa no es
+        # «¿corre este proceso?» sino «¿ocurre esta función?». El watchdog, los
+        # workers y el backup se cumplen aquí como hilo o como tarea del proceso
+        # de la API, no como el servicio declarado: exigir el proceso marcaría
+        # como parado algo que está pasando. Se mira el efecto, que es la misma
+        # regla que rige el resto del grafo: evidencia antes que declaración.
+        efecto = _service_effect_evidence(marker, root, db_path)
+        if efecto is None:
+            stopped.append(f"{unit_name} → {marker}: sin proceso y sin efecto reciente")
 
     return {
         "count": len(stopped),
         "sample": sorted(stopped)[:SAMPLE],
-        "evidence": "deploy/systemd/*.service frente a /proc/*/cmdline",
+        "evidence": (
+            "deploy/systemd/*.service frente a /proc/*/cmdline y al efecto "
+            "reciente de cada servicio"
+        ),
     }
+
+
+#: Cuánto puede tardar el efecto de un servicio antes de contar como ausente.
+#: Generoso a propósito: se busca «esto no está ocurriendo», no un retraso.
+SERVICE_EFFECT_MAX_AGE_SECONDS = 3 * 60 * 60
+
+
+def _service_effect_evidence(
+    marker: str, root: Path, db_path: Path | None
+) -> str | None:
+    """Prueba viva de que la función del servicio ocurrió hace poco, o `None`.
+
+    Cada servicio deja una huella distinta y hay que buscarla donde cae, no
+    donde sería cómodo: el watchdog en sus instantáneas de salud, los workers en
+    las tareas que cierran, el backup en el fichero que produce.
+    """
+    # Las consultas van literales y no por parámetro a propósito: el grafo extrae
+    # las tablas de los literales del AST, así que un nombre de tabla en variable
+    # es una lectura que existe y que el grafo no puede ver. Escribirlas así es lo
+    # que hace que `runtime_health_snapshots` deje de figurar como escrita y nunca
+    # leída: ahora tiene un lector, y el grafo lo demuestra.
+    if "watchdog" in marker:
+        return _recent_row(db_path, "SELECT MAX(created_at) FROM runtime_health_snapshots")
+    if "workers" in marker:
+        return _recent_row(db_path, "SELECT MAX(updated_at) FROM autonomous_tasks")
+    if "backup" in marker:
+        copias = sorted(
+            (root / "artifacts" / "backups").glob("triade-*.db.gz.fernet"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if copias and time.time() - copias[0].stat().st_mtime < BACKUP_MAX_AGE_SECONDS:
+            return copias[0].name
+        return None
+    return None
+
+
+def _recent_row(db_path: Path | None, query: str) -> str | None:
+    """Devuelve el instante de la última fila si es reciente, o `None`.
+
+    Recibe la consulta ya escrita, nunca el nombre de la tabla: así el literal
+    queda en el AST y el grafo puede contar esta lectura.
+    """
+    if db_path is None:
+        return None
+    connection = open_readonly(db_path)
+    if connection is None:
+        return None
+    try:
+        row = connection.execute(query).fetchone()
+    except sqlite3.Error:
+        return None
+    finally:
+        connection.close()
+    if not row or not row[0]:
+        return None
+    stamp = str(row[0]).replace("Z", "+00:00").replace(" ", "T")
+    try:
+        moment = datetime.fromisoformat(stamp)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    edad = (datetime.now(UTC) - moment).total_seconds()
+    return str(row[0]) if edad < SERVICE_EFFECT_MAX_AGE_SECONDS else None
 
 
 def _running_commands() -> list[str] | None:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -198,7 +199,7 @@ def test_un_servicio_declarado_y_parado_es_deuda(
         lambda: ["/otro/prefijo/bin/python scripts/runtime_vivo.py --flag"],
     )
 
-    entry = introspection._declared_services_not_running(tmp_path)
+    entry = introspection._declared_services_not_running(tmp_path, None)
 
     assert entry["count"] == 1, entry["sample"]
     assert "triade-fantasma.service" in entry["sample"][0]
@@ -352,3 +353,76 @@ def test_failures_stand_out_from_routine_activity(tmp_path: Path) -> None:
     events, _ = read_new_events(db, cursor)
 
     assert [e["status"] for e in events] == ["active", "failed", "unknown"]
+
+
+def test_un_servicio_sin_proceso_pero_con_efecto_no_es_deuda(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La pregunta no es «¿corre este proceso?» sino «¿ocurre esta función?».
+
+    El watchdog, los workers y el backup se cumplen como hilo o como tarea del
+    proceso de la API, no como el servicio declarado. Exigir el proceso marcaba
+    como parado algo que está pasando, y eso deja la categoría gritando para
+    siempre: una alarma que nunca se puede apagar se aprende a ignorar.
+    """
+    from triade.observability import introspection
+
+    units = tmp_path / "deploy" / "systemd"
+    units.mkdir(parents=True)
+    (units / "triade-watchdog.service").write_text(
+        "[Service]\nExecStart=/usr/bin/python scripts/runtime_watchdog.py\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(introspection, "_running_commands", lambda: ["/bin/otra/cosa"])
+
+    db = tmp_path / "triade.db"
+    connection = sqlite3.connect(db)
+    connection.execute("CREATE TABLE runtime_health_snapshots (created_at TEXT)")
+    connection.execute(
+        "INSERT INTO runtime_health_snapshots VALUES (?)",
+        (datetime.now(UTC).isoformat(),),
+    )
+    connection.commit()
+    connection.close()
+
+    assert introspection._declared_services_not_running(tmp_path, db)["count"] == 0
+
+
+def test_un_servicio_sin_proceso_y_sin_efecto_si_es_deuda(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Medir por efecto no puede volverse una forma de no ver nada nunca."""
+    from triade.observability import introspection
+
+    units = tmp_path / "deploy" / "systemd"
+    units.mkdir(parents=True)
+    (units / "triade-watchdog.service").write_text(
+        "[Service]\nExecStart=/usr/bin/python scripts/runtime_watchdog.py\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(introspection, "_running_commands", lambda: ["/bin/otra/cosa"])
+
+    db = tmp_path / "triade.db"
+    connection = sqlite3.connect(db)
+    connection.execute("CREATE TABLE runtime_health_snapshots (created_at TEXT)")
+    viejo = datetime.now(UTC) - timedelta(days=3)
+    connection.execute(
+        "INSERT INTO runtime_health_snapshots VALUES (?)", (viejo.isoformat(),)
+    )
+    connection.commit()
+    connection.close()
+
+    entry = introspection._declared_services_not_running(tmp_path, db)
+    assert entry["count"] == 1
+    assert "sin efecto reciente" in entry["sample"][0]
+
+
+def test_las_tablas_internas_de_sqlite_no_son_deuda(tmp_path: Path) -> None:
+    """`sqlite_sequence` la mantiene el motor: exigirle un escritor es un error."""
+    from triade.observability.introspection import SQLITE_INTERNAL_TABLES
+
+    cache = tmp_path / "graphs"
+    report = build_debt_report(REPO_ROOT, _db(tmp_path), cache, max_age_seconds=0)
+
+    huerfanas = report["items"]["tables_without_reader_or_writer"]["sample"]
+    assert not (set(huerfanas) & SQLITE_INTERNAL_TABLES), huerfanas
