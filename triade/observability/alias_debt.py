@@ -329,15 +329,36 @@ def find_dead_status_values(root: Path) -> list[AliasFinding]:
     return hallazgos
 
 
+def profiles_from_artifact(payload: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    """Perfiles de tabla a partir del `table_graph.json` ya generado.
+
+    Reconstruir el grafo cuesta una relectura del AST completo. El artefacto lo
+    escribe el generador y lo consume el panel de deuda, así que aquí se lee el
+    mismo fichero en vez de repetir el escaneo: una sola medición, cuatro
+    consumidores, como el resto de grafos.
+    """
+    if not payload:
+        return {}
+    return {
+        str(nodo.get("label")): dict(nodo.get("metadata") or {})
+        for nodo in payload.get("nodes") or []
+        if str(nodo.get("node_id", "")).startswith("table:")
+    }
+
+
 def build_alias_debt(
     root: Path,
     index: ModuleIndex | None = None,
     db_path: Path | None = None,
+    table_profiles: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Informe completo de deuda de alias, con evidencia por hallazgo."""
     root = root.resolve()
-    index = index or build_module_index(root)
-    perfiles = _table_profiles(root, index, db_path)
+    if table_profiles is not None:
+        perfiles = table_profiles
+    else:
+        index = index or build_module_index(root)
+        perfiles = _table_profiles(root, index, db_path)
     hallazgos = [
         *find_orphan_readers(perfiles),
         *find_lexical_aliases(perfiles),

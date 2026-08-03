@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .alias_debt import build_alias_debt, profiles_from_artifact
 from .runtime_graph import (
     VITAL_CHAIN,
     live_table_counts,
@@ -203,6 +204,25 @@ def build_debt_report(
         ]
         items["entrypoints_without_launcher"] = _entry(
             unlaunched, "entrypoint_graph.json: guard __main__ que nadie arranca"
+        )
+    # Deuda de alias: el lector que apunta al gemelo muerto de lo que sí se
+    # escribe. Es la forma que tenían **todos** los cortes de la auditoría del
+    # 2026-08-03, y cada uno costó una auditoría manual para salir. Entra aquí y
+    # no en una ruta aparte porque este informe es la medición única que leen la
+    # API y el worker `system_debt_scan`: si el detector viviera fuera, sería un
+    # órgano más sin quien lo consulte —justo lo que detecta—.
+    #
+    # Se le pasan los perfiles del artefacto ya generado: reconstruir el grafo de
+    # tablas cuesta una relectura completa del AST y este informe se sirve en
+    # caliente.
+    alias = build_alias_debt(
+        root, table_profiles=profiles_from_artifact(_load(cache_dir, "table_graph"))
+    )
+    for senal in ("orphan_reader", "lexical_alias", "dead_status_value"):
+        hallazgos = [h for h in alias["findings"] if h["signal"] == senal]
+        items[f"alias_debt_{senal}"] = _entry(
+            [h["dead"] for h in hallazgos],
+            f"alias_debt.py:{senal} — lector apuntando al gemelo muerto",
         )
     items["declared_services_not_running"] = _declared_services_not_running(
         root, db_path
