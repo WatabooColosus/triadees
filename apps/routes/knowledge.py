@@ -50,6 +50,14 @@ def _git(*args: str) -> str:
         return "unknown"
 
 
+#: SHA, rama y momento del código **que este proceso cargó**, congelados al
+#: importar. Sin congelarlos, un runtime viejo informa del commit que acabas de
+#: hacer y parece al día (F-050).
+_LOADED_SHA = _git("rev-parse", "HEAD")
+_LOADED_SHA_SHORT = _git("rev-parse", "--short", "HEAD")
+_LOADED_BRANCH = _git("rev-parse", "--abbrev-ref", "HEAD")
+
+
 @router.get("/api/runtime/build")
 def runtime_build() -> dict[str, Any]:
     """Permite comprobar que lo que se ve corresponde al código y a la DB reales.
@@ -58,10 +66,19 @@ def runtime_build() -> dict[str, Any]:
     está corriendo una versión anterior».
     """
     db = Path(DB_PATH)
+    # `_LOADED_*` se captura al importar el módulo; `repo_*` se lee ahora. La
+    # distinción es el sentido entero del endpoint: preguntarle a git en cada
+    # petición devuelve el HEAD del árbol de trabajo, no el commit que este
+    # proceso tiene en memoria. El 2026-08-03 un proceso arrancado a las 05:54
+    # informaba del sha de un commit hecho a las 07:5x, que es exactamente la
+    # confusión que este endpoint dice existir para evitar (F-050).
+    repo_sha = _git("rev-parse", "--short", "HEAD")
     return {
-        "git_sha": _git("rev-parse", "HEAD"),
-        "git_sha_short": _git("rev-parse", "--short", "HEAD"),
-        "branch": _git("rev-parse", "--abbrev-ref", "HEAD"),
+        "git_sha": _LOADED_SHA,
+        "git_sha_short": _LOADED_SHA_SHORT,
+        "branch": _LOADED_BRANCH,
+        "repo_head_short": repo_sha,
+        "code_matches_repo": repo_sha == _LOADED_SHA_SHORT,
         "started_at": _STARTED_AT,
         "db_path": str(db.resolve()) if db.exists() else f"{db} (no existe)",
         "db_exists": db.exists(),
