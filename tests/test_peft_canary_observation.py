@@ -87,11 +87,13 @@ def test_un_adaptador_ausente_no_gasta_la_gpu(tmp_path: Path) -> None:
     loop = WorkerLoop(db_path=db, runs_dir=tmp_path / "runs")
 
     class _Task:
-        payload = {"version_id": "peft-abc", "adapter_path": str(tmp_path / "no-existe")}
+        def __init__(self) -> None:
+            self.payload = {
+                "version_id": "peft-abc",
+                "adapter_path": str(tmp_path / "no-existe"),
+            }
 
-    resultado = loop._peft_canary_observation(
-        _Task(), "run-test", tmp_path, _config()
-    )
+    resultado = loop._peft_canary_observation(_Task(), "run-test", tmp_path, _config())
     assert resultado["effect"] == "no_op"
     assert resultado["skipped_reason"] == "adaptador_ausente_en_disco"
 

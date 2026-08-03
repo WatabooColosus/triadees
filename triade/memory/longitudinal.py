@@ -1,6 +1,45 @@
-"""Memoria longitudinal gobernada, explicable y aislada por tenant."""
+"""Memoria longitudinal gobernada, explicable y aislada por tenant.
+
+SUBSISTEMA INACTIVO — declarado así el 2026-08-03 con evidencia, no por
+descarte. No está roto ni abandonado: está sin conectar, y la diferencia importa
+para quien lea el informe de deuda.
+
+Lo que se midió sobre `main @ 741f2b5`:
+
+- La migración `021_longitudinal_memory.sql` existe y **nunca se aplicó**: en la
+  base viva no hay ninguna tabla `longitudinal_*`.
+- Este módulo **no es alcanzable** desde ningún entrypoint con lanzador
+  demostrado (Procfile, Dockerfile, systemd, workflows, `[project.scripts]`).
+- No tiene **ningún consumidor productivo** en `triade/` ni en `apps/`. El único
+  que lo usa es `triade/evaluation/memory_longitudinal.py`, y a ese sólo lo
+  llama `scripts/run_phase_05_memory_longitudinal.py`, un script de fase.
+
+Por qué inactivo y no conectado: cerrar el circuito exigiría **inventar** un
+consumidor productivo que nadie ha pedido. Eso es conectar un cascarón, que es
+peor que dejarlo desconectado —quien lea el resultado creerá que hay memoria
+longitudinal en uso—. Y crear la tabla sólo para callar la alerta está prohibido
+por el mismo motivo.
+
+Por qué no se borra: el código está cubierto por
+`tests/memory_longitudinal/test_longitudinal_memory.py` y no lo supera ningún
+otro módulo vivo. El criterio del operador es conservar lo que puede servir.
+
+Consecuencia para el detector de deuda: sus estados —`verified`, `candidate`,
+`stable`— aparecen como muertos porque sus escrituras son parametrizadas
+(`SET status = ?`) sobre una tabla que no existe. No son alias ni cortes: son
+este subsistema entero sin estrenar, y se clasifican como
+`incomplete_subsystem`.
+
+Para activarlo hacen falta las cinco cosas, no una: aplicar la migración,
+escribir un productor real, escribir un consumidor productivo, alcanzarlo desde
+un entrypoint vivo y una prueba end-to-end que lo demuestre.
+"""
 
 from __future__ import annotations
+
+#: Marca explícita de que este módulo no participa en el runtime. La leen la
+#: documentación de auditoría y quien triee la deuda; no cambia comportamiento.
+SUBSYSTEM_STATUS = "inactive"
 
 import hashlib
 import json

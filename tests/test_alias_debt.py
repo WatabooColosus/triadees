@@ -118,7 +118,7 @@ def test_un_estado_que_nadie_escribe_es_una_condicion_muerta(tmp_path) -> None:
         encoding="utf-8",
     )
     (tmp_path / "producer.py").write_text(
-        'UPDATE = "UPDATE learning_queue SET status = \'evidence_verified\'"\n',
+        "UPDATE = \"UPDATE learning_queue SET status = 'evidence_verified'\"\n",
         encoding="utf-8",
     )
 
@@ -161,3 +161,79 @@ def test_un_estado_devuelto_por_return_cuenta_como_escrito(tmp_path) -> None:
     )
 
     assert find_dead_status_values(tmp_path) == []
+
+
+# ── formas de escritura que el detector debe reconocer ────────────────
+# Las cuatro salieron del triaje del 2026-08-03: eran los únicos
+# `dead_status_value` clasificados como corte confirmado, y ninguno lo era.
+
+
+def test_un_default_de_columna_produce_el_estado(tmp_path) -> None:
+    """`DEFAULT 'detected'`: la fila nace con ese estado sin que nadie lo asigne."""
+    (tmp_path / "esquema.py").write_text(
+        "DDL = \"CREATE TABLE t (status TEXT NOT NULL DEFAULT 'detected')\"\n"
+        "LEE = \"SELECT * FROM t WHERE status = 'detected'\"\n",
+        encoding="utf-8",
+    )
+    assert find_dead_status_values(tmp_path) == []
+
+
+def test_un_literal_de_diccionario_produce_el_estado(tmp_path) -> None:
+    """`{"status": "starting"}`, incluido dentro de `update(...)`."""
+    (tmp_path / "modulo.py").write_text(
+        'ESTADO = {}\nESTADO.update({"status": "starting"})\n'
+        "LEE = \"SELECT * FROM t WHERE status = 'starting'\"\n",
+        encoding="utf-8",
+    )
+    assert find_dead_status_values(tmp_path) == []
+
+
+def test_una_asignacion_de_clave_produce_el_estado(tmp_path) -> None:
+    """`_STATE["status"] = "starting"`."""
+    (tmp_path / "modulo.py").write_text(
+        '_STATE = {}\n_STATE["status"] = "arrancando"\n'
+        "LEE = \"SELECT * FROM t WHERE status = 'arrancando'\"\n",
+        encoding="utf-8",
+    )
+    assert find_dead_status_values(tmp_path) == []
+
+
+def test_un_desempaquetado_de_tupla_produce_el_estado(tmp_path) -> None:
+    """`state, error = "runtime_recovered", None`."""
+    (tmp_path / "modulo.py").write_text(
+        'state, error = "runtime_recovered", None\n'
+        "LEE = \"SELECT * FROM t WHERE state = 'runtime_recovered'\"\n",
+        encoding="utf-8",
+    )
+    assert find_dead_status_values(tmp_path) == []
+
+
+def test_sql_parametrizado_rebaja_la_acusacion_a_sospecha(tmp_path) -> None:
+    """`SET status = ?` no dice qué valor manda: no se puede acusar en absoluto.
+
+    Tampoco se descarta el hallazgo — puede seguir siendo un corte —, pero baja
+    de `dead_status_value` a `suspected_dead_status` y de `confirmed` a
+    `suspected`, que es lo que la evidencia sostiene.
+    """
+    (tmp_path / "modulo.py").write_text(
+        'ESCRIBE = "UPDATE t SET status = ?"\n'
+        "LEE = \"SELECT * FROM t WHERE status = 'quizas_vivo'\"\n",
+        encoding="utf-8",
+    )
+    hallazgos = find_dead_status_values(tmp_path)
+
+    assert [h.signal for h in hallazgos] == ["suspected_dead_status"]
+    assert hallazgos[0].confidence == "suspected"
+    assert hallazgos[0].evidence["parameterised_writers"] == ["modulo.py"]
+
+
+def test_sin_escritura_parametrizada_la_acusacion_es_firme(tmp_path) -> None:
+    """La rebaja es por evidencia opaca, no un descuento general."""
+    (tmp_path / "modulo.py").write_text(
+        "LEE = \"SELECT * FROM t WHERE status = 'nadie_lo_escribe'\"\n",
+        encoding="utf-8",
+    )
+    hallazgos = find_dead_status_values(tmp_path)
+
+    assert [h.signal for h in hallazgos] == ["dead_status_value"]
+    assert hallazgos[0].confidence == "confirmed"

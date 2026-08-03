@@ -41,10 +41,8 @@ def _grados(nodes: dict, edges: list) -> dict[str, int]:
 
 def test_el_espinazo_del_planificador_esta_dibujado() -> None:
     """La cadena por la que pasa cada tarea no puede salir como nodos sueltos."""
-    nodes, edges = _grafo()
-    imports = {
-        (e.source, e.target) for e in edges if e.relation == "imports"
-    }
+    _nodes, edges = _grafo()
+    imports = {(e.source, e.target) for e in edges if e.relation == "imports"}
 
     def arista(origen: str, destino: str) -> bool:
         return (

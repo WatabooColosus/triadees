@@ -889,7 +889,9 @@ class MissionPlanner:
             ((name, entry["count"]) for name, entry in items.items() if entry["count"]),
             key=lambda pair: -pair[1],
         )[:3]
-        resumen = ", ".join(f"{name.replace('_', ' ')} {count}" for name, count in peores)
+        resumen = ", ".join(
+            f"{name.replace('_', ' ')} {count}" for name, count in peores
+        )
         return int(report.get("debt_items_total") or 0), resumen or "sin categorías"
 
     def _plan_neuron_formation(self) -> list[PlannedTask]:

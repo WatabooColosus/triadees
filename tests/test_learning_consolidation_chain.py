@@ -24,10 +24,9 @@ from pathlib import Path
 
 import pytest
 
+from tests.learning_evidence_helpers import attach_improved_evidence
 from triade.learning.pipeline import LearningPipeline
 from triade.workers.mission_planner import MissionPlanner
-
-from tests.learning_evidence_helpers import attach_improved_evidence
 
 #: Contiene `veredicto_triade`, que `extract_target` reconoce como dato
 #: distintivo. Sin él el candidato no es medible y el planner lo salta.
@@ -64,7 +63,7 @@ def _forzar_uso(pipe: LearningPipeline, cid: str, *, usos: int, score: float) ->
         conn.execute(
             "UPDATE learning_queue SET run_use_count = ?, avg_outcome_score = ?,"
             " run_outcome_scores = ? WHERE candidate_id = ?",
-            (usos, score, "[%s]" % ", ".join([str(score)] * usos), cid),
+            (usos, score, f"[{', '.join([str(score)] * usos)}]", cid),
         )
 
 
