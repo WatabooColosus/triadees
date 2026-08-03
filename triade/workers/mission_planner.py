@@ -87,7 +87,17 @@ class MissionPlanner:
         tasks.extend(self._plan_neuron_education())
         tasks.extend(self._plan_self_improvement())
         tasks.extend(self._plan_canary_observation())
-        if os.getenv("TRIADE_BACKUP_KEY"):
+        # La condición miraba sólo `TRIADE_BACKUP_KEY`, y `encrypted_backup.py`
+        # acepta además `TRIADE_BACKUP_KEY_FILE`: con la clave en fichero, la
+        # tarea no se planificaba aunque el backup fuese perfectamente posible.
+        #
+        # Y sin ninguna de las dos no pasaba nada: ni tarea, ni aviso, ni rastro.
+        # El 2026-07-31 la clave dejó de estar en el entorno y el sistema pasó
+        # cuatro días sin un solo backup sin que nada lo dijera. Un backup que
+        # deja de hacerse en silencio es peor que no tenerlo, porque nadie va a
+        # buscarlo hasta que haga falta. Ahora la falta se registra como error
+        # interno, que es una superficie que ya se lee.
+        if os.getenv("TRIADE_BACKUP_KEY") or os.getenv("TRIADE_BACKUP_KEY_FILE"):
             tasks.append(
                 PlannedTask(
                     task_type="encrypted_backup",
@@ -96,6 +106,16 @@ class MissionPlanner:
                     source="backup_retention_policy",
                     planner_score=0.4,
                 )
+            )
+        else:
+            record_internal_error(
+                "mission_planner.backup_key_missing",
+                RuntimeError(
+                    "sin TRIADE_BACKUP_KEY ni TRIADE_BACKUP_KEY_FILE: "
+                    "no se planifica ningún backup y la base queda sin copia"
+                ),
+                payload={"module": __name__, "function": "plan_cycle"},
+                db_path=self.db_path,
             )
 
         tasks.sort(key=lambda t: t.priority)

@@ -16,6 +16,7 @@ y la evidencia que la sostiene.
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -194,6 +195,7 @@ def build_debt_report(
             unlaunched, "entrypoint_graph.json: guard __main__ que nadie arranca"
         )
     items["declared_services_not_running"] = _declared_services_not_running(root)
+    items["backup_protection_gaps"] = _backup_protection_gaps(root)
 
     items["vital_chain_gaps"] = _vital_chain_gaps(db_path)
 
@@ -217,6 +219,81 @@ def _entry(values: list[str], evidence: str) -> dict[str, Any]:
         "sample": sorted(values)[:SAMPLE],
         "evidence": evidence,
     }
+
+
+#: A partir de aquí una copia deja de ser una copia útil. Un día es la cadencia
+#: declarada por `triade-backup.timer` (`OnCalendar=daily`); se dan dos de margen
+#: para no gritar por un retraso de husos o un reinicio.
+BACKUP_MAX_AGE_SECONDS = 2 * 24 * 60 * 60
+
+
+def _backup_protection_gaps(root: Path) -> dict[str, Any]:
+    """Lo que impide restaurar: sin clave, sin copia reciente, o sin poder abrirla.
+
+    Es la categoría que faltaba y la que más caro sale no tener. El 2026-07-31 la
+    clave desapareció del entorno, el planner dejó de programar backups —su
+    condición era exactamente esa variable— y el sistema pasó cuatro días sin una
+    sola copia **sin que nada lo dijera**. No había métrica que bajara, ni tabla
+    que se quedara vacía: simplemente dejó de ocurrir algo.
+
+    Se miden tres cosas distintas, porque fallan por separado:
+
+    - **sin clave**: no se puede crear ni abrir nada;
+    - **copia caducada**: la última es más vieja que la cadencia declarada;
+    - **copia sin clave identificada**: el manifiesto no dice qué clave la cifró,
+      así que ni sabiendo varias se puede saber cuál la abre.
+    """
+    gaps: list[str] = []
+
+    tiene_clave = bool(
+        os.getenv("TRIADE_BACKUP_KEY", "").strip()
+        or os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
+    )
+    if not tiene_clave:
+        gaps.append(
+            "sin TRIADE_BACKUP_KEY ni TRIADE_BACKUP_KEY_FILE: "
+            "no se crea ninguna copia y no se abre ninguna existente"
+        )
+
+    backup_dir = root / "artifacts" / "backups"
+    copias = sorted(
+        backup_dir.glob("triade-*.db.gz.fernet"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if not copias:
+        gaps.append("no existe ninguna copia en artifacts/backups")
+    else:
+        edad = time.time() - copias[0].stat().st_mtime
+        if edad > BACKUP_MAX_AGE_SECONDS:
+            gaps.append(
+                f"la copia más reciente tiene {edad / 86400:.1f} días "
+                f"({copias[0].name})"
+            )
+        sin_huella = [
+            copia.name
+            for copia in copias
+            if not _manifest_key_fingerprint(copia)
+        ]
+        if sin_huella:
+            gaps.append(
+                f"{len(sin_huella)} copias sin `key_fingerprint` en su manifiesto: "
+                "no se puede saber qué clave las abre"
+            )
+
+    return {
+        "count": len(gaps),
+        "sample": gaps[:SAMPLE],
+        "evidence": "artifacts/backups/*.json y el entorno de la clave de cifrado",
+    }
+
+
+def _manifest_key_fingerprint(backup: Path) -> str | None:
+    manifest = backup.with_suffix(backup.suffix + ".json")
+    try:
+        return json.loads(manifest.read_text(encoding="utf-8")).get("key_fingerprint")
+    except (OSError, ValueError):
+        return None
 
 
 def _declared_services_not_running(root: Path) -> dict[str, Any]:

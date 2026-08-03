@@ -54,6 +54,30 @@ class EncryptedBackup:
             )
         return Fernet(key)
 
+    @staticmethod
+    def key_fingerprint() -> str | None:
+        """Huella de la clave activa, o `None` si no hay ninguna.
+
+        Los manifiestos guardaban el hash del cifrado y el de la base original,
+        pero **nada que identificara la clave**. Con varias claves a mano —o con
+        una rotación— no había forma de saber cuál abre cuál: sólo probar. Y un
+        backup que no se sabe abrir no es un backup.
+
+        Es un SHA-256 truncado con prefijo de dominio: sirve para comparar dos
+        claves, nunca para reconstruir una.
+        """
+        key_text = os.getenv("TRIADE_BACKUP_KEY", "").strip()
+        key_file = os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
+        if not key_text and key_file:
+            try:
+                key_text = Path(key_file).read_text(encoding="utf-8").strip()
+            except OSError:
+                return None
+        if not key_text:
+            return None
+        digest = hashlib.sha256(b"triade-backup-key:" + key_text.encode()).hexdigest()
+        return digest[:16]
+
     def create(self, *, force: bool = False) -> dict[str, Any]:
         recent = sorted(
             self.backup_dir.glob("triade-*.db.gz.fernet"),
@@ -93,6 +117,9 @@ class EncryptedBackup:
             "created_at": time.time(),
             "source_db_sha256": hashlib.sha256(snapshot_bytes).hexdigest(),
             "source_size_bytes": len(snapshot_bytes),
+            # Sin esto, los backups del 2026-07-30 quedaron sin poder emparejarse
+            # con ninguna clave: el manifiesto no decía cuál los había cifrado.
+            "key_fingerprint": self.key_fingerprint(),
         }
         output.with_suffix(output.suffix + ".json").write_text(
             json.dumps(manifest, indent=2), encoding="utf-8"
