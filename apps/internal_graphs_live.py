@@ -44,6 +44,7 @@ from triade.observability.runtime_graph import (
     open_readonly,
     recent_activity,
     task_type_counts,
+    task_type_recency,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -347,18 +348,25 @@ def build_signals() -> dict[str, Any]:
         }
 
     executions = task_type_counts(db_path)
+    # La cuenta suma `worker_tasks`, congelada desde el 2026-07-29. Sin la fecha,
+    # un tipo que no corre desde hace días late en verde igual que uno que acaba
+    # de ejecutarse: el mismo estado que ya distinguen los eslabones de arriba.
+    recent = task_type_recency(db_path)
     # Los tipos que nunca se ejecutaron no aparecen en la cola, y son justo los
     # que hay que ver: se parten de los declarados, no de los encontrados.
     declared = literal_strings(ROOT, "triade/workers/contracts.py", "WorkerTaskType")
     task_types = {
         task_type: {
             "executions": executions.get(task_type, 0) if available else "UNKNOWN",
+            "recent_24h": recent.get(task_type, False) if available else "UNKNOWN",
             "state": (
                 "unknown"
                 if not available
-                else "active"
-                if executions.get(task_type, 0) > 0
                 else "disconnected"
+                if executions.get(task_type, 0) <= 0
+                else "active"
+                if recent.get(task_type, False)
+                else "legacy"
             ),
         }
         for task_type in sorted(set(declared) | set(executions))

@@ -424,20 +424,23 @@ def build_worker_graph(
     # es la prueba de que nunca se pidió. Sin base, no se puede afirmar nada.
     db_available = db_path is not None and db_path.exists()
     executed = task_type_counts(db_path)
+    recent = task_type_recency(db_path)
 
     for task_type in sorted(set(declared) | set(handlers)):
         node_id = f"task_type:{task_type}"
         handler = handlers.get(task_type)
         count = executed.get(task_type, 0) if db_available else None
+        fresh = recent.get(task_type, False) if db_available else None
         nodes[node_id] = GraphNode(
             node_id,
             "task",
             task_type,
-            _task_type_state(handler, count),
+            _task_type_state(handler, count, fresh=fresh),
             {
                 "declared": task_type in declared,
                 "handler": handler or "MISSING",
                 "executions": count if count is not None else "UNKNOWN",
+                "recent_24h": fresh if fresh is not None else "UNKNOWN",
             },
         )
         if contracts in index.by_path and task_type in declared:
@@ -461,21 +464,42 @@ def build_worker_graph(
     return sorted(nodes.values(), key=lambda n: n.node_id), edges
 
 
-def _task_type_state(handler: str | None, count: int | None) -> str:
+def _task_type_state(
+    handler: str | None, count: int | None, *, fresh: bool | None = None
+) -> str:
+    """Estado de un tipo de tarea: sin handler, sin ejecución, o desde cuándo.
+
+    `count` suma las dos colas, y una de ellas —`worker_tasks`— está congelada
+    desde el 2026-07-29. Sin mirar la fecha, un tipo que no se ejecuta desde
+    hace días sale verde igual que uno que corrió hace un minuto, y el grafo
+    afirma actividad presente con evidencia caducada. `legacy` ya existe en la
+    paleta para exactamente esto: «existe y se usó, sin actividad reciente».
+    """
     if handler is None:
         return "disconnected"
     if count is None:
         return "unknown"
-    return "active" if count > 0 else "disconnected"
+    if count <= 0:
+        return "disconnected"
+    if fresh is None:
+        return "unknown"
+    return "active" if fresh else "legacy"
+
+
+#: Las dos colas de tareas. `worker_tasks` es la histórica y `autonomous_tasks`
+#: la viva; se leen las dos porque el pasado también es evidencia, pero se
+#: fechan por separado para no confundirlo con el presente.
+TASK_TABLES = ("worker_tasks", "autonomous_tasks")
 
 
 def task_type_counts(db_path: Path | None) -> dict[str, int]:
+    """Ejecuciones acumuladas por tipo, sumando ambas colas."""
     connection = open_readonly(db_path)
     if connection is None:
         return {}
     counts: dict[str, int] = {}
     try:
-        for table in ("worker_tasks", "autonomous_tasks"):
+        for table in TASK_TABLES:
             try:
                 rows = connection.execute(
                     f"SELECT task_type, COUNT(*) FROM {table} GROUP BY task_type"
@@ -489,6 +513,39 @@ def task_type_counts(db_path: Path | None) -> dict[str, int]:
     finally:
         connection.close()
     return counts
+
+
+def task_type_recency(db_path: Path | None, *, hours: int = 24) -> dict[str, bool]:
+    """¿Se ejecutó este tipo en las últimas `hours`?
+
+    El corte se calcula con `strftime` en formato con `T`, igual que
+    `recent_activity()`: las tablas guardan ISO-8601 con `T` y `datetime('now')`
+    usa espacio, así que comparar los dos formatos ensancha la ventana en
+    silencio.
+    """
+    connection = open_readonly(db_path)
+    if connection is None:
+        return {}
+    fresh: dict[str, bool] = {}
+    try:
+        for table in TASK_TABLES:
+            try:
+                rows = connection.execute(
+                    f"SELECT task_type, COUNT(*) FROM {table} "
+                    "WHERE created_at >= strftime('%Y-%m-%dT%H:%M:%S', 'now', ?) "
+                    "GROUP BY task_type",
+                    (f"-{int(hours)} hours",),
+                ).fetchall()
+            except sqlite3.Error:
+                continue
+            for task_type, total in rows:
+                if task_type is None:
+                    continue
+                key = str(task_type)
+                fresh[key] = fresh.get(key, False) or int(total) > 0
+    finally:
+        connection.close()
+    return fresh
 
 
 def build_organ_graph(
