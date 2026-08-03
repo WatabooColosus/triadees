@@ -112,12 +112,47 @@ class SandboxPolicy:
     def get_limits(self, level: IsolationLevel = "restricted") -> SandboxLimits:
         return self.LEVEL_CONFIGS.get(level, SANDBOX_DEFAULTS)
 
-    def enforce(self, limits: SandboxLimits) -> dict[str, Any]:
+    def enforce(
+        self, limits: SandboxLimits, observed: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Compara el consumo real contra los límites declarados.
+
+        Antes devolvía siempre `violations: []` sin mirar nada: decía "enforced"
+        pasara lo que pasara. Eso es peor que no tener control, porque el que
+        lee la respuesta cree que hubo uno.
+
+        Lo que hace ahora es **detección posterior**, y hay que decirlo con esa
+        palabra: mide lo que ya ocurrió y lo compara. No impide nada. Impedir de
+        verdad exigiría `setrlimit` en un subproceso —en este proceso tumbaría la
+        API entera—, y eso es un cambio de arquitectura, no una comprobación.
+
+        La memoria no se mide: `ru_maxrss` es marca de agua de todo el proceso y
+        restarla entre dos puntos no dice lo que gastó una tarea. Se declara
+        `unknown` en lugar de darla por buena, que es la diferencia entre no
+        saber y mentir.
+        """
+        observed = observed or {}
         violations: list[str] = []
+
+        duration = observed.get("duration_seconds")
+        if duration is not None and duration > limits.timeout_seconds:
+            violations.append(
+                f"duración {duration:.2f}s excede timeout_seconds={limits.timeout_seconds}"
+            )
+
+        cpu = observed.get("cpu_seconds")
+        if cpu is not None and cpu > limits.cpu_seconds:
+            violations.append(
+                f"CPU {cpu:.2f}s excede cpu_seconds={limits.cpu_seconds}"
+            )
+
         return {
             "limits": limits.to_dict(),
+            "observed": observed,
             "violations": violations,
-            "status": "enforced" if not violations else "violations_detected",
+            "unmeasured": ["memory_mb", "max_pids", "network_allowed"],
+            "enforcement": "post_hoc_detection",
+            "status": "clean" if not violations else "violations_detected",
         }
 
     def record_execution(self, execution: SandboxExecution) -> None:

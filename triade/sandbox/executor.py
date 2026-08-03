@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -84,7 +86,24 @@ def run_in_sandbox(
             json.dumps(payload, ensure_ascii=False, default=str), encoding="utf-8"
         )
 
+        # Los límites vienen de `SandboxPolicy`, que hasta hoy no la importaba
+        # nadie: 187 líneas describiendo CPU, RAM, PID y tiempo mientras el
+        # ejecutor vivo recibía un `timeout` que no usaba. Ahora el consumo real
+        # se mide y se compara contra lo declarado.
+        policy = _isolation_policy()
+        limits = policy.get_limits() if policy else None
+        wall_start = time.monotonic()
+        cpu_start = time.process_time()
+
         result = _execute_task(task, payload)
+
+        observed = {
+            "duration_seconds": round(time.monotonic() - wall_start, 4),
+            "cpu_seconds": round(time.process_time() - cpu_start, 4),
+        }
+        if policy is not None and limits is not None:
+            result["limits"] = policy.enforce(limits, observed)
+            _record_replay(policy, sandbox_id, task, result, limits, observed)
 
         result_path = workdir / "result.json"
         result_path.write_text(
@@ -98,6 +117,15 @@ def run_in_sandbox(
         }
         result["policy"] = SANDBOX_POLICY
         result["allowed_task"] = True
+        # Los tres se sostienen por construcción, no por instrumentación: cada
+        # tarea de la whitelist es una función pura de este módulo, ninguna
+        # importa `socket`, `urllib`, `requests` ni `subprocess`, y las únicas
+        # escrituras del sandbox son `input.json` y `result.json` dentro de
+        # `workdir`. Es verificable leyendo el fichero.
+        #
+        # La fragilidad está en que dependen de que la whitelist siga siendo así:
+        # el día que se añada una tarea con red, estos `False` mienten en
+        # silencio. Queda anotado como F-054.
         result["writes_outside_sandbox"] = False
         result["network_used"] = False
         result["shell_used"] = False
@@ -126,6 +154,47 @@ def run_in_sandbox(
             "network_used": False,
             "shell_used": False,
         }
+
+
+def _isolation_policy():
+    """Política de aislamiento, o `None` si no se puede abrir la base.
+
+    Import y construcción perezosos: `SandboxPolicy` crea su tabla al
+    instanciarse, y el sandbox tiene que poder ejecutarse aunque la base no esté
+    disponible. Medir es deseable; ejecutar es obligatorio.
+    """
+    try:
+        from .isolation import SandboxPolicy
+
+        return SandboxPolicy()
+    except (ImportError, OSError, sqlite3.Error):
+        return None
+
+
+def _record_replay(policy, sandbox_id, task, result, limits, observed) -> None:
+    """Guarda la ejecución para poder revisarla después.
+
+    `sandbox_replay` existía y estaba vacía porque nadie escribía en ella. Un
+    fallo aquí no puede tumbar la ejecución: la traza es evidencia, no el trabajo.
+    """
+    try:
+        from .isolation import SandboxExecution
+
+        policy.record_execution(
+            SandboxExecution(
+                execution_id=sandbox_id,
+                task_type=task,
+                command=task,
+                limits=limits,
+                success=str(result.get("status")) == "completed",
+                stdout_preview=str(result.get("stdout") or "")[:500],
+                stderr_preview=str(result.get("stderr") or "")[:500],
+                duration_ms=round(observed["duration_seconds"] * 1000, 3),
+                executed_at=datetime.now(UTC).isoformat(),
+            )
+        )
+    except (ImportError, OSError, ValueError, TypeError, sqlite3.Error):
+        pass
 
 
 def _execute_task(task: str, payload: dict[str, Any]) -> dict[str, Any]:
