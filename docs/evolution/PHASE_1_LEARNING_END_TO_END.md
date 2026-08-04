@@ -30,9 +30,12 @@ El caso aprende un procedimiento de recuperación de `SQLite database locked`. E
 - `triade/learning/evidence_bridge.py`: gate optativo `generalization_required`; exige validation/held-out/regression completos, sin caída, y mejora fuera de train.
 - `triade/learning/context_selection_benchmark.py`: carga, ejecución, medición, tratamiento, Regression Gate, consolidación y reutilización.
 - `benchmarks/learning/context_selection/v1/*.json`: 10 casos versionados en cinco splits.
-- `scripts/run_phase_1_learning_end_to_end.py`: reproducción y generación del artefacto.
-- `tests/test_learning_end_to_end_real.py`: seis pruebas end-to-end y negativas.
+- `scripts/run_phase_1_learning_end_to_end.py`: reproducción aislada por defecto y generación del artefacto.
+- `tests/test_learning_end_to_end_real.py`: siete pruebas end-to-end, negativas y de reproducción CLI.
 - `artifacts/evolution/phase_1_results.json`: evidencia ejecutada.
+- `.github/workflows/{ci,python-tests,tests,internal-graphs}.yml`: instalación del paquete y sus dependencias de desarrollo antes de ejecutar scripts por subproceso.
+- `triade_omega.egg-info/SOURCES.txt`: manifiesto sincronizado; dos instalaciones editables consecutivas producen el mismo SHA-256.
+- `triade/observability/{code_graph,file_graph,neural_graph,runtime_graph}.py`: correcciones tipadas requeridas por los gates, sin cambio de contrato.
 
 Migración aditiva y reversible: `learning_evidence.generalization_required INTEGER NOT NULL DEFAULT 0`. No se elimina ni reinterpreta información existente. Rollback de código: revertir los commits de Fase 1; rollback de datos: la columna puede permanecer inerte con valor 0 sin alterar rutas previas.
 
@@ -51,7 +54,7 @@ Migración aditiva y reversible: `learning_evidence.generalization_required INTE
 | Latencia del run | 28,064 ms | 30,812 ms |
 | Pico de memoria trazado | 58.441 bytes | 49.230 bytes |
 
-La procedencia del candidato incluye suite, versión y SHA. El artefacto final se reprodujo sobre `cc8d5b99d7a66c6557ee5e58e87b1eab861e59d6`. Entró mediante `ingest`, pasó por `evaluate` y `verify`, se usó en tres decisiones exitosas con referencias de evidencia, fue medido por Measurement Core, pasó un Regression Gate persistido y se consolidó con aprobación explícita.
+La procedencia del candidato incluye suite, versión y SHA. El artefacto versionado se reprodujo sobre `d9dd29f418212dac220e616f34694d3fc91da1f0`. Entró mediante `ingest`, pasó por `evaluate` y `verify`, se usó en tres decisiones exitosas con referencias de evidencia, fue medido por Measurement Core, pasó un Regression Gate persistido y se consolidó con aprobación explícita. El runner se ejecutó después desde dos directorios distintos y conservó los mismos scores y los seis criterios de cierre.
 
 ## Reutilización posterior
 
@@ -62,15 +65,17 @@ Esto demuestra la capacidad acotada de selección de contexto del benchmark. No 
 ## Pruebas y resultados
 
 - Suite específica completa: 47 passed, 0 failed, 0 errors.
-- Nueva suite: 6 passed, incluida reproducción independiente con los mismos scores y criterios de cierre.
+- Nueva suite: 7 passed, incluida reproducción independiente y dos ejecuciones CLI aisladas con los mismos scores y criterios de cierre.
 - Casos negativos demostrados:
   - sin Measurement Core no consolida;
   - mejora solo train no avanza;
   - regresión crítica no avanza;
   - no medible queda `not_measurable`;
   - consolidado se recupera, cambia decisión y queda auditado.
-- Gates globales heredados: Ruff y mypy ya fallaban antes del parche; véase baseline. No se ocultan ni se cuentan como arreglados.
-- Suite completa: el intento aislado del SHA base quedó sin progreso más allá del 3 % y se interrumpió a 380,70 s; el intento inicial mezclado fue descartado. No se declara ausencia global de regresiones.
+- Gates de código en checkout limpio: `ruff check .`, `ruff format --check .` y `mypy triade`, todos terminales verdes; `compileall` también pasó.
+- Suite completa aislada en GitHub Actions: 2.113 passed, 0 failed, 0 errors y 1 advertencia externa de deprecación. Los workflows Python Tests y Tríade Tests pasaron tanto en push como en PR.
+- Suite integral de grafos local: 40 passed en 491,33 s. Internal Graphs pasó en CI en checkout limpio.
+- Measurement Core, Regression Gate, matriz de concurrencia, frontend y Runtime Truth pasaron en CI sobre el SHA final del PR.
 
 ## Criterio de cierre
 
@@ -83,13 +88,13 @@ El artefacto ejecutado marca verdadero:
 - `recovered_later`;
 - `later_use_improved`.
 
-El criterio funcional de Fase 1 está satisfecho para la capacidad acotada. La fase completa permanece **bloqueada**: no hay resultado terminal de la suite global y Ruff, formato y mypy están rojos desde la baseline.
+El criterio funcional y los gates de cierre de Fase 1 están satisfechos para la capacidad acotada. Esto demuestra una mejora gobernada y reproducible en **selección de contexto relevante**; no demuestra aprendizaje general de Tríade.
 
 ## Riesgos, deuda restante y recomendación
 
 - El benchmark es pequeño y creado para esta fase; generaliza a held-out interno, no a distribución externa.
 - La recuperación consolidada requiere declarar el estado permitido; la memoria semántica productiva viaja por otra ruta y no se afirma aquí como validada.
-- Ruff (659 incidencias iniciales), formato (6 archivos iniciales), mypy (26 errores iniciales), heartbeat y 72 subsistemas siguen fuera del alcance de Fase 1.
+- El heartbeat y los 72 subsistemas siguen fuera del alcance de Fase 1; no se redujeron ni reclasificaron sus contadores.
 - No se tocó `identity_core`, secretos, `.git`, permisos ni fronteras de seguridad.
 
-Recomendación: **no merge**. Se abre únicamente PR draft para conservar revisión y evidencia. Antes de promoverlo deben obtenerse un `pytest -q` terminal y una política explícita para los gates heredados que ya fallan en `main`; nunca merge automático.
+Recomendación: **merge tras revisión humana del PR #72**. Los criterios funcionales, la reproducción, la suite global y los gates obligatorios pasan. No se hace merge automático; el rollback es revertir los commits pequeños de la fase y conservar la columna aditiva inerte.
