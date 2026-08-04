@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from .contracts import GraphEdge, GraphNode
+from .contracts import GraphEdge, GraphNode, NodeState
 
 SKIP_PARTS = {
     "__pycache__",
@@ -312,13 +312,13 @@ def build_call_graph(
             continue
         # Cada llamada se atribuye a la función que la contiene, no al fichero.
         stack: list[str] = []
-        for node, enclosing in _walk_with_scope(tree, relative, stack):
-            if not isinstance(node, ast.Call):
+        for ast_node, enclosing in _walk_with_scope(tree, relative, stack):
+            if not isinstance(ast_node, ast.Call):
                 continue
-            name = _called_name(node)
-            if name is None:
+            called_name = _called_name(ast_node)
+            if called_name is None:
                 continue
-            candidates = symbols.by_name.get(name)
+            candidates = symbols.by_name.get(called_name)
             if not candidates or len(candidates) != 1:
                 continue
             target = candidates[0]
@@ -329,19 +329,19 @@ def build_call_graph(
                 enclosing,
                 target,
                 "calls",
-                f"{relative}:{getattr(node, 'lineno', 0)}",
+                f"{relative}:{getattr(ast_node, 'lineno', 0)}",
             )
             if edge not in edges:
                 edges.append(edge)
 
-    for symbol_id, node in nodes.items():
-        state = "active" if symbol_id in called else "disconnected"
+    for symbol_id, graph_node in nodes.items():
+        state: NodeState = "active" if symbol_id in called else "disconnected"
         nodes[symbol_id] = GraphNode(
-            node.node_id,
-            node.kind,
-            node.label,
+            graph_node.node_id,
+            graph_node.kind,
+            graph_node.label,
             state,
-            {**node.metadata, "called": symbol_id in called},
+            {**graph_node.metadata, "called": symbol_id in called},
         )
 
     return sorted(nodes.values(), key=lambda n: n.node_id), edges
@@ -385,10 +385,10 @@ def build_entrypoint_graph(
         tree = _parse(root / relative)
         if tree is None:
             continue
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.If):
+        for ast_node in ast.walk(tree):
+            if not isinstance(ast_node, ast.If):
                 continue
-            if not _is_main_guard(node.test):
+            if not _is_main_guard(ast_node.test):
                 continue
             node_id = f"entrypoint:{relative}"
             nodes[node_id] = GraphNode(
@@ -400,7 +400,7 @@ def build_entrypoint_graph(
                     "path": relative,
                     "module": index.by_path[relative],
                     "kind": "main_guard",
-                    "line": node.lineno,
+                    "line": ast_node.lineno,
                     "launchers": 0,
                 },
             )
@@ -419,7 +419,8 @@ def build_entrypoint_graph(
                 "launchers": 0,
             }
         )
-        metadata["launchers"] = int(metadata.get("launchers", 0)) + 1
+        launchers = metadata.get("launchers", 0)
+        metadata["launchers"] = (launchers if isinstance(launchers, int) else 0) + 1
         nodes[node_id] = GraphNode(node_id, "file", target, "active", metadata)
         launcher_id = f"launcher:{launcher}"
         nodes.setdefault(
@@ -431,21 +432,23 @@ def build_entrypoint_graph(
             edges.append(edge)
 
     documented = _documented_paths(root)
-    for node_id, node in nodes.items():
+    for node_id, graph_node in nodes.items():
         if not node_id.startswith("entrypoint:"):
             continue
-        if node.metadata.get("launchers"):
+        if graph_node.metadata.get("launchers"):
             continue
         # Una herramienta que la documentación explica cómo ejecutar no es
         # código muerto: es manual. Meterla en el mismo saco que un fichero
         # que nadie nombra convierte 45 utilidades vivas en deuda inventada.
-        cited = node.label in documented or Path(node.label).name in documented
+        cited = (
+            graph_node.label in documented or Path(graph_node.label).name in documented
+        )
         nodes[node_id] = GraphNode(
-            node.node_id,
-            node.kind,
-            node.label,
+            graph_node.node_id,
+            graph_node.kind,
+            graph_node.label,
             "legacy" if cited else "disconnected",
-            {**node.metadata, "documented": cited},
+            {**graph_node.metadata, "documented": cited},
         )
 
     return sorted(nodes.values(), key=lambda n: n.node_id), edges
@@ -483,7 +486,8 @@ def reachable_modules(
     pending = [
         str(node.metadata.get("path") or "")
         for node in entry_nodes
-        if int(node.metadata.get("launchers") or 0) > 0
+        if isinstance((launchers := node.metadata.get("launchers")), int)
+        and launchers > 0
     ]
     reached = {path for path in pending if path}
     queue = list(reached)
@@ -538,8 +542,8 @@ def _iter_launchers(root: Path, index: ModuleIndex) -> Iterator[tuple[str, str, 
         except OSError:
             continue
         launcher = source.relative_to(root).as_posix()
-        for pattern in (_MODULE_LAUNCH, _UVICORN_LAUNCH):
-            for match in pattern.finditer(text):
+        for launch_pattern in (_MODULE_LAUNCH, _UVICORN_LAUNCH):
+            for match in launch_pattern.finditer(text):
                 resolved = index.resolve(match.group(1))
                 if resolved:
                     yield launcher, resolved, f"{launcher}: {match.group(0).strip()}"

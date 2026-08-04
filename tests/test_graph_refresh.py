@@ -139,9 +139,10 @@ def test_la_publicacion_no_deja_ver_un_json_a_medias(tmp_path, patched):
     assert seen[0]["nodes"][0]["label"] == "viejo"
 
     refresher.wait(timeout=10)
-    assert json.loads((cache / "import_graph.json").read_text())["nodes"][0][
-        "label"
-    ] == "nuevo"
+    assert (
+        json.loads((cache / "import_graph.json").read_text())["nodes"][0]["label"]
+        == "nuevo"
+    )
 
 
 def test_el_fallo_se_reporta_y_espera_antes_de_reintentar(tmp_path, patched):

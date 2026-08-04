@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import cast
 
-from .contracts import GraphEdge, GraphNode
+from .contracts import GraphEdge, GraphNode, NodeKind, NodeState
 
 RUNTIME_TABLES = {
     "runs": ("run", "run_id"),
@@ -32,7 +33,7 @@ def build_neural_graph(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )
         }
-        for table, (kind, identity) in RUNTIME_TABLES.items():
+        for table, (raw_kind, identity) in RUNTIME_TABLES.items():
             if table not in tables:
                 continue
             table_id = f"table:{table}"
@@ -48,6 +49,7 @@ def build_neural_graph(
                 value = row[identity]
                 if value is None:
                     continue
+                kind = cast(NodeKind, raw_kind)
                 node_id = f"{kind}:{value}"
                 nodes.setdefault(
                     node_id,
@@ -70,9 +72,10 @@ def build_neural_graph(
     return list(nodes.values()), edges
 
 
-def _state_from_row(row: sqlite3.Row) -> str:
+def _state_from_row(row: sqlite3.Row) -> NodeState:
+    row_keys = set(row.keys())
     for field in ("status", "state", "outcome"):
-        if field in row.keys() and row[field]:
+        if field in row_keys and row[field]:
             value = str(row[field]).lower()
             if value in {"failed", "dead_letter", "degraded"}:
                 return "failed"
@@ -93,8 +96,9 @@ def _safe_metadata(row: sqlite3.Row) -> dict[str, object]:
         "finished_at",
         "task_type",
     }
+    row_keys = set(row.keys())
     return {
-        key: row[key] for key in row.keys() if key in allowed and row[key] is not None
+        key: row[key] for key in allowed if key in row_keys and row[key] is not None
     }
 
 
@@ -106,13 +110,15 @@ def _append_relations(
     edges: list[GraphEdge],
 ) -> None:
     referenced: dict[str, str] = {}
-    for field, kind, relation in (
+    row_keys = set(row.keys())
+    for field, raw_kind, relation in (
         ("run_id", "run", "participates_in"),
         ("neuron_id", "neuron", "uses_neuron"),
         ("task_id", "task", "references_task"),
     ):
-        if field not in row.keys() or row[field] is None:
+        if field not in row_keys or row[field] is None:
             continue
+        kind = cast(NodeKind, raw_kind)
         target = f"{kind}:{row[field]}"
         nodes.setdefault(target, GraphNode(target, kind, str(row[field]), "unknown"))
         referenced[kind] = target

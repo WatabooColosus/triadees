@@ -183,7 +183,7 @@ def test_el_estado_del_watchdog_es_observable() -> None:
 
 
 def test_el_watchdog_revive_el_hilo_de_workers_caido(
-    monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Estuvieron muertos 7 minutos y nadie lo notó: nadie los miraba.
 
@@ -206,7 +206,7 @@ def test_el_watchdog_revive_el_hilo_de_workers_caido(
 
 
 def test_el_watchdog_no_revive_lo_que_ya_esta_vivo(
-    monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import triade.core.worker_autostart as autostart
 
@@ -222,9 +222,7 @@ def test_el_watchdog_no_revive_lo_que_ya_esta_vivo(
     assert watchdog_autostart._ensure_workers_alive() is False
 
 
-def test_el_watchdog_respeta_una_parada_pedida(
-    monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_el_watchdog_respeta_una_parada_pedida(monkeypatch: pytest.MonkeyPatch) -> None:
     """Revivir algo que alguien paró a propósito es desobedecer, no vigilar."""
     import triade.core.worker_autostart as autostart
 

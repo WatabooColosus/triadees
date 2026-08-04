@@ -24,7 +24,7 @@ from .code_graph import (
     iter_python_files,
     reachable_modules,
 )
-from .contracts import GraphEdge, GraphNode
+from .contracts import GraphEdge, GraphNode, NodeState
 
 #: Órgano → prefijos de ruta reales. Un órgano sin carpeta no se dibuja.
 ORGAN_PATHS: dict[str, tuple[str, ...]] = {
@@ -332,7 +332,7 @@ def build_table_graph(
     return sorted(nodes.values(), key=lambda n: n.node_id), edges
 
 
-def _table_state(readers: list[str], writers: list[str], rows: int | None) -> str:
+def _table_state(readers: list[str], writers: list[str], rows: int | None) -> NodeState:
     if not readers and not writers:
         return "disconnected"
     if rows == 0 and writers:
@@ -543,7 +543,7 @@ def build_worker_graph(
 
 def _task_type_state(
     handler: str | None, count: int | None, *, fresh: bool | None = None
-) -> str:
+) -> NodeState:
     """Estado de un tipo de tarea: sin handler, sin ejecución, o desde cuándo.
 
     `count` suma las dos colas, y una de ellas —`worker_tasks`— está congelada
@@ -759,7 +759,7 @@ def build_vital_chain_graph(
     return nodes, edges
 
 
-def _stage_state(has_code: bool, has_db: bool, rows: int, fresh: bool) -> str:
+def _stage_state(has_code: bool, has_db: bool, rows: int, fresh: bool) -> NodeState:
     if not has_code:
         return "disconnected"
     if not has_db:

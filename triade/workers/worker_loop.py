@@ -682,9 +682,7 @@ class WorkerLoop:
                 except FileNotFoundError:
                     pass
 
-    def _governor_decision(
-        self, blood: dict[str, Any], run_ref: str
-    ) -> dict[str, Any]:
+    def _governor_decision(self, blood: dict[str, Any], run_ref: str) -> dict[str, Any]:
         """Pregunta al governor si este ciclo puede gastar, y lo deja anotado.
 
         El metabolismo existe para que el sistema consuma sin caerse, pero medía

@@ -5,7 +5,7 @@ import hashlib
 import os
 from pathlib import Path
 
-from .contracts import GraphEdge, GraphNode
+from .contracts import GraphEdge, GraphNode, NodeKind, NodeState
 
 SENSITIVE_NAMES = {".env", ".git", ".ssh", "secrets", "credentials"}
 SKIP_PARTS = {
@@ -67,7 +67,10 @@ def build_file_graph(root: Path) -> tuple[list[GraphNode], list[GraphEdge]]:
             seen.add(node_id)
             protected = _protected(path)
             hidden = any(part.startswith(".") for part in path.relative_to(root).parts)
-            state = "protected" if protected else "hidden" if hidden else "active"
+            state: NodeState = (
+                "protected" if protected else "hidden" if hidden else "active"
+            )
+            kind: NodeKind = "directory" if path.is_dir() else "file"
             metadata: dict[str, object] = {"protected": protected, "hidden": hidden}
             if path.is_file() and not protected:
                 metadata["size"] = path.stat().st_size
@@ -80,7 +83,7 @@ def build_file_graph(root: Path) -> tuple[list[GraphNode], list[GraphEdge]]:
             nodes.append(
                 GraphNode(
                     node_id,
-                    "directory" if path.is_dir() else "file",
+                    kind,
                     path.name,
                     state,
                     metadata,
@@ -123,7 +126,7 @@ def _append_python_edges(
                     )
                 )
         elif isinstance(item, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
-            kind = "class" if isinstance(item, ast.ClassDef) else "function"
+            kind: NodeKind = "class" if isinstance(item, ast.ClassDef) else "function"
             target = (
                 f"symbol:{path.relative_to(root).as_posix()}:{item.name}:{item.lineno}"
             )

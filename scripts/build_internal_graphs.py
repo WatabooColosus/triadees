@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Construye los grafos internos verificables de Tríade Ω.
 
 Siete grafos, todos derivados del repositorio real y —cuando existe— de la base
