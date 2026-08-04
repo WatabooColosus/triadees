@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "sha": "cc8d5b99d7a66c6557ee5e58e87b1eab861e59d6",
+  "sha": "d9dd29f418212dac220e616f34694d3fc91da1f0",
   "capability": "learning_context_selection",
   "benchmark": {
     "suite_id": "learning-context-selection",
@@ -171,7 +171,7 @@
     "description": "Selección léxica segura de contexto sobre un candidato trazable."
   },
   "baseline": {
-    "evaluation_id": "eval-d8fecf40c7134eec",
+    "evaluation_id": "eval-b556ea98e53948ef",
     "suite_id": "learning-context-selection",
     "suite_version": "1.0.0",
     "subject_id": "phase-1-context-selection",
@@ -338,12 +338,12 @@
       }
     ],
     "aggregate_score": 0.3,
-    "created_at": "2026-08-04T00:08:52.549493+00:00",
+    "created_at": "2026-08-04T00:41:17.220631+00:00",
     "metadata": {
       "model": "deterministic-lexical-retriever",
       "tokens": 0,
-      "duration_ms": 28.064,
-      "peak_memory_bytes": 58441,
+      "duration_ms": 24.437,
+      "peak_memory_bytes": 58883,
       "split_scores": {
         "train": 0.0,
         "validation": 0.0,
@@ -354,7 +354,7 @@
     }
   },
   "treatment": {
-    "evaluation_id": "eval-500b13233f0a4046",
+    "evaluation_id": "eval-b6a0365be86b48db",
     "suite_id": "learning-context-selection",
     "suite_version": "1.0.0",
     "subject_id": "phase-1-context-selection",
@@ -521,12 +521,12 @@
       }
     ],
     "aggregate_score": 1.0,
-    "created_at": "2026-08-04T00:08:52.642319+00:00",
+    "created_at": "2026-08-04T00:41:17.325762+00:00",
     "metadata": {
       "model": "deterministic-lexical-retriever",
       "tokens": 0,
-      "duration_ms": 30.812,
-      "peak_memory_bytes": 49230,
+      "duration_ms": 28.253,
+      "peak_memory_bytes": 49124,
       "split_scores": {
         "train": 1.0,
         "validation": 1.0,
@@ -537,8 +537,8 @@
     }
   },
   "comparison": {
-    "baseline_evaluation_id": "eval-d8fecf40c7134eec",
-    "candidate_evaluation_id": "eval-500b13233f0a4046",
+    "baseline_evaluation_id": "eval-b556ea98e53948ef",
+    "candidate_evaluation_id": "eval-b6a0365be86b48db",
     "baseline_score": 0.3,
     "candidate_score": 1.0,
     "absolute_delta": 0.7,
@@ -557,13 +557,13 @@
     "decision": "improved"
   },
   "regression_gate": {
-    "report_id": "regression-learn-4ca499a1afee4c8e",
-    "candidate_id": "learn-4ca499a1afee4c8e",
+    "report_id": "regression-learn-a92c70c9d4f14e94",
+    "candidate_id": "learn-a92c70c9d4f14e94",
     "capability": "learning_context_selection",
     "suite_id": "learning-context-selection",
     "suite_version": "1.0.0",
-    "baseline_evaluation_id": "eval-d8fecf40c7134eec",
-    "candidate_evaluation_id": "eval-500b13233f0a4046",
+    "baseline_evaluation_id": "eval-b556ea98e53948ef",
+    "candidate_evaluation_id": "eval-b6a0365be86b48db",
     "decision": "pass",
     "findings": [
       {
@@ -607,24 +607,24 @@
         "reason": "métrica dentro del umbral permitido"
       }
     ],
-    "created_at": "2026-08-04T00:08:52.665260+00:00",
+    "created_at": "2026-08-04T00:41:17.346330+00:00",
     "metadata": {
-      "sha": "cc8d5b99d7a66c6557ee5e58e87b1eab861e59d6"
+      "sha": "d9dd29f418212dac220e616f34694d3fc91da1f0"
     },
     "blocking_findings": []
   },
   "candidate": {
-    "candidate_id": "learn-4ca499a1afee4c8e",
-    "source_ref": "benchmark:learning-context-selection:1.0.0@cc8d5b99d7a66c6557ee5e58e87b1eab861e59d6",
+    "candidate_id": "learn-a92c70c9d4f14e94",
+    "source_ref": "benchmark:learning-context-selection:1.0.0@d9dd29f418212dac220e616f34694d3fc91da1f0",
     "status": "consolidated",
-    "semantic_document_id": "sem-1be168a36e0c4329"
+    "semantic_document_id": "sem-8a175f80ea294dd3"
   },
   "followup": {
     "run_id": "phase-1-followup-after-consolidation",
     "query": "¿Cómo recupero SQLite cuando aparece database locked?",
     "before_injected_ids": [],
     "after_injected_ids": [
-      "learn-4ca499a1afee4c8e"
+      "learn-a92c70c9d4f14e94"
     ],
     "decision_changed": true,
     "causal_use_confirmed": true,
