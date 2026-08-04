@@ -10,7 +10,7 @@ import json
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +21,54 @@ def _utc_now() -> str:
 
 def _new_goal_id() -> str:
     return f"goal-{uuid.uuid4().hex[:12]}"
+
+
+GOAL_STATES = frozenset(
+    {
+        "pending",
+        "awaiting_approval",
+        "queued",
+        "running",
+        "replanning",
+        "completed",
+        "blocked",
+        "failed",
+        "expired",
+        "cancelled",
+        "archived",
+    }
+)
+GOAL_TERMINAL_STATES = frozenset(
+    {"completed", "blocked", "failed", "expired", "cancelled", "archived"}
+)
+GOAL_ACTIVE_STATES = GOAL_STATES - GOAL_TERMINAL_STATES
+GOAL_TRANSITIONS: dict[str, frozenset[str]] = {
+    "pending": frozenset(
+        {"awaiting_approval", "queued", "blocked", "expired", "cancelled"}
+    ),
+    "awaiting_approval": frozenset({"queued", "blocked", "expired", "cancelled"}),
+    "queued": frozenset(
+        {
+            "running",
+            "replanning",
+            "completed",
+            "blocked",
+            "failed",
+            "expired",
+            "cancelled",
+        }
+    ),
+    "running": frozenset(
+        {"replanning", "completed", "blocked", "failed", "expired", "cancelled"}
+    ),
+    "replanning": frozenset({"queued", "blocked", "failed", "expired", "cancelled"}),
+    "completed": frozenset({"archived"}),
+    "blocked": frozenset({"archived"}),
+    "failed": frozenset({"archived"}),
+    "expired": frozenset({"archived"}),
+    "cancelled": frozenset({"archived"}),
+    "archived": frozenset(),
+}
 
 
 @dataclass(slots=True)
@@ -104,6 +152,17 @@ class PlanningGraph:
                         "INSERT OR IGNORE INTO goal_dependencies (goal_id, depends_on_id, created_at) VALUES (?, ?, ?)",
                         (goal_id, dep_id, now),
                     )
+            self._insert_event(
+                conn,
+                goal_id,
+                event_type="created",
+                from_status=None,
+                to_status="pending",
+                actor=str((metadata or {}).get("source") or "planning_graph"),
+                reason="goal_created",
+                evidence={"parent_id": parent_id, "dependencies": dependencies or []},
+                created_at=now,
+            )
         return GoalNode(
             goal_id=goal_id,
             parent_id=parent_id,
@@ -131,15 +190,177 @@ class PlanningGraph:
         node.dependencies = [str(d["depends_on_id"]) for d in deps]
         return node
 
-    def update_status(self, goal_id: str, status: str) -> GoalNode | None:
+    def transition(
+        self,
+        goal_id: str,
+        status: str,
+        *,
+        actor: str,
+        reason: str,
+        event_type: str = "status_changed",
+        evidence: dict[str, Any] | None = None,
+    ) -> GoalNode:
+        if status not in GOAL_STATES:
+            raise ValueError(f"unknown_goal_status:{status}")
+        current = self.get_goal(goal_id)
+        if current is None:
+            raise ValueError(f"goal_not_found:{goal_id}")
+        if current.status == status:
+            return current
+        if current.status in GOAL_TERMINAL_STATES and status != "archived":
+            raise ValueError(f"goal_terminal:{current.status}")
+        allowed = GOAL_TRANSITIONS.get(current.status, frozenset())
+        if status not in allowed:
+            raise ValueError(f"invalid_goal_transition:{current.status}->{status}")
         now = _utc_now()
-        completed_at = now if status == "completed" else None
+        completed_at = now if status in GOAL_TERMINAL_STATES else None
         with self._connect() as conn:
             conn.execute(
                 "UPDATE planning_graph SET status = ?, updated_at = ?, completed_at = COALESCE(?, completed_at) WHERE goal_id = ?",
                 (status, now, completed_at, goal_id),
             )
-        return self.get_goal(goal_id)
+            self._insert_event(
+                conn,
+                goal_id,
+                event_type=event_type,
+                from_status=current.status,
+                to_status=status,
+                actor=actor,
+                reason=reason,
+                evidence=evidence or {},
+                created_at=now,
+            )
+        updated = self.get_goal(goal_id)
+        if updated is None:  # pragma: no cover - guarded by the transaction
+            raise RuntimeError(f"goal_disappeared:{goal_id}")
+        return updated
+
+    def update_status(self, goal_id: str, status: str) -> GoalNode | None:
+        """Compatibilidad gobernada para consumidores históricos."""
+        return self.transition(
+            goal_id,
+            status,
+            actor="planning_graph.compat",
+            reason="legacy_update_status",
+        )
+
+    def record_event(
+        self,
+        goal_id: str,
+        *,
+        event_type: str,
+        actor: str,
+        reason: str,
+        evidence: dict[str, Any] | None = None,
+    ) -> None:
+        goal = self.get_goal(goal_id)
+        if goal is None:
+            raise ValueError(f"goal_not_found:{goal_id}")
+        with self._connect() as conn:
+            self._insert_event(
+                conn,
+                goal_id,
+                event_type=event_type,
+                from_status=goal.status,
+                to_status=goal.status,
+                actor=actor,
+                reason=reason,
+                evidence=evidence or {},
+                created_at=_utc_now(),
+            )
+
+    def get_events(self, goal_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM goal_events WHERE goal_id=? ORDER BY created_at,event_id",
+                (goal_id,),
+            ).fetchall()
+        return [self._decode_event(row) for row in rows]
+
+    def find_active_by_request_key(self, request_key: str) -> GoalNode | None:
+        placeholders = ",".join("?" for _ in GOAL_ACTIVE_STATES)
+        with self._connect() as conn:
+            row = conn.execute(
+                f"""SELECT * FROM planning_graph
+                WHERE parent_id IS NULL
+                  AND json_extract(metadata, '$.request_key')=?
+                  AND status IN ({placeholders})
+                ORDER BY created_at LIMIT 1""",
+                (request_key, *sorted(GOAL_ACTIVE_STATES)),
+            ).fetchone()
+        return self._row_to_goal(row) if row is not None else None
+
+    def reconcile_limbo(
+        self, *, max_age_minutes: int, actor: str = "goal_reconciler"
+    ) -> dict[str, Any]:
+        cutoff = (datetime.now(UTC) - timedelta(minutes=max_age_minutes)).isoformat()
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT goal_id FROM planning_graph
+                WHERE parent_id IS NULL AND status IN ('pending','awaiting_approval','queued','running','replanning')
+                  AND updated_at < ? ORDER BY created_at""",
+                (cutoff,),
+            ).fetchall()
+        expired = []
+        for row in rows:
+            goal_id = str(row["goal_id"])
+            for child in self.get_children(goal_id):
+                if child.status in GOAL_ACTIVE_STATES:
+                    self.transition(
+                        child.goal_id,
+                        "expired",
+                        actor=actor,
+                        reason="historical_limbo_policy",
+                        event_type="historical_limbo_expired",
+                    )
+            self.transition(
+                goal_id,
+                "expired",
+                actor=actor,
+                reason="historical_limbo_policy",
+                event_type="historical_limbo_expired",
+            )
+            expired.append(goal_id)
+        return {"examined": len(rows), "expired": len(expired), "goal_ids": expired}
+
+    @staticmethod
+    def _insert_event(
+        conn: sqlite3.Connection,
+        goal_id: str,
+        *,
+        event_type: str,
+        from_status: str | None,
+        to_status: str,
+        actor: str,
+        reason: str,
+        evidence: dict[str, Any],
+        created_at: str,
+    ) -> None:
+        conn.execute(
+            """INSERT INTO goal_events
+            (event_id,goal_id,event_type,from_status,to_status,actor,reason,evidence_json,created_at)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (
+                f"goal-event-{uuid.uuid4().hex[:16]}",
+                goal_id,
+                event_type,
+                from_status,
+                to_status,
+                actor,
+                reason,
+                json.dumps(evidence, ensure_ascii=False, sort_keys=True),
+                created_at,
+            ),
+        )
+
+    @staticmethod
+    def _decode_event(row: sqlite3.Row) -> dict[str, Any]:
+        item = dict(row)
+        try:
+            item["evidence"] = json.loads(str(item.pop("evidence_json") or "{}"))
+        except (json.JSONDecodeError, TypeError):
+            item["evidence"] = {}
+        return item
 
     def add_dependency(self, goal_id: str, depends_on_id: str) -> bool:
         now = _utc_now()

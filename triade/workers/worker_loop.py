@@ -205,7 +205,12 @@ class WorkerLoop:
         }
     )
     TASKS_WITHOUT_BLOOD = READ_ONLY_TASKS_WITHOUT_BLOOD | {
-        "write_governed_text_artifact"
+        "write_governed_text_artifact",
+        # El resolver sólo permite claves de Safe Shell (`git status`, pytest,
+        # build). Ninguna usa un modelo. Bloquearlas por falta de Ollama hacía
+        # que un diagnóstico válido quedara en `blocked` en runners limpios,
+        # antes incluso de alcanzar el handler y su whitelist.
+        "goal_safe_command",
     }
 
     def __init__(
