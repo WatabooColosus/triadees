@@ -23,6 +23,9 @@ Los contratos se habían acumulado en registros independientes, cada uno protegi
 - `tests/test_worker_architecture_contract.py`: gate que falla ante un tipo incompleto, handler huérfano, productor huérfano u operación sin policy.
 - `tests/test_workers_end_to_end_real.py`: usa SQLite temporal y efectos reversibles reales; no modifica la base ni el repositorio productivo.
 - `scripts/run_phase_4_worker_audit.py`: auditoría reproducible y artefacto JSON versionado.
+- `tests/test_background_service_once.py`: fija el contrato de persistencia en
+  `dry_run`; antes dependía de handlers, concurrencia y servicios disponibles en
+  el host aunque su objetivo era comprobar únicamente el estado del servicio.
 
 No hay migraciones. No se tocó `identity_core`, secretos, permisos ni fronteras de seguridad.
 
@@ -50,12 +53,19 @@ pytest -q tests/test_worker_architecture_contract.py \
   tests/test_orphaned_task_recovery.py \
   tests/test_governed_capability_rollback.py
 
-110 passed; 4.618 s; 0 failed; 0 errors
+111 passed; 5.906 s; 0 failed; 0 errors
 ```
 
 Casos demostrados: éxito con artefacto, bloqueo, aplazamiento, deduplicación, lease vencido, caída y reinicio del worker, handler desconocido, operación no declarada, cooldown, guardia de livelock, dead letter y rollback real de fichero.
 
 Los gates globales y sus resultados finales se registran en el PR; la fase no se recomienda para merge si alguno falla.
+
+Durante el gate global se reprodujo en esta rama y también en `main` un fallo
+ambiental de `test_background_service_once_updates_status`: con Ollama y la
+concurrencia activos, el test ejecutaba handlers reales y podía devolver
+`completed_with_errors`. Se aisló mediante la opción pública `dry_run=True`.
+Esto no sustituye las pruebas concurrentes ni las pruebas de efectos reales,
+que siguen incluidas en las 111 pruebas específicas anteriores.
 
 ## Criterio de cierre
 

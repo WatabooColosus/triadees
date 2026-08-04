@@ -1,7 +1,7 @@
 {
   "schema_version": "phase-4-worker-audit-v1",
-  "generated_at": "2026-08-04T04:57:40.471499+00:00",
-  "sha": "d69013cf1f22583e9291e950f8bdf79b4c9f5432",
+  "generated_at": "2026-08-04T05:49:01.171983+00:00",
+  "sha": "e1a508556f0a3392e9ae210b7d89225c0a6f0c04",
   "branch": "phase/04-workers-end-to-end",
   "counts": {
     "task_types": 24,
