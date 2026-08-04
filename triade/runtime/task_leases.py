@@ -24,6 +24,8 @@ from triade.runtime.task_status import (  # noqa: F401
     TERMINAL_SUCCESS,
 )
 
+MAX_DISPATCH_DEFERRALS = 20
+
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -482,6 +484,29 @@ class AutonomousTaskStore:
                 # Si ya está 'running' es que alguien la arrancó: no se toca.
                 conn.commit()
                 return False
+            deferrals = int(
+                conn.execute(
+                    """SELECT COUNT(*) FROM autonomous_task_transitions
+                    WHERE task_id=? AND to_status='deferred'""",
+                    (task_id,),
+                ).fetchone()[0]
+            )
+            if deferrals >= MAX_DISPATCH_DEFERRALS:
+                changed = conn.execute(
+                    """UPDATE autonomous_tasks SET status='dead_letter',
+                    last_error='dispatch_livelock_guard',lease_expires_at=NULL,updated_at=?
+                    WHERE task_id=? AND worker_id=? AND lease_generation=? AND status='leased'""",
+                    (now, task_id, worker_id, lease_generation),
+                ).rowcount
+                if changed == 1:
+                    conn.execute(
+                        """INSERT INTO autonomous_task_transitions
+                        (task_id,worker_id,lease_generation,from_status,to_status,reason,created_at)
+                        VALUES(?,?,?,'leased','dead_letter','dispatch_livelock_guard',?)""",
+                        (task_id, worker_id, lease_generation, now),
+                    )
+                conn.commit()
+                return changed == 1
             previous = str(current["status"])
             changed = conn.execute(
                 """UPDATE autonomous_tasks
