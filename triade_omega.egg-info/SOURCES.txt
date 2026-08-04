@@ -202,6 +202,7 @@ tests/test_p0_p1_runtime_governance.py
 tests/test_peft_base_model_gate.py
 tests/test_peft_canary_observation.py
 tests/test_peft_pending_approval.py
+tests/test_phase_2_subsystem_triage.py
 tests/test_post_run_learning_trigger.py
 tests/test_production_knowledge_injection.py
 tests/test_promote_neuron_stable.py
