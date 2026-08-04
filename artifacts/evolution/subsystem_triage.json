@@ -1,0 +1,3350 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-08-04T02:38:12.057748+00:00",
+  "base_sha": "7b2a7371062321287970b2a2b2f24ac51b051718",
+  "source_artifact": "artifacts/debt/debt-triage-20260803.json",
+  "source_incomplete_subsystem_count": 72,
+  "reviewed_count": 72,
+  "unique_subsystem_count": 49,
+  "decision_counts": {
+    "activate_now": 0,
+    "complete_later": 43,
+    "merge_with_existing": 10,
+    "experimental_keep": 17,
+    "legacy_archive": 1,
+    "remove_from_productive_graph": 1
+  },
+  "activation_gate": {
+    "activate_now_count": 0,
+    "rule": "need + producer + consumer + live entrypoint + E2E test + observability"
+  },
+  "reviews": [
+    {
+      "id": "D002",
+      "name": "benchmark_tasks",
+      "group": "A",
+      "owner": "evaluation",
+      "files": [],
+      "tables": [
+        "benchmark_tasks"
+      ],
+      "mission": "Persistir tareas de benchmark",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D074"
+        ],
+        "detector_category": "alias_debt_lexical_alias",
+        "impact": "`benchmark_tasks` y `autonomous_tasks` comparten 50% de nombre distintivo; `autonomous_tasks` tiene filas y `benchmark_tasks` está vacía"
+      },
+      "decision": "merge_with_existing",
+      "reason": "Está vacío y desconectado mientras autonomous_tasks ya ofrece cola y ciclo de vida.",
+      "required_work": "Definir migración no destructiva o adaptador hacia autonomous_tasks y verificar equivalencia.",
+      "tests_needed": [
+        "proposed:test_benchmark_tasks_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "alias_debt.py:lexical_alias — lector apuntando al gemelo muerto"
+    },
+    {
+      "id": "D004",
+      "name": "neuron_education_applications",
+      "group": "A",
+      "owner": "learning",
+      "files": [
+        "scripts/observe_neuron_education.py",
+        "triade/learning/doctor.py",
+        "triade/neurons/competency_store.py",
+        "triade/neurons/education_applications.py",
+        "triade/neurons/education_cycle.py",
+        "triade/neurons/education_resolver.py",
+        "triade/observability/neural_graph.py",
+        "triade/observability/runtime_graph.py"
+      ],
+      "tables": [
+        "neuron_education_applications"
+      ],
+      "mission": "Aplicar educación gobernada a neuronas",
+      "producer": [
+        "triade/neurons/education_applications.py"
+      ],
+      "consumer": [
+        "scripts/observe_neuron_education.py",
+        "triade/learning/doctor.py",
+        "triade/neurons/competency_store.py",
+        "triade/neurons/education_applications.py",
+        "triade/neurons/education_resolver.py"
+      ],
+      "entrypoint": "triade/learning/doctor.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "learning",
+        "neurons",
+        "observability",
+        "observe_neuron_education.py"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D017",
+          "D063"
+        ],
+        "detector_category": "alias_debt_lexical_alias",
+        "impact": "`neuron_education_applications` y `neuron_education_events` comparten 55% de nombre distintivo; `neuron_education_events` tiene filas y `neuron_education_applications` está vacía"
+      },
+      "decision": "complete_later",
+      "reason": "Tiene lectores y escritores reales pero cero uso runtime; no hay prueba de aplicación end-to-end.",
+      "required_work": "Ejecutar solicitud, aplicación, efecto medido, auditoría y rollback sobre una neurona de prueba.",
+      "tests_needed": [
+        "tests/test_continuous_learning_doctor.py",
+        "tests/test_neuron_education_applications.py",
+        "tests/test_neuron_education_resolver.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "alias_debt.py:lexical_alias — lector apuntando al gemelo muerto"
+    },
+    {
+      "id": "D007",
+      "name": "capability_history",
+      "group": "A",
+      "owner": "capabilities",
+      "files": [
+        "triade/capabilities/registry.py"
+      ],
+      "tables": [
+        "capability_history"
+      ],
+      "mission": "Registrar cambios del catálogo de capacidades",
+      "producer": [
+        "triade/capabilities/registry.py"
+      ],
+      "consumer": [
+        "triade/capabilities/registry.py"
+      ],
+      "entrypoint": "triade/capabilities/registry.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "capabilities"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D054"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`capability_history` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "La ruta existe pero nunca produjo filas observadas.",
+      "required_work": "Probar registro, consulta, trazabilidad y rollback durante un cambio real de capacidad.",
+      "tests_needed": [
+        "proposed:test_capability_history_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D008",
+      "name": "capability_registry",
+      "group": "A",
+      "owner": "capabilities",
+      "files": [
+        "triade/capabilities/matrix.py",
+        "triade/capabilities/registry.py",
+        "triade/core/observability_view.py",
+        "triade/learning/evidence_bridge.py",
+        "triade/regression/mandatory_rollback.py"
+      ],
+      "tables": [
+        "capability_registry"
+      ],
+      "mission": "Resolver capacidades disponibles",
+      "producer": [
+        "triade/capabilities/registry.py"
+      ],
+      "consumer": [
+        "triade/capabilities/matrix.py",
+        "triade/capabilities/registry.py",
+        "triade/regression/mandatory_rollback.py"
+      ],
+      "entrypoint": "triade/capabilities/registry.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-04T00:07:07+00:00",
+      "dependencies": [
+        "capabilities",
+        "core",
+        "learning",
+        "regression"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D055"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`capability_registry` tiene 3 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Lectores y escritor existen, pero el registro vivo permanece vacío y no está validado E2E.",
+      "required_work": "Conectar únicamente a un resolver consumidor real y cubrir alta, resolución, rechazo y auditoría.",
+      "tests_needed": [
+        "tests/test_capability_registry_unified_observability.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D012",
+      "name": "governed_peft_active_slot",
+      "group": "A",
+      "owner": "models",
+      "files": [
+        "triade/training/serving_governance.py"
+      ],
+      "tables": [
+        "governed_peft_active_slot"
+      ],
+      "mission": "Seleccionar adaptador PEFT activo bajo gobernanza",
+      "producer": [
+        "triade/training/serving_governance.py"
+      ],
+      "consumer": [
+        "triade/training/serving_governance.py"
+      ],
+      "entrypoint": "triade/training/serving_governance.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-03T22:43:27+00:00",
+      "dependencies": [
+        "training"
+      ],
+      "security_risk": "medium",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D059"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`governed_peft_active_slot` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "El slot no registra actividad y no existe promoción demostrada en runtime productivo.",
+      "required_work": "Probar selección, canary, aprobación, rollback y serving antes de activarlo.",
+      "tests_needed": [
+        "proposed:test_governed_peft_active_slot_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D013",
+      "name": "kg_contradictions",
+      "group": "A",
+      "owner": "knowledge",
+      "files": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "tables": [
+        "kg_contradictions"
+      ],
+      "mission": "Registrar contradicciones del grafo de conocimiento",
+      "producer": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "consumer": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "entrypoint": "triade/os/knowledge_graph.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "os"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D060"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`kg_contradictions` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "experimental_keep",
+      "reason": "La arquitectura está implementada pero no tiene hechos runtime ni consumidor productivo demostrado.",
+      "required_work": "Conservar como experimental y crear benchmark de contradicción con consumidor antes de promoción.",
+      "tests_needed": [
+        "proposed:test_kg_contradictions_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D014",
+      "name": "kg_edges",
+      "group": "A",
+      "owner": "knowledge",
+      "files": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "tables": [
+        "kg_edges"
+      ],
+      "mission": "Representar relaciones del grafo de conocimiento",
+      "producer": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "consumer": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "entrypoint": "triade/os/knowledge_graph.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "os"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D061"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`kg_edges` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "experimental_keep",
+      "reason": "La tabla está vacía y el grafo semántico no está demostrado productivamente.",
+      "required_work": "Conservar aislado; demostrar productor, consulta y utilidad frente a baseline.",
+      "tests_needed": [
+        "proposed:test_kg_edges_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D015",
+      "name": "kg_nodes",
+      "group": "A",
+      "owner": "knowledge",
+      "files": [
+        "triade/os/knowledge_graph.py",
+        "triade/os/neuron_scheduler.py"
+      ],
+      "tables": [
+        "kg_nodes"
+      ],
+      "mission": "Representar entidades del grafo de conocimiento",
+      "producer": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "consumer": [
+        "triade/os/knowledge_graph.py",
+        "triade/os/neuron_scheduler.py"
+      ],
+      "entrypoint": "triade/os/knowledge_graph.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-02T20:47:18+00:00",
+      "dependencies": [
+        "os"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D062"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`kg_nodes` tiene 2 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "experimental_keep",
+      "reason": "Tiene código estructural sin datos ni uso productivo observado.",
+      "required_work": "Conservar aislado; validar ingesta, recuperación y no regresión antes de promoción.",
+      "tests_needed": [
+        "proposed:test_kg_nodes_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D016",
+      "name": "neuron_certifications",
+      "group": "A",
+      "owner": "verification",
+      "files": [
+        "triade/neuron_factory/certification.py"
+      ],
+      "tables": [
+        "neuron_certifications"
+      ],
+      "mission": "Certificar neuronas antes de promoción",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "triade/neuron_factory/certification.py"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-29T23:54:41+00:00",
+      "dependencies": [
+        "neuron_factory"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`neuron_certifications` tiene 1 lector(es), 0 escritor(es) y 0 filas: no la llena nadie, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Sólo existe lector no alcanzable y ningún escritor; no es un corte productivo.",
+      "required_work": "Definir productor gobernado, consumidor de promoción y prueba E2E de rechazo/aprobación.",
+      "tests_needed": [
+        "tests/test_alias_debt.py"
+      ],
+      "priority": "P2",
+      "source_evidence": "sin escritor, y su lector no lo alcanza ningún entrypoint arrancado: capacidad sin terminar"
+    },
+    {
+      "id": "D017",
+      "name": "neuron_education_applications",
+      "group": "A",
+      "owner": "learning",
+      "files": [
+        "scripts/observe_neuron_education.py",
+        "triade/learning/doctor.py",
+        "triade/neurons/competency_store.py",
+        "triade/neurons/education_applications.py",
+        "triade/neurons/education_cycle.py",
+        "triade/neurons/education_resolver.py",
+        "triade/observability/neural_graph.py",
+        "triade/observability/runtime_graph.py"
+      ],
+      "tables": [
+        "neuron_education_applications"
+      ],
+      "mission": "Aplicar educación gobernada a neuronas",
+      "producer": [
+        "triade/neurons/education_applications.py"
+      ],
+      "consumer": [
+        "scripts/observe_neuron_education.py",
+        "triade/learning/doctor.py",
+        "triade/neurons/competency_store.py",
+        "triade/neurons/education_applications.py",
+        "triade/neurons/education_resolver.py"
+      ],
+      "entrypoint": "triade/learning/doctor.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "learning",
+        "neurons",
+        "observability",
+        "observe_neuron_education.py"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D004",
+          "D063"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`neuron_education_applications` y `neuron_education_events` comparten 55% de nombre distintivo; `neuron_education_events` tiene filas y `neuron_education_applications` está vacía"
+      },
+      "decision": "complete_later",
+      "reason": "Tiene lectores y escritores reales pero cero uso runtime; no hay prueba de aplicación end-to-end.",
+      "required_work": "Ejecutar solicitud, aplicación, efecto medido, auditoría y rollback sobre una neurona de prueba.",
+      "tests_needed": [
+        "tests/test_continuous_learning_doctor.py",
+        "tests/test_neuron_education_applications.py",
+        "tests/test_neuron_education_resolver.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "5 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D019",
+      "name": "regression_quarantine",
+      "group": "A",
+      "owner": "regression",
+      "files": [
+        "triade/regression/gate.py",
+        "triade/regression/observability.py"
+      ],
+      "tables": [
+        "regression_quarantine"
+      ],
+      "mission": "Aislar candidatos con regresión",
+      "producer": [
+        "triade/regression/gate.py"
+      ],
+      "consumer": [
+        "triade/regression/gate.py",
+        "triade/regression/observability.py"
+      ],
+      "entrypoint": "triade/regression/gate.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "regression"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D065"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`regression_quarantine` tiene 2 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "El gate existe, pero la cuarentena persistida no se ha ejercitado en runtime.",
+      "required_work": "Ejecutar regresión crítica, cuarentena, recuperación y auditoría sin promoción.",
+      "tests_needed": [
+        "tests/test_learning_regression_gate_integration.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D023",
+      "name": "semantic_governance_events",
+      "group": "A",
+      "owner": "memory",
+      "files": [
+        "triade/core/qualia.py",
+        "triade/memory/semantic_governance.py",
+        "triade/memory/semantic_store.py"
+      ],
+      "tables": [
+        "semantic_governance_events"
+      ],
+      "mission": "Auditar decisiones sobre memoria semántica",
+      "producer": [
+        "triade/memory/semantic_governance.py"
+      ],
+      "consumer": [
+        "triade/memory/semantic_governance.py",
+        "triade/memory/semantic_store.py"
+      ],
+      "entrypoint": "triade/core/qualia.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "core",
+        "memory"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D070"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`semantic_governance_events` tiene 2 lector(es), 2 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Lectores y escritores existen sin eventos runtime observados.",
+      "required_work": "Ejecutar promoción y rechazo medidos, con trazabilidad y rollback.",
+      "tests_needed": [
+        "proposed:test_semantic_governance_events_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "2 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D024",
+      "name": "semantic_memory",
+      "group": "A",
+      "owner": "memory",
+      "files": [
+        "scripts/audit_runtime_truth.py",
+        "triade/capabilities/bootstrap.py",
+        "triade/core/bodega.py",
+        "triade/core/conversation_analyzer.py",
+        "triade/core/learning_journal.py",
+        "triade/core/neuron_identity_view.py",
+        "triade/core/observability_view.py",
+        "triade/core/qualia.py",
+        "triade/core/system_pulse_builder.py",
+        "triade/evaluation/triadic_ablation.py",
+        "triade/memory/compression.py",
+        "triade/memory/encrypted_backup.py",
+        "triade/observability/runtime_graph.py",
+        "triade/os/autonomous_routines.py",
+        "triade/regression/critical_suites.py",
+        "triade/services/supervisor.py",
+        "triade/workers/mission_planner.py"
+      ],
+      "tables": [
+        "semantic_memory"
+      ],
+      "mission": "Recuperar conocimiento semántico consolidado",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "scripts/audit_runtime_truth.py",
+        "triade/core/bodega.py",
+        "triade/core/learning_journal.py",
+        "triade/memory/compression.py",
+        "triade/memory/encrypted_backup.py",
+        "triade/os/autonomous_routines.py"
+      ],
+      "entrypoint": "triade/capabilities/bootstrap.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "audit_runtime_truth.py",
+        "capabilities",
+        "core",
+        "evaluation",
+        "memory",
+        "observability",
+        "os",
+        "regression",
+        "services",
+        "workers"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D071"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`semantic_memory` tiene 10 lector(es), 3 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Diez lectores y tres escritores no han producido filas en la base observada; no equivale a aprendizaje.",
+      "required_work": "Demostrar ingesta, recuperación causal, mejora y no regresión mediante consumidor productivo.",
+      "tests_needed": [
+        "tests/test_alias_debt.py",
+        "tests/test_background_learning_without_chat.py",
+        "tests/test_capability_registry.py",
+        "tests/test_capability_registry_bootstrap.py",
+        "tests/test_capability_registry_history_cycles.py",
+        "tests/test_encrypted_backup_recovery.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "3 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D025",
+      "name": "stable_capability_state",
+      "group": "A",
+      "owner": "capabilities",
+      "files": [
+        "triade/regression/gate.py",
+        "triade/regression/mandatory_rollback.py",
+        "triade/regression/observability.py"
+      ],
+      "tables": [
+        "stable_capability_state"
+      ],
+      "mission": "Mantener capacidades consolidadas estables",
+      "producer": [
+        "triade/regression/gate.py"
+      ],
+      "consumer": [
+        "triade/regression/gate.py",
+        "triade/regression/mandatory_rollback.py",
+        "triade/regression/observability.py"
+      ],
+      "entrypoint": "triade/regression/gate.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "regression"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D072"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`stable_capability_state` tiene 3 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "La estructura existe sin estado runtime ni reutilización productiva demostrada.",
+      "required_work": "Probar promoción, lectura posterior, degradación y rollback gobernado.",
+      "tests_needed": [
+        "proposed:test_stable_capability_state_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D050",
+      "name": "triade/capabilities/matrix.py",
+      "group": "A",
+      "owner": "capabilities",
+      "files": [
+        "triade/capabilities/matrix.py"
+      ],
+      "tables": [],
+      "mission": "Calcular matriz de capacidades",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "2026-07-29T05:16:42+00:00",
+      "dependencies": [
+        "capabilities"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "modules_without_importer",
+        "impact": "import_graph.json: módulo de producción que nadie importa"
+      },
+      "decision": "merge_with_existing",
+      "reason": "Módulo sin importador que solapa el registro y resolver de capacidades.",
+      "required_work": "Extraer sólo lógica no duplicada al capability registry y archivar el módulo huérfano.",
+      "tests_needed": [
+        "tests/test_compatibility_matrix.py",
+        "tests/test_single_port_app.py"
+      ],
+      "priority": "P2",
+      "source_evidence": "sin importador en el repositorio"
+    },
+    {
+      "id": "D054",
+      "name": "capability_history",
+      "group": "A",
+      "owner": "capabilities",
+      "files": [
+        "triade/capabilities/registry.py"
+      ],
+      "tables": [
+        "capability_history"
+      ],
+      "mission": "Registrar cambios del catálogo de capacidades",
+      "producer": [
+        "triade/capabilities/registry.py"
+      ],
+      "consumer": [
+        "triade/capabilities/registry.py"
+      ],
+      "entrypoint": "triade/capabilities/registry.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "capabilities"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D007"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`capability_history` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "La ruta existe pero nunca produjo filas observadas.",
+      "required_work": "Probar registro, consulta, trazabilidad y rollback durante un cambio real de capacidad.",
+      "tests_needed": [
+        "proposed:test_capability_history_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D055",
+      "name": "capability_registry",
+      "group": "A",
+      "owner": "capabilities",
+      "files": [
+        "triade/capabilities/matrix.py",
+        "triade/capabilities/registry.py",
+        "triade/core/observability_view.py",
+        "triade/learning/evidence_bridge.py",
+        "triade/regression/mandatory_rollback.py"
+      ],
+      "tables": [
+        "capability_registry"
+      ],
+      "mission": "Resolver capacidades disponibles",
+      "producer": [
+        "triade/capabilities/registry.py"
+      ],
+      "consumer": [
+        "triade/capabilities/matrix.py",
+        "triade/capabilities/registry.py",
+        "triade/regression/mandatory_rollback.py"
+      ],
+      "entrypoint": "triade/capabilities/registry.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-04T00:07:07+00:00",
+      "dependencies": [
+        "capabilities",
+        "core",
+        "learning",
+        "regression"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D008"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`capability_registry` tiene 3 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Lectores y escritor existen, pero el registro vivo permanece vacío y no está validado E2E.",
+      "required_work": "Conectar únicamente a un resolver consumidor real y cubrir alta, resolución, rechazo y auditoría.",
+      "tests_needed": [
+        "tests/test_capability_registry_unified_observability.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D059",
+      "name": "governed_peft_active_slot",
+      "group": "A",
+      "owner": "models",
+      "files": [
+        "triade/training/serving_governance.py"
+      ],
+      "tables": [
+        "governed_peft_active_slot"
+      ],
+      "mission": "Seleccionar adaptador PEFT activo bajo gobernanza",
+      "producer": [
+        "triade/training/serving_governance.py"
+      ],
+      "consumer": [
+        "triade/training/serving_governance.py"
+      ],
+      "entrypoint": "triade/training/serving_governance.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-03T22:43:27+00:00",
+      "dependencies": [
+        "training"
+      ],
+      "security_risk": "medium",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D012"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`governed_peft_active_slot` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "El slot no registra actividad y no existe promoción demostrada en runtime productivo.",
+      "required_work": "Probar selección, canary, aprobación, rollback y serving antes de activarlo.",
+      "tests_needed": [
+        "proposed:test_governed_peft_active_slot_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D060",
+      "name": "kg_contradictions",
+      "group": "A",
+      "owner": "knowledge",
+      "files": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "tables": [
+        "kg_contradictions"
+      ],
+      "mission": "Registrar contradicciones del grafo de conocimiento",
+      "producer": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "consumer": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "entrypoint": "triade/os/knowledge_graph.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "os"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D013"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`kg_contradictions` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "experimental_keep",
+      "reason": "La arquitectura está implementada pero no tiene hechos runtime ni consumidor productivo demostrado.",
+      "required_work": "Conservar como experimental y crear benchmark de contradicción con consumidor antes de promoción.",
+      "tests_needed": [
+        "proposed:test_kg_contradictions_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D061",
+      "name": "kg_edges",
+      "group": "A",
+      "owner": "knowledge",
+      "files": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "tables": [
+        "kg_edges"
+      ],
+      "mission": "Representar relaciones del grafo de conocimiento",
+      "producer": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "consumer": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "entrypoint": "triade/os/knowledge_graph.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "os"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D014"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`kg_edges` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "experimental_keep",
+      "reason": "La tabla está vacía y el grafo semántico no está demostrado productivamente.",
+      "required_work": "Conservar aislado; demostrar productor, consulta y utilidad frente a baseline.",
+      "tests_needed": [
+        "proposed:test_kg_edges_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D062",
+      "name": "kg_nodes",
+      "group": "A",
+      "owner": "knowledge",
+      "files": [
+        "triade/os/knowledge_graph.py",
+        "triade/os/neuron_scheduler.py"
+      ],
+      "tables": [
+        "kg_nodes"
+      ],
+      "mission": "Representar entidades del grafo de conocimiento",
+      "producer": [
+        "triade/os/knowledge_graph.py"
+      ],
+      "consumer": [
+        "triade/os/knowledge_graph.py",
+        "triade/os/neuron_scheduler.py"
+      ],
+      "entrypoint": "triade/os/knowledge_graph.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-02T20:47:18+00:00",
+      "dependencies": [
+        "os"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D015"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`kg_nodes` tiene 2 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "experimental_keep",
+      "reason": "Tiene código estructural sin datos ni uso productivo observado.",
+      "required_work": "Conservar aislado; validar ingesta, recuperación y no regresión antes de promoción.",
+      "tests_needed": [
+        "proposed:test_kg_nodes_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D063",
+      "name": "neuron_education_applications",
+      "group": "A",
+      "owner": "learning",
+      "files": [
+        "scripts/observe_neuron_education.py",
+        "triade/learning/doctor.py",
+        "triade/neurons/competency_store.py",
+        "triade/neurons/education_applications.py",
+        "triade/neurons/education_cycle.py",
+        "triade/neurons/education_resolver.py",
+        "triade/observability/neural_graph.py",
+        "triade/observability/runtime_graph.py"
+      ],
+      "tables": [
+        "neuron_education_applications"
+      ],
+      "mission": "Aplicar educación gobernada a neuronas",
+      "producer": [
+        "triade/neurons/education_applications.py"
+      ],
+      "consumer": [
+        "scripts/observe_neuron_education.py",
+        "triade/learning/doctor.py",
+        "triade/neurons/competency_store.py",
+        "triade/neurons/education_applications.py",
+        "triade/neurons/education_resolver.py"
+      ],
+      "entrypoint": "triade/learning/doctor.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "learning",
+        "neurons",
+        "observability",
+        "observe_neuron_education.py"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D004",
+          "D017"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`neuron_education_applications` y `neuron_education_events` comparten 55% de nombre distintivo; `neuron_education_events` tiene filas y `neuron_education_applications` está vacía"
+      },
+      "decision": "complete_later",
+      "reason": "Tiene lectores y escritores reales pero cero uso runtime; no hay prueba de aplicación end-to-end.",
+      "required_work": "Ejecutar solicitud, aplicación, efecto medido, auditoría y rollback sobre una neurona de prueba.",
+      "tests_needed": [
+        "tests/test_continuous_learning_doctor.py",
+        "tests/test_neuron_education_applications.py",
+        "tests/test_neuron_education_resolver.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "5 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D065",
+      "name": "regression_quarantine",
+      "group": "A",
+      "owner": "regression",
+      "files": [
+        "triade/regression/gate.py",
+        "triade/regression/observability.py"
+      ],
+      "tables": [
+        "regression_quarantine"
+      ],
+      "mission": "Aislar candidatos con regresión",
+      "producer": [
+        "triade/regression/gate.py"
+      ],
+      "consumer": [
+        "triade/regression/gate.py",
+        "triade/regression/observability.py"
+      ],
+      "entrypoint": "triade/regression/gate.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "regression"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D019"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`regression_quarantine` tiene 2 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "El gate existe, pero la cuarentena persistida no se ha ejercitado en runtime.",
+      "required_work": "Ejecutar regresión crítica, cuarentena, recuperación y auditoría sin promoción.",
+      "tests_needed": [
+        "tests/test_learning_regression_gate_integration.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D070",
+      "name": "semantic_governance_events",
+      "group": "A",
+      "owner": "memory",
+      "files": [
+        "triade/core/qualia.py",
+        "triade/memory/semantic_governance.py",
+        "triade/memory/semantic_store.py"
+      ],
+      "tables": [
+        "semantic_governance_events"
+      ],
+      "mission": "Auditar decisiones sobre memoria semántica",
+      "producer": [
+        "triade/memory/semantic_governance.py"
+      ],
+      "consumer": [
+        "triade/memory/semantic_governance.py",
+        "triade/memory/semantic_store.py"
+      ],
+      "entrypoint": "triade/core/qualia.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "core",
+        "memory"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D023"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`semantic_governance_events` tiene 2 lector(es), 2 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Lectores y escritores existen sin eventos runtime observados.",
+      "required_work": "Ejecutar promoción y rechazo medidos, con trazabilidad y rollback.",
+      "tests_needed": [
+        "proposed:test_semantic_governance_events_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "2 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D071",
+      "name": "semantic_memory",
+      "group": "A",
+      "owner": "memory",
+      "files": [
+        "scripts/audit_runtime_truth.py",
+        "triade/capabilities/bootstrap.py",
+        "triade/core/bodega.py",
+        "triade/core/conversation_analyzer.py",
+        "triade/core/learning_journal.py",
+        "triade/core/neuron_identity_view.py",
+        "triade/core/observability_view.py",
+        "triade/core/qualia.py",
+        "triade/core/system_pulse_builder.py",
+        "triade/evaluation/triadic_ablation.py",
+        "triade/memory/compression.py",
+        "triade/memory/encrypted_backup.py",
+        "triade/observability/runtime_graph.py",
+        "triade/os/autonomous_routines.py",
+        "triade/regression/critical_suites.py",
+        "triade/services/supervisor.py",
+        "triade/workers/mission_planner.py"
+      ],
+      "tables": [
+        "semantic_memory"
+      ],
+      "mission": "Recuperar conocimiento semántico consolidado",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "scripts/audit_runtime_truth.py",
+        "triade/core/bodega.py",
+        "triade/core/learning_journal.py",
+        "triade/memory/compression.py",
+        "triade/memory/encrypted_backup.py",
+        "triade/os/autonomous_routines.py"
+      ],
+      "entrypoint": "triade/capabilities/bootstrap.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "audit_runtime_truth.py",
+        "capabilities",
+        "core",
+        "evaluation",
+        "memory",
+        "observability",
+        "os",
+        "regression",
+        "services",
+        "workers"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D024"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`semantic_memory` tiene 10 lector(es), 3 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Diez lectores y tres escritores no han producido filas en la base observada; no equivale a aprendizaje.",
+      "required_work": "Demostrar ingesta, recuperación causal, mejora y no regresión mediante consumidor productivo.",
+      "tests_needed": [
+        "tests/test_alias_debt.py",
+        "tests/test_background_learning_without_chat.py",
+        "tests/test_capability_registry.py",
+        "tests/test_capability_registry_bootstrap.py",
+        "tests/test_capability_registry_history_cycles.py",
+        "tests/test_encrypted_backup_recovery.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "3 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D072",
+      "name": "stable_capability_state",
+      "group": "A",
+      "owner": "capabilities",
+      "files": [
+        "triade/regression/gate.py",
+        "triade/regression/mandatory_rollback.py",
+        "triade/regression/observability.py"
+      ],
+      "tables": [
+        "stable_capability_state"
+      ],
+      "mission": "Mantener capacidades consolidadas estables",
+      "producer": [
+        "triade/regression/gate.py"
+      ],
+      "consumer": [
+        "triade/regression/gate.py",
+        "triade/regression/mandatory_rollback.py",
+        "triade/regression/observability.py"
+      ],
+      "entrypoint": "triade/regression/gate.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "regression"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D025"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`stable_capability_state` tiene 3 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "La estructura existe sin estado runtime ni reutilización productiva demostrada.",
+      "required_work": "Probar promoción, lectura posterior, degradación y rollback gobernado.",
+      "tests_needed": [
+        "proposed:test_stable_capability_state_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D073",
+      "name": "benchmark_results",
+      "group": "A",
+      "owner": "evaluation",
+      "files": [],
+      "tables": [
+        "benchmark_results"
+      ],
+      "mission": "Persistir resultados de benchmark",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "low",
+      "business_value": "low",
+      "architectural_value": "low",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "tables_without_reader_or_writer",
+        "impact": "table_graph.json: tabla viva sin lector ni escritor en el código"
+      },
+      "decision": "legacy_archive",
+      "reason": "Tabla viva sin productor ni consumidor; los artefactos versionados son hoy la fuente demostrada.",
+      "required_work": "Documentar procedencia histórica y mantenerla fuera del grafo productivo hasta existir consumidor real.",
+      "tests_needed": [
+        "proposed:test_benchmark_results_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "table_graph.json: tabla viva sin lector ni escritor en el código"
+    },
+    {
+      "id": "D074",
+      "name": "benchmark_tasks",
+      "group": "A",
+      "owner": "evaluation",
+      "files": [],
+      "tables": [
+        "benchmark_tasks"
+      ],
+      "mission": "Persistir tareas de benchmark",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D002"
+        ],
+        "detector_category": "tables_without_reader_or_writer",
+        "impact": "`benchmark_tasks` y `autonomous_tasks` comparten 50% de nombre distintivo; `autonomous_tasks` tiene filas y `benchmark_tasks` está vacía"
+      },
+      "decision": "merge_with_existing",
+      "reason": "Está vacío y desconectado mientras autonomous_tasks ya ofrece cola y ciclo de vida.",
+      "required_work": "Definir migración no destructiva o adaptador hacia autonomous_tasks y verificar equivalencia.",
+      "tests_needed": [
+        "proposed:test_benchmark_tasks_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "table_graph.json: tabla viva sin lector ni escritor en el código"
+    },
+    {
+      "id": "D086",
+      "name": "neuron_certification_transitions",
+      "group": "A",
+      "owner": "verification",
+      "files": [
+        "triade/neuron_factory/certification.py"
+      ],
+      "tables": [
+        "neuron_certification_transitions"
+      ],
+      "mission": "Auditar transiciones de certificación",
+      "producer": [
+        "triade/neuron_factory/certification.py"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 13,
+      "last_activity": "2026-07-29T23:54:41+00:00",
+      "dependencies": [
+        "neuron_factory"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "tables_written_never_read",
+        "impact": "table_graph.json para lectores y escritores; filas leídas en vivo"
+      },
+      "decision": "complete_later",
+      "reason": "Existen 13 transiciones sin lector, así que no gobiernan promoción ni revisión.",
+      "required_work": "Añadir consumidor de auditoría y probar transición, consulta y rollback.",
+      "tests_needed": [
+        "proposed:test_neuron_certification_transitions_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "table_graph.json para lectores y escritores; filas leídas en vivo"
+    },
+    {
+      "id": "D093",
+      "name": "stable_consolidation_review",
+      "group": "A",
+      "owner": "learning",
+      "files": [
+        "apps/routes/knowledge.py",
+        "scripts/build_system_inventory.py",
+        "triade/constitution/autonomy.py",
+        "triade/workers/adaptive_scheduler.py",
+        "triade/workers/advanced_scheduler.py",
+        "triade/workers/concurrency.py",
+        "triade/workers/contracts.py",
+        "triade/workers/mission_planner.py",
+        "triade/workers/worker_loop.py"
+      ],
+      "tables": [],
+      "mission": "Revisar consolidación de conocimiento estable",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "apps/routes/knowledge.py",
+      "reachable": true,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "build_system_inventory.py",
+        "constitution",
+        "routes",
+        "workers"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "task_types_never_executed",
+        "impact": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+      },
+      "decision": "complete_later",
+      "reason": "Task type nunca ejecutado pese a que consolidación requiere consumidor y auditoría.",
+      "required_work": "Ejecutar revisión aprobada/rechazada con evidencia y efecto posterior medido.",
+      "tests_needed": [
+        "tests/test_learning_consolidation_chain.py",
+        "tests/test_learning_e2e_stable_consolidation.py",
+        "tests/test_learning_tasks_window_truth.py",
+        "tests/test_worker_concurrency_policy.py",
+        "tests/test_worker_loop_concurrency_integration.py",
+        "tests/test_worker_stable_consolidation_review.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+    },
+    {
+      "id": "D001",
+      "name": "unhealthy",
+      "group": "B",
+      "owner": "workers",
+      "files": [
+        "triade/workers/worker_supervisor.py"
+      ],
+      "tables": [],
+      "mission": "Supervisar workers no saludables",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "triade/workers/worker_supervisor.py"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "workers"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "alias_debt_dead_status_value",
+        "impact": "`unhealthy` se compara en 1 fichero(s) y no lo escribe nadie: la condición es cero para siempre"
+      },
+      "decision": "remove_from_productive_graph",
+      "reason": "El estado es inalcanzable y no tiene productor; presentarlo como vivo falsea la supervisión.",
+      "required_work": "Retirar el estado del grafo productivo o sustituirlo por el contrato vivo de salud con prueba E2E.",
+      "tests_needed": [
+        "proposed:test_unhealthy_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "triade/workers/worker_supervisor.py opera sobre tablas ausentes en la base viva: ['datetime', 'triade', 'worker_consumption']"
+    },
+    {
+      "id": "D005",
+      "name": "runtime_queue_compatibility_events",
+      "group": "B",
+      "owner": "runtime",
+      "files": [
+        "triade/runtime/legacy_compatibility.py"
+      ],
+      "tables": [
+        "runtime_queue_compatibility_events"
+      ],
+      "mission": "Auditar compatibilidad entre colas runtime",
+      "producer": [
+        "triade/runtime/legacy_compatibility.py"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-29T21:59:54+00:00",
+      "dependencies": [
+        "runtime"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D068"
+        ],
+        "detector_category": "alias_debt_lexical_alias",
+        "impact": "`runtime_queue_compatibility_events` y `runtime_queue_compatibility` comparten 82% de nombre distintivo; `runtime_queue_compatibility` tiene filas y `runtime_queue_compatibility_events` está vacía"
+      },
+      "decision": "merge_with_existing",
+      "reason": "Escribe una tabla vacía que se solapa con runtime_queue_compatibility, ya activa.",
+      "required_work": "Consolidar evento y estado en un contrato único con migración y lector observable.",
+      "tests_needed": [
+        "proposed:test_runtime_queue_compatibility_events_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "alias_debt.py:lexical_alias — lector apuntando al gemelo muerto"
+    },
+    {
+      "id": "D010",
+      "name": "goal_dependencies",
+      "group": "B",
+      "owner": "goals",
+      "files": [
+        "triade/core/planning_graph.py"
+      ],
+      "tables": [
+        "goal_dependencies"
+      ],
+      "mission": "Modelar dependencias entre goals",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "triade/core/planning_graph.py"
+      ],
+      "entrypoint": "triade/core/planning_graph.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "core"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D057"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`goal_dependencies` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Escritor y lector no han producido actividad; depende de cerrar Goals E2E.",
+      "required_work": "Validar dependencia, bloqueo, desbloqueo, ciclo y cierre durante Fase 3.",
+      "tests_needed": [
+        "proposed:test_goal_dependencies_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D011",
+      "name": "goals",
+      "group": "B",
+      "owner": "goals",
+      "files": [
+        "apps/routes/api.py",
+        "triade/consciousness/salience.py",
+        "triade/core/planning_graph.py"
+      ],
+      "tables": [
+        "goals"
+      ],
+      "mission": "Persistir el ciclo de vida de goals",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "triade/consciousness/salience.py"
+      ],
+      "entrypoint": "apps/routes/api.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-31T18:58:02+00:00",
+      "dependencies": [
+        "consciousness",
+        "core",
+        "routes"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D058"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`goals` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "El circuito existe pero tiene cero filas y carece de validación end-to-end.",
+      "required_work": "Completar los once casos obligatorios de Goals con deduplicación y estados terminales.",
+      "tests_needed": [
+        "tests/test_alias_debt.py",
+        "tests/test_capability_resolver_text_artifact.py",
+        "tests/test_consciousness.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D018",
+      "name": "orchestrator_locks",
+      "group": "B",
+      "owner": "runtime",
+      "files": [
+        "triade/core/orchestrator_coord.py"
+      ],
+      "tables": [
+        "orchestrator_locks"
+      ],
+      "mission": "Evitar ejecuciones concurrentes incompatibles",
+      "producer": [
+        "triade/core/orchestrator_coord.py"
+      ],
+      "consumer": [
+        "triade/core/orchestrator_coord.py"
+      ],
+      "entrypoint": "triade/core/orchestrator_coord.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "core"
+      ],
+      "security_risk": "medium",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D064"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`orchestrator_locks` tiene 1 lector(es), 2 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Hay lectores/escritores pero no actividad observada ni prueba de exclusión global.",
+      "required_work": "Probar adquisición, fencing, expiración, recuperación e idempotencia.",
+      "tests_needed": [
+        "tests/test_autonomy_foundations.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "2 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D052",
+      "name": "triade/core/plan_step.py",
+      "group": "B",
+      "owner": "goals",
+      "files": [
+        "triade/core/plan_step.py"
+      ],
+      "tables": [],
+      "mission": "Representar pasos de plan",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "2026-07-29T05:16:42+00:00",
+      "dependencies": [
+        "core"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "modules_without_importer",
+        "impact": "import_graph.json: módulo de producción que nadie importa"
+      },
+      "decision": "merge_with_existing",
+      "reason": "Módulo huérfano que se solapa con contratos de planning ya usados.",
+      "required_work": "Comparar contratos, extraer campos únicos y retirar el duplicado del grafo productivo.",
+      "tests_needed": [
+        "tests/test_cognitive_integrator_e2e.py",
+        "tests/test_governed_plan_dispatcher.py",
+        "tests/test_no_simulated_autonomy.py"
+      ],
+      "priority": "P2",
+      "source_evidence": "sin importador en el repositorio"
+    },
+    {
+      "id": "D057",
+      "name": "goal_dependencies",
+      "group": "B",
+      "owner": "goals",
+      "files": [
+        "triade/core/planning_graph.py"
+      ],
+      "tables": [
+        "goal_dependencies"
+      ],
+      "mission": "Modelar dependencias entre goals",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "triade/core/planning_graph.py"
+      ],
+      "entrypoint": "triade/core/planning_graph.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "core"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D010"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`goal_dependencies` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Escritor y lector no han producido actividad; depende de cerrar Goals E2E.",
+      "required_work": "Validar dependencia, bloqueo, desbloqueo, ciclo y cierre durante Fase 3.",
+      "tests_needed": [
+        "proposed:test_goal_dependencies_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D058",
+      "name": "goals",
+      "group": "B",
+      "owner": "goals",
+      "files": [
+        "apps/routes/api.py",
+        "triade/consciousness/salience.py",
+        "triade/core/planning_graph.py"
+      ],
+      "tables": [
+        "goals"
+      ],
+      "mission": "Persistir el ciclo de vida de goals",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "triade/consciousness/salience.py"
+      ],
+      "entrypoint": "apps/routes/api.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-31T18:58:02+00:00",
+      "dependencies": [
+        "consciousness",
+        "core",
+        "routes"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D011"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`goals` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "El circuito existe pero tiene cero filas y carece de validación end-to-end.",
+      "required_work": "Completar los once casos obligatorios de Goals con deduplicación y estados terminales.",
+      "tests_needed": [
+        "tests/test_alias_debt.py",
+        "tests/test_capability_resolver_text_artifact.py",
+        "tests/test_consciousness.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D064",
+      "name": "orchestrator_locks",
+      "group": "B",
+      "owner": "runtime",
+      "files": [
+        "triade/core/orchestrator_coord.py"
+      ],
+      "tables": [
+        "orchestrator_locks"
+      ],
+      "mission": "Evitar ejecuciones concurrentes incompatibles",
+      "producer": [
+        "triade/core/orchestrator_coord.py"
+      ],
+      "consumer": [
+        "triade/core/orchestrator_coord.py"
+      ],
+      "entrypoint": "triade/core/orchestrator_coord.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "core"
+      ],
+      "security_risk": "medium",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D018"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`orchestrator_locks` tiene 1 lector(es), 2 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Hay lectores/escritores pero no actividad observada ni prueba de exclusión global.",
+      "required_work": "Probar adquisición, fencing, expiración, recuperación e idempotencia.",
+      "tests_needed": [
+        "tests/test_autonomy_foundations.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "2 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D068",
+      "name": "runtime_queue_compatibility_events",
+      "group": "B",
+      "owner": "runtime",
+      "files": [
+        "triade/runtime/legacy_compatibility.py"
+      ],
+      "tables": [
+        "runtime_queue_compatibility_events"
+      ],
+      "mission": "Auditar compatibilidad entre colas runtime",
+      "producer": [
+        "triade/runtime/legacy_compatibility.py"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-29T21:59:54+00:00",
+      "dependencies": [
+        "runtime"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D005"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`runtime_queue_compatibility_events` y `runtime_queue_compatibility` comparten 82% de nombre distintivo; `runtime_queue_compatibility` tiene filas y `runtime_queue_compatibility_events` está vacía"
+      },
+      "decision": "merge_with_existing",
+      "reason": "Escribe una tabla vacía que se solapa con runtime_queue_compatibility, ya activa.",
+      "required_work": "Consolidar evento y estado en un contrato único con migración y lector observable.",
+      "tests_needed": [
+        "proposed:test_runtime_queue_compatibility_events_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D087",
+      "name": "bodega_global_review",
+      "group": "B",
+      "owner": "workers",
+      "files": [
+        "scripts/build_system_inventory.py",
+        "triade/constitution/autonomy.py",
+        "triade/evaluation/suites.py",
+        "triade/os/event_engine.py",
+        "triade/workers/adaptive_scheduler.py",
+        "triade/workers/advanced_scheduler.py",
+        "triade/workers/concurrency.py",
+        "triade/workers/contracts.py",
+        "triade/workers/worker_loop.py"
+      ],
+      "tables": [],
+      "mission": "Revisar globalmente la bodega",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "triade/constitution/autonomy.py",
+      "reachable": true,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "build_system_inventory.py",
+        "constitution",
+        "evaluation",
+        "os",
+        "workers"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "task_types_never_executed",
+        "impact": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+      },
+      "decision": "complete_later",
+      "reason": "Task type declarado pero nunca ejecutado; no hay evidencia de efecto ni terminación.",
+      "required_work": "Completar contrato de tarea y ejecutar cola, handler, evidencia y terminal en Fase 4.",
+      "tests_needed": [
+        "tests/test_stable_audit_integration.py",
+        "tests/test_triade_os_event_engine.py",
+        "tests/test_worker_graph_recency.py"
+      ],
+      "priority": "P2",
+      "source_evidence": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+    },
+    {
+      "id": "D088",
+      "name": "federation_inbox_review",
+      "group": "B",
+      "owner": "federation",
+      "files": [
+        "triade/constitution/autonomy.py",
+        "triade/evaluation/suites.py",
+        "triade/os/event_engine.py",
+        "triade/workers/adaptive_scheduler.py",
+        "triade/workers/advanced_scheduler.py",
+        "triade/workers/concurrency.py",
+        "triade/workers/contracts.py",
+        "triade/workers/mission_planner.py",
+        "triade/workers/worker_loop.py"
+      ],
+      "tables": [],
+      "mission": "Revisar inbox federado",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "triade/constitution/autonomy.py",
+      "reachable": true,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "constitution",
+        "evaluation",
+        "os",
+        "workers"
+      ],
+      "security_risk": "medium",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "task_types_never_executed",
+        "impact": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+      },
+      "decision": "complete_later",
+      "reason": "Task type sin ejecución observada; la entrada federada añade riesgo de seguridad.",
+      "required_work": "Probar mensaje permitido/rechazado, handler, idempotencia y auditoría.",
+      "tests_needed": [
+        "proposed:test_federation_inbox_review_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+    },
+    {
+      "id": "D089",
+      "name": "goal_install",
+      "group": "B",
+      "owner": "goals",
+      "files": [
+        "triade/constitution/autonomy.py",
+        "triade/core/goal_orchestrator.py",
+        "triade/workers/adaptive_scheduler.py",
+        "triade/workers/concurrency.py",
+        "triade/workers/contracts.py",
+        "triade/workers/worker_loop.py"
+      ],
+      "tables": [],
+      "mission": "Instalar una capacidad solicitada por un goal",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "triade/constitution/autonomy.py",
+      "reachable": true,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "constitution",
+        "core",
+        "workers"
+      ],
+      "security_risk": "high",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "task_types_never_executed",
+        "impact": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+      },
+      "decision": "complete_later",
+      "reason": "Nunca ejecutada y puede instalar dependencias, operación que requiere aprobación explícita.",
+      "required_work": "Definir policy, aprobación, sandbox, rollback y estado terminal antes de ejecutar.",
+      "tests_needed": [
+        "tests/test_autonomy_governs_tasks.py",
+        "tests/test_runtime_backpressure.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+    },
+    {
+      "id": "D090",
+      "name": "goal_lora_train",
+      "group": "B",
+      "owner": "goals",
+      "files": [
+        "triade/constitution/autonomy.py",
+        "triade/core/goal_orchestrator.py",
+        "triade/workers/adaptive_scheduler.py",
+        "triade/workers/concurrency.py",
+        "triade/workers/contracts.py",
+        "triade/workers/worker_loop.py"
+      ],
+      "tables": [],
+      "mission": "Entrenar LoRA desde un goal gobernado",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "triade/constitution/autonomy.py",
+      "reachable": true,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "constitution",
+        "core",
+        "workers"
+      ],
+      "security_risk": "medium",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "task_types_never_executed",
+        "impact": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+      },
+      "decision": "complete_later",
+      "reason": "Nunca ejecutada; coste GPU y promoción requieren contratos de workers y modelos.",
+      "required_work": "Definir recursos, policy, handler, evidencia, canary y rollback antes de habilitar.",
+      "tests_needed": [
+        "tests/test_failures_become_knowledge.py",
+        "tests/test_internal_graphs_live.py",
+        "tests/test_runtime_backpressure.py",
+        "tests/test_worker_concurrency_policy.py"
+      ],
+      "priority": "P2",
+      "source_evidence": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+    },
+    {
+      "id": "D095",
+      "name": "plan: 51 filas, ninguna en 24 h",
+      "group": "B",
+      "owner": "goals",
+      "files": [],
+      "tables": [],
+      "mission": "Mantener activo el tramo plan del circuito vital",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "vital_chain_gaps",
+        "impact": "SQLite en mode=ro sobre las tablas de cada eslabón"
+      },
+      "decision": "complete_later",
+      "reason": "Hay historia, pero ninguna actividad reciente; no demuestra un circuito actual vivo.",
+      "required_work": "Ejecutar input→goal→plan→task→result→close y observar actividad reciente en Fase 3.",
+      "tests_needed": [
+        "proposed:test_plan_51_filas_ninguna_en_24_h_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "SQLite en mode=ro sobre las tablas de cada eslabón"
+    },
+    {
+      "id": "D006",
+      "name": "auto_identity",
+      "group": "C",
+      "owner": "identity",
+      "files": [
+        "triade/core/bodega.py",
+        "triade/core/cognitive_integrator.py",
+        "triade/core/life_pulse.py",
+        "triade/memory/auto_identity_store.py"
+      ],
+      "tables": [
+        "auto_identity"
+      ],
+      "mission": "Mantener identidad automática gobernada",
+      "producer": [
+        "triade/memory/auto_identity_store.py"
+      ],
+      "consumer": [
+        "triade/core/bodega.py",
+        "triade/memory/auto_identity_store.py"
+      ],
+      "entrypoint": "triade/core/bodega.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-31T18:58:02+00:00",
+      "dependencies": [
+        "core",
+        "memory"
+      ],
+      "security_risk": "high",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D053"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`auto_identity` tiene 2 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Hay código lector/escritor pero cero evidencia runtime; identidad es frontera protegida.",
+      "required_work": "Revisión humana especializada y prueba aislada sin modificar identity_core ni producción.",
+      "tests_needed": [
+        "tests/test_auto_identity.py"
+      ],
+      "priority": "P3",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D022",
+      "name": "sandbox_executions",
+      "group": "C",
+      "owner": "sandbox",
+      "files": [
+        "triade/core/autonomous_sandbox.py"
+      ],
+      "tables": [
+        "sandbox_executions"
+      ],
+      "mission": "Auditar ejecuciones aisladas",
+      "producer": [
+        "triade/core/autonomous_sandbox.py"
+      ],
+      "consumer": [
+        "triade/core/autonomous_sandbox.py"
+      ],
+      "entrypoint": "triade/core/autonomous_sandbox.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T23:16:38+00:00",
+      "dependencies": [
+        "core"
+      ],
+      "security_risk": "high",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D069"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`sandbox_executions` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "El almacén existe pero no contiene ejecuciones; el sandbox fuerte es trabajo de Fase 6.",
+      "required_work": "Validar aislamiento, límites, violaciones, diff y rollback sin tocar el repositorio real.",
+      "tests_needed": [
+        "proposed:test_sandbox_executions_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D053",
+      "name": "auto_identity",
+      "group": "C",
+      "owner": "identity",
+      "files": [
+        "triade/core/bodega.py",
+        "triade/core/cognitive_integrator.py",
+        "triade/core/life_pulse.py",
+        "triade/memory/auto_identity_store.py"
+      ],
+      "tables": [
+        "auto_identity"
+      ],
+      "mission": "Mantener identidad automática gobernada",
+      "producer": [
+        "triade/memory/auto_identity_store.py"
+      ],
+      "consumer": [
+        "triade/core/bodega.py",
+        "triade/memory/auto_identity_store.py"
+      ],
+      "entrypoint": "triade/core/bodega.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-31T18:58:02+00:00",
+      "dependencies": [
+        "core",
+        "memory"
+      ],
+      "security_risk": "high",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D006"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`auto_identity` tiene 2 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Hay código lector/escritor pero cero evidencia runtime; identidad es frontera protegida.",
+      "required_work": "Revisión humana especializada y prueba aislada sin modificar identity_core ni producción.",
+      "tests_needed": [
+        "tests/test_auto_identity.py"
+      ],
+      "priority": "P3",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D069",
+      "name": "sandbox_executions",
+      "group": "C",
+      "owner": "sandbox",
+      "files": [
+        "triade/core/autonomous_sandbox.py"
+      ],
+      "tables": [
+        "sandbox_executions"
+      ],
+      "mission": "Auditar ejecuciones aisladas",
+      "producer": [
+        "triade/core/autonomous_sandbox.py"
+      ],
+      "consumer": [
+        "triade/core/autonomous_sandbox.py"
+      ],
+      "entrypoint": "triade/core/autonomous_sandbox.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-30T23:16:38+00:00",
+      "dependencies": [
+        "core"
+      ],
+      "security_risk": "high",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D022"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`sandbox_executions` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "El almacén existe pero no contiene ejecuciones; el sandbox fuerte es trabajo de Fase 6.",
+      "required_work": "Validar aislamiento, límites, violaciones, diff y rollback sin tocar el repositorio real.",
+      "tests_needed": [
+        "proposed:test_sandbox_executions_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D081",
+      "name": "user_sessions",
+      "group": "C",
+      "owner": "security",
+      "files": [],
+      "tables": [
+        "user_sessions"
+      ],
+      "mission": "Persistir sesiones autenticadas",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "high",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "tables_without_reader_or_writer",
+        "impact": "table_graph.json: tabla viva sin lector ni escritor en el código"
+      },
+      "decision": "merge_with_existing",
+      "reason": "Tabla desconectada que puede solaparse con el mecanismo actual de autenticación.",
+      "required_work": "Auditar el contrato de sesión vigente y migrar sólo si preserva fronteras y revocación.",
+      "tests_needed": [
+        "proposed:test_user_sessions_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "table_graph.json: tabla viva sin lector ni escritor en el código"
+    },
+    {
+      "id": "D094",
+      "name": "write_governed_text_artifact",
+      "group": "C",
+      "owner": "sandbox",
+      "files": [
+        "scripts/build_system_inventory.py",
+        "triade/constitution/autonomy.py",
+        "triade/core/capability_resolver.py",
+        "triade/workers/concurrency.py",
+        "triade/workers/contracts.py",
+        "triade/workers/worker_loop.py"
+      ],
+      "tables": [],
+      "mission": "Escribir artefactos de texto gobernados",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "triade/constitution/autonomy.py",
+      "reachable": true,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "build_system_inventory.py",
+        "constitution",
+        "core",
+        "workers"
+      ],
+      "security_risk": "high",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "task_types_never_executed",
+        "impact": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+      },
+      "decision": "complete_later",
+      "reason": "Operación de filesystem nunca ejecutada; requiere rutas permitidas e idempotencia.",
+      "required_work": "Cubrir path traversal, symlink, overwrite, manifest, diff y rollback en sandbox.",
+      "tests_needed": [
+        "tests/test_capability_resolver_text_artifact.py",
+        "tests/test_governed_text_artifact_e2e.py",
+        "tests/test_scheduler_mission_planner.py",
+        "tests/test_worker_concurrency_policy.py"
+      ],
+      "priority": "P1",
+      "source_evidence": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+    },
+    {
+      "id": "D003",
+      "name": "federated_merge_nodes",
+      "group": "D",
+      "owner": "federation",
+      "files": [],
+      "tables": [
+        "federated_merge_nodes"
+      ],
+      "mission": "Representar nodos durante una fusión federada",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "medium",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D076"
+        ],
+        "detector_category": "alias_debt_lexical_alias",
+        "impact": "`federated_merge_nodes` y `federated_nodes` comparten 58% de nombre distintivo; `federated_nodes` tiene filas y `federated_merge_nodes` está vacía"
+      },
+      "decision": "merge_with_existing",
+      "reason": "Duplica federated_nodes, que sí contiene actividad runtime.",
+      "required_work": "Definir compatibilidad y migración hacia federated_nodes sin crear filas artificiales.",
+      "tests_needed": [
+        "proposed:test_federated_merge_nodes_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "alias_debt.py:lexical_alias — lector apuntando al gemelo muerto"
+    },
+    {
+      "id": "D009",
+      "name": "federated_exchange_log",
+      "group": "D",
+      "owner": "federation",
+      "files": [
+        "triade/core/observability_view.py",
+        "triade/federation/federation.py",
+        "triade/workers/mission_planner.py",
+        "triade/workers/worker_loop.py"
+      ],
+      "tables": [
+        "federated_exchange_log"
+      ],
+      "mission": "Auditar intercambios federados",
+      "producer": [
+        "triade/federation/federation.py"
+      ],
+      "consumer": [
+        "triade/core/observability_view.py",
+        "triade/workers/mission_planner.py",
+        "triade/workers/worker_loop.py"
+      ],
+      "entrypoint": "triade/core/observability_view.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "core",
+        "federation",
+        "workers"
+      ],
+      "security_risk": "medium",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D056"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`federated_exchange_log` tiene 3 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Tiene circuito estructural pero no actividad runtime observada.",
+      "required_work": "Ejecutar intercambio permitido y rechazado, comprobar consumidor, seguridad y evidencia.",
+      "tests_needed": [
+        "proposed:test_federated_exchange_log_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D031",
+      "name": "sin TRIADE_BACKUP_KEY ni TRIADE_BACKUP_KEY_FILE: no se crea ninguna copia y no se abre ninguna existente",
+      "group": "D",
+      "owner": "operations",
+      "files": [],
+      "tables": [],
+      "mission": "Crear y restaurar backups cifrados",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "backup_protection_gaps",
+        "impact": "artifacts/backups/*.json y el entorno de la clave de cifrado"
+      },
+      "decision": "complete_later",
+      "reason": "La ausencia de clave bloquea correctamente; inventar o almacenar secretos está prohibido.",
+      "required_work": "Proveer clave por operación autorizada y demostrar backup, integridad y restore sin exponerla.",
+      "tests_needed": [
+        "proposed:test_sin_triade_backup_key_ni_triade_backup_key_file_no_se_crea_ninguna_copia_y_no_se_abre_ninguna_existente_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "artifacts/backups/*.json y el entorno de la clave de cifrado"
+    },
+    {
+      "id": "D056",
+      "name": "federated_exchange_log",
+      "group": "D",
+      "owner": "federation",
+      "files": [
+        "triade/core/observability_view.py",
+        "triade/federation/federation.py",
+        "triade/workers/mission_planner.py",
+        "triade/workers/worker_loop.py"
+      ],
+      "tables": [
+        "federated_exchange_log"
+      ],
+      "mission": "Auditar intercambios federados",
+      "producer": [
+        "triade/federation/federation.py"
+      ],
+      "consumer": [
+        "triade/core/observability_view.py",
+        "triade/workers/mission_planner.py",
+        "triade/workers/worker_loop.py"
+      ],
+      "entrypoint": "triade/core/observability_view.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "core",
+        "federation",
+        "workers"
+      ],
+      "security_risk": "medium",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [
+          "D009"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`federated_exchange_log` tiene 3 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "complete_later",
+      "reason": "Tiene circuito estructural pero no actividad runtime observada.",
+      "required_work": "Ejecutar intercambio permitido y rechazado, comprobar consumidor, seguridad y evidencia.",
+      "tests_needed": [
+        "proposed:test_federated_exchange_log_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D075",
+      "name": "federated_merge_log",
+      "group": "D",
+      "owner": "federation",
+      "files": [],
+      "tables": [
+        "federated_merge_log"
+      ],
+      "mission": "Auditar fusiones federadas",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "medium",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "tables_without_reader_or_writer",
+        "impact": "table_graph.json: tabla viva sin lector ni escritor en el código"
+      },
+      "decision": "merge_with_existing",
+      "reason": "No tiene productor ni consumidor y se solapa con federated_exchange_log.",
+      "required_work": "Unificar el contrato de auditoría con federated_exchange_log y añadir lectura operacional.",
+      "tests_needed": [
+        "proposed:test_federated_merge_log_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "table_graph.json: tabla viva sin lector ni escritor en el código"
+    },
+    {
+      "id": "D076",
+      "name": "federated_merge_nodes",
+      "group": "D",
+      "owner": "federation",
+      "files": [],
+      "tables": [
+        "federated_merge_nodes"
+      ],
+      "mission": "Representar nodos durante una fusión federada",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "medium",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D003"
+        ],
+        "detector_category": "tables_without_reader_or_writer",
+        "impact": "`federated_merge_nodes` y `federated_nodes` comparten 58% de nombre distintivo; `federated_nodes` tiene filas y `federated_merge_nodes` está vacía"
+      },
+      "decision": "merge_with_existing",
+      "reason": "Duplica federated_nodes, que sí contiene actividad runtime.",
+      "required_work": "Definir compatibilidad y migración hacia federated_nodes sin crear filas artificiales.",
+      "tests_needed": [
+        "proposed:test_federated_merge_nodes_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "table_graph.json: tabla viva sin lector ni escritor en el código"
+    },
+    {
+      "id": "D082",
+      "name": "engineering_evolution_events",
+      "group": "D",
+      "owner": "observability",
+      "files": [
+        "triade/evolution/engineering_worker.py"
+      ],
+      "tables": [
+        "engineering_evolution_events"
+      ],
+      "mission": "Auditar eventos de evolución de ingeniería",
+      "producer": [
+        "triade/evolution/engineering_worker.py"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "triade/evolution/engineering_worker.py",
+      "reachable": true,
+      "runtime_rows": 2,
+      "last_activity": "2026-07-30T01:17:14+00:00",
+      "dependencies": [
+        "evolution"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "tables_written_never_read",
+        "impact": "table_graph.json para lectores y escritores; filas leídas en vivo"
+      },
+      "decision": "complete_later",
+      "reason": "Tiene productor y filas, pero ningún lector: actividad almacenada sin utilidad operativa.",
+      "required_work": "Añadir consumidor de reporte real o retirar la escritura del grafo productivo.",
+      "tests_needed": [
+        "proposed:test_engineering_evolution_events_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "table_graph.json para lectores y escritores; filas leídas en vivo"
+    },
+    {
+      "id": "D083",
+      "name": "evidence_remediation_audit",
+      "group": "D",
+      "owner": "observability",
+      "files": [
+        "scripts/remediate_synthetic_evidence.py"
+      ],
+      "tables": [
+        "evidence_remediation_audit"
+      ],
+      "mission": "Auditar remediaciones de evidencia",
+      "producer": [
+        "scripts/remediate_synthetic_evidence.py"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 479,
+      "last_activity": "2026-07-29T06:50:10+00:00",
+      "dependencies": [
+        "remediate_synthetic_evidence.py"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "tables_written_never_read",
+        "impact": "table_graph.json para lectores y escritores; filas leídas en vivo"
+      },
+      "decision": "complete_later",
+      "reason": "Acumula 479 filas sin lector; la auditoría no es verificable desde una interfaz viva.",
+      "required_work": "Crear consulta gobernada y política de retención, con prueba de lectura y trazabilidad.",
+      "tests_needed": [
+        "proposed:test_evidence_remediation_audit_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "table_graph.json para lectores y escritores; filas leídas en vivo"
+    },
+    {
+      "id": "D084",
+      "name": "governed_research_runs",
+      "group": "D",
+      "owner": "research",
+      "files": [
+        "triade/research/governed.py"
+      ],
+      "tables": [
+        "governed_research_runs"
+      ],
+      "mission": "Consultar investigaciones gobernadas",
+      "producer": [
+        "triade/research/governed.py"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "triade/research/governed.py",
+      "reachable": true,
+      "runtime_rows": 86,
+      "last_activity": "2026-07-29T23:12:40+00:00",
+      "dependencies": [
+        "research"
+      ],
+      "security_risk": "low",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "tables_written_never_read",
+        "impact": "table_graph.json para lectores y escritores; filas leídas en vivo"
+      },
+      "decision": "complete_later",
+      "reason": "Hay 86 runs escritos y ningún consumidor, por lo que no informan decisiones posteriores.",
+      "required_work": "Añadir recuperación y uso auditado o detener la producción de filas.",
+      "tests_needed": [
+        "proposed:test_governed_research_runs_end_to_end"
+      ],
+      "priority": "P2",
+      "source_evidence": "table_graph.json para lectores y escritores; filas leídas en vivo"
+    },
+    {
+      "id": "D085",
+      "name": "hardware_senses",
+      "group": "D",
+      "owner": "operations",
+      "files": [
+        "triade/hypothalamus/senses.py"
+      ],
+      "tables": [
+        "hardware_senses"
+      ],
+      "mission": "Observar recursos de hardware",
+      "producer": [
+        "triade/hypothalamus/senses.py"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "triade/hypothalamus/senses.py",
+      "reachable": true,
+      "runtime_rows": 293,
+      "last_activity": "2026-08-02T20:42:52+00:00",
+      "dependencies": [
+        "hypothalamus"
+      ],
+      "security_risk": "low",
+      "business_value": "high",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "tables_written_never_read",
+        "impact": "table_graph.json para lectores y escritores; filas leídas en vivo"
+      },
+      "decision": "complete_later",
+      "reason": "Hay 293 muestras y ningún consumidor; medir sin actuar no demuestra salud.",
+      "required_work": "Conectar a ready/deep o reporte con umbrales y prueba de decisión, no al heartbeat ligero.",
+      "tests_needed": [
+        "proposed:test_hardware_senses_end_to_end"
+      ],
+      "priority": "P1",
+      "source_evidence": "table_graph.json para lectores y escritores; filas leídas en vivo"
+    },
+    {
+      "id": "D020",
+      "name": "relational_modulation_events",
+      "group": "E",
+      "owner": "research",
+      "files": [
+        "triade/memory/relational_modulation.py"
+      ],
+      "tables": [
+        "relational_modulation_events"
+      ],
+      "mission": "Registrar modulación relacional experimental",
+      "producer": [
+        "triade/memory/relational_modulation.py"
+      ],
+      "consumer": [
+        "triade/memory/relational_modulation.py"
+      ],
+      "entrypoint": "triade/memory/relational_modulation.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-29T22:50:35+00:00",
+      "dependencies": [
+        "memory"
+      ],
+      "security_risk": "low",
+      "business_value": "low",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D066"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`relational_modulation_events` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "experimental_keep",
+      "reason": "Código y tablas existen sin actividad productiva observada; no hay utilidad demostrada.",
+      "required_work": "Mantener fuera del grafo productivo y exigir benchmark causal antes de cualquier activación.",
+      "tests_needed": [
+        "proposed:test_relational_modulation_events_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D021",
+      "name": "relational_modulation_states",
+      "group": "E",
+      "owner": "research",
+      "files": [
+        "triade/memory/relational_modulation.py"
+      ],
+      "tables": [
+        "relational_modulation_states"
+      ],
+      "mission": "Persistir estado de modulación relacional",
+      "producer": [
+        "triade/memory/relational_modulation.py"
+      ],
+      "consumer": [
+        "triade/memory/relational_modulation.py"
+      ],
+      "entrypoint": "triade/memory/relational_modulation.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-29T22:50:35+00:00",
+      "dependencies": [
+        "memory"
+      ],
+      "security_risk": "low",
+      "business_value": "low",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D067"
+        ],
+        "detector_category": "alias_debt_orphan_reader",
+        "impact": "`relational_modulation_states` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "experimental_keep",
+      "reason": "Subsistema filosófico sin consumidor productivo ni filas runtime.",
+      "required_work": "Conservar como experimental con etiquetado explícito y pruebas aisladas.",
+      "tests_needed": [
+        "proposed:test_relational_modulation_states_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D051",
+      "name": "triade/core/hierarchical_pulse.py",
+      "group": "E",
+      "owner": "research",
+      "files": [
+        "triade/core/hierarchical_pulse.py"
+      ],
+      "tables": [],
+      "mission": "Modelar pulsos jerárquicos experimentales",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "2026-07-29T06:47:41+00:00",
+      "dependencies": [
+        "core"
+      ],
+      "security_risk": "low",
+      "business_value": "low",
+      "architectural_value": "low",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "modules_without_importer",
+        "impact": "import_graph.json: módulo de producción que nadie importa"
+      },
+      "decision": "experimental_keep",
+      "reason": "No tiene importador ni entrypoint vivo y no existe consumidor demostrado.",
+      "required_work": "Etiquetar experimental, conservar pruebas aisladas y prohibir presentación como runtime vivo.",
+      "tests_needed": [
+        "proposed:test_triade_core_hierarchical_pulse_py_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "sin importador en el repositorio"
+    },
+    {
+      "id": "D066",
+      "name": "relational_modulation_events",
+      "group": "E",
+      "owner": "research",
+      "files": [
+        "triade/memory/relational_modulation.py"
+      ],
+      "tables": [
+        "relational_modulation_events"
+      ],
+      "mission": "Registrar modulación relacional experimental",
+      "producer": [
+        "triade/memory/relational_modulation.py"
+      ],
+      "consumer": [
+        "triade/memory/relational_modulation.py"
+      ],
+      "entrypoint": "triade/memory/relational_modulation.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-29T22:50:35+00:00",
+      "dependencies": [
+        "memory"
+      ],
+      "security_risk": "low",
+      "business_value": "low",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D020"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`relational_modulation_events` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "experimental_keep",
+      "reason": "Código y tablas existen sin actividad productiva observada; no hay utilidad demostrada.",
+      "required_work": "Mantener fuera del grafo productivo y exigir benchmark causal antes de cualquier activación.",
+      "tests_needed": [
+        "proposed:test_relational_modulation_events_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D067",
+      "name": "relational_modulation_states",
+      "group": "E",
+      "owner": "research",
+      "files": [
+        "triade/memory/relational_modulation.py"
+      ],
+      "tables": [
+        "relational_modulation_states"
+      ],
+      "mission": "Persistir estado de modulación relacional",
+      "producer": [
+        "triade/memory/relational_modulation.py"
+      ],
+      "consumer": [
+        "triade/memory/relational_modulation.py"
+      ],
+      "entrypoint": "triade/memory/relational_modulation.py",
+      "reachable": true,
+      "runtime_rows": 0,
+      "last_activity": "2026-07-29T22:50:35+00:00",
+      "dependencies": [
+        "memory"
+      ],
+      "security_risk": "low",
+      "business_value": "low",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [
+          "D021"
+        ],
+        "detector_category": "tables_with_writer_and_no_rows",
+        "impact": "`relational_modulation_states` tiene 1 lector(es), 1 escritor(es) y 0 filas: el escritor existe y no se ejecuta nunca, y quien la consulta recibe siempre el caso vacío"
+      },
+      "decision": "experimental_keep",
+      "reason": "Subsistema filosófico sin consumidor productivo ni filas runtime.",
+      "required_work": "Conservar como experimental con etiquetado explícito y pruebas aisladas.",
+      "tests_needed": [
+        "proposed:test_relational_modulation_states_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
+    },
+    {
+      "id": "D077",
+      "name": "meta_model_candidates",
+      "group": "E",
+      "owner": "research",
+      "files": [],
+      "tables": [
+        "meta_model_candidates"
+      ],
+      "mission": "Persistir candidatos de meta-modelo",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "low",
+      "business_value": "low",
+      "architectural_value": "low",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "tables_without_reader_or_writer",
+        "impact": "table_graph.json: tabla viva sin lector ni escritor en el código"
+      },
+      "decision": "experimental_keep",
+      "reason": "Tabla sin productor ni consumidor y meta-orquestación no demostrada.",
+      "required_work": "Conservar como experimental o archivar junto con su migración tras confirmar ausencia de necesidad.",
+      "tests_needed": [
+        "proposed:test_meta_model_candidates_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "table_graph.json: tabla viva sin lector ni escritor en el código"
+    },
+    {
+      "id": "D078",
+      "name": "meta_model_decisions",
+      "group": "E",
+      "owner": "research",
+      "files": [],
+      "tables": [
+        "meta_model_decisions"
+      ],
+      "mission": "Persistir decisiones de meta-modelo",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "low",
+      "business_value": "low",
+      "architectural_value": "low",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "tables_without_reader_or_writer",
+        "impact": "table_graph.json: tabla viva sin lector ni escritor en el código"
+      },
+      "decision": "experimental_keep",
+      "reason": "No hay circuito runtime ni consumidor real.",
+      "required_work": "Mantener fuera del producto hasta benchmark, policy y rollback demostrados.",
+      "tests_needed": [
+        "proposed:test_meta_model_decisions_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "table_graph.json: tabla viva sin lector ni escritor en el código"
+    },
+    {
+      "id": "D079",
+      "name": "meta_model_evaluations",
+      "group": "E",
+      "owner": "research",
+      "files": [],
+      "tables": [
+        "meta_model_evaluations"
+      ],
+      "mission": "Evaluar candidatos de meta-modelo",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "low",
+      "business_value": "low",
+      "architectural_value": "medium",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "tables_without_reader_or_writer",
+        "impact": "table_graph.json: tabla viva sin lector ni escritor en el código"
+      },
+      "decision": "experimental_keep",
+      "reason": "Tabla desconectada sin mediciones runtime.",
+      "required_work": "Exigir Measurement Core y consumidor antes de activación.",
+      "tests_needed": [
+        "proposed:test_meta_model_evaluations_end_to_end"
+      ],
+      "priority": "P3",
+      "source_evidence": "table_graph.json: tabla viva sin lector ni escritor en el código"
+    },
+    {
+      "id": "D080",
+      "name": "metabolic_config",
+      "group": "E",
+      "owner": "research",
+      "files": [],
+      "tables": [
+        "metabolic_config"
+      ],
+      "mission": "Configurar metabolismo experimental",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "none",
+      "reachable": false,
+      "runtime_rows": 0,
+      "last_activity": "not_observed",
+      "dependencies": [],
+      "security_risk": "low",
+      "business_value": "low",
+      "architectural_value": "low",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "tables_without_reader_or_writer",
+        "impact": "table_graph.json: tabla viva sin lector ni escritor en el código"
+      },
+      "decision": "experimental_keep",
+      "reason": "Tabla desconectada y sin consumidor; la metáfora no constituye capacidad.",
+      "required_work": "Mantener experimental y documentar que no está activa.",
+      "tests_needed": [
+        "tests/test_alias_debt.py"
+      ],
+      "priority": "P3",
+      "source_evidence": "table_graph.json: tabla viva sin lector ni escritor en el código"
+    },
+    {
+      "id": "D091",
+      "name": "self_improvement_canary_observation",
+      "group": "E",
+      "owner": "self_improvement",
+      "files": [
+        "scripts/run_concurrency_and_lease_validation.py",
+        "triade/constitution/autonomy.py",
+        "triade/workers/concurrency.py",
+        "triade/workers/contracts.py",
+        "triade/workers/mission_planner.py",
+        "triade/workers/worker_loop.py"
+      ],
+      "tables": [],
+      "mission": "Observar canary de auto-mejora",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "triade/workers/mission_planner.py"
+      ],
+      "entrypoint": "scripts/run_concurrency_and_lease_validation.py",
+      "reachable": true,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "constitution",
+        "run_concurrency_and_lease_validation.py",
+        "workers"
+      ],
+      "security_risk": "medium",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "task_types_never_executed",
+        "impact": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+      },
+      "decision": "experimental_keep",
+      "reason": "Task type experimental nunca ejecutado productivamente.",
+      "required_work": "Mantener aislado hasta demostrar canary, medición causal y rollback.",
+      "tests_needed": [
+        "tests/test_canary_observation_producer.py",
+        "tests/test_peft_canary_observation.py",
+        "tests/test_scheduler_mission_planner.py",
+        "tests/test_worker_concurrency_policy.py"
+      ],
+      "priority": "P3",
+      "source_evidence": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+    },
+    {
+      "id": "D092",
+      "name": "self_improvement_evaluation",
+      "group": "E",
+      "owner": "self_improvement",
+      "files": [
+        "scripts/run_concurrency_and_lease_validation.py",
+        "triade/constitution/autonomy.py",
+        "triade/workers/concurrency.py",
+        "triade/workers/contracts.py",
+        "triade/workers/mission_planner.py",
+        "triade/workers/worker_loop.py"
+      ],
+      "tables": [],
+      "mission": "Evaluar una propuesta de auto-mejora",
+      "producer": [
+        "not_demonstrated"
+      ],
+      "consumer": [
+        "not_demonstrated"
+      ],
+      "entrypoint": "scripts/run_concurrency_and_lease_validation.py",
+      "reachable": true,
+      "runtime_rows": "UNKNOWN",
+      "last_activity": "2026-08-04T00:38:54+00:00",
+      "dependencies": [
+        "constitution",
+        "run_concurrency_and_lease_validation.py",
+        "workers"
+      ],
+      "security_risk": "medium",
+      "business_value": "medium",
+      "architectural_value": "high",
+      "duplication": {
+        "other_finding_ids": [],
+        "detector_category": "task_types_never_executed",
+        "impact": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+      },
+      "decision": "experimental_keep",
+      "reason": "No hay ejecución runtime; código existente no demuestra reparación ni mejora.",
+      "required_work": "Conservar experimental y exigir baseline, tratamiento, regresión y decisión humana.",
+      "tests_needed": [
+        "tests/test_canary_observation_producer.py",
+        "tests/test_scheduler_mission_planner.py",
+        "tests/test_self_improvement_evaluation_gate.py",
+        "tests/test_worker_concurrency_policy.py",
+        "tests/test_worker_concurrency_pool.py"
+      ],
+      "priority": "P3",
+      "source_evidence": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
+    }
+  ]
+}
