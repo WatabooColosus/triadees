@@ -101,6 +101,7 @@ tests/test_federation.py
 tests/test_federation_cli.py
 tests/test_federation_pairing_app.py
 tests/test_foundational_neurons.py
+tests/test_goals_end_to_end_real.py
 tests/test_governed_capability_rollback.py
 tests/test_governed_plan_dispatcher.py
 tests/test_governed_research.py

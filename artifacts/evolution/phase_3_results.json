@@ -1,0 +1,138 @@
+{
+  "mode": "apply",
+  "policy": "expire_nonterminal_root_and_children_after_max_age",
+  "max_age_minutes": 60,
+  "actor": "phase3:goal-limbo-policy",
+  "before": [
+    {
+      "id": 13,
+      "goal_id": "goal-9ddee3f70e04",
+      "parent_id": null,
+      "title": "puedes crear imagenes?",
+      "description": "puedes crear imagenes?",
+      "status": "awaiting_approval",
+      "priority": 2,
+      "metadata": "{\"run_id\": \"run-20260729-005750-11687507\", \"source\": \"react-ui\", \"capability\": \"repo_modification\", \"resolution\": {\"actionable\": true, \"capability\": \"repo_modification\", \"available\": false, \"execution_mode\": \"human_approval\", \"worker_task_type\": null, \"command_key\": null, \"requires_human_approval\": true, \"risk\": \"high\", \"reason\": \"Modificar código requiere alcance, workspace candidato y aprobación humana.\"}, \"budget\": {\"max_attempts\": 3, \"max_minutes\": 30}}",
+      "created_at": "2026-07-29T00:57:50.870103+00:00",
+      "updated_at": "2026-07-29T00:57:50.875969+00:00",
+      "completed_at": null
+    },
+    {
+      "id": 14,
+      "goal_id": "goal-89c3fb7ee4b8",
+      "parent_id": "goal-9ddee3f70e04",
+      "title": "Ejecutar capacidad: repo_modification",
+      "description": "Modificar código requiere alcance, workspace candidato y aprobación humana.",
+      "status": "awaiting_approval",
+      "priority": 1,
+      "metadata": "{\"root_goal_id\": \"goal-9ddee3f70e04\", \"capability\": \"repo_modification\"}",
+      "created_at": "2026-07-29T00:57:50.871738+00:00",
+      "updated_at": "2026-07-29T00:57:50.873321+00:00",
+      "completed_at": null
+    },
+    {
+      "id": 21,
+      "goal_id": "goal-18f6b4344341",
+      "parent_id": null,
+      "title": "tu podrias descargar la forma optima de hacer las cosas ",
+      "description": "tu podrias descargar la forma optima de hacer las cosas ",
+      "status": "awaiting_approval",
+      "priority": 2,
+      "metadata": "{\"run_id\": \"run-20260801-012532-44f6343d\", \"source\": \"react-ui\", \"capability\": \"environment_install\", \"resolution\": {\"actionable\": true, \"capability\": \"environment_install\", \"available\": false, \"execution_mode\": \"human_approval\", \"worker_task_type\": null, \"command_key\": null, \"requires_human_approval\": true, \"risk\": \"high\", \"reason\": \"Instalar o descargar cambia el entorno y requiere propuesta y aprobación.\"}, \"budget\": {\"max_attempts\": 3, \"max_minutes\": 30}}",
+      "created_at": "2026-08-01T01:25:32.921309+00:00",
+      "updated_at": "2026-08-01T01:25:32.948575+00:00",
+      "completed_at": null
+    },
+    {
+      "id": 22,
+      "goal_id": "goal-1456074d4775",
+      "parent_id": "goal-18f6b4344341",
+      "title": "Ejecutar capacidad: environment_install",
+      "description": "Instalar o descargar cambia el entorno y requiere propuesta y aprobación.",
+      "status": "awaiting_approval",
+      "priority": 1,
+      "metadata": "{\"root_goal_id\": \"goal-18f6b4344341\", \"capability\": \"environment_install\"}",
+      "created_at": "2026-08-01T01:25:32.929691+00:00",
+      "updated_at": "2026-08-01T01:25:32.935550+00:00",
+      "completed_at": null
+    }
+  ],
+  "root_goal_ids": [
+    "goal-9ddee3f70e04",
+    "goal-18f6b4344341"
+  ],
+  "reconciliation": {
+    "examined": 2,
+    "expired": 2,
+    "goal_ids": [
+      "goal-9ddee3f70e04",
+      "goal-18f6b4344341"
+    ]
+  },
+  "after": [
+    {
+      "id": 13,
+      "goal_id": "goal-9ddee3f70e04",
+      "parent_id": null,
+      "title": "puedes crear imagenes?",
+      "description": "puedes crear imagenes?",
+      "status": "expired",
+      "priority": 2,
+      "metadata": "{\"run_id\": \"run-20260729-005750-11687507\", \"source\": \"react-ui\", \"capability\": \"repo_modification\", \"resolution\": {\"actionable\": true, \"capability\": \"repo_modification\", \"available\": false, \"execution_mode\": \"human_approval\", \"worker_task_type\": null, \"command_key\": null, \"requires_human_approval\": true, \"risk\": \"high\", \"reason\": \"Modificar código requiere alcance, workspace candidato y aprobación humana.\"}, \"budget\": {\"max_attempts\": 3, \"max_minutes\": 30}}",
+      "created_at": "2026-07-29T00:57:50.870103+00:00",
+      "updated_at": "2026-08-04T04:01:08.348420+00:00",
+      "completed_at": "2026-08-04T04:01:08.348420+00:00"
+    },
+    {
+      "id": 14,
+      "goal_id": "goal-89c3fb7ee4b8",
+      "parent_id": "goal-9ddee3f70e04",
+      "title": "Ejecutar capacidad: repo_modification",
+      "description": "Modificar código requiere alcance, workspace candidato y aprobación humana.",
+      "status": "expired",
+      "priority": 1,
+      "metadata": "{\"root_goal_id\": \"goal-9ddee3f70e04\", \"capability\": \"repo_modification\"}",
+      "created_at": "2026-07-29T00:57:50.871738+00:00",
+      "updated_at": "2026-08-04T04:01:08.339517+00:00",
+      "completed_at": "2026-08-04T04:01:08.339517+00:00"
+    },
+    {
+      "id": 21,
+      "goal_id": "goal-18f6b4344341",
+      "parent_id": null,
+      "title": "tu podrias descargar la forma optima de hacer las cosas ",
+      "description": "tu podrias descargar la forma optima de hacer las cosas ",
+      "status": "expired",
+      "priority": 2,
+      "metadata": "{\"run_id\": \"run-20260801-012532-44f6343d\", \"source\": \"react-ui\", \"capability\": \"environment_install\", \"resolution\": {\"actionable\": true, \"capability\": \"environment_install\", \"available\": false, \"execution_mode\": \"human_approval\", \"worker_task_type\": null, \"command_key\": null, \"requires_human_approval\": true, \"risk\": \"high\", \"reason\": \"Instalar o descargar cambia el entorno y requiere propuesta y aprobación.\"}, \"budget\": {\"max_attempts\": 3, \"max_minutes\": 30}}",
+      "created_at": "2026-08-01T01:25:32.921309+00:00",
+      "updated_at": "2026-08-04T04:01:08.361967+00:00",
+      "completed_at": "2026-08-04T04:01:08.361967+00:00"
+    },
+    {
+      "id": 22,
+      "goal_id": "goal-1456074d4775",
+      "parent_id": "goal-18f6b4344341",
+      "title": "Ejecutar capacidad: environment_install",
+      "description": "Instalar o descargar cambia el entorno y requiere propuesta y aprobación.",
+      "status": "expired",
+      "priority": 1,
+      "metadata": "{\"root_goal_id\": \"goal-18f6b4344341\", \"capability\": \"environment_install\"}",
+      "created_at": "2026-08-01T01:25:32.929691+00:00",
+      "updated_at": "2026-08-04T04:01:08.356903+00:00",
+      "completed_at": "2026-08-04T04:01:08.356903+00:00"
+    }
+  ],
+  "rollback_sql": [
+    "UPDATE planning_graph SET status=\"awaiting_approval\", updated_at=\"2026-07-29T00:57:50.875969+00:00\", completed_at=NULL WHERE goal_id=\"goal-9ddee3f70e04\";",
+    "UPDATE planning_graph SET status=\"awaiting_approval\", updated_at=\"2026-07-29T00:57:50.873321+00:00\", completed_at=NULL WHERE goal_id=\"goal-89c3fb7ee4b8\";",
+    "UPDATE planning_graph SET status=\"awaiting_approval\", updated_at=\"2026-08-01T01:25:32.948575+00:00\", completed_at=NULL WHERE goal_id=\"goal-18f6b4344341\";",
+    "UPDATE planning_graph SET status=\"awaiting_approval\", updated_at=\"2026-08-01T01:25:32.935550+00:00\", completed_at=NULL WHERE goal_id=\"goal-1456074d4775\";",
+    "DELETE FROM goal_events WHERE actor=\"phase3:goal-limbo-policy\";"
+  ],
+  "sha": "c264f5a9deeab1f7396cb16253c4b61a48661c2b",
+  "generated_at": "2026-08-04T04:01:08.377056+00:00",
+  "database": "triade/memory/triade.db",
+  "rows_preserved": 4,
+  "rows_deleted": 0
+}
