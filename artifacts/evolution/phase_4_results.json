@@ -1,0 +1,934 @@
+{
+  "schema_version": "phase-4-worker-audit-v1",
+  "generated_at": "2026-08-04T04:57:40.471499+00:00",
+  "sha": "d69013cf1f22583e9291e950f8bdf79b4c9f5432",
+  "branch": "phase/04-workers-end-to-end",
+  "counts": {
+    "task_types": 24,
+    "complete_contracts": 24,
+    "handlers_without_producer": 0,
+    "producers_without_handler": 0,
+    "operations_without_policy": 0
+  },
+  "closure": {
+    "all_task_types_complete": true,
+    "no_reproducible_dispatch_livelock": true,
+    "livelock_guard": "dead_letter after 20 dispatch deferrals"
+  },
+  "contracts": {
+    "bodega_global_review": {
+      "task_type": "bodega_global_review",
+      "producer": "MissionPlanner",
+      "operation": "produce_report",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "light",
+      "concurrency_lane": "read_only",
+      "exclusive_key": [],
+      "handler": "_bodega_global_review",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 180.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "encrypted_backup": {
+      "task_type": "encrypted_backup",
+      "producer": "MissionPlanner",
+      "operation": "create_backup",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "io",
+      "concurrency_lane": "memory_write",
+      "exclusive_key": [],
+      "handler": "_encrypted_backup",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 86400.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "experimental_neuron_activity": {
+      "task_type": "experimental_neuron_activity",
+      "producer": "MissionPlanner",
+      "operation": "use_knowledge_experimental",
+      "autonomy_level": "AUTO_EXPERIMENTAL",
+      "risk": "model",
+      "concurrency_lane": "evaluation",
+      "exclusive_key": [
+        "neuron_id"
+      ],
+      "handler": "_experimental_neuron_activity",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 240.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "federation_inbox_review": {
+      "task_type": "federation_inbox_review",
+      "producer": "MissionPlanner",
+      "operation": "produce_report",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "io",
+      "concurrency_lane": "read_only",
+      "exclusive_key": [],
+      "handler": "_federation_inbox_review",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 120.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "goal_install": {
+      "task_type": "goal_install",
+      "producer": "GoalOrchestrator.approve_install",
+      "operation": "install_software",
+      "autonomy_level": "HUMAN_REQUIRED",
+      "risk": "critical",
+      "concurrency_lane": "critical_mutation",
+      "exclusive_key": [],
+      "handler": "_goal_install",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 0.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "goal_lora_train": {
+      "task_type": "goal_lora_train",
+      "producer": "GoalOrchestrator.approve_lora_training",
+      "operation": "maintain_experimental_version",
+      "autonomy_level": "AUTO_EXPERIMENTAL",
+      "risk": "critical",
+      "concurrency_lane": "critical_mutation",
+      "exclusive_key": [
+        "neuron_id"
+      ],
+      "handler": "_goal_lora_train",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 0.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "goal_research": {
+      "task_type": "goal_research",
+      "producer": "GoalOrchestrator",
+      "operation": "research_allowed_sources",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "model",
+      "concurrency_lane": "research",
+      "exclusive_key": [],
+      "handler": "_goal_research",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 0.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "goal_safe_command": {
+      "task_type": "goal_safe_command",
+      "producer": "GoalOrchestrator",
+      "operation": "modify_production_infrastructure",
+      "autonomy_level": "HUMAN_REQUIRED",
+      "risk": "critical",
+      "concurrency_lane": "critical_mutation",
+      "exclusive_key": [],
+      "handler": "_goal_safe_command",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 0.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "learning_candidate_deduplication": {
+      "task_type": "learning_candidate_deduplication",
+      "producer": "MissionPlanner",
+      "operation": "deduplicate_candidates",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "light",
+      "concurrency_lane": "memory_write",
+      "exclusive_key": [],
+      "handler": "_learning_candidate_deduplication",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 60.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "learning_candidate_generation": {
+      "task_type": "learning_candidate_generation",
+      "producer": "triade.learning.post_run.schedule_post_run_learning",
+      "operation": "create_learning_candidate",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "light",
+      "concurrency_lane": "memory_write",
+      "exclusive_key": [
+        "source_run_id"
+      ],
+      "handler": "_learning_candidate_generation",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 60.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "learning_evidence_generation": {
+      "task_type": "learning_evidence_generation",
+      "producer": "MissionPlanner",
+      "operation": "generate_evidence",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "model",
+      "concurrency_lane": "evaluation",
+      "exclusive_key": [
+        "candidate_id"
+      ],
+      "handler": "_learning_evidence_generation",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 60.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "neuron_autopromotion": {
+      "task_type": "neuron_autopromotion",
+      "producer": "MissionPlanner",
+      "operation": "promote_experimental_version",
+      "autonomy_level": "AUTO_EXPERIMENTAL",
+      "risk": "critical",
+      "concurrency_lane": "critical_mutation",
+      "exclusive_key": [
+        "neuron_id",
+        "global_promotion"
+      ],
+      "handler": "_neuron_autopromotion",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 360.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "neuron_candidate_formation": {
+      "task_type": "neuron_candidate_formation",
+      "producer": "MissionPlanner",
+      "operation": "create_experimental_neuron",
+      "autonomy_level": "AUTO_EXPERIMENTAL",
+      "risk": "model",
+      "concurrency_lane": "research",
+      "exclusive_key": [
+        "neuron_id"
+      ],
+      "handler": "_neuron_candidate_formation",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 300.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "neuron_education_cycle": {
+      "task_type": "neuron_education_cycle",
+      "producer": "MissionPlanner",
+      "operation": "prepare_lesson",
+      "autonomy_level": "AUTO_EXPERIMENTAL",
+      "risk": "model",
+      "concurrency_lane": "evaluation",
+      "exclusive_key": [
+        "neuron_id"
+      ],
+      "handler": "_neuron_education_cycle",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 900.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "peft_canary_observation": {
+      "task_type": "peft_canary_observation",
+      "producer": "MissionPlanner",
+      "operation": "measure_results",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "model",
+      "concurrency_lane": "evaluation",
+      "exclusive_key": [
+        "version_id"
+      ],
+      "handler": "_peft_canary_observation",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 1800.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "pending_learning_review": {
+      "task_type": "pending_learning_review",
+      "producer": "MissionPlanner",
+      "operation": "evaluate_candidate",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "light",
+      "concurrency_lane": "memory_write",
+      "exclusive_key": [],
+      "handler": "_pending_learning_review",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 120.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "pulse_check": {
+      "task_type": "pulse_check",
+      "producer": "MissionPlanner",
+      "operation": "measure_results",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "light",
+      "concurrency_lane": "read_only",
+      "exclusive_key": [],
+      "handler": "_pulse_check",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 30.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "research_curriculum": {
+      "task_type": "research_curriculum",
+      "producer": "MissionPlanner",
+      "operation": "research_allowed_sources",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "model",
+      "concurrency_lane": "research",
+      "exclusive_key": [],
+      "handler": "_research_curriculum",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 900.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "self_improvement_canary_observation": {
+      "task_type": "self_improvement_canary_observation",
+      "producer": "MissionPlanner",
+      "operation": "measure_results",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "light",
+      "concurrency_lane": "evaluation",
+      "exclusive_key": [
+        "candidate_id",
+        "canary_id"
+      ],
+      "handler": "_self_improvement_canary_observation",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 60.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "self_improvement_evaluation": {
+      "task_type": "self_improvement_evaluation",
+      "producer": "MissionPlanner",
+      "operation": "run_internal_tests",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "model",
+      "concurrency_lane": "evaluation",
+      "exclusive_key": [
+        "candidate_id",
+        "neuron_id",
+        "proposal_id"
+      ],
+      "handler": "_self_improvement_evaluation",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 60.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "semantic_memory_governance": {
+      "task_type": "semantic_memory_governance",
+      "producer": "MissionPlanner",
+      "operation": "contrast_with_memory",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "light",
+      "concurrency_lane": "memory_write",
+      "exclusive_key": [],
+      "handler": "_semantic_memory_governance",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 180.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "stable_consolidation_review": {
+      "task_type": "stable_consolidation_review",
+      "producer": "MissionPlanner",
+      "operation": "consolidate_low_risk_knowledge",
+      "autonomy_level": "AUTO_EXPERIMENTAL",
+      "risk": "light",
+      "concurrency_lane": "memory_write",
+      "exclusive_key": [],
+      "handler": "_stable_consolidation_review",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 600.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "system_debt_scan": {
+      "task_type": "system_debt_scan",
+      "producer": "MissionPlanner",
+      "operation": "produce_report",
+      "autonomy_level": "AUTO_SAFE",
+      "risk": "light",
+      "concurrency_lane": "read_only",
+      "exclusive_key": [],
+      "handler": "_system_debt_scan",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 600.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    },
+    "write_governed_text_artifact": {
+      "task_type": "write_governed_text_artifact",
+      "producer": "GoalOrchestrator",
+      "operation": "write_governed_artifact",
+      "autonomy_level": "AUTO_EXPERIMENTAL",
+      "risk": "io",
+      "concurrency_lane": "memory_write",
+      "exclusive_key": [
+        "target"
+      ],
+      "handler": "_write_governed_text_artifact",
+      "terminal_states": [
+        "blocked",
+        "cancelled",
+        "completed",
+        "dead_letter",
+        "dry_run",
+        "failed",
+        "lease_lost",
+        "observed",
+        "skipped",
+        "timeout"
+      ],
+      "cooldown": 60.0,
+      "idempotency": "idempotency_key plus active payload-hash deduplication",
+      "evidence": [
+        "ExecutionResult.evidence",
+        "verified EffectReceipt",
+        "task artifacts"
+      ],
+      "timeout": 30.0,
+      "retry_policy": {
+        "max_attempts": 3,
+        "max_dispatch_deferrals": 20,
+        "backoff": "exponential",
+        "base_delay_seconds": 30,
+        "dead_letter_on_exhaustion": true
+      }
+    }
+  }
+}
