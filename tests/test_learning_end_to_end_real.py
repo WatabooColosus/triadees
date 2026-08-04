@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -240,3 +243,27 @@ def test_real_learning_cycle_improves_generalizes_consolidates_and_reuses(
         == result["treatment"]["aggregate_score"]
     )
     assert repeated["closure"] == result["closure"]
+
+
+def test_phase_1_cli_is_isolated_and_reproducible_by_default(tmp_path: Path) -> None:
+    script = (
+        Path(__file__).resolve().parents[1]
+        / "scripts/run_phase_1_learning_end_to_end.py"
+    )
+    outputs = [tmp_path / "first.json", tmp_path / "second.json"]
+
+    for output in outputs:
+        completed = subprocess.run(
+            [sys.executable, str(script), "--output", str(output)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert completed.returncode == 0, completed.stderr
+
+    first, second = (json.loads(path.read_text(encoding="utf-8")) for path in outputs)
+    assert first["baseline"]["aggregate_score"] == second["baseline"]["aggregate_score"]
+    assert (
+        first["treatment"]["aggregate_score"] == second["treatment"]["aggregate_score"]
+    )
+    assert first["closure"] == second["closure"]
