@@ -61,7 +61,18 @@ def test_valid_order_runs_resolver_goal_plan_task_result_close_and_learning_audi
     }
 
 
-def test_valid_diagnostic_order_is_executed_by_real_worker(tmp_path: Path) -> None:
+def test_valid_diagnostic_order_is_executed_by_real_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "triade.workers.worker_loop.check_ollama_blood",
+        lambda: {
+            "status": "unavailable",
+            "blood_pressure_score": 0.0,
+            "reasoning_model": None,
+            "degraded_components": ["ollama"],
+        },
+    )
     db_path = tmp_path / "worker.db"
     orchestrator = GoalOrchestrator(db_path)
     accepted = orchestrator.accept(
