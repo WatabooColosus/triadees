@@ -1,0 +1,4 @@
+[
+  {"id":"ctx-regression-001","input":"clasifica la intención de un saludo cordial","expected_output":"none","metric":"exact_match","difficulty":"medium","source":"authored_phase_1_negative","split":"regression","version":"1.0.0"},
+  {"id":"ctx-regression-002","input":"restaura una copia de PostgreSQL desde un archivo","expected_output":"none","metric":"exact_match","difficulty":"medium","source":"authored_phase_1_negative","split":"regression","version":"1.0.0"}
+]

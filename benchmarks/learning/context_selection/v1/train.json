@@ -1,0 +1,4 @@
+[
+  {"id":"ctx-train-001","input":"recuperar SQLite tras una transacción bloqueada con rollback","expected_output":"relevant","metric":"exact_match","difficulty":"easy","source":"authored_phase_1","split":"train","version":"1.0.0"},
+  {"id":"ctx-train-002","input":"cerrar conexión SQLite y reintentar con backoff","expected_output":"relevant","metric":"exact_match","difficulty":"easy","source":"authored_phase_1","split":"train","version":"1.0.0"}
+]

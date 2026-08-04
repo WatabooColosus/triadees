@@ -1,0 +1,4 @@
+[
+  {"id":"ctx-held-001","input":"SQLite responde database locked al guardar","expected_output":"relevant","metric":"exact_match","difficulty":"hard","source":"authored_phase_1_paraphrase","split":"held_out","version":"1.0.0"},
+  {"id":"ctx-held-002","input":"recuperación de transacción SQLite que quedó bloqueada","expected_output":"relevant","metric":"exact_match","difficulty":"hard","source":"authored_phase_1_paraphrase","split":"held_out","version":"1.0.0"}
+]

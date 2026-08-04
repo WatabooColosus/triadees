@@ -522,24 +522,9 @@ class LearningPipeline:
                 f"avg_outcome_score={avg_score:.3f}, mínimo={self.MIN_OUTCOME_SCORE}."
             )
 
-        # Intentar obtener evidencia de medición, pero no bloquear si no está disponible
-        measurement_evidence = {}
-        try:
-            measurement_evidence = self.evidence_bridge.require_improvement(
-                candidate_id
-            )
-        except ValueError as e:
-            if "No existe Measurement Core" in str(e) or "require_improvement" in str(
-                e
-            ):
-                measurement_evidence = {
-                    "comparison": {
-                        "note": "Evidencia de medición no disponible; consolidación con aprobación humana."
-                    },
-                    "missing_measurement_core": True,
-                }
-            else:
-                raise
+        # Una aprobación humana gobierna la promoción, pero nunca sustituye la
+        # medición antes/después. Sin evidencia reproducible no hay aprendizaje.
+        measurement_evidence = self.evidence_bridge.require_improvement(candidate_id)
 
         # Rollback Obligatorio (Artículo III de la Constitución)
         from triade.regression.mandatory_rollback import MandatoryRollbackEnforcer
