@@ -299,6 +299,7 @@ tests/test_verified_knowledge_reaches_every_prompt.py
 tests/test_vitality_evaluation.py
 tests/test_watchdog_staged_recovery.py
 tests/test_worker_api.py
+tests/test_worker_architecture_contract.py
 tests/test_worker_autostart_deadlock.py
 tests/test_worker_cli.py
 tests/test_worker_concurrency_policy.py
@@ -318,6 +319,7 @@ tests/test_worker_stable_consolidation_review.py
 tests/test_worker_state_store.py
 tests/test_worker_status_counts_the_living_path.py
 tests/test_worker_stop_lock.py
+tests/test_workers_end_to_end_real.py
 triade/__init__.py
 triade/capabilities/__init__.py
 triade/capabilities/bootstrap.py
@@ -647,6 +649,7 @@ triade/verification/council.py
 triade/workers/__init__.py
 triade/workers/adaptive_scheduler.py
 triade/workers/advanced_scheduler.py
+triade/workers/architecture.py
 triade/workers/background_service.py
 triade/workers/concurrency.py
 triade/workers/contracts.py
