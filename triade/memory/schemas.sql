@@ -652,6 +652,38 @@ CREATE TABLE IF NOT EXISTS goal_dependencies (
 CREATE INDEX IF NOT EXISTS idx_planning_graph_status ON planning_graph(status);
 CREATE INDEX IF NOT EXISTS idx_planning_graph_parent ON planning_graph(parent_id);
 
+-- Ledger aditivo del ciclo de vida de goals. `planning_graph.status` conserva
+-- el estado materializado; esta tabla conserva quién lo produjo y por qué.
+CREATE TABLE IF NOT EXISTS goal_events (
+    event_id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    from_status TEXT,
+    to_status TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    evidence_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_goal_events_goal
+ON goal_events(goal_id, created_at, event_id);
+
+-- Una observación no equivale a conocimiento consolidado. Este ledger deja
+-- explícito si el resultado aportó una señal de aprendizaje o si no la hubo.
+CREATE TABLE IF NOT EXISTS goal_learning_observations (
+    observation_id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL,
+    task_id TEXT,
+    disposition TEXT NOT NULL,
+    outcome_status TEXT NOT NULL,
+    evidence_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_goal_learning_goal
+ON goal_learning_observations(goal_id, created_at, observation_id);
+
 CREATE TABLE IF NOT EXISTS federated_merge_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     request_id TEXT NOT NULL UNIQUE,

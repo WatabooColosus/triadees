@@ -95,7 +95,10 @@ def test_duplicate_goal_returns_existing_goal_and_task(tmp_path: Path) -> None:
     assert second["goal_id"] == first["goal_id"]
     assert second["task_id"] == first["task_id"]
     assert orchestrator.graph.get_plan_summary()["total"] == 2  # raíz + paso
-    assert any(event["event_type"] == "duplicate_rejected" for event in _events(orchestrator, first["goal_id"]))
+    assert any(
+        event["event_type"] == "duplicate_rejected"
+        for event in _events(orchestrator, first["goal_id"])
+    )
 
 
 def test_unavailable_order_closes_as_audited_blocked_goal(tmp_path: Path) -> None:
@@ -136,7 +139,9 @@ def test_expired_goal_is_terminal_and_audited(tmp_path: Path) -> None:
     result = orchestrator.expire(accepted["goal_id"], reason="approval_timeout")
     assert result["status"] == "expired"
     assert result["status"] in GOAL_TERMINAL_STATES
-    assert _events(orchestrator, accepted["goal_id"])[-1]["reason"] == "approval_timeout"
+    assert (
+        _events(orchestrator, accepted["goal_id"])[-1]["reason"] == "approval_timeout"
+    )
 
 
 def test_approved_goal_leaves_approval_state_with_actor_audit(tmp_path: Path) -> None:
@@ -176,22 +181,27 @@ def test_cancelled_goal_and_steps_are_terminal_and_audited(tmp_path: Path) -> No
     assert status["events"][-1]["actor"] == "human:test"
 
 
-def test_historical_limbo_goals_receive_explicit_expiry_decision(tmp_path: Path) -> None:
+def test_historical_limbo_goals_receive_explicit_expiry_decision(
+    tmp_path: Path,
+) -> None:
     graph = PlanningGraph(tmp_path / "triade.db")
     stale = graph.create_goal("histórico", metadata={"run_id": "old"})
     old = (datetime.now(UTC) - timedelta(days=2)).isoformat()
     with sqlite3.connect(graph.db_path) as conn:
         conn.execute(
-            "UPDATE planning_graph SET updated_at=? WHERE goal_id=?", (old, stale.goal_id)
+            "UPDATE planning_graph SET updated_at=? WHERE goal_id=?",
+            (old, stale.goal_id),
         )
 
     report = graph.reconcile_limbo(max_age_minutes=60, actor="phase3:test")
     assert report["examined"] == 1
     assert report["expired"] == 1
     assert graph.get_goal(stale.goal_id).status == "expired"
-    assert _events(_orchestrator(tmp_path), stale.goal_id)[-1]["event_type"] == "historical_limbo_expired"
+    assert (
+        _events(_orchestrator(tmp_path), stale.goal_id)[-1]["event_type"]
+        == "historical_limbo_expired"
+    )
 
 
 def test_unknown_goal_state_is_rejected() -> None:
     assert "mystery" not in GOAL_TERMINAL_STATES
-

@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
+import unicodedata
+import uuid
 from pathlib import Path
 from typing import Any
 
 from triade.workers.task_queue import WorkerTaskQueue
 
 from .capability_resolver import CapabilityResolver
-from .planning_graph import PlanningGraph
+from .planning_graph import GOAL_ACTIVE_STATES, PlanningGraph
 
 
 class GoalOrchestrator:
@@ -23,12 +26,39 @@ class GoalOrchestrator:
     def accept(
         self, request: str, *, run_id: str, source: str = "chat"
     ) -> dict[str, Any]:
+        intent = self.resolver.classify(request)
+        if intent.kind == "ambiguous":
+            return {
+                "status": "needs_clarification",
+                "intent": intent.to_dict(),
+                "goal_created": False,
+            }
         resolution = self.resolver.resolve(request)
         if not resolution.actionable:
             return {
                 "status": "not_actionable",
                 "resolution": resolution.to_dict(),
+                "intent": intent.to_dict(),
                 "goal_created": False,
+            }
+
+        request_key = self._request_key(request, source)
+        duplicate = self.graph.find_active_by_request_key(request_key)
+        if duplicate is not None:
+            task_id = self._first_task_id(duplicate.goal_id)
+            self.graph.record_event(
+                duplicate.goal_id,
+                event_type="duplicate_rejected",
+                actor=f"goal_orchestrator:{source}",
+                reason="active_request_key_exists",
+                evidence={"duplicate_run_id": run_id, "request_key": request_key},
+            )
+            return {
+                "status": "duplicate",
+                "goal_created": False,
+                "goal_id": duplicate.goal_id,
+                "task_id": task_id,
+                "resolution": resolution.to_dict(),
             }
 
         root = self.graph.create_goal(
@@ -40,6 +70,8 @@ class GoalOrchestrator:
                 "source": source,
                 "capability": resolution.capability,
                 "resolution": resolution.to_dict(),
+                "intent": intent.to_dict(),
+                "request_key": request_key,
                 "budget": {"max_attempts": 3, "max_minutes": 30},
             },
         )
@@ -55,8 +87,20 @@ class GoalOrchestrator:
         )
 
         if resolution.requires_human_approval:
-            self.graph.update_status(step.goal_id, "awaiting_approval")
-            self.graph.update_status(root.goal_id, "awaiting_approval")
+            self.graph.transition(
+                step.goal_id,
+                "awaiting_approval",
+                actor="capability_resolver",
+                reason=resolution.reason,
+                event_type="approval_required",
+            )
+            self.graph.transition(
+                root.goal_id,
+                "awaiting_approval",
+                actor="capability_resolver",
+                reason=resolution.reason,
+                event_type="approval_required",
+            )
             return {
                 "status": "awaiting_approval",
                 "goal_created": True,
@@ -66,8 +110,20 @@ class GoalOrchestrator:
                 "task_id": None,
             }
         if not resolution.available or not resolution.worker_task_type:
-            self.graph.update_status(step.goal_id, "blocked")
-            self.graph.update_status(root.goal_id, "blocked")
+            self.graph.transition(
+                step.goal_id,
+                "blocked",
+                actor="capability_resolver",
+                reason=resolution.reason,
+                event_type="capability_blocked",
+            )
+            self.graph.transition(
+                root.goal_id,
+                "blocked",
+                actor="capability_resolver",
+                reason=resolution.reason,
+                event_type="capability_blocked",
+            )
             return {
                 "status": "blocked",
                 "goal_created": True,
@@ -97,8 +153,23 @@ class GoalOrchestrator:
         task = self.queue.enqueue(
             resolution.worker_task_type, payload=payload, priority=15
         )
-        self.graph.update_status(root.goal_id, "queued")
-        self.graph.update_status(step.goal_id, "queued")
+        evidence = {"task_id": task.id, "task_type": resolution.worker_task_type}
+        self.graph.transition(
+            root.goal_id,
+            "queued",
+            actor="goal_orchestrator",
+            reason="canonical_task_enqueued",
+            event_type="task_enqueued",
+            evidence=evidence,
+        )
+        self.graph.transition(
+            step.goal_id,
+            "queued",
+            actor="goal_orchestrator",
+            reason="canonical_task_enqueued",
+            event_type="task_enqueued",
+            evidence=evidence,
+        )
         return {
             "status": "queued",
             "goal_created": True,
@@ -117,8 +188,28 @@ class GoalOrchestrator:
             return
         status = str(result.get("status") or "error")
         if status in {"ok", "completed"}:
-            self.graph.update_status(step_id, "completed")
-            self.graph.update_status(root_id, "completed")
+            self.graph.transition(
+                step_id,
+                "completed",
+                actor="worker_result",
+                reason="task_completed",
+                event_type="task_result",
+                evidence={"result_status": status},
+            )
+            self.graph.transition(
+                root_id,
+                "completed",
+                actor="worker_result",
+                reason="all_steps_completed",
+                event_type="goal_closed",
+                evidence={"result_status": status},
+            )
+            self._record_learning_observation(
+                root_id,
+                payload,
+                result,
+                disposition="no_learning_signal",
+            )
         elif status in {
             "candidate_created",
             "no_evidence",
@@ -127,12 +218,45 @@ class GoalOrchestrator:
             "dry_run",
             "blocked",
         }:
-            self.graph.update_status(step_id, "blocked")
-            self.graph.update_status(root_id, "blocked")
+            self.graph.transition(
+                step_id,
+                "blocked",
+                actor="worker_result",
+                reason=status,
+                event_type="task_result",
+                evidence={"result_status": status},
+            )
+            self.graph.transition(
+                root_id,
+                "blocked",
+                actor="worker_result",
+                reason=status,
+                event_type="goal_closed",
+                evidence={"result_status": status},
+            )
+            self._record_learning_observation(
+                root_id, payload, result, disposition="failure_signal"
+            )
         else:
             attempt = int(payload.get("attempt") or 1)
             max_attempts = max(1, min(int(payload.get("max_attempts") or 3), 5))
             if attempt < max_attempts:
+                self.graph.transition(
+                    step_id,
+                    "replanning",
+                    actor="goal_orchestrator",
+                    reason="retryable_task_failure",
+                    event_type="replanned",
+                    evidence={"attempt": attempt, "max_attempts": max_attempts},
+                )
+                self.graph.transition(
+                    root_id,
+                    "replanning",
+                    actor="goal_orchestrator",
+                    reason="retryable_task_failure",
+                    event_type="replanned",
+                    evidence={"attempt": attempt, "max_attempts": max_attempts},
+                )
                 retry_payload = {
                     **payload,
                     "attempt": attempt + 1,
@@ -146,11 +270,40 @@ class GoalOrchestrator:
                     payload=retry_payload,
                     priority=min(90, 15 + attempt * 10),
                 )
-                self.graph.update_status(step_id, "queued")
-                self.graph.update_status(root_id, "queued")
+                self.graph.transition(
+                    step_id,
+                    "queued",
+                    actor="goal_orchestrator",
+                    reason="retry_task_enqueued",
+                    event_type="task_enqueued",
+                )
+                self.graph.transition(
+                    root_id,
+                    "queued",
+                    actor="goal_orchestrator",
+                    reason="retry_task_enqueued",
+                    event_type="task_enqueued",
+                )
                 return
-            self.graph.update_status(step_id, "failed")
-            self.graph.update_status(root_id, "failed")
+            self.graph.transition(
+                step_id,
+                "failed",
+                actor="worker_result",
+                reason="retry_budget_exhausted",
+                event_type="task_result",
+                evidence={"result_status": status, "attempt": attempt},
+            )
+            self.graph.transition(
+                root_id,
+                "failed",
+                actor="worker_result",
+                reason="retry_budget_exhausted",
+                event_type="goal_closed",
+                evidence={"result_status": status, "attempt": attempt},
+            )
+            self._record_learning_observation(
+                root_id, payload, result, disposition="failure_signal"
+            )
 
     def approve_install(
         self, goal_id: str, package: str, *, approved_by: str
@@ -176,8 +329,22 @@ class GoalOrchestrator:
             },
             priority=5,
         )
-        self.graph.update_status(step.goal_id, "queued")
-        self.graph.update_status(goal_id, "queued")
+        self.graph.transition(
+            step.goal_id,
+            "queued",
+            actor=approved_by,
+            reason="human_install_approval",
+            event_type="approved",
+            evidence={"task_id": task.id, "package": package},
+        )
+        self.graph.transition(
+            goal_id,
+            "queued",
+            actor=approved_by,
+            reason="human_install_approval",
+            event_type="approved",
+            evidence={"task_id": task.id, "package": package},
+        )
         return {"status": "queued", "task_id": task.id, "goal_id": goal_id}
 
     def schedule_lora(
@@ -216,8 +383,22 @@ class GoalOrchestrator:
             },
             priority=5,
         )
-        self.graph.update_status(step.goal_id, "queued")
-        self.graph.update_status(root.goal_id, "queued")
+        self.graph.transition(
+            step.goal_id,
+            "queued",
+            actor=approved_by,
+            reason="human_lora_approval",
+            event_type="approved",
+            evidence={"task_id": task.id},
+        )
+        self.graph.transition(
+            root.goal_id,
+            "queued",
+            actor=approved_by,
+            reason="human_lora_approval",
+            event_type="approved",
+            evidence={"task_id": task.id},
+        )
         return {"status": "queued", "goal_id": root.goal_id, "task_id": task.id}
 
     def status(self, goal_id: str) -> dict[str, Any]:
@@ -251,4 +432,107 @@ class GoalOrchestrator:
             "goal": goal.to_dict(),
             "steps": [child.to_dict() for child in self.graph.get_children(goal_id)],
             "tasks": tasks,
+            "events": self.graph.get_events(goal_id),
+            "learning_observations": self._learning_observations(goal_id),
         }
+
+    def cancel(self, goal_id: str, *, reason: str, cancelled_by: str) -> dict[str, Any]:
+        goal = self.graph.get_goal(goal_id)
+        if goal is None:
+            return {"status": "not_found", "goal_id": goal_id}
+        for child in self.graph.get_children(goal_id):
+            if child.status in GOAL_ACTIVE_STATES:
+                self.graph.transition(
+                    child.goal_id,
+                    "cancelled",
+                    actor=cancelled_by,
+                    reason=reason,
+                    event_type="cancelled",
+                )
+        updated = self.graph.transition(
+            goal_id,
+            "cancelled",
+            actor=cancelled_by,
+            reason=reason,
+            event_type="cancelled",
+        )
+        return {"status": updated.status, "goal_id": goal_id}
+
+    def expire(self, goal_id: str, *, reason: str) -> dict[str, Any]:
+        goal = self.graph.get_goal(goal_id)
+        if goal is None:
+            return {"status": "not_found", "goal_id": goal_id}
+        for child in self.graph.get_children(goal_id):
+            if child.status in GOAL_ACTIVE_STATES:
+                self.graph.transition(
+                    child.goal_id,
+                    "expired",
+                    actor="goal_expiry_policy",
+                    reason=reason,
+                    event_type="expired",
+                )
+        updated = self.graph.transition(
+            goal_id,
+            "expired",
+            actor="goal_expiry_policy",
+            reason=reason,
+            event_type="expired",
+        )
+        return {"status": updated.status, "goal_id": goal_id}
+
+    @staticmethod
+    def _request_key(request: str, source: str) -> str:
+        normalized = unicodedata.normalize("NFKC", request).casefold()
+        normalized = " ".join(normalized.split())
+        return hashlib.sha256(f"{source}:{normalized}".encode()).hexdigest()
+
+    def _first_task_id(self, goal_id: str) -> str | None:
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                """SELECT task_id FROM autonomous_tasks
+                WHERE json_extract(payload_json, '$.goal_id')=?
+                ORDER BY created_at,task_id LIMIT 1""",
+                (goal_id,),
+            ).fetchone()
+        return str(row[0]) if row is not None else None
+
+    def _record_learning_observation(
+        self,
+        goal_id: str,
+        payload: dict[str, Any],
+        result: dict[str, Any],
+        *,
+        disposition: str,
+    ) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """INSERT INTO goal_learning_observations
+                (observation_id,goal_id,task_id,disposition,outcome_status,evidence_json,created_at)
+                VALUES(?,?,?,?,?,?,datetime('now'))""",
+                (
+                    f"goal-learning-{uuid.uuid4().hex[:16]}",
+                    goal_id,
+                    str(payload.get("task_id") or "") or None,
+                    disposition,
+                    str(result.get("status") or "error"),
+                    json.dumps(result, ensure_ascii=False, sort_keys=True),
+                ),
+            )
+
+    def _learning_observations(self, goal_id: str) -> list[dict[str, Any]]:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """SELECT * FROM goal_learning_observations
+                WHERE goal_id=? ORDER BY created_at,observation_id""",
+                (goal_id,),
+            ).fetchall()
+        observations = []
+        for row in rows:
+            item = dict(row)
+            try:
+                item["evidence"] = json.loads(str(item.pop("evidence_json") or "{}"))
+            except (json.JSONDecodeError, TypeError):
+                item["evidence"] = {}
+            observations.append(item)
+        return observations

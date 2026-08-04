@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import asdict, dataclass
 
 
@@ -16,6 +17,18 @@ class CapabilityResolution:
     command_key: str | None
     requires_human_approval: bool
     risk: str
+    reason: str
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
+class RequestIntent:
+    kind: str
+    confidence: float
+    action_tokens: tuple[str, ...]
+    ambiguity_markers: tuple[str, ...]
     reason: str
 
     def to_dict(self) -> dict:
@@ -72,9 +85,101 @@ class CapabilityResolver:
         re.IGNORECASE,
     )
 
+    ACTION_WORDS = frozenset(
+        {
+            "haz",
+            "haga",
+            "crea",
+            "crear",
+            "construye",
+            "construir",
+            "repara",
+            "reparar",
+            "corrige",
+            "corregir",
+            "instala",
+            "instalar",
+            "descarga",
+            "descargar",
+            "prueba",
+            "probar",
+            "ejecuta",
+            "ejecutar",
+            "investiga",
+            "investigar",
+            "busca",
+            "buscar",
+            "diagnostica",
+            "diagnosticar",
+            "audita",
+            "auditar",
+            "compila",
+            "compilar",
+        }
+    )
+    QUESTION_WORDS = frozenset(
+        {
+            "como",
+            "cuando",
+            "donde",
+            "quien",
+            "que",
+            "cual",
+            "puedes",
+            "podrias",
+            "sabes",
+            "posible",
+        }
+    )
+    AMBIGUITY_WORDS = frozenset(
+        {"quizas", "quiza", "tal", "vez", "podrias", "podría", "opcionalmente"}
+    )
+
+    def classify(self, request: str) -> RequestIntent:
+        """Clasifica estructura y vocabulario; no depende de una regex única.
+
+        La regex sigue sirviendo para enrutar capacidades específicas. La
+        decisión de abrir un expediente se basa además en tokens normalizados,
+        modalidad, interrogación y número de acciones solicitadas.
+        """
+        text = " ".join(str(request).strip().split())
+        normalized = (
+            unicodedata.normalize("NFKD", text.lower())
+            .encode("ascii", "ignore")
+            .decode("ascii")
+        )
+        tokens = tuple(re.findall(r"[a-z0-9_]+", normalized))
+        actions = tuple(token for token in tokens if token in self.ACTION_WORDS)
+        ambiguous = tuple(token for token in tokens if token in self.AMBIGUITY_WORDS)
+        question_like = bool(
+            "?" in text or (tokens and tokens[0] in self.QUESTION_WORDS)
+        )
+        if not text:
+            return RequestIntent("conversation", 1.0, (), (), "empty_input")
+        if (ambiguous and actions and "?" not in text) or (
+            len(set(actions)) > 1 and "o" in tokens
+        ):
+            return RequestIntent(
+                "ambiguous",
+                0.55,
+                actions,
+                ambiguous,
+                "modal_or_multiple_actions",
+            )
+        if question_like:
+            return RequestIntent("question", 0.95, actions, ambiguous, "question_form")
+        if actions:
+            return RequestIntent("command", 0.95, actions, (), "explicit_action")
+        return RequestIntent("conversation", 0.9, (), (), "no_explicit_action")
+
     def resolve(self, request: str) -> CapabilityResolution:
         text = " ".join(str(request).strip().split())
         low = text.lower()
+        intent = self.classify(text)
+        if intent.kind == "question":
+            return self._none("Es una pregunta, no una orden operativa.")
+        if intent.kind == "ambiguous":
+            return self._none("La petición es ambigua y requiere aclaración.")
         if not text:
             return self._none("No es una orden operativa explícita.")
         if self.PREGUNTA.search(text):
