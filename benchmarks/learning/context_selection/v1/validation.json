@@ -1,0 +1,4 @@
+[
+  {"id":"ctx-validation-001","input":"qué hacer con una conexión SQLite bloqueada","expected_output":"relevant","metric":"exact_match","difficulty":"medium","source":"authored_phase_1","split":"validation","version":"1.0.0"},
+  {"id":"ctx-validation-002","input":"reintento con backoff después de rollback SQLite","expected_output":"relevant","metric":"exact_match","difficulty":"medium","source":"authored_phase_1","split":"validation","version":"1.0.0"}
+]

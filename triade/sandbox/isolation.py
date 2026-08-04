@@ -142,9 +142,7 @@ class SandboxPolicy:
 
         cpu = observed.get("cpu_seconds")
         if cpu is not None and cpu > limits.cpu_seconds:
-            violations.append(
-                f"CPU {cpu:.2f}s excede cpu_seconds={limits.cpu_seconds}"
-            )
+            violations.append(f"CPU {cpu:.2f}s excede cpu_seconds={limits.cpu_seconds}")
 
         return {
             "limits": limits.to_dict(),

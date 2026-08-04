@@ -47,6 +47,7 @@ class LearningEvidenceBridge:
                     critical_regressions_json TEXT DEFAULT '[]',
                     artifact_ref TEXT,
                     regression_required INTEGER NOT NULL DEFAULT 0,
+                    generalization_required INTEGER NOT NULL DEFAULT 0,
                     regression_report_id TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -66,6 +67,10 @@ class LearningEvidenceBridge:
                 conn.execute(
                     "ALTER TABLE learning_evidence ADD COLUMN regression_report_id TEXT"
                 )
+            if "generalization_required" not in columns:
+                conn.execute(
+                    "ALTER TABLE learning_evidence ADD COLUMN generalization_required INTEGER NOT NULL DEFAULT 0"
+                )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_learning_evidence_decision ON learning_evidence(decision)"
             )
@@ -78,6 +83,7 @@ class LearningEvidenceBridge:
         capability: str,
         subject_id: str,
         require_regression: bool = False,
+        require_generalization: bool = False,
     ) -> dict[str, Any]:
         clean_hypothesis = hypothesis.strip()
         clean_capability = capability.strip()
@@ -93,13 +99,14 @@ class LearningEvidenceBridge:
             conn.execute(
                 """INSERT INTO learning_evidence
                 (candidate_id, hypothesis, capability, subject_id, decision,
-                 regression_required, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)
+                 regression_required, generalization_required, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)
                 ON CONFLICT(candidate_id) DO UPDATE SET
                     hypothesis=excluded.hypothesis,
                     capability=excluded.capability,
                     subject_id=excluded.subject_id,
                     regression_required=excluded.regression_required,
+                    generalization_required=excluded.generalization_required,
                     updated_at=excluded.updated_at""",
                 (
                     candidate_id,
@@ -107,6 +114,7 @@ class LearningEvidenceBridge:
                     clean_capability,
                     clean_subject,
                     1 if require_regression else 0,
+                    1 if require_generalization else 0,
                     now,
                     now,
                 ),
@@ -236,6 +244,8 @@ class LearningEvidenceBridge:
             "candidate_evaluation"
         ):
             raise ValueError("La evidencia antes/después está incompleta")
+        if evidence.get("generalization_required"):
+            self._require_generalization(evidence)
         if evidence.get("regression_required"):
             report_id = evidence.get("regression_report_id")
             if not report_id:
@@ -261,6 +271,41 @@ class LearningEvidenceBridge:
             }
         return evidence
 
+    @staticmethod
+    def _require_generalization(evidence: dict[str, Any]) -> None:
+        baseline = (
+            evidence["baseline_evaluation"].get("metadata", {}).get("split_scores", {})
+        )
+        candidate = (
+            evidence["candidate_evaluation"].get("metadata", {}).get("split_scores", {})
+        )
+        required = ("validation", "held_out", "regression")
+        missing = [
+            split
+            for split in required
+            if split not in baseline or split not in candidate
+        ]
+        if missing:
+            raise ValueError(
+                f"Evidencia de generalización incompleta: faltan splits {missing}"
+            )
+        regressed = [
+            split
+            for split in required
+            if float(candidate[split]) < float(baseline[split])
+        ]
+        if regressed:
+            raise ValueError(
+                f"Generalización bloqueada por regresión en splits {regressed}"
+            )
+        if not any(
+            float(candidate[split]) > float(baseline[split])
+            for split in ("validation", "held_out")
+        ):
+            raise ValueError(
+                "Generalización no demostrada: la mejora está limitada a train"
+            )
+
     def get(self, candidate_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
@@ -271,6 +316,7 @@ class LearningEvidenceBridge:
             return None
         result = dict(row)
         result["regression_required"] = bool(result.get("regression_required"))
+        result["generalization_required"] = bool(result.get("generalization_required"))
         for source, target, default in (
             ("baseline_evaluation_json", "baseline_evaluation", None),
             ("candidate_evaluation_json", "candidate_evaluation", None),

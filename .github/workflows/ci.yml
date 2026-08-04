@@ -27,8 +27,8 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install ruff mypy pytest-cov pip-audit detect-secrets types-setuptools
+          pip install -e '.[dev]'
+          pip install ruff mypy pip-audit detect-secrets types-setuptools
       - name: Compile all Python
         run: python -m compileall -q triade apps scripts tests
       - name: Ruff check

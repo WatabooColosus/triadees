@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install project
-        run: pip install -e .
+        run: pip install -e '.[dev]'
       - name: Run graph tests
         run: pytest -q tests/test_internal_graphs.py tests/test_internal_graphs_live.py
       - name: Build the seven internal graphs

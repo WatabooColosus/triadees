@@ -32,9 +32,7 @@ def test_enforce_detecta_un_exceso_real(tmp_path: Path) -> None:
     policy = SandboxPolicy(tmp_path / "triade.db")
     limits = SandboxLimits(cpu_seconds=1, timeout_seconds=2)
 
-    veredicto = policy.enforce(
-        limits, {"duration_seconds": 9.0, "cpu_seconds": 5.0}
-    )
+    veredicto = policy.enforce(limits, {"duration_seconds": 9.0, "cpu_seconds": 5.0})
 
     assert veredicto["status"] == "violations_detected"
     assert len(veredicto["violations"]) == 2
@@ -91,7 +89,12 @@ def test_ninguna_tarea_de_la_whitelist_puede_tocar_red_ni_shell() -> None:
     fuente = (
         Path(__file__).resolve().parents[1] / "triade" / "sandbox" / "executor.py"
     ).read_text(encoding="utf-8")
-    for prohibido in ("import socket", "import requests", "import urllib", "import subprocess"):
+    for prohibido in (
+        "import socket",
+        "import requests",
+        "import urllib",
+        "import subprocess",
+    ):
         assert prohibido not in fuente, (
             f"{prohibido} en el ejecutor: `network_used: False` dejaría de ser cierto"
         )

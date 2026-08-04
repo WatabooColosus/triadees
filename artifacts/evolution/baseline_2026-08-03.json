@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0.0",
+  "captured_at": "2026-08-03T23:55:45Z",
+  "sha": "09b0248038cd4a2689355610cf823683a8a869e2",
+  "branch": "phase/01-learning-end-to-end",
+  "python": "3.12.11",
+  "os": "Linux 6.8.0-1064-gcp x86_64 Ubuntu",
+  "dependencies": {
+    "pip_freeze_count": 222,
+    "pip_freeze_sha256": "86a2688f9421777afd8365f8df5e89371b766bb86eb505ac411345d18e1499d8"
+  },
+  "gates": {
+    "compileall": {"status": "pass", "duration_seconds": 1.42, "cpu_percent": 25, "reported_max_rss_kb": 13},
+    "ruff_check": {"status": "fail", "issue_count": 659, "duration_seconds": 0.23, "cpu_percent": 324, "reported_max_rss_kb": 30},
+    "ruff_format": {"status": "fail", "unformatted_files": 6, "duration_seconds": 0.05, "cpu_percent": 175, "reported_max_rss_kb": 18},
+    "mypy": {"status": "fail", "error_count": 26, "file_count": 4, "duration_seconds": 8.17, "cpu_percent": 95, "reported_max_rss_kb": 458},
+    "pytest": {"status": "blocked_without_terminal_result", "collected": 2106, "failures": null, "errors": null, "skipped": null, "duration_seconds": 380.70, "exit_code": 130, "interruption": "manual_after_no_progress_beyond_3_percent", "observed_rss_bytes": 208896000}
+  },
+  "sqlite": {
+    "productive_path": "triade/memory/triade.db",
+    "productive_size_bytes": 188665856,
+    "all_discovered_sqlite_bytes": 3862663168
+  },
+  "host_memory": {"total_bytes": 33651986432, "available_bytes": 26055503872},
+  "ollama": {
+    "status": "running",
+    "models_loaded": ["qwen2.5:3b-instruct", "nomic-embed-text:latest"],
+    "processor": "100% GPU"
+  },
+  "gpu": {"name": "NVIDIA L4", "sample_utilization_percent": 0, "memory_used_mib": 3346, "memory_total_mib": 23034},
+  "runtime": {
+    "process": "uvicorn apps.single_port_app:app",
+    "status": "process_alive_heartbeat_unresponsive",
+    "observed_cpu_percent": 175,
+    "observed_rss_bytes": 1351598080,
+    "heartbeat_timeout_seconds": 30.001,
+    "heartbeat_http_code": 0
+  },
+  "known_debt": {
+    "incomplete_subsystem": 72,
+    "legacy_expected": 18,
+    "detector_false_positive": 5,
+    "confirmed_break": 0,
+    "longitudinal_memories": "inactive"
+  }
+}

@@ -157,7 +157,9 @@ def _fresh_db(tmp_path: Path) -> Path:
 
     db_path = tmp_path / "triade.db"
     with sqlite3.connect(db_path) as conn:
-        conn.executescript(Path("triade/memory/schemas.sql").read_text(encoding="utf-8"))
+        conn.executescript(
+            Path("triade/memory/schemas.sql").read_text(encoding="utf-8")
+        )
     return db_path
 
 
@@ -184,6 +186,6 @@ def test_sin_ninguna_clave_la_falta_queda_registrada(
     assert "encrypted_backup" not in _planned_types(db_path)
 
     errores = query_internal_errors(db_path=db_path, limit=20) or []
-    assert any(
-        "backup_key_missing" in str(e.get("task_type", "")) for e in errores
-    ), errores
+    assert any("backup_key_missing" in str(e.get("task_type", "")) for e in errores), (
+        errores
+    )
