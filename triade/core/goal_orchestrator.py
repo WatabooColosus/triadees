@@ -417,6 +417,11 @@ class GoalOrchestrator:
         tasks = []
         for row in rows:
             item = dict(row)
+            if (
+                item.get("status") == "completed"
+                and item.get("error") == "artifact_publication_pending"
+            ):
+                item["transition_note"] = item.pop("error")
             try:
                 result_ref = str(item.pop("result_json") or "")
                 item["result"] = (

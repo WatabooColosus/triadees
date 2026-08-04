@@ -347,6 +347,31 @@ def approve_goal_install(
     return GoalOrchestrator().approve_install(goal_id, package, approved_by=approved_by)
 
 
+@router.post("/api/goals/{goal_id}/cancel")
+def cancel_goal(
+    goal_id: str,
+    reason: str,
+    cancelled_by: str,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    require_key(x_triade_api_key)
+    from triade.core.goal_orchestrator import GoalOrchestrator
+
+    return GoalOrchestrator().cancel(goal_id, reason=reason, cancelled_by=cancelled_by)
+
+
+@router.post("/api/goals/{goal_id}/expire")
+def expire_goal(
+    goal_id: str,
+    reason: str,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    require_key(x_triade_api_key)
+    from triade.core.goal_orchestrator import GoalOrchestrator
+
+    return GoalOrchestrator().expire(goal_id, reason=reason)
+
+
 @router.get("/neurons/activity")
 def neurons_activity(limit: int = 100, name: str | None = None) -> dict[str, Any]:
     LIFE_PULSE.record_action("neurons_activity")

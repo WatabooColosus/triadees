@@ -98,6 +98,7 @@ def test_valid_diagnostic_order_is_executed_by_real_worker(tmp_path: Path) -> No
     status = orchestrator.status(accepted["goal_id"])
     assert result["status"] == "completed", result.get("errors")
     assert status["tasks"][0]["status"] == "completed"
+    assert status["tasks"][0].get("error") is None
     assert status["goal"]["status"] == "completed"
     assert status["learning_observations"][0]["disposition"] == "no_learning_signal"
 
