@@ -21,6 +21,7 @@ from .contracts import WORKER_TASK_TYPES
 @dataclass(frozen=True, slots=True)
 class RetryPolicy:
     max_attempts: int
+    max_dispatch_deferrals: int
     backoff: str
     base_delay_seconds: int
     dead_letter_on_exhaustion: bool = True
@@ -85,6 +86,7 @@ def _contract(task_type: str) -> WorkerTaskContract:
         timeout=30.0,
         retry_policy=RetryPolicy(
             max_attempts=3,
+            max_dispatch_deferrals=20,
             backoff="exponential",
             base_delay_seconds=30,
         ),
