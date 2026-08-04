@@ -16,6 +16,8 @@ import pytest
 from triade.core.capability_resolver import CapabilityResolver
 from triade.core.goal_orchestrator import GoalOrchestrator
 from triade.core.planning_graph import GOAL_TERMINAL_STATES, PlanningGraph
+from triade.workers.contracts import WorkerRunConfig
+from triade.workers.worker_loop import WorkerLoop
 
 
 def _orchestrator(tmp_path: Path, name: str = "triade.db") -> GoalOrchestrator:
@@ -57,6 +59,47 @@ def test_valid_order_runs_resolver_goal_plan_task_result_close_and_learning_audi
         "queued",
         "completed",
     }
+
+
+def test_valid_diagnostic_order_is_executed_by_real_worker(tmp_path: Path) -> None:
+    db_path = tmp_path / "worker.db"
+    orchestrator = GoalOrchestrator(db_path)
+    accepted = orchestrator.accept(
+        "Diagnostica el repositorio", run_id="run-real-worker"
+    )
+    # Aísla este circuito de las tareas periódicas que el scheduler añade al
+    # mismo ciclo. La tarea sigue pasando por cola, lease, handler y artefactos.
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE autonomous_tasks SET priority=0 WHERE task_id=?",
+            (accepted["task_id"],),
+        )
+    loop = WorkerLoop(
+        db_path=db_path,
+        runs_dir=tmp_path / "runs",
+        lock_file=tmp_path / "worker.lock",
+        stop_file=tmp_path / "worker.stop",
+    )
+
+    result = loop.run(
+        WorkerRunConfig(
+            max_iterations=1,
+            sleep_seconds=0,
+            once=True,
+            runs_dir=str(tmp_path / "runs"),
+            lock_file=str(tmp_path / "worker.lock"),
+            stop_file=str(tmp_path / "worker.stop"),
+            concurrency_enabled=False,
+            max_tasks_per_drain=1,
+            task_timeout=60,
+        )
+    )
+
+    status = orchestrator.status(accepted["goal_id"])
+    assert result["status"] == "completed", result.get("errors")
+    assert status["tasks"][0]["status"] == "completed"
+    assert status["goal"]["status"] == "completed"
+    assert status["learning_observations"][0]["disposition"] == "no_learning_signal"
 
 
 @pytest.mark.parametrize(
