@@ -48,7 +48,7 @@ def test_deep_includes_runtime_heartbeat(tmp_path, monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.setattr(
-        health, "build_runtime_heartbeat", lambda: {"status": "ok", "pulse": 1}
+        health, "build_deep_runtime_health", lambda: {"status": "ok", "pulse": 1}
     )
 
     response = _client().get("/health/deep")
