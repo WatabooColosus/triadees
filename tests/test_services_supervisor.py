@@ -69,7 +69,7 @@ def test_supervisor_maps_governed_work_modes_to_runtime_levels(tmp_path):
 
     assert supervisor._normalize_mode("light_background") == "learn_candidates"
     assert supervisor._normalize_mode("balanced_background") == "execute_missions"
-    assert supervisor._normalize_mode("full_local_guarded") == "full_local"
+    assert supervisor._normalize_mode("full_local_guarded") == "full_local_guarded"
 
 
 def test_mission_service_plans_active_missions(tmp_path):
