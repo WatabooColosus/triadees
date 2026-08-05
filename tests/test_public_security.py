@@ -68,6 +68,9 @@ def login(client: TestClient, username: str, password: str) -> str:
 def test_401_403_429_200_and_headers(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    monkeypatch.setattr(
+        "apps.routes.api.build_system_pulse", lambda **_kwargs: {"status": "ok"}
+    )
     client, auth = setup(monkeypatch, tmp_path, rate=2)
     auth.create_user("viewer", "long-viewer-password", "viewer", "tenant-a")
     token = login(client, "viewer", "long-viewer-password")
@@ -98,6 +101,22 @@ def test_401_403_429_200_and_headers(
         ).status_code
         == 429
     )
+
+
+def test_system_pulse_does_not_sync_external_relay_by_default(monkeypatch) -> None:
+    import apps.routes.api as api_routes
+
+    seen: list[bool] = []
+    monkeypatch.setattr(
+        api_routes,
+        "build_system_pulse",
+        lambda *, sync_relay, intent, urgency: (
+            seen.append(sync_relay) or {"status": "ok"}
+        ),
+    )
+
+    assert api_routes.system_pulse_route()["status"] == "ok"
+    assert seen == [False]
 
 
 def test_session_revocation_tenant_and_lockout(tmp_path: Path) -> None:

@@ -570,7 +570,7 @@ def system_model_capacity(sync_relay: bool = False) -> dict[str, Any]:
 
 @router.get("/api/system/pulse")
 def system_pulse_route(
-    sync_relay: bool = True,
+    sync_relay: bool = False,
     intent: str = "conversation",
     urgency: str = "medium",
 ) -> dict[str, Any]:

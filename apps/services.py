@@ -1122,7 +1122,7 @@ def _stable_readiness_pulse() -> dict[str, Any]:
 
 
 def build_system_pulse(
-    sync_relay: bool = True,
+    sync_relay: bool = False,
     intent: str = "conversation",
     urgency: str = "medium",
 ) -> dict[str, Any]:
