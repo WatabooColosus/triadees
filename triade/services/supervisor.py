@@ -28,12 +28,17 @@ from triade.workers.state_store import WorkerStateStore
 
 from .event_bus import build_context_from_events, list_recent_events, publish_event
 
-AUTONOMY_LEVELS = ("observe_only", "learn_candidates", "execute_missions", "full_local")
+AUTONOMY_LEVELS = (
+    "observe_only",
+    "learn_candidates",
+    "execute_missions",
+    "full_local",
+    "full_local_guarded",
+)
 AUTONOMY_RANK = {name: index for index, name in enumerate(AUTONOMY_LEVELS)}
 WORK_MODE_ALIASES = {
     "light_background": "learn_candidates",
     "balanced_background": "execute_missions",
-    "full_local_guarded": "full_local",
     "promote_stable": "full_local",
     "promote_experimental": "full_local",
     "train_candidates": "execute_missions",
