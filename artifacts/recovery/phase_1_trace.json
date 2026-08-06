@@ -1,0 +1,44 @@
+{
+  "phase": 1,
+  "status": "conversation_minimum_passed",
+  "request_id": "phase1-final-20260806",
+  "base_url": "http://127.0.0.1:8011",
+  "frontend": {
+    "http_status": 200,
+    "bundle": "/assets/index-BdW153TF.js",
+    "bundle_declares_endpoint": "/api/run"
+  },
+  "api": {
+    "endpoint": "POST /api/run",
+    "http_status": 200,
+    "elapsed_seconds": 25.698,
+    "input": "Responde únicamente: TRIADA_VIVA",
+    "response": "TRIADA_VIVA"
+  },
+  "runtime": {
+    "run_id": "run-20260806-014033-37335fa7",
+    "status": "ok",
+    "central": {
+      "provider": "ollama",
+      "model_id": "qwen2.5:3b-instruct",
+      "ok": true,
+      "quality_score": 0.7,
+      "event_id": 3603
+    },
+    "external_providers_used": [],
+    "local_provider_only": true
+  },
+  "bodega": {
+    "db_path": "triade/memory/triade.db",
+    "episode_id": 291,
+    "hypothalamic_signal_id": 292,
+    "crystal_id": 291
+  },
+  "run_path": "runs/run-20260806-014033-37335fa7",
+  "scope": {
+    "workers_autostart": false,
+    "continuous_runner_enabled": false,
+    "metabolism_enabled": false,
+    "semantic_recall_enabled": false
+  }
+}

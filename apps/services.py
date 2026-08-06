@@ -74,10 +74,9 @@ class RunRequest(BaseModel):
     auto_select_models: bool = True
     context: dict[str, Any] = Field(default_factory=dict)
     conversation_history: list[dict[str, str]] = Field(default_factory=list)
-    # El chat usa por defecto el ciclo semántico general: recuperar por
-    # similitud, aplicar gobernanza y permitir influencia solo a recuerdos
-    # verificados. No contiene reglas especiales por pregunta o dato.
-    semantic_recall_enabled: bool = True
+    # Fase 1: la conversación mínima no depende de recuperación semántica.
+    # Bodega/recall se habilitarán explícitamente en la fase de persistencia.
+    semantic_recall_enabled: bool = False
     semantic_model: str | None = None
     semantic_limit: int = Field(default=3, ge=1, le=20)
     semantic_min_similarity: float = Field(default=0.55, ge=-1.0, le=1.0)
