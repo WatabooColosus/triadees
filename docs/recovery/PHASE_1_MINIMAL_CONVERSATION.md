@@ -28,8 +28,9 @@ No se usó Claude, Codex, OpenAI, Gemini, Anthropic ni ningún proveedor remoto.
 
 ## Cambios
 
-- El arranque de `triade.yml` queda en modo conversacional durante esta fase:
-  `always_on`, workers, runner continuo y metabolismo no se autoinician.
+- `triade.yml` activa `runtime.conversation_only`: durante esta fase no se
+  autoinician workers, runner continuo ni metabolismo, aunque los defaults
+  generales Always-On permanecen compatibles.
 - La ruta de chat desactiva por defecto la recuperación semántica; se reactivará
   explícitamente en la fase de persistencia.
 - La SPA declara `semantic_recall_enabled: false` para no depender de Bodega

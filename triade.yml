@@ -8,9 +8,10 @@ models:
     central: qwen2.5:3b-instruct
 
 runtime:
-  # Fase 1: la ruta conversacional debe tener prioridad exclusiva. Los ciclos
-  # autónomos se reactivarán después de demostrar el circuito chat completo.
-  always_on: false
+  # Fase 1: el modo conversacional evita el autostart sin cambiar los defaults
+  # generales que otros contratos y despliegues esperan.
+  conversation_only: true
+  always_on: true
   mode: full_local_guarded
   interval_seconds: 60
   start_delay_seconds: 3
@@ -19,12 +20,12 @@ runtime:
   safe_only: true
   self_test_on_start: true
   self_test_every_cycles: 5
-  workers_always_on: false
-  workers_autostart: false
-  workers_watchdog: false
+  workers_always_on: true
+  workers_autostart: true
+  workers_watchdog: true
   worker_mode: full_local_guarded
   # Creadora -> Formadora -> Educadora -> evidencia -> promoción gobernada.
-  continuous_runner_enabled: false
+  continuous_runner_enabled: true
   continuous_runner_autonomy_level: promote_stable
   continuous_runner_interval_seconds: 60
   continuous_runner_max_cycles: 0
@@ -104,8 +105,7 @@ runtime_budget:
   model_installs_daily: 1
 
 metabolism:
-  # Fase 1: no ejecutar metabolismo durante la recuperación conversacional.
-  enabled: false
+  enabled: true
   dry_run: false
   mode: full
   interval_seconds: 15

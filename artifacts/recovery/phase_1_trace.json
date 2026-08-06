@@ -36,6 +36,7 @@
   },
   "run_path": "runs/run-20260806-014033-37335fa7",
   "scope": {
+    "conversation_only": true,
     "workers_autostart": false,
     "continuous_runner_enabled": false,
     "metabolism_enabled": false,

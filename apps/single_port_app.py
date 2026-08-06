@@ -70,6 +70,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         return
     NODE_LIVE_REGISTRY.start()
 
+    # Fase 1: conservar los defaults Always-On para despliegues generales,
+    # pero permitir un modo explícito de recuperación conversacional que no
+    # arranque workers, runner continuo ni metabolismo antes del chat.
+    from triade.core.always_on import load_always_on_config
+
+    conversation_only = bool(load_always_on_config().get("conversation_only", False))
+    if conversation_only:
+        with _ALWAYS_ON_LOCK:
+            _ALWAYS_ON_RESULT = {
+                "status": "conversation_only",
+                "background_started": False,
+                "conversation_only": True,
+            }
+        try:
+            yield
+        finally:
+            NODE_LIVE_REGISTRY.stop()
+            LIFE_PULSE.stop()
+        return
+
     # Clean up expired coordination locks from prior runs.
     try:
         from triade.core.orchestrator_coord import OrchestratorCoordinator
