@@ -48,6 +48,7 @@ tests/test_capability_registry_export_observability.py
 tests/test_capability_registry_history_cycles.py
 tests/test_capability_registry_unified_observability.py
 tests/test_capability_resolver_text_artifact.py
+tests/test_chat_end_to_end_real.py
 tests/test_cli_output.py
 tests/test_cloud_health.py
 tests/test_cognitive_integrator_e2e.py
