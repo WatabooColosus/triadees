@@ -249,7 +249,6 @@ function ChatTab({ apiKey }: { apiKey: string }) {
       text: userMsg, source: 'react-ui', use_ollama: useOllama,
       hypothalamus_model: hypModel || null, central_model: cenModel || null,
       auto_select_models: !hypModel && !cenModel,
-      semantic_recall_enabled: false,
       conversation_history: history,
     }
     try {
