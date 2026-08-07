@@ -705,6 +705,21 @@ def build_vital_chain_graph(
     `VERIFIED` exige código **y** filas recientes. Código sin filas es
     `DISCONNECTED_PULSE`; filas sin código que las escriba hoy es
     `STALE_EVIDENCE`. Sin base viva todo eslabón queda en `NEEDS_EVIDENCE`.
+
+    Eso vale para los **nodos**. Las **aristas** no se verifican igual y por eso
+    lo dicen: el orden de la cadena sale de `VITAL_CHAIN`, una constante de este
+    repositorio, y nada comprueba fila a fila que una etapa alimente a la
+    siguiente. Se marca `handoff_verified` sólo cuando ambos extremos tienen
+    actividad reciente, que sigue sin demostrar el traspaso —demuestra que los
+    dos extremos están vivos—, y se distingue en la propia evidencia.
+
+    La arista citaba antes «cadena vital declarada en CLAUDE.md». Era la fuente
+    equivocada por dos motivos: `CLAUDE.md` son las instrucciones del supervisor
+    externo, que no es parte de Tríade y no puede ser autoridad dentro de su
+    grafo; y el propio documento pone la documentación como última prioridad de
+    evidencia, válida sólo cuando coincide con el código y los datos. Una arista
+    dibujada siempre, con o sin datos, es justo el «pinta verde por existir» que
+    este grafo debería detectar.
     """
     root = root.resolve()
     index = index or build_module_index(root)
@@ -722,19 +737,20 @@ def build_vital_chain_graph(
 
     nodes: list[GraphNode] = []
     edges: list[GraphEdge] = []
-    previous: str | None = None
+    previous: tuple[str, NodeState] | None = None
     for stage, anchors, tables in VITAL_CHAIN:
         node_id = f"stage:{stage}"
         hits = symbol_hits.get(stage, [])
         present = [t for t in tables if t in live]
         rows = sum(live.get(t, 0) for t in present)
         fresh = any(recent.get(t) for t in present)
+        state = _stage_state(bool(hits), bool(live), rows, fresh)
         nodes.append(
             GraphNode(
                 node_id,
                 "function",
                 stage,
-                _stage_state(bool(hits), bool(live), rows, fresh),
+                state,
                 {
                     "anchors": list(anchors),
                     "code_evidence": hits[:5],
@@ -747,15 +763,28 @@ def build_vital_chain_graph(
             )
         )
         if previous is not None:
+            prev_stage, prev_state = previous
+            ambos_vivos = prev_state == "active" and state == "active"
             edges.append(
                 GraphEdge(
-                    f"stage:{previous}",
+                    f"stage:{prev_stage}",
                     node_id,
                     "feeds",
-                    "cadena vital declarada en CLAUDE.md, verificada por etapa",
+                    (
+                        "orden en VITAL_CHAIN; ambos eslabones con actividad "
+                        "reciente (el traspaso no se sigue fila a fila)"
+                        if ambos_vivos
+                        else "orden en VITAL_CHAIN; traspaso NO verificado por datos"
+                    ),
+                    {
+                        "order_source": "VITAL_CHAIN",
+                        "handoff_verified": ambos_vivos,
+                        "source_state": prev_state,
+                        "target_state": state,
+                    },
                 )
             )
-        previous = stage
+        previous = (stage, state)
     return nodes, edges
 
 
