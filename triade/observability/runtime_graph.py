@@ -729,11 +729,12 @@ def build_vital_chain_graph(
     actividad reciente, que sigue sin demostrar el traspaso —demuestra que los
     dos extremos están vivos—, y se distingue en la propia evidencia.
 
-    La arista citaba antes «cadena vital declarada en CLAUDE.md». Era la fuente
-    equivocada por dos motivos: `CLAUDE.md` son las instrucciones del supervisor
-    externo, que no es parte de Tríade y no puede ser autoridad dentro de su
-    grafo; y el propio documento pone la documentación como última prioridad de
-    evidencia, válida sólo cuando coincide con el código y los datos. Una arista
+    La arista citaba antes como evidencia un documento de instrucciones de una
+    herramienta externa de desarrollo. Era la fuente equivocada: una herramienta
+    externa no es parte de Tríade y no puede ser autoridad dentro de su grafo, y
+    la documentación es la última prioridad de evidencia —válida sólo cuando
+    coincide con el código y los datos—. Ese documento ya no existe en el
+    repositorio; la cadena la declara `VITAL_CHAIN` y nada más. Una arista
     dibujada siempre, con o sin datos, es justo el «pinta verde por existir» que
     este grafo debería detectar.
     """
