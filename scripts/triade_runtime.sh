@@ -61,11 +61,32 @@ up() {
     sleep 3
     if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${URL}/health/live")" = "200" ]; then
       echo "app: arriba en ${URL}"
+      wait_for_workers
       status
       return
     fi
   done
   echo "app: NO respondió a tiempo; revisa ${LOG}" >&2; exit 1
+}
+
+# `/health/live` responde antes de que el organismo esté completo: el bucle de
+# workers tarda otro minuto largo en darse por vivo. Dar el arranque por hecho
+# ahí hacía fallar la certificación en falso —`workers_active: false` a los
+# pocos segundos, `true` un minuto después— y esa carrera es del arranque, no
+# de Tríade. `up` no vuelve hasta que el runtime es el que dice ser.
+wait_for_workers() {
+  echo -n "workers: esperando"
+  for _ in $(seq 1 40); do
+    if curl -s --max-time 20 "${URL}/api/runtime/heartbeat" 2>/dev/null \
+      | python -c 'import sys,json;sys.exit(0 if json.load(sys.stdin).get("workers_active") else 1)' 2>/dev/null; then
+      echo " activos"
+      return 0
+    fi
+    echo -n "."
+    sleep 5
+  done
+  echo " NO se activaron; el runtime está incompleto" >&2
+  return 1
 }
 
 down() {
