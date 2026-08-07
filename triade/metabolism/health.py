@@ -128,7 +128,22 @@ class HealthSensors:
                       AND lease_expires_at<=?""",
                     (datetime.now(UTC).isoformat(),),
                 ).fetchone()[0]
-                return {"ok": stale == 0, "stale_leases": int(stale)}
+                # Tarea activa que ya nadie puede tomar: `recovered` cuenta como
+                # activa, pero `claim_next_task` exige `attempt < max_attempts`.
+                # No tiene lease, así que el recuento de arriba no la ve nunca —y
+                # mientras siga activa bloquea `enqueue()` por dedup de
+                # `(task_type, payload_hash)`—. Así se pararon los backups: un
+                # `encrypted_backup` agotado el 2026-08-03 secuestró su tipo 4,5
+                # días con el runtime declarándose sano.
+                blocked = conn.execute(
+                    """SELECT COUNT(*) FROM autonomous_tasks
+                    WHERE status='recovered' AND attempt>=max_attempts"""
+                ).fetchone()[0]
+                return {
+                    "ok": stale == 0 and blocked == 0,
+                    "stale_leases": int(stale),
+                    "blocked_tasks": int(blocked),
+                }
         except (sqlite3.Error, OSError) as exc:
             return {"ok": False, "error": type(exc).__name__}
 

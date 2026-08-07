@@ -144,3 +144,62 @@ class TestStaleLeaseProducesSupervisionNeed:
         needs = NeedsQueue(db).detect(sensors, cycle_id=1)
 
         assert "lease_supervision" not in [need.kind for need in needs]
+
+
+def _store_with_blocked_task(db_path: Path) -> str:
+    """Tarea `recovered` con los intentos agotados: activa pero inalcanzable."""
+    store = AutonomousTaskStore(db_path)
+    task = store.enqueue("encrypted_backup", {}, idempotency_key="bloqueo-probe")
+    task_id = str(task["task_id"])
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """UPDATE autonomous_tasks
+            SET status='recovered', attempt=3, max_attempts=3,
+                lease_expires_at=NULL, last_error='expired_lease_recovered'
+            WHERE task_id=?""",
+            (task_id,),
+        )
+        conn.commit()
+    return task_id
+
+
+class TestBlockedTaskIsVisibleToTheSensor:
+    """La patología que costó 4,5 días sin backup no la veía nadie.
+
+    `recovered` cuenta como activa, así que bloquea `enqueue()` por dedup; pero
+    `claim_next_task` exige `attempt < max_attempts`, así que ya no la toma
+    nadie. Sin lease, el recuento de vencidos no la ve, el sensor daba `ok` y la
+    supervisión que la habría soltado no llegaba a nacer.
+    """
+
+    def test_blocked_task_is_not_ok(self, tmp_path: Path) -> None:
+        db = tmp_path / "triade.db"
+        _store_with_blocked_task(db)
+
+        leases = HealthSensors(db).inspect()["leases"]
+
+        assert leases["ok"] is False, (
+            "una tarea activa que ya nadie puede tomar se reportó como sana"
+        )
+        assert leases["blocked_tasks"] == 1
+        assert leases["stale_leases"] == 0, "no tiene lease: no es un lease vencido"
+
+    def test_blocked_task_creates_lease_supervision_need(self, tmp_path: Path) -> None:
+        db = tmp_path / "triade.db"
+        _store_with_blocked_task(db)
+        sensors = HealthSensors(db).inspect()
+
+        needs = NeedsQueue(db).detect(sensors, cycle_id=1)
+
+        assert "lease_supervision" in [need.kind for need in needs]
+
+    def test_supervision_unblocks_the_task_type(self, tmp_path: Path) -> None:
+        """De la necesidad al efecto: el tipo vuelve a poder encolarse."""
+        db = tmp_path / "triade.db"
+        bloqueada = _store_with_blocked_task(db)
+        store = AutonomousTaskStore(db)
+
+        store.recover_expired()
+
+        assert store.get(bloqueada)["status"] == "dead_letter"
+        assert HealthSensors(db).inspect()["leases"]["ok"] is True

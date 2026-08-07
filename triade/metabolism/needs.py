@@ -120,11 +120,12 @@ class NeedsQueue:
         leases = sensors.get("leases", {})
         if not leases.get("ok", True):
             stale = leases.get("stale_leases", 0)
+            blocked = leases.get("blocked_tasks", 0)
             needs.append(
                 self._create_need(
                     "lease_supervision",
-                    {"stale_leases": stale},
-                    priority=min(70 + stale * 5, 95),
+                    {"stale_leases": stale, "blocked_tasks": blocked},
+                    priority=min(70 + (stale + blocked) * 5, 95),
                 )
             )
 

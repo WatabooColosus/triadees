@@ -646,24 +646,74 @@ class AutonomousTaskStore:
         return changed == 1
 
     def recover_expired(self) -> list[str]:
+        """Devuelve a la cola las tareas cuyo lease venció.
+
+        `recovered` es un estado **activo**: la tarea vuelve a estar en juego.
+        Pero `claim_next_task` exige `attempt < max_attempts`, así que una tarea
+        que agotó los intentos y aterriza aquí ya no la puede tomar nadie —y, al
+        seguir contando como activa, bloquea `enqueue()` por dedup de
+        `(task_type, payload_hash)` para siempre—.
+
+        Eso paró los backups: el 2026-08-03 un `encrypted_backup` acabó en
+        `recovered` con 3/3 intentos. Su payload es estable, así que cada ciclo
+        del planificador volvía a proponerlo, el dedup encontraba el atascado y
+        devolvía ese en lugar de encolar uno nuevo. Cuatro días y medio sin una
+        sola copia, sin que nada fallara a la vista. A `pulse_check` le pasó lo
+        mismo por la misma razón: payload estable.
+
+        Con los intentos agotados el destino correcto es `dead_letter`, que es
+        terminal y sí se ve. Recuperar sin mirar los intentos convertía un fallo
+        en un bloqueo silencioso.
+        """
         now = _iso()
         with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
+            # Barrido de las que ya quedaron atascadas antes de esta regla. Son
+            # inalcanzables por definición —`claim_next_task` las descarta—, así
+            # que darlas por terminadas no pierde trabajo: lo que hace es soltar
+            # el dedup que tenía secuestrado a su `task_type`. Sin esto, las 8
+            # tareas del 2026-08-03 seguirían bloqueando `encrypted_backup` y
+            # `pulse_check` para siempre.
+            conn.execute(
+                """UPDATE autonomous_tasks SET status='dead_letter',
+                last_error='expired_lease_attempts_exhausted',updated_at=?
+                WHERE status='recovered' AND attempt>=max_attempts""",
+                (now,),
+            )
             rows = conn.execute(
-                "SELECT task_id FROM autonomous_tasks WHERE status IN ('leased','running') AND lease_expires_at<=?",
+                """SELECT task_id, attempt, max_attempts FROM autonomous_tasks
+                WHERE status IN ('leased','running') AND lease_expires_at<=?""",
                 (now,),
             ).fetchall()
-            ids = [str(row["task_id"]) for row in rows]
-            if ids:
-                placeholders = ",".join("?" for _ in ids)
+            reclaimable = [
+                str(row["task_id"])
+                for row in rows
+                if int(row["attempt"] or 0) < int(row["max_attempts"] or 0)
+            ]
+            exhausted = [
+                str(row["task_id"])
+                for row in rows
+                if int(row["attempt"] or 0) >= int(row["max_attempts"] or 0)
+            ]
+            if reclaimable:
+                placeholders = ",".join("?" for _ in reclaimable)
                 conn.execute(
                     f"""UPDATE autonomous_tasks SET status='recovered',worker_id=NULL,lease_acquired_at=NULL,
                     lease_expires_at=NULL,heartbeat_at=NULL,last_error='expired_lease_recovered',updated_at=?
                     WHERE task_id IN ({placeholders})""",
-                    (now, *ids),
+                    (now, *reclaimable),
+                )
+            if exhausted:
+                placeholders = ",".join("?" for _ in exhausted)
+                conn.execute(
+                    f"""UPDATE autonomous_tasks SET status='dead_letter',worker_id=NULL,lease_acquired_at=NULL,
+                    lease_expires_at=NULL,heartbeat_at=NULL,
+                    last_error='expired_lease_attempts_exhausted',updated_at=?
+                    WHERE task_id IN ({placeholders})""",
+                    (now, *exhausted),
                 )
             conn.commit()
-        return ids
+        return [str(row["task_id"]) for row in rows]
 
     def recover_orphaned_tasks(
         self,
@@ -737,7 +787,7 @@ class AutonomousTaskStore:
             # ── 3. leased ──────────────────────────────────────────
             for row in conn.execute(
                 """SELECT task_id,worker_id,lease_generation,lease_expires_at,attempt,
-                         last_error,heartbeat_at
+                         max_attempts,last_error,heartbeat_at
                  FROM autonomous_tasks WHERE status='leased'"""
             ).fetchall():
                 tid = str(row["task_id"])
@@ -750,15 +800,26 @@ class AutonomousTaskStore:
                     conn.commit()
                     return {"status": "live_lease", **result}
 
+                # Mismo motivo que en `recover_expired`: sin intentos, `recovered`
+                # es una vía muerta que además bloquea el dedup de su tipo.
+                agotada = int(row["attempt"] or 0) >= int(row["max_attempts"] or 0)
+                destino = "dead_letter" if agotada else "recovered"
                 conn.execute(
-                    """UPDATE autonomous_tasks SET status='recovered',
+                    f"""UPDATE autonomous_tasks SET status='{destino}',
                     worker_id=NULL,lease_acquired_at=NULL,lease_expires_at=NULL,
                     heartbeat_at=NULL,updated_at=?
                     WHERE task_id=? AND status='leased'""",
                     (now_iso, tid),
                 )
                 _record(
-                    tid, wid, lgen, "leased", "recovered", "orphaned_lease_recovered"
+                    tid,
+                    wid,
+                    lgen,
+                    "leased",
+                    destino,
+                    "orphaned_lease_attempts_exhausted"
+                    if agotada
+                    else "orphaned_lease_recovered",
                 )
                 result["leased_recovered"] += 1
                 result["fencing_invalidated"] += 1

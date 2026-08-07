@@ -54,6 +54,56 @@ def test_expired_lease_is_recovered_and_reclaimed(tmp_path):
     assert reclaimed["attempt"] == 2
 
 
+def test_expired_lease_without_attempts_goes_to_dead_letter(tmp_path):
+    """Sin intentos, `recovered` es una vía muerta que además bloquea su tipo.
+
+    `claim_next_task` exige `attempt < max_attempts`, así que una tarea agotada
+    en `recovered` no la toma nadie; y como `recovered` cuenta como activa,
+    `enqueue()` la encuentra por dedup de `(task_type, payload_hash)` y devuelve
+    esa en vez de encolar una nueva. Un tipo con payload estable —`encrypted_backup`,
+    `pulse_check`— queda bloqueado para siempre. Paró los backups 4,5 días.
+    """
+    path = tmp_path / "tasks.db"
+    store = AutonomousTaskStore(path)
+    task = store.enqueue("research", {}, idempotency_key="agotada", max_attempts=1)
+    assert store.claim("dead-worker", lease_seconds=30)
+    expired = (datetime.now(UTC) - timedelta(seconds=1)).isoformat()
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "UPDATE autonomous_tasks SET lease_expires_at=? WHERE task_id=?",
+            (expired, task["task_id"]),
+        )
+
+    assert store.recover_expired() == [task["task_id"]]
+
+    assert store.get(task["task_id"])["status"] == "dead_letter"
+    # Terminal: deja de bloquear el dedup, y el mismo trabajo se puede reencolar.
+    nueva = store.enqueue("research", {}, idempotency_key="agotada-2")
+    assert nueva["task_id"] != task["task_id"]
+    assert store.claim("new-worker"), "la cola vuelve a avanzar"
+
+
+def test_recovered_task_already_stuck_is_swept_to_dead_letter(tmp_path):
+    """Las que quedaron atascadas antes de la regla también se sueltan.
+
+    Son inalcanzables por definición, así que darlas por terminadas no pierde
+    trabajo: suelta el dedup que tenían secuestrado.
+    """
+    path = tmp_path / "tasks.db"
+    store = AutonomousTaskStore(path)
+    task = store.enqueue("research", {}, idempotency_key="vieja", max_attempts=3)
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            """UPDATE autonomous_tasks SET status='recovered', attempt=3,
+            max_attempts=3, last_error='expired_lease_recovered' WHERE task_id=?""",
+            (task["task_id"],),
+        )
+
+    store.recover_expired()
+
+    assert store.get(task["task_id"])["status"] == "dead_letter"
+
+
 def test_retry_backoff_then_dead_letter(tmp_path):
     path = tmp_path / "tasks.db"
     store = AutonomousTaskStore(path)
