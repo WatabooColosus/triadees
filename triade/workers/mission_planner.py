@@ -99,11 +99,26 @@ class MissionPlanner:
         # deja de hacerse en silencio es peor que no tenerlo, porque nadie va a
         # buscarlo hasta que haga falta. Ahora la falta se registra como error
         # interno, que es una superficie que ya se lee.
+        # Prioridad 4, por delante del aprendizaje continuo. Estaba en 80 —la más
+        # baja de todo el planificador— y con la cola ordenando por
+        # `prioridad - minutos_de_espera`, competía contra tareas de 5 a 15 que se
+        # recrean sin parar: medido el 2026-08-07, la tarea encolada a las 22:22
+        # seguía en `pending` con `attempt=0` una hora después, y necesitaba unos
+        # 74 minutos de espera sólo para ponerse la primera.
+        #
+        # No es una preferencia: es la única categoría cuyo fallo es
+        # irrecuperable. Una consolidación de aprendizaje que se retrasa una hora
+        # se hace después; una copia que no se hizo no se puede hacer después.
+        #
+        # Adelantarla no la vuelve voraz: `AdaptiveScheduler` no la replanifica
+        # antes de media hora (`get_recommended_interval` = 3600 s, se salta si
+        # `elapsed < interval * 0.5`) y el dedup por `(task_type, payload_hash)`
+        # impide una segunda mientras haya una activa. Cuesta ~11 s medidos.
         if os.getenv("TRIADE_BACKUP_KEY") or os.getenv("TRIADE_BACKUP_KEY_FILE"):
             tasks.append(
                 PlannedTask(
                     task_type="encrypted_backup",
-                    priority=80,
+                    priority=4,
                     reason="Backup diario cifrado y restaurable",
                     source="backup_retention_policy",
                     planner_score=0.4,

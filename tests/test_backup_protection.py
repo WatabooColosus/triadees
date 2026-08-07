@@ -211,6 +211,56 @@ def test_la_clave_en_fichero_tambien_planifica_backup(
     assert "encrypted_backup" in _planned_types(_fresh_db(tmp_path))
 
 
+def test_el_backup_no_compite_con_el_aprendizaje_continuo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La copia va por delante del trabajo que siempre se puede rehacer.
+
+    La cola ordena por `prioridad - minutos_de_espera`, asi que un numero alto
+    no es "menos urgente": es "detras de todo lo que se recree sin parar". Con
+    prioridad 80 el backup era la tarea mas baja del planificador y competia
+    contra tareas de aprendizaje de 5 a 15 que nacen cada ciclo. Medido el
+    2026-08-07: encolada a las 22:22, seguia en `pending` con `attempt=0` una
+    hora despues, y necesitaba ~74 minutos de espera solo para ponerse primera.
+
+    No es una preferencia estetica. Un aprendizaje que se retrasa una hora se
+    hace despues; una copia que no se hizo no se puede hacer despues.
+    """
+    monkeypatch.setenv("TRIADE_BACKUP_KEY", FERNET_A)
+    import sqlite3
+
+    from triade.workers.mission_planner import MissionPlanner
+
+    db = _fresh_db(tmp_path)
+    # Sin sembrar, una base virgen sólo planifica prioridad 10 y el test pasaría
+    # por vacío. `learning_queue` con candidatos es lo que hace nacer el trabajo
+    # recurrente más urgente que existe (`pending_learning_review`, prioridad 5),
+    # que es justo contra quien perdía el backup.
+    with sqlite3.connect(db) as conn:
+        for i in range(3):
+            conn.execute(
+                """INSERT INTO learning_queue(candidate_id,content,status)
+                VALUES(?,?,'candidate')""",
+                (f"learn-{i}", "contenido de prueba"),
+            )
+
+    planned = MissionPlanner(db_path=db).plan_cycle()
+    assert "pending_learning_review" in {t.task_type for t in planned}, (
+        "la siembra no produjo el trabajo recurrente: el test no compara nada"
+    )
+    por_tipo = {t.task_type: t.priority for t in planned}
+
+    backup = por_tipo["encrypted_backup"]
+    continuas = {
+        tipo: prio for tipo, prio in por_tipo.items() if tipo != "encrypted_backup"
+    }
+    peores = {t: p for t, p in continuas.items() if p <= backup}
+    assert not peores, (
+        "el backup vuelve a estar detras de trabajo recurrente y se quedara "
+        f"sin ejecutar: {peores}"
+    )
+
+
 def test_sin_ninguna_clave_la_falta_queda_registrada(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
