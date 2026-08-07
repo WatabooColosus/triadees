@@ -116,6 +116,44 @@ def test_con_clave_y_copia_fresca_no_hay_deuda(
     assert _backup_protection_gaps(tmp_path)["count"] == 0
 
 
+def test_clave_con_permisos_abiertos_es_deuda(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Que la variable exista no significa que la clave sirva.
+
+    `EncryptedBackup` exige `0600` y aborta con `PermissionError` si el fichero
+    deja algo a grupo u otros. Ese fallo bloquea crear **y** restaurar a la vez,
+    y el detector se conformaba con que la variable estuviera puesta. Encontrado
+    el 2026-08-07 con el fichero en `0744`, al intentar la primera restauracion
+    real: la rotacion del 2026-08-03 lo dejo asi y nada lo dijo.
+    """
+    clave = tmp_path / "backup.key"
+    clave.write_text(FERNET_A, encoding="utf-8")
+    clave.chmod(0o644)
+    monkeypatch.delenv("TRIADE_BACKUP_KEY", raising=False)
+    monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(clave))
+    _backup(tmp_path, "buena", age_seconds=60, fingerprint="abc123")
+
+    entry = _backup_protection_gaps(tmp_path)
+
+    assert entry["count"] == 1, entry["sample"]
+    assert "0600" in entry["sample"][0]
+
+
+def test_clave_con_permisos_correctos_no_es_deuda(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La categoria tiene que poder llegar a cero tambien por esta via."""
+    clave = tmp_path / "backup.key"
+    clave.write_text(FERNET_A, encoding="utf-8")
+    clave.chmod(0o600)
+    monkeypatch.delenv("TRIADE_BACKUP_KEY", raising=False)
+    monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(clave))
+    _backup(tmp_path, "buena", age_seconds=60, fingerprint="abc123")
+
+    assert _backup_protection_gaps(tmp_path)["count"] == 0
+
+
 # --- La huella de la clave ----------------------------------------------------
 
 

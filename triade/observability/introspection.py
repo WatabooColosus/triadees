@@ -304,6 +304,7 @@ def _backup_protection_gaps(root: Path) -> dict[str, Any]:
             "sin TRIADE_BACKUP_KEY ni TRIADE_BACKUP_KEY_FILE: "
             "no se crea ninguna copia y no se abre ninguna existente"
         )
+    gaps.extend(_backup_key_file_gaps())
 
     backup_dir = root / "artifacts" / "backups"
     copias = sorted(
@@ -334,6 +335,42 @@ def _backup_protection_gaps(root: Path) -> dict[str, Any]:
         "sample": gaps[:SAMPLE],
         "evidence": "artifacts/backups/*.json y el entorno de la clave de cifrado",
     }
+
+
+def _backup_key_file_gaps() -> list[str]:
+    """La clave declarada, ¿se puede usar de verdad?
+
+    Que la variable exista no significa que la clave sirva. `EncryptedBackup`
+    exige `0600` en el fichero y aborta con `PermissionError` si el modo deja
+    algo a grupo u otros —correctamente: una clave de backup legible por
+    cualquiera no protege nada—. Ese fallo bloquea **crear y restaurar** a la
+    vez, y no lo veía nadie: el detector se conformaba con que la variable
+    estuviera puesta.
+
+    Encontrado el 2026-08-07 con el fichero en `0744`, al intentar la primera
+    restauración real. La rotación del 2026-08-03 lo dejó así y nada lo dijo.
+    """
+    key_file = os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
+    if not key_file:
+        return []
+    path = Path(key_file)
+    try:
+        mode = path.stat().st_mode & 0o777
+    except OSError:
+        return [
+            (
+                f"TRIADE_BACKUP_KEY_FILE apunta a {key_file}, que no se puede "
+                "leer: no se crea ninguna copia y no se abre ninguna existente"
+            )
+        ]
+    if mode & 0o077:
+        return [
+            (
+                f"la clave de backup tiene permisos {mode:04o} en vez de 0600: "
+                "`EncryptedBackup` la rechaza, así que no se crea ni se restaura"
+            )
+        ]
+    return []
 
 
 def _manifest_key_fingerprint(backup: Path) -> str | None:
