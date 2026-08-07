@@ -19,6 +19,7 @@ from apps import internal_graphs_live
 from apps.single_port_app import app
 from triade.observability.event_feed import latest_cursor, read_new_events
 from triade.observability.introspection import (
+    _vital_chain_gaps,
     build_debt_report,
     summarise_for_humans,
     unexecuted_task_types,
@@ -157,6 +158,51 @@ def test_debt_report_reuses_fresh_graphs_instead_of_rescanning(tmp_path: Path) -
     build_debt_report(REPO_ROOT, db, cache, max_age_seconds=3600)
 
     assert (cache / "index.json").stat().st_mtime == stamp, "no debió regenerar"
+
+
+def _chain_db(tmp_path: Path, *, plan_rows: int, plan_recent: bool) -> Path:
+    """Base mínima con el eslabón `plan` y un eslabón continuo (`worker`)."""
+    db = tmp_path / "cadena.db"
+    old = "2026-08-01T06:49:28+00:00"
+    connection = sqlite3.connect(db)
+    connection.executescript(
+        """
+        CREATE TABLE planning_graph (goal_id TEXT PRIMARY KEY, created_at TEXT);
+        CREATE TABLE worker_runs (id INTEGER PRIMARY KEY, created_at TEXT);
+        """
+    )
+    stamp = datetime.now(UTC).isoformat() if plan_recent else old
+    for i in range(plan_rows):
+        connection.execute("INSERT INTO planning_graph VALUES (?, ?)", (f"g{i}", stamp))
+    # El eslabón continuo tiene filas, todas viejas: eso sí debe salir como corte.
+    connection.execute("INSERT INTO worker_runs VALUES (1, ?)", (old,))
+    connection.commit()
+    connection.close()
+    return db
+
+
+def test_idle_on_demand_stage_is_not_a_gap(tmp_path: Path) -> None:
+    """`plan` sin filas recientes no es un corte: nadie pidió una capacidad.
+
+    Un goal sólo nace cuando `CapabilityResolver` resuelve una capacidad
+    concreta; una conversación normal resuelve `conversation` y devuelve
+    `not_actionable`. Contarlo como deuda obligaría a fabricar goals para
+    limpiar el contador. El eslabón continuo de al lado sí debe seguir saliendo.
+    """
+    gaps = _vital_chain_gaps(_chain_db(tmp_path, plan_rows=51, plan_recent=False))
+    reported = " ".join(gaps["sample"])
+
+    assert "plan:" not in reported, gaps["sample"]
+    assert any("worker" in linea for linea in gaps["sample"]), gaps["sample"]
+
+
+def test_on_demand_stage_never_written_is_still_a_gap(tmp_path: Path) -> None:
+    """Sin filas nunca no hay prueba de que el eslabón funcionara jamás."""
+    gaps = _vital_chain_gaps(_chain_db(tmp_path, plan_rows=0, plan_recent=False))
+
+    assert any(linea.startswith("plan: sin filas") for linea in gaps["sample"]), gaps[
+        "sample"
+    ]
 
 
 def test_debt_report_says_unknown_instead_of_inventing(tmp_path: Path) -> None:

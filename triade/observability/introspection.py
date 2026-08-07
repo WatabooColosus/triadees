@@ -25,6 +25,7 @@ from typing import Any
 
 from .alias_debt import build_alias_debt, profiles_from_artifact
 from .runtime_graph import (
+    ON_DEMAND_STAGES,
     VITAL_CHAIN,
     live_table_counts,
     open_readonly,
@@ -532,6 +533,13 @@ def _vital_chain_gaps(db_path: Path | None) -> dict[str, Any]:
         if total == 0:
             gaps.append(f"{stage}: sin filas en {', '.join(tables)}")
         elif not any(fresh.get(t) for t in present):
+            # Un eslabón bajo demanda ocioso no es un corte: `plan` sólo escribe
+            # cuando alguien pide una capacidad, y una conversación normal
+            # resuelve `conversation` y no debe crear goal. Sin filas **nunca**
+            # sí se sigue contando arriba, porque entonces no hay prueba de que
+            # el eslabón haya funcionado jamás.
+            if stage in ON_DEMAND_STAGES:
+                continue
             gaps.append(f"{stage}: {total} filas, ninguna en 24 h")
     return {
         "count": len(gaps),

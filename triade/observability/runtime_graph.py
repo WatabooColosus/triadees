@@ -61,6 +61,22 @@ VITAL_CHAIN: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
     ),
 )
 
+#: Eslabones que sólo producen filas cuando algo se las pide, frente a los que
+#: laten solos. Distinguirlos importa porque «filas pero ninguna en 24 h»
+#: significa cosas opuestas en cada caso: en un eslabón continuo es un corte; en
+#: uno bajo demanda puede ser, simplemente, que nadie pidió nada.
+#:
+#: `plan` es el único bajo demanda hoy. Un goal nace en
+#: `runner_preflight.prepare_input` → `GoalOrchestrator.accept()`, que sólo crea
+#: uno cuando `CapabilityResolver` resuelve una capacidad concreta
+#: (`web_research`, `test_suite`, …). Una conversación normal resuelve
+#: `conversation`, devuelve `not_actionable` y **no debe** crear plan: contarlo
+#: como deuda exigiría fabricar goals para limpiar el contador.
+#:
+#: Que el eslabón funciona está demostrado por sus propias filas: 51 goals
+#: históricos de peticiones reales de la UI, 4 de ellos `completed`.
+ON_DEMAND_STAGES: frozenset[str] = frozenset({"plan"})
+
 #: En este repositorio el SQL se escribe en mayúsculas, y esa convención es lo
 #: único que separa `UPDATE tabla` de un docstring que empieza por «Update».
 #: Sin distinguir mayúsculas, "Update cognitive load from real sensor data"
