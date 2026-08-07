@@ -87,6 +87,12 @@ class InternalRuntimeSupervisor:
         self.last_events: list[dict[str, Any]] = []
         self.last_context_snapshot: dict[str, Any] = {}
         self.last_governor_decision: dict[str, Any] = {}
+        # Último plan que produjo el ciclo real de `_mission_service`. El
+        # snapshot lo lee en vez de planificar por su cuenta: observar el plan
+        # y calcular uno nuevo no son la misma operación, y sólo la primera
+        # puede ocurrir dentro de una petición HTTP de salud.
+        self.last_planned_tasks: list[dict[str, Any]] = []
+        self.last_planned_at: str | None = None
         self.safety_policy = {
             "identity_core_modified": False,
             "stable_memory_written": False,
@@ -483,6 +489,46 @@ class InternalRuntimeSupervisor:
             "events": build_context_from_events(limit=20, db_path=self.db_path),
         }
 
+    def _next_plan_preview(self) -> dict[str, Any]:
+        """Lo que se va a ejecutar a continuación, leído en vez de recalculado.
+
+        Antes esto ejecutaba `MissionPlanner.plan_cycle()` dentro del snapshot.
+        Planificar cuesta un escaneo del AST del repositorio —13 s medidos en
+        reposo, más de 120 s con varios hilos compitiendo por el GIL—, así que
+        cada consulta a `/health/deep` o `/api/runtime/heartbeat` se colgaba y
+        llenaba el threadpool: un endpoint de salud ejecutando trabajo real.
+
+        Además el plan que devolvía no era el que iba a correr. Con el worker
+        activo, `_mission_service` se delega (`status: delegated`) y quien
+        planifica de verdad es `WorkerScheduler`, que encola en
+        `autonomous_tasks`. Esa cola es la respuesta veraz a "qué viene ahora";
+        `last_planned_tasks` sólo aplica cuando planifica el propio supervisor.
+        """
+        try:
+            with sqlite3.connect(
+                f"file:{self.db_path}?mode=ro", uri=True, timeout=2.0
+            ) as conn:
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(
+                    """SELECT task_id, task_type, priority, created_at
+                       FROM autonomous_tasks WHERE status = 'pending'
+                       ORDER BY priority ASC, created_at ASC LIMIT 5"""
+                ).fetchall()
+        except sqlite3.Error:
+            rows = []
+        if rows:
+            return {
+                "next_plan_preview": [dict(row) for row in rows],
+                "next_plan_source": "autonomous_tasks.pending",
+            }
+        # Sin cola pendiente: o no hay worker y planifica el supervisor, o de
+        # verdad no hay nada encolado. Se distingue una cosa de la otra.
+        return {
+            "next_plan_preview": self.last_planned_tasks[:5],
+            "next_plan_source": "supervisor.last_planned_tasks",
+            "next_plan_planned_at": self.last_planned_at,
+        }
+
     def _build_services_snapshot(self) -> dict[str, Any]:
         worker_service = WorkerBackgroundService(
             db_path=self.db_path, runs_dir=self.runs_dir
@@ -523,12 +569,7 @@ class InternalRuntimeSupervisor:
             "mission_planner": {
                 "active_missions": len(active_missions),
                 "missions": [m.to_dict() for m in active_missions[:5]],
-                "next_plan_preview": [
-                    item.to_dict()
-                    for item in MissionPlanner(db_path=self.db_path).plan_cycle(
-                        run_ref=self.runtime_id
-                    )[:5]
-                ],
+                **self._next_plan_preview(),
             },
             "neuron_mission_executor": {
                 "available": True,
@@ -608,6 +649,8 @@ class InternalRuntimeSupervisor:
         planned = planner.plan_cycle(run_ref=self.runtime_id)
         planned_dicts = [item.to_dict() for item in planned]
         self.counters["tasks_planned"] += len(planned_dicts)
+        self.last_planned_tasks = planned_dicts
+        self.last_planned_at = utc_now()
         nutrition = None
         if AUTONOMY_RANK[mode] >= AUTONOMY_RANK["learn_candidates"]:
             nutrition = run_neuron_nutrition_cycle(
