@@ -20,6 +20,7 @@ from apps.single_port_app import app
 from triade.observability.event_feed import latest_cursor, read_new_events
 from triade.observability.introspection import (
     _vital_chain_gaps,
+    _writer_reachability,
     build_debt_report,
     summarise_for_humans,
     unexecuted_task_types,
@@ -472,3 +473,128 @@ def test_las_tablas_internas_de_sqlite_no_son_deuda(tmp_path: Path) -> None:
 
     huerfanas = report["items"]["tables_without_reader_or_writer"]["sample"]
     assert not (set(huerfanas) & SQLITE_INTERNAL_TABLES), huerfanas
+
+
+# --- El detector no puede contar la misma tabla dos veces ---------------------
+
+
+def test_una_tabla_vacia_se_cuenta_una_sola_vez(tmp_path: Path) -> None:
+    """`orphan_reader` y `tables_with_writer_and_no_rows` miden lo mismo.
+
+    La primera marca «0 filas y al menos un lector»; la segunda, «0 filas y al
+    menos un escritor». Casi toda tabla vacía cumple las dos, así que el total
+    las sumaba dos veces: medido el 2026-08-07, 19 de 20 elementos de cada
+    categoría eran la misma tabla, y 40 problemas eran en realidad 21.
+    """
+    report = build_debt_report(
+        REPO_ROOT, _db(tmp_path), tmp_path / "g", max_age_seconds=0
+    )
+    items = report["items"]
+    contadas = (
+        set(items["tables_with_writer_and_no_rows"]["items"])
+        | set(items["tables_without_reader_or_writer"]["items"])
+        | set(items["tables_written_never_read"]["items"])
+    )
+
+    for senal in ("alias_debt_orphan_reader", "alias_debt_lexical_alias"):
+        repetidas = contadas & set(items[senal]["items"])
+        assert not repetidas, f"{senal} vuelve a contar tablas ya contadas: {repetidas}"
+
+    assert report["debt_items_total"] == sum(e["count"] for e in items.values())
+
+
+def test_lo_no_contado_sigue_visible_con_su_diagnostico(tmp_path: Path) -> None:
+    """Dejar de contar no puede ser dejar de informar.
+
+    Quien audite una tabla vacía necesita saber si además tiene un lector
+    huérfano; lo que sobra es el recuento repetido, no el diagnóstico.
+    """
+    report = build_debt_report(
+        REPO_ROOT, _db(tmp_path), tmp_path / "g", max_age_seconds=0
+    )
+    entrada = report["items"]["alias_debt_orphan_reader"]
+
+    assert "also_counted_elsewhere" in entrada
+    assert entrada["also_counted_elsewhere"], "ninguna tabla quedó registrada"
+    assert "ya contadas" in entrada["evidence"]
+
+
+# --- Quién escribe una tabla vacía, y si puede llegar a ejecutarse ------------
+
+
+def _cache_sintetica(tmp_path: Path) -> Path:
+    """Artefactos mínimos: un entrypoint lanzado, un import, y tres escritores."""
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    (cache / "entrypoint_graph.json").write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"metadata": {"path": "apps/app.py", "launchers": 1}},
+                    {"metadata": {"path": "scripts/suelto.py", "launchers": 0}},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (cache / "import_graph.json").write_text(
+        json.dumps(
+            {
+                "edges": [
+                    {
+                        "relation": "imports",
+                        "source": "module:apps/app.py",
+                        "target": "module:triade/vivo.py",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (cache / "table_graph.json").write_text(
+        json.dumps(
+            {
+                "edges": [
+                    {
+                        "relation": "writes",
+                        "source": "module:triade/vivo.py",
+                        "target": "table:conectada",
+                    },
+                    {
+                        "relation": "writes",
+                        "source": "module:scripts/suelto.py",
+                        "target": "table:huerfana",
+                    },
+                    {
+                        "relation": "writes",
+                        "source": "module:tests/test_algo.py",
+                        "target": "table:solo_en_pruebas",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    return cache
+
+
+def test_distingue_escritor_alcanzable_de_escritor_muerto(tmp_path: Path) -> None:
+    """«Tiene escritor y cero filas» esconde dos casos opuestos.
+
+    Uno que el runtime nunca puede alcanzar —la capacidad no existe— y uno
+    perfectamente alcanzable cuyo evento no ha ocurrido —ausencia de estímulo,
+    no deuda—. Sin separarlos, triar una tabla exige reinvestigarla entera.
+    """
+    veredictos = _writer_reachability(
+        _cache_sintetica(tmp_path),
+        ["conectada", "huerfana", "solo_en_pruebas", "sin_nadie"],
+    )
+
+    assert veredictos["conectada"]["verdict"] == "escritor_alcanzable"
+    assert veredictos["conectada"]["reachable_writers"] == ["triade/vivo.py"]
+    assert veredictos["huerfana"]["verdict"] == "escritor_inalcanzable"
+    assert veredictos["huerfana"]["reachable_writers"] == []
+    # El unico escritor de `goals` en el repositorio real es un test: la tabla
+    # figuraba como «el escritor existe» sin tener ninguno en produccion.
+    assert veredictos["solo_en_pruebas"]["verdict"] == "solo_tests"
+    assert veredictos["sin_nadie"]["verdict"] == "sin_escritor_en_codigo"

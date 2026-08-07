@@ -70,6 +70,21 @@ SIMILARITY_THRESHOLD = 0.5
 #: acusó por su forma. El hallazgo se sostiene solo —cero filas y lectores—, así
 #: que la pista puede ser más generosa sin inventar deuda: `semantic_memory` y
 #: `semantic_documents` puntúan 0.43 y son el caso real que hay que señalar.
+#: Listón para *sugerir* un pariente vivo. Es deliberadamente más bajo que
+#: `SIMILARITY_THRESHOLD`: la pista acompaña a un hallazgo que ya se sostiene
+#: por su forma —tabla vacía con lectores—, así que puede permitirse ser floja.
+#:
+#: Lo que no puede permitirse es leerse como un hecho. `live` sale de parecido
+#: de cadena y nada más: `capability_history` → `scheduler_history` (0.49) son
+#: dominios distintos, y `auto_identity` → `identity_core` (0.43) no es ninguna
+#: migración. Actuar sobre ese campo migraría un lector a la tabla equivocada.
+#: La fuerza de la pista viaja al lado, en `evidence["similarity"]`, y hay que
+#: mirarla antes de hacerle caso.
+#:
+#: Subir el listón se probó y no vale: con 0.6 se pierde
+#: `semantic_memory` → `semantic_documents`, el verdadero positivo que originó
+#: el detector, y además invierte la relación con `SIMILARITY_THRESHOLD` (0.5),
+#: que existe justo para que la pista sea más barata que la acusación.
 HINT_THRESHOLD = 0.35
 
 #: Columnas cuyo valor es un estado gobernado. Son las que producen el fallo de

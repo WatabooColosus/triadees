@@ -143,6 +143,11 @@ def build_debt_report(
             "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo",
         )
 
+    #: Tablas ya contadas por las categorías de `table_graph`. Las señales de
+    #: alias que hablan de la misma tabla no vuelven a sumarla: ver
+    #: `_alias_table_entry`.
+    tablas_ya_contadas: set[str] = set()
+
     tables = _load(cache_dir, "table_graph")
     if tables:
         nodes = [n for n in tables["nodes"] if n["node_id"].startswith("table:")]
@@ -173,6 +178,11 @@ def build_debt_report(
             never_written,
             "table_graph.json para escritores; filas leídas en vivo",
         )
+        # El recuento no cambia: lo que se añade es el veredicto que permite
+        # triar cada tabla sin volver a investigarla desde cero.
+        items["tables_with_writer_and_no_rows"]["writer_reachability"] = (
+            _writer_reachability(cache_dir, never_written)
+        )
         # Sin esta categoría la deuda se podía reducir borrando al escritor.
         # `benchmark_results`, `benchmark_tasks` y `federated_merge_log` salieron
         # del recuento el 2026-08-03 al quedarse sin escritor, sin haber ganado
@@ -183,6 +193,7 @@ def build_debt_report(
             abandoned,
             "table_graph.json: tabla viva sin lector ni escritor en el código",
         )
+        tablas_ya_contadas = set(write_only) | set(never_written) | set(abandoned)
 
     imports = _load(cache_dir, "import_graph")
     if imports:
@@ -228,9 +239,8 @@ def build_debt_report(
         "suspected_dead_status",
     ):
         hallazgos = [h for h in alias["findings"] if h["signal"] == senal]
-        items[f"alias_debt_{senal}"] = _entry(
-            [h["dead"] for h in hallazgos],
-            f"alias_debt.py:{senal} — lector apuntando al gemelo muerto",
+        items[f"alias_debt_{senal}"] = _alias_table_entry(
+            senal, hallazgos, tablas_ya_contadas
         )
     items["declared_services_not_running"] = _declared_services_not_running(
         root, db_path
@@ -251,6 +261,112 @@ def build_debt_report(
         "items": items,
         "simulated": False,
     }
+
+
+def _writer_reachability(
+    cache_dir: Path, tablas: list[str]
+) -> dict[str, dict[str, Any]]:
+    """¿Quién escribe cada tabla vacía, y puede ese escritor llegar a ejecutarse?
+
+    Sin esto, «tiene escritor y cero filas» no distingue dos cosas opuestas: un
+    escritor que el runtime nunca puede alcanzar —deuda real, la capacidad no
+    existe— y uno perfectamente alcanzable cuyo evento simplemente no ha
+    ocurrido —ausencia de estímulo, no deuda—. `AliasFinding` reserva
+    `reachable_writer` para esta respuesta y nadie la rellenaba nunca.
+
+    El caso que lo motivó: el único escritor de `goals` es
+    `tests/test_consciousness.py`. La tabla figuraba como «el escritor existe»
+    cuando en producción no existe ninguno.
+
+    Se calcula sobre los artefactos ya generados —adyacencia de imports y
+    entrypoints con lanzador— porque este informe se sirve en caliente y
+    reconstruir el AST costaría más que el trabajo que evalúa.
+    """
+    imports = _load(cache_dir, "import_graph") or {}
+    entrypoints = _load(cache_dir, "entrypoint_graph") or {}
+    tabla_graph = _load(cache_dir, "table_graph") or {}
+    if not (imports and entrypoints and tabla_graph):
+        return {}
+
+    adyacencia: dict[str, set[str]] = {}
+    for arista in imports.get("edges", ()):
+        if arista.get("relation") != "imports":
+            continue
+        origen = str(arista.get("source", "")).partition(":")[2]
+        destino = str(arista.get("target", "")).partition(":")[2]
+        adyacencia.setdefault(origen, set()).add(destino)
+
+    alcanzados = {
+        str(nodo["metadata"].get("path") or "")
+        for nodo in entrypoints.get("nodes", ())
+        if int(nodo.get("metadata", {}).get("launchers") or 0) > 0
+    } - {""}
+    cola = list(alcanzados)
+    while cola:
+        actual = cola.pop()
+        for destino in adyacencia.get(actual, ()):
+            if destino not in alcanzados:
+                alcanzados.add(destino)
+                cola.append(destino)
+
+    escritores: dict[str, set[str]] = {}
+    for arista in tabla_graph.get("edges", ()):
+        if arista.get("relation") != "writes":
+            continue
+        tabla = str(arista.get("target", "")).partition(":")[2]
+        escritores.setdefault(tabla, set()).add(
+            str(arista.get("source", "")).partition(":")[2]
+        )
+
+    veredictos: dict[str, dict[str, Any]] = {}
+    for tabla in tablas:
+        modulos = sorted(escritores.get(tabla, set()))
+        produccion = [m for m in modulos if not m.startswith("tests/")]
+        vivos = [m for m in produccion if m in alcanzados]
+        if not produccion:
+            veredicto = "solo_tests" if modulos else "sin_escritor_en_codigo"
+        elif vivos:
+            veredicto = "escritor_alcanzable"
+        else:
+            veredicto = "escritor_inalcanzable"
+        veredictos[tabla] = {
+            "verdict": veredicto,
+            "writers": modulos[:5],
+            "reachable_writers": vivos[:5],
+        }
+    return veredictos
+
+
+def _alias_table_entry(
+    senal: str, hallazgos: list[dict[str, Any]], ya_contadas: set[str]
+) -> dict[str, Any]:
+    """Una señal de alias, sin volver a sumar tablas que ya cuenta `table_graph`.
+
+    `orphan_reader` marca «0 filas y al menos un lector».
+    `tables_with_writer_and_no_rows` marca «0 filas y al menos un escritor».
+    La inmensa mayoría de las tablas vacías cumplen las dos, así que el total
+    las contaba dos veces: medido el 2026-08-07, **19 de 20** elementos de cada
+    categoría eran la misma tabla. Sumadas daban 40 problemas donde había 21.
+
+    No es que una señal sobre y la otra valga: son dos diagnósticos distintos de
+    la misma tabla. Lo que sobra es el **recuento** repetido. Aquí se cuentan
+    sólo las tablas que ninguna categoría de `table_graph` ha contado ya, y las
+    demás siguen visibles en `also_counted_elsewhere` con su diagnóstico —quien
+    audite una tabla vacía necesita saber si además tiene un lector huérfano o
+    un gemelo léxico, y eso no se pierde—.
+    """
+    nombres = [str(h["dead"]) for h in hallazgos]
+    propias = sorted({n for n in nombres if n not in ya_contadas})
+    repetidas = sorted({n for n in nombres if n in ya_contadas})
+    evidencia = f"alias_debt.py:{senal} — lector apuntando al gemelo muerto"
+    if repetidas:
+        evidencia += (
+            f"; {len(repetidas)} ya contadas en las categorías de tabla y no se "
+            "vuelven a sumar"
+        )
+    entrada = _entry(propias, evidencia)
+    entrada["also_counted_elsewhere"] = repetidas
+    return entrada
 
 
 def _entry(values: list[str], evidence: str) -> dict[str, Any]:
