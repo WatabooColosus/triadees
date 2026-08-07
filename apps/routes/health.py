@@ -123,5 +123,30 @@ def deep() -> JSONResponse:
     if heartbeat_error:
         content["heartbeat_error"] = heartbeat_error
     content["readiness_raw"] = ready_payload
+    content["runtime_mode"] = _runtime_mode()
 
     return JSONResponse(status_code=200 if healthy else 503, content=content)
+
+
+def _runtime_mode() -> dict[str, Any]:
+    """Qué arrancó realmente el lifespan, no qué dice la configuración.
+
+    `conversation_only` corta el arranque de workers, runner continuo y
+    metabolismo. Hasta ahora eso no se veía desde fuera: la app respondía 200 en
+    `/health/live` y el chat funcionaba, así que un runtime reducido pasaba por
+    uno completo. La certificación necesita distinguirlos sin entrar al proceso.
+
+    Import tardío: `single_port_app` importa este módulo, así que a nivel de
+    módulo sería circular; en tiempo de petición ya está cargado.
+    """
+    try:
+        from apps.single_port_app import get_always_on_startup_result
+
+        startup = get_always_on_startup_result()
+    except (ImportError, RuntimeError):
+        return {"status": "unknown", "conversation_only": None}
+    return {
+        "status": startup.get("status"),
+        "conversation_only": bool(startup.get("conversation_only", False)),
+        "background_started": startup.get("background_started"),
+    }

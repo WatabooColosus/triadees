@@ -3,6 +3,14 @@
 Fecha: 2026-08-06
 Rama: `fix/revive-triade-runtime`
 
+> **Corrección (2026-08-07).** Lo que este documento dice sobre
+> `runtime.conversation_only` no llegó a ocurrir. `load_always_on_config()` sólo
+> copiaba de `triade.yml` las claves presentes en `YML_DEFAULTS`, y esa no
+> estaba: el gate leía `False` siempre y el runtime arrancó **completo** —con
+> workers, runner continuo y metabolismo— durante toda la fase. La evidencia de
+> conversación de abajo es válida; la descripción del modo reducido no.
+> Detalle y reparación en [`FULL_RUNTIME_CERTIFICATION.md`](FULL_RUNTIME_CERTIFICATION.md).
+
 ## Resultado
 
 El circuito mínimo quedó probado contra un proceso real:

@@ -37,31 +37,67 @@ capacidades está en [`audit/TRIADE_CAPABILITY_MATRIX.md`](audit/TRIADE_CAPABILI
 El Studio arranca **vacío**: ni Ollama ni la app se levantan solos tras un
 reinicio. Si la URL pública no muestra nada, casi siempre es esto.
 
-```bash
-# 1 · Ollama
-nohup ollama serve > /tmp/ollama.log 2>&1 &
+### Comando oficial
 
-# 2 · App Tríade (:8010)
+Uno solo, y es el único que debe usarse:
+
+```bash
 cd /teamspace/studios/this_studio/triadees
+./scripts/triade_runtime.sh up        # levanta Ollama si falta, luego la app
+./scripts/triade_runtime.sh status    # qué escucha el puerto y en qué modo
+./scripts/triade_runtime.sh down
+./scripts/triade_runtime.sh restart
+```
+
+| | |
+|---|---|
+| comando | `scripts/triade_runtime.sh up` |
+| entrypoint | `apps.single_port_app:app` (uvicorn, Single Port) |
+| host / puerto | `0.0.0.0` / `8010` (`TRIADE_STUDIO_PORT`) |
+| URL local | `http://127.0.0.1:8010` |
+| health | `/health/live`, `/health/ready`, `/health/deep`, `/api/health` |
+| chat | `POST /api/run` |
+| frontend | `frontend/dist/` servido por la misma app en `/` y `/assets/*` |
+
+El script no inventa un arranque nuevo: envuelve el que ya era oficial para que
+host, puerto y modo no vivan repetidos en varios documentos. Por debajo hace
+exactamente esto, que sigue valiendo si se prefiere a mano:
+
+```bash
 set -a && . ./.env && set +a
 setsid nohup python -m uvicorn apps.single_port_app:app --host 0.0.0.0 --port 8010 \
   --proxy-headers --forwarded-allow-ips='*' >> logs/studio-web.log 2>&1 < /dev/null &
 ```
+
+#### Los otros arranques del repositorio no compiten con este
+
+No son comandos contradictorios: apuntan a superficies distintas. Conviene
+saberlo antes de "unificarlos" por error.
+
+| dónde | comando | qué levanta |
+|---|---|---|
+| `scripts/triade_runtime.sh`, `Dockerfile.cloud` | `apps.single_port_app:app` | **el runtime de Tríade** (este) |
+| `triade_digimon.py api` | `apps.single_port_app:app` | el mismo app, por CLI |
+| `Procfile`, `railway.json`, `Dockerfile` | `apps.public_relay_entrypoint` | relay público (PaaS) |
+| `render.yaml` | `apps.public_relay_app:app` | relay público (PaaS) |
 
 Comprobación de que está vivo de verdad:
 
 ```bash
 curl -s localhost:8010/api/runtime/heartbeat   # workers_active: true
 curl -s localhost:8010/api/runtime/build       # learning_enabled, sha, rama
+curl -s localhost:8010/health/deep             # runtime_mode.conversation_only: false
 ```
 
 **Al parar la app, nunca `pkill -f uvicorn`**: el patrón coincide con la propia
-shell que lo ejecuta y la mata. Usar el PID:
+shell que lo ejecuta y la mata. Y ojo, `pgrep -f 'uvicorn apps.single_port_app'`
+tiene el mismo defecto en cuanto el comando que lo rodea menciona el módulo
+—arrancar y parar en la misma línea se suicida—. Por eso `down` usa el PID del
+fichero `logs/triade-runtime.pid` y, en su defecto, el listener real del puerto.
 
-```bash
-for p in $(pgrep -f 'uvicorn apps.single_port_app'); do kill $p; done
-sleep 6   # esperar a que suelte el puerto antes de relanzar
-```
+El runtime completo **no siempre cierra con SIGTERM**: libera el puerto pero el
+proceso puede seguir vivo más de 30 s con los hilos de fondo. `down` espera y
+remata con SIGKILL; conviene comprobar `status` antes de relanzar.
 
 **Base de producción**: `triade/memory/triade.db` (WAL, ~141 MB, 107 tablas).
 `data/triade.db` está vacía y no es la real.
