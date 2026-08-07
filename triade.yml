@@ -8,9 +8,11 @@ models:
     central: qwen2.5:3b-instruct
 
 runtime:
-  # Fase 1: el modo conversacional evita el autostart sin cambiar los defaults
-  # generales que otros contratos y despliegues esperan.
-  conversation_only: true
+  # `conversation_only` cortocircuitaba el lifespan (sin workers, sin runner
+  # continuo, sin metabolismo) para cerrar la Fase 1. La certificación full
+  # exige el organismo entero detrás de la URL, así que queda apagado: el
+  # runtime arranca Always-On, workers, scheduler y metabolismo.
+  conversation_only: false
   always_on: true
   mode: full_local_guarded
   interval_seconds: 60

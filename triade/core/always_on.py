@@ -45,6 +45,14 @@ ENV_KEYS = {
 
 YML_DEFAULTS = {
     "enabled": False,
+    # `single_port_app` decide con esta clave si cortocircuita el arranque
+    # (sin workers, sin runner continuo, sin metabolismo). No estaba aquí, y
+    # como el bucle de abajo sólo copia de `triade.yml` las claves presentes en
+    # este diccionario, se descartaba en silencio: `triade.yml` la declaraba en
+    # `true`, la documentación decía que el organismo estaba apagado y el gate
+    # leía `False` siempre. El modo reducido nunca llegó a existir. Que esté
+    # aquí es lo que hace la bandera real —y, por tanto, comprobable—.
+    "conversation_only": False,
     "mode": "observe_only",
     "interval_seconds": 60,
     "start_delay_seconds": 3,
