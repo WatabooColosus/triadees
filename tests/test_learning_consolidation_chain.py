@@ -204,3 +204,44 @@ def test_la_evidencia_va_primero_a_lo_que_ya_se_usa(tmp_path: Path) -> None:
 
     assert planeadas, "el planner debe pedir evidencia de algún candidato"
     assert planeadas[0].payload["candidate_id"] == usado
+
+
+def test_quien_consolida_usa_la_constante_no_una_copia() -> None:
+    """Tercera aparición del mismo fallo: cerrarlo por la clase, no por el caso.
+
+    `LearningPipeline.CONSOLIDATABLE_STATES` es el dueño. Han tenido copia
+    propia, y cada una se quedó atrás cuando el dueño amplió la lista:
+
+    1. `mark_used_in_run` / `consolidate`, hasta que `evidence_verified` entró
+       en la constante (documentado en su propio docstring).
+    2. `MissionPlanner._plan_memory_consolidation`: contaba sin
+       `internally_checked`, donde vivían los 16 candidatos usados.
+    3. `WorkerLoop._stable_consolidation_review`: el planner ya encolaba y el
+       handler iteraba sobre cero — `stable: 0` con la tarea en `completed`.
+
+    Se vigila la superficie de consolidación, no cualquier mención de los
+    estados: `retrieval.DEFAULT_ALLOWED_STATES` nombra los mismos y es otro
+    vocabulario a propósito —qué puede influir en un run, no qué puede
+    consolidarse—, así que incluye `experimental` y no debe unificarse.
+    """
+    raiz = Path(__file__).resolve().parents[1]
+    superficie = {
+        "triade/workers/worker_loop.py": "_stable_consolidation_review",
+        "triade/workers/mission_planner.py": "_plan_memory_consolidation",
+    }
+    sin_constante: list[str] = []
+    for ruta, funcion in superficie.items():
+        texto = (raiz / ruta).read_text(encoding="utf-8")
+        cuerpo = texto.split(f"def {funcion}", 1)[1].split("\n    def ", 1)[0]
+        # La forma literal del código, no la mención: el docstring de estas dos
+        # funciones nombra la constante para explicar el fallo, así que buscarla
+        # sin más daba verde con la copia puesta.
+        if '"validated_in_runs", "evidence_verified"' in cuerpo:
+            sin_constante.append(f"{ruta}:{funcion}")
+        elif "CONSOLIDATABLE_STATES" not in cuerpo:
+            sin_constante.append(f"{ruta}:{funcion} (sin referencia al dueño)")
+
+    assert not sin_constante, (
+        "quien consolida volvió a escribir a mano la lista de estados en vez de "
+        f"usar LearningPipeline.CONSOLIDATABLE_STATES: {sin_constante}"
+    )

@@ -718,6 +718,35 @@ class LearningPipeline:
         candidate["measurement_evidence"] = self.evidence_bridge.get(candidate_id)
         return candidate
 
+    def list_consolidatable(self, limit: int = 5) -> list[dict[str, Any]]:
+        """Candidatos que de verdad pueden consolidarse ahora mismo.
+
+        Existe porque filtrar en el llamador no funciona: `list_candidates`
+        ordena por `id DESC`, y con cientos de candidatos en estado consolidable
+        los primeros son los más recientes —que son justo los que aún no se han
+        usado—. Traerse una ventana y filtrarla en Python deja fuera a los que
+        califican: la misma hambre por recencia que ya se corrigió en la
+        selección de evidencia.
+
+        Los umbrales son los de `consolidate()`, aplicados en SQL y ordenando
+        por uso: quien decide sigue siendo `consolidate()`, esto sólo evita
+        traerle una tanda que va a rechazar entera.
+        """
+        marcas = ",".join("?" * len(self.CONSOLIDATABLE_STATES))
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""SELECT * FROM learning_queue WHERE status IN ({marcas})
+                AND run_use_count >= ? AND avg_outcome_score >= ?
+                ORDER BY run_use_count DESC, avg_outcome_score DESC LIMIT ?""",
+                (
+                    *self.CONSOLIDATABLE_STATES,
+                    self.MIN_RUN_USES,
+                    self.MIN_OUTCOME_SCORE,
+                    limit,
+                ),
+            ).fetchall()
+        return [self._decode(dict(row)) for row in rows]
+
     def list_candidates(
         self, status: str | Sequence[str] | None = None, limit: int = 50
     ) -> list[dict[str, Any]]:

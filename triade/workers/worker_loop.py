@@ -2802,14 +2802,32 @@ class WorkerLoop:
         `evidence_verified` es la otra puerta a la misma medición y es la que el
         productor de evidencia usa hoy. Los umbrales no cambian: quien decide
         sigue siendo `pipe.consolidate()`.
+
+        Y por tercera vez la misma enfermedad, un escalón más abajo: aquí había
+        otra copia escrita a mano de la lista de estados, sin
+        `internally_checked`. El planner ya contaba 16 candidatos usados que
+        cumplían ambos umbrales, encolaba la tarea, y el handler iteraba sobre
+        cero: `stable: 0` con la tarea en `completed`. Dueño del vocabulario hay
+        uno —`LearningPipeline.CONSOLIDATABLE_STATES`— y quien mantiene su propia
+        copia se queda atrás en cuanto el dueño la amplía.
         """
         pipe = LearningPipeline(db_path=self.db_path)
         sandbox = WorkerSandbox(task_dir)
         consolidated = []
         rejected = []
-        for candidate in pipe.list_candidates(
-            status=("validated_in_runs", "evidence_verified"), limit=5
-        ):
+        # `list_candidates` ordena por `id DESC`: con 713 candidatos en estado
+        # consolidable, los cinco primeros son los más recientes, y los recientes
+        # son justo los que aún no se han usado. El planner contaba 16 que sí
+        # cumplen los dos umbrales y el handler se llevaba cinco que no: vuelven
+        # a discrepar, y la tanda entera se rechaza por usos insuficientes.
+        #
+        # Es la misma hambre que ya se corrigió en la selección de evidencia: un
+        # escaneo por recencia mata de hambre a los que se usan. Se filtra por la
+        # misma condición con la que el planner decidió que había trabajo —los
+        # umbrales siguen siendo de `LearningPipeline`, y quien decide sigue
+        # siendo `consolidate()`— y se procesan cinco de entre los que califican.
+        elegibles = pipe.list_consolidatable(limit=5)
+        for candidate in elegibles:
             sb = sandbox.run(
                 "analyze_memory_candidate", candidate, timeout=config.task_timeout
             )
