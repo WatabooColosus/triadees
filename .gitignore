@@ -1,3 +1,9 @@
+# Artefactos de build. `pip install -e .` regenera `SOURCES.txt` con la lista
+# de tests, asi que versionarlo hace que el arbol se ensucie solo en cuanto
+# alguien anade uno: el gate `git diff --exit-code` de CI fallaba por esto sin
+# que ningun cambio lo hubiera tocado.
+*.egg-info/
+
 # Entornos Python
 .venv/
 venv/
