@@ -88,8 +88,8 @@ contrato. Y se centraliza, que era lo que faltaba —los estados vivían reparti
 en literales por todo el fichero, que es de donde salió el fantasma—:
 
 ```python
-EVOLUTION_STATES = frozenset({...})   # los siete reales
-EVOLUTION_IN_FLIGHT = frozenset({"preparing"})   # lo que busca el watchdog
+EVOLUTION_STATES = frozenset({...})  # los siete reales
+EVOLUTION_IN_FLIGHT = frozenset({"preparing"})  # lo que busca el watchdog
 ```
 
 El cambio no altera ningún resultado: en la base viva
