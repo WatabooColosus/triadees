@@ -61,14 +61,24 @@ class TestSalienceEngine:
         assert cautious.emotional_salience >= neutral.emotional_salience
 
     def test_goal_salience_with_active_goals(self, tmp_path: Path) -> None:
+        """Siembra el objetivo por la vía viva, no por la muerta.
+
+        Esta prueba era, literalmente, **el único escritor de `goals` en todo el
+        repositorio**: sembraba la tabla que el lector consultaba y por eso el
+        lector parecía funcionar. En producción nadie escribía ahí, así que
+        `goal_salience` valía `0.1` para cualquier entrada. Un test que crea la
+        única fila que su código va a encontrar no prueba que el código sirva:
+        prueba que el test sirve.
+        """
+        from triade.core.planning_graph import PlanningGraph
+
         db_path = tmp_path / "triade.db"
         schema = Path("triade/memory/schemas.sql").read_text(encoding="utf-8")
         with sqlite3.connect(db_path) as conn:
             conn.executescript(schema)
-            conn.execute(
-                "INSERT INTO goals (title, description, status) VALUES (?, ?, ?)",
-                ("memoria", "mejorar la memoria semantica", "active"),
-            )
+        PlanningGraph(db_path=db_path).create_goal(
+            "memoria", "mejorar la memoria semantica", priority=1
+        )
         engine = SalienceEngine(db_path=db_path)
         sv = engine.score(
             "hay que mejorar la memoria", "conversation", "low", "low", "constructive"
@@ -238,3 +248,42 @@ class TestFocusModulator:
         report = mod.doctor()
         assert report["status"] == "ok"
         assert "current_threshold" in report
+
+
+def test_la_saliencia_de_objetivo_lee_los_objetivos_vivos(tmp_path) -> None:
+    """Leía `goals`, que en producción no escribe nadie.
+
+    Su único escritor en todo el repositorio era este mismo fichero de tests, y
+    el estado que buscaba —`'active'`— no pertenece a ningún vocabulario vivo.
+    La consulta era válida, la tabla existía, la columna existía, y devolvía
+    siempre el caso vacío: `0.1` fijo para cualquier entrada.
+
+    Es el caso que originó el detector de deuda de alias —dos nombres que no se
+    parecen en nada, uno vivo y otro no— y llevaba abierto desde entonces.
+    """
+    import sqlite3
+
+    from triade.consciousness.salience import SalienceEngine
+    from triade.core.planning_graph import PlanningGraph
+
+    db = tmp_path / "triade.db"
+    grafo = PlanningGraph(db_path=db)
+    grafo.create_goal("Migrar el lector de saliencia", "objetivos vivos", priority=1)
+
+    # La tabla muerta existe y está vacía: si el lector volviera a ella, el
+    # resultado sería el suelo de 0.1 y esta prueba lo vería.
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS goals ("
+            "id INTEGER PRIMARY KEY, title TEXT, description TEXT, status TEXT)"
+        )
+
+    motor = SalienceEngine(db_path=db)
+    con_objetivo = motor._goal_salience("vamos a migrar el lector de saliencia")
+    sin_objetivo = motor._goal_salience("hoy hace buen tiempo")
+
+    assert con_objetivo > sin_objetivo, (
+        "un objetivo vivo mencionado en la entrada tiene que pesar más que "
+        "cualquier frase que no lo mencione"
+    )
+    assert con_objetivo > 0.1, "0.1 es el suelo: significa que no leyó nada"
