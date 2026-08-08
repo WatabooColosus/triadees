@@ -29,3 +29,36 @@ def isolated_runtime_paths() -> tuple[Path, Path]:
     )
     root.mkdir(parents=True, exist_ok=True)
     return root / "triade.db", root / "runs"
+
+
+#: Prefijos de `source` que no son conversación real y no deben alimentar la
+#: memoria: bancos de pruebas, verificaciones y trabajo interno del propio
+#: sistema. El vocabulario vivía duplicado —`runner_preflight.prepare_input` y
+#: las consultas de `mission_planner` tenían cada una su lista— y las copias ya
+#: habían empezado a divergir, que es como este repositorio pierde contratos.
+#:
+#: Motivo concreto (2026-08-08): las certificaciones `phase1-real-e2e` y
+#: `full-runtime-verification` encolaban aprendizaje. 43 candidatos extraían
+#: `TRIADA_VIVA` —la frase de prueba— como dato distintivo. Medir si Tríade
+#: recuerda su propia frase de test no es aprender: es memorizar el andamiaje.
+SOURCE_PREFIXES_SIN_APRENDIZAJE: tuple[str, ...] = (
+    "system_",
+    "worker",
+    "background",
+    "test",
+    "pytest",
+    "phase1-",
+    "full-runtime-",
+    "stability-",
+    "determinism-",
+    "api-test",
+    "neuron_activity",
+)
+
+
+def source_alimenta_aprendizaje(source: str | None) -> bool:
+    """¿Una conversación de esta fuente debe producir aprendizaje?"""
+    limpio = str(source or "").strip().lower()
+    if not limpio:
+        return False
+    return not limpio.startswith(SOURCE_PREFIXES_SIN_APRENDIZAJE)

@@ -100,3 +100,30 @@ def test_verification_status_es_andamiaje_y_no_ahoga_lo_que_si_afirma() -> None:
     # existe para que estos compitan, no para callar a todos.
     for afirmacion in ("recall_is_selective_not_total", "identity_continuous"):
         assert extract_target(f"Se aprendió que {afirmacion} en este run") == afirmacion
+
+
+def test_una_certificacion_no_es_una_conversacion(tmp_path) -> None:
+    """Los runs de prueba no deben alimentar la memoria.
+
+    Medido el 2026-08-08: tras filtrar `verification_status`, 43 candidatos
+    conversacionales extraían `TRIADA_VIVA` —la frase de las propias
+    certificaciones— como dato distintivo. Medir si Tríade recuerda su frase de
+    test no es aprender: es memorizar el andamiaje.
+    """
+    from triade.learning.post_run import schedule_learning_from_run
+
+    comun = {
+        "run_id": "run-x",
+        "message": "hola",
+        "response": "hola",
+        "enabled": True,
+    }
+
+    prueba = schedule_learning_from_run(
+        tmp_path / "t.db", source="phase1-real-e2e", **comun
+    )
+    real = schedule_learning_from_run(tmp_path / "t.db", source="react-ui", **comun)
+
+    assert prueba["scheduled"] is False
+    assert "source_sin_aprendizaje" in prueba["reason"]
+    assert real["scheduled"] is True, "la UI real sí tiene que aprender"

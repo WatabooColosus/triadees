@@ -996,6 +996,7 @@ class TriadeRunner:
             run_id=input_packet.run_id,
             message=input_packet.user_input,
             response=output.response,
+            source=source,
             model_id=output.model_name,
             outcome=output.status,
             timestamp=output.timestamp,

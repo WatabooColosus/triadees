@@ -21,6 +21,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from triade.core.runtime_scope import source_alimenta_aprendizaje
 from triade.runtime.task_leases import AutonomousTaskStore
 
 #: Campos que `_learning_candidate_generation` consume hoy de verdad. El resto
@@ -61,6 +62,7 @@ def schedule_learning_from_run(
     safety_flags: list[str] | None = None,
     timestamp: str | None = None,
     enabled: bool | None = None,
+    source: str | None = None,
 ) -> dict[str, Any]:
     """Encola la extracción de aprendizaje de un run ya cerrado.
 
@@ -72,6 +74,11 @@ def schedule_learning_from_run(
         enabled = post_run_learning_enabled()
     if not enabled:
         return {"scheduled": False, "reason": "post_run_learning_disabled"}
+    if source is not None and not source_alimenta_aprendizaje(source):
+        # Una certificación no es una conversación. Sin esto, los runs de prueba
+        # encolaban aprendizaje y 43 candidatos extraían `TRIADA_VIVA` —la frase
+        # del propio test— como dato distintivo.
+        return {"scheduled": False, "reason": f"source_sin_aprendizaje:{source}"}
     if not str(run_id or "").strip():
         return {"scheduled": False, "reason": "empty_run_id"}
     if not str(message or "").strip():
