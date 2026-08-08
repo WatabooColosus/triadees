@@ -100,9 +100,7 @@ def test_el_estado_es_consultable(cliente: TestClient) -> None:
     assert despues.json()["initialized"] is True
 
 
-def test_preguntar_el_estado_no_crea_nada(
-    cliente: TestClient, tmp_path: Path
-) -> None:
+def test_preguntar_el_estado_no_crea_nada(cliente: TestClient, tmp_path: Path) -> None:
     """Un `GET` no puede ser una migración.
 
     La primera versión instanciaba el store para que el esquema existiera, y
