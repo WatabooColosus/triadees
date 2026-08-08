@@ -57,7 +57,12 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .code_graph import ModuleIndex, build_module_index, iter_python_files
+from .code_graph import (
+    ModuleIndex,
+    build_module_index,
+    iter_python_files,
+    reachable_modules,
+)
 from .runtime_graph import build_table_graph
 
 #: Dos nombres se consideran parientes cuando comparten esta fracción de sus
@@ -143,6 +148,27 @@ _PARAM_WRITE = re.compile(
     rf"\bSET\s+({'|'.join(STATUS_COLUMNS)})\s*=\s*\?", re.IGNORECASE
 )
 _LITERAL_IN_LIST = re.compile(_QUOTED)
+#: `INSERT INTO t(a,status,b) VALUES(?,?,'preparing',?)` — la fila nace con ese
+#: estado, y es tan escritura como un `SET`. Sin emparejar columnas con valores
+#: por posición, `preparing` salía como muerto teniendo su `INSERT` a la vista.
+_INSERT_SQL = re.compile(
+    r"\bINSERT\s+(?:OR\s+\w+\s+)?INTO\s+\w+\s*\(([^)]*)\)\s*VALUES\s*\(([^)]*)\)",
+    re.IGNORECASE,
+)
+#: `status = "dead_letter" if dead else "retry_wait"` — la rama de un ternario
+#: escribe igual que la otra. `_ASSIGNED_PY` sólo veía la primera, así que
+#: `retry_wait` aparecía muerto con su asignación delante.
+_ASSIGNED_EXPR = re.compile(
+    rf"\b({'|'.join(STATUS_COLUMNS)})\s*=\s*([^\n=][^\n]*)", re.IGNORECASE
+)
+_DOUBLE_QUOTED = re.compile(r"\"([a-z][a-z0-9_]{2,})\"")
+#: `"replanning": frozenset({...})` — un mapa de transiciones declara qué estado
+#: puede seguir a cuál. Un valor con **transición de entrada** declarada es
+#: alcanzable dentro de la máquina, aunque quien lo escriba lo pase como
+#: argumento y no como literal en el SQL.
+_TRANSITION_MAP_KEY = re.compile(
+    r"\"([a-z][a-z0-9_]{2,})\"\s*:\s*(?:frozenset|set|tuple|list)?\s*\(?\s*\{([^}]*)\}",
+)
 
 
 @dataclass(frozen=True)
@@ -340,6 +366,61 @@ def find_lexical_aliases(perfiles: dict[str, dict[str, Any]]) -> list[AliasFindi
     return hallazgos
 
 
+def _insert_values(texto: str) -> set[str]:
+    """Estados que nacen con la fila: `INSERT INTO t(...,status,...) VALUES(...)`.
+
+    Se emparejan columnas y valores **por posición**, que es lo que hace SQLite.
+    Si las dos listas no tienen el mismo número de elementos no se afirma nada:
+    un `INSERT` partido en varias líneas o con una función por medio no se
+    entiende a medias.
+    """
+    encontrados: set[str] = set()
+    for columnas_raw, valores_raw in _INSERT_SQL.findall(texto):
+        columnas = [c.strip().strip("\"'`[]").lower() for c in columnas_raw.split(",")]
+        valores = [v.strip() for v in valores_raw.split(",")]
+        if len(columnas) != len(valores):
+            continue
+        for columna, valor in zip(columnas, valores, strict=True):
+            if columna not in STATUS_COLUMNS:
+                continue
+            literal = _LITERAL_IN_LIST.fullmatch(valor)
+            if literal:
+                encontrados.add(literal.group(1))
+    return encontrados
+
+
+def _assigned_expression_values(texto: str) -> set[str]:
+    """Todos los literales de la expresión asignada a una columna de estado.
+
+    `status = "dead_letter" if dead else "retry_wait"` escribe cualquiera de los
+    dos. Mirar sólo el primero convertía la segunda rama en un valor muerto con
+    su propia asignación a la vista.
+    """
+    encontrados: set[str] = set()
+    for _columna, expresion in _ASSIGNED_EXPR.findall(texto):
+        encontrados.update(_DOUBLE_QUOTED.findall(expresion))
+    return encontrados
+
+
+def _states_with_declared_entry(texto: str) -> set[str]:
+    """Estados con **transición de entrada** en un mapa declarado del módulo.
+
+    Un estado al que otro puede llegar es alcanzable dentro de su máquina,
+    aunque quien lo escriba lo pase como argumento —`graph.transition(id,
+    "replanning", ...)`— y el SQL sea `SET status = ?`. Lo contrario también
+    vale, y es lo importante: un estado que **no aparece como destino de
+    ninguna transición** sigue siendo un valor muerto por mucho que el módulo
+    lo nombre.
+
+    Es la fuente canónica que este repositorio ya tiene escrita —`GOAL_STATES`,
+    `GOAL_TRANSITIONS`, `VALID_TRANSITIONS`— usada como lo que es: el contrato.
+    """
+    destinos: set[str] = set()
+    for _origen, cuerpo in _TRANSITION_MAP_KEY.findall(texto):
+        destinos.update(_DOUBLE_QUOTED.findall(cuerpo))
+    return destinos
+
+
 def _status_literals(root: Path) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
     """Valores de estado comparados y escritos, con el fichero donde aparecen."""
     comparados: dict[str, set[str]] = {}
@@ -350,6 +431,12 @@ def _status_literals(root: Path) -> tuple[dict[str, set[str]], dict[str, set[str
         except OSError:
             continue
         relativo = path.relative_to(root).as_posix()
+        for valor in _insert_values(texto):
+            escritos.setdefault(valor, set()).add(relativo)
+        for valor in _assigned_expression_values(texto):
+            escritos.setdefault(valor, set()).add(relativo)
+        for valor in _states_with_declared_entry(texto):
+            escritos.setdefault(valor, set()).add(relativo)
         for _columna, valor in _ASSIGNED_SQL.findall(texto):
             escritos.setdefault(valor, set()).add(relativo)
         for _columna, valor in _ASSIGNED_PY.findall(texto):
@@ -390,7 +477,9 @@ def _parameterised_writers(root: Path) -> set[str]:
     return opacos
 
 
-def find_dead_status_values(root: Path) -> list[AliasFinding]:
+def find_dead_status_values(
+    root: Path, alcanzables: set[str] | None = None
+) -> list[AliasFinding]:
     """Estados que el código consulta y que nadie escribe nunca.
 
     Es la forma exacta del corte terminal del aprendizaje:
@@ -398,12 +487,25 @@ def find_dead_status_values(root: Path) -> list[AliasFinding]:
     pipeline hacía tiempo que terminaba en `evidence_verified`. La consulta era
     válida, la tabla existía, la columna existía — y el resultado era cero para
     siempre.
+
+    **Sólo cuenta lo que llega a ejecutarse.** Una comparación que vive en un
+    módulo al que no llega ningún entrypoint no devuelve cero: no se evalúa
+    nunca. Contarla aparte es contar dos veces el mismo problema —el módulo
+    muerto ya lo cuenta `modules_without_importer` y el grafo de workers— y trae
+    consigo la peor clase de ruido: el 2026-08-08 tres de los siete hallazgos
+    eran las fixtures de la prueba de este mismo detector, que existen justo para
+    inventar estados inexistentes.
     """
+    if alcanzables is None:
+        alcanzables = reachable_modules(root, build_module_index(root))
     comparados, escritos = _status_literals(root)
     parametrizados = _parameterised_writers(root)
     hallazgos: list[AliasFinding] = []
-    for valor, ficheros in sorted(comparados.items()):
+    for valor, todos_los_ficheros in sorted(comparados.items()):
         if valor in escritos:
+            continue
+        ficheros = {f for f in todos_los_ficheros if f in alcanzables}
+        if not ficheros:
             continue
         pesos = piece_weights([*comparados, *escritos])
         pariente = max(
@@ -433,8 +535,14 @@ def find_dead_status_values(root: Path) -> list[AliasFinding]:
                 ),
                 confidence="suspected" if sospecha else "confirmed",
                 evidence_kind="static",
+                # Los ficheros que quedan son, por construcción, alcanzables:
+                # los demás se descartaron antes de llegar aquí.
+                reachable_reader=True,
                 evidence={
                     "compared_in": sorted(ficheros)[:5],
+                    "compared_in_unreachable": sorted(todos_los_ficheros - ficheros)[
+                        :5
+                    ],
                     "closest_written_value": pariente[0],
                     "similarity": round(pariente[1], 2),
                     "parameterised_writers": opacos[:5],

@@ -23,6 +23,26 @@ ENGINEERING_ERRORS = (
     subprocess.SubprocessError,
 )
 
+#: Vocabulario canónico de `engineering_evolution_runs.status`. Único sitio donde
+#: se declara: antes vivía repartido en literales por todo el fichero, y de ahí
+#: salió `evaluating` — un octavo estado que el `watchdog` buscaba y que **nada
+#: escribe nunca**. Un `IN ('preparing','evaluating')` cuya segunda mitad no puede
+#: casar es la misma figura que este repositorio persigue como `dead_status_value`.
+EVOLUTION_STATES = frozenset(
+    {
+        "preparing",
+        "awaiting_approval",
+        "rejected",
+        "approved_commit",
+        "deployed_canary",
+        "rolled_back",
+        "failed",
+    }
+)
+#: En vuelo: la ejecución empezó y no ha llegado a un desenlace. Es lo que busca
+#: el `watchdog` para recoger worktrees abandonados.
+EVOLUTION_IN_FLIGHT = frozenset({"preparing"})
+
 PROTECTED = (
     ".git/",
     ".env",
@@ -239,9 +259,12 @@ class EngineeringEvolutionWorker:
         return {"status": "rolled_back", "evolution_id": evolution_id}
 
     def watchdog(self) -> dict[str, Any]:
+        marcadores = ",".join("?" * len(EVOLUTION_IN_FLIGHT))
         with sqlite3.connect(self.db_path) as c:
             rows = c.execute(
-                "SELECT evolution_id,worktree_path,budget_json,created_at FROM engineering_evolution_runs WHERE status IN ('preparing','evaluating')"
+                "SELECT evolution_id,worktree_path,budget_json,created_at "
+                f"FROM engineering_evolution_runs WHERE status IN ({marcadores})",
+                tuple(sorted(EVOLUTION_IN_FLIGHT)),
             ).fetchall()
         return {
             "status": "ok",

@@ -78,8 +78,13 @@ REVIEWS: dict[str, Review] = {
         "Supervisar workers no saludables",
         "workers",
         "remove_from_productive_graph",
-        "El estado es inalcanzable y no tiene productor; presentarlo como vivo falsea la supervisión.",
-        "Retirar el estado del grafo productivo o sustituirlo por el contrato vivo de salud con prueba E2E.",
+        "El estado es inalcanzable y no tiene productor; presentarlo como vivo falsea la supervisión. "
+        "Medido el 2026-08-08: el problema no es el valor sino su casa. `worker_supervisor` "
+        "está `disconnected` en el grafo de workers con `live_importers: []`, y sus cinco tablas "
+        "—incluida `worker_health_snapshots`— no existen en la base viva. La comparación no "
+        "devuelve cero: no se evalúa nunca.",
+        "El detector ya no lo cuenta aparte (sólo mide lo alcanzable): la deuda es el módulo "
+        "entero, y se decide con él. Ver docs/debt/DEAD_STATUS_VALUES_VERDICT.md.",
         "P1",
         "medium",
         "high",
