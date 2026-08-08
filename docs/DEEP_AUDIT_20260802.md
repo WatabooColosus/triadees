@@ -1,3 +1,4 @@
+<!-- HISTORICO -->
 # Auditoría profunda · Tríade Ω · 2026-08-02
 
 Auditoría de arquitectura sobre el código, no sobre la documentación. Cada

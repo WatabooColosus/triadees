@@ -1,3 +1,4 @@
+<!-- HISTORICO -->
 # Core Refactor Backlog
 
 Fecha: 2026-06-05

@@ -1,3 +1,4 @@
+<!-- HISTORICO -->
 > Documento historico. Para estado vigente ver `docs/STATUS_CURRENT.md`.
 
 # Revision de arquitectura Tríade - 2026-06

@@ -1,3 +1,4 @@
+<!-- HISTORICO -->
 # Fase 2 — Triaje individual de subsistemas
 
 ## SHA base, rama y objetivo

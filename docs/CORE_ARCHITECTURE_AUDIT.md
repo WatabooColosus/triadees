@@ -1,3 +1,4 @@
+<!-- HISTORICO -->
 # Core Architecture Audit
 
 Fecha: 2026-06-05

@@ -1,3 +1,4 @@
+<!-- HISTORICO -->
 # Fase 1 — Conversación mínima recuperada
 
 Fecha: 2026-08-06
