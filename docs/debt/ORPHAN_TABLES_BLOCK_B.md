@@ -330,3 +330,94 @@ un fallo real arreglado (`6bb5bb8`, `config_path` relativo que apagaba el
 metabolismo en silencio desde cualquier cwd distinto de la raíz) y una superficie
 de diagnóstico que no existía (`2f4e886`). Sin esta última, el séptimo intento
 habría sido el octavo error.
+
+---
+
+## Cierre (2026-08-08): ocho retiradas, y por qué la novena resistió
+
+La retirada se ejecutó por la vía correcta: `034_retire_orphan_schema.sql` más
+`IdentityContinuity.migrate_anchor()` en el mismo acto, aprobada por el operador
+(`f06857a`). Comprobado sobre la base viva:
+
+```text
+identity_manifest_anchor: schema_version 034, established_by 'operador'
+identity_continuity_log:  single-port-startup -> verified (05:50 y 18:30)
+```
+
+Ocho de las nueve están ausentes. La novena, `metabolic_config`, **seguía en la
+base** doce horas después de retirarla, y el detector la contaba —con razón—
+como `tables_without_reader_or_writer`.
+
+### Causa raíz: una migración de retirada no puede ganarle a una DDL viva
+
+Tríade **no tiene runner central de migraciones**. Cada subsistema reejecuta su
+propio `.sql` con `executescript` cuando lo necesita, y son más de una docena.
+`MetabolicCoordinator._ensure_tables()` (`coordinator.py:633`) es uno de ellos:
+corre `032_metabolic_core.sql` entero en **cada `_start_cycle()`**.
+
+Así que `032` no es historia, es DDL viva. Con el `CREATE TABLE IF NOT EXISTS
+metabolic_config` dentro, la secuencia real era:
+
+```text
+034 retira metabolic_config
+    → arranca un ciclo metabólico (minutos después)
+    → _ensure_tables() reejecuta 032 entero
+    → metabolic_config vuelve
+```
+
+Y en una base nueva la tabla no llegaba a irse nunca: `034` se aplica, pero `032`
+se reejecuta después.
+
+Esto explica de paso una observación de la primera corrección que quedó sin
+entender —«aun quitándola de `schemas.sql`, `metabolic_config` volvía»—. Ya
+estaba escrito ahí; lo que faltaba era ver que el fichero de migración se
+reejecuta en caliente.
+
+### Certificación, con el `db_path` comprobado
+
+Los tres instrumentos anteriores dieron verde sin medir. Éste fija el destino con
+un `assert` explícito antes de tocar nada:
+
+```text
+cadena completa (schemas.sql + 35 migraciones) -> metabolic_config AUSENTE
+db_path del coordinador == la copia            -> True
+_ensure_tables()                               -> metabolic_config PRESENTE
+```
+
+La cadena estática **sí** terminaba bien: `032` va antes que `034`. Por eso el
+análisis de migraciones no veía nada. El daño lo hacía el orden de ejecución en
+runtime, donde el número de la migración no manda nada.
+
+### Decisión: `RETIRE` — quitar el `CREATE`, no añadir un `DROP`
+
+`metabolic_config` no tiene lector ni escritor en ninguna parte del código; la
+configuración del metabolismo vive en `triade.yml`, que es su fuente real y
+funciona. Se retira el `CREATE TABLE` de `032`. Añadir otro `DROP` no habría
+servido: la carrera se repetiría en el siguiente ciclo.
+
+### El gate que impide que vuelva a pasar
+
+`tests/test_schema_retirement.py` fija la regla **general**, sin lista de
+nombres: ninguna tabla retirada por un `DROP TABLE` en el repositorio puede
+seguir creada por otro `.sql`. Vale para la próxima retirada igual que para ésta,
+que es justo lo que faltó aquí. Falla con la condición defectuosa y pasa con la
+reparación.
+
+### Veredicto final del bloque B
+
+| tabla | veredicto |
+|---|---|
+| `benchmark_results` | RETIRE — hecho (`f06857a`) |
+| `benchmark_tasks` | RETIRE — hecho |
+| `federated_merge_log` | RETIRE — hecho |
+| `federated_merge_nodes` | RETIRE — hecho |
+| `meta_model_candidates` | RETIRE — hecho, función viva en `ModelRouter` |
+| `meta_model_decisions` | RETIRE — hecho |
+| `meta_model_evaluations` | RETIRE — hecho |
+| `metabolic_config` | RETIRE — sustituida por `triade.yml`; `CREATE` fuera de `032` |
+| `user_sessions` | RETIRE — hecho |
+
+El `KEEP_WITH_REASON` de la corrección anterior queda **superado**: la razón que
+daba —«retirarlas rompe la identidad»— era cierta como diagnóstico y ya está
+resuelta por la vía gobernada. Lo que quedaba no era identidad, era una DDL que
+se reejecutaba.
