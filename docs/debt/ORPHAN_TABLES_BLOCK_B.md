@@ -271,3 +271,62 @@ Seis intentos de retirada, cuatro veredictos equivocados. El bloque queda
 **abierto y sin retirar**, y la deuda en 57. Lo aprendido vale más que las nueve
 tablas: tres instrumentos de medida distintos —bisect, copia aislada,
 construcción directa— daban verde sin medir lo que decían medir.
+
+---
+
+## CAUSA RAÍZ (2026-08-08): continuidad de identidad, no metabolismo
+
+Séptimo intento, con `/health/deep` publicando ya el desenlace del arranque
+(`2f4e886`). El diagnóstico llegó en un solo vistazo:
+
+```json
+{"status": "degraded_safe_identity_mismatch",
+ "background_started": false,
+ "metabolism_startup": null,
+ "workers_startup": null}
+```
+
+`metabolism_startup: null` porque **el metabolismo nunca llegó a arrancar**. El
+lifespan corta mucho antes, en su primera rama:
+
+```python
+identity = IdentityContinuity(...).verify(run_id="single-port-startup")
+if identity["integrity"] != "verified":
+    _ALWAYS_ON_RESULT = {"status": "degraded_safe_identity_mismatch", ...}
+    yield
+    return
+```
+
+**Retirar tablas cambia el esquema, y eso rompe la verificación de continuidad de
+identidad.** El runtime entonces degrada a modo seguro: sin workers, sin
+always-on, sin metabolismo. El chat sigue funcionando y la URL responde 200, por
+eso parecía «arrancado».
+
+### Esto no es un fallo: es la protección haciendo su trabajo
+
+Tríade se niega a operar en modo completo cuando su identidad no coincide con lo
+registrado. Es fail-closed y es correcto. El metabolismo en `observe_only` era el
+síntoma visible de una defensa que se disparó, no la avería.
+
+Los cuatro diagnósticos anteriores —dependencia de tablas, carga del sistema,
+edición de `schemas.sql`, `config_path` relativo— eran todos falsos. Y los tres
+instrumentos de medida fallaban porque ninguno pasaba por esta rama: construir el
+coordinador a mano se salta la verificación de identidad por completo.
+
+### Veredicto definitivo
+
+`KEEP_WITH_REASON` las nueve, y ahora con la razón correcta: **retirarlas es una
+operación de identidad, no de esquema**. Requiere actualizar el registro de
+continuidad en el mismo acto, por la vía gobernada que exista para ello.
+Hacerlo sin eso deja a Tríade en modo degradado permanente.
+
+La deuda de estas nueve tablas queda subordinada a esa vía. Mientras no se use,
+no se retiran — y el detector tiene razón en contarlas, porque siguen ahí.
+
+### Lo que costó y lo que dio
+
+Siete intentos, cuatro diagnósticos equivocados, seis reversiones. Salió de ello
+un fallo real arreglado (`6bb5bb8`, `config_path` relativo que apagaba el
+metabolismo en silencio desde cualquier cwd distinto de la raíz) y una superficie
+de diagnóstico que no existía (`2f4e886`). Sin esta última, el séptimo intento
+habría sido el octavo error.
