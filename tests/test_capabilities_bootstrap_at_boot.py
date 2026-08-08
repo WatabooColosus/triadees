@@ -52,7 +52,18 @@ def test_arrancarlo_dos_veces_no_duplica_ni_pisa(tmp_path: Path) -> None:
 
 
 def test_el_arranque_no_es_una_importacion_artificial() -> None:
-    """La matriz se conecta cuando tiene datos, no importándola por importar."""
+    """El arranque registra capacidades; no importa módulos para taparles el hueco.
+
+    Cuando esta prueba se escribió, `CapabilityMatrix` figuraba como módulo sin
+    importador y la tentación era añadir un `import` en el lifespan. Se rechazó,
+    y se hizo lo otro: llenar el registro. Con el registro lleno se pudo por fin
+    medir la matriz, y resultó que **cada una de sus partes estaba duplicada o
+    era imposible por construcción** — se retiró el 2026-08-08
+    (`docs/debt/CAPABILITY_MATRIX_VERDICT.md`).
+
+    La regla que queda es la general, y por eso no nombra a la matriz: el
+    lifespan no importa nada cuyo único efecto sea aparecer conectado.
+    """
     arbol = ast.parse((REPO_ROOT / "apps/single_port_app.py").read_text("utf-8"))
     importados = {
         alias.name
@@ -61,7 +72,7 @@ def test_el_arranque_no_es_una_importacion_artificial() -> None:
         for alias in nodo.names
     }
 
-    assert "CapabilityMatrix" not in importados, (
-        "importar la matriz sólo para que deje de figurar como huérfana sería "
-        "fabricar la conexión; se conecta cuando haya un consumidor real"
+    assert not (importados & {"CapabilityMatrix"}), (
+        "importar un módulo sólo para que deje de figurar como huérfano es "
+        "fabricar la conexión: se conecta cuando haya un consumidor real"
     )
