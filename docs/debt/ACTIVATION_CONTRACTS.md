@@ -135,3 +135,44 @@ No clasifica solo. Cada entrada exige haber recorrido la cadena entera —
 productor, evento, alcanzabilidad, gate, consumidor, efecto, evidencia— y
 declarar el eslabón que la sostiene. Lo que da es que ese recorrido **quede
 escrito y se vuelva a comprobar**, en vez de vivir en un documento que envejece.
+
+## Segundo uso: los seis task types que nunca corrieron
+
+`task_types_never_executed`. **Los seis tienen handler** y `worker_loop` los
+despacha: ninguno es un tipo declarado sin implementar. La diferencia está
+siempre en el productor o en su condición, y es esa condición la que se declara.
+
+| task type | → | condición declarada y comprobada |
+|---|---|---|
+| `goal_install` | HUMAN_GATED | `GoalOrchestrator.approve_install(..., approved_by)`; exige goal en `awaiting_approval` |
+| `goal_lora_train` | HUMAN_GATED | `GoalOrchestrator.schedule_lora(..., approved_by)` |
+| `self_improvement_evaluation` | HUMAN_GATED | el planner sólo encola si hay propuestas `approved`; aprobar exige firma |
+| `self_improvement_canary_observation` | HUMAN_GATED | un escalón más abajo: exige canario `running`, que viene de lo anterior |
+| `federation_inbox_review` | NO_EXTERNAL_STIMULUS | `federated_exchange_log` vacía: no hay segundo nodo |
+| `write_governed_text_artifact` | ON_DEMAND | espera que alguien pida por escrito un entregable de texto |
+
+Dos matices que importan:
+
+**Federación no es «roto por no tener peer».** Sólo se puede llamar ausencia de
+estímulo porque la cadena está construida **y probada** —`test_federated_exchange`,
+`test_ed25519_federation`, `test_federated_dispatch`—, y eso se declara como
+evidencia. La condición `empty_source_table=federated_exchange_log` se cae sola en
+cuanto aparezca un intercambio real. No se fabrica un peer.
+
+**`write_governed_text_artifact` estuvo muerto por construcción** —la única forma
+de activarlo era escribir su identificador interno literal en la petición— y eso
+ya se corrigió: hoy exige verbo de redacción y sustantivo de entregable, que es
+más estricto que la compuerta general, no más laxo. Por eso es `ON_DEMAND` y no
+`BROKEN_PRODUCER`.
+
+Ninguno se ha ejecutado a mano en producción para vaciar la categoría.
+
+## Medición tras los dos primeros usos
+
+```
+observado 50 | DEUDA_REAL 40
+{'HUMAN_GATED': 4, 'AUDIT_LEDGER': 3, 'HISTORICAL': 1,
+ 'NO_EXTERNAL_STIMULUS': 1, 'ON_DEMAND': 1, 'DEUDA_REAL': 40}
+```
+
+El total observado no se mueve. Lo que cambia es de cuánto hay que ocuparse.

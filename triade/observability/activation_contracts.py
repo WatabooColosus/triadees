@@ -435,4 +435,127 @@ CONTRACTS: tuple[Contract, ...] = (
             "rows_present=evidence_remediation_audit",
         ),
     ),
+    # ── Tipos de tarea que esperan un estímulo que no ha llegado ─────
+    #
+    # Categoría `task_types_never_executed`. Los seis **tienen handler** y
+    # `worker_loop` los despacha: ninguno es un tipo declarado sin implementar.
+    # La diferencia está siempre en el productor o en su condición, y es esa
+    # condición la que se declara aquí para poder comprobarla.
+    #
+    # Nunca se ejecutan tareas falsas en produccion para vaciar esta categoría.
+    _contract(
+        "task_type:goal_install",
+        "HUMAN_GATED",
+        decided_at="2026-08-08",
+        reason="""
+            Sólo lo encola `GoalOrchestrator.approve_install(goal_id, package, *,
+            approved_by)`, que exige el goal en `awaiting_approval` y una firma
+            con nombre, y marca la tarea `human_approved: True`. Cero ejecuciones
+            significa, literalmente, que nadie ha aprobado instalar nada. La
+            cadena está completa: productor alcanzable, gate declarado, handler
+            `_goal_install` registrado.
+        """,
+        evidence=(
+            "human_gate=triade/core/goal_orchestrator.py::approve_install",
+            "writer_reachable=triade/core/goal_orchestrator.py",
+            "effect_consumer=triade/workers/worker_loop.py::_goal_install",
+        ),
+    ),
+    _contract(
+        "task_type:goal_lora_train",
+        "HUMAN_GATED",
+        decided_at="2026-08-08",
+        reason="""
+            Sólo lo encola `GoalOrchestrator.schedule_lora(*, dataset_path,
+            approved_by, ...)`, que exige firma con nombre y crea el goal con
+            `human_approved_by` en sus metadatos. Cero ejecuciones significa que
+            nadie ha aprobado un entrenamiento. Activar un LoRA en producción
+            para generar una fila sería justo lo contrario de lo que este gate
+            protege.
+        """,
+        evidence=(
+            "human_gate=triade/core/goal_orchestrator.py::schedule_lora",
+            "writer_reachable=triade/core/goal_orchestrator.py",
+            "effect_consumer=triade/workers/worker_loop.py::_goal_lora_train",
+        ),
+    ),
+    _contract(
+        "task_type:self_improvement_evaluation",
+        "HUMAN_GATED",
+        decided_at="2026-08-08",
+        reason="""
+            `MissionPlanner._plan_self_improvement` sólo encola si hay propuestas
+            ya `approved`, y nunca crea ni aprueba ninguna —lo dice su docstring:
+            así el bucle no gira en vacío ni se auto-alimenta—. Aprobar exige
+            `bridge.approve(proposal_id, *, approved_by)`, que lanza si la firma
+            viene vacía. El handler lo dice en su
+            propio docstring: un humano decide qué dirección se intenta, la
+            máquina hace la verificación rigurosa. Cero ejecuciones significa que
+            nadie ha propuesto todavía una mejora.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/workers/mission_planner.py",
+            "effect_consumer=triade/workers/worker_loop.py::_self_improvement_evaluation",
+            "rows_absent=improvement_proposals",
+        ),
+    ),
+    _contract(
+        "task_type:self_improvement_canary_observation",
+        "HUMAN_GATED",
+        decided_at="2026-08-08",
+        reason="""
+            Un escalón más abajo que la evaluación: `_plan_canary_observation`
+            sólo encola si hay un canario `running`, y un canario nace de un
+            candidato, que nace de una propuesta aprobada a mano. Mismo gate, más
+            lejos. `improvement_canaries` con
+            cero filas es la medida de que la cadena no ha empezado, no de que
+            esté rota.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/workers/mission_planner.py",
+            "effect_consumer=triade/workers/worker_loop.py::_self_improvement_canary_observation",
+            "rows_absent=improvement_canaries",
+        ),
+    ),
+    _contract(
+        "task_type:federation_inbox_review",
+        "NO_EXTERNAL_STIMULUS",
+        decided_at="2026-08-08",
+        reason="""
+            `MissionPlanner._plan_federation_inbox` cuenta mensajes federados
+            pendientes de la última hora y sólo encola si hay alguno.
+            `federated_exchange_log` tiene cero filas: no ha habido intercambio
+            porque no hay un segundo nodo. La cadena sí está construida y
+            probada —`test_federated_exchange`, `test_ed25519_federation`,
+            `test_federated_dispatch`—, que es la condición para llamar a esto
+            ausencia de estímulo y no productor roto. Si aparece un peer, la
+            evidencia `empty_source_table` se cae sola.
+        """,
+        evidence=(
+            "writer_reachable=triade/workers/mission_planner.py",
+            "effect_consumer=triade/workers/worker_loop.py::_federation_inbox_review",
+            "empty_source_table=federated_exchange_log",
+            "proof_test=tests/test_federated_exchange.py",
+        ),
+    ),
+    _contract(
+        "task_type:write_governed_text_artifact",
+        "ON_DEMAND",
+        decided_at="2026-08-08",
+        reason="""
+            Lo produce `GoalOrchestrator` cuando `CapabilityResolver` resuelve esa
+            capacidad, y **estuvo muerto por construcción**: la única forma de
+            activarlo era escribir su identificador interno literal en la
+            petición. Eso ya se corrigió —ahora exige verbo de redacción y
+            sustantivo de entregable, que es más estricto que la compuerta
+            general, no más laxo—. Queda a la espera de que alguien pida por
+            escrito un entregable de texto: estímulo conversacional, no gate.
+        """,
+        evidence=(
+            "writer_reachable=triade/core/capability_resolver.py",
+            "effect_consumer=triade/workers/worker_loop.py::_write_governed_text_artifact",
+        ),
+    ),
 )
