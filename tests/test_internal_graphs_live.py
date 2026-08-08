@@ -26,6 +26,7 @@ from triade.observability.introspection import (
     unexecuted_task_types,
 )
 from triade.observability.refresh import GraphRefresher
+from triade.observability.runtime_graph import task_type_counts
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -598,3 +599,40 @@ def test_distingue_escritor_alcanzable_de_escritor_muerto(tmp_path: Path) -> Non
     # figuraba como «el escritor existe» sin tener ninguno en produccion.
     assert veredictos["solo_en_pruebas"]["verdict"] == "solo_tests"
     assert veredictos["sin_nadie"]["verdict"] == "sin_escritor_en_codigo"
+
+
+def test_encolar_no_es_ejecutar(tmp_path: Path) -> None:
+    """Un tipo atascado en `pending` no puede figurar como ejecutado.
+
+    `task_type_counts` contaba todas las filas de la cola, asi que un tipo
+    encolado una vez y nunca atendido desaparecia de
+    `task_types_never_executed`. Visto el 2026-08-08 con
+    `stable_consolidation_review`: se encolo por primera vez en la historia del
+    sistema, seguia en `pending` con `attempt=0`, y el informe ya lo daba por
+    corrido. Un contador que confunde intencion con efecto no mide nada.
+    """
+    db = tmp_path / "cola.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE autonomous_tasks (task_id TEXT, task_type TEXT, status TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO autonomous_tasks VALUES (?,?,?)",
+            [
+                ("a", "esperando", "pending"),
+                ("e", "en_vuelo", "running"),
+                ("b", "corrio", "completed"),
+                ("c", "miro_y_no_actuo", "observed"),
+                ("d", "fallo", "dead_letter"),
+            ],
+        )
+
+    counts = task_type_counts(db)
+
+    assert counts.get("esperando", 0) == 0, "encolar no es ejecutar"
+    assert counts["corrio"] == 1
+    # `running` si cuenta: la tarea fue reclamada y el handler esta dentro.
+    assert counts["en_vuelo"] == 1
+    # El handler llego a decidir, aunque decidiera no actuar o fallara.
+    assert counts["miro_y_no_actuo"] == 1
+    assert counts["fallo"] == 1

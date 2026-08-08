@@ -17,6 +17,8 @@ import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 
+from triade.runtime.task_status import ELIGIBLE
+
 from .code_graph import (
     ModuleIndex,
     build_import_graph,
@@ -586,17 +588,45 @@ TASK_TABLES = ("worker_tasks", "autonomous_tasks")
 
 
 def task_type_counts(db_path: Path | None) -> dict[str, int]:
-    """Ejecuciones acumuladas por tipo, sumando ambas colas."""
+    """Ejecuciones acumuladas por tipo, sumando ambas colas.
+
+    **Ejecuciones**, no encolados. Contaba todas las filas, así que un tipo
+    encolado una vez y atascado en `pending` para siempre figuraba como
+    ejecutado y desaparecía de `task_types_never_executed`. Se vio el
+    2026-08-08 con `stable_consolidation_review`: se encoló por primera vez en
+    la historia del sistema, seguía en `pending` con `attempt=0`, y el informe
+    ya lo daba por corrido.
+
+    Un tipo cuenta cuando dejó de estar esperando turno: `ELIGIBLE` son
+    justamente los estados en los que la tarea aguarda a que alguien la tome
+    (`pending`, `queued`, `recovered`, `retry_wait`, `deferred`). Todo lo demás
+    —en vuelo o terminal— significa que un worker la reclamó y el handler llegó
+    a decidir, aunque decidiera no actuar (`observed`, `skipped`) o fallara.
+    """
     connection = open_readonly(db_path)
     if connection is None:
         return {}
     counts: dict[str, int] = {}
+    espera = ",".join("?" for _ in ELIGIBLE)
     try:
         for table in TASK_TABLES:
+            columnas = {
+                str(row[1]) for row in connection.execute(f"PRAGMA table_info({table})")
+            }
             try:
-                rows = connection.execute(
-                    f"SELECT task_type, COUNT(*) FROM {table} GROUP BY task_type"
-                )
+                # La cola legacy no siempre trae `status`; sin esa columna no se
+                # puede distinguir, y contar de más es preferible a inventar un
+                # filtro que no existe.
+                if "status" in columnas:
+                    rows = connection.execute(
+                        f"SELECT task_type, COUNT(*) FROM {table} "
+                        f"WHERE status NOT IN ({espera}) GROUP BY task_type",
+                        tuple(sorted(ELIGIBLE)),
+                    )
+                else:
+                    rows = connection.execute(
+                        f"SELECT task_type, COUNT(*) FROM {table} GROUP BY task_type"
+                    )
             except sqlite3.Error:
                 continue
             for task_type, total in rows:
