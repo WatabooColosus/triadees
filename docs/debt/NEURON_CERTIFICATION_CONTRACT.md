@@ -37,9 +37,13 @@ one-shot, no un bucle.
 
 Un **manifiesto firmado**: versión, owner, misión, dominio, fuentes y acciones
 permitidas, benchmarks, baseline, evidencia, limitaciones, `rollback_ref`,
-confianza, revisión, más seis puertas booleanas (`independent_evaluation`,
-`regressions_green`, `rollback_verified`, `restart_verified`, `benchmark_passed`,
-`evidence_complete`).
+confianza, revisión, más seis puertas booleanas: evaluación independiente,
+regresiones en verde, rollback comprobado, reinicio comprobado, benchmark
+superado y evidencia completa.
+
+Se nombran aquí en prosa a propósito: eran columnas de una tabla retirada, no
+estados de ninguna máquina viva, y el gate de vocabularios tiene razón en no
+reconocerlas.
 
 Alguien tenía que producir ese documento. Nadie lo produjo nunca, ni había por
 dónde: no hay endpoint, ni handler, ni CLI que inserte una fila.
