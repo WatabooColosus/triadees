@@ -180,3 +180,46 @@ entonces **no se retira ninguna**.
 Un bisect cuyo tratamiento se revierte solo produce confianza en vez de
 conocimiento. Antes de dar por buena una retirada hay que comprobar que la cosa
 retirada **sigue ausente** en el momento de medir, no sólo que se retiró.
+
+---
+
+## Segunda corrección (2026-08-08): las tablas tampoco eran la causa
+
+La sección anterior afirma que «el organismo las necesita». **Es falso**, y queda
+desmentido por una prueba aislada.
+
+Sobre una **copia** de la base de producción con las nueve tablas borradas, se
+instanció el coordinador del metabolismo directamente:
+
+```text
+config_path: triade.yml
+metabolism del yml: {'enabled': True, 'mode': 'full'}
+start(): running: True, status: started, thread_alive: True
+```
+
+Carga la configuración y arranca en modo `full` **sin ninguna de las nueve**. La
+dependencia no existe.
+
+### Lo que eso deja en pie
+
+El síntoma en producción era real y reproducible —metabolismo en `observe_only`,
+estable a los tres minutos—, pero su causa **no es el esquema**. Y hay una pista
+concreta: `load_config()` devuelve `observe_only` únicamente cuando
+`yml.get("metabolism")` sale vacío, es decir, cuando **no se pudo leer
+`triade.yml`**. `config_path` es una ruta relativa.
+
+Así que la hipótesis a comprobar es de arranque, no de base: qué directorio de
+trabajo o qué orden de inicialización deja al coordinador sin poder leer su
+fichero de configuración cuando se reinicia dentro de una secuencia de
+operaciones sobre el esquema.
+
+### Estado del veredicto
+
+`KEEP_WITH_REASON` **se mantiene, pero por otro motivo**: no porque las tablas
+hagan falta, sino porque el procedimiento de retirada dispara una regresión cuya
+causa sigue sin identificarse. Retirarlas sigue sin ser seguro *tal como se ha
+intentado*. Lo que ya no se sostiene es la explicación.
+
+Tres veredictos seguidos erróneos en este bloque —`RETIRE`, luego
+`KEEP_WITH_REASON` por dependencia, ahora esto— son razón suficiente para no
+volver a tocarlo sin instrumentar antes el arranque.
