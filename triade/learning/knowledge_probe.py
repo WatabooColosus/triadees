@@ -42,6 +42,15 @@ _DISTINTIVO = re.compile(
 #: otra puerta.
 _ANDAMIAJE = frozenset(
     {
+        # Medido el 2026-08-08: 230 de 250 candidatos conversacionales extraían
+        # `verification_status`, y el 96% de sus evidencias salía `neutral` —la
+        # misma firma que `mission_id` en agosto: control 1.0, tratamiento 1.0,
+        # delta 0.0—. Es un nombre de campo del propio registro de run, no un
+        # hecho aprendido: la pregunta lleva la respuesta dentro. Los dos únicos
+        # `improved` de esa población salieron de targets que sí afirman algo
+        # del mundo (`recall_is_selective_not_total`, `identity_continuous`),
+        # ahogados 100 a 1 por transcripciones.
+        "verification_status",
         "mission_id",
         "run_ref",
         "run_id",

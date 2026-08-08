@@ -73,3 +73,30 @@ def test_convive_el_andamiaje_con_un_dato_real() -> None:
         "con su mission_id asociado."
     )
     assert extract_target(contenido) == "VEREDICTO-TRIADE"
+
+
+def test_verification_status_es_andamiaje_y_no_ahoga_lo_que_si_afirma() -> None:
+    """La misma fuga que `mission_id`, por otra puerta y a mayor escala.
+
+    Medido el 2026-08-08 sobre la base viva: 230 de 250 candidatos con
+    `source_type='conversation'` extraían `verification_status`, y el **96%** de
+    sus evidencias salía `neutral` — la firma de una sonda cuya respuesta está
+    en el propio enunciado, idéntica a la de agosto: control 1.0, tratamiento
+    1.0, delta 0.0.
+
+    Es un nombre de campo del registro de run, no un hecho que el modelo no
+    supiera. Los dos únicos `improved` de esa población salieron de targets que
+    sí afirman algo del mundo, ahogados 100 a 1 por transcripciones.
+    """
+    from triade.learning.knowledge_probe import extract_target
+
+    transcripcion = (
+        "run_id: run-20260808-023639-e8047fff source: phase1-real-e2e "
+        "verification_status: ok"
+    )
+    assert extract_target(transcripcion) != "verification_status"
+
+    # Lo que sí afirma algo del mundo tiene que seguir siendo medible: el filtro
+    # existe para que estos compitan, no para callar a todos.
+    for afirmacion in ("recall_is_selective_not_total", "identity_continuous"):
+        assert extract_target(f"Se aprendió que {afirmacion} en este run") == afirmacion
