@@ -191,21 +191,55 @@ def test_clasificar_no_baja_el_total_observado() -> None:
 # --- El fichero real ----------------------------------------------------------
 
 
-def test_todos_los_contratos_declarados_se_sostienen_hoy() -> None:
+def test_todos_los_contratos_declarados_son_validos_hoy() -> None:
     """Un contrato que miente es peor que no tenerlo: da permiso sin evidencia.
 
-    Esto convierte el YAML en código verificado. Si alguien declara una condición
-    que no se cumple, CI lo dice aquí y no seis semanas después, cuando alguien
-    se pregunte por qué una tabla rota no aparecía en el panel.
+    Esto convierte las declaraciones en código verificado. Si alguien nombra un
+    gate que no existe, un escritor que ningún entrypoint alcanza o una prueba
+    borrada, CI lo dice aquí y no seis semanas después, cuando alguien se
+    pregunte por qué una tabla rota no aparecía en el panel.
+
+    **Sólo la evidencia estructural.** En CI no hay base de producción, ni debe
+    haberla: una CI que dependiera de la memoria de producción mediría otra cosa
+    cada día, y la primera vez que alguien aprobara una propuesta de mejora se
+    pondría roja sin que nada estuviera mal.
+
+    La consecuencia hay que decirla en voz alta: un contrato que mintiera sobre
+    filas pasaría por aquí. Lo caza el detector, que reverifica **todo** sobre la
+    base real en cada medición y devuelve el sujeto a `DEUDA_REAL` si falla. Aquí
+    se comprueba que el contrato es *válido*; allí, que además es *cierto*.
     """
     contratos = load_contracts()
     assert contratos, "no hay ningún contrato declarado"
 
-    verificador = ContractVerifier(ROOT, db_path=ROOT / "triade/memory/triade.db")
+    verificador = ContractVerifier(ROOT)
     rotos = {
-        nombre: verificador.verify(contrato).failed
+        nombre: verificador.verify(contrato, structural_only=True).failed
         for nombre, contrato in contratos.items()
-        if not verificador.verify(contrato).holds
+        if not verificador.verify(contrato, structural_only=True).holds
     }
 
     assert not rotos, f"contratos declarados que no se sostienen: {rotos}"
+
+
+def test_la_evidencia_de_runtime_no_se_comprueba_sin_base() -> None:
+    """El límite de la prueba anterior, escrito para que no se olvide.
+
+    Si `structural_only` comprobara también las filas, este gate sería imposible
+    de pasar en CI; si no existiera la distinción, alguien lo habría desactivado.
+    """
+    from triade.observability.activation_contracts import (
+        RUNTIME_EVIDENCE,
+        STRUCTURAL_EVIDENCE,
+    )
+
+    assert not set(RUNTIME_EVIDENCE) & set(STRUCTURAL_EVIDENCE)
+    contrato = _declarar(
+        "table:inventada", "ON_DEMAND", ("rows_present=no_existe_esta_tabla",)
+    )
+    verificador = ContractVerifier(ROOT)
+
+    # Sin base: no se afirma nada, así que no se acusa.
+    assert verificador.verify(contrato, structural_only=True).holds
+    # Con base: la evidencia se comprueba y no se sostiene.
+    assert not verificador.verify(contrato).holds

@@ -93,7 +93,28 @@ No es la buena voluntad de quien escriba la declaración; son
 - que aparezcan filas rompe un contrato que las negaba;
 - una bitácora a la que alguien añade un `UPDATE` deja de serlo;
 - y **todos los contratos declarados se comprueban contra el repositorio real**:
-  uno que mienta no llega a mergearse.
+  uno que nombre un gate inexistente, un escritor inalcanzable o una prueba
+  borrada no llega a mergearse.
+
+### Dónde se comprueba cada cosa, y por qué en dos sitios
+
+La evidencia se parte en dos, y la partición no es cosmética:
+
+- **estructural** —ficheros, símbolos, alcanzabilidad, `append_only`— se
+  responde con el repositorio delante. La comprueba CI.
+- **de runtime** —`rows_present`, `rows_absent`, `empty_source_table`— sólo
+  tiene respuesta sobre la base viva. En CI **no hay base, ni debe haberla**:
+  una CI que dependiera de la memoria de producción mediría otra cosa cada
+  día, y la primera vez que alguien aprobara una propuesta de mejora se
+  pondría roja sin que nada estuviera mal.
+
+La consecuencia hay que decirla en voz alta: **un contrato que mintiera sobre
+filas pasaría CI**. Lo caza el detector, que reverifica *todo* sobre la base
+real en cada medición y devuelve el sujeto a `DEUDA_REAL` si falla.
+
+CI comprueba que el contrato es **válido**; el detector, que además es
+**cierto**. Salió de un rojo de CI en este mismo PR: el gate dependía de la
+base de producción y era imposible de pasar fuera de esta máquina.
 
 ### Nada se esconde
 

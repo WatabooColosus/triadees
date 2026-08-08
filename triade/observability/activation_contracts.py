@@ -61,9 +61,9 @@ CLASSIFICATIONS = (
     "EXPERIMENTAL",
 )
 
-#: Cada tipo de evidencia es una pregunta que se le puede hacer al repositorio y
-#: que tiene respuesta sí/no sin interpretar nada.
-EVIDENCE_KINDS = (
+#: Evidencia que se responde **con el repositorio delante**: ficheros, símbolos,
+#: alcanzabilidad. No necesita base de datos, así que se puede comprobar en CI.
+STRUCTURAL_EVIDENCE = (
     "writer_reachable",
     "reader_exists",
     "human_gate",
@@ -71,10 +71,23 @@ EVIDENCE_KINDS = (
     "writer_retired",
     "append_only",
     "effect_consumer",
+)
+
+#: Evidencia que sólo tiene respuesta **sobre la base viva**. En CI no hay base
+#: —ni debe haberla: una CI que dependiera de la memoria de producción mediría
+#: otra cosa cada día— así que allí no se puede afirmar ni negar.
+#:
+#: La consecuencia hay que decirla en voz alta: un contrato que mintiera sobre
+#: filas pasaría CI. Lo caza el detector, que reverifica **todo** en cada
+#: medición sobre la base real y devuelve el sujeto a `DEUDA_REAL` si falla. CI
+#: comprueba que el contrato es *válido*; el detector, que además es *cierto*.
+RUNTIME_EVIDENCE = (
     "rows_present",
     "rows_absent",
     "empty_source_table",
 )
+
+EVIDENCE_KINDS = (*STRUCTURAL_EVIDENCE, *RUNTIME_EVIDENCE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -310,10 +323,23 @@ class ContractVerifier:
 
         return False
 
-    def verify(self, contract: Contract) -> Verdict:
+    def verify(self, contract: Contract, *, structural_only: bool = False) -> Verdict:
+        """Comprueba la evidencia declarada. Con `structural_only`, sin base viva.
+
+        `structural_only` existe para CI, donde no hay base de producción y no
+        debe haberla. Allí se comprueba que el contrato **es válido** —que sus
+        ficheros, símbolos y alcanzabilidades existen—; que además **sea cierto**
+        lo comprueba el detector, que reverifica todo sobre la base real en cada
+        medición.
+        """
+        evidencias = [
+            evidencia
+            for evidencia in contract.evidence
+            if not structural_only or evidencia.kind in STRUCTURAL_EVIDENCE
+        ]
         fallidas = tuple(
             str(evidencia)
-            for evidencia in contract.evidence
+            for evidencia in evidencias
             if not self._check(contract, evidencia)
         )
         return Verdict(
