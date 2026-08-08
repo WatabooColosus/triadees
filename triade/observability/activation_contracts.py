@@ -1,0 +1,438 @@
+"""Por qué algo está vacío: contratos que el detector **verifica**, no cree.
+
+El problema que resuelve está escrito, casi con estas palabras, en el propio
+repositorio desde el 2026-08-08:
+
+    La regla general que sí cerraría estos ocho —y cualquier otro caso
+    equivalente— es declarar la condición que produce filas y comprobarla:
+    una tabla vacía cuyo escritor es alcanzable y cuya condición de escritura es
+    un gate humano documentado no es deuda mientras el gate no se haya ejercido
+    nunca. Eso exige que la condición esté declarada en algún sitio que el
+    detector pueda leer, no adivinada. **No existe hoy.**
+    — docs/debt/IMPROVEMENT_TABLES_CLASSIFICATION.md
+
+Esto es ese sitio. Y la parte que lo hace defendible no es el fichero de
+declaraciones: es que **una declaración no exime de nada por sí misma**.
+
+Cómo funciona, y por qué no es una lista de exclusiones
+------------------------------------------------------
+Una lista de nombres —`if table == "improvement_proposals": pass`— esconde una
+rotura real el día que la haya, y no dice nada sobre la siguiente capacidad que
+se construya. Aquí cada contrato declara la **evidencia estructural** que lo
+sostiene, y el detector la vuelve a comprobar en cada medición:
+
+    contrato declara:  HUMAN_GATED, gate en `store.py::approve`
+    detector comprueba: ¿existe ese símbolo? ¿en código alcanzable?
+                        ¿el escritor escribe esa tabla de verdad?
+                        ¿hay lector? ¿la prueba nombrada existe?
+    si algo falla    → vuelve a DEUDA_REAL, diciendo qué evidencia se cayó
+
+O sea: el contrato dice **dónde mirar**, no **qué concluir**. Borra el gate y la
+tabla vuelve al contador sola. Retira el escritor y vuelve. Renombra el símbolo y
+vuelve. Es lo contrario de una exclusión: es una afirmación falsable.
+
+Las clasificaciones no se derivan nunca del nombre de la tabla, del task type ni
+del módulo. Se derivan de la cadena que exige el encargo:
+
+    PRODUCTOR → EVENTO → ALCANZABILIDAD → GATE → CONSUMIDOR → EFECTO → EVIDENCIA
+
+y cada eslabón que se declara, se comprueba.
+"""
+
+from __future__ import annotations
+
+import re
+import sqlite3
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from .code_graph import build_module_index, reachable_modules
+
+#: Las únicas clasificaciones que un contrato puede reclamar. `DEUDA_REAL` no
+#: está: no se declara, es lo que queda cuando ninguna otra se sostiene.
+CLASSIFICATIONS = (
+    "HUMAN_GATED",
+    "ON_DEMAND",
+    "NO_EXTERNAL_STIMULUS",
+    "EXPECTED_EMPTY",
+    "AUDIT_LEDGER",
+    "HISTORICAL",
+    "EXPERIMENTAL",
+)
+
+#: Cada tipo de evidencia es una pregunta que se le puede hacer al repositorio y
+#: que tiene respuesta sí/no sin interpretar nada.
+EVIDENCE_KINDS = (
+    "writer_reachable",
+    "reader_exists",
+    "human_gate",
+    "proof_test",
+    "writer_retired",
+    "append_only",
+    "effect_consumer",
+    "rows_present",
+    "rows_absent",
+    "empty_source_table",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Evidence:
+    kind: str
+    value: str
+
+    def __str__(self) -> str:
+        return f"{self.kind}={self.value}"
+
+
+@dataclass(frozen=True, slots=True)
+class Contract:
+    subject: str
+    classification: str
+    reason: str
+    decided_at: str
+    evidence: tuple[Evidence, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True, slots=True)
+class Verdict:
+    """Lo que el detector concluye tras comprobar, no lo que el contrato pedía."""
+
+    subject: str
+    classification: str
+    reason: str
+    holds: bool
+    failed: tuple[str, ...] = field(default_factory=tuple)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "subject": self.subject,
+            "classification": self.classification if self.holds else "DEUDA_REAL",
+            "reason": self.reason,
+            "contract_holds": self.holds,
+            "failed_evidence": list(self.failed),
+        }
+
+
+def _contract(
+    subject: str,
+    classification: str,
+    *,
+    decided_at: str,
+    reason: str,
+    evidence: tuple[str, ...],
+) -> Contract:
+    """Construye y **valida** una declaración. Un contrato malformado no carga.
+
+    Las dos validaciones son las que impiden que esto degenere en una lista de
+    exclusiones: el vocabulario de clasificaciones es cerrado, y una declaración
+    sin evidencia es un error, no un permiso.
+    """
+    if classification not in CLASSIFICATIONS:
+        raise ValueError(
+            f"{subject}: clasificación desconocida {classification!r}; "
+            f"las válidas son {CLASSIFICATIONS}"
+        )
+    if not evidence:
+        raise ValueError(
+            f"{subject}: un contrato sin evidencia es una exclusión por nombre, "
+            "que es justo lo que esto viene a evitar"
+        )
+    partidas = []
+    for bruto in evidence:
+        kind, _, value = bruto.partition("=")
+        kind = kind.strip()
+        if kind not in EVIDENCE_KINDS:
+            raise ValueError(
+                f"{subject}: evidencia desconocida {kind!r}; "
+                f"las válidas son {EVIDENCE_KINDS}"
+            )
+        partidas.append(Evidence(kind, value.strip()))
+    return Contract(
+        subject=subject,
+        classification=classification,
+        reason=" ".join(reason.split()),
+        decided_at=decided_at,
+        evidence=tuple(partidas),
+    )
+
+
+def load_contracts() -> dict[str, Contract]:
+    """Las declaraciones vigentes, indexadas por sujeto."""
+    return {contrato.subject: contrato for contrato in CONTRACTS}
+
+
+class ContractVerifier:
+    """Comprueba la evidencia declarada contra el repositorio y la base viva.
+
+    Se construye una vez por informe: la alcanzabilidad cuesta una lectura
+    completa del AST y los perfiles de tabla vienen del artefacto ya generado.
+    """
+
+    def __init__(
+        self,
+        root: Path,
+        *,
+        table_profiles: dict[str, dict[str, Any]] | None = None,
+        db_path: Path | None = None,
+        reachable: set[str] | None = None,
+    ) -> None:
+        self.root = root.resolve()
+        self.profiles = table_profiles or {}
+        self.db_path = db_path
+        self._reachable = reachable
+        self._sources: dict[str, str] = {}
+
+    @property
+    def reachable(self) -> set[str]:
+        if self._reachable is None:
+            self._reachable = reachable_modules(
+                self.root, build_module_index(self.root)
+            )
+        return self._reachable
+
+    def _source(self, relative: str) -> str | None:
+        if relative not in self._sources:
+            path = self.root / relative
+            try:
+                self._sources[relative] = path.read_text(
+                    encoding="utf-8", errors="ignore"
+                )
+            except OSError:
+                return None
+        return self._sources.get(relative)
+
+    def _table_of(self, subject: str) -> str:
+        return subject.split(":", 1)[1] if ":" in subject else subject
+
+    def _rows(self, table: str) -> int | None:
+        perfil = self.profiles.get(table)
+        if perfil is not None and "rows" in perfil:
+            return int(perfil["rows"] or 0)
+        if self.db_path is None or not Path(self.db_path).is_file():
+            return None
+        try:
+            with sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True) as conn:
+                return int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+        except sqlite3.Error:
+            return None
+
+    # ── comprobaciones ───────────────────────────────────────────────
+
+    def _check(self, contract: Contract, evidence: Evidence) -> bool:
+        tabla = self._table_of(contract.subject)
+        kind, valor = evidence.kind, evidence.value
+
+        if kind == "writer_reachable":
+            # El escritor tiene que existir, escribir de verdad esa tabla y
+            # estar donde algo lo ejecute. Sin lo tercero, "hay escritor" es una
+            # frase sobre ficheros, no sobre el sistema.
+            if valor not in self.reachable:
+                return False
+            fuente = self._source(valor)
+            if fuente is None:
+                return False
+            return bool(re.search(rf"\b{re.escape(tabla)}\b", fuente))
+
+        if kind == "reader_exists":
+            fuente = self._source(valor)
+            return fuente is not None and bool(
+                re.search(rf"\b{re.escape(tabla)}\b", fuente)
+            )
+
+        if kind == "human_gate":
+            # `ruta::simbolo`. Que el símbolo exista y viva en código alcanzable
+            # es lo que separa «espera una firma humana» de «no hay por dónde».
+            ruta, _, simbolo = valor.partition("::")
+            if ruta not in self.reachable:
+                return False
+            fuente = self._source(ruta)
+            return fuente is not None and bool(
+                re.search(rf"\bdef\s+{re.escape(simbolo)}\b", fuente)
+            )
+
+        if kind == "proof_test":
+            ruta, _, nombre = valor.partition("::")
+            fuente = self._source(ruta)
+            if fuente is None:
+                return False
+            return not nombre or bool(
+                re.search(rf"\bdef\s+{re.escape(nombre)}\b", fuente)
+            )
+
+        if kind == "effect_consumer":
+            # `ruta::simbolo`. Responde al «EFECTO» de la cadena cuando el efecto
+            # **no** viaja por la tabla: `GovernedResearchWorker.run()` devuelve
+            # las claims y el `candidate_id` a quien la llamó, y la fila es el
+            # registro de lo que pasó, no el canal. Sin esto, una bitácora
+            # legítima y una capacidad desconectada se ven igual.
+            ruta, _, simbolo = valor.partition("::")
+            if ruta not in self.reachable:
+                return False
+            fuente = self._source(ruta)
+            return fuente is not None and bool(
+                re.search(rf"\b{re.escape(simbolo)}\b", fuente)
+            )
+
+        if kind == "writer_retired":
+            # Lo contrario que las demás: la prueba es una ausencia. Sirve para
+            # distinguir «se retiró a propósito» de «se perdió por el camino».
+            return not (self.root / valor).exists()
+
+        if kind == "append_only":
+            fuente = self._source(valor)
+            if fuente is None:
+                return False
+            escribe = re.search(
+                rf"INSERT\s+INTO\s+{re.escape(tabla)}\b", fuente, re.IGNORECASE
+            )
+            modifica = re.search(
+                rf"(UPDATE\s+{re.escape(tabla)}\b|DELETE\s+FROM\s+{re.escape(tabla)}\b)",
+                fuente,
+                re.IGNORECASE,
+            )
+            return bool(escribe) and not modifica
+
+        if kind == "rows_present":
+            filas = self._rows(valor or tabla)
+            return filas is not None and filas > 0
+
+        if kind == "rows_absent":
+            filas = self._rows(valor or tabla)
+            return filas == 0
+
+        if kind == "empty_source_table":
+            # «No ha pasado porque no hay con quién»: el estímulo externo se
+            # mide, no se supone. Si aparece un peer, el contrato se cae solo.
+            filas = self._rows(valor)
+            return filas == 0
+
+        return False
+
+    def verify(self, contract: Contract) -> Verdict:
+        fallidas = tuple(
+            str(evidencia)
+            for evidencia in contract.evidence
+            if not self._check(contract, evidencia)
+        )
+        return Verdict(
+            subject=contract.subject,
+            classification=contract.classification,
+            reason=contract.reason,
+            holds=not fallidas,
+            failed=fallidas,
+        )
+
+    def classify(
+        self, subjects: list[str], contracts: dict[str, Contract]
+    ) -> dict[str, Verdict]:
+        """Veredicto por sujeto. Lo que no tiene contrato no aparece: es deuda."""
+        return {
+            subject: self.verify(contracts[subject])
+            for subject in subjects
+            if subject in contracts
+        }
+
+
+# ── Las declaraciones vigentes ───────────────────────────────────────
+#
+# Esto NO es una lista de exclusiones. Cada entrada declara la evidencia
+# estructural que la sostiene, y `ContractVerifier` la vuelve a comprobar en cada
+# medición: si el gate desaparece, si el escritor deja de ser alcanzable, si la
+# prueba nombrada se borra o si aparecen filas donde se afirmaba que no las
+# habría, el sujeto **vuelve solo a DEUDA_REAL** diciendo qué evidencia se cayó.
+#
+# Añadir una entrada exige haber recorrido la cadena entera —PRODUCTOR → EVENTO →
+# ALCANZABILIDAD → GATE → CONSUMIDOR → EFECTO → EVIDENCIA— y declarar el eslabón
+# que la sostiene.
+
+CONTRACTS: tuple[Contract, ...] = (
+    # ── Bitácoras de sólo escritura ──────────────────────────────────
+    #
+    # Categoría `tables_written_never_read`. La pregunta no es «¿alguien las
+    # lee?» sino «¿el efecto de escribirlas viaja por otro sitio?». Cuando el
+    # resultado se devuelve a quien llamó y la fila es el registro de lo que
+    # pasó, añadir un lector sería decoración: leería para no hacer nada.
+    #
+    # Que son append-only no se promete, se comprueba: el módulo que las escribe
+    # tiene `INSERT INTO` y ningún `UPDATE` ni `DELETE` sobre ellas. En cuanto
+    # aparezca uno, deja de ser una bitácora y vuelve al contador.
+    _contract(
+        "table:hardware_senses",
+        "AUDIT_LEDGER",
+        decided_at="2026-08-08",
+        reason="""
+            El hipotálamo decide con el snapshot en memoria —`Hypothalamus.sense()`
+            guarda `_last_snapshot`, y de ahí salen la carga cognitiva y el
+            `cognitive_snapshot` que sí se persiste—; `save_snapshot()` escribe la
+            fila aparte, como registro de lo medido. 428 filas, ni un `UPDATE`.
+            Añadirle un lector no cambiaría ninguna decisión: la decisión ya se
+            tomó con el mismo dato, antes de guardarlo.
+        """,
+        evidence=(
+            "writer_reachable=triade/hypothalamus/senses.py",
+            "append_only=triade/hypothalamus/senses.py",
+            "effect_consumer=triade/core/hypothalamus.py::_last_snapshot",
+            "rows_present=hardware_senses",
+        ),
+    ),
+    _contract(
+        "table:governed_research_runs",
+        "AUDIT_LEDGER",
+        decided_at="2026-08-08",
+        reason="""
+            `GovernedResearchWorker.run()` devuelve claims, contradicciones, bundle
+            de evidencia y `candidate_id` a quien la llamó (`worker_loop.py:3256`),
+            y ese `candidate_id` es lo que enlaza con la cola de aprendizaje. El
+            efecto viaja por el valor de retorno; la fila es el acta. 150 filas.
+        """,
+        evidence=(
+            "writer_reachable=triade/research/governed.py",
+            "append_only=triade/research/governed.py",
+            "effect_consumer=triade/workers/worker_loop.py::GovernedResearchWorker",
+            "rows_present=governed_research_runs",
+        ),
+    ),
+    _contract(
+        "table:engineering_evolution_events",
+        "AUDIT_LEDGER",
+        decided_at="2026-08-08",
+        reason="""
+            Bitácora de decisiones de una evolución de ingeniería: revisión
+            independiente, aprobación humana firmada, despliegue canario, rollback.
+            Cada `_event()` es un `INSERT` y nada la modifica. El estado que sí se
+            consulta vive en `engineering_evolution_runs`, su tabla hermana; ésta
+            guarda el porqué de cada paso, que es lo que se quiere poder releer
+            después de un incidente y no antes.
+        """,
+        evidence=(
+            "writer_reachable=triade/evolution/engineering_worker.py",
+            "append_only=triade/evolution/engineering_worker.py",
+            "reader_exists=triade/evolution/engineering_worker.py",
+            "rows_present=engineering_evolution_events",
+        ),
+    ),
+    # ── Historia de algo que ya terminó ──────────────────────────────
+    #
+    # Distinta de una bitácora viva: aquí el escritor ya no existe, y esa
+    # ausencia es la prueba de que se retiró a propósito y no se perdió por el
+    # camino. Las filas se conservan porque documentan un cambio real de estado.
+    _contract(
+        "table:evidence_remediation_audit",
+        "HISTORICAL",
+        decided_at="2026-08-08",
+        reason="""
+            Acta de una remediación puntual: qué evidencia sintética se corrigió,
+            con el antes y el después de cada entidad. 479 filas, escritas por
+            `scripts/remediate_synthetic_evidence.py`, que no arranca ningún
+            entrypoint —es un script de operador, no un servicio—. La remediación
+            ocurrió; el acta es lo que queda, y se lee cuando alguien pregunta por
+            qué cambió un dato, no en cada ciclo.
+        """,
+        evidence=(
+            "append_only=scripts/remediate_synthetic_evidence.py",
+            "rows_present=evidence_remediation_audit",
+        ),
+    ),
+)
