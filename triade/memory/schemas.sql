@@ -279,16 +279,10 @@ CREATE TABLE IF NOT EXISTS reinforcement_log (
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 
-CREATE TABLE IF NOT EXISTS goals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    description TEXT,
-    priority TEXT DEFAULT 'medium',
-    status TEXT DEFAULT 'active',
-    owner_neuron TEXT DEFAULT 'central',
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
+-- `goals` vivio aqui hasta el 2026-08-08. La retira `036`: nunca tuvo una fila
+-- en produccion, su unico escritor era `tests/test_consciousness.py` y su unico
+-- lector, `consciousness/salience.py`, recibia siempre el caso vacio. Los
+-- objetivos vivos estan en `planning_graph`, a donde se migro el lector.
 
 CREATE INDEX IF NOT EXISTS idx_runs_run_id ON runs(run_id);
 CREATE INDEX IF NOT EXISTS idx_episodic_memory_run_id ON episodic_memory(run_id);

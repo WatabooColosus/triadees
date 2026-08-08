@@ -97,10 +97,32 @@ class SalienceEngine:
         return base
 
     def _goal_salience(self, user_input: str) -> float:
+        """Cuánto de lo que se está haciendo aparece en lo que el usuario dice.
+
+        Leía `goals`, que en producción **no la escribe nadie**: su único escritor
+        en todo el repositorio es `tests/test_consciousness.py`, y el estado que
+        buscaba, `'active'`, ni siquiera pertenece a ningún vocabulario vivo. La
+        consulta era válida, la tabla existía, la columna existía — y devolvía
+        siempre el caso vacío, o sea `0.1` fijo para cualquier entrada.
+
+        Los objetivos de verdad viven en `planning_graph`. Es el caso que originó
+        el detector de deuda de alias, y llevaba abierto desde entonces: dos
+        nombres que no se parecen en nada, uno vivo y otro no.
+
+        Los estados activos salen de `GOAL_ACTIVE_STATES`, la fuente canónica de
+        esa máquina, y no de una lista repetida aquí: si mañana se añade un
+        estado activo, esta consulta lo hereda.
+        """
+        from triade.core.planning_graph import GOAL_ACTIVE_STATES
+
+        marcadores = ",".join("?" for _ in GOAL_ACTIVE_STATES)
         try:
             with sqlite3.connect(self.db_path) as conn:
                 active = conn.execute(
-                    "SELECT title, description FROM goals WHERE status = 'active' LIMIT 5"
+                    "SELECT title, description FROM planning_graph "
+                    f"WHERE parent_id IS NULL AND status IN ({marcadores}) "
+                    "ORDER BY priority, updated_at DESC LIMIT 5",
+                    tuple(sorted(GOAL_ACTIVE_STATES)),
                 ).fetchall()
                 if not active:
                     return 0.1
