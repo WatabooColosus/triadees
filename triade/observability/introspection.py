@@ -445,6 +445,22 @@ def _backup_protection_gaps(root: Path) -> dict[str, Any]:
                 f"{len(sin_huella)} copias sin `key_fingerprint` en su manifiesto: "
                 "no se puede saber qué clave las abre"
             )
+        # Que la copia exista, sea reciente y sepa qué clave la abre no dice
+        # todavía que **sirva**. El 2026-08-08 la base se corrompió entre dos
+        # copias y la siguiente se archivó igual: la más reciente —la que
+        # cualquiera habría elegido para restaurar— era inservible, y ninguna de
+        # las tres comprobaciones anteriores lo veía.
+        #
+        # Sólo se mira la más reciente, y por el manifiesto: descifrar 60 MB en
+        # cada medición del panel convertiría el detector en el proceso más caro
+        # del sistema. Quien escribe la copia es quien sabe si su origen estaba
+        # sano, y ahora lo deja anotado.
+        integridad = _manifest_source_integrity(copias[0])
+        if integridad != "ok":
+            gaps.append(
+                f"la copia más reciente ({copias[0].name}) no acredita que su "
+                f"origen estuviera íntegro: `source_integrity` = {integridad!r}"
+            )
 
     return {
         "count": len(gaps),
@@ -495,6 +511,21 @@ def _manifest_key_fingerprint(backup: Path) -> str | None:
         return json.loads(manifest.read_text(encoding="utf-8")).get("key_fingerprint")
     except (OSError, ValueError):
         return None
+
+
+def _manifest_source_integrity(backup: Path) -> str:
+    """Qué dijo `integrity_check` del origen cuando se creó esta copia.
+
+    Las copias anteriores al 2026-08-08 no lo llevan, y eso **también** es una
+    respuesta: de ellas no consta que su origen estuviera sano, que es
+    exactamente lo que hay que saber antes de confiar en una.
+    """
+    manifest = backup.with_suffix(backup.suffix + ".json")
+    try:
+        valor = json.loads(manifest.read_text(encoding="utf-8")).get("source_integrity")
+    except (OSError, ValueError):
+        return "sin manifiesto legible"
+    return str(valor) if valor else "no consta"
 
 
 def _declared_services_not_running(
