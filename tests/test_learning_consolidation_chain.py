@@ -140,6 +140,46 @@ def test_planner_encola_consolidacion_solo_si_el_handler_puede_actuar(
     assert [t.task_type for t in planeadas] == ["stable_consolidation_review"]
 
 
+def test_el_planner_no_mantiene_su_copia_del_vocabulario(tmp_path: Path) -> None:
+    """Corte 3: la lista de estados del planner se quedo atras del dueno.
+
+    `LearningPipeline.CONSOLIDATABLE_STATES` es la fuente; el planner tenia una
+    copia escrita a mano a la que le faltaba `internally_checked`, que es justo
+    donde vive el uso real. Medido el 2026-08-08 sobre la base viva:
+    `internally_checked` tenia 712 candidatos con 19 usados —hasta 44 usos y
+    0.936 de score— y `evidence_verified` tenia 10 sin un solo uso. Dos
+    poblaciones disjuntas: 16 candidatos cumplian ambos umbrales y no
+    consolidaban nunca porque su estado no entraba en la consulta.
+
+    Es la misma forma del fallo que documenta `CONSOLIDATABLE_STATES` en su
+    propio docstring, un escalon mas arriba.
+    """
+    pipe = _pipe(tmp_path)
+    planner = MissionPlanner(db_path=pipe.db_path)
+
+    # Un candidato usado de sobra en CADA estado consolidable: si el planner
+    # vuelve a tener su propia lista, el que se quede fuera lo delata.
+    for indice, estado in enumerate(LearningPipeline.CONSOLIDATABLE_STATES):
+        pipe_local = _pipe(tmp_path / f"estado-{indice}")
+        planner_local = MissionPlanner(db_path=pipe_local.db_path)
+        cid = _candidato_verificado(pipe_local, f"estado-{indice}")
+        with sqlite3.connect(pipe_local.db_path) as conn:
+            conn.execute(
+                "UPDATE learning_queue SET status=? WHERE candidate_id=?",
+                (estado, cid),
+            )
+        _forzar_uso(pipe_local, cid, usos=LearningPipeline.MIN_RUN_USES, score=0.95)
+
+        planeadas = planner_local._plan_memory_consolidation()
+
+        assert [t.task_type for t in planeadas] == ["stable_consolidation_review"], (
+            f"un candidato usado en estado {estado!r} no se encola: el planner "
+            "volvio a mantener su propia copia de CONSOLIDATABLE_STATES"
+        )
+
+    assert planner._plan_memory_consolidation() == []
+
+
 def test_la_evidencia_va_primero_a_lo_que_ya_se_usa(tmp_path: Path) -> None:
     """Corte 1: el escaneo por recencia mataba de hambre a los candidatos usados.
 

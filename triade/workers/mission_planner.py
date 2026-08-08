@@ -685,13 +685,38 @@ class MissionPlanner:
         """
         tasks: list[PlannedTask] = []
         try:
+            # Los estados salen de `LearningPipeline.CONSOLIDATABLE_STATES`, no de
+            # una copia local. Aquí había una lista escrita a mano a la que le
+            # faltaba `internally_checked`, que es justo donde vive el uso real:
+            # medido el 2026-08-08, `internally_checked` tenía 712 candidatos con
+            # 19 usados —hasta 44 usos y 0.936 de score— y `evidence_verified`
+            # tenía 10 sin un solo uso. Dos poblaciones disjuntas: la consulta
+            # miraba la que no se usa, y 16 candidatos que ya cumplían ambos
+            # umbrales no consolidaban nunca.
+            #
+            # Es la misma forma del fallo que documenta `CONSOLIDATABLE_STATES` en
+            # su propio docstring, un escalón más arriba: quien mantiene su copia
+            # del vocabulario se queda atrás cuando el dueño lo amplía. Los dos
+            # umbrales numéricos ya se leían de allí; los estados no.
+            #
+            # Esto no relaja nada: `consolidate()` sigue exigiendo
+            # `run_use_count >= MIN_RUN_USES` y `avg_outcome_score >=
+            # MIN_OUTCOME_SCORE` sea cual sea el estado de entrada, y la consulta
+            # los sigue comprobando aquí para no encolar lo que el handler
+            # rechazaría (F-037).
+            estados = LearningPipeline.CONSOLIDATABLE_STATES
+            huecos = ",".join("?" for _ in estados)
             with closing(self._connect()) as conn, conn:
                 row = conn.execute(
-                    """SELECT COUNT(*) as cnt FROM learning_queue
-                    WHERE status IN ('validated_in_runs', 'evidence_verified')
+                    f"""SELECT COUNT(*) as cnt FROM learning_queue
+                    WHERE status IN ({huecos})
                       AND run_use_count >= ?
                       AND avg_outcome_score >= ?""",
-                    (LearningPipeline.MIN_RUN_USES, LearningPipeline.MIN_OUTCOME_SCORE),
+                    (
+                        *estados,
+                        LearningPipeline.MIN_RUN_USES,
+                        LearningPipeline.MIN_OUTCOME_SCORE,
+                    ),
                 ).fetchone()
                 cnt = int(row["cnt"] or 0) if row else 0
             if cnt > 0:
