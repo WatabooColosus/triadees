@@ -243,6 +243,19 @@ class RegressionGate:
             self.quarantine(
                 candidate_id, report.report_id, self._blocking_reason(report)
             )
+        elif report.decision == "pass":
+            # Una evaluación que pasa **es** el nuevo punto de retorno. Sin esta
+            # línea, `record_stable_state` sólo lo llamaban los tests y
+            # `stable_capability_state` se quedaba vacía para siempre: medido el
+            # 2026-08-08 sobre la base viva, 261 evaluaciones `pass` y cero
+            # baselines. Y como `MandatoryRollbackEnforcer.check_promotion`
+            # bloquea la promoción de una capacidad crítica sin baseline
+            # (Artículo III), el gate era insatisfacible por construcción —hacía
+            # falta un baseline para promover, y sólo la promoción lo creaba—.
+            #
+            # Sólo con `pass`, nunca con `warn`: un `warn` es una métrica no
+            # crítica que ha caído, y volver ahí no es volver a un sitio bueno.
+            self.record_stable_state(capability, candidate)
         return report
 
     @staticmethod
