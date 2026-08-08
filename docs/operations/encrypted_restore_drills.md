@@ -21,6 +21,19 @@ python scripts/runtime_backup.py
 No copie la clave a Git ni a artifacts. El comando falla si el archivo permite
 lectura o escritura a grupo u otros usuarios.
 
+## El modo del fichero se cierra en cada arranque
+
+`scripts/triade_runtime.sh up` llama a `EncryptedBackup.ensure_key_file_mode()`
+antes de levantar la app, e imprime el resultado. Existe porque la exigencia de
+`0600` es correcta pero frágil ante el entorno: el reinicio del Studio devuelve
+`0744` a todos los ficheros, y con la clave abierta no se crea **ni** se restaura
+nada. El 2026-08-08 eso dejó al organismo trece horas sin una sola copia, con
+cada `encrypted_backup` cayendo en `dead_letter` por lease expirado.
+
+El arranque cierra el modo y lo dice (`status: tightened` con el modo anterior);
+no lo silencia. `backup_protection_gaps` sigue midiendo el permiso en vivo,
+porque puede volver a abrirse con el runtime ya levantado.
+
 La verificación obligatoria incluye integridad SQLite, anchor de identidad,
 conteo de memoria semántica, estados de tareas y existencia de referencias de
 artifacts. El restore drill escribe en `artifacts/restore-drills`; nunca reemplaza

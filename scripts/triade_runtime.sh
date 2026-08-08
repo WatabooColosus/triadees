@@ -53,6 +53,13 @@ up() {
   start_ollama
   # El .env trae modo, workers, rutas de Ollama y la clave de backup.
   set -a; . ./.env; set +a
+  # El reinicio del Studio devuelve `0744` a todos los ficheros, y con la clave
+  # abierta `EncryptedBackup` se niega a cifrar: el 2026-08-08 el organismo pasó
+  # trece horas sin copia, con cada `encrypted_backup` en `dead_letter` y nada
+  # que lo dijera hasta regenerar la deuda. El modo se cierra aquí, en la capa
+  # que ya es dueña del entorno, y se dice en voz alta cuando hubo que tocarlo.
+  echo -n "clave de backup: "
+  python -c 'from triade.memory.encrypted_backup import EncryptedBackup as E; print(E.ensure_key_file_mode())'
   setsid nohup python -m uvicorn "$APP" --host "$HOST" --port "$PORT" \
     --proxy-headers --forwarded-allow-ips='*' > "$LOG" 2>&1 < /dev/null &
   echo $! > "$PIDFILE"

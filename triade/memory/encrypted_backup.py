@@ -35,6 +35,47 @@ class EncryptedBackup:
             conn.executescript(migration.read_text(encoding="utf-8"))
 
     @staticmethod
+    def ensure_key_file_mode() -> dict[str, Any]:
+        """Cierra los permisos de la clave antes de arrancar, y dice si tuvo que hacerlo.
+
+        `_fernet()` exige `0600` y aborta si el fichero deja algo a grupo u otros.
+        La exigencia es correcta, pero deja al organismo sin backups en cuanto
+        algo externo abre el modo — y eso pasa: el filesystem del Studio devuelve
+        `0744` a todo en cada reinicio. El 2026-08-08 costó trece horas sin una
+        sola copia, con cada `encrypted_backup` cayendo en `dead_letter`.
+
+        Cerrar el modo no borra la exposición que ya ocurrió, así que esto **no
+        silencia el detector**: devuelve `tightened` con el modo anterior para que
+        el arranque lo diga en voz alta. Lo que evita es que una protección que ya
+        está configurada deje de aplicarse por un permiso que nadie miró.
+        """
+        key_file = os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
+        if not key_file:
+            return {"status": "absent", "reason": "sin TRIADE_BACKUP_KEY_FILE"}
+        path = Path(key_file)
+        try:
+            before = path.stat().st_mode & 0o777
+        except OSError as exc:
+            return {"status": "unreadable", "path": str(path), "reason": str(exc)}
+        if not before & 0o077:
+            return {"status": "ok", "path": str(path), "mode": f"{before:04o}"}
+        try:
+            path.chmod(0o600)
+        except OSError as exc:
+            return {
+                "status": "failed",
+                "path": str(path),
+                "mode_before": f"{before:04o}",
+                "reason": str(exc),
+            }
+        return {
+            "status": "tightened",
+            "path": str(path),
+            "mode_before": f"{before:04o}",
+            "mode_after": "0600",
+        }
+
+    @staticmethod
     def _fernet():
         from cryptography.fernet import Fernet
 
