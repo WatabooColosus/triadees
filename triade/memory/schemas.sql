@@ -612,21 +612,6 @@ CREATE INDEX IF NOT EXISTS idx_trainable_adapters_status ON trainable_adapters(s
 CREATE INDEX IF NOT EXISTS idx_trainable_adapters_base_model ON trainable_adapters(base_model);
 CREATE INDEX IF NOT EXISTS idx_trainable_adapters_dataset_id ON trainable_adapters(dataset_id);
 
-CREATE TABLE IF NOT EXISTS user_sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT NOT NULL,
-    session_id TEXT NOT NULL UNIQUE,
-    status TEXT DEFAULT 'active',
-    permissions TEXT DEFAULT '{}',
-    metadata TEXT DEFAULT '{}',
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    last_active_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    closed_at TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_session_id ON user_sessions(session_id);
-
 CREATE TABLE IF NOT EXISTS planning_graph (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     goal_id TEXT NOT NULL UNIQUE,
@@ -683,86 +668,6 @@ CREATE TABLE IF NOT EXISTS goal_learning_observations (
 
 CREATE INDEX IF NOT EXISTS idx_goal_learning_goal
 ON goal_learning_observations(goal_id, created_at, observation_id);
-
-CREATE TABLE IF NOT EXISTS federated_merge_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    request_id TEXT NOT NULL UNIQUE,
-    source_node TEXT NOT NULL,
-    target_node TEXT NOT NULL,
-    merge_type TEXT NOT NULL,
-    status TEXT NOT NULL,
-    merged_count INTEGER DEFAULT 0,
-    conflicts_json TEXT DEFAULT '[]',
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS federated_merge_nodes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    node_id TEXT NOT NULL UNIQUE,
-    last_seen_at TEXT,
-    trust_score REAL DEFAULT 0.5,
-    merge_count INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS benchmark_tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id TEXT NOT NULL UNIQUE,
-    task_type TEXT NOT NULL,
-    input_text TEXT NOT NULL,
-    expected_output TEXT DEFAULT '',
-    evaluator_model TEXT DEFAULT 'external',
-    difficulty TEXT DEFAULT 'medium',
-    tags TEXT DEFAULT '[]',
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS benchmark_results (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id TEXT NOT NULL,
-    evaluator_model TEXT NOT NULL,
-    actual_output TEXT DEFAULT '',
-    score REAL DEFAULT 0.0,
-    latency_ms INTEGER DEFAULT 0,
-    passed INTEGER DEFAULT 0,
-    evaluator_notes TEXT DEFAULT '',
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_benchmark_results_model ON benchmark_results(evaluator_model);
-
-CREATE TABLE IF NOT EXISTS meta_model_candidates (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    model_name TEXT NOT NULL UNIQUE,
-    size_bytes INTEGER DEFAULT 0,
-    parameter_count TEXT DEFAULT '',
-    description TEXT DEFAULT '',
-    source_url TEXT DEFAULT '',
-    compatible INTEGER DEFAULT 1,
-    estimated_vram_gb REAL DEFAULT 0.0,
-    status TEXT DEFAULT 'discovered',
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS meta_model_evaluations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    model_name TEXT NOT NULL,
-    task_type TEXT NOT NULL,
-    score REAL DEFAULT 0.0,
-    latency_ms INTEGER DEFAULT 0,
-    quality_notes TEXT DEFAULT '',
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS meta_model_decisions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    model_name TEXT NOT NULL,
-    decision TEXT NOT NULL,
-    reason TEXT DEFAULT '',
-    previous_model TEXT DEFAULT '',
-    improvement_pct REAL DEFAULT 0.0,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
 
 INSERT OR IGNORE INTO identity_core (key, value, category, confidence)
 VALUES
