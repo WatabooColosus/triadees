@@ -31,7 +31,21 @@ FERNET_A = "0" * 42 + "="
 FERNET_B = "1" * 42 + "="
 
 
-def _backup(root: Path, name: str, *, age_seconds: float, fingerprint: str | None):
+def _backup(
+    root: Path,
+    name: str,
+    *,
+    age_seconds: float,
+    fingerprint: str | None,
+    source_integrity: str | None = "ok",
+):
+    """Una copia de mentira con el manifiesto que tendria una de verdad.
+
+    `source_integrity` viene puesto por defecto porque una copia sana **acredita
+    que su origen lo estaba**: dejarlo fuera convertiria a todas las fixtures en
+    el caso defectuoso y las demas pruebas dejarian de medir lo suyo. Se pasa
+    `None` en la prueba que comprueba justo esa falta.
+    """
     directory = root / "artifacts" / "backups"
     directory.mkdir(parents=True, exist_ok=True)
     archivo = directory / f"triade-{name}.db.gz.fernet"
@@ -39,6 +53,8 @@ def _backup(root: Path, name: str, *, age_seconds: float, fingerprint: str | Non
     manifiesto = {"file": archivo.name, "sha256": "x"}
     if fingerprint is not None:
         manifiesto["key_fingerprint"] = fingerprint
+    if source_integrity is not None:
+        manifiesto["source_integrity"] = source_integrity
     archivo.with_suffix(archivo.suffix + ".json").write_text(
         json.dumps(manifiesto), encoding="utf-8"
     )
@@ -336,3 +352,120 @@ def test_sin_ninguna_clave_la_falta_queda_registrada(
     assert any("backup_key_missing" in str(e.get("task_type", "")) for e in errores), (
         errores
     )
+
+
+# --- Copiar sin mirar es archivar el daño -------------------------------------
+
+
+def _base_corrupta(path: Path) -> None:
+    """Una base con la cabecera intacta y las páginas rotas.
+
+    Sirve para el caso que importa: SQLite la abre —así que `source.backup()` no
+    protesta— y sólo `integrity_check` dice que está dañada. Es la forma que
+    tenía la base de producción el 2026-08-08.
+    """
+    import sqlite3
+
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)")
+        conn.executemany(
+            "INSERT INTO t (v) VALUES (?)", [(f"fila-{i}",) for i in range(400)]
+        )
+    datos = bytearray(path.read_bytes())
+    # Se machaca el interior de una página, dejando intacta la cabecera de 100
+    # bytes: el fichero sigue siendo «una base de datos», y sigue sin servir.
+    for offset in range(4096, 8192):
+        datos[offset] = 0xFF
+    path.write_bytes(bytes(datos))
+
+
+def test_no_se_archiva_una_copia_de_una_base_danada(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """El 2026-08-08 pasó exactamente esto, y nadie lo supo hasta restaurar.
+
+    La base de producción se corrompió entre dos copias. La siguiente se creó a
+    partir de ella y se guardó como si estuviera bien: la copia **más reciente**
+    —la que cualquiera habría elegido— era inservible. Si el fallo hubiera
+    tardado unas horas más en notarse, las nueve copias buenas habrían rotado
+    hasta desaparecer.
+
+    Un backup que archiva corrupción es peor que no tenerlo: aparenta protección
+    y además **desplaza** a las copias que sí servían.
+    """
+    from cryptography.fernet import Fernet
+
+    monkeypatch.setenv("TRIADE_BACKUP_KEY", Fernet.generate_key().decode())
+    db = tmp_path / "triade.db"
+    _base_corrupta(db)
+    destino = tmp_path / "backups"
+    buena = _backup(tmp_path, "buena", age_seconds=60, fingerprint="abc123")
+
+    resultado = EncryptedBackup(db_path=db, backup_dir=destino).create(force=True)
+
+    assert resultado["status"] == "failed"
+    assert resultado["reason"] == "source_database_malformed"
+    assert list(destino.glob("*.fernet")) == [], (
+        "se escribió una copia de una base dañada: taparía a las buenas"
+    )
+    # Y la copia buena que ya existía sigue donde estaba.
+    assert buena.exists()
+
+
+def test_una_base_sana_si_se_copia_y_lo_acredita(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La comprobación tiene que poder pasar, o sería una avería nueva."""
+    import sqlite3
+
+    from cryptography.fernet import Fernet
+
+    monkeypatch.setenv("TRIADE_BACKUP_KEY", Fernet.generate_key().decode())
+    db = tmp_path / "triade.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)")
+    destino = tmp_path / "backups"
+
+    resultado = EncryptedBackup(db_path=db, backup_dir=destino).create(force=True)
+
+    assert resultado["status"] == "completed"
+    assert resultado["source_integrity"] == "ok"
+    manifiesto = json.loads(
+        (destino / f"{resultado['file']}.json").read_text(encoding="utf-8")
+    )
+    assert manifiesto["source_integrity"] == "ok", (
+        "queda escrito en el manifiesto para que saberlo no cueste descifrar 60 MB"
+    )
+
+
+def test_una_copia_que_no_acredita_su_origen_es_deuda(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Que exista, sea reciente y sepa qué clave la abre no dice que sirva.
+
+    Las tres comprobaciones anteriores daban verde sobre la copia corrupta del
+    2026-08-08. Ésta es la que faltaba.
+    """
+    monkeypatch.setenv("TRIADE_BACKUP_KEY", FERNET_A)
+    _backup(
+        tmp_path,
+        "sin-acreditar",
+        age_seconds=60,
+        fingerprint="abc123",
+        source_integrity=None,
+    )
+
+    entry = _backup_protection_gaps(tmp_path)
+
+    assert entry["count"] == 1
+    assert "source_integrity" in entry["sample"][0]
+
+
+def test_una_copia_que_acredita_su_origen_no_es_deuda(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La categoría tiene que poder llegar a cero también por esta vía."""
+    monkeypatch.setenv("TRIADE_BACKUP_KEY", FERNET_A)
+    _backup(tmp_path, "acreditada", age_seconds=60, fingerprint="abc123")
+
+    assert _backup_protection_gaps(tmp_path)["count"] == 0
