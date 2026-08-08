@@ -154,6 +154,65 @@ def test_clave_con_permisos_correctos_no_es_deuda(
     assert _backup_protection_gaps(tmp_path)["count"] == 0
 
 
+# --- Cerrar el modo de la clave antes de arrancar -----------------------------
+
+
+def test_el_arranque_cierra_una_clave_abierta(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La exigencia de `0600` es correcta; dejar el organismo sin copias, no.
+
+    El reinicio del Studio del 2026-08-08 devolvio `0744` a la clave rotada. El
+    detector lo vio —esta categoria estaba justamente para eso— pero nadie lo
+    leyo hasta trece horas despues, y en esas trece horas **todas** las tareas
+    `encrypted_backup` acabaron en `dead_letter`. El arranque cierra el modo y lo
+    dice; el detector sigue midiendo, porque el modo puede volver a abrirse.
+    """
+    from cryptography.fernet import Fernet
+
+    clave = tmp_path / "backup.key"
+    clave.write_text(Fernet.generate_key().decode(), encoding="utf-8")
+    clave.chmod(0o744)
+    monkeypatch.delenv("TRIADE_BACKUP_KEY", raising=False)
+    monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(clave))
+    _backup(tmp_path, "buena", age_seconds=60, fingerprint="abc123")
+
+    # Con la condicion defectuosa: hay deuda y no se puede cifrar.
+    assert _backup_protection_gaps(tmp_path)["count"] == 1
+    with pytest.raises(PermissionError):
+        EncryptedBackup._fernet()
+
+    resultado = EncryptedBackup.ensure_key_file_mode()
+
+    assert resultado["status"] == "tightened"
+    assert resultado["mode_before"] == "0744"
+    assert clave.stat().st_mode & 0o777 == 0o600
+    # Y ahora la copia vuelve a ser posible, sin deuda que la bloquee.
+    assert _backup_protection_gaps(tmp_path)["count"] == 0
+    EncryptedBackup._fernet()
+
+
+def test_una_clave_ya_cerrada_no_se_toca(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Si tocara siempre, el `tightened` del arranque dejaria de significar nada."""
+    clave = tmp_path / "backup.key"
+    clave.write_text(FERNET_A, encoding="utf-8")
+    clave.chmod(0o600)
+    monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(clave))
+
+    assert EncryptedBackup.ensure_key_file_mode()["status"] == "ok"
+
+
+def test_sin_clave_en_fichero_no_hay_nada_que_cerrar(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Con la clave en el entorno no hay fichero: no es un fallo, es otra via."""
+    monkeypatch.delenv("TRIADE_BACKUP_KEY_FILE", raising=False)
+
+    assert EncryptedBackup.ensure_key_file_mode()["status"] == "absent"
+
+
 # --- La huella de la clave ----------------------------------------------------
 
 
