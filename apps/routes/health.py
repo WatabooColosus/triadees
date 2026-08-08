@@ -145,8 +145,22 @@ def _runtime_mode() -> dict[str, Any]:
         startup = get_always_on_startup_result()
     except (ImportError, RuntimeError):
         return {"status": "unknown", "conversation_only": None}
+    # El resultado del arranque guarda el desenlace de cada subsistema, y hasta
+    # ahora sólo se publicaban tres campos. El del metabolismo importa
+    # especialmente: el lifespan envuelve `get_coordinator()` → `load_config()`
+    # → `start()` en un `try` que captura `sqlite3.Error` entre otras. Si algo
+    # ahí lanza, el coordinador se queda con los defaults del constructor
+    # —`enabled: False`, `mode: observe_only`— y el error queda escrito en un
+    # sitio que no expone ninguna superficie: el sistema reporta
+    # `status: started` mientras el metabolismo no arrancó nunca.
+    #
+    # Visto el 2026-08-08 persiguiendo una regresión que costó seis intentos y
+    # cuatro diagnósticos equivocados, precisamente por no poder leer esto.
+    metabolismo = startup.get("metabolism")
     return {
         "status": startup.get("status"),
         "conversation_only": bool(startup.get("conversation_only", False)),
         "background_started": startup.get("background_started"),
+        "metabolism_startup": metabolismo,
+        "workers_startup": startup.get("workers_always_on"),
     }
