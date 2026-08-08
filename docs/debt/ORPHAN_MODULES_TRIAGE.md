@@ -81,9 +81,22 @@ la de la Fase 6, y este módulo se decide con ella, no antes.
 
 | módulo | veredicto | por qué |
 |---|---|---|
-| `core/plan_step.py` | REMOVE | sustituido por `central.py:PlanStep`; hermano ya retirado; cero referencias |
-| `core/hierarchical_pulse.py` | decisión pendiente | capacidad real no adoptada; conectarla duplica el pulso |
+| `core/plan_step.py` | **RETIRADO** (2026-08-08) | sustituido por `central.py:PlanStep`; hermano ya retirado; cero referencias |
+| `core/hierarchical_pulse.py` | **ARCHIVADO** (2026-08-08) | capacidad real no adoptada; conectarla duplica el pulso |
 | `capabilities/matrix.py` | retenido | consumidor de `capability_registry`, vacía; se decide en Fase 6 |
 
-El contador no baja en esta fase, y es correcto que no baje: dos de los tres no
-son deuda que se resuelva borrando, y el tercero espera autorización.
+## Ejecutado el 2026-08-08
+
+El operador autorizó retirar `plan_step.py` y archivar `hierarchical_pulse.py`.
+
+Copia previa en `artifacts/dead_code_backup/orphan-modules-20260808T000000Z.tar.gz`
+con manifiesto JSON que lleva SHA-256, líneas y bytes de cada fichero. Git
+conserva además el historial: hay dos vías de recuperación.
+
+`hierarchical_pulse.py` se archiva, no se descarta: su interocepción, su
+intervalo adaptativo y sus lecturas por neurona y worker siguen sin existir en
+`LifePulseEngine`. Si alguna vez se quieren, el punto de partida está en esa
+copia y la decisión pendiente sigue siendo la misma —quién late y quién manda—.
+
+Tras borrar, `triade` y `apps` se importan enteros módulo a módulo: **0 fallos**.
+Deuda 53 → 52. Queda `capabilities/matrix.py`, atado a la Fase 6.
