@@ -62,7 +62,17 @@ base junto a `LIFE_PULSE`, el mismo riesgo que documenta `triade_daemon.py` en
 **CONNECT** con diseño explícito —quién late, con qué cadencia y quién manda— y
 **ARCHIVE**. No se toca hasta que esa decisión exista.
 
-## `triade/capabilities/matrix.py` → **retenido, atado a la Fase 6**
+## `triade/capabilities/matrix.py` → **RETIRADO** (2026-08-08)
+
+> El veredicto de abajo era correcto con la evidencia de entonces y quedó
+> superado: el lifespan ya llama a `bootstrap_core_capabilities()` y el
+> registro vivo tiene cuatro capacidades, así que la matriz se pudo medir en
+> vez de suponer. Cada una de sus partes resultó duplicada o imposible por
+> construcción —el registro rechaza ciclos y críticas sin rollback al
+> escribir—. Veredicto y medición en
+> [`CAPABILITY_MATRIX_VERDICT.md`](CAPABILITY_MATRIX_VERDICT.md).
+
+### Lo que se pensaba en su momento
 
 `CapabilityMatrix.build()` lee `capability_registry`, que tiene **0 filas**.
 
@@ -83,7 +93,7 @@ la de la Fase 6, y este módulo se decide con ella, no antes.
 |---|---|---|
 | `core/plan_step.py` | **RETIRADO** (2026-08-08) | sustituido por `central.py:PlanStep`; hermano ya retirado; cero referencias |
 | `core/hierarchical_pulse.py` | **ARCHIVADO** (2026-08-08) | capacidad real no adoptada; conectarla duplica el pulso |
-| `capabilities/matrix.py` | retenido | consumidor de `capability_registry`, vacía; se decide en Fase 6 |
+| `capabilities/matrix.py` | **RETIRADO** (2026-08-08) | con el registro ya lleno se pudo medir: dos contadores imposibles por construcción, uno constante y el resto duplicado |
 
 ## Ejecutado el 2026-08-08
 
@@ -99,4 +109,6 @@ intervalo adaptativo y sus lecturas por neurona y worker siguen sin existir en
 copia y la decisión pendiente sigue siendo la misma —quién late y quién manda—.
 
 Tras borrar, `triade` y `apps` se importan enteros módulo a módulo: **0 fallos**.
-Deuda 53 → 52. Queda `capabilities/matrix.py`, atado a la Fase 6.
+Deuda 53 → 52. Quedaba `capabilities/matrix.py`, atado a la Fase 6; se
+resolvió el 2026-08-08 sin esperar a esa fase, porque la premisa que lo
+bloqueaba —`capability_registry` en cero— dejó de ser cierta.
