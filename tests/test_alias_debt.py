@@ -37,6 +37,19 @@ def _por_nombre(hallazgos: list) -> dict[str, object]:
     return {h.dead: h for h in hallazgos}
 
 
+def _dead(tmp_path) -> list:
+    """Declara alcanzables los módulos sintéticos del árbol de prueba.
+
+    La señal sólo cuenta lo que llega a ejecutarse. En un árbol de prueba no
+    hay entrypoints, así que sin esto no habría nada alcanzable y la señal se
+    apagaría entera — que es exactamente lo que comprueba
+    `test_lo_que_ningun_entrypoint_alcanza_no_se_cuenta`, ahí sí a propósito.
+    """
+    return find_dead_status_values(
+        tmp_path, alcanzables={p.name for p in tmp_path.glob("*.py")}
+    )
+
+
 def test_encuentra_el_lector_de_goals() -> None:
     """`goals` no se parece a `planning_graph`: sólo la forma lo delata."""
     hallazgos = _por_nombre(find_orphan_readers(PERFILES_REALES))
@@ -122,7 +135,7 @@ def test_un_estado_que_nadie_escribe_es_una_condicion_muerta(tmp_path) -> None:
         encoding="utf-8",
     )
 
-    hallazgos = _por_nombre(find_dead_status_values(tmp_path))
+    hallazgos = _por_nombre(_dead(tmp_path))
 
     assert "validated_in_runs" in hallazgos
     assert "evidence_verified" not in hallazgos
@@ -135,7 +148,7 @@ def test_un_estado_escrito_y_consultado_no_se_acusa(tmp_path) -> None:
         encoding="utf-8",
     )
 
-    assert find_dead_status_values(tmp_path) == []
+    assert _dead(tmp_path) == []
 
 
 def test_el_liston_de_pista_es_mas_bajo_que_el_de_acusacion() -> None:
@@ -160,7 +173,7 @@ def test_un_estado_devuelto_por_return_cuenta_como_escrito(tmp_path) -> None:
         'def clasificar():\n    return "candidate_reviewable"\n', encoding="utf-8"
     )
 
-    assert find_dead_status_values(tmp_path) == []
+    assert _dead(tmp_path) == []
 
 
 # ── formas de escritura que el detector debe reconocer ────────────────
@@ -175,7 +188,7 @@ def test_un_default_de_columna_produce_el_estado(tmp_path) -> None:
         "LEE = \"SELECT * FROM t WHERE status = 'detected'\"\n",
         encoding="utf-8",
     )
-    assert find_dead_status_values(tmp_path) == []
+    assert _dead(tmp_path) == []
 
 
 def test_un_literal_de_diccionario_produce_el_estado(tmp_path) -> None:
@@ -185,7 +198,7 @@ def test_un_literal_de_diccionario_produce_el_estado(tmp_path) -> None:
         "LEE = \"SELECT * FROM t WHERE status = 'starting'\"\n",
         encoding="utf-8",
     )
-    assert find_dead_status_values(tmp_path) == []
+    assert _dead(tmp_path) == []
 
 
 def test_una_asignacion_de_clave_produce_el_estado(tmp_path) -> None:
@@ -195,7 +208,7 @@ def test_una_asignacion_de_clave_produce_el_estado(tmp_path) -> None:
         "LEE = \"SELECT * FROM t WHERE status = 'arrancando'\"\n",
         encoding="utf-8",
     )
-    assert find_dead_status_values(tmp_path) == []
+    assert _dead(tmp_path) == []
 
 
 def test_un_desempaquetado_de_tupla_produce_el_estado(tmp_path) -> None:
@@ -205,7 +218,7 @@ def test_un_desempaquetado_de_tupla_produce_el_estado(tmp_path) -> None:
         "LEE = \"SELECT * FROM t WHERE state = 'runtime_recovered'\"\n",
         encoding="utf-8",
     )
-    assert find_dead_status_values(tmp_path) == []
+    assert _dead(tmp_path) == []
 
 
 def test_sql_parametrizado_rebaja_la_acusacion_a_sospecha(tmp_path) -> None:
@@ -220,7 +233,7 @@ def test_sql_parametrizado_rebaja_la_acusacion_a_sospecha(tmp_path) -> None:
         "LEE = \"SELECT * FROM t WHERE status = 'quizas_vivo'\"\n",
         encoding="utf-8",
     )
-    hallazgos = find_dead_status_values(tmp_path)
+    hallazgos = _dead(tmp_path)
 
     assert [h.signal for h in hallazgos] == ["suspected_dead_status"]
     assert hallazgos[0].confidence == "suspected"
@@ -233,7 +246,123 @@ def test_sin_escritura_parametrizada_la_acusacion_es_firme(tmp_path) -> None:
         "LEE = \"SELECT * FROM t WHERE status = 'nadie_lo_escribe'\"\n",
         encoding="utf-8",
     )
-    hallazgos = find_dead_status_values(tmp_path)
+    hallazgos = _dead(tmp_path)
 
     assert [h.signal for h in hallazgos] == ["dead_status_value"]
     assert hallazgos[0].confidence == "confirmed"
+
+
+# --- Sólo cuenta lo que llega a ejecutarse ------------------------------------
+
+
+def test_lo_que_ningun_entrypoint_alcanza_no_se_cuenta(tmp_path) -> None:
+    """Una comparación que no se evalúa nunca no devuelve cero: no ocurre.
+
+    El 2026-08-08 tres de los siete hallazgos de esta señal eran, literalmente,
+    las fixtures de este mismo fichero —`nadie_lo_escribe`, `quizas_vivo`— y el
+    cuarto vivía en `worker_supervisor`, un módulo que ningún entrypoint alcanza
+    y cuyas cinco tablas ni siquiera existen en la base viva.
+
+    Contarlos era contar dos veces el mismo problema: el módulo muerto ya lo
+    cuentan `modules_without_importer` y el grafo de workers. Y traía la peor
+    clase de ruido, la que hace que un informe deje de leerse.
+    """
+    (tmp_path / "muerto.py").write_text(
+        "LEE = \"SELECT * FROM t WHERE status = 'jamas_escrito'\"\n",
+        encoding="utf-8",
+    )
+
+    # Alcanzable: se acusa.
+    assert [
+        h.dead for h in find_dead_status_values(tmp_path, alcanzables={"muerto.py"})
+    ] == ["jamas_escrito"]
+    # Inalcanzable: no hay nada que acusar aquí.
+    assert find_dead_status_values(tmp_path, alcanzables=set()) == []
+
+
+def test_un_estado_del_insert_cuenta_como_escrito(tmp_path) -> None:
+    """`INSERT INTO t(...,status,...) VALUES(...,'preparing',...)` escribe.
+
+    Es como nace la fila, y es tan escritura como un `SET`. Sin emparejar
+    columnas y valores por posición, `preparing` salía muerto teniendo su
+    `INSERT` tres líneas más arriba.
+    """
+    (tmp_path / "modulo.py").write_text(
+        "ESCRIBE = \"INSERT INTO runs(id,objective,status,budget) VALUES(?,?,'preparing',?)\"\n"
+        "LEE = \"SELECT * FROM runs WHERE status = 'preparing'\"\n",
+        encoding="utf-8",
+    )
+
+    assert _dead(tmp_path) == []
+
+
+def test_el_insert_no_empareja_a_ciegas(tmp_path) -> None:
+    """Si columnas y valores no cuadran, no se afirma nada.
+
+    Un `INSERT` con una función por medio o partido en varias líneas se entiende
+    mal, y entender mal una escritura es peor que no verla: taparía un corte
+    real.
+    """
+    (tmp_path / "modulo.py").write_text(
+        "ESCRIBE = \"INSERT INTO runs(id,status) VALUES(?,?,'sobra')\"\n"
+        "LEE = \"SELECT * FROM runs WHERE status = 'sobra'\"\n",
+        encoding="utf-8",
+    )
+
+    assert [h.dead for h in _dead(tmp_path)] == ["sobra"]
+
+
+def test_las_dos_ramas_de_un_ternario_escriben(tmp_path) -> None:
+    """`status = "a" if cond else "b"` escribe cualquiera de los dos.
+
+    Mirar sólo el primero convertía `retry_wait` en un valor muerto con su
+    propia asignación a la vista (`task_leases.py`).
+    """
+    (tmp_path / "modulo.py").write_text(
+        'status = "dead_letter" if agotado else "retry_wait"\n'
+        "LEE = \"SELECT * FROM t WHERE status = 'retry_wait'\"\n",
+        encoding="utf-8",
+    )
+
+    assert _dead(tmp_path) == []
+
+
+def test_un_estado_con_transicion_de_entrada_declarada_esta_vivo(tmp_path) -> None:
+    """El mapa de transiciones es la fuente canónica de la máquina.
+
+    `replanning` lo escribe `goal_orchestrator` pasándolo como argumento a
+    `graph.transition(...)`, y el SQL de abajo es `SET status = ?`. Ninguna regex
+    de escritura lo ve. Lo que sí es visible y verificable es que `GOAL_TRANSITIONS`
+    lo declara como **destino** de dos transiciones: dentro de la máquina, es
+    alcanzable.
+    """
+    (tmp_path / "maquina.py").write_text(
+        "TRANSICIONES = {\n"
+        '    "queued": frozenset({"running", "replanning"}),\n'
+        '    "replanning": frozenset({"queued"}),\n'
+        "}\n"
+        'ESCRIBE = "UPDATE g SET status = ?"\n'
+        "LEE = \"SELECT * FROM g WHERE status = 'replanning'\"\n",
+        encoding="utf-8",
+    )
+
+    assert _dead(tmp_path) == []
+
+
+def test_un_estado_declarado_sin_transicion_de_entrada_sigue_muerto(tmp_path) -> None:
+    """Nombrarlo no basta: hace falta que algo pueda llegar a él.
+
+    Es el límite de la regla anterior, y el que evita que declarar un estado sea
+    una forma barata de sacarlo del contador.
+    """
+    (tmp_path / "maquina.py").write_text(
+        "ESTADOS = {\n"
+        '    "queued": frozenset({"running"}),\n'
+        '    "huerfano": frozenset({"queued"}),\n'
+        "}\n"
+        'ESCRIBE = "UPDATE g SET status = ?"\n'
+        "LEE = \"SELECT * FROM g WHERE status = 'huerfano'\"\n",
+        encoding="utf-8",
+    )
+
+    assert [h.dead for h in _dead(tmp_path)] == ["huerfano"]
