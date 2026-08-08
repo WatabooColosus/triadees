@@ -12,15 +12,11 @@ comparar contra la fuente.
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
-import pytest
-
 from tests.test_docs_no_drift import _docs_actuales
 from triade.learning.pipeline import LearningPipeline
-from triade.observability.alias_debt import SIMILARITY_THRESHOLD, similarity
 from triade.runtime.task_status import ALL_STATES
 from triade.workers.contracts import WORKER_TASK_TYPES
 
@@ -40,76 +36,62 @@ def _citados_en_docs() -> dict[str, list[str]]:
     return encontrados
 
 
-@pytest.mark.xfail(
-    reason=(
-        "La similitud no distingue un gemelo muerto de cualquier identificador "
-        "emparentado, y no es cuestion de umbral ni de inventario. Con el grafo "
-        "de tablas caen cuatro falsos positivos, pero siguen marcandose modulos "
-        "y conceptos: `self_improvement` es un paquete, `neuron_formation_pipeline` "
-        "un modulo, `stable_consolidation` un prefijo. Se parecen a un task type "
-        "porque lo implementan. Regenerar grafos en CI se probo y NO lo cierra. "
-        "El signo correcto no es el parecido del nombre sino que el documento "
-        "**afirme** que es un task type — otra comprobacion, no esta afinada."
-    ),
-    strict=False,
-)
-def test_ningun_documento_cita_el_gemelo_muerto_de_un_task_type() -> None:
-    """Un nombre casi igual a un task type real, y que no existe, es el fallo.
+#: El documento afirma que lo citado es un task type: lo dice la propia línea o
+#: el encabezado bajo el que vive. No se adivina por la forma del nombre — eso se
+#: probó dos veces y marcaba tablas, módulos y campos, porque comparten
+#: vocabulario con la tarea que los usa.
+_AFIRMA_TASK_TYPE = re.compile(r"task[ _]type|tipos? de tarea", re.IGNORECASE)
 
-    La primera versión de esta prueba adivinaba por sufijo —`_review`, `_cycle`,
-    `_scan`— y marcaba también tablas (`metabolic_cycle`), funciones
-    (`run_neuron_nutrition_cycle`) y campos (`next_review`). Más ruido que
-    señal, y encima adivinando por la forma del nombre: exactamente el error que
-    persigue `alias_debt`.
 
-    Se compara contra el contrato con la misma maquinaria de similitud que usa
-    ese detector, en vez de inventar una nueva. La separación es limpia sobre
-    los casos reales del repositorio:
+def _task_types_afirmados(texto: str) -> set[str]:
+    """Identificadores que el texto presenta como tipos de tarea."""
+    afirmados: set[str] = set()
+    encabezado_afirma = False
+    for linea in texto.splitlines():
+        if linea.startswith(("#", "|---")):
+            encabezado_afirma = bool(_AFIRMA_TASK_TYPE.search(linea))
+        if encabezado_afirma or _AFIRMA_TASK_TYPE.search(linea):
+            afirmados.update(_CITADO.findall(linea))
+    return afirmados
 
-        memory_consolidation_review  0.67  ← gemelo muerto, se marca
-        run_neuron_nutrition_cycle   0.50  ← función, no se marca
-        metabolic_cycle              0.33  ← tabla
-        next_review                  0.33  ← campo
 
-    Encontró `memory_consolidation_review` en ocho documentos que se presentaban
-    como estado actual. `alias_debt` documenta ese par exacto como su ejemplo
-    fundacional, y llevaba meses vivo en la documentación porque ese detector
-    mira código y SQL, no documentos.
+def test_los_task_types_afirmados_existen_en_el_contrato() -> None:
+    """Si un documento dice que algo es un task type, tiene que serlo.
+
+    Dos intentos anteriores fallaron por adivinar: primero por sufijo
+    (`_review`, `_cycle`), luego por parecido con `alias_debt.similarity`. Los
+    dos marcaban tablas, módulos y campos —`metabolic_cycle`, `self_improvement`,
+    `neuron_formation_pipeline`— porque comparten vocabulario con la tarea que
+    los implementa. Ni el umbral ni un inventario de identificadores lo
+    arreglaban: el signo estaba mal elegido.
+
+    Este mira lo que el documento **afirma**, no a qué se parece el nombre. Es
+    la diferencia entre acusar por la forma y acusar por lo dicho, que es
+    justamente la leccion que `alias_debt` documenta sobre sí mismo.
     """
-    # Un nombre que es una tabla real no es el gemelo muerto de un task type,
-    # aunque comparta segmentos: `learning_evidence` se parece a
-    # `learning_evidence_generation` porque la tarea escribe esa tabla. La
-    # fuente es `schemas.sql`, que está en el repositorio y por tanto disponible
-    # en CI — la base viva no lo está.
-    esquema = (REPO_ROOT / "triade/memory/schemas.sql").read_text(encoding="utf-8")
-    tablas = set(re.findall(r"CREATE TABLE(?: IF NOT EXISTS)? (\w+)", esquema))
-    # `schemas.sql` no las tiene todas: varias se crean perezosamente desde su
-    # módulo. El grafo de tablas sí, porque sale del SQL escrito en todo el
-    # repositorio. CI lo regenera antes de este paso; en local puede faltar y
-    # entonces se cae al esquema, que es incompleto pero nunca falso.
-    grafo = REPO_ROOT / "artifacts/internal_graphs/table_graph.json"
-    if grafo.exists():
-        tablas |= {
-            str(n["label"])
-            for n in json.loads(grafo.read_text(encoding="utf-8"))["nodes"]
-            if n["node_id"].startswith("table:")
-        }
+    inexistentes: list[str] = []
+    for doc in _docs_actuales():
+        texto = doc.read_text(encoding="utf-8")
+        for nombre in sorted(_task_types_afirmados(texto)):
+            # Sólo se juzga lo que se parece a un identificador de tarea; el
+            # ruido de la línea (palabras sueltas entre comillas) no se acusa.
+            # Nombrar el concepto no es afirmar una instancia: `task_type` es la
+            # columna, `task_types_never_executed` una categoría de deuda y
+            # `test_…` una prueba. Y un módulo citado en una línea que habla de
+            # tareas sigue siendo un módulo.
+            if (
+                "_" not in nombre
+                or nombre in WORKER_TASK_TYPES
+                or "task_type" in nombre
+                or nombre.startswith("test_")
+                or (REPO_ROOT / "triade/workers" / f"{nombre}.py").exists()
+            ):
+                continue
+            inexistentes.append(f"  {nombre} ← {doc.relative_to(REPO_ROOT)}")
 
-    gemelos: list[str] = []
-    for nombre, docs in _citados_en_docs().items():
-        if nombre in WORKER_TASK_TYPES or nombre in tablas:
-            continue
-        parecido, real = max(
-            ((similarity(nombre, t), t) for t in WORKER_TASK_TYPES), default=(0.0, "")
-        )
-        if parecido > SIMILARITY_THRESHOLD:
-            gemelos.append(
-                f"  {nombre} (≈{parecido:.2f} de {real}) ← {', '.join(docs)}"
-            )
-
-    assert not gemelos, (
-        "documentación que cita el gemelo muerto de un task type real:\n"
-        + "\n".join(sorted(gemelos))
+    assert not inexistentes, (
+        "documentación que presenta como task type algo que no está en "
+        "WORKER_TASK_TYPES:\n" + "\n".join(sorted(set(inexistentes)))
     )
 
 
@@ -148,4 +130,24 @@ def test_los_estados_citados_pertenecen_a_un_vocabulario_con_dueno() -> None:
     assert not huerfanos, (
         "documentación que cita estados fuera del vocabulario declarado:\n"
         + "\n".join(f"  {n} ← {', '.join(d)}" for n, d in sorted(huerfanos.items()))
+    )
+
+
+def test_la_comprobacion_detecta_una_reintroduccion(tmp_path, monkeypatch) -> None:
+    """Sin esto, un gate que pasa no demuestra nada.
+
+    `memory_consolidation_review` vivió meses en ocho documentos. La prueba de
+    que este gate lo habría cazado es reintroducirlo y ver que salta.
+    """
+    doc = tmp_path / "FALSO.md"
+    doc.write_text(
+        "# Tipos de tarea\n\n- `memory_consolidation_review`: consolida memoria\n",
+        encoding="utf-8",
+    )
+
+    afirmados = _task_types_afirmados(doc.read_text(encoding="utf-8"))
+
+    assert "memory_consolidation_review" in afirmados
+    assert "memory_consolidation_review" not in WORKER_TASK_TYPES, (
+        "si esto falla, el tipo volvió al contrato y la prueba pierde sentido"
     )
