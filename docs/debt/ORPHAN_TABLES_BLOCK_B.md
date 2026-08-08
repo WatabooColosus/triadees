@@ -223,3 +223,51 @@ intentado*. Lo que ya no se sostiene es la explicación.
 Tres veredictos seguidos erróneos en este bloque —`RETIRE`, luego
 `KEEP_WITH_REASON` por dependencia, ahora esto— son razón suficiente para no
 volver a tocarlo sin instrumentar antes el arranque.
+
+---
+
+## Tercera corrección: por qué ningún experimento aislado valía
+
+Instrumentar el arranque —ejecutar la secuencia exacta del lifespan en vez de
+construir el coordinador a mano— revela dos cosas que invalidan todo lo anterior.
+
+```text
+db_path del singleton: triade/memory/triade.db   ← ignora TRIADE_DB_PATH
+config_path: triade.yml
+load_config -> {'enabled': True, 'mode': 'full'}
+start() -> {'status': 'locked', 'error': 'another_process_holds_lock'}
+```
+
+**1 · `get_coordinator()` ignora `TRIADE_DB_PATH`.** Usa la ruta por defecto
+codificada. La «prueba sobre una copia con las nueve tablas borradas» que dio
+verde nunca tocó la copia: leía la base real, con las tablas presentes. El
+experimento que supuestamente demostraba que las tablas no hacen falta **no
+probaba nada**, igual que los dos bisects anteriores.
+
+**2 · `start()` devuelve `locked` con el runtime vivo.** Ninguna prueba en
+proceso reproduce el arranque real mientras el servicio corre.
+
+### La hipótesis que queda, y cómo comprobarla
+
+El endpoint de estado reporta `enabled: False, mode: observe_only` — que son los
+**valores por defecto del constructor**, no los de `triade.yml`. Eso ocurre si
+`load_config()` nunca llega a ejecutarse.
+
+En el lifespan la secuencia es `get_coordinator()` → `load_config()` →
+`start()`, dentro de un `try` que captura `sqlite3.Error` entre otras y guarda el
+fallo en `metabolism_result`. Si `get_coordinator()` toca en su construcción
+alguna de las nueve tablas, lanza, `load_config()` no corre, el coordinador
+conserva sus defaults y **el error queda escrito en un sitio que nadie lee**:
+`_ALWAYS_ON_RESULT["metabolism"]`, que `/health/deep` no expone —sólo publica
+`status`, `conversation_only` y `background_started`—.
+
+Comprobarlo es exponer ese campo. Es además una mejora por sí sola: hoy el
+metabolismo puede fallar al arrancar y el sistema reporta `status: started` sin
+que el error sea visible por ninguna superficie.
+
+### Estado
+
+Seis intentos de retirada, cuatro veredictos equivocados. El bloque queda
+**abierto y sin retirar**, y la deuda en 57. Lo aprendido vale más que las nueve
+tablas: tres instrumentos de medida distintos —bisect, copia aislada,
+construcción directa— daban verde sin medir lo que decían medir.
