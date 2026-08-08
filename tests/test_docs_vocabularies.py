@@ -12,6 +12,7 @@ comparar contra la fuente.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -41,14 +42,14 @@ def _citados_en_docs() -> dict[str, list[str]]:
 
 @pytest.mark.xfail(
     reason=(
-        "Falta un inventario de identificadores disponible en CI. La "
-        "comprobación marca como gemelos muertos nombres que son tablas reales "
-        "—`learning_evidence`, `learning_candidate_groups`— y no hay fuente "
-        "completa para excluirlos: `schemas.sql` no las contiene todas (se "
-        "crean perezosamente desde sus módulos), la base viva no está en CI y "
-        "`table_graph.json` vive en `artifacts/`, que está en .gitignore. "
-        "Se deja registrado y no silenciado: el día que exista el inventario, "
-        "este xfail pasa a XPASS y avisa solo."
+        "La similitud no distingue un gemelo muerto de cualquier identificador "
+        "emparentado, y no es cuestion de umbral ni de inventario. Con el grafo "
+        "de tablas caen cuatro falsos positivos, pero siguen marcandose modulos "
+        "y conceptos: `self_improvement` es un paquete, `neuron_formation_pipeline` "
+        "un modulo, `stable_consolidation` un prefijo. Se parecen a un task type "
+        "porque lo implementan. Regenerar grafos en CI se probo y NO lo cierra. "
+        "El signo correcto no es el parecido del nombre sino que el documento "
+        "**afirme** que es un task type — otra comprobacion, no esta afinada."
     ),
     strict=False,
 )
@@ -82,6 +83,17 @@ def test_ningun_documento_cita_el_gemelo_muerto_de_un_task_type() -> None:
     # en CI — la base viva no lo está.
     esquema = (REPO_ROOT / "triade/memory/schemas.sql").read_text(encoding="utf-8")
     tablas = set(re.findall(r"CREATE TABLE(?: IF NOT EXISTS)? (\w+)", esquema))
+    # `schemas.sql` no las tiene todas: varias se crean perezosamente desde su
+    # módulo. El grafo de tablas sí, porque sale del SQL escrito en todo el
+    # repositorio. CI lo regenera antes de este paso; en local puede faltar y
+    # entonces se cae al esquema, que es incompleto pero nunca falso.
+    grafo = REPO_ROOT / "artifacts/internal_graphs/table_graph.json"
+    if grafo.exists():
+        tablas |= {
+            str(n["label"])
+            for n in json.loads(grafo.read_text(encoding="utf-8"))["nodes"]
+            if n["node_id"].startswith("table:")
+        }
 
     gemelos: list[str] = []
     for nombre, docs in _citados_en_docs().items():
