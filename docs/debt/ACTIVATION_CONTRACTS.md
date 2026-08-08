@@ -176,3 +176,44 @@ observado 50 | DEUDA_REAL 40
 ```
 
 El total observado no se mueve. Lo que cambia es de cuánto hay que ocuparse.
+
+## Tercer uso: la automejora, una cadena entera colgando de una firma
+
+Seis de las 28 `tables_with_writer_and_no_rows` son el subsistema
+`triade/self_improvement/`. **Ninguna es tabla muerta**: las seis tienen escritor
+y lector alcanzables. Cuelgan del mismo punto y por diseño — una propuesta que un
+humano aprueba —, a distintas distancias:
+
+```
+señal → propuesta → [FIRMA HUMANA] → candidato → canario → observaciones
+```
+
+| tabla | distancia a la firma |
+|---|---|
+| `improvement_signals` | antes: se registra por API con llave |
+| `improvement_proposals` | **es** el punto de la firma |
+| `improvement_history` | el rastro de cada transición |
+| `improvement_candidate_links` | un eslabón por debajo |
+| `improvement_canaries` | dos |
+| `improvement_canary_observations` | tres |
+
+`bridge.approve()` lanza si `approved_by` viene vacío, y `create_candidate` exige
+que la propuesta esté ya `approved`. La separación es deliberada —el humano elige
+qué se intenta, la máquina hace la verificación rigurosa— y hoy, además, es
+**ejercitable**: las rutas `/api/governance/improvement/*` existen y
+`tests/test_self_improvement_door.py` recorre señal → propuesta → firma y
+comprueba que sin firma válida no se aprueba nada.
+
+Cero filas significa, literalmente, que **nadie ha propuesto todavía una
+mejora**. No que el circuito esté roto.
+
+La evidencia `rows_absent` es la que hace que esto caduque solo: en cuanto
+alguien ejerza el gate, el contrato deja de sostenerse y hay que volver a mirar
+la tabla con datos delante. Que la clasificación tenga fecha de caducidad
+automática es la diferencia entre esto y una exclusión.
+
+```
+observado 50 | DEUDA_REAL 34
+{'HUMAN_GATED': 10, 'AUDIT_LEDGER': 3, 'NO_EXTERNAL_STIMULUS': 1,
+ 'ON_DEMAND': 1, 'HISTORICAL': 1, 'DEUDA_REAL': 34}
+```

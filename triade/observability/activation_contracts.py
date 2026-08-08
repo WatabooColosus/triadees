@@ -558,4 +558,108 @@ CONTRACTS: tuple[Contract, ...] = (
             "effect_consumer=triade/workers/worker_loop.py::_write_governed_text_artifact",
         ),
     ),
+    # ── Automejora: una cadena entera colgando de una firma ──────────
+    #
+    # Las seis cuelgan del mismo punto y por diseño: una propuesta que un humano
+    # aprueba. `bridge.approve()` lanza si la firma viene vacía y
+    # `create_candidate` exige que la propuesta esté ya `approved`. La separación
+    # es deliberada —el humano elige qué se intenta, la máquina hace la
+    # verificación rigurosa— y ahora, además, es **ejercitable**: las rutas
+    # `/api/governance/improvement/{signals,proposals,proposals/{id}/approve}`
+    # existen y están probadas de punta a punta.
+    #
+    # Cero filas significa, literalmente, que nadie ha propuesto todavía una
+    # mejora. La evidencia `rows_absent` es la que hace que esto caduque solo: en
+    # cuanto alguien ejerza el gate, el contrato deja de sostenerse y hay que
+    # volver a mirar la tabla con datos delante.
+    _contract(
+        "table:improvement_signals",
+        "HUMAN_GATED",
+        decided_at="2026-08-08",
+        reason="""
+            Primer eslabón: una capacidad que rinde por debajo de su objetivo. Se registra por `POST /api/governance/improvement/signals`, con llave. Sin señal no hay propuesta, y sin propuesta no hay nada más abajo.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/self_improvement/store.py",
+            "reader_exists=triade/self_improvement/store.py",
+            "proof_test=tests/test_self_improvement_door.py",
+            "rows_absent=improvement_signals",
+        ),
+    ),
+    _contract(
+        "table:improvement_proposals",
+        "HUMAN_GATED",
+        decided_at="2026-08-08",
+        reason="""
+            La dirección que se propone intentar. Es el punto exacto donde entra la firma humana: `approve()` lanza si `approved_by` viene vacío.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/self_improvement/store.py",
+            "reader_exists=triade/self_improvement/orchestrator.py",
+            "proof_test=tests/test_self_improvement_door.py",
+            "rows_absent=improvement_proposals",
+        ),
+    ),
+    _contract(
+        "table:improvement_history",
+        "HUMAN_GATED",
+        decided_at="2026-08-08",
+        reason="""
+            El rastro de cada transición de una propuesta. Vacía porque no hay propuestas, no porque no se escriba.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/self_improvement/store.py",
+            "reader_exists=triade/self_improvement/store.py",
+            "proof_test=tests/test_self_improvement_door.py",
+            "rows_absent=improvement_history",
+        ),
+    ),
+    _contract(
+        "table:improvement_candidate_links",
+        "HUMAN_GATED",
+        decided_at="2026-08-08",
+        reason="""
+            Une la propuesta aprobada con el candidato que la implementa. `create_candidate` exige que la propuesta esté ya `approved`: un eslabón por debajo de la firma.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/self_improvement/bridge.py",
+            "reader_exists=triade/self_improvement/orchestrator.py",
+            "proof_test=tests/test_self_improvement_door.py",
+            "rows_absent=improvement_candidate_links",
+        ),
+    ),
+    _contract(
+        "table:improvement_canaries",
+        "HUMAN_GATED",
+        decided_at="2026-08-08",
+        reason="""
+            Un canario nace de un candidato, que nace de una propuesta aprobada a mano. Dos eslabones por debajo de la firma.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/self_improvement/canary.py",
+            "reader_exists=triade/self_improvement/orchestrator.py",
+            "proof_test=tests/test_self_improvement_door.py",
+            "rows_absent=improvement_canaries",
+        ),
+    ),
+    _contract(
+        "table:improvement_canary_observations",
+        "HUMAN_GATED",
+        decided_at="2026-08-08",
+        reason="""
+            Las observaciones que deciden si el canario gradúa o revierte. Tres eslabones por debajo de la firma; no puede haber ninguna mientras no haya canario.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/self_improvement/canary.py",
+            "reader_exists=triade/self_improvement/canary.py",
+            "proof_test=tests/test_self_improvement_door.py",
+            "rows_absent=improvement_canary_observations",
+        ),
+    ),
 )
