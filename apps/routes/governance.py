@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import sqlite3
 from typing import Any
 from uuid import uuid4
 
@@ -62,6 +64,17 @@ class ImprovementProposalRequest(BaseModel):
 
 def _key(value: str | None) -> None:
     require_key(value)
+
+
+def _db() -> str:
+    """La base que diga el entorno, no la ruta por defecto de cada clase.
+
+    Los constructores del subsistema traen `"triade/memory/triade.db"` como
+    valor por defecto. Tomarlo sin mirar `TRIADE_DB_PATH` significa escribir
+    siempre en la base real: un despliegue con otra ruta usaría la equivocada en
+    silencio, y una prueba no puede aislarse aunque lo intente.
+    """
+    return os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
 
 
 @router.post("/backup/create")
@@ -243,14 +256,36 @@ def improvement_status(
 ) -> dict[str, Any]:
     _key(x_triade_api_key)
     from triade.self_improvement.orchestrator import SelfImprovementOrchestrator
-    from triade.self_improvement.store import ImprovementStore
 
-    # Instanciar el store crea su esquema si falta, que es como se comporta todo
-    # este subsistema. Sin esto, consultar el estado en una base donde nunca se
-    # usó revienta con `no such table` —un 500 por preguntar—, y preguntar es
-    # justo lo primero que alguien va a hacer.
-    ImprovementStore()
-    return {"status": "ok", "snapshot": SelfImprovementOrchestrator().snapshot()}
+    # Preguntar no puede cambiar nada. La primera versión instanciaba el store
+    # para que el esquema existiera, y eso convertía un `GET` en una migración:
+    # consultar el estado creaba diez tablas vacías, que además pasaban a contar
+    # como deuda por el mero hecho de haber mirado. Un observador que altera lo
+    # observado no sirve para observar.
+    #
+    # El esquema lo crea quien escribe —registrar una señal o una propuesta—,
+    # que es cuando el subsistema empieza a existir de verdad.
+    #
+    # No basta con capturar el error: construir el orquestador **ya** crea
+    # esquema, porque su bridge y su canary lo hacen en `__init__`. Por eso la
+    # existencia se comprueba antes, sobre el catálogo y en `mode=ro`, y sólo se
+    # construye cuando hay algo que resumir.
+    with sqlite3.connect(f"file:{_db()}?mode=ro", uri=True) as conn:
+        existe = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='improvement_proposals'"
+        ).fetchone()
+    if existe is None:
+        return {
+            "status": "ok",
+            "initialized": False,
+            "detail": "sin señales ni propuestas: el subsistema aún no se ha usado",
+        }
+    return {
+        "status": "ok",
+        "initialized": True,
+        "snapshot": SelfImprovementOrchestrator(_db()).snapshot(),
+    }
 
 
 @router.post("/improvement/signals")
@@ -267,7 +302,7 @@ def improvement_register_signal(
         signal_id=f"signal-{uuid4().hex[:16]}",
         **payload,
     )
-    return {"status": "ok", "signal": ImprovementStore().register_signal(signal)}
+    return {"status": "ok", "signal": ImprovementStore(_db()).register_signal(signal)}
 
 
 @router.post("/improvement/proposals")
@@ -286,7 +321,7 @@ def improvement_create_proposal(
     )
     return {
         "status": "ok",
-        "proposal": ImprovementStore().create_proposal(proposal),
+        "proposal": ImprovementStore(_db()).create_proposal(proposal),
     }
 
 
@@ -304,7 +339,7 @@ def improvement_approve(
     # que no está `open`—. Sin traducirlas, una firma inválida sale como 500 y
     # parece un fallo del servidor en vez de la negativa que es.
     try:
-        aprobada = ImprovementNeuronFactoryBridge().approve(
+        aprobada = ImprovementNeuronFactoryBridge(_db()).approve(
             proposal_id, approved_by=request.approved_by
         )
     except KeyError as exc:

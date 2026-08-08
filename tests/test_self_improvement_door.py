@@ -84,4 +84,43 @@ def test_el_estado_es_consultable(cliente: TestClient) -> None:
     respuesta = cliente.get("/api/governance/improvement/status")
 
     assert respuesta.status_code == 200, respuesta.text
-    assert "snapshot" in respuesta.json()
+    assert respuesta.json()["initialized"] is False
+
+    cliente.post(
+        "/api/governance/improvement/signals",
+        json={
+            "capability_id": "semantic_memory",
+            "metric_id": "recall",
+            "observed_score": 0.4,
+            "target_score": 0.8,
+        },
+    )
+
+    despues = cliente.get("/api/governance/improvement/status")
+    assert despues.json()["initialized"] is True
+
+
+def test_preguntar_el_estado_no_crea_nada(
+    cliente: TestClient, tmp_path: Path
+) -> None:
+    """Un `GET` no puede ser una migración.
+
+    La primera versión instanciaba el store para que el esquema existiera, y
+    consultar el estado creaba diez tablas vacías —que además pasaban a contar
+    como deuda por el mero hecho de haber mirado—. Un observador que altera lo
+    observado no sirve para observar.
+    """
+    import sqlite3
+
+    cliente.get("/api/governance/improvement/status")
+
+    with sqlite3.connect(tmp_path / "triade.db") as conn:
+        tablas = {
+            fila[0]
+            for fila in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name LIKE 'improvement_%'"
+            )
+        }
+
+    assert not tablas, f"consultar el estado creó tablas: {sorted(tablas)}"
