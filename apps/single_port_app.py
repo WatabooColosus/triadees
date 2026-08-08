@@ -106,6 +106,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
 
     try:
+        from triade.capabilities import bootstrap_core_capabilities
         from triade.core.always_on import (
             load_always_on_config,
             start_always_on_if_enabled,
@@ -116,6 +117,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         from triade.core.worker_autostart import start_workers_if_configured
 
         foundational_result = ensure_foundational_neurons()
+        # Mismo lugar y mismo motivo que las neuronas fundacionales: es un
+        # arranque idempotente que deja existiendo lo que el sistema da por
+        # supuesto. Sólo lo llamaban los tests, así que `capability_registry` y
+        # `capability_history` llevaban toda su vida en cero, `CapabilityMatrix`
+        # no tenía nada que leer —y por eso figuraba como módulo sin importador—
+        # y `CapabilityPolicyGuard` resolvía sobre un registro vacío.
+        #
+        # No sobrescribe nada: `bootstrap_core_capabilities` consulta cada
+        # capacidad y sólo registra las que faltan, con test de idempotencia.
+        # Esa distinción importa aquí, donde ya hubo rutinas de arranque que
+        # borraron lo aprendido.
+        capabilities_result = bootstrap_core_capabilities()
         model_acquisition_result = start_model_acquisition_background()
         cfg = load_always_on_config()
         continuous_result = LIFE_PULSE.configure_continuous_runner(
@@ -164,6 +177,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 "workers_always_on": workers_result,
                 "neuron_lifecycle_background": continuous_result,
                 "foundational_neurons": foundational_result,
+                "core_capabilities": len(capabilities_result),
                 "model_acquisition": model_acquisition_result,
                 "metabolism": metabolism_result,
                 "runtime_watchdog": watchdog_result,
