@@ -30,7 +30,7 @@ Tareas soportadas:
 - `experimental_neuron_activity` — Actividad de neuronas experimentales
 - `neuron_autopromotion` — Auto-promoción de neuronas
 - `federation_inbox_review` — Revisión de federación
-- `memory_consolidation_review` — Revisión de consolidación
+- `stable_consolidation_review` — Revisión de consolidación
 - `system_debt_scan` — Escaneo de deuda del sistema
 
 ### WorkerRunConfig

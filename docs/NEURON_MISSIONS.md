@@ -95,7 +95,7 @@ El `MissionPlanner` lee el estado real del sistema cada ciclo:
 2. **Tareas condicionales** (según estado):
    - Candidatos de aprendizaje pendientes → `pending_learning_review`
    - Tareas fallidas recientes → reintento
-   - Memoria verificada pendiente → `memory_consolidation_review`
+   - Memoria verificada pendiente → `stable_consolidation_review`
    - Misiones activas → `experimental_neuron_activity`
    - Mensajes federados → `federation_inbox_review`
    - Deuda del sistema → `system_debt_scan`

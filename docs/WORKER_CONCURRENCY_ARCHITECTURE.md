@@ -45,7 +45,7 @@ claim → despachar al carril → claim → despachar → recoger lo terminado �
 | `read_only` | 4 | 2 | `pulse_check`, `pending_learning_review`, `federation_inbox_review`, `system_debt_scan`, `bodega_global_review` | Observan y reportan. No escriben estado estable, así que solaparlas no puede corromper nada. |
 | `research` | 2 | 1 | `goal_research`, `research_curriculum`, `neuron_candidate_formation` | Consultan modelos o la web. Caras y lentas; con una sola GPU L4 conviene no apilarlas. |
 | `evaluation` | 2 | 1 | `experimental_neuron_activity`, `neuron_education_cycle`, `self_improvement_evaluation`, `self_improvement_canary_observation` | Sandbox, medición y gates. Solapables **solo entre candidatas distintas**. |
-| `memory_write` | 1 | 1 | `memory_consolidation_review`, `stable_consolidation_review`, `semantic_memory_governance`, `encrypted_backup`, `write_governed_text_artifact` | Escriben memoria gobernada. Dos escrituras simultáneas producirían una memoria que nadie puede auditar. |
+| `memory_write` | 1 | 1 | `stable_consolidation_review`, `stable_consolidation_review`, `semantic_memory_governance`, `encrypted_backup`, `write_governed_text_artifact` | Escriben memoria gobernada. Dos escrituras simultáneas producirían una memoria que nadie puede auditar. |
 | `critical_mutation` | 1 | 1 | `neuron_autopromotion`, `goal_lora_train`, `goal_install`, `goal_safe_command` | Cambian lo estable. Serial global, siempre. |
 
 `identity_core` sigue prohibido para cualquier tarea, en cualquier carril.

@@ -288,7 +288,7 @@ observar → extraer candidato → evaluar → sandbox → verificar → memoria
 Reglas aplicadas:
 
 - `pending_learning_review` evalúa candidatos `candidate` y verifica candidatos `evaluated`.
-- `memory_consolidation_review` puede nutrir memoria semántica `experimental` desde candidatos `verified` con `source_ref`.
+- `stable_consolidation_review` puede nutrir memoria semántica `experimental` desde candidatos `verified` con `source_ref`.
 - Los workers no consolidan memoria `stable`.
 - Los workers rechazan contenido que intenta modificar identidad o memoria núcleo.
 - El sandbox worker solo ejecuta validaciones internas conocidas y escribe dentro de `runs/background/`.

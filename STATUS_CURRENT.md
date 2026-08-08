@@ -204,7 +204,7 @@ reintentos, no se disfrazan de completados.
 | ~~P1-02~~ | ~~canary sin productor~~ | **CERRADO** 2026-08-02 (`12ee1fc`) |
 | ~~P1-03~~ | ~~el saber no influía en la respuesta~~ | **CERRADO** 2026-08-02 (`056e9bd`): no era el modelo, era la rama de auditoría del prompt |
 | **P3-01** | `HealthSensors._check_queue` cuenta sobre `worker_tasks`, retirada | Sensor ciego (no causa falso negativo) |
-| **P3-02** | `memory_consolidation_review`: declarado, con política y handler, **sin productor** | Tipo muerto |
+| **P3-02** | `stable_consolidation_review`: declarado, con política y handler, **sin productor** | Tipo muerto |
 | **I-1** | Renovación de lease: cableada, pero `autonomous_lease_heartbeats` tiene 3 filas del 30-jul | **Incertidumbre**, no defecto confirmado |
 
 La ruta antigua de aprendizaje **sigue activa** y contamina el corpus con 180

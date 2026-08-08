@@ -865,7 +865,7 @@ no gradúa, no se revierte, no acumula observaciones.
 - `HealthSensors._check_queue()` cuenta `worker_tasks.status='pending'`: mismo
   defecto que el P0, mismo fichero. Acotado: su único consumidor es el `healthy`
   agregado y siempre devuelve `ok`, así que no provoca falso negativo.
-- `memory_consolidation_review`: declarado, con política e intervalo adaptativo
+- `stable_consolidation_review`: declarado, con política e intervalo adaptativo
   y handler, **sin productor** y sin una sola ejecución.
   `mission_planner._plan_memory_consolidation()` encola
   `stable_consolidation_review`, no éste.

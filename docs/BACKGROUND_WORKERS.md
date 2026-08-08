@@ -17,7 +17,7 @@ Cada ciclo agenda y ejecuta estas tareas:
 - `experimental_neuron_activity`
 - `neuron_autopromotion`
 - `federation_inbox_review`
-- `memory_consolidation_review`
+- `stable_consolidation_review`
 - `system_debt_scan`
 
 ## Controles

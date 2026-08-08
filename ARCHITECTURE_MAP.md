@@ -170,7 +170,7 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
   README subestima la lista. A los 10 documentados (pulse_check,
   pending_learning_review, semantic_memory_governance,
   neuron_candidate_formation, experimental_neuron_activity,
-  neuron_autopromotion, federation_inbox_review, memory_consolidation_review,
+  neuron_autopromotion, federation_inbox_review, stable_consolidation_review,
   stable_consolidation_review, system_debt_scan) se suman 9 sin documentar:
   `bodega_global_review`, `goal_research`, `goal_safe_command`,
   `research_curriculum`, `goal_install`, `goal_lora_train`,
@@ -178,7 +178,7 @@ Leyenda de estado: 🟢 sólido · 🟡 parcial · 🔴 solo visión (sin códig
   `write_governed_text_artifact` (`triade/workers/contracts.py:22-30`,
   `worker_loop.py:914-922`). Los 19 handlers hacen trabajo verificable real
   (SQL, efectos con receipt/rollback); ninguno es un no-op.
-- memory_consolidation_review marca candidatos verified como `used_in_run` (no consolida directamente).
+- stable_consolidation_review marca candidatos verified como `used_in_run` (no consolida directamente).
 - stable_consolidation_review consolida solo candidatos `validated_in_runs` con evidencia suficiente.
 - Persistencia: `worker_tasks`, `worker_runs`, `worker_events`, `worker_state`.
 - Superficies: CLI `workers once/start/daemon/status/stop/queue/events/doctor` y endpoints `/workers/*`.
