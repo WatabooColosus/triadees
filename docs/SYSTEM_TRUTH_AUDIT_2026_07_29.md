@@ -1,3 +1,4 @@
+<!-- HISTORICO -->
 # Auditoría de verdad operacional — 2026-07-29
 
 Base inspeccionada: servicio local y SQLite sobre la rama derivada de `8b82562`.

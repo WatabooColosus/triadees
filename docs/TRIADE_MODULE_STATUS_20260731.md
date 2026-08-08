@@ -1,3 +1,4 @@
+<!-- HISTORICO -->
 # Estado real de Tríade por módulos · 2026-07-31
 
 Actualiza el análisis de lo que falta, tras el arreglo de preservación
