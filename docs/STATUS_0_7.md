@@ -1,3 +1,4 @@
+<!-- HISTORICO -->
 # Tríade Ω · Estado 0.7
 
 ## Nombre de fase

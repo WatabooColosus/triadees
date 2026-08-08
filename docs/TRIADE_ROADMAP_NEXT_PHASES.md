@@ -1,3 +1,4 @@
+<!-- HISTORICO -->
 # Roadmap proximas fases Tríade
 
 Este roadmap empieza despues de PR #9. No asume capacidades futuras como ya existentes. Cada fase debe cerrar con tests, logs o evidencia auditable.

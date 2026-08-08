@@ -1,3 +1,4 @@
+<!-- HISTORICO -->
 # Veredicto de las ramas históricas · 2026-08-02
 
 PR #10, #17, #55 y #60 llevaban entre 263 y 699 commits de retraso respecto a

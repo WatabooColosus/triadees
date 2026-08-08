@@ -1,3 +1,4 @@
+<!-- HISTORICO -->
 # Auditoría de Superficies UI/API — Tríade Ω v2.2
 
 > Generada: 2026-06-12
