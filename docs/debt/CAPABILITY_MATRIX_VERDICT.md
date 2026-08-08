@@ -81,7 +81,7 @@ cada uno: un término que no puede activarse.
 ### 6 · Una línea sin efecto
 
 ```python
-len(nodes) or 1   # matrix.py:159 — el valor se descarta
+len(nodes) or 1  # matrix.py:159 — el valor se descarta
 ```
 
 Una expresión cuyo resultado no se usa. No cambia nada; lo que dice es que este
