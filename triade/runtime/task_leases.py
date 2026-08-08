@@ -282,7 +282,8 @@ class AutonomousTaskStore:
             conn.execute("BEGIN IMMEDIATE")
             changed = conn.execute(
                 """UPDATE autonomous_tasks SET status='completed',updated_at=?,
-                lease_expires_at=NULL WHERE task_id=? AND worker_id=? AND lease_generation=?
+                lease_expires_at=NULL,heartbeat_at=NULL,last_error=NULL
+                WHERE task_id=? AND worker_id=? AND lease_generation=?
                 AND status='completion_uncertain' AND result_ref=?""",
                 (now, task_id, worker_id, lease_generation, result_ref),
             ).rowcount

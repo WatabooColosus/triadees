@@ -263,6 +263,74 @@ class TestBuildAlwaysOnStatus:
 
 
 class TestAlwaysOnStartup:
+    def test_resource_mode_is_not_replaced_by_continuous_autonomy(self, monkeypatch):
+        """El supervisor conserva guarded aunque LIFE_PULSE promueva stable."""
+        import triade.core.always_on as ao
+
+        monkeypatch.setattr(
+            ao,
+            "load_always_on_config",
+            lambda _path="triade.yml": {
+                "enabled": True,
+                "mode": "full_local_guarded",
+                "continuous_runner_autonomy_level": "promote_stable",
+                "interval_seconds": 60,
+                "start_delay_seconds": 0,
+                "max_cycles": 0,
+                "_max_cycles_param": None,
+                "require_ollama": False,
+                "safe_only": True,
+                "self_test_on_start": False,
+                "self_test_every_cycles": 5,
+                "_config_source": "test",
+            },
+        )
+        monkeypatch.setattr(ao, "_background_thread_alive", lambda: False)
+        monkeypatch.setattr(
+            ao,
+            "get_internal_runtime_supervisor",
+            lambda **_kw: MagicMock(snapshot=dict),
+        )
+        monkeypatch.setattr(
+            ao,
+            "start_internal_runtime_background",
+            MagicMock(return_value={"status": "started"}),
+        )
+        monkeypatch.setattr(
+            ao, "record_internal_runtime_event", lambda *_a, **_kw: None
+        )
+        monkeypatch.setattr(
+            "triade.core.ollama_blood.check_ollama_blood",
+            lambda: {
+                "status": "ok",
+                "ollama_ok": True,
+                "can_reason": True,
+                "can_embed": True,
+            },
+        )
+        monkeypatch.setattr(
+            "triade.core.resource_probe.build_resource_probe",
+            lambda: {
+                "limits": {
+                    "ram_available_gb": 16,
+                    "disk_free_gb": 20,
+                    "tier": "high",
+                    "cpu_count": 8,
+                },
+                "power": {"ac_connected": True},
+                "cpu": {"load_1min": 0.1},
+                "thermal": {"thermal_status": "ok"},
+            },
+        )
+
+        result = ao.start_always_on_if_enabled()
+
+        starter = ao.start_internal_runtime_background
+        assert starter.call_args.kwargs["mode"] == "full_local_guarded"
+        assert result["configured_mode"] == "full_local_guarded"
+        assert result["effective_mode"] == "full_local_guarded"
+        assert ao._ALWAYS_ON_STATE["autonomy_level_applied"] == "promote_stable"
+
     def test_always_on_true_in_yml_starts_on_startup(self, monkeypatch):
         """start_always_on_if_enabled arranca cuando triade.yml trae runtime.always_on=true."""
         import triade.core.always_on as ao

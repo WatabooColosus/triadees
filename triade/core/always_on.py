@@ -369,9 +369,11 @@ def start_always_on_if_enabled(
     # degradation even when resources fully allowed the requested mode.
     resource_mode = str(cfg.get("mode", "observe_only"))
     autonomy_level = str(cfg.get("continuous_runner_autonomy_level") or resource_mode)
-    requested_mode = (
-        autonomy_level if autonomy_level != "observe_only" else resource_mode
-    )
+    # El modo de recursos y el nivel de autonomía son contratos distintos.
+    # El supervisor recibe el primero; LIFE_PULSE consume el segundo. Usar aquí
+    # ``promote_stable`` hacía que el supervisor lo normalizara a ``full_local``
+    # y ocultaba que el runtime estaba realmente configurado como guarded.
+    requested_mode = resource_mode
     effective_mode = requested_mode
     degraded_by_governor = False
     degradation_reason = None
