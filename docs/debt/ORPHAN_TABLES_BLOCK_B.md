@@ -50,7 +50,49 @@ O sea: el repositorio ya sabe que perdieron su escritor y **creó esta categorí
 precisamente para que no desaparecieran del contador al quedarse huérfanas**. Son
 el caso de uso que motivó la categoría, no una sorpresa.
 
-## Lo que falta antes de retirar nada
+## La historia, hecha el 2026-08-08 — veredictos cerrados
+
+`git log -S` por tabla sobre `triade/`, `apps/` y `scripts/` contesta las tres
+preguntas de golpe, y las tres apuntan al mismo sitio.
+
+**1 · ¿Tuvieron escritor alguna vez?** Sí. Todas nacen en `ecc7d87`, un único
+commit que introdujo a la vez «multi-user isolation, planning graph, federated
+merge, autonomous sandbox, governed datasets, external evaluator, **meta model
+orchestrator**, reasoning chains, hypothalamus pattern learning». No son esquema
+adelantado a una implementación: la implementación existió.
+
+Eso descarta `FUTURE_SCHEMA` para las ocho.
+
+**2 · ¿Cómo perdieron el escritor?** Seis de las ocho aparecen en `93496c8`
+—«borrar 31 módulos sin importador, con backup y verificación»—, y
+`federated_merge_nodes` además en `8274ded` («remove dead code»). Es decir: sus
+escritores eran módulos **que nadie importaba**, y cayeron en la limpieza
+auditada de dead code, no por daño colateral. La tabla es el resto que esa
+limpieza no barrió, porque borraba módulos y no esquema.
+
+**3 · ¿Existe equivalente moderno?** Para `meta_model_*`, sí: la selección de
+modelo la hace hoy `ModelRouter`, vivo y en uso. La función sobrevivió al
+orquestador que la implementaba. No hay nada que migrar —las tablas nunca
+tuvieron una fila— así que es supersesión, no `MERGE` con trasvase.
+
+### Veredicto
+
+**RETIRE las ocho.** Esquema huérfano de una implementación retirada con
+auditoría, sin una sola fila en toda su historia y sin capacidad viva que
+dependa de él.
+
+### Lo que no hago
+
+Ejecutar la retirada. Es una migración sobre la base de producción, y en este
+repositorio eso lleva autorización explícita del operador —el mismo criterio con
+el que se retiraron `plan_step.py` y `hierarchical_pulse.py`—. La acción, cuando
+se autorice, es una migración `DROP TABLE` de las ocho más quitarlas de
+`schemas.sql`, con la copia cifrada previa que ya se hace sola cada media hora.
+
+`metabolic_config` va en el mismo lote, con su propio motivo: sustituida por
+configuración en fichero.
+
+## Anexo · el método que se siguió
 
 El veredicto `RETIRE` de las siete restantes es **provisional**. Falta el paso
 que el propio encargo exige y que no se puede saltar: la historia.
