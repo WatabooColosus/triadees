@@ -59,7 +59,8 @@ CREATE TABLE IF NOT EXISTS metabolic_signals (
     FOREIGN KEY (cycle_id) REFERENCES metabolic_cycle(cycle_id)
 );
 
-CREATE TABLE IF NOT EXISTS metabolic_config (
-    key TEXT PRIMARY KEY,
-    value_json TEXT NOT NULL
-);
+-- `metabolic_config` vivio aqui hasta el 2026-08-08. La retira `034`, y su
+-- CREATE no puede quedarse: este fichero no es solo historia, `MetabolicCoordinator.
+-- _ensure_tables()` lo reejecuta en cada ciclo. Con el CREATE dentro, la retirada
+-- se deshacia sola a los minutos y en una base nueva nunca llegaba a aplicarse.
+-- La configuracion del metabolismo vive en `triade.yml`, que es su fuente real.
