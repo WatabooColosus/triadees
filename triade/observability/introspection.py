@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .activation_contracts import ContractVerifier, load_contracts
 from .alias_debt import build_alias_debt, profiles_from_artifact
 from .runtime_graph import (
     ON_DEMAND_STAGES,
@@ -249,18 +250,90 @@ def build_debt_report(
 
     items["vital_chain_gaps"] = _vital_chain_gaps(db_path)
 
-    total = sum(entry["count"] for entry in items.values())
+    # Inactividad legítima frente a rotura. Hasta aquí toda ausencia de actividad
+    # pesa igual, y eso hace daño en los dos sentidos: una tabla que espera una
+    # firma humana que nadie ha dado sube el contador como si estuviera rota, y
+    # una rotura real se pierde entre ellas.
+    #
+    # La separación **no** sale de una lista de nombres: sale de contratos que
+    # declaran su evidencia estructural y que se vuelven a comprobar aquí, en
+    # cada medición. Lo que no tiene contrato, o lo tiene y no se sostiene, sigue
+    # siendo `DEUDA_REAL`. Ver `activation_contracts.py`.
+    clasificado = _classify_with_contracts(root, items, rows_by_table, db_path)
+    real = sum(
+        entry["count"] - len(entry.get("classified", {})) for entry in items.values()
+    )
+
     return {
         "status": "measured",
-        # Fórmula explícita: suma de los recuentos de cada categoría. No es un
-        # porcentaje ni una nota; es cuántas cosas concretas hay que mirar.
-        "debt_items_total": total,
-        "formula": "debt_items_total = suma de count de cada categoría",
+        # `debt_items_total` sigue siendo la suma de todo lo observado: bajar el
+        # número escondiendo categorías sería exactamente lo que este informe
+        # existe para impedir. Lo que se añade es de cuánto de eso hay que
+        # ocuparse hoy.
+        "debt_items_total": sum(entry["count"] for entry in items.values()),
+        "debt_real_total": real,
+        "formula": (
+            "debt_items_total = suma de count de cada categoría; "
+            "debt_real_total = lo mismo menos lo que tiene contrato verificado"
+        ),
+        "by_classification": clasificado,
         "graphs_generated_at": generated_at,
         "graphs_age_seconds": round(time.time() - generated_at, 1),
         "items": items,
         "simulated": False,
     }
+
+
+def _classify_with_contracts(
+    root: Path,
+    items: dict[str, Any],
+    rows_by_table: dict[str, int],
+    db_path: Path | None,
+) -> dict[str, int]:
+    """Aplica los contratos y anota en cada categoría lo que sale del contador.
+
+    Devuelve el recuento por clasificación, incluida `DEUDA_REAL`, para que el
+    panel pueda enseñarlas separadas sin que ninguna desaparezca. Un contrato que
+    no se sostiene no clasifica: deja constancia de qué evidencia se cayó y el
+    sujeto se queda donde estaba.
+    """
+    contratos = load_contracts()
+    if not contratos:
+        return {}
+    verificador = ContractVerifier(
+        root,
+        table_profiles={
+            tabla: {"rows": filas} for tabla, filas in rows_by_table.items()
+        },
+        db_path=db_path,
+    )
+    recuento: dict[str, int] = {}
+    for categoria, entry in items.items():
+        if not entry.get("count"):
+            continue
+        prefijo = "task_type" if categoria == "task_types_never_executed" else "table"
+        clasificados: dict[str, Any] = {}
+        rotos: dict[str, Any] = {}
+        for nombre in entry.get("items", entry.get("sample", [])):
+            contrato = contratos.get(f"{prefijo}:{nombre}")
+            if contrato is None:
+                continue
+            veredicto = verificador.verify(contrato)
+            if veredicto.holds:
+                clasificados[nombre] = veredicto.to_dict()
+                recuento[veredicto.classification] = (
+                    recuento.get(veredicto.classification, 0) + 1
+                )
+            else:
+                rotos[nombre] = veredicto.to_dict()
+        if clasificados:
+            entry["classified"] = clasificados
+        if rotos:
+            entry["contract_broken"] = rotos
+    recuento["DEUDA_REAL"] = sum(
+        entry["count"] - len(entry.get("classified", {})) for entry in items.values()
+    )
+    return recuento
 
 
 def _writer_reachability(
