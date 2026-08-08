@@ -8,15 +8,15 @@ Ninguna se creó por accidente: todas nacieron de una migración o de
 
 | tabla | definida en | menciones en código | veredicto |
 |---|---|---|---|
-| `benchmark_results` | `schemas.sql` | sólo un comentario | RETIRE *(pendiente historia)* |
-| `benchmark_tasks` | `schemas.sql` | sólo un comentario | RETIRE *(pendiente historia)* |
-| `federated_merge_log` | `schemas.sql` | sólo un comentario | RETIRE *(pendiente historia)* |
-| `federated_merge_nodes` | `schemas.sql` | ninguna | RETIRE *(pendiente historia)* |
-| `meta_model_candidates` | `schemas.sql` | ninguna | RETIRE *(pendiente historia)* |
-| `meta_model_decisions` | `schemas.sql` | ninguna | RETIRE *(pendiente historia)* |
-| `meta_model_evaluations` | `schemas.sql` | ninguna | RETIRE *(pendiente historia)* |
-| `metabolic_config` | `032_metabolic_core.sql` | ninguna | **MERGE — sustituida** |
-| `user_sessions` | `schemas.sql` | ninguna | RETIRE *(pendiente historia)* |
+| `benchmark_results` | `schemas.sql` | sólo un comentario | KEEP_WITH_REASON *(corregido)* |
+| `benchmark_tasks` | `schemas.sql` | sólo un comentario | KEEP_WITH_REASON *(corregido)* |
+| `federated_merge_log` | `schemas.sql` | sólo un comentario | KEEP_WITH_REASON *(corregido)* |
+| `federated_merge_nodes` | `schemas.sql` | ninguna | KEEP_WITH_REASON *(corregido)* |
+| `meta_model_candidates` | `schemas.sql` | ninguna | KEEP_WITH_REASON *(corregido)* |
+| `meta_model_decisions` | `schemas.sql` | ninguna | KEEP_WITH_REASON *(corregido)* |
+| `meta_model_evaluations` | `schemas.sql` | ninguna | KEEP_WITH_REASON *(corregido)* |
+| `metabolic_config` | `032_metabolic_core.sql` | ninguna | **KEEP_WITH_REASON** *(corregido)* |
+| `user_sessions` | `schemas.sql` | ninguna | KEEP_WITH_REASON *(corregido)* |
 
 ---
 
@@ -77,9 +77,8 @@ tuvieron una fila— así que es supersesión, no `MERGE` con trasvase.
 
 ### Veredicto
 
-**RETIRE las ocho.** Esquema huérfano de una implementación retirada con
-auditoría, sin una sola fila en toda su historia y sin capacidad viva que
-dependa de él.
+**RETIRE las ocho** — *corregido el 2026-08-08: ver «Corrección» al final.
+El veredicto real es `KEEP_WITH_REASON`.*
 
 ### Lo que no hago
 
@@ -121,3 +120,63 @@ daño; borrar la única pista de una capacidad a medio construir, sí.
 Ninguna acción de código en este ciclo, así que la deuda no baja. Las nueve pasan
 de «sin investigar» a «con evidencia y veredicto provisional», y una —
 `metabolic_config`— queda con veredicto cerrado y lista para retirar.
+
+---
+
+## Corrección (2026-08-08): el veredicto `RETIRE` era erróneo
+
+**Veredicto real: `KEEP_WITH_REASON` las nueve.** Se intentó retirarlas cinco
+veces y las cinco rompieron el runtime. Lo que sigue son los hechos medidos, no
+una interpretación.
+
+### Lo que se observó
+
+**No hay excepción.** Con las tablas ausentes, el lifespan completa y reporta
+`status: started`; `workers-always-on/status` da `active: true`,
+`thread_alive: true`, `lock_file_active: true`, `last_error: null`. No hay
+traceback en el log ni `no such table` en ninguna parte. El daño es silencioso.
+
+**El síntoma es estable, no un arranque lento.** Tres minutos después de un
+reinicio con las tablas realmente ausentes, el metabolismo sigue en
+`running: False, mode: observe_only, cycle_count: 0`. La certificación falla en
+`test_full_runtime_metabolism_is_running` y en los órganos.
+
+**Restaurar sólo `metabolic_config` no bastó.** El metabolismo siguió en
+`observe_only`. Hizo falta restaurar las 120 tablas para recuperar
+`running: True, mode: full`. Así que no está demostrado que la dependencia sea de
+una tabla concreta.
+
+### Por qué los dos bisects dieron nueve «OK» falsos
+
+Los dieciocho resultados que produjeron **no medían nada**, por la misma razón y
+por dos vías distintas:
+
+1. El primero hacía `DROP` en la base y reiniciaba, pero `schemas.sql` conservaba
+   los `CREATE TABLE`: el arranque las recreaba antes de certificar.
+2. El segundo también las quitaba de `schemas.sql` — y aun así
+   `metabolic_config` volvía, porque la recrea la migración
+   `032_metabolic_core.sql` en cada arranque.
+
+En ambos casos el tratamiento se deshacía solo antes de la medición. Es la misma
+forma del control contaminado que este repositorio ya documenta en su detector de
+sondas, cometida aquí en el instrumento de medida.
+
+La única certificación verde que se obtuvo con «las nueve retiradas» fue con
+`metabolic_config` recreada por `032` sin que se advirtiera.
+
+### Qué queda sin saberse
+
+Por qué el organismo las necesita. Ninguna tiene lector ni escritor en el
+análisis estático, ninguna tuvo jamás una fila, y su ausencia no produce error —
+sólo un metabolismo degradado a `observe_only`. La vía por la que influyen no la
+ven el grafo de tablas, ni `grep`, ni la historia de git.
+
+Investigar eso exige instrumentar el arranque —registrar qué consulta el
+coordinador del metabolismo antes de decidir su modo— y no adivinarlo. Hasta
+entonces **no se retira ninguna**.
+
+### Lección de método
+
+Un bisect cuyo tratamiento se revierte solo produce confianza en vez de
+conocimiento. Antes de dar por buena una retirada hay que comprobar que la cosa
+retirada **sigue ausente** en el momento de medir, no sólo que se retiró.
