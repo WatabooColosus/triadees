@@ -391,3 +391,31 @@ class TestSingleton:
         assert c._mode == "observe_only"
         c.configure(mode="full")
         assert c._mode == "full"
+
+
+def test_el_metabolismo_encuentra_su_config_desde_cualquier_directorio(tmp_path):
+    """Una ruta relativa hacía que el metabolismo se degradara en silencio.
+
+    `config_path` era `Path("triade.yml")`, resuelto contra el directorio de
+    trabajo. Un proceso arrancado desde otro sitio no lo encontraba,
+    `load_config()` recibía un diccionario vacío y el metabolismo caía a
+    `enabled: False, mode: observe_only` **sin un solo error**: ni excepción, ni
+    log, ni `last_tick_error`. Sólo dejaba de trabajar.
+
+    Medido el 2026-08-08 desde `/tmp`: `{'enabled': None, 'mode': None}`.
+    """
+    import os
+
+    from triade.metabolism.coordinator import MetabolicCoordinator
+
+    previo = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        meta = MetabolicCoordinator(db_path=tmp_path / "t.db").load_config()
+    finally:
+        os.chdir(previo)
+
+    assert meta, "el metabolismo no encontró triade.yml fuera de la raíz"
+    assert meta.get("mode") == "full", (
+        "cayó a observe_only por no leer su configuración: degradación silenciosa"
+    )

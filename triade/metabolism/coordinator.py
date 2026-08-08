@@ -35,7 +35,20 @@ class MetabolicCoordinator:
         config_path: str | Path = "triade.yml",
     ) -> None:
         self.db_path = Path(db_path)
-        self.config_path = Path(config_path)
+        # Resuelto contra la raíz del repositorio, no contra el directorio de
+        # trabajo. Con la ruta relativa por defecto, un proceso arrancado desde
+        # otro sitio no encontraba `triade.yml`, `load_config()` recibía un
+        # diccionario vacío y el metabolismo caía a `enabled: False,
+        # mode: observe_only` **sin un solo error**: ni excepción, ni log, ni
+        # `last_tick_error`. Degradación silenciosa, que es la peor.
+        #
+        # Medido el 2026-08-08 desde `/tmp`: `metabolism leído: {enabled: None,
+        # mode: None}`. Una ruta absoluta explícita se respeta tal cual.
+        candidata = Path(config_path)
+        if candidata.is_absolute() or candidata.exists():
+            self.config_path = candidata
+        else:
+            self.config_path = Path(__file__).resolve().parents[2] / candidata
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
