@@ -311,6 +311,28 @@ class MissionPlanner:
         """
         tasks: list[PlannedTask] = []
 
+        # `bodega_global_review` no lo producía nadie. Todo lo demás sobre él ya
+        # estaba declarado: handler en `worker_loop`, política de concurrencia,
+        # `TASK_PRODUCERS` diciendo «MissionPlanner», y —lo que lo decide— una
+        # cadencia de 180 s en `AdaptiveScheduler.DEFAULT_INTERVALS`, el mismo
+        # escalón que `semantic_memory_governance`. Los tipos bajo demanda llevan
+        # ahí `0.0`; éste no. El contrato dice periódico.
+        #
+        # Su única vía de encolado era `enqueue_defaults()`, que es el *fallback*
+        # de `schedule_cycle` y sólo corre si `plan_cycle()` devuelve vacío, cosa
+        # que nunca hace: el productor existía en el código y el runtime no lo
+        # alcanzaba jamás.
+        #
+        # Va condicionado a que haya memoria que revisar, no incondicional: en
+        # este planificador `pulse_check` es la única tarea que se emite siempre
+        # —es el signo vital—, y todo lo demás sólo se planifica si hay trabajo.
+        # Una Tríade recién nacida planifica su pulso y nada más, y esa es una
+        # propiedad que conviene conservar. `should_skip_task` respeta además los
+        # 180 s, así que no se encola en cada ciclo.
+        #
+        # Prioridad 12: por detrás del pulso vital, cuya cadencia es seis veces
+        # más rápida. Es una revisión de solo lectura —no consolida memoria ni
+        # toca `identity_core`—.
         # pulse_check siempre se ejecuta
         tasks.append(
             PlannedTask(
@@ -324,6 +346,24 @@ class MissionPlanner:
 
         try:
             with closing(self._connect()) as conn, conn:
+                episodios = conn.execute(
+                    "SELECT COUNT(*) as cnt FROM episodic_memory"
+                ).fetchone()
+                episodios_cnt = int(episodios["cnt"] or 0) if episodios else 0
+                if episodios_cnt > 0:
+                    tasks.append(
+                        PlannedTask(
+                            task_type="bodega_global_review",
+                            priority=12,
+                            reason=(
+                                f"Revisión de memoria sobre {episodios_cnt} "
+                                "episodios, learning_queue y stable_audit"
+                            ),
+                            source="mission_planner_baseline",
+                            planner_score=0.8,
+                        )
+                    )
+
                 # pending_learning_review: solo si hay work que hacer
                 lr = conn.execute(
                     """SELECT COUNT(*) as cnt FROM learning_queue

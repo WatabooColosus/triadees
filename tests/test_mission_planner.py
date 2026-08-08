@@ -228,3 +228,35 @@ def test_semantic_governance_is_planned_from_the_live_store(tmp_path: Path) -> N
     governance = [t for t in tasks if t.task_type == "semantic_memory_governance"]
     assert governance, "un documento candidate debe encolar la gobernanza semántica"
     assert "1" in governance[0].reason
+
+
+def test_todo_tipo_con_cadencia_declarada_tiene_productor(tmp_path) -> None:
+    """Una cadencia declarada sin productor es una tarea que no corre jamás.
+
+    `AdaptiveScheduler.DEFAULT_INTERVALS` distingue las dos naturalezas: los
+    tipos bajo demanda llevan `0.0` —los produce `GoalOrchestrator` tras una
+    petición— y los periódicos llevan su intervalo. Un tipo con intervalo > 0 y
+    sin nadie que lo planifique sólo podía encolarse por `enqueue_defaults()`,
+    que es el fallback de `schedule_cycle` y no corre nunca porque
+    `plan_cycle()` no devuelve vacío.
+
+    Así estuvo `bodega_global_review`: handler, política de concurrencia y
+    `TASK_PRODUCERS: MissionPlanner`, todo declarado, y cero ejecuciones.
+    """
+    from triade.workers.adaptive_scheduler import AdaptiveScheduler
+    from triade.workers.architecture import TASK_PRODUCERS
+
+    periodicos = {
+        tipo
+        for tipo, intervalo in AdaptiveScheduler.DEFAULT_INTERVALS.items()
+        if intervalo > 0 and TASK_PRODUCERS.get(tipo) == "MissionPlanner"
+    }
+    raiz = Path(__file__).resolve().parents[1]
+    fuente = (raiz / "triade/workers/mission_planner.py").read_text(encoding="utf-8")
+
+    sin_productor = sorted(t for t in periodicos if f'task_type="{t}"' not in fuente)
+
+    assert not sin_productor, (
+        "tipos con cadencia declarada que MissionPlanner nunca planifica, "
+        f"así que sólo podrían llegar por el fallback: {sin_productor}"
+    )
