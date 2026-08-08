@@ -245,3 +245,41 @@ def test_quien_consolida_usa_la_constante_no_una_copia() -> None:
         "quien consolida volvió a escribir a mano la lista de estados en vez de "
         f"usar LearningPipeline.CONSOLIDATABLE_STATES: {sin_constante}"
     )
+
+
+def test_solo_el_canonico_de_un_grupo_compite(tmp_path: Path) -> None:
+    """104 copias de una plantilla no son 104 aprendizajes.
+
+    `LearningDeduplicator` agrupa correctamente —verificado sobre la base viva:
+    428 miembros en 9 grupos, uno con 104 copias del mismo texto— pero ningún
+    selector respetaba ese veredicto. Las copias llegaban como candidatos
+    distintos, competían por evidencia y por consolidación por separado, y el
+    que más «usos» acumulaba no era el más aprendido sino el más repetido.
+    """
+    pipe = _pipe(tmp_path)
+    canonico = _candidato_verificado(pipe, "canonico")
+    copia = _candidato_verificado(pipe, "copia")
+    for cid in (canonico, copia):
+        _forzar_uso(pipe, cid, usos=LearningPipeline.MIN_RUN_USES, score=0.95)
+
+    with sqlite3.connect(pipe.db_path) as conn:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS learning_candidate_groups (
+                group_id TEXT, canonical_candidate_id TEXT,
+                member_candidate_id TEXT, match_type TEXT, similarity REAL,
+                decision TEXT, created_at TEXT, policy_version TEXT)"""
+        )
+        conn.execute(
+            """INSERT INTO learning_candidate_groups
+               (group_id, canonical_candidate_id, member_candidate_id,
+                match_type, similarity, decision, created_at, policy_version)
+               VALUES ('g1',?,?,'template_duplicate',1.0,'grouped','2026-08-08','v1')""",
+            (canonico, copia),
+        )
+
+    elegibles = {c["candidate_id"] for c in pipe.list_consolidatable(limit=10)}
+
+    assert canonico in elegibles, "el canónico tiene que seguir compitiendo"
+    assert copia not in elegibles, (
+        "una copia agrupada volvió a competir como aprendizaje propio"
+    )

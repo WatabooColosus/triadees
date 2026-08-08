@@ -470,16 +470,34 @@ class MissionPlanner:
                     if "run_use_count" in columnas
                     else "ORDER BY id DESC LIMIT ?"
                 )
-                try:
-                    elegibles = conn.execute(
-                        f"""SELECT candidate_id, content FROM learning_queue
+                # Sólo el canónico de cada grupo compite: generar evidencia
+                # para 104 copias de la misma plantilla es medir 104 veces lo
+                # mismo. El filtro va aparte porque su tabla puede faltar, y
+                # colarlo en el respaldo de abajo tumbaría la condición «sin
+                # evidencia» y devolvería el livelock que ese respaldo evita.
+                grupos = """AND NOT EXISTS (
+                            SELECT 1 FROM learning_candidate_groups g
+                            WHERE g.member_candidate_id = learning_queue.candidate_id
+                              AND g.member_candidate_id != g.canonical_candidate_id)"""
+                consulta = f"""SELECT candidate_id, content FROM learning_queue
                         WHERE status = 'internally_checked'
                           AND NOT EXISTS (
                             SELECT 1 FROM learning_evidence e
                             WHERE e.candidate_id = learning_queue.candidate_id)
-                        {orden}""",
-                        (self.EVIDENCE_SCAN_LIMIT,),
-                    ).fetchall()
+                          {{grupos}}
+                        {orden}"""
+                try:
+                    try:
+                        elegibles = conn.execute(
+                            consulta.format(grupos=grupos),
+                            (self.EVIDENCE_SCAN_LIMIT,),
+                        ).fetchall()
+                    except sqlite3.OperationalError:
+                        # Falta la tabla de grupos, no la de evidencia.
+                        elegibles = conn.execute(
+                            consulta.format(grupos=""),
+                            (self.EVIDENCE_SCAN_LIMIT,),
+                        ).fetchall()
                 except sqlite3.Error:
                     # Sin tabla de evidencia, ningún candidato la tiene.
                     elegibles = conn.execute(

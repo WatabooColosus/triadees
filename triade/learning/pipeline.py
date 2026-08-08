@@ -734,17 +734,38 @@ class LearningPipeline:
         """
         marcas = ",".join("?" * len(self.CONSOLIDATABLE_STATES))
         with self._connect() as conn:
-            rows = conn.execute(
-                f"""SELECT * FROM learning_queue WHERE status IN ({marcas})
+            # Sólo el canónico de cada grupo compite. `LearningDeduplicator`
+            # lleva 428 miembros agrupados en 9 grupos —uno con 104 copias de la
+            # misma plantilla— y ese veredicto no lo respetaba ningún selector:
+            # las 104 llegaban aquí como 104 aprendizajes distintos, competían
+            # por evidencia y por consolidación por separado, y el que más
+            # «usos» acumulaba no era el que más se había aprendido sino el que
+            # más veces se había repetido.
+            #
+            # Se excluye por `member != canonical`, no por pertenecer al grupo:
+            # el canónico también figura como miembro de su propio grupo.
+            base = f"""SELECT * FROM learning_queue WHERE status IN ({marcas})
                 AND run_use_count >= ? AND avg_outcome_score >= ?
-                ORDER BY run_use_count DESC, avg_outcome_score DESC LIMIT ?""",
-                (
-                    *self.CONSOLIDATABLE_STATES,
-                    self.MIN_RUN_USES,
-                    self.MIN_OUTCOME_SCORE,
-                    limit,
-                ),
-            ).fetchall()
+                {{grupos}}
+                ORDER BY run_use_count DESC, avg_outcome_score DESC LIMIT ?"""
+            parametros = (
+                *self.CONSOLIDATABLE_STATES,
+                self.MIN_RUN_USES,
+                self.MIN_OUTCOME_SCORE,
+                limit,
+            )
+            filtro = """AND NOT EXISTS (
+                    SELECT 1 FROM learning_candidate_groups g
+                    WHERE g.member_candidate_id = learning_queue.candidate_id
+                      AND g.member_candidate_id != g.canonical_candidate_id)"""
+            try:
+                rows = conn.execute(base.format(grupos=filtro), parametros).fetchall()
+            except sqlite3.OperationalError:
+                # La tabla de grupos aún no existe —base nueva, deduplicador que
+                # no ha corrido—: entonces no hay copias que excluir. Sin este
+                # respaldo, añadir el filtro rompería la consolidación entera en
+                # cualquier despliegue limpio.
+                rows = conn.execute(base.format(grupos=""), parametros).fetchall()
         return [self._decode(dict(row)) for row in rows]
 
     def list_candidates(
