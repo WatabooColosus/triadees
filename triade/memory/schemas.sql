@@ -578,6 +578,25 @@ CREATE TABLE IF NOT EXISTS neuron_scores (
 
 CREATE INDEX IF NOT EXISTS idx_neuron_scores_mission ON neuron_scores(mission_id);
 
+-- Bitacora historica de la fase 12 (2026-07-29): las 13 neuronas `stable` sin
+-- manifiesto de certificacion que pasaron a `quarantined`, cada una con su
+-- `rollback_ref`. Su escritor —`NeuronCertifier`— se retiro el 2026-08-08 junto
+-- con el manifiesto que leia; las filas se conservan porque son evidencia de un
+-- cambio real de estado del organismo, no un cache.
+--
+-- Vive aqui y no en `028` porque `schemas.sql` si se reejecuta en cada arranque:
+-- quien replicaba aquel fichero era el propio modulo retirado.
+CREATE TABLE IF NOT EXISTS neuron_certification_transitions (
+    transition_id TEXT PRIMARY KEY,
+    neuron_id INTEGER NOT NULL,
+    from_status TEXT NOT NULL,
+    to_status TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    rollback_ref TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (neuron_id) REFERENCES neurons(id)
+);
+
 CREATE TABLE IF NOT EXISTS governed_datasets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     dataset_id TEXT NOT NULL UNIQUE,

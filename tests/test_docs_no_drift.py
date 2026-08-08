@@ -59,7 +59,15 @@ _DRIFT_CONOCIDO = {
 #: `test_no_se_documentan_modulos_retirados`, que exige que el texto explique la
 #: retirada. Un concepto, un dueño — dos tests peleándose por el mismo hecho es
 #: como se pierden los contratos en este repositorio.
-_RETIRADOS = ("triade/core/plan_step.py", "triade/core/hierarchical_pulse.py")
+_RETIRADOS = (
+    "triade/core/plan_step.py",
+    "triade/core/hierarchical_pulse.py",
+    # El contrato de certificación por manifiesto firmado, sustituido por
+    # `stable_neuron_audit`, que juzga sobre evidencia medida.
+    "triade/neuron_factory/certification.py",
+    "scripts/run_phase_12_neuron_certification.py",
+    "tests/test_neuron_certification.py",
+)
 
 #: Un documento se declara histórico con esta marca en su propio texto. No se
 #: excluye por ruta: quien escribe decide, y queda escrito en el documento.
