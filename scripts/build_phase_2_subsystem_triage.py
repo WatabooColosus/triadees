@@ -252,9 +252,15 @@ REVIEWS: dict[str, Review] = {
         "A",
         "Certificar neuronas antes de promoción",
         "verification",
-        "complete_later",
-        "Sólo existe lector no alcanzable y ningún escritor; no es un corte productivo.",
-        "Definir productor gobernado, consumidor de promoción y prueba E2E de rechazo/aprobación.",
+        "remove_from_productive_graph",
+        "Retirada el 2026-08-08. El `complete_later` anterior daba por construir un "
+        "productor que ya existe con otra forma: `stable_neuron_audit` decide sobre "
+        "evidencia medida —activaciones, diagnósticos, planes de prueba— y lo "
+        "consumen cinco sitios vivos. El manifiesto firmado a mano nunca tuvo "
+        "escritor, y su único lector era el instrumento de la fase 12, `completed` "
+        "desde el 2026-07-29.",
+        "Hecho: `035_retire_neuron_certifications.sql`. La bitácora de la fase 12 "
+        "(`neuron_certification_transitions`, 13 filas) se conserva.",
         "P2",
         "high",
         "high",
