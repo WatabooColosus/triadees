@@ -270,9 +270,26 @@ class NeuronMissionExecutor:
             f"Ciclo local de misión {mission.get('id')} ejecutado sin shell ni red. "
             f"Contexto: {len(recent_cycles)} ciclos previos, {len(recent_evidence)} evidencias previas, score previo {previous_score:.2f}."
         )
+        # Sólo en el primer ciclo de la misión. El texto se compone de `title` y
+        # `mission_text`, que son constantes: repetirlo en cada ciclo no añade
+        # nada y sí inunda `learning_queue`. Medido el 2026-08-08 sobre la base
+        # viva: 233 candidatos de esta plantilla con **11 contenidos distintos**,
+        # uno repetido 104 veces, y eran los que más «usos» acumulaban —44—, así
+        # que el aprendizaje más usado del sistema era el más repetido, no el más
+        # aprendido.
+        #
+        # Enunciar la hipótesis operacional de una misión una vez es informativo;
+        # enunciarla cada ciclo es ruido con forma de aprendizaje. Si algún ciclo
+        # posterior aprende algo, tendrá que decir *qué* aprendió — que es
+        # justamente lo que esta frase nunca dice.
         proposed_learning = (
-            f"Para la misión '{title}', mantener como hipótesis operacional que {mission_text or 'la misión'} "
-            f"debe evaluarse con evidencia local trazable por mission_id y run_ref antes de consolidar memoria estable."
+            (
+                f"Para la misión '{title}', mantener como hipótesis operacional que "
+                f"{mission_text or 'la misión'} debe evaluarse con evidencia local "
+                "trazable por mission_id y run_ref antes de consolidar memoria estable."
+            )
+            if not recent_cycles
+            else ""
         )
         evidence_refs = [
             f"mission:{mission.get('id')}",

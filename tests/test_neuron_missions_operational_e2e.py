@@ -130,3 +130,39 @@ def test_operational_neuron_mission_flow(tmp_path: Path) -> None:
     assert doctor["total_missions"] >= 1
     assert doctor["mission_learning_candidates"] >= 1
     assert identity_after == identity_before
+
+
+def test_la_hipotesis_de_mision_se_enuncia_una_vez_no_cada_ciclo(tmp_path) -> None:
+    """Repetir la misma frase cada ciclo es ruido con forma de aprendizaje.
+
+    El texto se compone de `title` y `mission` —constantes de la misión—, así
+    que a partir del segundo ciclo no aporta nada. Medido el 2026-08-08 sobre la
+    base viva: 233 candidatos de esta plantilla con 11 contenidos distintos, uno
+    repetido 104 veces, y eran los que más «usos» acumulaban (44). El
+    aprendizaje más usado del sistema era el más repetido, no el más aprendido.
+    """
+    from triade.workers.neuron_mission_executor import NeuronMissionExecutor
+
+    ejecutor = NeuronMissionExecutor(db_path=tmp_path / "triade.db")
+    base = {
+        "mission": {
+            "id": 1,
+            "title": "Misión de prueba",
+            "domain": "general",
+            "mission": "hacer algo medible",
+        },
+        "allowed_actions": ["observe", "propose_learning"],
+        "allowed_sources": ["run"],
+        "run_ref": "r1",
+        "recent_evidence": [],
+        "latest_score": {},
+    }
+
+    primero = ejecutor._run_local_cycle({**base, "recent_cycles": []})
+    segundo = ejecutor._run_local_cycle({**base, "recent_cycles": [{"id": 1}]})
+
+    assert primero["proposed_learning"], "el primer ciclo sí enuncia la hipótesis"
+    assert not segundo["proposed_learning"], (
+        "un ciclo posterior volvió a emitir la misma frase: eso inunda "
+        "learning_queue con copias que no aportan nada"
+    )
