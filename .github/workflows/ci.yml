@@ -35,6 +35,13 @@ jobs:
         run: ruff check .
       - name: Ruff format check
         run: ruff format --check .
+      # Antes de la suite larga: si la documentación contradice al código, la
+      # señal tiene que llegar en segundos y no enterrada veinte minutos
+      # después. Cuesta décimas y falla por afirmaciones comprobables —ficheros
+      # citados que no existen, módulos retirados presentados como vivos,
+      # Claude como parte de Tríade—, nunca por prosa.
+      - name: Documentation drift
+        run: pytest -q tests/test_docs_no_drift.py tests/test_manual_tools_doc.py
       - name: Full tests with coverage
         run: pytest -q --cov=triade --cov-report=xml --cov-report=term
       - name: Operational truth
