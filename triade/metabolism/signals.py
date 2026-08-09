@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -42,9 +43,36 @@ class SignalBus:
 
     def _persist(self, signal: MetabolicSignal) -> None:
         try:
-            import sqlite3
-
             with sqlite3.connect(self.db_path, timeout=2) as conn:
+                # `cycle_id = 0` es el centinela de "emitido fuera de un ciclo
+                # metabólico": lo usa el gobernador de workers, que decide modo
+                # de trabajo sin pertenecer a ningún ciclo. Pero el 0 nunca se
+                # declaró en `metabolic_cycle`, así que cada una de esas señales
+                # quedaba huérfana de su clave foránea —142 el 2026-08-09—.
+                #
+                # Se declara aquí, en el escritor, y no como migración: no hay
+                # runner que aplique los `.sql` sobre la base viva, así que una
+                # migración dejaría el arreglo sin efecto donde importa.
+                if signal.cycle == 0:
+                    conn.execute(
+                        """INSERT OR IGNORE INTO metabolic_cycle
+                        (cycle_id, started_at, finished_at, status, mode, summary_json)
+                        VALUES (0, ?, ?, 'out_of_cycle', 'none', ?)""",
+                        (
+                            signal.timestamp,
+                            signal.timestamp,
+                            json.dumps(
+                                {
+                                    "nota": (
+                                        "centinela: señales emitidas fuera de un "
+                                        "ciclo metabólico, como las del "
+                                        "gobernador de workers"
+                                    )
+                                },
+                                ensure_ascii=False,
+                            ),
+                        ),
+                    )
                 conn.execute(
                     """INSERT OR IGNORE INTO metabolic_signals
                     (signal_id, cycle_id, stage, need_id, signal_status, reason, timestamp, budget_json)
@@ -62,7 +90,10 @@ class SignalBus:
                         ),
                     ),
                 )
-        except (ImportError, OSError, RuntimeError) as exc:
+        except (ImportError, OSError, RuntimeError, sqlite3.Error) as exc:
+            # `sqlite3.Error` faltaba y no hereda de las otras tres: un fallo de
+            # base aquí escapaba de este `try` y tumbaba al emisor, que sólo
+            # quería dejar constancia de una señal.
             logger.warning("signal_persist_failed: %s", exc)
 
     def recent(self, limit: int = 50) -> list[dict[str, Any]]:

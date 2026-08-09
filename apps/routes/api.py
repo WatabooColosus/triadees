@@ -72,6 +72,7 @@ from triade.core.observability_view import TriadeObservabilityView
 from triade.core.ollama_blood import check_ollama_blood
 from triade.core.qualia import QUALIA
 from triade.core.repo_info import repo_info
+from triade.core.request_context import get_request_id
 from triade.core.runner import TriadeRunner
 from triade.core.stable_neuron_audit import (
     apply_stable_neuron_audit,
@@ -2955,6 +2956,11 @@ def run_triade(
             "learning_active": learning_active,
             "evidence_ref": result.get("run_id"),
         }
+        # El puente entre lo que vio el cliente y lo que quedó escrito: el
+        # cliente conoce el `request_id` (lo mandó o lo recibió en la cabecera)
+        # y aquí se le devuelve junto al `run_id`, que es la clave con la que
+        # buscar en `runs`, `episodic_memory` y `model_events`.
+        result["request_id"] = get_request_id()
         hidden = memory_diff.get("expression_hidden_evidence")
         if request.debug and hidden:
             result["deep_evidence"] = hidden

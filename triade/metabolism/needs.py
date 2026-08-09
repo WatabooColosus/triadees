@@ -164,7 +164,17 @@ class NeedsQueue:
         self._cooldowns[need.kind] = now
         return False
 
-    def persist_need(self, need: MetabolicNeed, cycle_id: int) -> None:
+    def persist_need(
+        self, need: MetabolicNeed, cycle_id: int, status: str = "pending"
+    ) -> None:
+        """Escribe la necesidad en la base.
+
+        `status` existe porque no toda necesidad persistida está pendiente: las
+        que `_evaluate` descarta por cooldown o presupuesto también hay que
+        escribirlas —su recibo las referencia— pero entrarían en `pending()` y
+        se quedarían ahí para siempre, fingiendo una cola de trabajo que nadie
+        va a atender. Se guardan como `skipped`.
+        """
         try:
             import sqlite3
 
@@ -173,7 +183,7 @@ class NeedsQueue:
                     """INSERT OR IGNORE INTO metabolic_needs
                     (need_id, cycle_id, kind, priority, evidence_json, estimated_cost_json,
                      risk, status, authorization_policy, success_condition, expires_at, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)""",
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         need.need_id,
                         cycle_id,
@@ -182,6 +192,7 @@ class NeedsQueue:
                         json.dumps(need.evidence),
                         json.dumps(need.estimated_cost.to_dict()),
                         need.risk,
+                        status,
                         need.authorization_policy,
                         need.success_condition,
                         need.expires_at,
