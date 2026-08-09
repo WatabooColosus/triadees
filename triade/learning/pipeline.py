@@ -744,10 +744,28 @@ class LearningPipeline:
             #
             # Se excluye por `member != canonical`, no por pertenecer al grupo:
             # el canónico también figura como miembro de su propio grupo.
-            base = f"""SELECT * FROM learning_queue WHERE status IN ({marcas})
-                AND run_use_count >= ? AND avg_outcome_score >= ?
+            # Ordenar sólo por uso volvía a matar de hambre, un escalón más
+            # arriba. Medido el 2026-08-09: los cinco primeros por uso (17 a 44)
+            # eran siempre los mismos `internally_checked` **sin** evidencia
+            # Measurement Core, así que `consolidate()` rechazaba la tanda entera
+            # —"No existe evidencia Measurement Core"— en las 18 ejecuciones de
+            # `stable_consolidation_review` que hay en la base. El único
+            # candidato que sí podía consolidar tenía 3 usos y no entraba nunca.
+            #
+            # Se antepone quien ya trae la evidencia que el gate va a exigir. No
+            # es un atajo: `consolidate()` sigue llamando a `require_improvement()`
+            # y sigue decidiendo él. Lo único que cambia es a quién se le
+            # pregunta primero, para dejar de gastar la tanda en quien se sabe
+            # de antemano que va a fallar.
+            base = f"""SELECT lq.* FROM learning_queue lq
+                WHERE lq.status IN ({marcas})
+                AND lq.run_use_count >= ? AND lq.avg_outcome_score >= ?
                 {{grupos}}
-                ORDER BY run_use_count DESC, avg_outcome_score DESC LIMIT ?"""
+                ORDER BY EXISTS (
+                    SELECT 1 FROM learning_evidence le
+                    WHERE le.candidate_id = lq.candidate_id
+                      AND le.decision = 'improved') DESC,
+                lq.run_use_count DESC, lq.avg_outcome_score DESC LIMIT ?"""
             parametros = (
                 *self.CONSOLIDATABLE_STATES,
                 self.MIN_RUN_USES,
@@ -756,7 +774,7 @@ class LearningPipeline:
             )
             filtro = """AND NOT EXISTS (
                     SELECT 1 FROM learning_candidate_groups g
-                    WHERE g.member_candidate_id = learning_queue.candidate_id
+                    WHERE g.member_candidate_id = lq.candidate_id
                       AND g.member_candidate_id != g.canonical_candidate_id)"""
             try:
                 rows = conn.execute(base.format(grupos=filtro), parametros).fetchall()

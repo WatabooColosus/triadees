@@ -522,7 +522,11 @@ class TriadeRunner:
         # Saberes verificados al contexto, ANTES de generar. Sólo
         # `evidence_verified` y `stable`: un candidato sin evidencia no influye
         # en lo que lee una persona. Si esto falla, la conversación sigue.
-        self._inject_verified_knowledge(input_packet)
+        #
+        # La inyección se guarda porque el circuito no termina aquí: al final
+        # del run hay que confirmar si el saber se aplicó de verdad. Descartar
+        # este valor era el corte que dejaba `run_use_count` clavado en 0.
+        knowledge_injection = self._inject_verified_knowledge(input_packet)
 
         if safety.status == "blocked":
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
@@ -1112,6 +1116,46 @@ class TriadeRunner:
                 db_path=self.db_path,
             )
 
+        # Cierre del circuito causal: de los saberes que se inyectaron ANTES de
+        # generar, ¿cuáles se aplicaron de verdad en la respuesta? Es lo único
+        # que puede mover `run_use_count`, y por tanto lo único que permite que
+        # un candidato ya medido llegue algún día a `stable`.
+        #
+        # Va aparte de `record_learning_usage_from_output`, que compara la salida
+        # ya generada contra toda la cola: eso es atribución retrospectiva y su
+        # propio módulo lo dice. Aquí el candidato entró antes de la inferencia.
+        knowledge_use_result: dict[str, Any] = {}
+        try:
+            from triade.learning.production_injection import (
+                ProductionKnowledgeInjector,
+            )
+
+            knowledge_use_result = ProductionKnowledgeInjector(
+                self.db_path
+            ).confirm_uses(
+                knowledge_injection,
+                str(getattr(output, "response", "") or ""),
+                run_id=input_packet.run_id,
+            )
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
+            from .error_bus import record_internal_error
+
+            record_internal_error(
+                "runner.confirm_knowledge_uses",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
+
         learning_usage_result: dict[str, Any] = {}
         try:
             from .run_learning_usage import record_learning_usage_from_output
@@ -1189,6 +1233,12 @@ class TriadeRunner:
         output.memory_diff["neuron_learning_candidates"] = neuron_learning_candidates
         output.memory_diff["neuron_contribution_summary"] = neuron_contribution_summary
         output.memory_diff["learning_usage"] = learning_usage_result
+        # Observable desde fuera: qué saber inyectado se aplicó de verdad. Sin
+        # esto la confirmación causal sólo se vería consultando la base.
+        output.memory_diff["knowledge_causal_use"] = knowledge_use_result
+        output.memory_diff["injected_knowledge_ids"] = list(
+            getattr(knowledge_injection, "injected_ids", []) or []
+        )
         output.memory_diff["living_context"] = input_packet.context.get(
             "living_context"
         )
