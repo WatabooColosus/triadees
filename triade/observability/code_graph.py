@@ -11,6 +11,7 @@ Nada de esto consulta la documentación ni la base viva.
 from __future__ import annotations
 
 import ast
+import os
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -28,6 +29,13 @@ SKIP_PARTS = {
     ".venv",
     "venv",
     "site-packages",
+    # Salidas del propio runtime. `runs/` contenía 20.139 directorios en la
+    # máquina certificada y ningún módulo Python; recorrerlos no añade código a
+    # la verdad estructural, sólo convierte cada pulso en trabajo inútil.
+    "runs",
+    "artifacts",
+    ".triade_trash",
+    "logs",
 }
 SENSITIVE_NAMES = {".env", ".ssh", "secrets", "credentials"}
 
@@ -51,13 +59,19 @@ def _is_sensitive(path: Path) -> bool:
 
 def iter_python_files(root: Path) -> Iterator[Path]:
     """Recorre el repositorio en orden estable, saltando ruido y secretos."""
-    for path in sorted(root.rglob("*.py")):
-        relative = path.relative_to(root)
-        if any(part in SKIP_PARTS for part in relative.parts):
-            continue
-        if _is_sensitive(relative):
-            continue
-        yield path
+    found: list[Path] = []
+    for directory, directories, files in os.walk(root, topdown=True):
+        # Podar aquí es esencial: filtrar después de `rglob` todavía obliga a
+        # recorrer .git, node_modules y las cachés (más de 20.000 directorios
+        # en la instalación productiva observada).
+        directories[:] = sorted(
+            name
+            for name in directories
+            if name not in SKIP_PARTS and name.lower() not in SENSITIVE_NAMES
+        )
+        base = Path(directory)
+        found.extend(base / name for name in files if name.endswith(".py"))
+    yield from sorted(found)
 
 
 def module_name(root: Path, path: Path) -> str:

@@ -228,9 +228,14 @@ def build_debt_report(
     # Se le pasan los perfiles del artefacto ya generado: reconstruir el grafo de
     # tablas cuesta una relectura completa del AST y este informe se sirve en
     # caliente.
-    alias = build_alias_debt(
-        root, table_profiles=profiles_from_artifact(_load(cache_dir, "table_graph"))
-    )
+    alias = _load(cache_dir, "alias_debt")
+    if alias is None:
+        # Compatibilidad con artefactos anteriores. Esta ruta sólo se paga una
+        # vez durante una transición; el build actual siempre publica el alias.
+        alias = build_alias_debt(
+            root,
+            table_profiles=profiles_from_artifact(_load(cache_dir, "table_graph")),
+        )
     # `suspected_dead_status` entra igual que los demás: rebajar la confianza de
     # un hallazgo no es motivo para esconderlo del contador.
     for senal in (
@@ -259,7 +264,9 @@ def build_debt_report(
     # declaran su evidencia estructural y que se vuelven a comprobar aquí, en
     # cada medición. Lo que no tiene contrato, o lo tiene y no se sostiene, sigue
     # siendo `DEUDA_REAL`. Ver `activation_contracts.py`.
-    clasificado = _classify_with_contracts(root, items, rows_by_table, db_path)
+    clasificado = _classify_with_contracts(
+        root, items, rows_by_table, db_path, cache_dir=cache_dir
+    )
     real = sum(
         entry["count"] - len(entry.get("classified", {})) for entry in items.values()
     )
@@ -289,6 +296,8 @@ def _classify_with_contracts(
     items: dict[str, Any],
     rows_by_table: dict[str, int],
     db_path: Path | None,
+    *,
+    cache_dir: Path = DEFAULT_CACHE,
 ) -> dict[str, int]:
     """Aplica los contratos y anota en cada categoría lo que sale del contador.
 
@@ -306,6 +315,7 @@ def _classify_with_contracts(
             tabla: {"rows": filas} for tabla, filas in rows_by_table.items()
         },
         db_path=db_path,
+        reachable=_reachable_paths_from_artifacts(cache_dir),
     )
     recuento: dict[str, int] = {}
     for categoria, entry in items.items():
@@ -334,6 +344,35 @@ def _classify_with_contracts(
         entry["count"] - len(entry.get("classified", {})) for entry in items.values()
     )
     return recuento
+
+
+def _reachable_paths_from_artifacts(cache_dir: Path) -> set[str] | None:
+    """Deriva módulos alcanzables de los grafos ya publicados, sin releer AST."""
+    imports = _load(cache_dir, "import_graph") or {}
+    entrypoints = _load(cache_dir, "entrypoint_graph") or {}
+    if not imports or not entrypoints:
+        return None
+
+    adjacency: dict[str, set[str]] = {}
+    for edge in imports.get("edges", ()):
+        source = str(edge.get("source", "")).removeprefix("module:")
+        target = str(edge.get("target", "")).removeprefix("module:")
+        if source and target:
+            adjacency.setdefault(source, set()).add(target)
+
+    pending = [
+        str(node.get("metadata", {}).get("path", ""))
+        for node in entrypoints.get("nodes", ())
+        if int(node.get("metadata", {}).get("launchers", 0) or 0) > 0
+    ]
+    reachable: set[str] = set()
+    while pending:
+        path = pending.pop()
+        if not path or path in reachable:
+            continue
+        reachable.add(path)
+        pending.extend(adjacency.get(path, ()))
+    return reachable
 
 
 def _writer_reachability(

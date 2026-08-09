@@ -162,6 +162,25 @@ def test_debt_report_reuses_fresh_graphs_instead_of_rescanning(tmp_path: Path) -
     assert (cache / "index.json").stat().st_mtime == stamp, "no debió regenerar"
 
 
+def test_debt_report_reuses_the_published_alias_analysis(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Una lectura caliente no puede volver a recorrer todo el repositorio."""
+    from triade.observability import introspection
+
+    cache = tmp_path / "graphs"
+    db = _db(tmp_path)
+    build_debt_report(REPO_ROOT, db, cache, max_age_seconds=0)
+
+    def unexpected_scan(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise AssertionError("el análisis de alias ya estaba publicado")
+
+    monkeypatch.setattr(introspection, "build_alias_debt", unexpected_scan)
+    report = build_debt_report(REPO_ROOT, db, cache, max_age_seconds=3600)
+
+    assert report["status"] == "measured"
+
+
 def _chain_db(tmp_path: Path, *, plan_rows: int, plan_recent: bool) -> Path:
     """Base mínima con el eslabón `plan` y un eslabón continuo (`worker`)."""
     db = tmp_path / "cadena.db"

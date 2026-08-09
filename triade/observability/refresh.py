@@ -29,6 +29,7 @@ gastaría 53 s de CPU cada intervalo aunque nadie tuviera la página abierta.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import threading
@@ -88,12 +89,51 @@ class GraphRefresher:
         self._error: str | None = None
         self._failed_at: float | None = None
         self._builds = 0
+        self._exit_code: int | None = None
+        self._restore_status()
 
     # -- lectura del estado en disco -------------------------------------
 
     @property
     def _index(self) -> Path:
         return self.cache_dir / "index.json"
+
+    @property
+    def _status_file(self) -> Path:
+        return self.cache_dir / "refresh_status.json"
+
+    def _restore_status(self) -> None:
+        """Recupera el último resultado; reiniciar la API no borra el fallo."""
+        try:
+            payload = json.loads(self._status_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            return
+        self._started_at = payload.get("started_at")
+        self._finished_at = payload.get("finished_at")
+        self._duration = payload.get("duration_seconds")
+        self._error = payload.get("last_error")
+        self._failed_at = payload.get("failed_at")
+        self._builds = int(payload.get("builds") or 0)
+        self._exit_code = payload.get("exit_code")
+
+    def _persist_status(self) -> None:
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "command": "scripts.build_internal_graphs.build_all(render=False)",
+            "started_at": self._started_at,
+            "finished_at": self._finished_at,
+            "duration_seconds": self._duration,
+            "exit_code": self._exit_code,
+            "last_error": self._error,
+            "stderr_summary": self._error,
+            "failed_at": self._failed_at,
+            "builds": self._builds,
+        }
+        temporary = self._status_file.with_suffix(".json.tmp")
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8"
+        )
+        os.replace(temporary, self._status_file)
 
     def generated_at(self) -> float | None:
         """`mtime` de `index.json`, o `None` si nunca se generó nada."""
@@ -138,6 +178,8 @@ class GraphRefresher:
                 return "running"
             self._started_at = time.time()
             self._error = None
+            self._exit_code = None
+            self._persist_status()
             thread = threading.Thread(
                 target=self._run,
                 name="internal-graphs-refresh",
@@ -172,14 +214,17 @@ class GraphRefresher:
         except Exception as exc:  # noqa: BLE001 — el fallo se reporta, no se traga
             self._error = f"{type(exc).__name__}: {exc}"
             self._failed_at = time.time()
+            self._exit_code = 1
         else:
             self._error = None
             self._failed_at = None
+            self._exit_code = 0
             self._builds += 1
         finally:
             shutil.rmtree(staging, ignore_errors=True)
             self._finished_at = time.time()
             self._duration = self._finished_at - started
+            self._persist_status()
 
     def _publish(self, staging: Path) -> None:
         """Mueve el resultado a su sitio sin que nadie lea un JSON a medias.
@@ -202,6 +247,7 @@ class GraphRefresher:
     def status(self) -> dict[str, Any]:
         """Estado legible por la interfaz, con la edad ya resuelta en segundos."""
         age = self.age_seconds()
+        generated = self.generated_at()
         return {
             "running": self.is_running(),
             "stale": self.is_stale(),
@@ -214,4 +260,10 @@ class GraphRefresher:
             ),
             "builds": self._builds,
             "last_error": self._error,
+            "exit_code": self._exit_code,
+            "command": "scripts.build_internal_graphs.build_all(render=False)",
+            "stderr_summary": self._error,
+            "last_valid_artifact": "index.json" if generated is not None else None,
+            "last_valid_generated_at": generated,
+            "last_valid_age_seconds": None if age is None else round(age, 1),
         }
