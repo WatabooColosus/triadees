@@ -33,8 +33,7 @@ import sys
 
 MARCA = "(fila reconstruida por backfill_runtime_runs)"
 DESCRIPCION = (
-    "ciclo autónomo del supervisor: comprobación de modelo sin petición humana "
-    + MARCA
+    "ciclo autónomo del supervisor: comprobación de modelo sin petición humana " + MARCA
 )
 
 SELECCION = """
