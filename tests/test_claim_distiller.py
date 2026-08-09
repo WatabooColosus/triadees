@@ -317,3 +317,75 @@ def test_both_no_duplica_la_misma_clave_con_otra_preposicion() -> None:
     claims = distill_claims(TEXTO, extractor="both", client=modelo, model="m")
 
     assert sum(1 for c in claims if "control" in c["key"]) == 1
+
+
+# --- El recibo del efecto ----------------------------------------------------
+
+
+def test_el_candidato_creado_emite_recibo_verificado(tmp_path: Any) -> None:
+    """`candidate_created` declara un efecto, y sin recibo se rechaza.
+
+    Nunca había saltado porque la investigación jamás creó un candidato: 156
+    runs en `unverifiable`, que no declara efecto. El primero que sí lo creó
+    murió con `verified_effect_receipt_missing` y el candidato ya escrito.
+    """
+    from triade.workers.worker_loop import WorkerLoop
+
+    db = tmp_path / "triade.db"
+    resultado = {
+        "research_id": "gr-test",
+        "status": "candidate_created",
+        "candidate_id": "learn-inexistente",
+        "sources": [{}, {}],
+        "claims": [{}],
+        "minimum_independent_sources": 2,
+        "prior_failures": 0,
+    }
+
+    loop = WorkerLoop(db_path=db, runs_dir=tmp_path / "runs")
+
+    # Sin fila en `learning_queue` el recibo NO se firma: la poscondición se
+    # comprueba releyendo la base, no repitiendo lo que dijo el handler.
+    recibo = loop._research_effect_receipt(resultado)
+    assert recibo is not None
+    assert recibo.verified is False
+    assert recibo.postcondition["row_exists"] is False
+
+    # Con la fila escrita de verdad, el recibo sale verificado.
+    import sqlite3 as _sq
+
+    with _sq.connect(db) as conn:
+        conn.execute(
+            "INSERT INTO learning_queue (candidate_id,title,content,domain,"
+            "source_type,source_ref,status,created_at,updated_at)"
+            " VALUES (?,?,?,?,?,?,?,datetime('now'),datetime('now'))",
+            (
+                "learn-inexistente",
+                "t",
+                "c",
+                "d",
+                "web",
+                "research:x",
+                "candidate",
+            ),
+        )
+
+    recibo = loop._research_effect_receipt(resultado)
+    assert recibo.verified is True
+    assert recibo.postcondition["passed"] is True
+    assert recibo.action == "create_learning_candidate"
+    assert recibo.evidence_refs
+
+
+def test_sin_candidato_no_se_inventa_recibo(tmp_path: Any) -> None:
+    """`unverifiable` no declara efecto: firmar un recibo ahí sería mentir."""
+    from triade.workers.worker_loop import WorkerLoop
+
+    loop = WorkerLoop(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs")
+
+    assert (
+        loop._research_effect_receipt(
+            {"research_id": "gr-x", "status": "unverifiable", "candidate_id": None}
+        )
+        is None
+    )

@@ -3297,7 +3297,7 @@ class WorkerLoop:
             if task.payload.get("benchmark_need")
             else "gap"
         )
-        return GovernedResearchWorker(self.db_path, provider).run(
+        resultado = GovernedResearchWorker(self.db_path, provider).run(
             question=request,
             trigger=trigger,
             scope=str(task.payload.get("scope") or "goal_research"),
@@ -3305,6 +3305,69 @@ class WorkerLoop:
             minimum_independent_sources=max(
                 2, int(task.payload.get("minimum_independent_sources") or 2)
             ),
+        )
+        receipt = self._research_effect_receipt(resultado)
+        if receipt is not None:
+            resultado["effect_receipt"] = receipt.model_dump(mode="json")
+        return resultado
+
+    def _research_effect_receipt(self, resultado: dict[str, Any]) -> Any:
+        """Recibo del candidato creado, con la poscondición **comprobada**.
+
+        `candidate_created` declara un efecto, y un handler que declara efecto
+        sin recibo se rechaza con `verified_effect_receipt_missing`. Nunca había
+        saltado porque la investigación jamás llegó a crear un candidato: 156
+        runs seguidos en `unverifiable`, que no declara efecto ninguno. El
+        primero que sí lo creó —2026-08-09 02:04— murió aquí con el candidato
+        ya escrito en `learning_queue`.
+
+        El recibo no se firma por haber intentado la escritura: se relee la fila
+        en la base y `verified` sale de que exista de verdad. Un recibo que se
+        limitara a repetir lo que dijo el handler no verificaría nada.
+        """
+        from triade.runtime.effect_receipt import EffectReceipt
+
+        candidate_id = str(resultado.get("candidate_id") or "")
+        if not candidate_id:
+            return None
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                fila = conn.execute(
+                    "SELECT status FROM learning_queue WHERE candidate_id = ?",
+                    (candidate_id,),
+                ).fetchone()
+        except sqlite3.Error:
+            fila = None
+        existe = fila is not None
+        return EffectReceipt(
+            action="create_learning_candidate",
+            target=f"learning_queue:{candidate_id}",
+            precondition={
+                "minimum_independent_sources": resultado.get(
+                    "minimum_independent_sources"
+                ),
+                "prior_failures": resultado.get("prior_failures"),
+            },
+            execution={
+                "research_id": resultado.get("research_id"),
+                "status": resultado.get("status"),
+                "source_count": len(resultado.get("sources") or []),
+                "claim_count": len(resultado.get("claims") or []),
+            },
+            postcondition={
+                "passed": existe,
+                "row_exists": existe,
+                "candidate_status": (str(fila[0]) if fila else None),
+            },
+            verified=existe,
+            verifier="learning_queue_row_verifier",
+            evidence_refs=[
+                f"governed_research_runs:{resultado.get('research_id')}",
+                f"learning_queue:{candidate_id}",
+            ],
+            # El candidato entra como `candidate`: no influye en nada hasta que
+            # el pipeline lo promueva, así que revertirlo no es obligatorio.
+            rollback_ref=f"learning_queue:{candidate_id}",
         )
 
     def _claim_model_client(self) -> tuple[Any, str]:
