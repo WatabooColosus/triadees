@@ -489,19 +489,28 @@ class Bodega(BodegaStorage):
         terms = self._terms(query)
         if not terms:
             return []
-        like_clauses = " OR ".join(
-            ["value LIKE ? OR key LIKE ? OR domain LIKE ?" for _ in terms]
-        )
+        like_clauses = " OR ".join(["content LIKE ? OR domain LIKE ?" for _ in terms])
         params: list[str] = []
         for term in terms:
             pattern = f"%{term}%"
-            params.extend([pattern, pattern, pattern])
-        sql = f"""SELECT key, value, domain, source_ref, confidence, status
-            FROM semantic_memory WHERE {like_clauses} ORDER BY confidence DESC LIMIT ?"""
+            params.extend([pattern, pattern])
+        sql = f"""SELECT document_id, content, domain, source_ref, status
+            FROM semantic_documents
+            WHERE ({like_clauses}) AND status IN ('stable', 'experimental')
+            ORDER BY updated_at DESC LIMIT ?"""
         params.append(str(limit))
         with self._connect() as conn:
             rows = conn.execute(sql, params).fetchall()
-        return [dict(row) for row in rows]
+        return [
+            {
+                "document_id": row["document_id"],
+                "value": row["content"],
+                "domain": row["domain"],
+                "source_ref": row["source_ref"],
+                "status": row["status"],
+            }
+            for row in rows
+        ]
 
     def _search_episodic(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
         terms = self._terms(query)
