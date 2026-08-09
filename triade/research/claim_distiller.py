@@ -99,6 +99,16 @@ def _clave_valida(clave: str) -> bool:
     return len(clave.split()) <= MAX_KEY_WORDS
 
 
+#: Nexos que no distinguen un concepto de otro. «control de acceso» y «control
+#: acceso» son la misma clave; sin esto, `both` guarda las dos porque un modelo
+#: no siempre repite las preposiciones.
+_NEXOS = frozenset({"de", "del", "la", "el", "los", "las", "of", "the"})
+
+
+def _huella(clave: str) -> str:
+    return " ".join(p for p in clave.split() if p not in _NEXOS)
+
+
 def _terminos(texto: str) -> set[str]:
     return {p for p in re.findall(r"[a-záéíóúñ0-9]{4,}", texto.lower())}
 
@@ -162,10 +172,18 @@ def distill_model(
     limit: int = MAX_CLAIMS,
 ) -> list[dict[str, str]]:
     """Afirmaciones propuestas por un modelo local y **verificadas** contra el texto."""
+    # El esquema va por ejemplo y no por nombres de hueco: con
+    # `{"key": "sujeto breve", ...}` un modelo de 3B copia literalmente
+    # «sujeto breve» como clave y mete el sujeto en el valor. Comprobado contra
+    # qwen2.5:3b-instruct — devolvía JSON válido y cero afirmaciones útiles.
     prompt = (
-        "Extrae afirmaciones verificables del TEXTO. Responde SOLO un array JSON "
-        f'de objetos {{"key": "sujeto breve", "value": "afirmación"}}, máximo {limit}. '
-        "No inventes nada que no esté en el TEXTO.\n\n"
+        "Extrae afirmaciones verificables del TEXTO.\n"
+        'Responde SOLO un array JSON. Cada objeto lleva "key" (el término del '
+        'que se afirma algo, 1 a 4 palabras) y "value" (qué se afirma de él, '
+        "frase completa de al menos 25 caracteres).\n"
+        'Ejemplo: [{"key": "fotosíntesis", "value": "proceso por el que las '
+        'plantas convierten la luz solar en energía química"}]\n'
+        f"Máximo {limit} objetos. No inventes nada que no esté en el TEXTO.\n\n"
         f"PREGUNTA: {question}\n\nTEXTO:\n{texto[:6000]}"
     )
     try:
@@ -248,6 +266,6 @@ def distill_claims(
     if modo == "model":
         return por_modelo
 
-    claves = {claim["key"] for claim in por_reglas}
-    combinadas = por_reglas + [c for c in por_modelo if c["key"] not in claves]
+    claves = {_huella(claim["key"]) for claim in por_reglas}
+    combinadas = por_reglas + [c for c in por_modelo if _huella(c["key"]) not in claves]
     return combinadas[:limit]

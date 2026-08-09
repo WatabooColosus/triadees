@@ -3272,7 +3272,7 @@ class WorkerLoop:
             # ingiere nada: 153 ejecuciones así en producción hasta el
             # 2026-08-09, todas sin candidato. El proveedor devolvía la
             # transcripción cruda y nadie la convertía en afirmación.
-            client = self._claim_model_client()
+            client, modelo = self._claim_model_client()
             fuentes = []
             for source in result.get("sources", []):
                 texto = str(source.get("content") or source.get("excerpt") or "")
@@ -3284,6 +3284,7 @@ class WorkerLoop:
                             question=question,
                             extractor=extractor,
                             client=client,
+                            model=modelo or "qwen3:1.7b",
                         ),
                     }
                 )
@@ -3306,18 +3307,32 @@ class WorkerLoop:
             ),
         )
 
-    def _claim_model_client(self) -> Any:
-        """Cliente local para el extractor por modelo, o `None`.
+    def _claim_model_client(self) -> tuple[Any, str]:
+        """Sangre cognitiva para destilar, si la política del rol la concede.
 
-        `None` no rompe nada: `distill_claims` cae a reglas. Con Ollama caído,
-        investigar con menos cobertura es mejor que no investigar.
+        Destilar afirmaciones **es** una evaluación de aprendizaje, así que se
+        pide por su rol —`learning_evaluation`— en vez de instanciar un cliente
+        a ciegas. Dos cosas se ganan con eso: el modelo lo elige Ollama Blood
+        entre los que de verdad están instalados, en lugar de un nombre fijo que
+        puede no existir; y cuando la sangre está baja el destilador lo sabe
+        antes de intentarlo y se queda en reglas, en vez de gastar una llamada
+        que va a fallar.
+
+        `(None, "")` no rompe nada: `distill_claims` cae a reglas. Investigar con
+        menos cobertura es mejor que no investigar.
         """
         try:
+            from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
             from triade.models.ollama_client import OllamaClient
 
-            return OllamaClient()
-        except (ImportError, OSError, RuntimeError):
-            return None
+            sangre = check_ollama_blood()
+            politica = ollama_blood_policy("learning_evaluation", sangre)
+            modelo = str(politica.get("model_used") or "")
+            if not politica.get("allowed") or not modelo:
+                return None, ""
+            return OllamaClient(), modelo
+        except (ImportError, OSError, RuntimeError, KeyError, TypeError):
+            return None, ""
 
     def _artifact_dir(self, run_ref: str) -> Path:
         stamp = time.strftime("%Y%m%d-%H%M%S")

@@ -301,3 +301,19 @@ def test_una_pregunta_que_si_produjo_no_cuenta_como_fallo(tmp_path: Any) -> None
 
     assert resultado["status"] == "candidate_created"
     assert prior_failed_research(db, "gobernanza trazabilidad", "goal_research") == 0
+
+
+def test_both_no_duplica_la_misma_clave_con_otra_preposicion() -> None:
+    """«control de acceso» y «control acceso» son el mismo concepto.
+
+    Un modelo no siempre repite las preposiciones; sin normalizar la huella,
+    `both` guardaba las dos y la evidencia salía con ruido duplicado.
+    """
+    modelo = ModeloFalso(
+        '[{"key": "control acceso", "value": "conjunto de reglas que determinan '
+        'quién puede leer o escribir cada recurso"}]'
+    )
+
+    claims = distill_claims(TEXTO, extractor="both", client=modelo, model="m")
+
+    assert sum(1 for c in claims if "control" in c["key"]) == 1
