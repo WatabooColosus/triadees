@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from triade.memory.semantic_governance import influence_allowed_statuses
+
 from .bodega_storage import BodegaStorage
 from .contracts import (
     CrystalPacket,
@@ -34,11 +36,14 @@ class Bodega(BodegaStorage):
         semantic_limit: int = 3,
         semantic_min_similarity: float = 0.55,
         semantic_domain: str | None = None,
+        semantic_allow_experimental: bool = False,
     ) -> MemoryPacket:
         identity = self._fetch_identity()
         keyword_semantic = [
             {**match, "retrieval_type": "legacy_keyword"}
-            for match in self._search_semantic(packet.user_input)
+            for match in self._search_semantic(
+                packet.user_input, allow_experimental=semantic_allow_experimental
+            )
         ]
         episodic = self._search_episodic(packet.user_input)
         vector_semantic: list[dict[str, Any]] = []
@@ -51,6 +56,7 @@ class Bodega(BodegaStorage):
             "domain": semantic_domain,
             "status": "disabled" if not semantic_recall_enabled else "pending",
             "matches_count": 0,
+            "allow_experimental": semantic_allow_experimental,
         }
 
         if semantic_recall_enabled:
@@ -485,18 +491,31 @@ class Bodega(BodegaStorage):
             results.append(item)
         return results
 
-    def _search_semantic(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+    def _search_semantic(
+        self, query: str, limit: int = 5, allow_experimental: bool = False
+    ) -> list[dict[str, Any]]:
+        """Palabras clave sobre los documentos **vivos**, con la política 1.9E.
+
+        El estado se filtra en SQL, no después de recuperar: este canal es la
+        única puerta cerrada que tiene: `recall()` se llama también con el
+        recall vectorial apagado, y entonces el run nunca pasa por
+        `SemanticMemoryGovernance.govern_memory()`. Dejar entrar `experimental`
+        aquí «porque luego alguien gobierna» sería confiar en un paso opcional.
+        """
         terms = self._terms(query)
         if not terms:
             return []
+        statuses = sorted(influence_allowed_statuses(allow_experimental))
         like_clauses = " OR ".join(["content LIKE ? OR domain LIKE ?" for _ in terms])
         params: list[str] = []
         for term in terms:
             pattern = f"%{term}%"
             params.extend([pattern, pattern])
+        params.extend(statuses)
         sql = f"""SELECT document_id, content, domain, source_ref, status
             FROM semantic_documents
-            WHERE ({like_clauses}) AND status IN ('stable', 'experimental')
+            WHERE ({like_clauses})
+              AND status IN ({", ".join("?" for _ in statuses)})
             ORDER BY updated_at DESC LIMIT ?"""
         params.append(str(limit))
         with self._connect() as conn:

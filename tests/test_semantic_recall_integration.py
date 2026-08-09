@@ -207,11 +207,23 @@ def test_runner_allows_stable_semantic_memory_to_central_packet(tmp_path) -> Non
         )
     )
 
-    assert result["semantic_recall"]["authorized_matches_count"] == 1
+    # Dos, no uno: el mismo documento `stable` llega por los dos canales
+    # gobernados —similitud vectorial y palabras clave—. El de palabras clave
+    # antes no llegaba (leía `semantic_memory`, vacía) y desde que llega pasa
+    # por el mismo gate de estado, así que cuenta como autorizado.
+    assert result["semantic_recall"]["authorized_matches_count"] == 2
     assert result["semantic_recall"]["governance"]["allowed_vector_matches"] == 1
-    assert memory["semantic_matches"][0]["document_id"] == "sem-crystal"
-    assert memory["semantic_matches"][0]["document_status"] == "stable"
-    assert memory["semantic_matches"][0]["source_ref"] == "validacion-1.9C-crystal"
+    assert result["semantic_recall"]["governance"]["allowed_keyword_matches"] == 1
+    assert result["semantic_recall"]["governance"]["quarantined_matches"] == []
+    assert {m["retrieval_type"] for m in memory["semantic_matches"]} == {
+        "vector_similarity",
+        "legacy_keyword",
+    }
+    assert all(m["document_id"] == "sem-crystal" for m in memory["semantic_matches"])
+    assert all(m["document_status"] == "stable" for m in memory["semantic_matches"])
+    assert all(
+        m["source_ref"] == "validacion-1.9C-crystal" for m in memory["semantic_matches"]
+    )
 
 
 def test_runner_without_semantic_recall_does_not_require_embedding_engine(
