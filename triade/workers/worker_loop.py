@@ -2239,6 +2239,13 @@ class WorkerLoop:
     def _pending_learning_review(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
+        # Consume regresiones reales que ya dejó el RegressionGate. La cosecha
+        # es idempotente por (report_id, metric_id); sin este consumidor, los
+        # informes anteriores al arranque quedaban fuera del circuito y sólo
+        # una regresión futura podía abrir la automejora.
+        from triade.self_improvement.failure_learning import FailureLearningLoop
+
+        failure_learning = FailureLearningLoop(self.db_path).harvest(limit=5)
         pipe = LearningPipeline(db_path=self.db_path)
         sandbox = WorkerSandbox(task_dir)
         processed = []
@@ -2274,6 +2281,7 @@ class WorkerLoop:
             "status": "completed",
             "processed_count": len(processed),
             "processed": processed,
+            "failure_learning": failure_learning,
             "stable_memory_written": False,
             "qualia": qualia,
         }
@@ -2448,6 +2456,17 @@ class WorkerLoop:
         if outcome.decision == "improved":
             promocion = producer.promote_if_verified(candidate_id)
 
+        failure_learning: dict[str, Any] | None = None
+        if outcome.decision == "regressed" and outcome.regression_report_id:
+            # Este es el primer productor natural de señales de automejora.
+            # Antes, FailureLearningLoop sólo se cosechaba DESPUÉS de una
+            # self_improvement_evaluation reprobada. Pero esa evaluación exige
+            # una propuesta nacida de una señal: el circuito era circular y los
+            # regression_reports reales quedaban sin consumidor para siempre.
+            from triade.self_improvement.failure_learning import FailureLearningLoop
+
+            failure_learning = FailureLearningLoop(self.db_path).harvest(limit=1)
+
         return {
             "status": "completed",
             "effect": f"evidence_{outcome.decision}",
@@ -2459,6 +2478,7 @@ class WorkerLoop:
             "regression_report_id": outcome.regression_report_id,
             "promoted": promocion.get("promoted", False),
             "promotion_reason": promocion.get("reason"),
+            "failure_learning": failure_learning,
             # `evidence_verified` no es `stable`: eso exige firma humana G3.
             "stable_memory_written": False,
         }

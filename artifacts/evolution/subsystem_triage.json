@@ -1,18 +1,18 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-08-04T02:38:12.057748+00:00",
-  "base_sha": "7b2a7371062321287970b2a2b2f24ac51b051718",
+  "generated_at": "2026-08-09T21:48:11.895230+00:00",
+  "base_sha": "9a035cc6837aa8a1518b7e145ac301970a627f5e",
   "source_artifact": "artifacts/debt/debt-triage-20260803.json",
   "source_incomplete_subsystem_count": 72,
   "reviewed_count": 72,
   "unique_subsystem_count": 49,
   "decision_counts": {
     "activate_now": 0,
-    "complete_later": 43,
-    "merge_with_existing": 10,
+    "complete_later": 42,
+    "merge_with_existing": 9,
     "experimental_keep": 17,
     "legacy_archive": 1,
-    "remove_from_productive_graph": 1
+    "remove_from_productive_graph": 3
   },
   "activation_gate": {
     "activate_now_count": 0,
@@ -91,7 +91,7 @@
       "entrypoint": "triade/learning/doctor.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T03:11:08+00:00",
       "dependencies": [
         "learning",
         "neurons",
@@ -114,6 +114,7 @@
       "required_work": "Ejecutar solicitud, aplicación, efecto medido, auditoría y rollback sobre una neurona de prueba.",
       "tests_needed": [
         "tests/test_continuous_learning_doctor.py",
+        "tests/test_neural_learning_loop_closure.py",
         "tests/test_neuron_education_applications.py",
         "tests/test_neuron_education_resolver.py"
       ],
@@ -126,6 +127,7 @@
       "group": "A",
       "owner": "capabilities",
       "files": [
+        "apps/single_port_app.py",
         "triade/capabilities/registry.py"
       ],
       "tables": [
@@ -138,12 +140,13 @@
       "consumer": [
         "triade/capabilities/registry.py"
       ],
-      "entrypoint": "triade/capabilities/registry.py",
+      "entrypoint": "apps/single_port_app.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-30T01:17:14+00:00",
+      "last_activity": "2026-08-09T18:45:14+00:00",
       "dependencies": [
-        "capabilities"
+        "capabilities",
+        "single_port_app.py"
       ],
       "security_risk": "low",
       "business_value": "medium",
@@ -159,7 +162,7 @@
       "reason": "La ruta existe pero nunca produjo filas observadas.",
       "required_work": "Probar registro, consulta, trazabilidad y rollback durante un cambio real de capacidad.",
       "tests_needed": [
-        "proposed:test_capability_history_end_to_end"
+        "tests/test_capabilities_bootstrap_at_boot.py"
       ],
       "priority": "P2",
       "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
@@ -170,7 +173,7 @@
       "group": "A",
       "owner": "capabilities",
       "files": [
-        "triade/capabilities/matrix.py",
+        "apps/single_port_app.py",
         "triade/capabilities/registry.py",
         "triade/core/observability_view.py",
         "triade/learning/evidence_bridge.py",
@@ -184,19 +187,19 @@
         "triade/capabilities/registry.py"
       ],
       "consumer": [
-        "triade/capabilities/matrix.py",
         "triade/capabilities/registry.py",
         "triade/regression/mandatory_rollback.py"
       ],
-      "entrypoint": "triade/capabilities/registry.py",
+      "entrypoint": "apps/single_port_app.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-08-04T00:07:07+00:00",
+      "last_activity": "2026-08-09T18:57:25+00:00",
       "dependencies": [
         "capabilities",
         "core",
         "learning",
-        "regression"
+        "regression",
+        "single_port_app.py"
       ],
       "security_risk": "low",
       "business_value": "high",
@@ -212,6 +215,7 @@
       "reason": "Lectores y escritor existen, pero el registro vivo permanece vacío y no está validado E2E.",
       "required_work": "Conectar únicamente a un resolver consumidor real y cubrir alta, resolución, rechazo y auditoría.",
       "tests_needed": [
+        "tests/test_capabilities_bootstrap_at_boot.py",
         "tests/test_capability_registry_unified_observability.py"
       ],
       "priority": "P1",
@@ -400,9 +404,7 @@
       "name": "neuron_certifications",
       "group": "A",
       "owner": "verification",
-      "files": [
-        "triade/neuron_factory/certification.py"
-      ],
+      "files": [],
       "tables": [
         "neuron_certifications"
       ],
@@ -411,15 +413,13 @@
         "not_demonstrated"
       ],
       "consumer": [
-        "triade/neuron_factory/certification.py"
+        "not_demonstrated"
       ],
       "entrypoint": "none",
       "reachable": false,
       "runtime_rows": 0,
-      "last_activity": "2026-07-29T23:54:41+00:00",
-      "dependencies": [
-        "neuron_factory"
-      ],
+      "last_activity": "not_observed",
+      "dependencies": [],
       "security_risk": "low",
       "business_value": "high",
       "architectural_value": "high",
@@ -428,11 +428,12 @@
         "detector_category": "alias_debt_orphan_reader",
         "impact": "`neuron_certifications` tiene 1 lector(es), 0 escritor(es) y 0 filas: no la llena nadie, y quien la consulta recibe siempre el caso vacío"
       },
-      "decision": "complete_later",
-      "reason": "Sólo existe lector no alcanzable y ningún escritor; no es un corte productivo.",
-      "required_work": "Definir productor gobernado, consumidor de promoción y prueba E2E de rechazo/aprobación.",
+      "decision": "remove_from_productive_graph",
+      "reason": "Retirada el 2026-08-08. El `complete_later` anterior daba por construir un productor que ya existe con otra forma: `stable_neuron_audit` decide sobre evidencia medida —activaciones, diagnósticos, planes de prueba— y lo consumen cinco sitios vivos. El manifiesto firmado a mano nunca tuvo escritor, y su único lector era el instrumento de la fase 12, `completed` desde el 2026-07-29.",
+      "required_work": "Hecho: `035_retire_neuron_certifications.sql`. La bitácora de la fase 12 (`neuron_certification_transitions`, 13 filas) se conserva.",
       "tests_needed": [
-        "tests/test_alias_debt.py"
+        "tests/test_alias_debt.py",
+        "tests/test_neuron_certification_contract.py"
       ],
       "priority": "P2",
       "source_evidence": "sin escritor, y su lector no lo alcanza ningún entrypoint arrancado: capacidad sin terminar"
@@ -469,7 +470,7 @@
       "entrypoint": "triade/learning/doctor.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T03:11:08+00:00",
       "dependencies": [
         "learning",
         "neurons",
@@ -492,6 +493,7 @@
       "required_work": "Ejecutar solicitud, aplicación, efecto medido, auditoría y rollback sobre una neurona de prueba.",
       "tests_needed": [
         "tests/test_continuous_learning_doctor.py",
+        "tests/test_neural_learning_loop_closure.py",
         "tests/test_neuron_education_applications.py",
         "tests/test_neuron_education_resolver.py"
       ],
@@ -521,7 +523,7 @@
       "entrypoint": "triade/regression/gate.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-30T01:17:14+00:00",
+      "last_activity": "2026-08-08T20:07:24+00:00",
       "dependencies": [
         "regression"
       ],
@@ -568,7 +570,7 @@
       "entrypoint": "triade/core/qualia.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-30T01:17:14+00:00",
+      "last_activity": "2026-08-08T20:08:18-05:00",
       "dependencies": [
         "core",
         "memory"
@@ -600,7 +602,6 @@
       "files": [
         "scripts/audit_runtime_truth.py",
         "triade/capabilities/bootstrap.py",
-        "triade/core/bodega.py",
         "triade/core/conversation_analyzer.py",
         "triade/core/learning_journal.py",
         "triade/core/neuron_identity_view.py",
@@ -625,7 +626,6 @@
       ],
       "consumer": [
         "scripts/audit_runtime_truth.py",
-        "triade/core/bodega.py",
         "triade/core/learning_journal.py",
         "triade/memory/compression.py",
         "triade/memory/encrypted_backup.py",
@@ -634,7 +634,7 @@
       "entrypoint": "triade/capabilities/bootstrap.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
         "audit_runtime_truth.py",
         "capabilities",
@@ -666,7 +666,7 @@
         "tests/test_capability_registry.py",
         "tests/test_capability_registry_bootstrap.py",
         "tests/test_capability_registry_history_cycles.py",
-        "tests/test_encrypted_backup_recovery.py"
+        "tests/test_chat_end_to_end_real.py"
       ],
       "priority": "P1",
       "source_evidence": "3 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
@@ -696,7 +696,7 @@
       "entrypoint": "triade/regression/gate.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-30T01:17:14+00:00",
+      "last_activity": "2026-08-08T20:07:24+00:00",
       "dependencies": [
         "regression"
       ],
@@ -714,7 +714,7 @@
       "reason": "La estructura existe sin estado runtime ni reutilización productiva demostrada.",
       "required_work": "Probar promoción, lectura posterior, degradación y rollback gobernado.",
       "tests_needed": [
-        "proposed:test_stable_capability_state_end_to_end"
+        "tests/test_regression_gate.py"
       ],
       "priority": "P1",
       "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
@@ -738,7 +738,7 @@
       "entrypoint": "none",
       "reachable": false,
       "runtime_rows": "UNKNOWN",
-      "last_activity": "2026-07-29T05:16:42+00:00",
+      "last_activity": "2026-08-09T05:14:21-05:00",
       "dependencies": [
         "capabilities"
       ],
@@ -750,11 +750,12 @@
         "detector_category": "modules_without_importer",
         "impact": "import_graph.json: módulo de producción que nadie importa"
       },
-      "decision": "merge_with_existing",
-      "reason": "Módulo sin importador que solapa el registro y resolver de capacidades.",
-      "required_work": "Extraer sólo lógica no duplicada al capability registry y archivar el módulo huérfano.",
+      "decision": "remove_from_productive_graph",
+      "reason": "Retirada el 2026-08-08. El `merge_with_existing` anterior daba por supuesto que quedaba lógica no duplicada que extraer; medida sobre el registro ya lleno, no queda ninguna: los ciclos y las críticas sin rollback los rechaza `register()` al escribir, `quarantined` no lo asigna nadie, el baseline lo juzga y lo aplica `MandatoryRollbackEnforcer` y los recuentos los publica `CapabilityObservability`.",
+      "required_work": "Hecho. Copia en artifacts/dead_code_backup/, veredicto en docs/debt/CAPABILITY_MATRIX_VERDICT.md.",
       "tests_needed": [
         "tests/test_compatibility_matrix.py",
+        "tests/test_docs_no_drift.py",
         "tests/test_single_port_app.py"
       ],
       "priority": "P2",
@@ -766,6 +767,7 @@
       "group": "A",
       "owner": "capabilities",
       "files": [
+        "apps/single_port_app.py",
         "triade/capabilities/registry.py"
       ],
       "tables": [
@@ -778,12 +780,13 @@
       "consumer": [
         "triade/capabilities/registry.py"
       ],
-      "entrypoint": "triade/capabilities/registry.py",
+      "entrypoint": "apps/single_port_app.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-30T01:17:14+00:00",
+      "last_activity": "2026-08-09T18:45:14+00:00",
       "dependencies": [
-        "capabilities"
+        "capabilities",
+        "single_port_app.py"
       ],
       "security_risk": "low",
       "business_value": "medium",
@@ -799,7 +802,7 @@
       "reason": "La ruta existe pero nunca produjo filas observadas.",
       "required_work": "Probar registro, consulta, trazabilidad y rollback durante un cambio real de capacidad.",
       "tests_needed": [
-        "proposed:test_capability_history_end_to_end"
+        "tests/test_capabilities_bootstrap_at_boot.py"
       ],
       "priority": "P2",
       "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
@@ -810,7 +813,7 @@
       "group": "A",
       "owner": "capabilities",
       "files": [
-        "triade/capabilities/matrix.py",
+        "apps/single_port_app.py",
         "triade/capabilities/registry.py",
         "triade/core/observability_view.py",
         "triade/learning/evidence_bridge.py",
@@ -824,19 +827,19 @@
         "triade/capabilities/registry.py"
       ],
       "consumer": [
-        "triade/capabilities/matrix.py",
         "triade/capabilities/registry.py",
         "triade/regression/mandatory_rollback.py"
       ],
-      "entrypoint": "triade/capabilities/registry.py",
+      "entrypoint": "apps/single_port_app.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-08-04T00:07:07+00:00",
+      "last_activity": "2026-08-09T18:57:25+00:00",
       "dependencies": [
         "capabilities",
         "core",
         "learning",
-        "regression"
+        "regression",
+        "single_port_app.py"
       ],
       "security_risk": "low",
       "business_value": "high",
@@ -852,6 +855,7 @@
       "reason": "Lectores y escritor existen, pero el registro vivo permanece vacío y no está validado E2E.",
       "required_work": "Conectar únicamente a un resolver consumidor real y cubrir alta, resolución, rechazo y auditoría.",
       "tests_needed": [
+        "tests/test_capabilities_bootstrap_at_boot.py",
         "tests/test_capability_registry_unified_observability.py"
       ],
       "priority": "P1",
@@ -1067,7 +1071,7 @@
       "entrypoint": "triade/learning/doctor.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T03:11:08+00:00",
       "dependencies": [
         "learning",
         "neurons",
@@ -1090,6 +1094,7 @@
       "required_work": "Ejecutar solicitud, aplicación, efecto medido, auditoría y rollback sobre una neurona de prueba.",
       "tests_needed": [
         "tests/test_continuous_learning_doctor.py",
+        "tests/test_neural_learning_loop_closure.py",
         "tests/test_neuron_education_applications.py",
         "tests/test_neuron_education_resolver.py"
       ],
@@ -1119,7 +1124,7 @@
       "entrypoint": "triade/regression/gate.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-30T01:17:14+00:00",
+      "last_activity": "2026-08-08T20:07:24+00:00",
       "dependencies": [
         "regression"
       ],
@@ -1166,7 +1171,7 @@
       "entrypoint": "triade/core/qualia.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-30T01:17:14+00:00",
+      "last_activity": "2026-08-08T20:08:18-05:00",
       "dependencies": [
         "core",
         "memory"
@@ -1198,7 +1203,6 @@
       "files": [
         "scripts/audit_runtime_truth.py",
         "triade/capabilities/bootstrap.py",
-        "triade/core/bodega.py",
         "triade/core/conversation_analyzer.py",
         "triade/core/learning_journal.py",
         "triade/core/neuron_identity_view.py",
@@ -1223,7 +1227,6 @@
       ],
       "consumer": [
         "scripts/audit_runtime_truth.py",
-        "triade/core/bodega.py",
         "triade/core/learning_journal.py",
         "triade/memory/compression.py",
         "triade/memory/encrypted_backup.py",
@@ -1232,7 +1235,7 @@
       "entrypoint": "triade/capabilities/bootstrap.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
         "audit_runtime_truth.py",
         "capabilities",
@@ -1264,7 +1267,7 @@
         "tests/test_capability_registry.py",
         "tests/test_capability_registry_bootstrap.py",
         "tests/test_capability_registry_history_cycles.py",
-        "tests/test_encrypted_backup_recovery.py"
+        "tests/test_chat_end_to_end_real.py"
       ],
       "priority": "P1",
       "source_evidence": "3 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
@@ -1294,7 +1297,7 @@
       "entrypoint": "triade/regression/gate.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-30T01:17:14+00:00",
+      "last_activity": "2026-08-08T20:07:24+00:00",
       "dependencies": [
         "regression"
       ],
@@ -1312,7 +1315,7 @@
       "reason": "La estructura existe sin estado runtime ni reutilización productiva demostrada.",
       "required_work": "Probar promoción, lectura posterior, degradación y rollback gobernado.",
       "tests_needed": [
-        "proposed:test_stable_capability_state_end_to_end"
+        "tests/test_regression_gate.py"
       ],
       "priority": "P1",
       "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
@@ -1400,15 +1403,13 @@
       "name": "neuron_certification_transitions",
       "group": "A",
       "owner": "verification",
-      "files": [
-        "triade/neuron_factory/certification.py"
-      ],
+      "files": [],
       "tables": [
         "neuron_certification_transitions"
       ],
       "mission": "Auditar transiciones de certificación",
       "producer": [
-        "triade/neuron_factory/certification.py"
+        "not_demonstrated"
       ],
       "consumer": [
         "not_demonstrated"
@@ -1416,10 +1417,8 @@
       "entrypoint": "none",
       "reachable": false,
       "runtime_rows": 13,
-      "last_activity": "2026-07-29T23:54:41+00:00",
-      "dependencies": [
-        "neuron_factory"
-      ],
+      "last_activity": "not_observed",
+      "dependencies": [],
       "security_risk": "low",
       "business_value": "high",
       "architectural_value": "high",
@@ -1432,7 +1431,7 @@
       "reason": "Existen 13 transiciones sin lector, así que no gobiernan promoción ni revisión.",
       "required_work": "Añadir consumidor de auditoría y probar transición, consulta y rollback.",
       "tests_needed": [
-        "proposed:test_neuron_certification_transitions_end_to_end"
+        "tests/test_neuron_certification_contract.py"
       ],
       "priority": "P2",
       "source_evidence": "table_graph.json para lectores y escritores; filas leídas en vivo"
@@ -1446,6 +1445,8 @@
         "apps/routes/knowledge.py",
         "scripts/build_system_inventory.py",
         "triade/constitution/autonomy.py",
+        "triade/learning/pipeline.py",
+        "triade/observability/runtime_graph.py",
         "triade/workers/adaptive_scheduler.py",
         "triade/workers/advanced_scheduler.py",
         "triade/workers/concurrency.py",
@@ -1464,10 +1465,12 @@
       "entrypoint": "apps/routes/knowledge.py",
       "reachable": true,
       "runtime_rows": "UNKNOWN",
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
         "build_system_inventory.py",
         "constitution",
+        "learning",
+        "observability",
         "routes",
         "workers"
       ],
@@ -1483,12 +1486,12 @@
       "reason": "Task type nunca ejecutado pese a que consolidación requiere consumidor y auditoría.",
       "required_work": "Ejecutar revisión aprobada/rechazada con evidencia y efecto posterior medido.",
       "tests_needed": [
+        "tests/test_consolidatable_ordering.py",
+        "tests/test_internal_graphs_live.py",
         "tests/test_learning_consolidation_chain.py",
         "tests/test_learning_e2e_stable_consolidation.py",
         "tests/test_learning_tasks_window_truth.py",
-        "tests/test_worker_concurrency_policy.py",
-        "tests/test_worker_loop_concurrency_integration.py",
-        "tests/test_worker_stable_consolidation_review.py"
+        "tests/test_worker_concurrency_policy.py"
       ],
       "priority": "P1",
       "source_evidence": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
@@ -1512,7 +1515,7 @@
       "entrypoint": "none",
       "reachable": false,
       "runtime_rows": "UNKNOWN",
-      "last_activity": "2026-07-30T01:17:14+00:00",
+      "last_activity": "2026-08-09T03:39:58+00:00",
       "dependencies": [
         "workers"
       ],
@@ -1525,10 +1528,10 @@
         "impact": "`unhealthy` se compara en 1 fichero(s) y no lo escribe nadie: la condición es cero para siempre"
       },
       "decision": "remove_from_productive_graph",
-      "reason": "El estado es inalcanzable y no tiene productor; presentarlo como vivo falsea la supervisión.",
-      "required_work": "Retirar el estado del grafo productivo o sustituirlo por el contrato vivo de salud con prueba E2E.",
+      "reason": "El estado es inalcanzable y no tiene productor; presentarlo como vivo falsea la supervisión. Medido el 2026-08-08: el problema no es el valor sino su casa. `worker_supervisor` está `disconnected` en el grafo de workers con `live_importers: []`, y sus cinco tablas —incluida `worker_health_snapshots`— no existen en la base viva. La comparación no devuelve cero: no se evalúa nunca.",
+      "required_work": "El detector ya no lo cuenta aparte (sólo mide lo alcanzable): la deuda es el módulo entero, y se decide con él. Ver docs/debt/DEAD_STATUS_VALUES_VERDICT.md.",
       "tests_needed": [
-        "proposed:test_unhealthy_end_to_end"
+        "tests/test_worker_supervisor_persistence.py"
       ],
       "priority": "P1",
       "source_evidence": "triade/workers/worker_supervisor.py opera sobre tablas ausentes en la base viva: ['datetime', 'triade', 'worker_consumption']"
@@ -1598,7 +1601,7 @@
       "entrypoint": "triade/core/planning_graph.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-30T01:17:14+00:00",
+      "last_activity": "2026-08-04T03:56:33+00:00",
       "dependencies": [
         "core"
       ],
@@ -1628,8 +1631,10 @@
       "owner": "goals",
       "files": [
         "apps/routes/api.py",
+        "scripts/run_phase_3_goal_audit.py",
         "triade/consciousness/salience.py",
-        "triade/core/planning_graph.py"
+        "triade/core/planning_graph.py",
+        "triade/observability/runtime_graph.py"
       ],
       "tables": [
         "goals"
@@ -1639,16 +1644,18 @@
         "not_demonstrated"
       ],
       "consumer": [
-        "triade/consciousness/salience.py"
+        "not_demonstrated"
       ],
       "entrypoint": "apps/routes/api.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-31T18:58:02+00:00",
+      "last_activity": "2026-08-09T18:57:25+00:00",
       "dependencies": [
         "consciousness",
         "core",
-        "routes"
+        "observability",
+        "routes",
+        "run_phase_3_goal_audit.py"
       ],
       "security_risk": "low",
       "business_value": "high",
@@ -1666,7 +1673,9 @@
       "tests_needed": [
         "tests/test_alias_debt.py",
         "tests/test_capability_resolver_text_artifact.py",
-        "tests/test_consciousness.py"
+        "tests/test_consciousness.py",
+        "tests/test_goals_end_to_end_real.py",
+        "tests/test_internal_graphs_live.py"
       ],
       "priority": "P1",
       "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
@@ -1734,7 +1743,7 @@
       "entrypoint": "none",
       "reachable": false,
       "runtime_rows": "UNKNOWN",
-      "last_activity": "2026-07-29T05:16:42+00:00",
+      "last_activity": "2026-08-08T00:06:18+00:00",
       "dependencies": [
         "core"
       ],
@@ -1751,6 +1760,7 @@
       "required_work": "Comparar contratos, extraer campos únicos y retirar el duplicado del grafo productivo.",
       "tests_needed": [
         "tests/test_cognitive_integrator_e2e.py",
+        "tests/test_docs_no_drift.py",
         "tests/test_governed_plan_dispatcher.py",
         "tests/test_no_simulated_autonomy.py"
       ],
@@ -1778,7 +1788,7 @@
       "entrypoint": "triade/core/planning_graph.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-30T01:17:14+00:00",
+      "last_activity": "2026-08-04T03:56:33+00:00",
       "dependencies": [
         "core"
       ],
@@ -1808,8 +1818,10 @@
       "owner": "goals",
       "files": [
         "apps/routes/api.py",
+        "scripts/run_phase_3_goal_audit.py",
         "triade/consciousness/salience.py",
-        "triade/core/planning_graph.py"
+        "triade/core/planning_graph.py",
+        "triade/observability/runtime_graph.py"
       ],
       "tables": [
         "goals"
@@ -1819,16 +1831,18 @@
         "not_demonstrated"
       ],
       "consumer": [
-        "triade/consciousness/salience.py"
+        "not_demonstrated"
       ],
       "entrypoint": "apps/routes/api.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-31T18:58:02+00:00",
+      "last_activity": "2026-08-09T18:57:25+00:00",
       "dependencies": [
         "consciousness",
         "core",
-        "routes"
+        "observability",
+        "routes",
+        "run_phase_3_goal_audit.py"
       ],
       "security_risk": "low",
       "business_value": "high",
@@ -1846,7 +1860,9 @@
       "tests_needed": [
         "tests/test_alias_debt.py",
         "tests/test_capability_resolver_text_artifact.py",
-        "tests/test_consciousness.py"
+        "tests/test_consciousness.py",
+        "tests/test_goals_end_to_end_real.py",
+        "tests/test_internal_graphs_live.py"
       ],
       "priority": "P1",
       "source_evidence": "1 escritor(es) declarados y 0 filas: la ruta de escritura existe y no se ha ejecutado nunca"
@@ -1953,6 +1969,7 @@
         "triade/workers/advanced_scheduler.py",
         "triade/workers/concurrency.py",
         "triade/workers/contracts.py",
+        "triade/workers/mission_planner.py",
         "triade/workers/worker_loop.py"
       ],
       "tables": [],
@@ -1966,7 +1983,7 @@
       "entrypoint": "triade/constitution/autonomy.py",
       "reachable": true,
       "runtime_rows": "UNKNOWN",
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
         "build_system_inventory.py",
         "constitution",
@@ -1986,6 +2003,8 @@
       "reason": "Task type declarado pero nunca ejecutado; no hay evidencia de efecto ni terminación.",
       "required_work": "Completar contrato de tarea y ejecutar cola, handler, evidencia y terminal en Fase 4.",
       "tests_needed": [
+        "tests/test_education_priority.py",
+        "tests/test_mission_planner.py",
         "tests/test_stable_audit_integration.py",
         "tests/test_triade_os_event_engine.py",
         "tests/test_worker_graph_recency.py"
@@ -2001,6 +2020,7 @@
       "files": [
         "triade/constitution/autonomy.py",
         "triade/evaluation/suites.py",
+        "triade/observability/activation_contracts.py",
         "triade/os/event_engine.py",
         "triade/workers/adaptive_scheduler.py",
         "triade/workers/advanced_scheduler.py",
@@ -2020,10 +2040,11 @@
       "entrypoint": "triade/constitution/autonomy.py",
       "reachable": true,
       "runtime_rows": "UNKNOWN",
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
         "constitution",
         "evaluation",
+        "observability",
         "os",
         "workers"
       ],
@@ -2052,7 +2073,9 @@
       "files": [
         "triade/constitution/autonomy.py",
         "triade/core/goal_orchestrator.py",
+        "triade/observability/activation_contracts.py",
         "triade/workers/adaptive_scheduler.py",
+        "triade/workers/architecture.py",
         "triade/workers/concurrency.py",
         "triade/workers/contracts.py",
         "triade/workers/worker_loop.py"
@@ -2068,10 +2091,11 @@
       "entrypoint": "triade/constitution/autonomy.py",
       "reachable": true,
       "runtime_rows": "UNKNOWN",
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
         "constitution",
         "core",
+        "observability",
         "workers"
       ],
       "security_risk": "high",
@@ -2087,7 +2111,8 @@
       "required_work": "Definir policy, aprobación, sandbox, rollback y estado terminal antes de ejecutar.",
       "tests_needed": [
         "tests/test_autonomy_governs_tasks.py",
-        "tests/test_runtime_backpressure.py"
+        "tests/test_runtime_backpressure.py",
+        "tests/test_workers_end_to_end_real.py"
       ],
       "priority": "P1",
       "source_evidence": "worker_graph.json para los tipos declarados; ejecuciones leídas en vivo"
@@ -2100,7 +2125,9 @@
       "files": [
         "triade/constitution/autonomy.py",
         "triade/core/goal_orchestrator.py",
+        "triade/observability/activation_contracts.py",
         "triade/workers/adaptive_scheduler.py",
+        "triade/workers/architecture.py",
         "triade/workers/concurrency.py",
         "triade/workers/contracts.py",
         "triade/workers/worker_loop.py"
@@ -2116,10 +2143,11 @@
       "entrypoint": "triade/constitution/autonomy.py",
       "reachable": true,
       "runtime_rows": "UNKNOWN",
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
         "constitution",
         "core",
+        "observability",
         "workers"
       ],
       "security_risk": "medium",
@@ -2203,7 +2231,7 @@
       "entrypoint": "triade/core/bodega.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-31T18:58:02+00:00",
+      "last_activity": "2026-08-08T20:08:18-05:00",
       "dependencies": [
         "core",
         "memory"
@@ -2296,7 +2324,7 @@
       "entrypoint": "triade/core/bodega.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-07-31T18:58:02+00:00",
+      "last_activity": "2026-08-08T20:08:18-05:00",
       "dependencies": [
         "core",
         "memory"
@@ -2411,6 +2439,8 @@
         "scripts/build_system_inventory.py",
         "triade/constitution/autonomy.py",
         "triade/core/capability_resolver.py",
+        "triade/observability/activation_contracts.py",
+        "triade/workers/architecture.py",
         "triade/workers/concurrency.py",
         "triade/workers/contracts.py",
         "triade/workers/worker_loop.py"
@@ -2426,11 +2456,12 @@
       "entrypoint": "triade/constitution/autonomy.py",
       "reachable": true,
       "runtime_rows": "UNKNOWN",
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
         "build_system_inventory.py",
         "constitution",
         "core",
+        "observability",
         "workers"
       ],
       "security_risk": "high",
@@ -2501,6 +2532,7 @@
       "files": [
         "triade/core/observability_view.py",
         "triade/federation/federation.py",
+        "triade/observability/activation_contracts.py",
         "triade/workers/mission_planner.py",
         "triade/workers/worker_loop.py"
       ],
@@ -2519,10 +2551,11 @@
       "entrypoint": "triade/core/observability_view.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
         "core",
         "federation",
+        "observability",
         "workers"
       ],
       "security_risk": "medium",
@@ -2588,6 +2621,7 @@
       "files": [
         "triade/core/observability_view.py",
         "triade/federation/federation.py",
+        "triade/observability/activation_contracts.py",
         "triade/workers/mission_planner.py",
         "triade/workers/worker_loop.py"
       ],
@@ -2606,10 +2640,11 @@
       "entrypoint": "triade/core/observability_view.py",
       "reachable": true,
       "runtime_rows": 0,
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
         "core",
         "federation",
+        "observability",
         "workers"
       ],
       "security_risk": "medium",
@@ -2715,7 +2750,8 @@
       "group": "D",
       "owner": "observability",
       "files": [
-        "triade/evolution/engineering_worker.py"
+        "triade/evolution/engineering_worker.py",
+        "triade/observability/activation_contracts.py"
       ],
       "tables": [
         "engineering_evolution_events"
@@ -2730,9 +2766,10 @@
       "entrypoint": "triade/evolution/engineering_worker.py",
       "reachable": true,
       "runtime_rows": 2,
-      "last_activity": "2026-07-30T01:17:14+00:00",
+      "last_activity": "2026-08-08T22:42:37-05:00",
       "dependencies": [
-        "evolution"
+        "evolution",
+        "observability"
       ],
       "security_risk": "low",
       "business_value": "medium",
@@ -2757,7 +2794,8 @@
       "group": "D",
       "owner": "observability",
       "files": [
-        "scripts/remediate_synthetic_evidence.py"
+        "scripts/remediate_synthetic_evidence.py",
+        "triade/observability/activation_contracts.py"
       ],
       "tables": [
         "evidence_remediation_audit"
@@ -2769,11 +2807,12 @@
       "consumer": [
         "not_demonstrated"
       ],
-      "entrypoint": "none",
-      "reachable": false,
+      "entrypoint": "triade/observability/activation_contracts.py",
+      "reachable": true,
       "runtime_rows": 479,
-      "last_activity": "2026-07-29T06:50:10+00:00",
+      "last_activity": "2026-08-08T20:58:21+00:00",
       "dependencies": [
+        "observability",
         "remediate_synthetic_evidence.py"
       ],
       "security_risk": "low",
@@ -2799,7 +2838,9 @@
       "group": "D",
       "owner": "research",
       "files": [
-        "triade/research/governed.py"
+        "triade/observability/activation_contracts.py",
+        "triade/research/governed.py",
+        "triade/workers/worker_loop.py"
       ],
       "tables": [
         "governed_research_runs"
@@ -2809,14 +2850,16 @@
         "triade/research/governed.py"
       ],
       "consumer": [
-        "not_demonstrated"
+        "triade/research/governed.py"
       ],
-      "entrypoint": "triade/research/governed.py",
+      "entrypoint": "triade/observability/activation_contracts.py",
       "reachable": true,
       "runtime_rows": 86,
-      "last_activity": "2026-07-29T23:12:40+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
-        "research"
+        "observability",
+        "research",
+        "workers"
       ],
       "security_risk": "low",
       "business_value": "medium",
@@ -2841,7 +2884,8 @@
       "group": "D",
       "owner": "operations",
       "files": [
-        "triade/hypothalamus/senses.py"
+        "triade/hypothalamus/senses.py",
+        "triade/observability/activation_contracts.py"
       ],
       "tables": [
         "hardware_senses"
@@ -2856,9 +2900,10 @@
       "entrypoint": "triade/hypothalamus/senses.py",
       "reachable": true,
       "runtime_rows": 293,
-      "last_activity": "2026-08-02T20:42:52+00:00",
+      "last_activity": "2026-08-08T20:58:21+00:00",
       "dependencies": [
-        "hypothalamus"
+        "hypothalamus",
+        "observability"
       ],
       "security_risk": "low",
       "business_value": "high",
@@ -2984,7 +3029,7 @@
       "entrypoint": "none",
       "reachable": false,
       "runtime_rows": "UNKNOWN",
-      "last_activity": "2026-07-29T06:47:41+00:00",
+      "last_activity": "2026-08-08T00:06:18+00:00",
       "dependencies": [
         "core"
       ],
@@ -3000,7 +3045,7 @@
       "reason": "No tiene importador ni entrypoint vivo y no existe consumidor demostrado.",
       "required_work": "Etiquetar experimental, conservar pruebas aisladas y prohibir presentación como runtime vivo.",
       "tests_needed": [
-        "proposed:test_triade_core_hierarchical_pulse_py_end_to_end"
+        "tests/test_docs_no_drift.py"
       ],
       "priority": "P3",
       "source_evidence": "sin importador en el repositorio"
@@ -3240,7 +3285,8 @@
       "reason": "Tabla desconectada y sin consumidor; la metáfora no constituye capacidad.",
       "required_work": "Mantener experimental y documentar que no está activa.",
       "tests_needed": [
-        "tests/test_alias_debt.py"
+        "tests/test_alias_debt.py",
+        "tests/test_schema_retirement.py"
       ],
       "priority": "P3",
       "source_evidence": "table_graph.json: tabla viva sin lector ni escritor en el código"
@@ -3251,8 +3297,10 @@
       "group": "E",
       "owner": "self_improvement",
       "files": [
+        "apps/routes/governance.py",
         "scripts/run_concurrency_and_lease_validation.py",
         "triade/constitution/autonomy.py",
+        "triade/observability/activation_contracts.py",
         "triade/workers/concurrency.py",
         "triade/workers/contracts.py",
         "triade/workers/mission_planner.py",
@@ -3266,12 +3314,14 @@
       "consumer": [
         "triade/workers/mission_planner.py"
       ],
-      "entrypoint": "scripts/run_concurrency_and_lease_validation.py",
+      "entrypoint": "apps/routes/governance.py",
       "reachable": true,
       "runtime_rows": "UNKNOWN",
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
         "constitution",
+        "observability",
+        "routes",
         "run_concurrency_and_lease_validation.py",
         "workers"
       ],
@@ -3290,6 +3340,7 @@
         "tests/test_canary_observation_producer.py",
         "tests/test_peft_canary_observation.py",
         "tests/test_scheduler_mission_planner.py",
+        "tests/test_self_improvement_door.py",
         "tests/test_worker_concurrency_policy.py"
       ],
       "priority": "P3",
@@ -3301,8 +3352,10 @@
       "group": "E",
       "owner": "self_improvement",
       "files": [
+        "apps/routes/governance.py",
         "scripts/run_concurrency_and_lease_validation.py",
         "triade/constitution/autonomy.py",
+        "triade/observability/activation_contracts.py",
         "triade/workers/concurrency.py",
         "triade/workers/contracts.py",
         "triade/workers/mission_planner.py",
@@ -3316,12 +3369,14 @@
       "consumer": [
         "not_demonstrated"
       ],
-      "entrypoint": "scripts/run_concurrency_and_lease_validation.py",
+      "entrypoint": "apps/routes/governance.py",
       "reachable": true,
       "runtime_rows": "UNKNOWN",
-      "last_activity": "2026-08-04T00:38:54+00:00",
+      "last_activity": "2026-08-09T21:30:43+00:00",
       "dependencies": [
         "constitution",
+        "observability",
+        "routes",
         "run_concurrency_and_lease_validation.py",
         "workers"
       ],
@@ -3339,6 +3394,7 @@
       "tests_needed": [
         "tests/test_canary_observation_producer.py",
         "tests/test_scheduler_mission_planner.py",
+        "tests/test_self_improvement_door.py",
         "tests/test_self_improvement_evaluation_gate.py",
         "tests/test_worker_concurrency_policy.py",
         "tests/test_worker_concurrency_pool.py"

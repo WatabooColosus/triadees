@@ -27,6 +27,7 @@ from triade.self_improvement.failure_learning import (
     MAX_ATTEMPTS,
     FailureLearningLoop,
 )
+from triade.workers.worker_loop import WorkerLoop
 
 CAP = "triade_vitality"
 
@@ -106,6 +107,16 @@ def test_una_cuarentena_produce_una_senal_dirigida(tmp_path: Path):
     assert stored["observed_score"] == 0.74
     assert stored["target_score"] == 0.90
     assert stored["source_ref"] == "regression_report:r1"
+
+
+def test_learning_evidence_regression_is_wired_to_failure_learning() -> None:
+    """La regresión causal debe cosecharse donde nace, no tras otro ciclo."""
+    source = __import__("inspect").getsource(WorkerLoop._learning_evidence_generation)
+    assert 'outcome.decision == "regressed"' in source
+    assert "FailureLearningLoop(self.db_path).harvest(limit=1)" in source
+
+    review_source = __import__("inspect").getsource(WorkerLoop._pending_learning_review)
+    assert "FailureLearningLoop(self.db_path).harvest(limit=5)" in review_source
 
 
 def test_la_hipotesis_siguiente_incorpora_lo_ya_fallado(tmp_path: Path):

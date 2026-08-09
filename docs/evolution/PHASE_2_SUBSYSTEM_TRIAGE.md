@@ -3,8 +3,8 @@
 
 ## SHA base, rama y objetivo
 
-- SHA base: `7b2a7371062321287970b2a2b2f24ac51b051718`.
-- Rama: `phase/02-subsystem-triage`.
+- SHA base: `9a035cc6837aa8a1518b7e145ac301970a627f5e`.
+- Rama: `main`.
 - Objetivo: revisar individualmente las 72 observaciones `incomplete_subsystem` sin reducir ni ocultar deuda.
 
 ## Estado inicial y método
@@ -34,11 +34,11 @@ El generador inspecciona código, grafo de tablas, alcanzabilidad desde entrypoi
 | Decisión | Cantidad |
 |---|---:|
 | `activate_now` | 0 |
-| `complete_later` | 43 |
-| `merge_with_existing` | 10 |
+| `complete_later` | 42 |
+| `merge_with_existing` | 9 |
 | `experimental_keep` | 17 |
 | `legacy_archive` | 1 |
-| `remove_from_productive_graph` | 1 |
+| `remove_from_productive_graph` | 3 |
 
 No hay `activate_now`: ante ausencia de E2E u observabilidad la decisión obligatoria es no demostrado.
 
@@ -54,13 +54,13 @@ No hay `activate_now`: ante ausencia de E2E u observabilidad la decisión obliga
 | D013 | A | kg_contradictions | knowledge | sí | 0 | `experimental_keep` | P3 | La arquitectura está implementada pero no tiene hechos runtime ni consumidor productivo demostrado. |
 | D014 | A | kg_edges | knowledge | sí | 0 | `experimental_keep` | P3 | La tabla está vacía y el grafo semántico no está demostrado productivamente. |
 | D015 | A | kg_nodes | knowledge | sí | 0 | `experimental_keep` | P3 | Tiene código estructural sin datos ni uso productivo observado. |
-| D016 | A | neuron_certifications | verification | no | 0 | `complete_later` | P2 | Sólo existe lector no alcanzable y ningún escritor; no es un corte productivo. |
+| D016 | A | neuron_certifications | verification | no | 0 | `remove_from_productive_graph` | P2 | Retirada el 2026-08-08. El `complete_later` anterior daba por construir un productor que ya existe con otra forma: `stable_neuron_audit` decide sobre evidencia medida —activaciones, diagnósticos, planes de prueba— y lo consumen cinco sitios vivos. El manifiesto firmado a mano nunca tuvo escritor, y su único lector era el instrumento de la fase 12, `completed` desde el 2026-07-29. |
 | D017 | A | neuron_education_applications | learning | sí | 0 | `complete_later` | P1 | Tiene lectores y escritores reales pero cero uso runtime; no hay prueba de aplicación end-to-end. |
 | D019 | A | regression_quarantine | regression | sí | 0 | `complete_later` | P1 | El gate existe, pero la cuarentena persistida no se ha ejercitado en runtime. |
 | D023 | A | semantic_governance_events | memory | sí | 0 | `complete_later` | P1 | Lectores y escritores existen sin eventos runtime observados. |
 | D024 | A | semantic_memory | memory | sí | 0 | `complete_later` | P1 | Diez lectores y tres escritores no han producido filas en la base observada; no equivale a aprendizaje. |
 | D025 | A | stable_capability_state | capabilities | sí | 0 | `complete_later` | P1 | La estructura existe sin estado runtime ni reutilización productiva demostrada. |
-| D050 | A | triade/capabilities/matrix.py | capabilities | no | UNKNOWN | `merge_with_existing` | P2 | Módulo sin importador que solapa el registro y resolver de capacidades. |
+| D050 | A | triade/capabilities/matrix.py | capabilities | no | UNKNOWN | `remove_from_productive_graph` | P2 | Retirada el 2026-08-08. El `merge_with_existing` anterior daba por supuesto que quedaba lógica no duplicada que extraer; medida sobre el registro ya lleno, no queda ninguna: los ciclos y las críticas sin rollback los rechaza `register()` al escribir, `quarantined` no lo asigna nadie, el baseline lo juzga y lo aplica `MandatoryRollbackEnforcer` y los recuentos los publica `CapabilityObservability`. |
 | D054 | A | capability_history | capabilities | sí | 0 | `complete_later` | P2 | La ruta existe pero nunca produjo filas observadas. |
 | D055 | A | capability_registry | capabilities | sí | 0 | `complete_later` | P1 | Lectores y escritor existen, pero el registro vivo permanece vacío y no está validado E2E. |
 | D059 | A | governed_peft_active_slot | models | sí | 0 | `complete_later` | P2 | El slot no registra actividad y no existe promoción demostrada en runtime productivo. |
@@ -76,7 +76,7 @@ No hay `activate_now`: ante ausencia de E2E u observabilidad la decisión obliga
 | D074 | A | benchmark_tasks | evaluation | no | 0 | `merge_with_existing` | P2 | Está vacío y desconectado mientras autonomous_tasks ya ofrece cola y ciclo de vida. |
 | D086 | A | neuron_certification_transitions | verification | no | 13 | `complete_later` | P2 | Existen 13 transiciones sin lector, así que no gobiernan promoción ni revisión. |
 | D093 | A | stable_consolidation_review | learning | sí | UNKNOWN | `complete_later` | P1 | Task type nunca ejecutado pese a que consolidación requiere consumidor y auditoría. |
-| D001 | B | unhealthy | workers | no | UNKNOWN | `remove_from_productive_graph` | P1 | El estado es inalcanzable y no tiene productor; presentarlo como vivo falsea la supervisión. |
+| D001 | B | unhealthy | workers | no | UNKNOWN | `remove_from_productive_graph` | P1 | El estado es inalcanzable y no tiene productor; presentarlo como vivo falsea la supervisión. Medido el 2026-08-08: el problema no es el valor sino su casa. `worker_supervisor` está `disconnected` en el grafo de workers con `live_importers: []`, y sus cinco tablas —incluida `worker_health_snapshots`— no existen en la base viva. La comparación no devuelve cero: no se evalúa nunca. |
 | D005 | B | runtime_queue_compatibility_events | runtime | no | 0 | `merge_with_existing` | P2 | Escribe una tabla vacía que se solapa con runtime_queue_compatibility, ya activa. |
 | D010 | B | goal_dependencies | goals | sí | 0 | `complete_later` | P1 | Escritor y lector no han producido actividad; depende de cerrar Goals E2E. |
 | D011 | B | goals | goals | sí | 0 | `complete_later` | P1 | El circuito existe pero tiene cero filas y carece de validación end-to-end. |
@@ -104,7 +104,7 @@ No hay `activate_now`: ante ausencia de E2E u observabilidad la decisión obliga
 | D075 | D | federated_merge_log | federation | no | 0 | `merge_with_existing` | P2 | No tiene productor ni consumidor y se solapa con federated_exchange_log. |
 | D076 | D | federated_merge_nodes | federation | no | 0 | `merge_with_existing` | P2 | Duplica federated_nodes, que sí contiene actividad runtime. |
 | D082 | D | engineering_evolution_events | observability | sí | 2 | `complete_later` | P2 | Tiene productor y filas, pero ningún lector: actividad almacenada sin utilidad operativa. |
-| D083 | D | evidence_remediation_audit | observability | no | 479 | `complete_later` | P1 | Acumula 479 filas sin lector; la auditoría no es verificable desde una interfaz viva. |
+| D083 | D | evidence_remediation_audit | observability | sí | 479 | `complete_later` | P1 | Acumula 479 filas sin lector; la auditoría no es verificable desde una interfaz viva. |
 | D084 | D | governed_research_runs | research | sí | 86 | `complete_later` | P2 | Hay 86 runs escritos y ningún consumidor, por lo que no informan decisiones posteriores. |
 | D085 | D | hardware_senses | operations | sí | 293 | `complete_later` | P1 | Hay 293 muestras y ningún consumidor; medir sin actuar no demuestra salud. |
 | D020 | E | relational_modulation_events | research | sí | 0 | `experimental_keep` | P3 | Código y tablas existen sin actividad productiva observada; no hay utilidad demostrada. |
