@@ -25,6 +25,44 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+#: Estados en los que la investigación **no** produjo material. No son errores
+#: —el gobierno hizo su trabajo— pero repetirlos sin cambiar nada sí lo es.
+NON_PRODUCTIVE = ("unverifiable", "insufficient_sources", "conflicting_sources")
+
+#: A partir de aquí, insistir con la misma pregunta deja de ser paciencia y pasa
+#: a ser un bucle. Tres es suficiente para descartar un fallo puntual de red.
+REPEATED_FAILURE_THRESHOLD = 3
+
+
+def prior_failed_research(db_path: str | Path, question: str, scope: str) -> int:
+    """Cuántas veces esta misma pregunta ya no produjo nada.
+
+    Es la memoria del proceso sobre sí mismo. Sin ella nadie puede distinguir el
+    primer intento del centésimo, y un sistema que no sabe que ya falló no tiene
+    forma de intentar otra cosa.
+
+    Es función de módulo y no método para que quien **compone** la pregunta
+    pueda consultarla antes de lanzarla, sin instanciar el worker ni reejecutar
+    sus migraciones.
+    """
+    ruta = Path(db_path)
+    if not ruta.exists():
+        return 0
+    marcadores = ",".join("?" for _ in NON_PRODUCTIVE)
+    try:
+        with sqlite3.connect(ruta) as conn:
+            fila = conn.execute(
+                f"""SELECT COUNT(*) FROM governed_research_runs
+                WHERE question = ? AND scope = ? AND status IN ({marcadores})""",
+                (question, scope, *NON_PRODUCTIVE),
+            ).fetchone()
+    except sqlite3.Error:
+        # Sin historial legible no se bloquea la investigación: se trata como
+        # primer intento, que es el lado que no impide trabajar.
+        return 0
+    return int(fila[0] or 0) if fila else 0
+
+
 class GovernedResearchWorker:
     TRIGGERS: ClassVar[set[str]] = {
         "gap",
@@ -51,6 +89,9 @@ class GovernedResearchWorker:
         conn.row_factory = sqlite3.Row
         return conn
 
+    def _prior_failures(self, question: str, scope: str) -> int:
+        return prior_failed_research(self.db_path, question, scope)
+
     def run(
         self,
         *,
@@ -67,6 +108,15 @@ class GovernedResearchWorker:
             raise ValueError("question, scope y allowed_sources son obligatorios")
         if minimum_independent_sources < 2:
             raise ValueError("minimum_independent_sources debe ser >= 2")
+        # Lo que no pasó la puerta también enseña, si alguien lo lee. Medido en
+        # producción el 2026-08-09: 156 runs, **la misma pregunta 156 veces**,
+        # las 156 `unverifiable`, y ni una sola lectura de ese historial. El
+        # vocabulario para decirlo ya existía —`repeated_failure` es un trigger
+        # gobernado— y nadie lo producía nunca: 156/156 entraban como `gap`.
+        prior = self._prior_failures(question, scope)
+        if prior >= REPEATED_FAILURE_THRESHOLD and trigger == "gap":
+            trigger = "repeated_failure"
+
         raw = self.provider(question, minimum_independent_sources)
         failures = [dict(item) for item in raw.get("failures", [])]
         accepted: list[dict[str, Any]] = []
@@ -183,6 +233,10 @@ class GovernedResearchWorker:
             "candidate_id": candidate_id,
             "learning_validated": False,
             "stable_memory_written": False,
+            # Para que el fallo sea legible por quien decide el siguiente
+            # intento, no sólo contable a posteriori.
+            "prior_failures": prior,
+            "repeated_failure": trigger == "repeated_failure",
         }
         with self._connect() as conn:
             conn.execute(
