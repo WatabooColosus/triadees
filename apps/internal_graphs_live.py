@@ -53,8 +53,8 @@ DEFAULT_DB = ROOT / "triade" / "memory" / "triade.db"
 #: Grafos servidos por la API. El orden es el del recorrido: del cuerpo físico
 #: al organismo, y de ahí a la cadena que demuestra que sigue vivo.
 GRAPH_BUILDERS = (
-    "system",
     "physical",
+    "system",
     "imports",
     "calls",
     "entrypoints",

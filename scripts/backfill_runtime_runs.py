@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Reconstruye la fila `runs` de los ciclos autónomos que nunca la escribieron.
 
 `model_events.run_id` referencia `runs(run_id)`, pero hasta el 2026-08-09 el
