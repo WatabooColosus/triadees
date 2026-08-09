@@ -76,6 +76,20 @@ class EncryptedBackup:
         }
 
     @staticmethod
+    def _integrity_of(db_path: Path) -> str:
+        """Lo que dice SQLite de una base, o por qué no se pudo preguntar.
+
+        Devuelve texto siempre —nunca lanza— porque quien llama necesita poder
+        decidir sin envolverlo en otro `try`: una base tan dañada que ni se abre
+        es exactamente el caso que hay que detectar, no una excepción a ignorar.
+        """
+        try:
+            with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+                return str(conn.execute("PRAGMA integrity_check").fetchone()[0])
+        except sqlite3.Error as exc:
+            return f"unreadable: {exc}"
+
+    @staticmethod
     def _fernet():
         from cryptography.fernet import Fernet
 
@@ -142,6 +156,31 @@ class EncryptedBackup:
                 sqlite3.connect(snapshot) as target,
             ):
                 source.backup(target)
+            # Copiar sin mirar es archivar el daño. El 2026-08-08 la base de
+            # producción se corrompió entre dos copias; la siguiente se creó a
+            # partir de ella y se guardó como si estuviera bien. Nadie lo supo
+            # hasta que hizo falta restaurar, y para entonces la copia más
+            # reciente —la que cualquiera habría elegido— era inservible.
+            #
+            # Si hubiera tardado unas horas más en notarse, las nueve copias
+            # buenas habrían rotado hasta desaparecer. Un backup que archiva
+            # corrupción es peor que no tenerlo: aparenta protección y además
+            # **desplaza** a las copias que sí servían.
+            #
+            # Se comprueba sobre el snapshot, antes de comprimir y cifrar, para
+            # que una base dañada no llegue a escribirse nunca.
+            integridad = self._integrity_of(snapshot)
+            if integridad != "ok":
+                return {
+                    "status": "failed",
+                    "reason": "source_database_malformed",
+                    "integrity_check": integridad,
+                    "source": str(self.db_path),
+                    "detail": (
+                        "no se archiva una copia de una base dañada: taparía a "
+                        "las copias buenas que aún existen"
+                    ),
+                }
             snapshot_bytes = snapshot.read_bytes()
             plaintext = gzip.compress(snapshot_bytes)
         encrypted = self._fernet().encrypt(plaintext)
@@ -161,6 +200,10 @@ class EncryptedBackup:
             # Sin esto, los backups del 2026-07-30 quedaron sin poder emparejarse
             # con ninguna clave: el manifiesto no decía cuál los había cifrado.
             "key_fingerprint": self.key_fingerprint(),
+            # Qué dijo `integrity_check` sobre el origen en el momento de copiar.
+            # Queda escrito para que saberlo no cueste descifrar 60 MB: el
+            # detector de deuda lo lee del manifiesto.
+            "source_integrity": integridad,
         }
         output.with_suffix(output.suffix + ".json").write_text(
             json.dumps(manifest, indent=2), encoding="utf-8"
