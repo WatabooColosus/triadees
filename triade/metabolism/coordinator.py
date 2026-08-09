@@ -392,26 +392,35 @@ class MetabolicCoordinator:
         filtered: list[MetabolicNeed] = []
         for need in needs:
             if self.needs_queue.is_on_cooldown(need):
-                self.receipts.record(
-                    cycle_id,
-                    need.need_id,
-                    "evaluate",
-                    "skipped",
-                    error="on_cooldown",
-                )
+                self._descartar(cycle_id, need, "on_cooldown")
                 continue
             ok, reason = self.budget.check_cycle_budget(cycle_id, need.estimated_cost)
             if not ok:
-                self.receipts.record(
-                    cycle_id,
-                    need.need_id,
-                    "evaluate",
-                    "skipped",
-                    error=reason,
-                )
+                self._descartar(cycle_id, need, reason)
                 continue
             filtered.append(need)
         return filtered
+
+    def _descartar(self, cycle_id: int, need: MetabolicNeed, motivo: str) -> None:
+        """Descarta una necesidad dejando su recibo con un referente real.
+
+        El recibo apunta a `need_id` por clave foránea, pero la necesidad sólo
+        se escribía en `_propose`, al que las descartadas nunca llegan: cada
+        descarte dejaba un recibo huérfano. Eran 6.435 el 2026-08-09, creciendo
+        ~85/hora, invisibles porque `PRAGMA foreign_keys` está en 0.
+
+        Se persiste como `skipped` y no como `pending` para que no entre en
+        `needs_queue.pending()`: ahí fingiría una cola de trabajo que nadie va a
+        atender. El motivo del descarte sigue viviendo en el recibo.
+        """
+        self.needs_queue.persist_need(need, cycle_id, status="skipped")
+        self.receipts.record(
+            cycle_id,
+            need.need_id,
+            "evaluate",
+            "skipped",
+            error=motivo,
+        )
 
     def _propose(
         self, needs: list[MetabolicNeed], cycle_id: int

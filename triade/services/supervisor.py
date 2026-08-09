@@ -807,6 +807,33 @@ class InternalRuntimeSupervisor:
             primary = {}
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
+            # `model_events.run_id` referencia `runs(run_id)`, y este ciclo
+            # escribía un evento por vuelta (~1/min) sin crear nunca su fila
+            # padre: 4.032 huérfanas acumuladas y ~55 nuevas cada hora, medido
+            # el 2026-08-09. No saltaba porque `PRAGMA foreign_keys` está en 0,
+            # así que SQLite no las rechaza.
+            #
+            # Duele donde no se ve: cualquier métrica que una `model_events` con
+            # `runs` por JOIN interno pierde de golpe las inferencias del ciclo
+            # autónomo — justo las que prueban que Tríade piensa sin que nadie
+            # le hable. La reparación es dar padre al evento, no dejar de
+            # registrarlo.
+            #
+            # Una sola fila por vida del supervisor (`runtime_id` se genera en
+            # `__init__`), así que el `OR IGNORE` absorbe las vueltas siguientes.
+            conn.execute(
+                """INSERT OR IGNORE INTO runs
+                (run_id, source, user_input, status, created_at)
+                VALUES (?, 'runtime', ?, 'running', ?)""",
+                (
+                    self.runtime_id,
+                    (
+                        "ciclo autónomo del supervisor: comprobación de modelo "
+                        "sin petición humana"
+                    ),
+                    utc_now(),
+                ),
+            )
             conn.execute(
                 """INSERT INTO model_events (run_id, role, provider, model_name, ok, error, quality_score, latency_ms, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",

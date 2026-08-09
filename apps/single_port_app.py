@@ -28,6 +28,12 @@ from apps.routes.health import router as health_router
 from apps.routes.knowledge import router as knowledge_router
 from apps.routes.ui import router as ui_router
 from triade.core.life_pulse import LIFE_PULSE
+from triade.core.request_context import (
+    REQUEST_ID_HEADER,
+    normalize_request_id,
+    reset_request_id,
+    set_request_id,
+)
 from triade.federation.node_live_registry import NODE_LIVE_REGISTRY
 
 _ALWAYS_ON_RESULT: dict[str, Any] = {}
@@ -256,6 +262,28 @@ async def public_guarded_mode(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Content-Security-Policy"] = "default-src 'self'"
+    return response
+
+
+# Registrado DESPUÉS de `public_guarded_mode` a propósito: Starlette inserta
+# cada middleware en la posición 0 de la pila, así que el último registrado es
+# el más EXTERNO y por tanto el primero en ejecutarse. Este tiene que envolver
+# al guardián, no al revés — una petición rechazada con 403 por safety o por
+# autenticación es justo la que más falta hace poder correlacionar, y si el id
+# naciera por dentro esas serían las únicas que saldrían sin él.
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    """Da identidad a cada petición y se la devuelve al cliente."""
+    request_id = normalize_request_id(request.headers.get(REQUEST_ID_HEADER))
+    token = set_request_id(request_id)
+    request.state.request_id = request_id
+    try:
+        response = await call_next(request)
+    finally:
+        # Sin el reset, el id sobrevive en el contexto del worker y la siguiente
+        # petición que no traiga cabecera heredaría el de la anterior.
+        reset_request_id(token)
+    response.headers[REQUEST_ID_HEADER] = request_id
     return response
 
 
