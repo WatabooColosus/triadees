@@ -189,6 +189,7 @@ class EncryptedBackup:
             self.backup_dir / f"triade-{int(time.time())}-{digest[:12]}.db.gz.fernet"
         )
         output.write_bytes(encrypted)
+        output.chmod(0o600)
         manifest = {
             "file": output.name,
             "sha256": digest,
@@ -205,9 +206,9 @@ class EncryptedBackup:
             # detector de deuda lo lee del manifiesto.
             "source_integrity": integridad,
         }
-        output.with_suffix(output.suffix + ".json").write_text(
-            json.dumps(manifest, indent=2), encoding="utf-8"
-        )
+        manifest_path = output.with_suffix(output.suffix + ".json")
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        manifest_path.chmod(0o600)
         return {"status": "completed", **manifest}
 
     def verify(self, backup: str | Path) -> dict[str, Any]:

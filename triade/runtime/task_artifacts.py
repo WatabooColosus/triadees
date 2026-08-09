@@ -51,11 +51,12 @@ class AtomicArtifactWriter:
 
 
 class CanonicalTaskArtifacts:
-    def __init__(self, worker_run_dir: Path, task_id: str) -> None:
+    def __init__(self, worker_run_dir: Path, task_id: str, *, attempt: int = 1) -> None:
         if not task_id or task_id == "None":
             raise ValueError("canonical_task_id_required")
         self.task_id = task_id
-        self.path = worker_run_dir / "tasks" / task_id
+        suffix = "" if attempt <= 1 else f".attempt-{attempt}"
+        self.path = worker_run_dir / "tasks" / f"{task_id}{suffix}"
 
     @staticmethod
     def sha256(path: Path) -> str:

@@ -36,6 +36,22 @@ def test_valid_backup_restores_sandbox_and_not_production(
     assert restored["restored"]["task_states"] == {"blocked": 1}
 
 
+def test_backup_and_manifest_are_private(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TRIADE_BACKUP_KEY", Fernet.generate_key().decode())
+    db = tmp_path / "production.db"
+    source(db)
+    backup = EncryptedBackup(db, tmp_path / "backups", minimum_interval_seconds=0)
+
+    created = backup.create()
+    encrypted = tmp_path / "backups" / created["file"]
+    manifest = encrypted.with_suffix(encrypted.suffix + ".json")
+
+    assert encrypted.stat().st_mode & 0o777 == 0o600
+    assert manifest.stat().st_mode & 0o777 == 0o600
+
+
 def test_wrong_key_and_truncated_backup_fail(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

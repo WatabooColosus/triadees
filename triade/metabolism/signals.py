@@ -53,7 +53,11 @@ class SignalBus:
                 # Se declara aquí, en el escritor, y no como migración: no hay
                 # runner que aplique los `.sql` sobre la base viva, así que una
                 # migración dejaría el arreglo sin efecto donde importa.
-                if signal.cycle == 0:
+                parent_exists = conn.execute(
+                    "SELECT 1 FROM sqlite_master "
+                    "WHERE type = 'table' AND name = 'metabolic_cycle'"
+                ).fetchone()
+                if signal.cycle == 0 and parent_exists:
                     conn.execute(
                         """INSERT OR IGNORE INTO metabolic_cycle
                         (cycle_id, started_at, finished_at, status, mode, summary_json)

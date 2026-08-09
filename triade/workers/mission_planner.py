@@ -781,6 +781,15 @@ class MissionPlanner:
             estados = LearningPipeline.CONSOLIDATABLE_STATES
             huecos = ",".join("?" for _ in estados)
             with closing(self._connect()) as conn, conn:
+                columnas = {
+                    str(column["name"])
+                    for column in conn.execute(
+                        "PRAGMA table_info(learning_queue)"
+                    ).fetchall()
+                }
+                required = {"status", "run_use_count", "avg_outcome_score"}
+                if not required.issubset(columnas):
+                    return tasks
                 row = conn.execute(
                     f"""SELECT COUNT(*) as cnt FROM learning_queue
                     WHERE status IN ({huecos})

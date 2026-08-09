@@ -873,9 +873,12 @@ class WorkerLoop:
         """
         autonomous_task_id = str(leased["task_id"])
         lease_generation = int(leased["lease_generation"])
+        intento = int(leased.get("attempt") or 1)
         payload = dict(leased.get("payload") or {})
         legacy_id = payload.pop("_legacy_task_id", None)
-        canonical_artifacts = CanonicalTaskArtifacts(artifact_dir, autonomous_task_id)
+        canonical_artifacts = CanonicalTaskArtifacts(
+            artifact_dir, autonomous_task_id, attempt=intento
+        )
         staging_path = canonical_artifacts.staging_path()
         task = WorkerTask(
             # v2 is the only execution identity; legacy_id is mirror metadata.
@@ -896,7 +899,6 @@ class WorkerLoop:
             # sobre el base: si el timeout escala a 120 s y el lease siguiera
             # valiendo 60, `recover_expired` daría la tarea por perdida mientras
             # todavía se está ejecutando, y otro worker la tomaría en paralelo.
-            intento = int(leased.get("attempt") or 1)
             plazo = timeout_for_attempt(config.task_timeout, intento)
             heartbeat = LeaseHeartbeat(
                 self.autonomous_tasks,

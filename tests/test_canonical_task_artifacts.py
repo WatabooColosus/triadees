@@ -31,6 +31,18 @@ def test_v2_task_never_uses_none_directory(tmp_path: Path) -> None:
     assert "task-None" not in str(artifacts.path)
 
 
+def test_retry_preserves_the_first_attempt_artifact(tmp_path: Path) -> None:
+    first = CanonicalTaskArtifacts(tmp_path, "task-real", attempt=1)
+    retry = CanonicalTaskArtifacts(tmp_path, "task-real", attempt=2)
+
+    first.path.mkdir(parents=True)
+    (first.path / "result.json").write_text('{"status":"timeout"}')
+
+    assert retry.path != first.path
+    assert retry.path.name == "task-real.attempt-2"
+    assert (first.path / "result.json").read_text() == '{"status":"timeout"}'
+
+
 def test_result_ref_exists_before_completion(tmp_path: Path) -> None:
     db_path = tmp_path / "tasks.db"
     store = AutonomousTaskStore(db_path)
