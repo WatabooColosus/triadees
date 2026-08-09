@@ -161,8 +161,21 @@ class SalienceEngine:
     def _novelty_salience(self, user_input: str) -> float:
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # Se mide la novedad de lo que dijo alguien frente a lo que se
+                # dijo antes, así que los ciclos autónomos (`source='runtime'`)
+                # no cuentan: su `user_input` es una frase fija de sistema, y
+                # diez copias de la misma frase hundirían la novedad de
+                # cualquier entrada que compartiera con ella un par de palabras
+                # corrientes.
+                #
+                # Y se ordena por `created_at`, no por `id`: el id sólo coincide
+                # con el orden temporal mientras nadie escriba una fila vieja, y
+                # el 2026-08-09 se reconstruyeron 719 filas de julio que se
+                # llevaron los ids más altos.
                 recent = conn.execute(
-                    "SELECT user_input FROM runs ORDER BY id DESC LIMIT 10"
+                    """SELECT user_input FROM runs
+                    WHERE source <> 'runtime'
+                    ORDER BY created_at DESC LIMIT 10"""
                 ).fetchall()
                 if not recent:
                     return 0.8
