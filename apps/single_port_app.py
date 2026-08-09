@@ -261,7 +261,20 @@ async def public_guarded_mode(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Content-Security-Policy"] = "default-src 'self'"
+    # `img-src` se separa de `default-src` sólo por el favicon: va embebido como
+    # `data:image/svg+xml` en `frontend/index.html` —se puso así para no pedir
+    # un `/favicon.ico` que daba 404 permanente en consola— y `default-src
+    # 'self'` lo bloqueaba, cambiando un 404 por una violación de CSP. La SPA
+    # cargaba entera igual, pero arrancaba con un error rojo en consola, que es
+    # justo el ruido que hace que nadie mire los errores de verdad.
+    #
+    # Se relaja lo mínimo: `data:` sólo para imágenes. Auditado sobre el bundle
+    # publicado, el favicon es el único recurso `data:` de toda la aplicación
+    # (los `data:` del JS minificado son literales de objeto, no URIs). Scripts,
+    # estilos, conexiones y frames siguen cayendo en `default-src 'self'`.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; img-src 'self' data:"
+    )
     return response
 
 

@@ -17,7 +17,12 @@ from pathlib import Path
 
 import pytest
 
-MIGRACION = Path("triade/memory/migrations/032_metabolic_core.sql")
+# Anclada al fichero, no al cwd: una ruta relativa haría fallar la prueba por
+# dónde se invoque pytest, no por el código.
+MIGRACION = (
+    Path(__file__).resolve().parents[1]
+    / "triade/memory/migrations/032_metabolic_core.sql"
+)
 
 
 @pytest.fixture
