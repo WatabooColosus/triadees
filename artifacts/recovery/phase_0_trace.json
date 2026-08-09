@@ -1,0 +1,131 @@
+{
+  "phase": 0,
+  "captured_at": "2026-08-06T00:25:26Z",
+  "classification": "diagnosis_only_not_conversationally_alive",
+  "request_id": "phase0-20260806-002",
+  "run_id": "run-20260806-002401-34bfaa1c",
+  "git": {
+    "local_sha_initial": "9d1c7273d8b4be7deee7c9c1e909cb60be6c6417",
+    "remote_main_sha_initial": "9d1c7273d8b4be7deee7c9c1e909cb60be6c6417",
+    "base_sha": "9d1c7273d8b4be7deee7c9c1e909cb60be6c6417",
+    "branch": "fix/revive-triade-runtime",
+    "ahead_initial": 0,
+    "behind_initial": 0,
+    "working_tree_initial": "clean",
+    "modified_files_initial": [],
+    "untracked_files_initial": []
+  },
+  "route": {
+    "entrypoint": "python triade_digimon.py api --host 127.0.0.1 --port 8010",
+    "asgi_app": "apps.single_port_app:app",
+    "frontend": "frontend/dist/index.html",
+    "method": "POST",
+    "path": "/api/run",
+    "content_type": "application/json",
+    "payload_field": "text",
+    "receiver": "apps.routes.api.run_triade",
+    "runner": "triade.core.runner.TriadeRunner.run",
+    "transport": "same_origin_http_json",
+    "streaming": false,
+    "websocket": false
+  },
+  "health_initial": {
+    "live": {"http_status": 200, "status": "alive"},
+    "ready": {"http_status": 200, "status": "ready"},
+    "root": {"http_status": 200, "content_type": "text/html; charset=utf-8"}
+  },
+  "api_probe": {
+    "http_status": 200,
+    "elapsed_seconds": 32.156129,
+    "response_bytes": 3298090,
+    "assistant_output": "TRIADA_VIVA",
+    "model_provider": "ollama",
+    "model_id": "qwen2.5:3b-instruct",
+    "model_ok": true,
+    "hypothalamus_model_provider": "ollama",
+    "hypothalamus_model_id": "qwen2.5:3b-instruct",
+    "hypothalamus_model_ok": true,
+    "central_model_provider": "ollama",
+    "central_model_id": "qwen2.5:3b-instruct",
+    "central_model_ok": true,
+    "persisted": true,
+    "episode_id": 281,
+    "signal_id": 282,
+    "crystal_id": 281,
+    "run_path": "runs/run-20260806-002401-34bfaa1c"
+  },
+  "local_model_probe": {
+    "base_url": "http://127.0.0.1:11434",
+    "available": true,
+    "model": "qwen2.5:3b-instruct",
+    "response": "TRIADA_VIVA",
+    "done": true,
+    "elapsed_seconds": 0.571044661,
+    "loaded_processor": "100% GPU",
+    "runtime_classification": "local_model",
+    "eligible_for_triade_runtime": true
+  },
+  "frontend_probe": {
+    "browser": "playwright-chromium-140.0.7339.16",
+    "navigation_timeout_seconds": 30,
+    "dom_content_loaded": false,
+    "message_submitted_from_ui": false,
+    "response_visible": false,
+    "console_errors_observed": [],
+    "reason": "document_not_received_before_timeout"
+  },
+  "failure_reproduction": {
+    "root": {"timeout_seconds": 10, "bytes_received": 0},
+    "javascript": {"timeout_seconds": 10, "bytes_received": 0},
+    "css": {"timeout_seconds": 10, "bytes_received": 0},
+    "process_pid": 12717,
+    "process_threads": 53,
+    "process_rss_kib": 1190904,
+    "anyio_worker_threads": 40,
+    "anyio_worker_common_stack": [
+      "apps.routes.ui.internal_graphs_debt",
+      "triade.observability.introspection.build_debt_report",
+      "triade.observability.alias_debt.build_alias_debt",
+      "triade.observability.alias_debt.find_dead_status_values",
+      "triade.observability.code_graph.iter_python_files",
+      "pathlib.Path.rglob"
+    ]
+  },
+  "primary_break": {
+    "segment": "frontend_transport_to_api_admission",
+    "cause": "anyio_threadpool_exhaustion_from_concurrent_full_repository_debt_scans",
+    "evidence": "40 AnyIO worker threads sampled in build_debt_report/rglob while root and static assets timed out"
+  },
+  "secondary_failures": [
+    "chat_response_payload_is_3298090_bytes_for_11_visible_bytes",
+    "full_runtime_latency_is_32.156s_vs_0.571s_direct_model",
+    "request_id_not_propagated_to_response_or_correlated_logs",
+    "polling_amplifies_expensive_debt_endpoint_load",
+    "browser_cannot_reliably_load_frontend_or_submit_chat"
+  ],
+  "pre_pr_checks": {
+    "compileall": "pass",
+    "ruff_check": "fail_697_preexisting_EXE002",
+    "ruff_format_check": "pass_960_files",
+    "mypy_triade": "pass_341_files",
+    "pytest": "blocked_at_3_percent_and_interrupted",
+    "pytest_block_stack": [
+      "tests.test_api_app.test_triade_run_endpoint",
+      "apps.routes.api.run_triade",
+      "triade.core.runner.TriadeRunner.run",
+      "triade.federation.edge_router.EdgeRouter.get_resource_lease",
+      "urllib.request.urlopen",
+      "socket.readinto"
+    ]
+  },
+  "external_model_boundary": {
+    "observed_cognitive_providers": ["ollama"],
+    "external_development_tools_in_runtime_trace": [],
+    "policy": {
+      "local_model": "eligible_for_triade_runtime",
+      "external_development_tool": "never_part_of_triade_runtime"
+    }
+  },
+  "phase_1_gate": "blocked",
+  "recommendation": "DO_NOT_MERGE_AS_RECOVERY"
+}
