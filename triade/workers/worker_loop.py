@@ -3239,12 +3239,32 @@ class WorkerLoop:
                 "reason": "goal_research requires explicit allowed_sources",
             }
 
+        from triade.research.claim_distiller import distill_claims
+
+        extractor = str(task.payload.get("claim_extractor") or "both").strip().lower()
+
         def provider(question: str, minimum: int) -> dict[str, Any]:
             result = guarded_web_research(question, max_sources=max(3, minimum))
-            return {
-                "sources": result.get("sources", []),
-                "failures": result.get("failures", []),
-            }
+            # Sin `claims`, `GovernedResearchWorker` cae en `unverifiable` y no
+            # ingiere nada: 153 ejecuciones así en producción hasta el
+            # 2026-08-09, todas sin candidato. El proveedor devolvía la
+            # transcripción cruda y nadie la convertía en afirmación.
+            client = self._claim_model_client()
+            fuentes = []
+            for source in result.get("sources", []):
+                texto = str(source.get("content") or source.get("excerpt") or "")
+                fuentes.append(
+                    {
+                        **source,
+                        "claims": distill_claims(
+                            texto,
+                            question=question,
+                            extractor=extractor,
+                            client=client,
+                        ),
+                    }
+                )
+            return {"sources": fuentes, "failures": result.get("failures", [])}
 
         trigger = (
             "human_decision"
@@ -3262,6 +3282,19 @@ class WorkerLoop:
                 2, int(task.payload.get("minimum_independent_sources") or 2)
             ),
         )
+
+    def _claim_model_client(self) -> Any:
+        """Cliente local para el extractor por modelo, o `None`.
+
+        `None` no rompe nada: `distill_claims` cae a reglas. Con Ollama caído,
+        investigar con menos cobertura es mejor que no investigar.
+        """
+        try:
+            from triade.models.ollama_client import OllamaClient
+
+            return OllamaClient()
+        except (ImportError, OSError, RuntimeError):
+            return None
 
     def _artifact_dir(self, run_ref: str) -> Path:
         stamp = time.strftime("%Y%m%d-%H%M%S")
