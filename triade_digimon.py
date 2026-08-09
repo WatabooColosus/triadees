@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -77,6 +78,21 @@ def print_json(payload: object) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def _live_runtime_diagnostic(path: str, *, params: dict | None = None) -> dict | None:
+    """Read runtime truth from the long-lived API process when it is reachable."""
+    base_url = os.getenv("TRIADE_RUNTIME_URL", "http://127.0.0.1:8010").rstrip("/")
+    try:
+        response = httpx.get(f"{base_url}{path}", params=params, timeout=60.0)
+        response.raise_for_status()
+        payload = response.json()
+    except (httpx.HTTPError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    payload["diagnostic_source"] = "live_runtime_api"
+    return payload
 
 
 def load_run_learning_candidate(
@@ -593,16 +609,21 @@ def handle_workers(args: argparse.Namespace) -> None:
 
 
 def handle_runtime(args: argparse.Namespace) -> None:
-    supervisor = get_internal_runtime_supervisor(
-        db_path=args.db, runs_dir=args.runs_dir
+    use_live_authority = (
+        args.db == "triade/memory/triade.db" and args.runs_dir == "runs/background"
     )
 
     if args.runtime_command == "status":
-        print_json(get_internal_runtime_state(db_path=args.db, runs_dir=args.runs_dir))
+        live = _live_runtime_diagnostic("/health/deep") if use_live_authority else None
+        print_json(
+            live or get_internal_runtime_state(db_path=args.db, runs_dir=args.runs_dir)
+        )
         return
     if args.runtime_command == "heartbeat":
+        live = _live_runtime_diagnostic("/health/deep") if use_live_authority else None
         print_json(
-            build_runtime_heartbeat(
+            live
+            or build_runtime_heartbeat(
                 db_path=args.db, runs_dir=args.runs_dir, limit=args.limit
             )
         )
@@ -617,6 +638,9 @@ def handle_runtime(args: argparse.Namespace) -> None:
             }
         )
         return
+    supervisor = get_internal_runtime_supervisor(
+        db_path=args.db, runs_dir=args.runs_dir
+    )
     if args.runtime_command == "once":
         print_json(supervisor.run_once(mode=args.mode))
         return

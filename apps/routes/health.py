@@ -16,8 +16,6 @@ from urllib.parse import urlparse
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from triade.core.internal_runtime import build_runtime_heartbeat
-
 router = APIRouter(prefix="/health", tags=["health"])
 
 
@@ -66,6 +64,58 @@ def _runtime_path(env_name: str, directory: str) -> str:
     return os.getenv(env_name, str(Path.cwd() / directory))
 
 
+def build_deep_runtime_health() -> dict[str, Any]:
+    """Estado operativo profundo acotado, sin inferencia ni escaneos pesados."""
+    from triade.core.always_on import build_always_on_status
+    from triade.core.ollama_blood import check_ollama_blood
+    from triade.core.worker_autostart import build_workers_always_on_status
+    from triade.runtime.live_heartbeat import LiveHeartbeat
+
+    db_path = os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
+    pulse = LiveHeartbeat(db_path).snapshot()
+    always_on = build_always_on_status()
+    workers = build_workers_always_on_status(db_path=db_path)
+    blood = check_ollama_blood()
+    checks = {
+        "live_heartbeat": pulse.get("status") == "healthy",
+        "always_on": bool(
+            not always_on.get("enabled")
+            or (
+                always_on.get("status") == "running"
+                and always_on.get("background_thread_alive")
+            )
+        ),
+        "workers": bool(
+            not workers.get("configured")
+            or (workers.get("active") and workers.get("thread_alive"))
+        ),
+        "ollama_blood": bool(blood.get("can_reason")),
+    }
+    return {
+        "status": "ok" if all(checks.values()) else "degraded",
+        "checks": checks,
+        "live_heartbeat": pulse,
+        "always_on": {
+            "configured_mode": always_on.get("configured_mode"),
+            "effective_mode": always_on.get("effective_mode"),
+            "status": always_on.get("status"),
+            "background_thread_alive": always_on.get("background_thread_alive"),
+            "degraded": always_on.get("degraded"),
+        },
+        "workers": {
+            "status": workers.get("status"),
+            "active": workers.get("active"),
+            "thread_alive": workers.get("thread_alive"),
+            "mode_effective": workers.get("mode_effective"),
+        },
+        "ollama_blood": {
+            "status": blood.get("status"),
+            "can_reason": blood.get("can_reason"),
+            "fallback_mode": blood.get("fallback_mode"),
+        },
+    }
+
+
 @router.get("/live")
 def live() -> dict[str, Any]:
     return {
@@ -96,8 +146,8 @@ def deep() -> JSONResponse:
     ready_payload = readiness.body.decode("utf-8")
 
     try:
-        heartbeat = build_runtime_heartbeat()
-        heartbeat_ok = isinstance(heartbeat, dict)
+        heartbeat = build_deep_runtime_health()
+        heartbeat_ok = heartbeat.get("status") == "ok"
         heartbeat_error = None
     except (
         OSError,

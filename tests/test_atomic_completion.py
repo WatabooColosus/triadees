@@ -77,7 +77,10 @@ def test_completion_uncertain_is_reconciled(tmp_path: Path) -> None:
     # `dead_lettered` cuenta las que no tienen artefacto y por tanto no pueden
     # resolverse; antes se quedaban en `completion_uncertain` indefinidamente.
     assert result == {"completed": 1, "still_uncertain": 0, "dead_lettered": 0}
-    assert store.get(task["task_id"])["status"] == "completed"
+    completed = store.get(task["task_id"])
+    assert completed["status"] == "completed"
+    assert completed["last_error"] is None
+    assert completed["heartbeat_at"] is None
 
 
 def test_event_failure_does_not_create_false_success(tmp_path: Path) -> None:
