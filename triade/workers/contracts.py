@@ -123,6 +123,35 @@ class WorkerTask:
         return asdict(self)
 
 
+# Tope de la escalada del timeout: 4× el base. Con los 30 s por defecto queda
+# 30 → 60 → 120, que cubre de sobra el arranque de un handler bajo carga sin
+# dejar que una tarea de verdad colgada retenga un worker durante minutos.
+TIMEOUT_MAX_FACTOR = 4
+
+
+def timeout_for_attempt(base_seconds: float, attempt: int) -> float:
+    """Cuánto tiempo se le da a un handler según el intento que sea.
+
+    Reintentar con el mismo plazo no es reintentar: es repetir la misma apuesta
+    perdida. Medido el 2026-08-09 sobre `learning_evidence_generation`, que
+    normalmente termina en **8 s**: tres tareas seguidas se agotaron a los 32 s
+    —el timeout de 30 más el margen— y murieron en `dead_letter` tras gastar sus
+    tres intentos en tres esperas idénticas.
+
+    La causa no es que el trabajo esté roto, sino que cada handler corre en un
+    proceso `multiprocessing spawn` que reimporta el paquete entero (torch,
+    sentence-transformers); con 8 CPU compitiendo con Ollama y los workers, ese
+    arranque a veces se come los 30 s enteros. Es un problema de plazo, no de
+    lógica, y la respuesta correcta a un plazo corto es un plazo más largo.
+
+    Se dobla por intento hasta `TIMEOUT_MAX_FACTOR`. El presupuesto de intentos
+    no cambia: sigue habiendo tres, y quien de verdad esté colgado sigue muriendo.
+    """
+    intento = max(1, int(attempt or 1))
+    factor = min(2 ** (intento - 1), TIMEOUT_MAX_FACTOR)
+    return float(base_seconds) * factor
+
+
 @dataclass(slots=True)
 class WorkerRunConfig:
     max_iterations: int = 1

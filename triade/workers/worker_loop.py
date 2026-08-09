@@ -58,6 +58,7 @@ from .contracts import (
     WorkerRunConfig,
     WorkerTask,
     new_worker_run_id,
+    timeout_for_attempt,
 )
 from .neuron_mission_executor import NeuronMissionExecutor
 from .scheduler import WorkerScheduler
@@ -891,12 +892,18 @@ class WorkerLoop:
                 "error": "autonomous_lease_lost",
             }
         else:
+            # El lease se dimensiona sobre el plazo REAL de este intento, no
+            # sobre el base: si el timeout escala a 120 s y el lease siguiera
+            # valiendo 60, `recover_expired` daría la tarea por perdida mientras
+            # todavía se está ejecutando, y otro worker la tomaría en paralelo.
+            intento = int(leased.get("attempt") or 1)
+            plazo = timeout_for_attempt(config.task_timeout, intento)
             heartbeat = LeaseHeartbeat(
                 self.autonomous_tasks,
                 autonomous_task_id,
                 run_ref,
                 lease_generation,
-                max(60, int(config.task_timeout * 2)),
+                max(60, int(plazo * 2)),
             )
             result = self._execute_task(
                 task,
@@ -905,6 +912,7 @@ class WorkerLoop:
                 config,
                 lease_heartbeat=heartbeat,
                 task_artifact_dir=staging_path,
+                attempt=intento,
             )
         provisional_ref = str(staging_path / "result.json")
         result = self._remap_artifact_paths(
@@ -1222,6 +1230,7 @@ class WorkerLoop:
         *,
         lease_heartbeat: LeaseHeartbeat | None = None,
         task_artifact_dir: Path | None = None,
+        attempt: int = 1,
     ) -> dict[str, Any]:
         started = time.monotonic()
         resource_collector = ResourceMeasurementCollector()
@@ -1397,10 +1406,13 @@ class WorkerLoop:
                     ),
                     "peft_canary_observation": self._peft_canary_observation,
                 }
+                # El plazo crece con el intento: un timeout dice "no le dio
+                # tiempo", no "el trabajo está mal". Ver `timeout_for_attempt`.
+                plazo = timeout_for_attempt(config.task_timeout, attempt)
                 outcome = self.task_executor.execute_callable(
                     handlers[task.task_type],
                     args=(task, run_ref, task_dir, config),
-                    timeout_seconds=config.task_timeout,
+                    timeout_seconds=plazo,
                     artifact_dir=task_dir,
                     heartbeat=lease_heartbeat.renew if lease_heartbeat else None,
                     heartbeat_interval_seconds=(
@@ -1412,7 +1424,9 @@ class WorkerLoop:
                     result = {
                         "status": "timeout",
                         "error": outcome.error,
-                        "timeout": config.task_timeout,
+                        "timeout": plazo,
+                        "timeout_base": config.task_timeout,
+                        "attempt": attempt,
                         "termination_signal": outcome.termination_signal,
                         "quarantine_ref": outcome.quarantine_ref,
                         "stdout_ref": outcome.stdout_ref,
