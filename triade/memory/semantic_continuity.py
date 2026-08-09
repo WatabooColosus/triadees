@@ -169,13 +169,20 @@ class SemanticContinuity:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             return conn.execute(
+                # Los ciclos autónomos (`source='runtime'`) quedan fuera: no
+                # producen episodio, señal ni cristal, así que entrarían con los
+                # tres LEFT JOIN en NULL y desplazarían a runs con contenido
+                # real. Y se ordena por `created_at`, no por `id`: el id dejó de
+                # seguir al tiempo el 2026-08-09, cuando se reconstruyeron 719
+                # filas de julio que se llevaron los ids más altos.
                 """SELECT r.run_id, r.source, r.user_input, r.model_hypothalamus, r.model_central,
                 e.content, e.summary, s.intent, c.q_crystal, c.stability
                 FROM runs r
                 LEFT JOIN episodic_memory e ON e.run_id = r.run_id
                 LEFT JOIN signal_states s ON s.run_id = r.run_id
                 LEFT JOIN crystal_states c ON c.run_id = r.run_id
-                ORDER BY r.id DESC LIMIT ?""",
+                WHERE r.source <> 'runtime'
+                ORDER BY r.created_at DESC LIMIT ?""",
                 (max(1, int(limit)),),
             ).fetchall()
 

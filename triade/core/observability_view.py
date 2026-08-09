@@ -289,10 +289,25 @@ class TriadeObservabilityView:
             "policy": "Ollama es opcional; el sistema puede correr sin red externa ni modelo local.",
         }
 
+    # `source='runtime'` son los ciclos autónomos del supervisor: existen para
+    # dar padre a sus `model_events`, no tienen directorio en `runs/` ni traza
+    # de memoria que leer. Mostrarlos como "último run" enseñaría una fila sin
+    # artefactos y escondería la última interacción real.
+    #
+    # El orden pasa de `id` a `created_at`: el id sólo sigue al tiempo mientras
+    # nadie escriba una fila vieja, y el 2026-08-09 se reconstruyeron 719 filas
+    # de julio que se llevaron los ids más altos.
+    _ULTIMO_RUN_REAL = """SELECT {columnas} FROM runs
+        WHERE source <> 'runtime'
+        ORDER BY created_at DESC LIMIT 1"""
+
     def _last_run(self) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT run_id, source, user_input, status, created_at, model_hypothalamus, model_central FROM runs ORDER BY id DESC LIMIT 1"
+                self._ULTIMO_RUN_REAL.format(
+                    columnas="run_id, source, user_input, status, created_at, "
+                    "model_hypothalamus, model_central"
+                )
             ).fetchone()
         return dict(row) if row else None
 
@@ -300,7 +315,7 @@ class TriadeObservabilityView:
         """Lee memory_trace del último run desde sus artifacts."""
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT run_id FROM runs ORDER BY id DESC LIMIT 1"
+                self._ULTIMO_RUN_REAL.format(columnas="run_id")
             ).fetchone()
         if not row:
             return {}

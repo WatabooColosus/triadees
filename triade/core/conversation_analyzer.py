@@ -241,11 +241,20 @@ class ConversationAnalyzer:
         elif source:
             clauses.append("source = ?")
             params.append(source)
+        else:
+            # Esto analiza conversaciones. Sin filtro explícito, los ciclos
+            # autónomos del supervisor no son una de ellas: no hubo nadie al
+            # otro lado. Si alguien pide `source='runtime'` a propósito, la
+            # rama de arriba lo respeta y sí los devuelve.
+            clauses.append("source <> 'runtime'")
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         params.append(limit)
         return conn.execute(
+            # Por `created_at` y no por `id`: el id dejó de seguir al orden
+            # temporal el 2026-08-09, cuando se reconstruyeron 719 filas de
+            # julio que se llevaron los ids más altos.
             f"""SELECT run_id, source, user_input, status, model_hypothalamus, model_central, created_at, closed_at
-            FROM runs{where} ORDER BY id DESC LIMIT ?""",
+            FROM runs{where} ORDER BY created_at DESC LIMIT ?""",
             params,
         ).fetchall()
 
