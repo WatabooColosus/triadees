@@ -1607,8 +1607,26 @@ class WorkerLoop:
             "code_repair_build_tests": "ingeniería de software código depuración pruebas testing pytest unittest",
             "system_governance": "gobernanza de sistemas software auditoría trazabilidad",
         }
+        from triade.research.governed import (
+            REPEATED_FAILURE_THRESHOLD,
+            prior_failed_research,
+        )
+
         clean_domain = domain_queries.get(domain_value, domain_value.replace("_", " "))
         clean_name = str(row["name"] or "").replace("neurona-", "").replace("-", " ")
+        # El nombre de una neurona nacida de una conversación es la frase que la
+        # creó, no un tema: `neurona-como-hace-lindo` metía «como hace lindo» en
+        # la consulta y la volvía ruido. Mientras funcione se conserva —acota la
+        # búsqueda—, pero si esta misma pregunta ya falló varias veces, insistir
+        # con ella es el bucle que dejó 156 runs idénticos. Entonces se reintenta
+        # con el dominio solo, que es la parte que sí describe qué se busca.
+        pregunta_completa = (
+            f"{clean_domain} {clean_name} documentación técnica fundamentos"
+        )
+        scope = str(task.payload.get("scope") or "goal_research")
+        fallos_previos = prior_failed_research(self.db_path, pregunta_completa, scope)
+        if fallos_previos >= REPEATED_FAILURE_THRESHOLD:
+            pregunta_completa = f"{clean_domain} documentación técnica fundamentos"
         # TRUSTED_RESEARCH_HOSTS (guarded_web.py) es la fuente unica de estos
         # dominios -- sin esto, _goal_research bloqueaba SIEMPRE con
         # "requires explicit allowed_sources" y el currículo autónomo nunca
@@ -1620,14 +1638,19 @@ class WorkerLoop:
         delegated = WorkerTask(
             task_type="goal_research",
             payload={
-                "request": f"{clean_domain} {clean_name} documentación técnica fundamentos",
+                "request": pregunta_completa,
                 "related_neuron_id": int(row["id"]),
                 "curriculum": True,
                 "allowed_sources": sorted(TRUSTED_RESEARCH_HOSTS),
+                "scope": scope,
             },
         )
         result = self._goal_research(delegated, run_ref, task_dir, config)
         result["curriculum_gap"] = dict(row)
+        result["prior_failed_attempts"] = fallos_previos
+        result["query_narrowed_after_failures"] = (
+            fallos_previos >= REPEATED_FAILURE_THRESHOLD
+        )
         return result
 
     def _goal_install(

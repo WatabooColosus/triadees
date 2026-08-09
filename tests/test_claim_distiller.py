@@ -212,3 +212,92 @@ def test_la_investigacion_gobernada_pasa_de_unverifiable_a_candidato(
 
     assert despues["status"] == "candidate_created"
     assert despues["candidate_id"]
+
+
+# --- Lo que no pasó la puerta también enseña ---------------------------------
+
+
+def test_el_fallo_repetido_se_reconoce_y_cambia_el_trigger(tmp_path: Any) -> None:
+    """156 runs idénticos, 156 `unverifiable`, y nadie leyó ese historial.
+
+    `repeated_failure` es un trigger que el diseño ya contemplaba y que ningún
+    productor emitía: 156/156 entraban como `gap`.
+    """
+    from triade.research.governed import (
+        REPEATED_FAILURE_THRESHOLD,
+        GovernedResearchWorker,
+        prior_failed_research,
+    )
+
+    db = tmp_path / "research.db"
+
+    def sin_afirmaciones(question: str, minimum: int) -> dict[str, Any]:
+        return {
+            "sources": [
+                {"url": "https://owasp.org/a", "title": "A", "content": TEXTO},
+                {"url": "https://www.nist.gov/b", "title": "B", "content": TEXTO},
+            ],
+            "failures": [],
+        }
+
+    worker = GovernedResearchWorker(db, sin_afirmaciones)
+    comun = {
+        "question": "gobernanza trazabilidad",
+        "trigger": "gap",
+        "scope": "goal_research",
+        "allowed_sources": ["owasp.org", "www.nist.gov"],
+    }
+
+    primeros = [worker.run(**comun) for _ in range(REPEATED_FAILURE_THRESHOLD)]
+    assert all(r["status"] == "unverifiable" for r in primeros)
+    assert primeros[0]["prior_failures"] == 0
+    assert primeros[0]["repeated_failure"] is False
+
+    siguiente = worker.run(**comun)
+
+    # El proceso ya sabe que insistir así no lleva a ninguna parte.
+    assert siguiente["prior_failures"] >= REPEATED_FAILURE_THRESHOLD
+    assert siguiente["repeated_failure"] is True
+    assert (
+        prior_failed_research(db, "gobernanza trazabilidad", "goal_research")
+        > REPEATED_FAILURE_THRESHOLD
+    )
+
+
+def test_una_pregunta_que_si_produjo_no_cuenta_como_fallo(tmp_path: Any) -> None:
+    """Sólo educa el fallo; un candidato creado no es un intento fallido."""
+    from triade.research.governed import GovernedResearchWorker, prior_failed_research
+
+    db = tmp_path / "research.db"
+
+    def con_afirmaciones(question: str, minimum: int) -> dict[str, Any]:
+        return {
+            "sources": [
+                {
+                    "url": "https://owasp.org/a",
+                    "title": "A",
+                    "content": TEXTO,
+                    "claims": distill_claims(TEXTO, question=question),
+                },
+                {
+                    "url": "https://www.nist.gov/b",
+                    "title": "B",
+                    "content": "La gobernanza es un marco de decisiones documentadas del sistema.",
+                    "claims": distill_claims(
+                        "La gobernanza es un marco de decisiones documentadas del sistema.",
+                        question=question,
+                    ),
+                },
+            ],
+            "failures": [],
+        }
+
+    resultado = GovernedResearchWorker(db, con_afirmaciones).run(
+        question="gobernanza trazabilidad",
+        trigger="gap",
+        scope="goal_research",
+        allowed_sources=["owasp.org", "www.nist.gov"],
+    )
+
+    assert resultado["status"] == "candidate_created"
+    assert prior_failed_research(db, "gobernanza trazabilidad", "goal_research") == 0
