@@ -8,7 +8,7 @@ from typing import Any
 from triade.learning.evidence_bridge import LearningEvidenceBridge
 
 from .competency_store import CompetencyStore, utc_now
-from .curriculum import relevant_material, source_domain
+from .curriculum import domain_query, relevant_material, source_domain
 from .spaced_repetition import next_review_for
 
 
@@ -31,7 +31,12 @@ class NeuronEducationCycle:
         curriculum = self.store.ensure_curriculum(
             neuron_id, target.get("mission_id"), domain, objective
         )
-        materials = relevant_material(self._candidate_materials(), objective, domain)
+        # La búsqueda añade el vocabulario del dominio —el MISMO que usó la
+        # investigación— al objetivo de la neurona. Sin él, una neurona nacida
+        # de una conversación busca material por la frase que la creó y nunca
+        # encuentra lo que se investigó para su dominio.
+        busqueda = f"{objective} {domain_query(domain)}"
+        materials = relevant_material(self._candidate_materials(), busqueda, domain)
         independent = len(
             {source_domain(str(item["source_ref"])) for item in materials}
         )

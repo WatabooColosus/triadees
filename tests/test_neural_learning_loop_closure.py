@@ -317,3 +317,142 @@ def test_sin_runs_medidos_no_se_promueve_por_autorreporte(tmp_path: Path) -> Non
     assert _sesion(db_path, session_id)["state"] == "lesson_prepared"
     # La hipótesis sigue viva: cerrarla sería declarar un veredicto no alcanzado.
     assert _evidencia(db_path, session_id) == "pending"
+
+
+# --- La cadena entera, de la investigación a la consolidación ----------------
+
+TEXTO_GOBERNANZA_A = (
+    "La trazabilidad es un registro verificable de cada decisión que toma el "
+    "sistema durante su ejecución. "
+    "El control de acceso se define como el conjunto de reglas que determinan "
+    "quién puede leer o escribir cada recurso del sistema."
+)
+TEXTO_GOBERNANZA_B = (
+    "La gobernanza de sistemas es un marco de decisiones documentadas sobre "
+    "quién responde de cada riesgo y cómo se audita el software."
+)
+
+
+def _investigar(db_path: Path, pregunta: str) -> dict[str, object]:
+    """Investigación gobernada con proveedor fijo: sin red, determinista."""
+    from triade.research.claim_distiller import distill_claims
+    from triade.research.governed import GovernedResearchWorker
+
+    def proveedor(question: str, minimum: int) -> dict[str, object]:
+        return {
+            "sources": [
+                {
+                    "url": "https://owasp.org/www-project-top-ten/",
+                    "title": "OWASP",
+                    "content": TEXTO_GOBERNANZA_A,
+                    "claims": distill_claims(TEXTO_GOBERNANZA_A, question=question),
+                },
+                {
+                    "url": "https://www.nist.gov/cyberframework",
+                    "title": "NIST",
+                    "content": TEXTO_GOBERNANZA_B,
+                    "claims": distill_claims(TEXTO_GOBERNANZA_B, question=question),
+                },
+            ],
+            "failures": [],
+        }
+
+    return GovernedResearchWorker(db_path, proveedor).run(
+        question=pregunta,
+        trigger="gap",
+        scope="goal_research",
+        allowed_sources=["owasp.org", "www.nist.gov"],
+    )
+
+
+def test_de_la_investigacion_a_la_consolidacion(tmp_path: Path) -> None:
+    """GAP → INVESTIGACIÓN → MATERIAL → LECCIÓN → EVIDENCIA → MEDICIÓN → VEREDICTO.
+
+    Es el ciclo entero sobre el código real, sin red y sin tocar la base viva.
+    Cada eslabón fue un corte distinto en producción, y esta prueba existe para
+    que ninguno vuelva a romperse en silencio.
+    """
+    from triade.neurons.curriculum import domain_query
+
+    db_path = _base(tmp_path)
+    neuron_id = _sembrar_neurona(db_path)
+    _sembrar_runs(
+        db_path, neuron_id, prefijo="antes", cuantos=6, score=0.50, cuando=ANTES
+    )
+
+    # 1 · La investigación produce material real, con afirmaciones destiladas.
+    investigacion = _investigar(db_path, domain_query(DOMINIO))
+    assert investigacion["status"] == "candidate_created"
+    candidate_id = str(investigacion["candidate_id"])
+
+    # 2 · El candidato tiene que llegar a un estado que el currículo acepte.
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE learning_queue SET status='internally_checked' WHERE candidate_id=?",
+            (candidate_id,),
+        )
+    # Una segunda fuente independiente, como en producción.
+    _sembrar_material(db_path, MATERIAL_VIEJO)
+
+    # 3 · El currículo encuentra ese material y prepara la lección.
+    leccion = NeuronEducationCycle(db_path).run_once()
+    session_id = str(leccion["session_id"])
+    assert leccion["status"] == "lesson_prepared", (
+        f"el material investigado no llegó al currículo: {leccion}"
+    )
+    assert leccion["independent_sources"] >= 2
+    assert _evidencia(db_path, session_id) == "pending"
+
+    # 4 · La neurona se ejecuta después y le va mejor.
+    _sembrar_runs(
+        db_path,
+        neuron_id,
+        prefijo="despues",
+        cuantos=MIN_APPLIED_RUNS,
+        score=0.90,
+        cuando=DESPUES,
+    )
+    registro = NeuronEducationApplicationRecorder(db_path).record_once()
+    assert registro["applications_added"] >= MIN_APPLIED_RUNS
+
+    # 5 · El veredicto se toma sobre runs medidos, no sobre autorreporte.
+    veredicto = NeuronEducationResolver(db_path).resolve_once()
+    assert veredicto["decision"] == "improved"
+    assert veredicto["rollback_ref"], "sin versión previa no habría rollback"
+    assert _sesion(db_path, session_id)["state"] == "applied_improved"
+    assert _evidencia(db_path, session_id) == "improved"
+
+
+def test_el_vocabulario_del_dominio_es_el_mismo_en_los_dos_lados(
+    tmp_path: Path,
+) -> None:
+    """Investigación y currículo tienen que buscar lo mismo.
+
+    En producción no coincidían: la investigación usaba el vocabulario del
+    dominio y el currículo el nombre de la neurona —que en las nacidas de una
+    conversación es la frase que la creó—. Lo investigado nunca resultaba
+    relevante, y las seis neuronas medibles morían en `insufficient_material`.
+    """
+    from triade.neurons.curriculum import domain_query, relevant_material, source_domain
+
+    db_path = _base(tmp_path)
+    _sembrar_neurona(db_path)
+    investigacion = _investigar(db_path, domain_query(DOMINIO))
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE learning_queue SET status='internally_checked' WHERE candidate_id=?",
+            (str(investigacion["candidate_id"]),),
+        )
+    _sembrar_material(db_path, MATERIAL_VIEJO)
+
+    ciclo = NeuronEducationCycle(db_path)
+    material = ciclo._candidate_materials()
+    conversacional = "Me llamo Santiago, soy el CEO de Wataboo, tu creador"
+
+    solo_nombre = relevant_material(material, conversacional, DOMINIO)
+    con_dominio = relevant_material(
+        material, f"{conversacional} {domain_query(DOMINIO)}", DOMINIO
+    )
+
+    assert len({source_domain(str(m["source_ref"])) for m in solo_nombre}) < 2
+    assert len({source_domain(str(m["source_ref"])) for m in con_dominio}) >= 2
