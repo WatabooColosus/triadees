@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
 const GRAPHS = [
+  { key: 'system', label: 'SYSTEM' },
   { key: 'organs', label: 'Órganos' },
   { key: 'vital_chain', label: 'Cadena vital' },
   { key: 'workers', label: 'Workers y tareas' },
@@ -37,6 +38,8 @@ type Refresh = {
   running: boolean; stale: boolean; stale_after_seconds: number
   age_seconds: number | null; last_build_seconds: number | null
   builds: number; last_error: string | null; trigger?: string
+  exit_code?: number | null; command?: string; stderr_summary?: string | null
+  last_valid_artifact?: string | null; last_valid_age_seconds?: number | null
 }
 type Debt = {
   status: string; reason?: string; summary?: string
@@ -56,7 +59,8 @@ export function GrafosInternos() {
   const [actions, setActions] = useState<LiveEvent[]>([])
   const [hot, setHot] = useState<Set<string>>(new Set())
   const [pan, setPan] = useState({ x: 0, y: 0, k: 1 })
-  const drag = useRef<{ x: number; y: number } | null>(null)
+  const [camera, setCamera] = useState({ rx: -0.22, ry: 0.48 })
+  const drag = useRef<{ x: number; y: number; rx: number; ry: number } | null>(null)
 
   /* Pulso vivo: acciones ocurridas y señales de SQLite, nunca la estructura.
    * Las acciones llegan por cursor, así que ninguna se pierde entre pulsos. */
@@ -122,7 +126,7 @@ export function GrafosInternos() {
   const shown = graph ? graph.nodes.slice(0, NODE_CAP) : []
   const visible = new Set(shown.map(n => n.node_id))
   const edges = graph ? graph.edges.filter(e => visible.has(e.source) && visible.has(e.target)) : []
-  const positions = layout(shown)
+  const positions = projectLayout(layout3d(shown), camera)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, height: '100%' }}>
@@ -153,12 +157,20 @@ export function GrafosInternos() {
             : (
               <svg
                 style={{ width: '100%', height: '100%', cursor: drag.current ? 'grabbing' : 'grab' }}
-                onMouseDown={e => { drag.current = { x: e.clientX - pan.x, y: e.clientY - pan.y } }}
+                onMouseDown={e => { drag.current = { x: e.clientX, y: e.clientY, ...camera } }}
                 onMouseUp={() => { drag.current = null }}
                 onMouseLeave={() => { drag.current = null }}
                 onMouseMove={e => {
                   if (!drag.current) return
-                  setPan(p => ({ ...p, x: e.clientX - drag.current!.x, y: e.clientY - drag.current!.y }))
+                  if (e.shiftKey) {
+                    setPan(p => ({ ...p, x: p.x + e.movementX, y: p.y + e.movementY }))
+                  } else {
+                    setCamera({
+                      ry: drag.current.ry + (e.clientX - drag.current.x) * 0.008,
+                      rx: Math.max(-1.45, Math.min(1.45,
+                        drag.current.rx + (e.clientY - drag.current.y) * 0.008)),
+                    })
+                  }
                 }}
                 onWheel={e => setPan(p => ({ ...p, k: Math.min(6, Math.max(0.2, p.k * (e.deltaY < 0 ? 1.12 : 0.89))) }))}
               >
@@ -168,26 +180,36 @@ export function GrafosInternos() {
                     if (!a || !b) return null
                     const hot = selected === e.source || selected === e.target
                     return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                      stroke={hot ? '#58a6ff' : '#484f58'} strokeWidth={hot ? 2 : 0.6} />
+                      stroke={hot ? '#58a6ff' : '#484f58'}
+                      strokeOpacity={Math.max(0.25, (a.depth + b.depth) / 2)}
+                      strokeWidth={hot ? 2 : 0.6} />
                   })}
                   {shown.map(n => {
                     const p = positions.get(n.node_id)
                     if (!p) return null
-                    return (
-                      <circle key={n.node_id} cx={p.x} cy={p.y}
-                        r={hot.has(n.node_id) ? 12 : selected === n.node_id ? 9 : 6}
-                        fill={n.color}
+                    const radius = (hot.has(n.node_id) ? 12 : selected === n.node_id ? 9 : 6) * p.depth
+                    return <g key={n.node_id} style={{ cursor: 'pointer' }}
+                      onClick={ev => { ev.stopPropagation(); openNode(n.node_id) }}
+                      onDoubleClick={() => {
+                        const next = String(n.metadata?.progressive_view || '')
+                        if (next && next !== view) setView(next)
+                      }}>
+                      <circle cx={p.x} cy={p.y} r={radius}
+                        fill={n.color} fillOpacity={Math.max(0.45, p.depth)}
                         stroke={hot.has(n.node_id) || selected === n.node_id ? '#fff' : '#0d1117'}
-                        strokeWidth={hot.has(n.node_id) ? 2.5 : 1.5}
-                        style={{ cursor: 'pointer' }}
-                        onClick={ev => { ev.stopPropagation(); openNode(n.node_id) }}>
-                        <title>{`${n.label} · ${n.state}`}</title>
+                        strokeWidth={hot.has(n.node_id) ? 2.5 : 1.5}>
+                        <title>{`${n.label} · ${n.state} · doble clic para entrar`}</title>
                       </circle>
-                    )
+                      {view === 'system' && <text x={p.x + radius + 4} y={p.y + 4}
+                        fill="var(--text-secondary)" fontSize={10}>{n.label}</text>}
+                    </g>
                   })}
                 </g>
               </svg>
             )}
+          {view !== 'debt' && <div style={{ position: 'absolute', margin: 8, fontSize: 10, color: 'var(--text-muted)', pointerEvents: 'none' }}>
+            arrastra: girar · shift+arrastra: mover · rueda: zoom · doble clic: entrar
+          </div>}
         </div>
 
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, overflowY: 'auto', background: 'var(--bg-surface)' }}>
@@ -279,6 +301,10 @@ function DebtPanel({ debt }: { debt: Debt | null }) {
           la última reconstrucción falló: {r.last_error}
         </p>
       )}
+      {r?.last_error && <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>
+        exit={r.exit_code ?? '—'} · {r.command || 'comando desconocido'} · último válido {r.last_valid_artifact || 'ninguno'}
+        {r.last_valid_age_seconds != null ? ` (${Math.round(r.last_valid_age_seconds)} s)` : ''}
+      </div>}
       {entries.map(([name, e]) => (
         <div key={name} style={{ padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
           <b>{name.replace(/_/g, ' ')}</b> — {e.count}
@@ -370,22 +396,39 @@ function NodePanel(
 
 /* Disposición determinista: mismo grafo, misma imagen. Se agrupa por estado en
  * anillos, de modo que lo desconectado queda visualmente separado. */
-function layout(nodes: Node[]) {
+function layout3d(nodes: Node[]) {
   const groups: Record<string, Node[]> = {}
   nodes.forEach(n => { (groups[n.state] = groups[n.state] || []).push(n) })
-  const positions = new Map<string, { x: number; y: number }>()
+  const positions = new Map<string, { x: number; y: number; z: number }>()
   Object.keys(groups).sort().forEach((state, si) => {
     const list = groups[state]
     const radius = 80 + si * 110
     list.forEach((n, i) => {
       const angle = (i / list.length) * Math.PI * 2 + si * 0.4
       positions.set(n.node_id, {
-        x: 460 + Math.cos(angle) * radius,
-        y: 300 + Math.sin(angle) * radius,
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+        z: (si - (Object.keys(groups).length - 1) / 2) * 95 + Math.sin(angle * 2) * 35,
       })
     })
   })
   return positions
+}
+
+function projectLayout(
+  source: Map<string, { x: number; y: number; z: number }>,
+  camera: { rx: number; ry: number },
+) {
+  const projected = new Map<string, { x: number; y: number; depth: number }>()
+  source.forEach((p, id) => {
+    const x1 = p.x * Math.cos(camera.ry) + p.z * Math.sin(camera.ry)
+    const z1 = -p.x * Math.sin(camera.ry) + p.z * Math.cos(camera.ry)
+    const y2 = p.y * Math.cos(camera.rx) - z1 * Math.sin(camera.rx)
+    const z2 = p.y * Math.sin(camera.rx) + z1 * Math.cos(camera.rx)
+    const perspective = Math.max(0.45, Math.min(1.55, 700 / (700 - z2)))
+    projected.set(id, { x: 460 + x1 * perspective, y: 300 + y2 * perspective, depth: perspective })
+  })
+  return projected
 }
 
 /* Las señales sólo tocan lo que cambia en caliente: filas y ejecuciones. */

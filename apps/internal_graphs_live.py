@@ -53,6 +53,7 @@ DEFAULT_DB = ROOT / "triade" / "memory" / "triade.db"
 #: Grafos servidos por la API. El orden es el del recorrido: del cuerpo físico
 #: al organismo, y de ahí a la cadena que demuestra que sigue vivo.
 GRAPH_BUILDERS = (
+    "system",
     "physical",
     "imports",
     "calls",
@@ -71,6 +72,41 @@ _STRUCTURAL_TTL_SECONDS = 60.0
 _LIVE_GRAPHS = {"neural"}
 
 _cache: dict[str, tuple[float, dict[str, Any]]] = {}
+
+_SYSTEM_COMPONENTS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "INPUT": ("entrypoints", ("entrypoint:",)),
+    "HYPOTHALAMUS": ("calls", ("hypothalam",)),
+    "CENTRAL": ("calls", ("central",)),
+    "ROUTING": ("calls", ("rout",)),
+    "MODELS": ("imports", ("model", "ollama")),
+    "MEMORY": ("tables", ("memory", "semantic", "episodic")),
+    "GOALS": ("tables", ("goal", "planning_graph")),
+    "WORKERS": ("workers", ("worker", "task_type:")),
+    "LEARNING": ("tables", ("learning", "education")),
+    "IMPROVEMENT": ("tables", ("improvement", "canar")),
+    "NEURONS": ("neural", ("neuron",)),
+    "FEDERATION": ("tables", ("federat",)),
+    "SAFETY": ("imports", ("safety", "constitution")),
+    "OBSERVABILITY": ("imports", ("observability", "internal_graph")),
+}
+
+_SYSTEM_FLOW = (
+    ("INPUT", "HYPOTHALAMUS"),
+    ("HYPOTHALAMUS", "CENTRAL"),
+    ("CENTRAL", "ROUTING"),
+    ("ROUTING", "MODELS"),
+    ("ROUTING", "MEMORY"),
+    ("ROUTING", "GOALS"),
+    ("GOALS", "WORKERS"),
+    ("WORKERS", "LEARNING"),
+    ("LEARNING", "MEMORY"),
+    ("LEARNING", "IMPROVEMENT"),
+    ("IMPROVEMENT", "NEURONS"),
+    ("WORKERS", "FEDERATION"),
+    ("SAFETY", "ROUTING"),
+    ("OBSERVABILITY", "WORKERS"),
+    ("OBSERVABILITY", "LEARNING"),
+)
 
 
 def _db_path() -> Path:
@@ -200,6 +236,82 @@ def _from_artifact(name: str) -> dict[str, Any] | None:
     }
 
 
+def _build_system_graph() -> dict[str, Any]:
+    """Macro recorrido derivado de nodos que existen en los grafos canónicos."""
+    nodes: list[dict[str, Any]] = []
+    present: set[str] = set()
+    for component, (graph_name, needles) in _SYSTEM_COMPONENTS.items():
+        graph = build_graph(graph_name)
+        matches = [
+            node
+            for node in graph["nodes"]
+            if any(
+                needle in f"{node.get('node_id', '')} {node.get('label', '')}".lower()
+                for needle in needles
+            )
+        ]
+        if not matches:
+            continue
+        states: dict[str, int] = {}
+        for match in matches:
+            state = str(match.get("state") or "unknown")
+            states[state] = states.get(state, 0) + 1
+        state = (
+            "active"
+            if states.get("active")
+            else "failed"
+            if states.get("failed")
+            else "legacy"
+            if states.get("legacy")
+            else "disconnected"
+            if states.get("disconnected")
+            else "unknown"
+        )
+        present.add(component)
+        nodes.append(
+            {
+                "node_id": f"system:{component.lower()}",
+                "kind": "subsystem",
+                "label": component,
+                "state": state,
+                "color": color_for(state),
+                "metadata": {
+                    "source_graph": graph_name,
+                    "matched_nodes": len(matches),
+                    "states": states,
+                    "evidence_nodes": [m.get("node_id") for m in matches[:12]],
+                    "progressive_view": graph_name,
+                },
+            }
+        )
+    edges = [
+        {
+            "source": f"system:{source.lower()}",
+            "target": f"system:{target.lower()}",
+            "relation": "causal_flow",
+            "evidence": (
+                f"internal_graphs:{_SYSTEM_COMPONENTS[source][0]}"
+                f"→{_SYSTEM_COMPONENTS[target][0]}"
+            ),
+            "metadata": {"progressive": True},
+        }
+        for source, target in _SYSTEM_FLOW
+        if source in present and target in present
+    ]
+    state_counts: dict[str, int] = {}
+    for node in nodes:
+        state_counts[node["state"]] = state_counts.get(node["state"], 0) + 1
+    return {
+        "graph": "system",
+        "nodes": nodes,
+        "edges": edges,
+        "states": state_counts,
+        "source": "canonical_graph_aggregation",
+        "refresh": REFRESHER.status(),
+        "simulated": False,
+    }
+
+
 def build_graph(name: str, *, limit: int | None = None) -> dict[str, Any]:
     """Sirve un grafo por nombre: artefacto fresco si lo hay, si no lo construye."""
     if name not in GRAPH_BUILDERS:
@@ -215,6 +327,11 @@ def build_graph(name: str, *, limit: int | None = None) -> dict[str, Any]:
         # porque de él depende que la interfaz sepa si debe volver a preguntar.
         cached[1]["refresh"] = REFRESHER.status()
         return cached[1]
+
+    if name == "system":
+        payload = _build_system_graph()
+        _cache[name] = (now, payload)
+        return payload
 
     if name not in _LIVE_GRAPHS:
         # Se pide la regeneración antes de servir, no después: si el artefacto

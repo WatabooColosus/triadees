@@ -335,6 +335,24 @@ def test_feed_starts_in_the_present_not_in_the_history(tmp_path: Path) -> None:
     assert events == []
 
 
+def test_system_graph_aggregates_only_real_canonical_nodes() -> None:
+    graph = internal_graphs_live.build_graph("system")
+
+    assert graph["source"] == "canonical_graph_aggregation"
+    assert graph["simulated"] is False
+    assert graph["nodes"]
+    for node in graph["nodes"]:
+        assert node["metadata"]["matched_nodes"] > 0
+        assert node["metadata"]["evidence_nodes"]
+        assert (
+            node["metadata"]["progressive_view"] in internal_graphs_live.GRAPH_BUILDERS
+        )
+    known = {node["node_id"] for node in graph["nodes"]}
+    assert all(
+        edge["source"] in known and edge["target"] in known for edge in graph["edges"]
+    )
+
+
 def test_feed_is_complete_and_verifiable(tmp_path: Path) -> None:
     """Nada se salta entre lecturas, y cada acción apunta a su fila."""
     db = _db(tmp_path)
