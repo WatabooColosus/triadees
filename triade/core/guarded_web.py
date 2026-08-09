@@ -35,6 +35,33 @@ CURATED_PUBLIC_SOURCES: tuple[tuple[tuple[str, ...], str], ...] = (
         ("código", "codigo", "pruebas", "testing", "software"),
         "https://docs.pytest.org/en/stable/how-to/index.html",
     ),
+    # `system_governance` es el dominio de **todas** las neuronas que hoy se
+    # pueden medir (6471, 6871, 7052, 7053, 8399, 8400: 130/84/71/71/6/5 runs
+    # con `verification_reports`). No tenía ni una fuente curada: de los cinco
+    # hosts confiables, cuatro eran documentación de Python y visión, así que
+    # la única que podía acertar era Wikipedia. Una sola fuente independiente
+    # nunca abre la puerta de dos, y por eso sus 29 sesiones murieron en
+    # `insufficient_material` mientras las únicas que llegaban a
+    # `lesson_prepared` eran las neuronas 11 y 12 — que no se pueden medir.
+    #
+    # No se baja el umbral de dos fuentes: se le da al dominio la segunda que
+    # nunca tuvo. Hosts autorizados por el operador el 2026-08-09.
+    (
+        ("gobernanza", "governance", "auditoría", "auditoria", "trazabilidad"),
+        "https://owasp.org/www-project-top-ten/",
+    ),
+    (
+        ("gobernanza", "governance", "auditoría", "auditoria", "seguridad"),
+        "https://www.nist.gov/cyberframework",
+    ),
+    (
+        ("gobernanza", "governance", "trazabilidad", "software"),
+        "https://martinfowler.com/articles/continuousIntegration.html",
+    ),
+    (
+        ("gobernanza", "governance", "auditoría", "auditoria", "trazabilidad"),
+        "https://docs.github.com/en/code-security/getting-started/github-security-features",
+    ),
 )
 
 # Fuente única de verdad para los hosts curados/confiables de investigación
@@ -50,6 +77,14 @@ TRUSTED_RESEARCH_HOSTS: frozenset[str] = frozenset(
         "docs.python.org",
         "docs.pytest.org",
         "es.wikipedia.org",
+        # Gobernanza de sistemas, autorizados por el operador el 2026-08-09.
+        # `www.nist.gov` es el host real que sirve nist.gov: `source_domain()`
+        # compara el hostname de la URL, así que el bare domain no casaría.
+        "docs.github.com",
+        "owasp.org",
+        "nist.gov",
+        "www.nist.gov",
+        "martinfowler.com",
     }
 )
 
