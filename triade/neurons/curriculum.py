@@ -8,6 +8,27 @@ from typing import Any
 
 from triade.core.guarded_web import TRUSTED_RESEARCH_HOSTS
 
+#: Qué se busca para cada dominio. **Fuente única**: la usa quien investiga
+#: (`worker_loop._research_curriculum`) y quien selecciona material para la
+#: lección (`NeuronEducationCycle`). Dos vocabularios distintos para la misma
+#: neurona era el corte: la investigación traía documentación de gobernanza y el
+#: currículo la buscaba por el nombre de la neurona —que en las nacidas de una
+#: conversación es la frase que la creó, «Me llamo Santiago, soy el CEO de
+#: Wataboo»—, así que lo investigado nunca resultaba relevante. Medido el
+#: 2026-08-09: las seis neuronas medibles pasan de 1 a 2 fuentes independientes.
+DOMAIN_QUERIES: dict[str, str] = {
+    "vision_image_understanding": "visión artificial procesamiento de imágenes OpenCV Pillow",
+    "code_repair": "ingeniería de software depuración pruebas reproducibles",
+    "code_repair_build_tests": (
+        "ingeniería de software código depuración pruebas testing pytest unittest"
+    ),
+    "system_governance": "gobernanza de sistemas software auditoría trazabilidad",
+}
+
+
+def domain_query(domain: str) -> str:
+    return DOMAIN_QUERIES.get(domain, domain.replace("_", " "))
+
 
 def terms(text: str) -> set[str]:
     stop = {

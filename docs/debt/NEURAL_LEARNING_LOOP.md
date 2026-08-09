@@ -133,9 +133,41 @@ Es la primera vez que la investigación gobernada escribe material.
 - **El recibo no se ha confirmado en vivo.** Está verificado en prueba; el
   reintento en producción depende de dos relojes: el intervalo adaptativo de
   `research_curriculum` (900 s) y el envejecimiento de prioridad.
-- **Calidad de las afirmaciones.** De las 7 producidas, tres son navegación de
-  la página (`"if you = interested in helping, please contact…"`). Los patrones
-  de reglas capturan cualquier frase con forma definitoria, incluido el pie.
+- ~~**Calidad de las afirmaciones.**~~ **Reparado el 2026-08-09** (rama
+  `fix/claim-quality`). De las 7 producidas, tres eran la página hablando de sí
+  misma: `"if you = interested in helping, please contact…"`,
+  `"older versiona = available in the Github repo"` y
+  `"previous versions = available at OWASP Top Ten 2021"`. `X are Y` casa con
+  «If you are interested in helping…» exactamente igual que con «OWASP Top 10 is
+  a standard awareness document»: la forma no las distingue. Tres cerrojos
+  deterministas lo hacen —sujetos que no nombran nada, marcas de navegación en
+  el valor, y un mínimo de tres palabras con contenido—, aplicados a **los dos**
+  extractores, porque la higiene no depende de quién produjo la afirmación.
+  Verificado contra las páginas vivas: owasp.org pasa de 4 afirmaciones a 1, y
+  la que sobrevive es la única que afirma algo del tema.
+### 5 · Investigación y currículo buscaban cosas distintas
+
+La investigación usaba `domain_queries[domain]`; el currículo seleccionaba
+material con `mission or name` de la neurona, que en las nacidas de una
+conversación es la frase que las creó («Me llamo Santiago, soy el CEO de
+Wataboo»). Dos vocabularios para la misma neurona: lo investigado bajo uno nunca
+resultaba relevante bajo el otro. Las seis neuronas medibles veían **1** fuente
+independiente y morían en `insufficient_material` incluso con el candidato de
+investigación ya promovido a `internally_checked`.
+
+**Reparado:** el mapa vive en `curriculum.py` como fuente única y lo comparten
+los dos lados. Las seis pasan de 1 a **2** fuentes independientes.
+
+## El ciclo entero, en una prueba de CI
+
+`test_de_la_investigacion_a_la_consolidacion` recorre la cadena completa sobre
+el código real, determinista y sin red: investigación con proveedor fijo →
+destilación → candidato → material → lección → evidencia `pending` → runs
+medidos → veredicto `improved` con `rollback_ref` conservado. Cada eslabón fue
+un corte distinto en producción.
+
+## Lo que sigue abierto
+
 - **Selección de fuentes.** Tres de las siete afirmaciones son de
   `unittest`/`pytest` para una pregunta de gobernanza: `docs.python.org` casa
   por la palabra «software».

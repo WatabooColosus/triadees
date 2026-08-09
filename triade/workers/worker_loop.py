@@ -1601,18 +1601,16 @@ class WorkerLoop:
         if row is None:
             return {"status": "no_evidence", "reason": "no_neuronal_gap"}
         domain_value = str(row["domain"] or "general")
-        domain_queries = {
-            "vision_image_understanding": "visión artificial procesamiento de imágenes OpenCV Pillow",
-            "code_repair": "ingeniería de software depuración pruebas reproducibles",
-            "code_repair_build_tests": "ingeniería de software código depuración pruebas testing pytest unittest",
-            "system_governance": "gobernanza de sistemas software auditoría trazabilidad",
-        }
+        from triade.neurons.curriculum import domain_query
         from triade.research.governed import (
             REPEATED_FAILURE_THRESHOLD,
             prior_failed_research,
         )
 
-        clean_domain = domain_queries.get(domain_value, domain_value.replace("_", " "))
+        # El mapa vive en `curriculum.py` y lo comparten investigación y
+        # currículo. Duplicarlo aquí era el corte: cada lado buscaba con un
+        # vocabulario distinto para la misma neurona.
+        clean_domain = domain_query(domain_value)
         clean_name = str(row["name"] or "").replace("neurona-", "").replace("-", " ")
         # El nombre de una neurona nacida de una conversación es la frase que la
         # creó, no un tema: `neurona-como-hace-lindo` metía «como hace lindo» en

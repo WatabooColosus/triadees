@@ -389,3 +389,52 @@ def test_sin_candidato_no_se_inventa_recibo(tmp_path: Any) -> None:
         )
         is None
     )
+
+
+# --- Calidad: navegación de página no es conocimiento ------------------------
+
+#: Las cuatro afirmaciones reales que la primera investigación produjo sobre
+#: owasp.org el 2026-08-09. Tres son la página hablando de sí misma y una es la
+#: única que afirma algo del tema. Todas tienen forma perfecta de definición.
+TEXTO_OWASP = (
+    "The OWASP Top 10 is a standard awareness document for developers and web "
+    "application security. "
+    "Previous versions are available at OWASP Top Ten 2021 and OWASP Top 10 2017. "
+    "Older versions are available in the Github repo. "
+    "If you are interested in helping, please contact the members of the team "
+    "for the language you want to contribute to."
+)
+
+
+def test_solo_sobrevive_la_afirmacion_que_afirma_algo() -> None:
+    claims = distill_rules(TEXTO_OWASP, question="owasp seguridad aplicaciones")
+
+    claves = {c["key"] for c in claims}
+    assert "owasp top 10" in claves, "la única que sí define algo debe quedarse"
+    assert claves == {"owasp top 10"}, f"navegación colada: {claves - {'owasp top 10'}}"
+
+
+def test_un_sujeto_que_no_nombra_nada_se_descarta() -> None:
+    """«If you are interested in helping…» tiene la misma forma que una definición."""
+    assert (
+        distill_rules("If you are interested in helping, please contact us now.") == []
+    )
+
+
+def test_la_navegacion_de_pagina_se_descarta() -> None:
+    for frase in (
+        "Previous versions are available at OWASP Top Ten 2021 and OWASP Top 10 2017.",
+        "Older versions are available in the Github repo of the project.",
+        "Los manuales anteriores están disponibles en el repositorio del proyecto.",
+    ):
+        assert distill_rules(frase) == [], f"coló navegación: {frase!r}"
+
+
+def test_el_modelo_tambien_pasa_por_el_filtro_de_calidad() -> None:
+    """La higiene no depende de quién produjo la afirmación."""
+    modelo = ModeloFalso(
+        '[{"key": "older versions", "value": "are available in the Github repo '
+        'of the OWASP project"}]'
+    )
+
+    assert distill_model(TEXTO_OWASP, client=modelo, model="m") == []
