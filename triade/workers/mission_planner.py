@@ -289,7 +289,23 @@ class MissionPlanner:
                 return [
                     PlannedTask(
                         task_type="neuron_education_cycle",
-                        priority=42,
+                        # 42 la dejaba siempre por detrás de `research_curriculum`
+                        # (45), y no por prioridad sino por edad: `claim()` ordena
+                        # por `priority − MIN(100, edad_en_minutos)`, la de
+                        # investigación se encola antes y envejece antes, así que
+                        # gana el hueco cada vez. Medido el 2026-08-09: en 72
+                        # minutos de autonomía, `research_curriculum` se ejecutó
+                        # dos veces y esta **ninguna**. El sistema investigaba y
+                        # no estudiaba nunca lo investigado: 4 candidatos
+                        # acumulados y 0 lecciones.
+                        #
+                        # 20 no la pone por delante de la observación barata
+                        # (`bodega_global_review` 12, `semantic_memory_governance`
+                        # 13): la pone a competir de verdad en vez de esperar a
+                        # una ventana vacía. No toca ninguna puerta de gobierno —
+                        # el ciclo sigue exigiendo dos fuentes independientes y
+                        # cinco runs medidos para decidir algo.
+                        priority=20,
                         reason=f"{count} neuronas experimentales requieren educación o revisión",
                         source="governed_neuron_education",
                         planner_score=0.7,
