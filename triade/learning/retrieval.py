@@ -30,6 +30,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from triade.learning.knowledge_probe import is_unverified_transcript
 from triade.memory.retrieval_safety import RetrievalSafetyPolicy
 
 POLICY_VERSION = "learning-retrieval-1.0.0"
@@ -156,7 +157,8 @@ class LearningRetriever:
                 dict(r)
                 for r in conn.execute(
                     "SELECT candidate_id, content, domain, status, source_ref, "
-                    "risk_level, confidence, updated_at FROM learning_queue"
+                    "risk_level, confidence, verification_notes, updated_at "
+                    "FROM learning_queue"
                 ).fetchall()
             ]
 
@@ -180,6 +182,13 @@ class LearningRetriever:
                 continue
             if not content.strip():
                 decision.skipped.append({"candidate_id": cid, "reason": "empty"})
+                continue
+            if is_unverified_transcript(
+                content, str(row.get("verification_notes") or "")
+            ):
+                decision.skipped.append(
+                    {"candidate_id": cid, "reason": "unverified_model_transcript"}
+                )
                 continue
             if not str(row.get("source_ref") or "").strip():
                 decision.skipped.append(
