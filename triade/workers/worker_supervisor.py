@@ -80,10 +80,26 @@ class WorkerSupervisor:
     MAX_CPU_SECONDS = 600
     RESTART_THRESHOLD_FAILURES = 3
 
+    #: La base real, como el resto de los almacenes del proyecto. Antes el
+    #: defecto era `:memory:`, y los tres sitios que instancian el supervisor lo
+    #: hacen sin ruta —`WorkerSupervisor()` en `system_monitor.py:378`,
+    #: `dashboard/routes.py:305` y `triadeos_complete.py:198`—, así que creaban
+    #: las cinco tablas en RAM, las usaban y las tiraban al volver de la función.
+    #:
+    #: El efecto medido el 2026-08-09: ninguna de las cinco tablas existía en la
+    #: base viva, y `stuck_tasks()` devolvía `[]` siempre porque
+    #: `worker_time_log` estaba vacía en cada base recién creada. **El detector
+    #: de cuelgues de Tríade nunca pudo ver un cuelgue.** No era un fallo del
+    #: supervisor: funcionaba perfectamente sobre una base que dejaba de existir.
+    #:
+    #: `:memory:` sigue disponible pasándolo explícitamente, que es lo que una
+    #: prueba quiere; lo que no puede seguir siendo es el silencio por defecto.
+    DEFAULT_DB_PATH = "triade/memory/triade.db"
+
     def __init__(
         self, db_path: str | None = None, conn: sqlite3.Connection | None = None
     ):
-        self._conn = conn or sqlite3.connect(db_path or ":memory:")
+        self._conn = conn or sqlite3.connect(db_path or self.DEFAULT_DB_PATH)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
 
