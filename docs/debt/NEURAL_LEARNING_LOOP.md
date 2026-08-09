@@ -133,9 +133,18 @@ Es la primera vez que la investigación gobernada escribe material.
 - **El recibo no se ha confirmado en vivo.** Está verificado en prueba; el
   reintento en producción depende de dos relojes: el intervalo adaptativo de
   `research_curriculum` (900 s) y el envejecimiento de prioridad.
-- **Calidad de las afirmaciones.** De las 7 producidas, tres son navegación de
-  la página (`"if you = interested in helping, please contact…"`). Los patrones
-  de reglas capturan cualquier frase con forma definitoria, incluido el pie.
+- ~~**Calidad de las afirmaciones.**~~ **Reparado el 2026-08-09** (rama
+  `fix/claim-quality`). De las 7 producidas, tres eran la página hablando de sí
+  misma: `"if you = interested in helping, please contact…"`,
+  `"older versiona = available in the Github repo"` y
+  `"previous versions = available at OWASP Top Ten 2021"`. `X are Y` casa con
+  «If you are interested in helping…» exactamente igual que con «OWASP Top 10 is
+  a standard awareness document»: la forma no las distingue. Tres cerrojos
+  deterministas lo hacen —sujetos que no nombran nada, marcas de navegación en
+  el valor, y un mínimo de tres palabras con contenido—, aplicados a **los dos**
+  extractores, porque la higiene no depende de quién produjo la afirmación.
+  Verificado contra las páginas vivas: owasp.org pasa de 4 afirmaciones a 1, y
+  la que sobrevive es la única que afirma algo del tema.
 - **Selección de fuentes.** Tres de las siete afirmaciones son de
   `unittest`/`pytest` para una pregunta de gobernanza: `docs.python.org` casa
   por la palabra «software».
