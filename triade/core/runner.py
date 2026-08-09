@@ -451,6 +451,7 @@ class TriadeRunner:
             semantic_limit=semantic_limit,
             semantic_min_similarity=semantic_min_similarity,
             semantic_domain=semantic_domain,
+            semantic_allow_experimental=semantic_allow_experimental,
         )
         if semantic_recall_enabled:
             memory = self._get_semantic_governance().govern_memory(

@@ -12,6 +12,24 @@ from triade.core.contracts import MemoryPacket, utc_now
 
 from .semantic_store import SemanticMemoryStore
 
+#: Política canónica 1.9E de influencia por estado semántico:
+#: `stable` influye por defecto; `experimental` sólo si el run lo autoriza
+#: explícitamente; `candidate` y `rejected` nunca.
+#:
+#: Vive aquí y sólo aquí. Cualquier canal de recuperación que decida qué puede
+#: influir —el vectorial y el de palabras clave de `Bodega`— llama a esta
+#: función en vez de repetir la lista: dos copias de la regla es la forma en que
+#: un canal se queda atrás y deja pasar lo que el otro bloquea.
+DEFAULT_INFLUENCE_STATUSES: frozenset[str] = frozenset({"stable"})
+AUTHORIZED_INFLUENCE_STATUS = "experimental"
+
+
+def influence_allowed_statuses(allow_experimental: bool = False) -> set[str]:
+    """Estados que pueden influir en un run, según lo que el run autorice."""
+    if allow_experimental:
+        return {*DEFAULT_INFLUENCE_STATUSES, AUTHORIZED_INFLUENCE_STATUS}
+    return set(DEFAULT_INFLUENCE_STATUSES)
+
 
 @dataclass(slots=True)
 class GovernanceDecision:
@@ -22,6 +40,7 @@ class GovernanceDecision:
     reason: str
     source_ref: str | None = None
     similarity: float | None = None
+    channel: str = "vector_similarity"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -117,14 +136,50 @@ class SemanticMemoryGovernance:
             "document": self.store.get_document(document_id) or {},
         }
 
+    def _judge(
+        self, match: dict[str, Any], allowed_statuses: set[str], channel: str
+    ) -> tuple[dict[str, Any], bool, dict[str, Any]]:
+        """Decide si un recuerdo recuperado puede influir, mire por donde mire.
+
+        El estado lo manda el documento en la base, no lo que traiga el match:
+        un recuerdo que llegue sin `document_id` —o cuyo documento ya no exista—
+        se queda en `missing` y por tanto fuera de `allowed_statuses`.
+        """
+        doc_id = str(match.get("document_id", ""))
+        document = self.store.get_document(doc_id) if doc_id else None
+        state = str(document.get("status") if document else "missing")
+        source = document.get("source_ref") if document else match.get("source_ref")
+        enriched = {**match, "document_status": state, "source_ref": source}
+        allowed = state in allowed_statuses
+        reason = (
+            "Memoria autorizada por estado semántico."
+            if allowed
+            else "Memoria recuperada sin autorización de influencia; requiere promoción verificable."
+        )
+        raw_similarity = match.get("similarity")
+        similarity = float(raw_similarity) if raw_similarity is not None else None
+        enriched["allowed_to_influence"] = allowed
+        decision = GovernanceDecision(
+            doc_id,
+            state,
+            "allowed" if allowed else "quarantined",
+            allowed,
+            reason,
+            source,
+            similarity,
+            channel,
+        )
+        return enriched, allowed, decision.to_dict()
+
     def govern_memory(
         self, memory: MemoryPacket, allow_experimental: bool = False
     ) -> MemoryPacket:
+        allowed_statuses = influence_allowed_statuses(allow_experimental)
         if not memory.semantic_recall.get("enabled"):
             memory.semantic_recall["governance"] = {
                 "enabled": True,
                 "status": "not_required",
-                "allowed_statuses": ["stable"],
+                "allowed_statuses": sorted(allowed_statuses),
                 "allow_experimental": allow_experimental,
                 "decisions": [],
             }
@@ -134,50 +189,39 @@ class SemanticMemoryGovernance:
             for m in memory.semantic_matches
             if m.get("retrieval_type") == "vector_similarity"
         ]
-        legacy = [
-            dict(m)
+        keyword = [
+            m
             for m in memory.semantic_matches
             if m.get("retrieval_type") != "vector_similarity"
         ]
-        # Anotar matches legacy: no pasaron por gobierno vectorial
-        for item in legacy:
-            item["governance_note"] = "legacy_keyword_no_governance"
-            item["allowed_to_influence"] = True
         accepted: list[dict[str, Any]] = []
         held: list[dict[str, Any]] = []
+        keyword_accepted: list[dict[str, Any]] = []
+        keyword_held: list[dict[str, Any]] = []
         decisions: list[dict[str, Any]] = []
-        allowed_statuses = {"stable", *(["experimental"] if allow_experimental else [])}
         for match in vector:
-            doc_id = str(match.get("document_id", ""))
-            document = self.store.get_document(doc_id)
-            state = str(document.get("status") if document else "missing")
-            source = document.get("source_ref") if document else match.get("source_ref")
-            enriched = {**match, "document_status": state, "source_ref": source}
-            allowed = state in allowed_statuses
-            reason = (
-                "Memoria autorizada por estado semántico."
-                if allowed
-                else "Memoria recuperada sin autorización de influencia; requiere promoción verificable."
-            )
-            raw_similarity = match.get("similarity")
-            similarity = float(raw_similarity) if raw_similarity is not None else None
-            decision = GovernanceDecision(
-                doc_id,
-                state,
-                "allowed" if allowed else "quarantined",
-                allowed,
-                reason,
-                source,
-                similarity,
+            enriched, allowed, decision = self._judge(
+                match, allowed_statuses, "vector_similarity"
             )
             (accepted if allowed else held).append(enriched)
-            decisions.append(decision.to_dict())
+            decisions.append(decision)
+        # El canal de palabras clave pasa por el **mismo** gate. Antes se
+        # anotaba `legacy_keyword_no_governance` con `allowed_to_influence=True`
+        # sin mirar el estado: bastaba con recuperar por texto para influir.
+        for match in keyword:
+            enriched, allowed, decision = self._judge(
+                match, allowed_statuses, "keyword"
+            )
+            (keyword_accepted if allowed else keyword_held).append(enriched)
+            decisions.append(decision)
         confidence_before, removed = memory.confidence, 0.0
         if vector and not accepted:
             removed = self.VECTOR_CONFIDENCE_BOOST
             memory.confidence = round(max(0.0, memory.confidence - removed), 2)
-        memory.semantic_matches = accepted + legacy
-        memory.semantic_recall["authorized_matches_count"] = len(accepted)
+        memory.semantic_matches = accepted + keyword_accepted
+        memory.semantic_recall["authorized_matches_count"] = len(accepted) + len(
+            keyword_accepted
+        )
         memory.semantic_recall["governance"] = {
             "enabled": True,
             "status": "applied",
@@ -186,7 +230,10 @@ class SemanticMemoryGovernance:
             "retrieved_vector_matches": len(vector),
             "allowed_vector_matches": len(accepted),
             "quarantined_vector_matches": len(held),
-            "quarantined_matches": held,
+            "retrieved_keyword_matches": len(keyword),
+            "allowed_keyword_matches": len(keyword_accepted),
+            "quarantined_keyword_matches": len(keyword_held),
+            "quarantined_matches": held + keyword_held,
             "decisions": decisions,
             "confidence_before_governance": confidence_before,
             "confidence_after_governance": memory.confidence,

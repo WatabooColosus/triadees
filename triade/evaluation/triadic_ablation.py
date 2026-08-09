@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +19,7 @@ from triade.core.crystal import Crystal
 from triade.core.hypothalamus import Hypothalamus
 from triade.core.safety import Safety
 from triade.core.verification import Verifier
+from triade.memory.semantic_store import SemanticMemoryStore
 
 VARIANTS = (
     "full_triad",
@@ -64,21 +64,25 @@ def _neutral_crystal(run_id: str) -> CrystalPacket:
 
 
 def _seed(db_path: Path) -> None:
+    """Siembra el recuerdo que la variante `without_semantic_recall` quita.
+
+    Escribía en `semantic_memory`, y esa tabla dejó de ser lo que
+    `Bodega._search_semantic()` consulta: la fila seguía ahí y el benchmark
+    dejaba de medir nada —`recall.semantic` se quedaba en 0 en todas las
+    variantes, así que quitar la memoria semántica ya no cambiaba el
+    observable—. Sembrar el documento vivo `stable` mantiene el benchmark
+    midiendo lo que dice medir, y de paso lo convierte en evidencia de que un
+    documento autorizado llega hasta Central.
+    """
     Bodega(db_path=db_path)
-    with sqlite3.connect(db_path) as conn:
-        conn.execute(
-            """INSERT OR REPLACE INTO semantic_memory
-            (key, value, domain, source_ref, confidence, status)
-            VALUES (?, ?, ?, ?, ?, ?)""",
-            (
-                "atlas_restriction",
-                "El proyecto Atlas exige conservar backups y revisión humana.",
-                "project_atlas",
-                "benchmark:triadic-ablation",
-                1.0,
-                "stable",
-            ),
-        )
+    SemanticMemoryStore(db_path=db_path).upsert_document(
+        content="El proyecto Atlas exige conservar backups y revisión humana.",
+        domain="project_atlas",
+        source_type="benchmark",
+        source_ref="benchmark:triadic-ablation",
+        status="stable",
+        document_id="sem-ablation-atlas",
+    )
 
 
 def _run_variant(
