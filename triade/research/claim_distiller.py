@@ -93,10 +93,106 @@ def _normalizar_clave(bruto: str) -> str:
     return clave.strip()
 
 
+#: Un sujeto que no nombra nada. `X are Y` casa con «If you are interested in
+#: helping…» igual que con «OWASP Top 10 is a standard awareness document»: la
+#: forma es la misma y sólo la primera es una afirmación sobre algo. Medido en
+#: producción el 2026-08-09: de 7 afirmaciones, «if you» fue una de ellas.
+_SUJETOS_VACIOS = frozenset(
+    {
+        "if you",
+        "you",
+        "we",
+        "they",
+        "it",
+        "this",
+        "that",
+        "these",
+        "those",
+        "there",
+        "here",
+        "he",
+        "she",
+        "who",
+        "which",
+        "what",
+        "if",
+        "when",
+        "esto",
+        "eso",
+        "esta",
+        "ese",
+        "aquello",
+        "usted",
+        "ustedes",
+        "nosotros",
+        "ellos",
+        "ellas",
+        "quien",
+        "quienes",
+        "aqui",
+        "aquí",
+        "si",
+        "cuando",
+        "previous versions",
+        "older versions",
+        "versiones anteriores",
+    }
+)
+
+#: Frases de navegación: la página habla de sí misma, no del tema. Salieron tres
+#: de siete en la primera investigación real —«available at OWASP Top Ten 2021»,
+#: «available in the Github repo», «please contact the members of the team»—.
+#: Ninguna es conocimiento; todas tienen forma perfecta de definición.
+_MARCAS_NAVEGACION = (
+    "available at",
+    "available in",
+    "available on",
+    "download",
+    "click",
+    "see the",
+    "read more",
+    "please contact",
+    "contact the",
+    "github repo",
+    "subscribe",
+    "sign up",
+    "cookie",
+    "privacy policy",
+    "all rights reserved",
+    "disponible en",
+    "haz clic",
+    "descarga",
+    "lee más",
+    "suscríb",
+    "política de privacidad",
+    "todos los derechos",
+)
+
+#: Una definición con dos palabras con contenido no define: «available in the
+#: Github repo» tiene dos. Es el segundo cerrojo, por si una frase de navegación
+#: no usa ninguna de las marcas conocidas.
+MIN_CONTENT_WORDS = 3
+
+
 def _clave_valida(clave: str) -> bool:
     if not clave or len(clave) < 3:
         return False
+    if clave in _SUJETOS_VACIOS:
+        return False
+    # «if you», «when the system» — un sujeto no empieza por conjunción.
+    if clave.split()[0] in {"if", "when", "si", "cuando", "aunque", "though"}:
+        return False
     return len(clave.split()) <= MAX_KEY_WORDS
+
+
+def _valor_valido(valor: str) -> bool:
+    """¿Afirma algo del sujeto, o es la página hablando de sí misma?"""
+    if len(valor) < MIN_VALUE_CHARS:
+        return False
+    minusculas = valor.lower()
+    if any(marca in minusculas for marca in _MARCAS_NAVEGACION):
+        return False
+    return len(_terminos(valor)) >= MIN_CONTENT_WORDS
 
 
 #: Nexos que no distinguen un concepto de otro. «control de acceso» y «control
@@ -131,7 +227,7 @@ def distill_rules(
                 continue
             clave = _normalizar_clave(match.group(1))
             valor = re.sub(r"\s+", " ", match.group(2)).strip()[:MAX_VALUE_CHARS]
-            if not _clave_valida(clave) or len(valor) < MIN_VALUE_CHARS:
+            if not _clave_valida(clave) or not _valor_valido(valor):
                 continue
             if clave in vistas:
                 continue
@@ -218,7 +314,7 @@ def distill_model(
         valor = re.sub(r"\s+", " ", str(item.get("value") or "")).strip()[
             :MAX_VALUE_CHARS
         ]
-        if not _clave_valida(clave) or len(valor) < MIN_VALUE_CHARS:
+        if not _clave_valida(clave) or not _valor_valido(valor):
             continue
         if clave in vistas or not _anclada(valor, texto):
             continue
