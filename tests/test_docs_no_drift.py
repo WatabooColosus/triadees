@@ -67,6 +67,9 @@ _RETIRADOS = (
     "triade/neuron_factory/certification.py",
     "scripts/run_phase_12_neuron_certification.py",
     "tests/test_neuron_certification.py",
+    # Implementación alternativa del juicio sobre capacidades: dos de sus cinco
+    # contadores eran imposibles por construcción y el resto estaba duplicado.
+    "triade/capabilities/matrix.py",
 )
 
 #: Un documento se declara histórico con esta marca en su propio texto. No se

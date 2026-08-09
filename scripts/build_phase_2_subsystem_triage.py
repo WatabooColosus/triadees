@@ -373,9 +373,15 @@ REVIEWS: dict[str, Review] = {
         "A",
         "Calcular matriz de capacidades",
         "capabilities",
-        "merge_with_existing",
-        "Módulo sin importador que solapa el registro y resolver de capacidades.",
-        "Extraer sólo lógica no duplicada al capability registry y archivar el módulo huérfano.",
+        "remove_from_productive_graph",
+        "Retirada el 2026-08-08. El `merge_with_existing` anterior daba por "
+        "supuesto que quedaba lógica no duplicada que extraer; medida sobre el "
+        "registro ya lleno, no queda ninguna: los ciclos y las críticas sin "
+        "rollback los rechaza `register()` al escribir, `quarantined` no lo "
+        "asigna nadie, el baseline lo juzga y lo aplica `MandatoryRollbackEnforcer` "
+        "y los recuentos los publica `CapabilityObservability`.",
+        "Hecho. Copia en artifacts/dead_code_backup/, veredicto en "
+        "docs/debt/CAPABILITY_MATRIX_VERDICT.md.",
         "P2",
         "medium",
         "medium",
