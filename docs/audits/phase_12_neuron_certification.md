@@ -1,5 +1,14 @@
 # Fase 12 — neuronas certificables
 
+> **Documento histórico.** Describe una fase `completed` el 2026-07-29 y sigue
+> siendo su registro fiel. El instrumento que ejecutó —`NeuronCertifier`,
+> `scripts/run_phase_12_neuron_certification.py`— se retiró el 2026-08-08 junto
+> con la tabla `neuron_certifications`: el juicio sobre `stable` lo hace hoy
+> `triade/core/stable_neuron_audit.py` sobre evidencia medida. Los comandos de
+> «Reproducción» ya no existen. Las 13 transiciones que produjo se conservan en
+> `neuron_certification_transitions`. Motivo y contraste de los dos contratos en
+> [`docs/debt/NEURON_CERTIFICATION_CONTRACT.md`](../debt/NEURON_CERTIFICATION_CONTRACT.md).
+
 Fecha UTC: 2026-07-29
 
 Base: `7b8361b`
