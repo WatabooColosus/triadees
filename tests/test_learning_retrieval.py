@@ -128,6 +128,31 @@ def test_un_candidato_regressed_no_vuelve_a_entrar(retriever) -> None:
     assert "c-regressed" not in [m.candidate_id for m in ms]
 
 
+def test_una_transcripcion_del_modelo_no_influye_como_hecho(db: Path) -> None:
+    _seed(
+        db,
+        [
+            {
+                "candidate_id": "c-transcript",
+                "content": (
+                    "run_id: r\ninput: ¿Qué PRAGMA comprueba claves?\n"
+                    "response: PRAGMA foreign_keys lo comprueba."
+                ),
+                "status": "evidence_verified",
+            }
+        ],
+    )
+
+    decision = LearningRetriever(db).retrieve_decision(
+        "¿Qué PRAGMA comprueba claves?", run_id="r2"
+    )
+
+    assert "c-transcript" not in decision.injected_ids
+    assert {
+        s["reason"] for s in decision.skipped if s["candidate_id"] == "c-transcript"
+    } == {"unverified_model_transcript"}
+
+
 def test_un_duplicado_no_entra_dos_veces(tmp_path: Path) -> None:
     ruta = tmp_path / "dup.db"
     texto = "El identificador del runbook de recuperación es RBK-7731-QUETZAL."

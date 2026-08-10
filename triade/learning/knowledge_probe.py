@@ -117,6 +117,23 @@ def extract_target(content: str) -> str | None:
     return max(candidatos, key=len)
 
 
+def is_unverified_transcript(content: str, verification_notes: str = "") -> bool:
+    """Una salida del propio modelo no es una fuente factual independiente.
+
+    Los candidatos post-run conservan ``input:`` y ``response:``. Medir que el
+    modelo repite un token de su respuesta anterior sólo demuestra memoria, no
+    que el dato sea cierto. Una preferencia o corrección explícitamente tipada
+    sí puede venir de conversación: su verdad es la instrucción del usuario.
+    """
+    normalized = str(content or "").lower()
+    if "\ninput:" not in normalized or "\nresponse:" not in normalized:
+        return False
+    notes = str(verification_notes or "")
+    return not any(
+        marker in notes for marker in ('"type": "preference"', '"type": "correction"')
+    )
+
+
 def build_probe(db_path: str | Path, candidate_id: str) -> KnowledgeProbe | None:
     """Construye la prueba, o `None` si el candidato no es medible."""
     conn = sqlite3.connect(f"file:{Path(db_path)}?mode=ro", uri=True)
@@ -136,12 +153,14 @@ def build_probe(db_path: str | Path, candidate_id: str) -> KnowledgeProbe | None
         return None
 
     contenido = str(fila["content"] or "")
+    notas = str(fila["verification_notes"] or "")
+    if is_unverified_transcript(contenido, notas):
+        return None
     objetivo = extract_target(contenido)
     if not objetivo:
         return None
 
-    tipo = "preference"
-    notas = str(fila["verification_notes"] or "")
+    tipo = "fact"
     for candidato_tipo in _PREGUNTAS:
         if f'"type": "{candidato_tipo}"' in notas or f'"{candidato_tipo}"' in notas:
             tipo = candidato_tipo

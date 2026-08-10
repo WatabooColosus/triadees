@@ -150,6 +150,20 @@ def test_runs_without_ollama_and_without_database(tmp_path: Path) -> None:
     assert not (output / "neural_graph.json").exists()
 
 
+def test_module_scan_prunes_runtime_output_directories(tmp_path: Path) -> None:
+    from triade.observability.code_graph import build_module_index
+
+    (tmp_path / "triade").mkdir()
+    (tmp_path / "triade" / "live.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (tmp_path / "runs" / "old").mkdir(parents=True)
+    (tmp_path / "runs" / "old" / "stale.py").write_text("VALUE = 2\n", encoding="utf-8")
+
+    index = build_module_index(tmp_path)
+
+    assert "triade/live.py" in index.by_path
+    assert "runs/old/stale.py" not in index.by_path
+
+
 # --- Nodos reales, sin invenciones -------------------------------------------
 
 

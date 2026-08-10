@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import pytest
 
-from triade.learning.knowledge_probe import extract_target
+from triade.learning.knowledge_probe import extract_target, is_unverified_transcript
 
 #: El caso real que lo destapó, recortado del candidato `learn-47874b4587e840e5`.
 CONTENIDO_REAL = (
@@ -58,6 +58,20 @@ def test_un_dato_de_verdad_distintivo_sigue_sirviendo() -> None:
     """El filtro descarta andamiaje, no aprendizaje real."""
     assert extract_target("El veredicto se marca como VEREDICTO-TRIADE.") == (
         "VEREDICTO-TRIADE"
+    )
+
+
+def test_una_respuesta_del_modelo_no_se_convierte_en_hecho_verificado() -> None:
+    contenido = (
+        "run_id: run-real\nsource: react-ui\nintent: analyze\n"
+        "input: ¿Qué PRAGMA encuentra claves huérfanas?\n"
+        "response: Debes usar PRAGMA foreign_keys.\nverification_status: ok"
+    )
+
+    assert is_unverified_transcript(contenido) is True
+    assert (
+        is_unverified_transcript(contenido, '{"type": "correction", "role": "user"}')
+        is False
     )
     assert extract_target("Usa el prefijo WRK:: al reportar.") == "WRK::"
     assert (

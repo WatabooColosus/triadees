@@ -160,7 +160,18 @@ def test_el_fallo_se_reporta_y_espera_antes_de_reintentar(tmp_path, patched):
     status = refresher.status()
     assert status["builds"] == 0
     assert "el AST no se pudo leer" in status["last_error"]
+    assert status["exit_code"] == 1
+    assert status["command"] == "scripts.build_internal_graphs.build_all(render=False)"
+    assert "el AST no se pudo leer" in status["stderr_summary"]
     assert refresher.request() == "cooldown"
+
+    # El reinicio del proceso no puede convertir un fallo comprobado en
+    # "desconocido" ni perder su cooldown.
+    restored = GraphRefresher(REPO_ROOT, tmp_path / "graphs", stale_seconds=0.001)
+    restored_status = restored.status()
+    assert restored_status["exit_code"] == 1
+    assert "el AST no se pudo leer" in restored_status["last_error"]
+    assert restored.request() == "cooldown"
 
 
 def test_el_directorio_de_construccion_no_queda_tirado(tmp_path, patched):

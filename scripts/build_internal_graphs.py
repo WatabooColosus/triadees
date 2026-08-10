@@ -17,11 +17,13 @@ import argparse
 import json
 from pathlib import Path
 
+from triade.observability.alias_debt import build_alias_debt
 from triade.observability.code_graph import (
     build_call_graph,
     build_entrypoint_graph,
     build_import_graph,
     build_module_index,
+    reachable_modules,
 )
 from triade.observability.contracts import GraphEdge, GraphNode
 from triade.observability.export import export_graph
@@ -50,6 +52,7 @@ def build_all(
     index = build_module_index(root)
 
     import_nodes, import_edges = build_import_graph(root, index)
+    table_nodes, table_edges = build_table_graph(root, index, db_path)
     graphs: list[tuple[str, str, list[GraphNode], list[GraphEdge]]] = [
         ("file_graph", "physical_atlas", *build_file_graph(root)),
         ("import_graph", "modules_and_imports", import_nodes, import_edges),
@@ -63,7 +66,8 @@ def build_all(
         (
             "table_graph",
             "sqlite_readers_writers",
-            *build_table_graph(root, index, db_path),
+            table_nodes,
+            table_edges,
         ),
         (
             "organ_graph",
@@ -85,6 +89,27 @@ def build_all(
         if render:
             write_renderings(output, stem, nodes, edges, graph_type=graph_type)
         summary[stem] = _summarise(nodes, edges)
+
+    # El análisis de alias es estructural y recorre todo el repositorio. Se
+    # genera junto a los grafos, cuando el índice y la alcanzabilidad ya están
+    # en memoria, para que la API y el único worker no repitan un escaneo de
+    # decenas de segundos en cada consulta.
+    table_profiles = {
+        node.label: dict(node.metadata)
+        for node in table_nodes
+        if node.node_id.startswith("table:")
+    }
+    alias_report = build_alias_debt(
+        root,
+        index=index,
+        db_path=db_path,
+        table_profiles=table_profiles,
+        reachable=reachable_modules(root, index),
+    )
+    (output / "alias_debt.json").write_text(
+        json.dumps(alias_report, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
 
     index_payload = {
         "schema_version": 1,

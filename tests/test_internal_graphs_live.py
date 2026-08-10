@@ -162,6 +162,25 @@ def test_debt_report_reuses_fresh_graphs_instead_of_rescanning(tmp_path: Path) -
     assert (cache / "index.json").stat().st_mtime == stamp, "no debió regenerar"
 
 
+def test_debt_report_reuses_the_published_alias_analysis(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Una lectura caliente no puede volver a recorrer todo el repositorio."""
+    from triade.observability import introspection
+
+    cache = tmp_path / "graphs"
+    db = _db(tmp_path)
+    build_debt_report(REPO_ROOT, db, cache, max_age_seconds=0)
+
+    def unexpected_scan(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise AssertionError("el análisis de alias ya estaba publicado")
+
+    monkeypatch.setattr(introspection, "build_alias_debt", unexpected_scan)
+    report = build_debt_report(REPO_ROOT, db, cache, max_age_seconds=3600)
+
+    assert report["status"] == "measured"
+
+
 def _chain_db(tmp_path: Path, *, plan_rows: int, plan_recent: bool) -> Path:
     """Base mínima con el eslabón `plan` y un eslabón continuo (`worker`)."""
     db = tmp_path / "cadena.db"
@@ -314,6 +333,24 @@ def test_feed_starts_in_the_present_not_in_the_history(tmp_path: Path) -> None:
     cursor = latest_cursor(db)
     events, _ = read_new_events(db, cursor)
     assert events == []
+
+
+def test_system_graph_aggregates_only_real_canonical_nodes() -> None:
+    graph = internal_graphs_live.build_graph("system")
+
+    assert graph["source"] == "canonical_graph_aggregation"
+    assert graph["simulated"] is False
+    assert graph["nodes"]
+    for node in graph["nodes"]:
+        assert node["metadata"]["matched_nodes"] > 0
+        assert node["metadata"]["evidence_nodes"]
+        assert (
+            node["metadata"]["progressive_view"] in internal_graphs_live.GRAPH_BUILDERS
+        )
+    known = {node["node_id"] for node in graph["nodes"]}
+    assert all(
+        edge["source"] in known and edge["target"] in known for edge in graph["edges"]
+    )
 
 
 def test_feed_is_complete_and_verifiable(tmp_path: Path) -> None:
@@ -518,6 +555,42 @@ def test_lo_no_contado_sigue_visible_con_su_diagnostico(tmp_path: Path) -> None:
     assert "also_counted_elsewhere" in entrada
     assert entrada["also_counted_elsewhere"], "ninguna tabla quedó registrada"
     assert "ya contadas" in entrada["evidence"]
+
+
+def test_alias_vacio_cacheado_se_invalida_con_filas_vivas(tmp_path: Path) -> None:
+    """La evidencia temporal viva prevalece sobre un artefacto estructural viejo."""
+    db = _db(tmp_path)
+    with sqlite3.connect(db) as connection:
+        connection.execute("CREATE TABLE learned_events (id INTEGER PRIMARY KEY)")
+        connection.execute("INSERT INTO learned_events VALUES (1)")
+
+    cache = tmp_path / "graphs"
+    cache.mkdir()
+    (cache / "index.json").write_text("{}", encoding="utf-8")
+    (cache / "alias_debt.json").write_text(
+        json.dumps(
+            {
+                "findings": [
+                    {
+                        "signal": "orphan_reader",
+                        "kind": "table",
+                        "dead": "learned_events",
+                    },
+                    {
+                        "signal": "lexical_alias",
+                        "kind": "table",
+                        "dead": "learned_events",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = build_debt_report(REPO_ROOT, db, cache, allow_build=False)
+
+    assert report["items"]["alias_debt_orphan_reader"]["count"] == 0
+    assert report["items"]["alias_debt_lexical_alias"]["count"] == 0
 
 
 # --- Quién escribe una tabla vacía, y si puede llegar a ejecutarse ------------

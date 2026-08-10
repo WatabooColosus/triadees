@@ -574,6 +574,7 @@ def build_alias_debt(
     index: ModuleIndex | None = None,
     db_path: Path | None = None,
     table_profiles: dict[str, dict[str, Any]] | None = None,
+    reachable: set[str] | None = None,
 ) -> dict[str, Any]:
     """Informe completo de deuda de alias, con evidencia por hallazgo."""
     root = root.resolve()
@@ -585,7 +586,7 @@ def build_alias_debt(
     hallazgos = [
         *find_orphan_readers(perfiles),
         *find_lexical_aliases(perfiles),
-        *find_dead_status_values(root),
+        *find_dead_status_values(root, alcanzables=reachable),
     ]
     por_senal: dict[str, int] = {}
     for hallazgo in hallazgos:
