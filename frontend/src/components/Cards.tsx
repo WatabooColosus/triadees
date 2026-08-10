@@ -866,6 +866,98 @@ export function AlwaysOnCard({ data }: { data: any }) {
   )
 }
 
+// La tarjeta de arriba dice si el runtime está encendido. Ésta dice si alguien
+// lo volverá a encender cuando se apague, que es una pregunta distinta y es la
+// que llevaba meses sin respuesta: el proceso lo arrancaba una persona con
+// nohup, y al cerrar la terminal no volvía nadie.
+//
+// Todo lo que se pinta aquí viene medido del backend (systemd + /proc + el
+// puerto). Cuando algo no se puede medir llega como null y se dice, en vez de
+// pintar un verde por defecto.
+export function SupervisionCard({ data }: { data: any }) {
+  if (!data) return null
+
+  const alwaysOn = data.always_on
+  const blockers: string[] = data.always_on_blockers || []
+  const listenerState = data.listener_state
+
+  let color = '#eab308'
+  let label = 'Sin certificar'
+  let msg = 'No se pudo medir la supervisión'
+
+  if (alwaysOn === true) {
+    color = '#22c55e'
+    label = 'Certificado'
+    msg = 'Bajo gestor de servicios y con arranque automático: vuelve solo'
+  } else if (alwaysOn === false) {
+    color = '#ef4444'
+    label = 'No garantizado'
+    msg = 'Responde ahora, pero no hay quien lo levante si muere'
+  }
+
+  // 0 caído, 1 sano, más de 1 es instancia duplicada -- los tres casos tienen
+  // que verse distintos, porque un puerto con dos dueños no es media salud.
+  const listenerColor = listenerState === 'healthy' ? '#22c55e'
+    : listenerState === 'duplicate' ? '#f59e0b' : '#ef4444'
+
+  const uptime = data.uptime_seconds
+  const uptimeLabel = typeof uptime === 'number'
+    ? uptime >= 3600 ? `${(uptime / 3600).toFixed(1)} h`
+      : uptime >= 60 ? `${Math.round(uptime / 60)} min`
+        : `${Math.round(uptime)} s`
+    : '—'
+
+  return (
+    <Card title={`Supervisión · ${label}`} color={color}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{
+            width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+            background: color,
+          }} />
+          <span style={{ fontSize: 12, color: 'var(--text-primary)' }}>{msg}</span>
+        </div>
+
+        {blockers.length > 0 && (
+          <div style={{
+            padding: '6px 8px', borderRadius: 4, fontSize: 11,
+            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+            color: '#fca5a5',
+          }}>
+            {blockers.map((b, i) => <div key={i}>· {b}</div>)}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 11 }}>
+          <span style={{
+            width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+            background: listenerColor,
+          }} />
+          <span style={{ color: 'var(--text-secondary)' }}>
+            puerto {data.port ?? '—'}: {data.listener_count ?? '—'} listener(s)
+          </span>
+        </div>
+
+        <KVTable data={{
+          gestor: data.service_manager || 'ninguno',
+          unit: data.unit,
+          estado_unit: data.service_state || '—',
+          bajo_supervision: data.service_managed ? 'sí' : 'no',
+          autoarranque: data.autostart_enabled ? 'habilitado' : 'no',
+          arranque_manual_necesario: data.manual_start_required ? 'sí' : 'no',
+          pid: data.runtime_pid ?? '—',
+          uptime: uptimeLabel,
+          // null significa «no medible», y hay que distinguirlo de cero.
+          reinicios: data.restart_count === null || data.restart_count === undefined
+            ? 'no medible' : data.restart_count,
+          ultimo_resultado: data.last_result || '—',
+          base_de_datos: data.database?.path || '—',
+        }} />
+      </div>
+    </Card>
+  )
+}
+
 // El sistema entrena LoRA solo, pero activarlo en producción siempre exige
 // un humano real -- esta tarjeta hace que esa aprobación sea de un clic en
 // vez de un trámite: se refresca sola, no depende del poll pesado del
