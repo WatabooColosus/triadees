@@ -18,6 +18,7 @@ from triade.core.error_bus import record_internal_error
 from triade.core.neuron_missions import NeuronMissionStore
 from triade.learning.knowledge_probe import extract_target
 from triade.learning.pipeline import LearningPipeline
+from triade.neurons.education_resolver import MIN_APPLIED_RUNS
 
 MISSION_PLANNER_ERRORS = (
     sqlite3.Error,
@@ -271,10 +272,13 @@ class MissionPlanner:
         """Educa solo neuronas experimentales con revisión vencida o sin competencia."""
         try:
             with closing(self._connect()) as conn, conn:
-                table = conn.execute(
-                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='neuron_competencies'"
-                ).fetchone()
-                if table:
+                tables = {
+                    str(row[0])
+                    for row in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                }
+                if "neuron_competencies" in tables:
                     row = conn.execute(
                         """SELECT COUNT(*) cnt FROM neurons n
                         LEFT JOIN neuron_competencies c ON c.neuron_id=n.id AND c.domain=n.domain
@@ -284,8 +288,33 @@ class MissionPlanner:
                     row = conn.execute(
                         "SELECT COUNT(*) cnt FROM neurons WHERE status='experimental'"
                     ).fetchone()
-            count = int(row["cnt"] or 0) if row else 0
-            if count:
+                due_neurons = int(row["cnt"] or 0) if row else 0
+                resolvable_sessions = 0
+                if {
+                    "neuron_education_sessions",
+                    "neuron_education_applications",
+                }.issubset(tables):
+                    ready = conn.execute(
+                        """SELECT COUNT(*) cnt
+                        FROM neuron_education_sessions s
+                        WHERE s.state='lesson_prepared'
+                          AND s.baseline_score IS NOT NULL
+                          AND (SELECT COUNT(*)
+                               FROM neuron_education_applications a
+                               WHERE a.session_id=s.session_id) >= ?""",
+                        (MIN_APPLIED_RUNS,),
+                    ).fetchone()
+                    resolvable_sessions = int(ready["cnt"] or 0) if ready else 0
+            if due_neurons or resolvable_sessions:
+                reasons = []
+                if due_neurons:
+                    reasons.append(
+                        f"{due_neurons} neuronas experimentales requieren educación o revisión"
+                    )
+                if resolvable_sessions:
+                    reasons.append(
+                        f"{resolvable_sessions} sesiones tienen {MIN_APPLIED_RUNS}+ runs medidos y requieren resolución"
+                    )
                 return [
                     PlannedTask(
                         task_type="neuron_education_cycle",
@@ -306,7 +335,7 @@ class MissionPlanner:
                         # el ciclo sigue exigiendo dos fuentes independientes y
                         # cinco runs medidos para decidir algo.
                         priority=20,
-                        reason=f"{count} neuronas experimentales requieren educación o revisión",
+                        reason="; ".join(reasons),
                         source="governed_neuron_education",
                         planner_score=0.7,
                     )
