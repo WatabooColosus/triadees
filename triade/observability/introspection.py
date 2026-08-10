@@ -236,6 +236,19 @@ def build_debt_report(
             root,
             table_profiles=profiles_from_artifact(_load(cache_dir, "table_graph")),
         )
+    # Los artefactos conservan la estructura, pero sus contadores de filas son
+    # una fotografía. Una tabla puede recibir filas después del build; en ese
+    # caso las señales cuya premisa es ``rows == 0`` quedan refutadas por la DB
+    # viva y no deben seguir sumando deuda hasta el siguiente refresh.
+    alias_findings = [
+        finding
+        for finding in alias["findings"]
+        if not (
+            finding.get("kind") == "table"
+            and finding.get("signal") in {"orphan_reader", "lexical_alias"}
+            and int(rows_by_table.get(str(finding.get("dead")), 0)) > 0
+        )
+    ]
     # `suspected_dead_status` entra igual que los demás: rebajar la confianza de
     # un hallazgo no es motivo para esconderlo del contador.
     for senal in (
@@ -244,7 +257,7 @@ def build_debt_report(
         "dead_status_value",
         "suspected_dead_status",
     ):
-        hallazgos = [h for h in alias["findings"] if h["signal"] == senal]
+        hallazgos = [h for h in alias_findings if h["signal"] == senal]
         items[f"alias_debt_{senal}"] = _alias_table_entry(
             senal, hallazgos, tablas_ya_contadas
         )

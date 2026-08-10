@@ -557,6 +557,42 @@ def test_lo_no_contado_sigue_visible_con_su_diagnostico(tmp_path: Path) -> None:
     assert "ya contadas" in entrada["evidence"]
 
 
+def test_alias_vacio_cacheado_se_invalida_con_filas_vivas(tmp_path: Path) -> None:
+    """La evidencia temporal viva prevalece sobre un artefacto estructural viejo."""
+    db = _db(tmp_path)
+    with sqlite3.connect(db) as connection:
+        connection.execute("CREATE TABLE learned_events (id INTEGER PRIMARY KEY)")
+        connection.execute("INSERT INTO learned_events VALUES (1)")
+
+    cache = tmp_path / "graphs"
+    cache.mkdir()
+    (cache / "index.json").write_text("{}", encoding="utf-8")
+    (cache / "alias_debt.json").write_text(
+        json.dumps(
+            {
+                "findings": [
+                    {
+                        "signal": "orphan_reader",
+                        "kind": "table",
+                        "dead": "learned_events",
+                    },
+                    {
+                        "signal": "lexical_alias",
+                        "kind": "table",
+                        "dead": "learned_events",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = build_debt_report(REPO_ROOT, db, cache, allow_build=False)
+
+    assert report["items"]["alias_debt_orphan_reader"]["count"] == 0
+    assert report["items"]["alias_debt_lexical_alias"]["count"] == 0
+
+
 # --- Quién escribe una tabla vacía, y si puede llegar a ejecutarse ------------
 
 
