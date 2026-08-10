@@ -270,3 +270,27 @@ class TestRotaEntreSesiones:
         vistas = {resolver.resolve_once()["session_id"] for _ in range(2)}
 
         assert len(vistas) == 2, f"el resolutor se quedó atascado en {vistas}"
+
+    def test_una_sesion_resoluble_precede_a_otra_sin_evidencia(
+        self, tmp_path: Path
+    ) -> None:
+        db = _db(tmp_path, aplicaciones=[])
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "INSERT INTO neuron_education_sessions (session_id,curriculum_id,"
+                "neuron_id,competency_id,state,baseline_score,result,created_at,"
+                "finished_at) VALUES ('ready','cur-2',8,'comp-2','lesson_prepared',"
+                "0.4,'uncertain','2026-08-02T00:00:01+00:00',"
+                "'2026-08-02T00:00:01+00:00')"
+            )
+            conn.executemany(
+                "INSERT INTO neuron_education_applications "
+                "(session_id,run_id,outcome_score,created_at) VALUES "
+                "('ready',?,?, '2026-08-02T01:00:00+00:00')",
+                [(f"run-ready-{index}", 0.9) for index in range(MIN_APPLIED_RUNS)],
+            )
+
+        result = NeuronEducationResolver(db).resolve_once()
+
+        assert result["session_id"] == "ready"
+        assert result["decision"] == "improved"
