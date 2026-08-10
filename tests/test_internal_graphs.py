@@ -211,6 +211,31 @@ def test_entrypoints_are_detected_and_linked_to_launchers(tmp_path: Path) -> Non
     assert any(e.relation == "launches" for e in edges)
 
 
+def test_reversible_opt_in_cli_is_detected_by_structure(tmp_path: Path) -> None:
+    root = tmp_path
+    scripts = root / "scripts"
+    scripts.mkdir()
+    (scripts / "repair.py").write_text(
+        """import argparse
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--rollback')
+    return 0
+if __name__ == '__main__':
+    raise SystemExit(main())
+""",
+        encoding="utf-8",
+    )
+
+    nodes, _ = build_entrypoint_graph(root)
+    node = next(item for item in nodes if item.label == "scripts/repair.py")
+
+    assert node.state == "disconnected"
+    assert node.metadata["activation"] == "administrative_on_demand"
+    assert "--apply" in node.metadata["activation_evidence"]
+
+
 def test_workers_and_task_types_are_identified() -> None:
     """Sobre el repositorio real: los tipos salen del `Literal`, no de una lista."""
     nodes, edges = build_worker_graph(REPO_ROOT, build_module_index(REPO_ROOT))

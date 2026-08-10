@@ -23,6 +23,7 @@ from triade.observability.event_feed import (
     read_recent_events,
 )
 from triade.observability.introspection import (
+    _classify_with_contracts,
     _vital_chain_gaps,
     _writer_reachability,
     build_debt_report,
@@ -150,6 +151,50 @@ def test_global_graph_search_returns_canonical_node(
             "evidence": "sqlite:autonomous_tasks",
         }
     ]
+
+
+def test_administrative_entrypoint_stays_visible_but_not_real_debt(
+    tmp_path: Path,
+) -> None:
+    cache = tmp_path / "graphs"
+    cache.mkdir()
+    (cache / "entrypoint_graph.json").write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "node_id": "entrypoint:scripts/tool.py",
+                        "label": "scripts/tool.py",
+                        "metadata": {
+                            "path": "scripts/tool.py",
+                            "launchers": 0,
+                            "activation": "administrative_on_demand",
+                            "activation_evidence": "argparse --apply gate + rollback option",
+                        },
+                        "state": "disconnected",
+                    }
+                ],
+                "edges": [],
+                "metadata": {"generated_at": datetime.now(UTC).isoformat()},
+            }
+        ),
+        encoding="utf-8",
+    )
+    entrypoints = {
+        "count": 1,
+        "items": ["scripts/tool.py"],
+        "sample": ["scripts/tool.py"],
+    }
+    items = {"entrypoints_without_launcher": entrypoints}
+
+    counts = _classify_with_contracts(REPO_ROOT, items, {}, None, cache_dir=cache)
+
+    assert entrypoints["count"] == 1
+    verdict = entrypoints["classified"]["scripts/tool.py"]
+    assert verdict["classification"] == "ON_DEMAND"
+    assert verdict["contract_holds"] is True
+    assert counts["ON_DEMAND"] == 1
+    assert counts["DEUDA_REAL"] == 0
 
 
 def test_graph_and_node_routes_expose_color_and_evidence(
