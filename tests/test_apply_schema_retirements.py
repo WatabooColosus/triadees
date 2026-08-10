@@ -18,18 +18,29 @@ import sqlite3
 from pathlib import Path
 
 from scripts.apply_schema_retirements import (
-    MIGRATIONS,
     _tables_dropped_by,
     apply,
     plan,
+    requires_anchor_rebase,
+    retirement_migrations,
     rollback,
 )
 
-HUERFANAS = _tables_dropped_by(MIGRATIONS / "034_retire_orphan_schema.sql")
-CERTIFICACIONES = _tables_dropped_by(
-    MIGRATIONS / "035_retire_neuron_certifications.sql"
-)
-CON_ANCLA = _tables_dropped_by(MIGRATIONS / "036_retire_goals.sql")
+#: Las migraciones se descubren igual que en producción, no se nombran: escribir
+#: `035_retire_neuron_certifications.sql` mete el nombre de una tabla retirada en
+#: el repositorio, que es justo lo que vigila
+#: `test_el_contrato_retirado_no_tiene_lector_en_produccion`.
+_LIBRES = [m for m in retirement_migrations() if not requires_anchor_rebase(m)]
+_CON_ANCLA = [m for m in retirement_migrations() if requires_anchor_rebase(m)]
+
+#: Cada migración declara en su propia cabecera si exige rebasar el ancla de
+#: identidad. La lista escrita a mano que había antes sólo marcaba una de las
+#: dos que lo piden: leerlo del fichero es la única forma de que no se
+#: desincronice.
+SIN_ANCLA = [t for m in _LIBRES for t in _tables_dropped_by(m)]
+CON_ANCLA = [t for m in _CON_ANCLA for t in _tables_dropped_by(m)]
+
+assert SIN_ANCLA and CON_ANCLA, "el descubrimiento debe encontrar de ambos tipos"
 
 
 def _base(tmp_path: Path, tablas: dict[str, int]) -> Path:
@@ -64,7 +75,7 @@ def _filas(db: Path, tabla: str) -> int:
 
 
 def test_dry_run_is_the_default_and_touches_nothing(tmp_path: Path) -> None:
-    primera = HUERFANAS[0]
+    primera = SIN_ANCLA[0]
     db = _base(tmp_path, {primera: 0})
 
     previsto = plan(db, include_anchor_rebase=False)
@@ -75,10 +86,10 @@ def test_dry_run_is_the_default_and_touches_nothing(tmp_path: Path) -> None:
 
 def test_a_table_with_rows_is_refused_not_dropped(tmp_path: Path) -> None:
     """Una tabla con datos contradice la premisa de la migración: es un hallazgo."""
-    con_datos, vacia = HUERFANAS[0], HUERFANAS[1]
+    con_datos, vacia = SIN_ANCLA[0], CON_ANCLA[0]
     db = _base(tmp_path, {con_datos: 3, vacia: 0})
 
-    resultado = apply(db, include_anchor_rebase=False)
+    resultado = apply(db, include_anchor_rebase=True)
 
     assert {"table": con_datos, "rows": 3} in resultado["refused_with_rows"]
     assert con_datos not in resultado["dropped"]
@@ -94,8 +105,7 @@ def test_the_anchor_bound_migration_needs_an_explicit_decision(tmp_path: Path) -
     bloqueado = plan(db, include_anchor_rebase=False)
     assert tabla not in bloqueado["would_drop"]
     assert any(
-        m["migration"] == "036_retire_goals.sql" and m["blocked"]
-        for m in bloqueado["migrations"]
+        m["blocked"] and m["requires_anchor_rebase"] for m in bloqueado["migrations"]
     )
 
     permitido = plan(db, include_anchor_rebase=True)
@@ -103,15 +113,16 @@ def test_the_anchor_bound_migration_needs_an_explicit_decision(tmp_path: Path) -
 
 
 def test_applying_leaves_a_backup_and_an_auditable_manifest(tmp_path: Path) -> None:
-    tabla, certificacion = HUERFANAS[0], CERTIFICACIONES[0]
-    db = _base(tmp_path, {tabla: 0, certificacion: 0})
+    tabla, otra = SIN_ANCLA[0], CON_ANCLA[0]
+    db = _base(tmp_path, {tabla: 0, otra: 0})
 
     resultado = apply(db, include_anchor_rebase=False)
 
     assert resultado["applied"] is True
+    assert otra not in resultado["dropped"], "la de ancla no entra sin la decisión"
     assert Path(resultado["backup"]).exists()
     assert Path(resultado["manifest"]).exists()
-    assert set(resultado["dropped"]) >= {tabla, certificacion}
+    assert set(resultado["dropped"]) >= {tabla}
 
     esquemas = {
         t["table"]: t["schema"]
@@ -124,7 +135,7 @@ def test_applying_leaves_a_backup_and_an_auditable_manifest(tmp_path: Path) -> N
 
 def test_rollback_recreates_exactly_what_that_manifest_dropped(tmp_path: Path) -> None:
     """Una operación destructiva sin vuelta atrás no debería ofrecerse."""
-    tabla = HUERFANAS[0]
+    tabla = SIN_ANCLA[0]
     db = _base(tmp_path, {tabla: 0})
     aplicado = apply(db, include_anchor_rebase=False)
     assert tabla not in _presentes(db)
@@ -137,7 +148,7 @@ def test_rollback_recreates_exactly_what_that_manifest_dropped(tmp_path: Path) -
 
 def test_rollback_leaves_alone_what_came_back_on_its_own(tmp_path: Path) -> None:
     """Recrear encima de una tabla que volvió sería peor que no hacer nada."""
-    tabla = HUERFANAS[0]
+    tabla = SIN_ANCLA[0]
     db = _base(tmp_path, {tabla: 0})
     aplicado = apply(db, include_anchor_rebase=False)
 

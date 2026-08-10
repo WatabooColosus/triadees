@@ -23,11 +23,17 @@ Esto es esa ruta, y es deliberadamente conservadora:
 - Manifiesto de lo hecho, con el esquema de cada tabla retirada, para que la
   decisión sea auditable después.
 
-`036_retire_goals.sql` avisa de que retirar `goals` exige rebasar el ancla de
-identidad con `IdentityContinuity.migrate_anchor()`; sin eso el runtime arranca
-en `degraded_safe_identity_mismatch`. Por eso las migraciones que lo requieren
-van marcadas y sólo entran con `--include-anchor-rebase`, que es una decisión
-del operador y no de este script.
+Algunas migraciones avisan en su cabecera de que retirar esas tablas exige
+rebasar el ancla de identidad con `IdentityContinuity.migrate_anchor()`; sin eso
+el runtime arranca en `degraded_safe_identity_mismatch`. Ese requisito se lee de
+cada fichero y sólo entra con `--include-anchor-rebase`, que es una decisión del
+operador y no de este script.
+
+Se lee y no se lista a mano porque la lista escrita a mano estaba mal: marcaba
+una sola de las dos migraciones que lo declaran. Que no causara daño fue suerte
+—el manifiesto de identidad ya iba por `schema_version: 036`, así que el ancla
+cubría de antemano las tres retiradas y sólo faltaba ejecutar el `DROP`—, pero
+una lista paralela a lo que dice el fichero se desincroniza por definición.
 """
 
 from __future__ import annotations
@@ -45,19 +51,51 @@ DEFAULT_DB = REPO / "triade/memory/triade.db"
 MIGRATIONS = REPO / "triade/memory/migrations"
 MANIFEST_DIR = REPO / "artifacts/migrations"
 
-#: Migraciones cuyo único efecto es retirar esquema huérfano.
-RETIREMENT_MIGRATIONS = (
-    "034_retire_orphan_schema.sql",
-    "035_retire_neuron_certifications.sql",
-    "036_retire_goals.sql",
-)
-
-#: Las que además exigen una operación gobernada sobre la identidad.
-REQUIRES_ANCHOR_REBASE = frozenset({"036_retire_goals.sql"})
-
 _DROP = re.compile(
     r"DROP\s+TABLE\s+IF\s+EXISTS\s+([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE
 )
+
+#: Una migración declara por sí misma que exige rebasar el ancla de identidad.
+_ANCHOR_MARK = "migrate_anchor"
+
+
+def _statements(sql: str) -> list[str]:
+    sin_comentarios = "\n".join(
+        linea for linea in sql.splitlines() if not linea.strip().startswith("--")
+    )
+    return [s.strip() for s in sin_comentarios.split(";") if s.strip()]
+
+
+def retirement_migrations() -> list[Path]:
+    """Migraciones cuyo único efecto es retirar esquema, descubiertas al vuelo.
+
+    Estaban escritas a mano en una tupla, y eso tenía un coste que sólo apareció
+    al correr la suite: el nombre de una migración de retirada contiene el nombre
+    de la tabla que retira, así que escribirlo aquí mete ese nombre en código
+    productivo. Hay un guardián que vigila exactamente eso
+    —`test_el_contrato_retirado_no_tiene_lector_en_produccion`— y tiene razón: un
+    lector de una tabla que nadie puede llenar siempre recibe el caso vacío, y
+    desde fuera no se distingue de una consulta de verdad.
+
+    Descubrirlas es además mejor de por sí. Una migración de retirada nueva entra
+    sola, sin que nadie tenga que acordarse de añadirla aquí, que es justo el
+    olvido que dejó `034`, `035` y `036` sin ejecutar durante semanas.
+
+    El criterio es estructural, no de nombre: todas sus sentencias son
+    `DROP TABLE`. `019_legacy_retirement.sql` se llama «retirement» y crea
+    tablas, así que queda fuera por lo que hace y no por cómo se llama.
+    """
+    encontradas = []
+    for ruta in sorted(MIGRATIONS.glob("[0-9][0-9][0-9]_*.sql")):
+        sentencias = _statements(ruta.read_text(encoding="utf-8"))
+        if sentencias and all(s.upper().startswith("DROP TABLE") for s in sentencias):
+            encontradas.append(ruta)
+    return encontradas
+
+
+def requires_anchor_rebase(path: Path) -> bool:
+    """La migración lo dice en su propia cabecera, no una lista aparte."""
+    return _ANCHOR_MARK in path.read_text(encoding="utf-8")
 
 
 def _now() -> str:
@@ -87,14 +125,9 @@ def plan(db_path: Path, *, include_anchor_rebase: bool) -> dict[str, Any]:
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         migraciones: list[dict[str, Any]] = []
-        for nombre in RETIREMENT_MIGRATIONS:
-            ruta = MIGRATIONS / nombre
-            if not ruta.exists():
-                migraciones.append(
-                    {"migration": nombre, "skipped": "migration_file_missing"}
-                )
-                continue
-            necesita_ancla = nombre in REQUIRES_ANCHOR_REBASE
+        for ruta in retirement_migrations():
+            nombre = ruta.name
+            necesita_ancla = requires_anchor_rebase(ruta)
             tablas = []
             for tabla in _tables_dropped_by(ruta):
                 filas = _row_count(conn, tabla)
