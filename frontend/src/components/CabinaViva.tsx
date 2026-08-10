@@ -204,7 +204,10 @@ export function CabinaViva() {
           </Card>
         </div>
       )}
-      <EventsFeed events={dash.runtime_events} />
+      {/* El bloque puede faltar si su recolección falló: el dashboard reporta
+          el fallo en `errors` y sigue sirviendo el resto. Sin caída a lista
+          vacía, la ausencia se propagaría como `undefined` al feed. */}
+      <EventsFeed events={dash.runtime_events ?? []} />
     </div>
   )
 }

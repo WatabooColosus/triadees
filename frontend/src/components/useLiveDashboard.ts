@@ -24,6 +24,14 @@ export async function api(path: string, opts?: RequestInit) {
   return res.json()
 }
 
+/** Lo que `/api/ui/react-dashboard` devuelve de verdad.
+ *
+ * Declaraba once claves de las veintiuna que envía el backend, y `CabinaViva`
+ * usaba cinco de las que faltaban: `tsc --noEmit` daba seis errores contra un
+ * contrato que el servidor sí cumplía. CI no ejecuta `tsc` —sólo `npm ci`,
+ * `build` y `audit`—, así que la divergencia no era check rojo y llevaba
+ * tiempo abierta. Verificado contra el payload vivo el 2026-08-10.
+ */
 export interface DashboardData {
   status: string
   generated_at: string
@@ -36,6 +44,11 @@ export interface DashboardData {
   technical_debt?: any
   git_status?: any
   workers?: any
+  workers_always_on?: any
+  always_on?: any
+  always_on_detail?: any
+  governor?: any
+  edge_context_health?: any
   runtime_events?: any[]
   system_processes?: any
   autonomy_delegation?: any

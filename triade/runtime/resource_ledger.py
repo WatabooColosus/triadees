@@ -20,6 +20,68 @@ DEFAULT_BUDGET = {
     "model_installs_daily": 1.0,
 }
 
+#: Recursos físicos compartidos: los gasta cualquier tarea y su escasez es
+#: real, así que gobiernan la escalera de degradación global.
+PRESSURE_LINES: tuple[str, ...] = (
+    "cpu_minutes_daily",
+    "gpu_minutes_daily",
+    "network_mb_daily",
+    "new_storage_mb_daily",
+)
+
+#: Cupos por clase: no son un recurso escaso sino un permiso contado. Cada uno
+#: limita **su** clase y ninguna otra.
+#:
+#: Estaban en el mismo `max()` que los recursos compartidos, y esa mezcla tenía
+#: tres consecuencias medidas, ninguna querida:
+#:
+#: 1. Auto-inanición. Al 70 % de su propia línea la clase se prohibía a sí
+#:    misma, así que el límite declarado era inalcanzable por construcción:
+#:    `deep_evaluations_daily=12` rendía 9. En la base hay tres días seguidos
+#:    —2026-08-08, 09 y 10— con exactamente 9 `stable_consolidation_review`,
+#:    todas entre las 00:00 y las 00:41 UTC, y ninguna después.
+#: 2. Contaminación cruzada. 32 investigaciones de 40 (0.80) apagaban la
+#:    evaluación profunda, que iba por 0.75 y tenía sitio. Un candidato con
+#:    evidencia `improved` y tres usos causales nacido a las 01:29 no podía ser
+#:    revisado hasta el día siguiente, aunque su propio cupo tuviera hueco.
+#: 3. Suicidio por instalación. `model_installs_daily=1`: gastar el único
+#:    permiso presupuestado ponía la razón en 1.0 y con ella el organismo entero
+#:    en `observe_only` hasta medianoche.
+#:
+#: Los umbrales de la escalera (0.70/0.85/0.95/1.0) y los límites declarados no
+#: se tocan: lo que cambia es que un cupo se agota en su límite, no antes, y que
+#: no arrastra a las demás clases al agotarse.
+QUOTA_LINES: dict[str, str] = {
+    "research_tasks_daily": "research",
+    "deep_evaluations_daily": "deep_evaluation",
+    "model_installs_daily": "model_install",
+}
+
+
+def load_runtime_budget(yml_path: str | Path = "triade.yml") -> dict[str, float]:
+    """Presupuesto declarado en `triade.yml`, con los defaults como respaldo.
+
+    `runtime_budget` llevaba declarado en `triade.yml` desde siempre y no lo
+    leía nadie: los tres constructores de `ResourceLedger` se quedaban con
+    `DEFAULT_BUDGET`. Hoy los dos juegos de cifras coinciden, así que el error
+    no se veía; el día que alguien editase el YAML habría cambiado un número
+    que el organismo no mira. Se lee aquí para que el fichero sea la fuente y
+    no la decoración.
+    """
+    presupuesto = dict(DEFAULT_BUDGET)
+    try:
+        from triade.core.config import load_config
+
+        declarado = (load_config(yml_path) or {}).get("runtime_budget") or {}
+        for key in DEFAULT_BUDGET:
+            if key in declarado:
+                presupuesto[key] = float(declarado[key])
+    except (OSError, ImportError, RuntimeError, ValueError, TypeError, KeyError):
+        # Sin YAML legible se sigue con los defaults: el libro contable no es
+        # sitio para caerse, y el respaldo es exactamente lo que había antes.
+        pass
+    return presupuesto
+
 
 @dataclass(frozen=True, slots=True)
 class ResourceMeasurement:
@@ -134,7 +196,7 @@ class ResourceLedger:
         budget: dict[str, float] | None = None,
     ) -> None:
         self.db_path = Path(db_path)
-        self.budget = {**DEFAULT_BUDGET, **(budget or {})}
+        self.budget = {**load_runtime_budget(), **(budget or {})}
         migration = (
             Path(__file__).resolve().parents[1]
             / "memory/migrations/009_runtime_resilience.sql"
@@ -292,12 +354,36 @@ class ResourceLedger:
             "model_installs_daily": float(row[6]),
         }
 
+    def quotas(self, usage: dict[str, float] | None = None) -> dict[str, Any]:
+        """Estado de cada cupo por clase: gastado, límite y si queda sitio.
+
+        Se expone además de consumirse internamente porque «esta clase está
+        parada» y «esta clase agotó su cupo» son dos hechos distintos, y sin el
+        segundo la observabilidad no puede decir cuál de los dos ocurre.
+        """
+        usage = usage if usage is not None else self.daily_usage()
+        estado: dict[str, Any] = {}
+        for key, task_class in QUOTA_LINES.items():
+            limit = float(self.budget.get(key, 0.0))
+            used = float(usage.get(key, 0.0))
+            estado[task_class] = {
+                "line": key,
+                "used": used,
+                "limit": limit,
+                "remaining": max(0.0, limit - used),
+                "ratio": (used / limit) if limit > 0 else 1.0,
+                "exhausted": used >= limit if limit > 0 else True,
+            }
+        return estado
+
     def policy(self) -> dict[str, Any]:
         usage = self.daily_usage()
         ratios = {
             key: usage[key] / limit if limit > 0 else 1.0
             for key, limit in self.budget.items()
+            if key in PRESSURE_LINES
         }
+        cupos = self.quotas(usage)
         peak = max(ratios.values(), default=0.0)
         if peak >= 1:
             mode, allowed = "observe_only", {"heartbeat", "safety", "maintenance"}
@@ -329,12 +415,18 @@ class ResourceLedger:
                     "model_install",
                 },
             )
+        # La escalera dice qué clases tolera la presión física; el cupo dice
+        # cuáles ya gastaron su permiso del día. Una clase corre si pasa ambas.
+        agotadas = {name for name, q in cupos.items() if q["exhausted"]}
         return {
             "mode": mode,
             "peak_ratio": peak,
+            "pressure_ratios": ratios,
             "usage": usage,
             "budget": self.budget,
-            "allowed_classes": sorted(allowed),
+            "quotas": cupos,
+            "exhausted_quotas": sorted(agotadas),
+            "allowed_classes": sorted(allowed - agotadas),
         }
 
     def allows(self, task_class: str) -> bool:

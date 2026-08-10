@@ -31,7 +31,9 @@ from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
 from triade.core.safety import Safety
 from triade.federation.federation import Federation
 from triade.learning.pipeline import LearningPipeline
+from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_governance import SemanticMemoryGovernance
+from triade.memory.semantic_store import SemanticMemoryStore
 from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
 from triade.runtime.atomic_completion import AtomicCompletionCoordinator
@@ -2487,14 +2489,36 @@ class WorkerLoop:
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
         governance = SemanticMemoryGovernance(db_path=self.db_path).doctor()
+        # La tarea se llamaba «gobernanza» y sólo diagnosticaba: llamaba a
+        # `doctor()`, publicaba el resultado y no tocaba nada. Mientras tanto los
+        # 351 documentos de la base llevaban vector de `triade-local-hash:64`, el
+        # respaldo que `SemanticContinuity` guarda porque su único llamador
+        # productivo pasa `auto_ollama_embed=False` —y hace bien: embeber en la
+        # ruta de una conversación la frena—. El resultado era que la similitud
+        # vectorial no encontraba nada nunca: `matches_count: 0` y
+        # `skipped_model: 350` en cada `semantic_recall`, con el canal de
+        # palabras clave tapando el agujero.
+        #
+        # El motor que sabe embeber de verdad ya existía y no lo disparaba nadie.
+        # Aquí es donde toca: fuera de la conversación, acotado, e incremental.
+        reembedding = SemanticEmbeddingEngine(
+            store=SemanticMemoryStore(db_path=self.db_path)
+        ).reembed_stale(limit=int(task.payload.get("reembed_limit") or 10))
         qualia = self._publish_qualia_experience(
             run_ref,
             "semantic_memory_governance",
             "worker_governance",
-            f"Gobernanza semántica ejecutada: {governance.get('status', 'unknown')}.",
+            f"Gobernanza semántica ejecutada: {governance.get('status', 'unknown')}; "
+            f"{reembedding.get('reembedded_ok', 0)} documentos reembebidos de "
+            f"{reembedding.get('stale_found', 0)} obsoletos.",
             extracted_pattern=str(governance),
         )
-        return {"status": "completed", "governance": governance, "qualia": qualia}
+        return {
+            "status": "completed",
+            "governance": governance,
+            "reembedding": reembedding,
+            "qualia": qualia,
+        }
 
     def _neuron_candidate_formation(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig

@@ -526,6 +526,23 @@ class LearningPipeline:
         # medición antes/después. Sin evidencia reproducible no hay aprendizaje.
         measurement_evidence = self.evidence_bridge.require_improvement(candidate_id)
 
+        # Ningún gate miraba si el candidato afirma lo contrario de lo que ya
+        # está consolidado. Dos hechos incompatibles en `stable` los recupera los
+        # dos la misma consulta, y lo que llega al modelo deja de ser memoria
+        # para ser ruido: no hay forma de saber cuál creerse. Se bloquea aquí, no
+        # se resuelve: elegir cuál de las dos afirmaciones sobrevive no es una
+        # decisión que pueda tomar un worker.
+        from triade.learning.contradiction import find_contradiction
+
+        contradiccion = find_contradiction(self.db_path, str(row["content"]))
+        if contradiccion is not None:
+            raise ValueError(
+                "Contradice memoria estable "
+                f"{contradiccion.document_id}: ya consolidado "
+                f"'{contradiccion.existing_target}', el candidato afirma "
+                f"'{contradiccion.candidate_target}'."
+            )
+
         # Rollback Obligatorio (Artículo III de la Constitución)
         from triade.regression.mandatory_rollback import MandatoryRollbackEnforcer
 
