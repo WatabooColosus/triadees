@@ -128,3 +128,82 @@ def test_doctor_reports_missing_ollama_or_embedding_model(tmp_path) -> None:
     assert unavailable["selection"]["reason"] == "ollama_unavailable"
     assert no_model["selection"]["reason"] == "no_embedding_model_installed"
     assert no_model["semantic_search"] == "active_2.0"
+
+
+def test_hash_fallback_documents_are_invisible_to_the_query_model(tmp_path) -> None:
+    """El vector guardado con otro modelo no lo encuentra la búsqueda de hoy.
+
+    Medido en la base viva el 2026-08-10: 351 de 351 embeddings eran de
+    `triade-local-hash:64` y la consulta se embebía con `nomic-embed-text`, así
+    que `semantic_recall` reportaba `status: ok` con `matches_count: 0` y
+    `skipped_model: 350` en cada run. `embed_pending` no los veía porque
+    embedding tenían: sólo que ninguno servía.
+    """
+    engine = make_engine(tmp_path, FakeEmbeddingClient())
+    documento = engine.store.upsert_document(
+        content="La consolidación estable deja huella recuperable.",
+        domain="learning",
+        source_type="learning_pipeline",
+        source_ref="run:test",
+        status="stable",
+    )
+    engine.store.store_embedding(
+        documento.document_id, "triade-local-hash:64", [0.5] * 64
+    )
+
+    assert engine.embed_pending()["pending_found"] == 0, (
+        "embed_pending cuenta como resuelto un vector que la búsqueda descarta"
+    )
+    obsoletos = engine.stale_documents()
+    assert obsoletos["stale_found"] == 1
+    assert documento.document_id in obsoletos["documents"]
+
+
+def test_reembed_stale_makes_documents_searchable_without_deleting_the_old_vector(
+    tmp_path,
+) -> None:
+    engine = make_engine(tmp_path, FakeEmbeddingClient())
+    documento = engine.store.upsert_document(
+        content="Una preferencia explícita del usuario se recuerda.",
+        domain="conversation",
+        source_type="learning_pipeline",
+        source_ref="run:test",
+        status="stable",
+    )
+    engine.store.store_embedding(
+        documento.document_id, "triade-local-hash:64", [0.5] * 64
+    )
+
+    resultado = engine.reembed_stale()
+
+    assert resultado["status"] == "ok"
+    assert resultado["selected_model"] == "nomic-embed-text:latest"
+    assert resultado["reembedded_ok"] == 1
+    assert engine.stale_documents()["stale_found"] == 0
+
+    modelos = {
+        item["embedding_model"]
+        for item in engine.store.list_embeddings(documento.document_id)
+    }
+    assert modelos == {"triade-local-hash:64", "nomic-embed-text:latest"}, (
+        "el vector viejo no se borra: la recuperación ya ignora los que no casan"
+    )
+
+
+def test_reembed_stale_does_nothing_without_an_embedding_model(tmp_path) -> None:
+    engine = make_engine(tmp_path, UnavailableClient(), use_local_fallback=False)
+    documento = engine.store.upsert_document(
+        content="Sin modelo no se inventa un vector.",
+        domain="conversation",
+        source_type="learning_pipeline",
+        source_ref="run:test",
+        status="stable",
+    )
+    engine.store.store_embedding(
+        documento.document_id, "triade-local-hash:64", [0.5] * 64
+    )
+
+    resultado = engine.reembed_stale()
+
+    assert resultado["status"] == "skipped"
+    assert resultado["reembedded_ok"] == 0

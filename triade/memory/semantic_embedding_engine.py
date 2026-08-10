@@ -325,6 +325,86 @@ class SemanticEmbeddingEngine:
             "events": events,
         }
 
+    def stale_documents(self, limit: int = 20) -> dict[str, Any]:
+        """Documentos cuyo vector no lo puede encontrar la búsqueda de hoy.
+
+        `embed_pending` sólo mira quién no tiene ningún embedding, y por eso no
+        veía el problema real: los 351 documentos de la base sí tenían vector,
+        pero todos de `triade-local-hash:64`, el respaldo que `SemanticContinuity`
+        guarda cuando no embebe con Ollama. La consulta se embebe con
+        `nomic-embed-text` a 768 dimensiones, así que ninguno podía casar nunca:
+        cada `semantic_recall` reportaba `status: ok` con `matches_count: 0` y
+        `skipped_model: 350`, y lo que salvaba la recuperación era el canal de
+        palabras clave. La similitud vectorial estaba declarada y muerta.
+
+        Obsoleto aquí significa exactamente «guardado con un modelo distinto del
+        que se va a usar para preguntar», que es la única definición que importa
+        para que la búsqueda funcione.
+        """
+        selection = self.select_model()
+        modelo = selection.get("selected_model")
+        if not selection.get("ok") or not modelo:
+            return {
+                "status": "skipped",
+                "reason": selection.get("reason"),
+                "selected_model": None,
+                "stale_found": 0,
+                "documents": [],
+            }
+        vigentes = {
+            item["document_id"]
+            for item in self.store.list_embeddings()
+            if str(item.get("embedding_model")) == str(modelo)
+        }
+        obsoletos = [
+            document["document_id"]
+            for document in self.store.list_documents()
+            if document["document_id"] not in vigentes
+        ]
+        return {
+            "status": "ok",
+            "reason": selection.get("reason"),
+            "selected_model": modelo,
+            "stale_found": len(obsoletos),
+            "documents": obsoletos[:limit],
+        }
+
+    def reembed_stale(
+        self, limit: int = 20, model: str | None = None
+    ) -> dict[str, Any]:
+        """Reembebe con el modelo vigente los documentos que la búsqueda no ve.
+
+        No borra el vector viejo: `store_embedding` es único por
+        `(document_id, embedding_model)`, así que el hash queda como estaba y el
+        nuevo vector se añade. La recuperación ya ignora los modelos que no
+        coinciden, de modo que el residuo es inerte y no se pierde nada.
+
+        Va acotado por `limit` porque cada documento cuesta una llamada real al
+        modelo: esto se drena poco a poco desde el worker, nunca en la ruta de
+        una conversación.
+        """
+        pendientes = self.stale_documents(limit=limit)
+        if pendientes["status"] != "ok":
+            return {
+                "status": pendientes["status"],
+                "reason": pendientes["reason"],
+                "stale_found": 0,
+                "reembedded_ok": 0,
+                "events": [],
+            }
+        eventos = [
+            self.embed_document(document_id, model=model).to_dict()
+            for document_id in pendientes["documents"]
+        ]
+        return {
+            "status": "ok",
+            "selected_model": pendientes["selected_model"],
+            "stale_found": pendientes["stale_found"],
+            "attempted": len(eventos),
+            "reembedded_ok": sum(1 for event in eventos if event["ok"]),
+            "events": eventos,
+        }
+
     def doctor(self) -> dict[str, Any]:
         selection = self.select_model()
         local_available = False

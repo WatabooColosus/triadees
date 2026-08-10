@@ -8,7 +8,10 @@ from triade.runtime.resource_ledger import (
 def _gastar(ledger, task_class, veces):
     for i in range(veces):
         ledger.record(
-            task_id=f"{task_class}-{i}", worker_id="w", success=True, task_class=task_class
+            task_id=f"{task_class}-{i}",
+            worker_id="w",
+            success=True,
+            task_class=task_class,
         )
 
 
