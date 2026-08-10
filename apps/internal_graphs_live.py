@@ -28,7 +28,12 @@ from triade.observability.code_graph import (
     build_import_graph,
     build_module_index,
 )
-from triade.observability.event_feed import FeedCursor, latest_cursor, read_new_events
+from triade.observability.event_feed import (
+    FeedCursor,
+    latest_cursor,
+    read_new_events,
+    read_recent_events,
+)
 from triade.observability.file_graph import build_file_graph
 from triade.observability.neural_graph import build_neural_graph
 from triade.observability.refresh import GraphRefresher
@@ -518,6 +523,111 @@ def build_pulse(cursor: FeedCursor | None = None) -> tuple[dict[str, Any], FeedC
         "simulated": False,
     }
     return payload, advanced
+
+
+def system_health() -> dict[str, Any]:
+    """Publica Health Truth sin reinterpretarlo en el navegador."""
+    from triade.runtime.service_health import ServiceHealth
+
+    measured = ServiceHealth(_db_path()).inspect(process_running=True).to_dict()
+    state_map = {
+        "idle": "healthy",
+        "critical": "failed",
+        "stopped": "failed",
+    }
+    overall = state_map.get(str(measured["state"]), str(measured["state"]))
+    metrics = measured.get("metrics") or {}
+    queue = metrics.get("queue") or {}
+    ollama = metrics.get("ollama") or {}
+    heartbeat_age = metrics.get("heartbeat_age_seconds")
+    components = {
+        "API": {
+            "state": "healthy",
+            "evidence": f"process:{os.getpid()}",
+            "last_progress": measured["checked_at"],
+        },
+        "DATABASE": {
+            "state": "healthy" if metrics.get("sqlite") == "ok" else "failed",
+            "evidence": f"PRAGMA quick_check={metrics.get('sqlite', 'unknown')}",
+            "last_progress": measured["checked_at"],
+        },
+        "MODEL": {
+            "state": "healthy"
+            if bool(ollama.get("ollama_ok") or ollama.get("ok"))
+            else "degraded",
+            "evidence": f"ollama:{ollama.get('status') or ollama.get('error_type') or 'unknown'}",
+            "last_progress": ollama.get("checked_at"),
+        },
+        "WORKERS": {
+            "state": overall,
+            "evidence": (
+                f"heartbeat_age_seconds={heartbeat_age}; "
+                f"eligible={metrics.get('eligible_pending_tasks', 0)}; "
+                f"active={metrics.get('active_tasks', 0)}"
+            ),
+            "last_progress": metrics.get("last_task_transition_at"),
+        },
+        "SCHEDULER": {
+            "state": overall,
+            "evidence": f"queue={json.dumps(queue, sort_keys=True)}",
+            "last_progress": metrics.get("last_task_transition_at"),
+        },
+    }
+    return {
+        "state": overall,
+        "raw_state": measured["state"],
+        "reasons": measured["reasons"],
+        "checked_at": measured["checked_at"],
+        "components": components,
+        "metrics": metrics,
+        "source": "triade.runtime.service_health.ServiceHealth",
+        "simulated": False,
+    }
+
+
+def search_system(query: str, *, limit: int = 30) -> dict[str, Any]:
+    """Busca nodos canónicos y devuelve dónde centrarlos, sin duplicarlos."""
+    needle = query.strip().lower()
+    if not needle:
+        return {"query": query, "results": [], "simulated": False}
+    results: list[dict[str, Any]] = []
+    for graph_name in GRAPH_BUILDERS:
+        graph = build_graph(graph_name)
+        for node in graph.get("nodes") or []:
+            haystack = " ".join(
+                (
+                    str(node.get("node_id") or ""),
+                    str(node.get("label") or ""),
+                    json.dumps(node.get("metadata") or {}, ensure_ascii=False),
+                )
+            ).lower()
+            if needle not in haystack:
+                continue
+            results.append(
+                {
+                    "graph": graph_name,
+                    "node_id": node.get("node_id"),
+                    "label": node.get("label"),
+                    "kind": node.get("kind"),
+                    "state": node.get("state"),
+                    "evidence": (node.get("metadata") or {}).get("evidence"),
+                }
+            )
+            if len(results) >= max(1, limit):
+                return {"query": query, "results": results, "simulated": False}
+    return {"query": query, "results": results, "simulated": False}
+
+
+def operational_timeline(
+    *, limit: int = 100, run_id: str | None = None, task_id: str | None = None
+) -> dict[str, Any]:
+    return {
+        "events": read_recent_events(
+            _db_path(), limit=limit, run_id=run_id, task_id=task_id
+        ),
+        "filters": {"run_id": run_id, "task_id": task_id},
+        "simulated": False,
+    }
 
 
 def event_stream(interval_seconds: float = 2.0) -> Iterator[str]:

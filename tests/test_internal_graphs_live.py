@@ -17,7 +17,11 @@ from fastapi.testclient import TestClient
 
 from apps import internal_graphs_live
 from apps.single_port_app import app
-from triade.observability.event_feed import latest_cursor, read_new_events
+from triade.observability.event_feed import (
+    latest_cursor,
+    read_new_events,
+    read_recent_events,
+)
 from triade.observability.introspection import (
     _vital_chain_gaps,
     _writer_reachability,
@@ -87,6 +91,65 @@ def test_pulse_carries_live_signals_not_structure(
     assert signals["task_types"]["pulse_check"]["executions"] == 1
     assert signals["task_types"]["goal_lora_train"]["executions"] == 0
     assert signals["task_types"]["goal_lora_train"]["state"] == "disconnected"
+
+
+def test_timeline_reads_persisted_history_without_changing_sse_cursor(
+    tmp_path: Path,
+) -> None:
+    db = _db(tmp_path)
+    with sqlite3.connect(db) as connection:
+        connection.execute(
+            "INSERT INTO worker_events "
+            "(run_ref,task_id,task_type,event_type,status,created_at) "
+            "VALUES ('run-visible','task-visible','pulse_check',"
+            "'task_completed','ok','2026-08-10T01:00:00+00:00')"
+        )
+    before = latest_cursor(db)
+
+    events = read_recent_events(db, run_id="run-visible", limit=10)
+    after = latest_cursor(db)
+
+    assert before.positions == after.positions
+    assert len(events) == 1
+    assert events[0]["evidence"].startswith("sqlite:worker_events.id=")
+    assert events[0]["data"]["run_ref"] == "run-visible"
+
+
+def test_global_graph_search_returns_canonical_node(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_graph(name: str, limit: int | None = None) -> dict[str, object]:
+        del limit
+        nodes = (
+            [
+                {
+                    "node_id": "task_type:learning_evidence_generation",
+                    "label": "learning_evidence_generation",
+                    "kind": "task_type",
+                    "state": "active",
+                    "metadata": {"evidence": "sqlite:autonomous_tasks"},
+                }
+            ]
+            if name == "workers"
+            else []
+        )
+        return {"nodes": nodes, "edges": [], "states": {}}
+
+    monkeypatch.setattr(internal_graphs_live, "build_graph", fake_graph)
+
+    result = internal_graphs_live.search_system("evidence_generation")
+
+    assert result["simulated"] is False
+    assert result["results"] == [
+        {
+            "graph": "workers",
+            "node_id": "task_type:learning_evidence_generation",
+            "label": "learning_evidence_generation",
+            "kind": "task_type",
+            "state": "active",
+            "evidence": "sqlite:autonomous_tasks",
+        }
+    ]
 
 
 def test_graph_and_node_routes_expose_color_and_evidence(

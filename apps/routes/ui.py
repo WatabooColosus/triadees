@@ -149,6 +149,35 @@ def internal_graphs_snapshot(
     return build_live_snapshot(file_limit=file_limit)
 
 
+@router.get("/api/internal-graphs/health")
+def internal_graphs_health() -> dict[str, Any]:
+    """Salud y progreso medidos por el contrato canónico del watchdog."""
+    from apps.internal_graphs_live import system_health
+
+    return system_health()
+
+
+@router.get("/api/internal-graphs/search")
+def internal_graphs_search(
+    q: str = Query(min_length=1, max_length=200),
+    limit: int = Query(default=30, ge=1, le=100),
+) -> dict[str, Any]:
+    from apps.internal_graphs_live import search_system
+
+    return search_system(q, limit=limit)
+
+
+@router.get("/api/internal-graphs/timeline")
+def internal_graphs_timeline(
+    limit: int = Query(default=100, ge=1, le=500),
+    run_id: str | None = Query(default=None, max_length=200),
+    task_id: str | None = Query(default=None, max_length=200),
+) -> dict[str, Any]:
+    from apps.internal_graphs_live import operational_timeline
+
+    return operational_timeline(limit=limit, run_id=run_id, task_id=task_id)
+
+
 @router.get("/api/internal-graphs/stream")
 def internal_graphs_stream() -> StreamingResponse:
     """Pulso SSE: estados por grafo mientras el runtime trabaja."""
