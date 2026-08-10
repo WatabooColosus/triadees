@@ -97,25 +97,47 @@ log "habilitadas: ${ENABLE[*]}"
 
 # Un huérfano sin supervisar en el puerto deja a la unit en bucle de reinicio.
 # Se retira sólo si nadie lo supervisa: si el dueño ya es la unit, no se toca.
+#
+# Se vigilan los dos puertos, no sólo el de la API: el incidente del 2026-07-30
+# —150+ reinicios de triade-ollama.service mientras el tráfico lo servía un
+# `nohup ollama serve` manual— fue justamente en el 11434.
 listener_pid() {
-    ss -lntpH "sport = :${PORT}" 2>/dev/null | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2
+    ss -lntpH "sport = :${1}" 2>/dev/null | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2
 }
-lpid="$(listener_pid || true)"
-if [ -n "$lpid" ]; then
-    owner="$(ps -o unit= -p "$lpid" 2>/dev/null | tr -d ' ' || true)"
-    if [ "$owner" = "triade-api.service" ]; then
-        log "puerto $PORT: ya lo sirve triade-api.service (pid $lpid), no se toca"
-    else
-        log "puerto $PORT: huérfano sin supervisar (pid $lpid, unit='${owner:-ninguna}'), se retira"
-        kill "$lpid" 2>/dev/null || true
-        for _ in $(seq 1 10); do
-            sleep 1
-            [ -z "$(listener_pid || true)" ] && break
-        done
-        # El runtime completo no siempre cierra con SIGTERM: libera el puerto
-        # pero los hilos de fondo siguen vivos. Se remata sólo si sigue ahí.
-        [ -n "$(listener_pid || true)" ] && kill -9 "$lpid" 2>/dev/null || true
+
+# La pertenencia se decide por el cgroup del proceso, no por `ps -o unit=`, que
+# no está disponible en todos los procps y devuelve vacío sin avisar.
+owner_unit() {
+    sed -n 's/.*\/\([a-z0-9@._-]*\.service\)$/\1/p' "/proc/${1}/cgroup" 2>/dev/null | head -1
+}
+
+free_port_from_orphan() {
+    port="$1"
+    expected_unit="$2"
+    lpid="$(listener_pid "$port" || true)"
+    [ -n "$lpid" ] || return 0
+
+    owner="$(owner_unit "$lpid")"
+    if [ "$owner" = "$expected_unit" ]; then
+        log "puerto $port: ya lo sirve $expected_unit (pid $lpid), no se toca"
+        return 0
     fi
-fi
+
+    log "puerto $port: huérfano sin supervisar (pid $lpid, unit='${owner:-ninguna}'), se retira"
+    kill "$lpid" 2>/dev/null || true
+    for _ in $(seq 1 10); do
+        sleep 1
+        [ -z "$(listener_pid "$port" || true)" ] && break
+    done
+    # El runtime completo no siempre cierra con SIGTERM: libera el puerto pero
+    # los hilos de fondo siguen vivos. Se remata sólo si sigue ahí.
+    if [ -n "$(listener_pid "$port" || true)" ]; then
+        kill -9 "$lpid" 2>/dev/null || true
+        sleep 1
+    fi
+}
+
+free_port_from_orphan "$PORT" "triade-api.service"
+free_port_from_orphan "11434" "triade-ollama.service"
 
 log "listo"

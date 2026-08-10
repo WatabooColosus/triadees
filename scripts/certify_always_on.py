@@ -111,11 +111,25 @@ def _identity() -> dict[str, Any]:
 
 
 def _heartbeat_cycle() -> int | None:
-    data = _get("/api/runtime/heartbeat", timeout=25.0)
-    if not data:
+    """Contador de ciclos del latido vivo.
+
+    Sale de `LiveHeartbeat`, que es la misma fuente que usa el watchdog para
+    decidir si hubo recuperación, y no de `/api/runtime/heartbeat`: ese endpoint
+    publica `cycles_last_hour`, no `cycle`. Leerlo con `.get("cycle") or 0`
+    devolvía 0 siempre, así que la comprobación de progreso comparaba cero
+    contra cero y no podía dar verdadero nunca — decía que el organismo no
+    avanzaba mientras el propio informe registraba workers activos.
+    """
+    try:
+        from triade.runtime.live_heartbeat import LiveHeartbeat
+
+        snapshot = LiveHeartbeat().snapshot()
+    except (OSError, ImportError, RuntimeError, ValueError, sqlite3.Error):
+        return None
+    if snapshot.get("status") == "not_started":
         return None
     try:
-        return int(data.get("cycle") or 0)
+        return int(snapshot.get("cycle") or 0)
     except (TypeError, ValueError):
         return None
 
@@ -191,13 +205,20 @@ def certify(*, wait_seconds: int = 300) -> dict[str, Any]:
             break
         time.sleep(5)
 
-    # Un proceso puede responder 200 y no avanzar. El progreso se mide exigiendo
-    # que el contador de ciclos supere al de antes del reinicio.
+    # Un proceso puede responder 200 y no avanzar. Lo que se exige es que el
+    # contador de ciclos AVANCE ya recuperado.
+    #
+    # La referencia se toma después de recuperar, no antes del crash: `cycle`
+    # cuenta los ciclos de ESTE proceso y vuelve a empezar con el proceso nuevo.
+    # Compararlo con el de antes preguntaría si el organismo recuperado ha
+    # trabajado más que el muerto, que no es la pregunta y además saldría que no.
     report["progress_after_recovery"] = False
+    baseline = _heartbeat_cycle()
+    report["heartbeat_cycle_baseline_after_restart"] = baseline
     progress_deadline = time.monotonic() + wait_seconds
     while time.monotonic() < progress_deadline:
         current = _heartbeat_cycle()
-        if current is not None and (cycle_before is None or current > cycle_before):
+        if current is not None and (baseline is None or current > baseline):
             report["progress_after_recovery"] = True
             report["heartbeat_cycle_after"] = current
             break
