@@ -220,6 +220,7 @@ Cifras medidas. «Antes» = inicio de sesión sobre `61d65f3`; «después» = ci
 | aprendizajes independientes medidos `improved` | 1 | **4** |
 | gates de consolidación | 10 | **11** (contradicción) |
 | errores de build de frontend | 0 | 0 |
+| errores de `tsc --noEmit` | 6 | **0** |
 
 ## 9. Matriz por subsistema
 
@@ -236,18 +237,20 @@ Cifras medidas. «Antes» = inicio de sesión sobre `61d65f3`; «después» = ci
 | **Federation** | CAPABILITY READY / EXTERNAL DEPENDENCY | 20 nodos registrados, transporte probado; `federated_exchange_log` en cero porque no hay segundo nodo. Las tablas de merge huérfanas ya retiradas |
 | **Safety** | CERTIFIED | 509 informes de verificación, 319 de regresión, 288 auditorías de shell, consejo convocado en la consolidación real (`council_decisions` 1→2) |
 | **Observability** | FUNCTIONAL | contrato de deuda medido y reproducible; triaje de dead letters nuevo; `quotas`/`exhausted_quotas` expuestos |
-| **Frontend** | PARTIAL | `npm ci`, `npm run build` y `npm audit` verdes, 0 vulnerabilidades. No abordado en esta iteración; ver §10 |
+| **Frontend** | PARTIAL | `npm ci`, `npm run build`, `npm audit` (0 vulnerabilidades) y `tsc --noEmit` verdes. La consola operacional no se ha abordado; ver §10 |
 
 ## 10. Lo que queda abierto
 
 Se dice explícitamente porque no está hecho:
 
-1. **Consola frontend (§16–23 del encargo).** No abordada. Existen además **6
-   errores de `tsc --noEmit` preexistentes** en `CabinaViva.tsx`: el tipo
-   `DashboardData` no declara `governor`, `always_on`, `always_on_detail`,
-   `edge_context_health` ni `workers_always_on`, que el componente sí usa. CI no
-   ejecuta `tsc`, así que no son check rojo, pero son divergencia real entre el
-   contrato declarado y el consumido.
+1. **Consola frontend (§16–23 del encargo).** No abordada: ni el panel de
+   aprendizaje, ni la distinción `ALIVE/PROGRESSING/LEARNING/IMPROVING`, ni la
+   timeline forense, ni la búsqueda global, ni la deuda navegable, ni el drill-down
+   del SYSTEM 3D, ni SSE. Sí se cerró la divergencia de contrato que se encontró
+   de camino: `DashboardData` declaraba 11 de las 21 claves que el backend envía
+   y el componente usaba cinco de las que faltaban. `tsc --noEmit` queda limpio,
+   aunque conviene saber que **CI no lo ejecuta**, así que ese tipo de
+   divergencia no aparece como check rojo.
 2. **Consolidación de los tres aprendizajes nuevos**, a la espera de la
    renovación de cupo de las 00:00 UTC. Deliberadamente no forzada.
 3. **`goals`**, pendiente de la decisión gobernada sobre el ancla de identidad.
