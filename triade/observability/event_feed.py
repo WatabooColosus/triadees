@@ -206,9 +206,15 @@ def read_recent_events(
                 elif run_id and "run_ref" in available:
                     clauses.append("run_ref = ?")
                     params.append(run_id)
+                elif run_id:
+                    # No hay correlación demostrable desde esta fuente. Incluir
+                    # sus filas sería presentar actividad ajena como parte del run.
+                    continue
                 if task_id and "task_id" in available:
                     clauses.append("CAST(task_id AS TEXT) = ?")
                     params.append(task_id)
+                elif task_id:
+                    continue
                 where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
                 rows = connection.execute(
                     f"SELECT {fields} FROM {source.table}{where} "
