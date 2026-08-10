@@ -34,7 +34,7 @@ def audit(db_path: str | Path) -> dict[str, Any]:
                 ),
                 "episodic_memories": count("SELECT COUNT(*) FROM episodic_memory"),
                 "stable_semantic_memories": count(
-                    "SELECT COUNT(*) FROM semantic_memory WHERE status='stable'"
+                    "SELECT COUNT(*) FROM semantic_documents WHERE status='stable'"
                 ),
             },
             "learning": {
@@ -48,7 +48,8 @@ def audit(db_path: str | Path) -> dict[str, Any]:
                     "SELECT COUNT(*) FROM learning_queue WHERE status IN ('consolidated','stable')"
                 ),
                 "education_passed": count(
-                    "SELECT COUNT(*) FROM neuron_education_sessions WHERE result IN ('passed','consolidated')"
+                    "SELECT COUNT(*) FROM neuron_education_sessions "
+                    "WHERE result IN ('improved','passed','consolidated')"
                 ),
             },
             "research": {
