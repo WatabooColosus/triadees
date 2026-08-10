@@ -405,6 +405,7 @@ def build_entrypoint_graph(
             if not _is_main_guard(ast_node.test):
                 continue
             node_id = f"entrypoint:{relative}"
+            administrative = _administrative_on_demand(tree, relative)
             nodes[node_id] = GraphNode(
                 node_id,
                 "file",
@@ -416,6 +417,14 @@ def build_entrypoint_graph(
                     "kind": "main_guard",
                     "line": ast_node.lineno,
                     "launchers": 0,
+                    "activation": (
+                        "administrative_on_demand" if administrative else "runtime"
+                    ),
+                    "activation_evidence": (
+                        "argparse --apply gate + rollback option"
+                        if administrative
+                        else "main_guard_only"
+                    ),
                 },
             )
             break
@@ -466,6 +475,29 @@ def build_entrypoint_graph(
         )
 
     return sorted(nodes.values(), key=lambda n: n.node_id), edges
+
+
+def _administrative_on_demand(tree: ast.Module, relative: str) -> bool:
+    """Reconoce herramientas reversibles por su contrato AST, no por su nombre."""
+    if not relative.startswith("scripts/"):
+        return False
+    options: set[str] = set()
+    imports_argparse = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports_argparse |= any(alias.name == "argparse" for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            imports_argparse |= node.module == "argparse"
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if node.func.attr != "add_argument":
+                continue
+            options.update(
+                arg.value
+                for arg in node.args
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+            )
+    rollback = {"--rollback", "--revert", "--revertir"}
+    return imports_argparse and "--apply" in options and bool(options & rollback)
 
 
 def reachable_modules(

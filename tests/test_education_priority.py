@@ -60,3 +60,38 @@ def test_la_educacion_no_desplaza_a_la_observacion_barata(tmp_path) -> None:
 
     # `bodega_global_review` va en 12 y `semantic_memory_governance` en 13.
     assert educacion[0].priority > 13
+
+
+def test_sesion_con_cinco_runs_vuelve_a_encolar_el_resolutor(tmp_path) -> None:
+    """Una revisión futura no puede dejar una lección ya medible sin consumidor."""
+    import sqlite3
+
+    db = tmp_path / "triade.db"
+    with sqlite3.connect(db) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE neurons (id INTEGER PRIMARY KEY, status TEXT, domain TEXT);
+            CREATE TABLE neuron_competencies (
+                neuron_id INTEGER, domain TEXT, next_review TEXT
+            );
+            CREATE TABLE neuron_education_sessions (
+                session_id TEXT PRIMARY KEY, state TEXT, baseline_score REAL
+            );
+            CREATE TABLE neuron_education_applications (
+                session_id TEXT, run_id TEXT
+            );
+            INSERT INTO neurons VALUES (1, 'experimental', 'x');
+            INSERT INTO neuron_competencies VALUES (1, 'x', '2099-01-01');
+            INSERT INTO neuron_education_sessions
+                VALUES ('education-ready', 'lesson_prepared', 0.5);
+            """
+        )
+        conn.executemany(
+            "INSERT INTO neuron_education_applications VALUES ('education-ready', ?)",
+            [(f"run-{index}",) for index in range(5)],
+        )
+
+    planned = MissionPlanner(db_path=db)._plan_neuron_education()
+
+    assert len(planned) == 1
+    assert "5+ runs medidos" in planned[0].reason

@@ -78,6 +78,25 @@ class NeuronEducationResolver:
     def _next_session(self, conn: sqlite3.Connection) -> sqlite3.Row | None:
         if not self._has_table(conn, "neuron_education_sessions"):
             return None
+        if self._has_table(conn, "neuron_education_applications"):
+            # Una sesión que ya puede producir una decisión debe preceder a la
+            # rotación de sesiones todavía inmaduras. En producción había tres
+            # con siete runs medidos, pero el orden por ``finished_at`` elegía
+            # primero otra con cero y el ciclo volvía a terminar en
+            # ``insufficient_evidence``.
+            ready = conn.execute(
+                """SELECT * FROM neuron_education_sessions s
+                WHERE s.state = 'lesson_prepared'
+                  AND s.baseline_score IS NOT NULL
+                  AND (SELECT COUNT(*)
+                       FROM neuron_education_applications a
+                       WHERE a.session_id=s.session_id
+                         AND a.outcome_score IS NOT NULL) >= ?
+                ORDER BY s.finished_at, s.created_at LIMIT 1""",
+                (MIN_APPLIED_RUNS,),
+            ).fetchone()
+            if ready is not None:
+                return ready
         # Rota entre sesiones. Ordenando solo por `created_at`, una sesion en
         # `insufficient_evidence` --que conserva el estado `lesson_prepared` a
         # proposito, esperando mas runs-- se elegia siempre y las demas no se

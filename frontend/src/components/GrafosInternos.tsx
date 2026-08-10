@@ -46,11 +46,16 @@ type Debt = {
   debt_items_total?: number; graphs_age_seconds?: number
   items: Record<string, DebtEntry>; refresh?: Refresh
 }
+type Health = {
+  state: string; raw_state: string; reasons: string[]; checked_at: string
+  source: string; components: Record<string, { state: string; evidence: string; last_progress?: string }>
+}
 
 export function GrafosInternos() {
   const [view, setView] = useState<string>('debt')
   const [graph, setGraph] = useState<Graph | null>(null)
   const [debt, setDebt] = useState<Debt | null>(null)
+  const [health, setHealth] = useState<Health | null>(null)
   const [legend, setLegend] = useState<any[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [detail, setDetail] = useState<any>(null)
@@ -60,6 +65,9 @@ export function GrafosInternos() {
   const [hot, setHot] = useState<Set<string>>(new Set())
   const [pan, setPan] = useState({ x: 0, y: 0, k: 1 })
   const [camera, setCamera] = useState({ rx: -0.22, ry: 0.48 })
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<any[]>([])
+  const [timelineFilter, setTimelineFilter] = useState('')
   const drag = useRef<{ x: number; y: number; rx: number; ry: number } | null>(null)
 
   /* Pulso vivo: acciones ocurridas y señales de SQLite, nunca la estructura.
@@ -96,12 +104,34 @@ export function GrafosInternos() {
       } catch (e: any) { setError(e.message || 'no se pudo leer la deuda') }
       return
     }
+    if (name === 'health') {
+      setGraph(null)
+      try {
+        const res = await fetch('/api/internal-graphs/health')
+        if (!res.ok) throw new Error(`${res.status}`)
+        setHealth(await res.json())
+      } catch (e: any) { setError(e.message || 'no se pudo medir salud') }
+      return
+    }
+    if (name === 'timeline') {
+      setGraph(null)
+      const value = timelineFilter.trim()
+      const key = value.startsWith('task-') ? 'task_id' : 'run_id'
+      const params = value ? `?${key}=${encodeURIComponent(value)}` : ''
+      try {
+        const res = await fetch(`/api/internal-graphs/timeline${params}`)
+        if (!res.ok) throw new Error(`${res.status}`)
+        const payload = await res.json()
+        setActions(payload.events || [])
+      } catch (e: any) { setError(e.message || 'no se pudo leer timeline') }
+      return
+    }
     try {
       const res = await fetch(`/api/internal-graphs/graph/${name}`)
       if (!res.ok) throw new Error(`${res.status}`)
       setGraph(await res.json())
     } catch (e: any) { setError(e.message || 'no se pudo leer el grafo') }
-  }, [])
+  }, [timelineFilter])
 
   useEffect(() => { loadGraph(view) }, [view, loadGraph])
 
@@ -123,6 +153,22 @@ export function GrafosInternos() {
     } catch { setDetail(null) }
   }
 
+  async function search() {
+    if (!query.trim()) { setResults([]); return }
+    try {
+      const res = await fetch(`/api/internal-graphs/search?q=${encodeURIComponent(query)}`)
+      if (!res.ok) throw new Error(`${res.status}`)
+      setResults((await res.json()).results || [])
+    } catch (e: any) { setError(e.message || 'búsqueda fallida') }
+  }
+
+  function focusResult(result: any) {
+    setView(result.graph)
+    setSelected(result.node_id)
+    setResults([])
+    window.setTimeout(() => openNode(result.node_id), 0)
+  }
+
   const shown = graph ? graph.nodes.slice(0, NODE_CAP) : []
   const visible = new Set(shown.map(n => n.node_id))
   const edges = graph ? graph.edges.filter(e => visible.has(e.source) && visible.has(e.target)) : []
@@ -133,10 +179,30 @@ export function GrafosInternos() {
       <div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
           <TabBtn active={view === 'debt'} onClick={() => setView('debt')} label="⚠ Dónde se rompe" />
+          <TabBtn active={view === 'health'} onClick={() => setView('health')} label="SYSTEM HEALTH" />
+          <TabBtn active={view === 'timeline'} onClick={() => setView('timeline')} label="Timeline" />
           {GRAPHS.map(g => (
             <TabBtn key={g.key} active={view === g.key} onClick={() => setView(g.key)} label={g.label} />
           ))}
         </div>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 6, position: 'relative' }}>
+          <input value={query} onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') search() }}
+            placeholder="Buscar worker, tabla, módulo, neurona, goal, task, run…"
+            style={{ flex: 1, background: 'var(--bg-base)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 8px' }} />
+          <button onClick={search}>Buscar</button>
+          <button onClick={() => { setPan({ x: 0, y: 0, k: 1 }); setCamera({ rx: -0.22, ry: 0.48 }) }}>Reset cámara</button>
+          {results.length > 0 && <div style={{ position: 'absolute', top: 34, left: 0, right: 180, zIndex: 5, background: 'var(--bg-surface)', border: '1px solid var(--border)', maxHeight: 220, overflowY: 'auto' }}>
+            {results.map(r => <button key={`${r.graph}:${r.node_id}`} onClick={() => focusResult(r)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: 7, background: 'transparent', color: 'var(--text-primary)', border: 0, borderBottom: '1px solid var(--border)' }}>
+              {r.label} · {r.graph} · {r.state}
+            </button>)}
+          </div>}
+        </div>
+        {view === 'timeline' && <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+          <input value={timelineFilter} onChange={e => setTimelineFilter(e.target.value)} placeholder="run_id o task_id"
+            style={{ flex: 1, background: 'var(--bg-base)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px' }} />
+          <button onClick={() => loadGraph('timeline')}>Filtrar evidencia</button>
+        </div>}
         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{error || status}</div>
         {legend.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
@@ -154,6 +220,10 @@ export function GrafosInternos() {
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-surface)' }}>
           {view === 'debt'
             ? <DebtChart debt={debt} />
+            : view === 'health'
+              ? <HealthGrid health={health} />
+              : view === 'timeline'
+                ? <AccionesEnVivo actions={actions} />
             : (
               <svg
                 style={{ width: '100%', height: '100%', cursor: drag.current ? 'grabbing' : 'grab' }}
@@ -207,7 +277,7 @@ export function GrafosInternos() {
                 </g>
               </svg>
             )}
-          {view !== 'debt' && <div style={{ position: 'absolute', margin: 8, fontSize: 10, color: 'var(--text-muted)', pointerEvents: 'none' }}>
+          {!['debt', 'health', 'timeline'].includes(view) && <div style={{ position: 'absolute', margin: 8, fontSize: 10, color: 'var(--text-muted)', pointerEvents: 'none' }}>
             arrastra: girar · shift+arrastra: mover · rueda: zoom · doble clic: entrar
           </div>}
         </div>
@@ -215,13 +285,41 @@ export function GrafosInternos() {
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, overflowY: 'auto', background: 'var(--bg-surface)' }}>
           {view === 'debt'
             ? <DebtPanel debt={debt} />
+            : view === 'health'
+              ? <HealthEvidence health={health} />
+              : view === 'timeline'
+                ? <p style={{ color: 'var(--text-muted)', fontSize: 11 }}>Cada entrada referencia una fila persistida. El filtro no sintetiza correlaciones ausentes.</p>
             : <NodePanel graph={graph} detail={detail} shownCount={shown.length} />}
         </div>
       </div>
 
-      <AccionesEnVivo actions={actions} />
+      {!['timeline'].includes(view) && <AccionesEnVivo actions={actions} />}
     </div>
   )
+}
+
+function HealthGrid({ health }: { health: Health | null }) {
+  if (!health) return <p style={{ padding: 12, color: 'var(--text-muted)' }}>Midiendo…</p>
+  return <div style={{ padding: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10 }}>
+    {Object.entries(health.components).map(([name, item]) => <div key={name} style={{ border: '1px solid var(--border)', borderRadius: 7, padding: 10 }}>
+      <b>{name}</b><div style={{ color: healthColor(item.state), marginTop: 5 }}>{item.state}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 5 }}>{item.last_progress || 'sin timestamp disponible'}</div>
+    </div>)}
+  </div>
+}
+
+function HealthEvidence({ health }: { health: Health | null }) {
+  if (!health) return null
+  return <div style={{ fontSize: 11 }}><h3>{health.state}</h3><p>{health.reasons.join(' · ') || 'sin degradaciones'}</p>
+    {Object.entries(health.components).map(([name, item]) => <div key={name} style={{ borderTop: '1px solid var(--border)', padding: '7px 0' }}><b>{name}</b><br /><code>{item.evidence}</code></div>)}
+    <p style={{ color: 'var(--text-muted)' }}>fuente: {health.source}</p></div>
+}
+
+function healthColor(state: string) {
+  if (state === 'healthy') return '#1b7f4b'
+  if (state === 'recovering') return '#c58b1b'
+  if (state === 'failed' || state === 'stalled') return '#b03030'
+  return '#8b949e'
 }
 
 /* El registro de acciones es la prueba de que el grafo se mueve con el sistema

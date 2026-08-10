@@ -169,6 +169,67 @@ def read_new_events(
     return events, advanced
 
 
+def read_recent_events(
+    db_path: Path | None,
+    *,
+    limit: int = DEFAULT_LIMIT,
+    run_id: str | None = None,
+    task_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Lee historia reciente verificable, separada del cursor SSE vivo.
+
+    El stream conserva su contrato de no inventar historia al conectar. Esta
+    lectura explícita existe para la timeline y sólo devuelve filas persistidas;
+    los filtros se aplican sobre las columnas reales de cada fuente.
+    """
+    connection = open_readonly(db_path)
+    if connection is None:
+        return []
+    connection.row_factory = sqlite3.Row
+    events: list[dict[str, Any]] = []
+    try:
+        for source in SOURCES:
+            try:
+                available = {
+                    str(row[1])
+                    for row in connection.execute(f"PRAGMA table_info({source.table})")
+                }
+                selected = [column for column in source.columns if column in available]
+                fields = ", ".join([source.key, *selected])
+                if source.timestamp in available:
+                    fields += f", {source.timestamp}"
+                clauses: list[str] = []
+                params: list[Any] = []
+                if run_id and "run_id" in available:
+                    clauses.append("run_id = ?")
+                    params.append(run_id)
+                elif run_id and "run_ref" in available:
+                    clauses.append("run_ref = ?")
+                    params.append(run_id)
+                elif run_id:
+                    # No hay correlación demostrable desde esta fuente. Incluir
+                    # sus filas sería presentar actividad ajena como parte del run.
+                    continue
+                if task_id and "task_id" in available:
+                    clauses.append("CAST(task_id AS TEXT) = ?")
+                    params.append(task_id)
+                elif task_id:
+                    continue
+                where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+                rows = connection.execute(
+                    f"SELECT {fields} FROM {source.table}{where} "
+                    f"ORDER BY {source.key} DESC LIMIT ?",
+                    (*params, max(1, limit)),
+                ).fetchall()
+            except sqlite3.Error:
+                continue
+            events.extend(_describe(source, row, int(row[source.key])) for row in rows)
+    finally:
+        connection.close()
+    events.sort(key=lambda event: event.get("at") or "", reverse=True)
+    return events[: max(1, limit)]
+
+
 def _describe(source: EventSource, row: sqlite3.Row, identifier: int) -> dict[str, Any]:
     keys = set(row.keys())
     data = {c: row[c] for c in source.columns if c in keys}

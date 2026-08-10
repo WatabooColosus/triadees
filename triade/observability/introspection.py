@@ -331,6 +331,12 @@ def _classify_with_contracts(
         reachable=_reachable_paths_from_artifacts(cache_dir),
     )
     recuento: dict[str, int] = {}
+    entrypoints = _load(cache_dir, "entrypoint_graph") or {}
+    administrative = {
+        str(node.get("label") or ""): node.get("metadata") or {}
+        for node in entrypoints.get("nodes", ())
+        if (node.get("metadata") or {}).get("activation") == "administrative_on_demand"
+    }
     for categoria, entry in items.items():
         if not entry.get("count"):
             continue
@@ -338,6 +344,18 @@ def _classify_with_contracts(
         clasificados: dict[str, Any] = {}
         rotos: dict[str, Any] = {}
         for nombre in entry.get("items", entry.get("sample", [])):
+            if categoria == "entrypoints_without_launcher" and nombre in administrative:
+                metadata = administrative[nombre]
+                clasificados[nombre] = {
+                    "subject": f"entrypoint:{nombre}",
+                    "classification": "ON_DEMAND",
+                    "reason": "CLI administrativa reversible con escritura opt-in",
+                    "contract_holds": True,
+                    "failed_evidence": [],
+                    "evidence": metadata.get("activation_evidence"),
+                }
+                recuento["ON_DEMAND"] = recuento.get("ON_DEMAND", 0) + 1
+                continue
             contrato = contratos.get(f"{prefijo}:{nombre}")
             if contrato is None:
                 continue
