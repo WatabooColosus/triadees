@@ -1,77 +1,69 @@
 #!/bin/bash
-# Tríade Ω · Auto-start after Lightning Studio reboot
-# This script runs every time the Studio starts.
+# Tríade Ω · Arranque automático tras el reinicio del Lightning Studio.
 #
-# Systemd (triade-ollama, triade-api, triade-workers, triade-watchdog) is the
-# single source of truth for process supervision: units are `enabled`, so they
-# already start on boot via multi-user.target with Restart=always. This script
-# must NOT start those processes manually with nohup — a manual process and a
-# systemd unit racing for the same port leaves the systemd unit stuck in an
-# infinite crash-restart loop while an unsupervised orphan actually serves
-# traffic (observed 2026-07-30: triade-ollama.service crash-looped 150+ times
-# post-reboot because a manual `nohup ollama serve` from this script won the
-# port race). `systemctl start` is idempotent, so it is always safe to call.
+# Este fichero es el ÚNICO punto de entrada del arranque, y existe aquí porque
+# ~/.lightning_studio vive en /teamspace/studios/this_studio, que es lo único
+# que persiste cuando el Studio se recrea. La raíz del contenedor es un overlay:
+# /etc/systemd/system vuelve vacío en cada arranque.
+#
+# Ese detalle es la causa de que Tríade no sobreviviera a un reinicio. La versión
+# anterior de este guion afirmaba en su cabecera que las units «ya arrancan solas
+# por boot porque están enabled». No lo estaban: no existían. El 2026-08-10, con
+# el Studio 19 minutos arriba, había cero units `triade*` instaladas y nada
+# escuchando en el 8010, mientras studio-web.log seguía con la parada limpia de
+# la sesión anterior.
+#
+# La cadena queda así, con un solo mecanismo de supervisión:
+#
+#   BOOT -> on_start.sh -> install_systemd_units.sh -> systemd -> triade-api
+#
+# systemd es el único que mantiene procesos vivos. Este guion no lanza nada con
+# nohup: un proceso manual que gane la carrera por el puerto deja a la unit
+# reiniciándose en bucle mientras sirve tráfico algo que nadie supervisa (pasó el
+# 2026-07-30 con triade-ollama y 150+ reinicios).
+
+set -uo pipefail
 
 REPO_DIR="/teamspace/studios/this_studio/triadees"
 LOG_DIR="$REPO_DIR/logs"
-OLLAMA_BIN="/teamspace/studios/this_studio/.ollama/runtime/bin/ollama"
-OLLAMA_ROOT="/teamspace/studios/this_studio/.ollama"
-PORT=8010
+BOOT_LOG="$LOG_DIR/on_start.log"
 
-mkdir -p "$LOG_DIR" "$OLLAMA_ROOT/models"
+mkdir -p "$LOG_DIR"
 
-export OLLAMA_HOST="${OLLAMA_HOST:-127.0.0.1:11434}"
-export OLLAMA_MODELS="${OLLAMA_MODELS:-$OLLAMA_ROOT/models}"
-export CUDA_VISIBLE_DEVICES="0"
-export OLLAMA_MAX_LOADED_MODELS="${OLLAMA_MAX_LOADED_MODELS:-3}"
-export OLLAMA_NUM_PARALLEL="${OLLAMA_NUM_PARALLEL:-4}"
-export PYTHONUNBUFFERED=1
+exec >>"$BOOT_LOG" 2>&1
+echo "=== on_start $(date -Is) ==="
 
-start_via_systemd_or_fallback() {
-    unit="$1"
-    fallback_cmd="$2"
-    log_file="$3"
+# 1. Modos de fichero. El reinicio del Studio deja todo el árbol en 0744, y eso
+#    rompe dos cosas silenciosamente: `ruff check` (715 EXE002 falsos) y la clave
+#    de backup, que EncryptedBackup se niega a usar si no está en 0600. Va antes
+#    que nada porque los servicios ya arrancan leyendo esa clave.
+bash "$REPO_DIR/scripts/restore_file_modes.sh" || echo "AVISO: no se pudieron restaurar los modos"
 
-    if systemctl list-unit-files "$unit" >/dev/null 2>&1 && systemctl list-unit-files "$unit" | grep -q "$unit"; then
-        sudo systemctl start "$unit" >>"$LOG_DIR/on_start_systemd.log" 2>&1
-    else
-        # Bootstrap fallback: no systemd unit installed yet for this service.
-        nohup bash -c "$fallback_cmd" >"$log_file" 2>&1 &
-    fi
-}
+# 2. Units de systemd: instalar desde el repo, habilitar y arrancar. Idempotente.
+bash "$REPO_DIR/scripts/install_systemd_units.sh" || echo "AVISO: fallo instalando units"
 
-# 1. Ollama — prefer systemd; fall back to nohup only if the unit is missing.
-start_via_systemd_or_fallback \
-    "triade-ollama.service" \
-    "'$OLLAMA_BIN' serve" \
-    "$LOG_DIR/studio-ollama.log"
+for unit in triade-ollama.service triade-api.service triade-watchdog.service; do
+    sudo systemctl start "$unit" || echo "AVISO: no arrancó $unit"
+done
+sudo systemctl start triade-backup.timer || true
 
-for i in $(seq 1 60); do
+# 3. Esperar a Ollama sólo para sincronizar modelos. La API no espera por esto:
+#    si Ollama tarda o falla, arranca igual y queda con el modelo degradado.
+for _ in $(seq 1 60); do
     curl -sf --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1 && break
     sleep 1
 done
 
-# 2. Ensure required models (idempotent, not process supervision — no race).
 MODELS_FILE="$REPO_DIR/config/studio-models.txt"
 if [ -f "$MODELS_FILE" ] && curl -sf --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+    # Descarga de modelos: es sincronización de datos, no supervisión de
+    # procesos, así que aquí sí es correcto lanzarlo en segundo plano.
     nohup "$REPO_DIR/scripts/ensure_studio_models.sh" "$MODELS_FILE" \
         >"$LOG_DIR/studio-model-sync.log" 2>&1 &
 fi
 
-# 3. API — prefer systemd; fall back to nohup only if the unit is missing.
-start_via_systemd_or_fallback \
-    "triade-api.service" \
-    "cd '$REPO_DIR' && python -m uvicorn apps.single_port_app:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'" \
-    "$LOG_DIR/studio-web.log"
-
-# 4. Workers / watchdog — systemd-only, enabled units already start on boot.
-#    Idempotent nudge in case the unit files were installed after boot.
-for unit in triade-workers.service triade-watchdog.service; do
-    if systemctl list-unit-files "$unit" 2>/dev/null | grep -q "$unit"; then
-        sudo systemctl start "$unit" >>"$LOG_DIR/on_start_systemd.log" 2>&1
-    fi
-done
-
-# 5. Run verification (read-mostly; safe to run every boot).
+# 4. Verificación del arranque (sólo lectura).
 nohup bash "$REPO_DIR/scripts/post_reboot_verify.sh" \
     >"$LOG_DIR/post-reboot-verify.log" 2>&1 &
+
+echo "=== on_start terminado $(date -Is) ==="
