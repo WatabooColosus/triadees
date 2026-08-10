@@ -201,11 +201,71 @@ def apply(db_path: Path, *, include_anchor_rebase: bool) -> dict[str, Any]:
     return manifiesto
 
 
+def rollback(manifest_path: Path, db_path: Path | None = None) -> dict[str, Any]:
+    """Deshace una retirada concreta a partir de su manifiesto.
+
+    Se puede porque el manifiesto guarda el `CREATE TABLE` de cada tabla y
+    porque sólo se retiran tablas vacías: restaurar es recrear el esquema, no
+    recuperar datos. Si alguna volvió a existir entretanto se deja como está y
+    se dice —recrearla encima sería peor que no hacer nada.
+
+    Existir importa más que usarse: una operación destructiva sin vuelta atrás
+    no debería haberse ofrecido, y sin este camino el detector de deuda tenía
+    razón al no reconocer este script como herramienta reversible.
+    """
+    manifiesto = json.loads(manifest_path.read_text(encoding="utf-8"))
+    objetivo = Path(db_path or manifiesto["db_path"])
+    esquemas = {
+        t["table"]: t.get("schema")
+        for m in manifiesto.get("migrations", [])
+        for t in m.get("tables", [])
+    }
+
+    conn = sqlite3.connect(objetivo, timeout=30)
+    restauradas: list[str] = []
+    omitidas: list[dict[str, str]] = []
+    try:
+        with conn:
+            for tabla in manifiesto.get("dropped", []):
+                esquema = esquemas.get(tabla)
+                if not esquema:
+                    omitidas.append(
+                        {"table": tabla, "reason": "schema_not_in_manifest"}
+                    )
+                    continue
+                existe = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                    (tabla,),
+                ).fetchone()
+                if existe:
+                    omitidas.append({"table": tabla, "reason": "already_present"})
+                    continue
+                conn.execute(esquema)
+                restauradas.append(tabla)
+    finally:
+        conn.close()
+
+    return {
+        "rolled_back": True,
+        "manifest": str(manifest_path),
+        "db_path": str(objetivo),
+        "restored": restauradas,
+        "skipped": omitidas,
+        "at": _now(),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     parser.add_argument(
         "--apply", action="store_true", help="ejecuta; sin esto sólo informa"
+    )
+    parser.add_argument(
+        "--rollback",
+        type=Path,
+        metavar="MANIFIESTO",
+        help="recrea las tablas retiradas por ese manifiesto",
     )
     parser.add_argument(
         "--include-anchor-rebase",
@@ -214,11 +274,12 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    resultado = (
-        apply(args.db, include_anchor_rebase=args.include_anchor_rebase)
-        if args.apply
-        else plan(args.db, include_anchor_rebase=args.include_anchor_rebase)
-    )
+    if args.rollback:
+        resultado = rollback(args.rollback, args.db if args.db != DEFAULT_DB else None)
+    elif args.apply:
+        resultado = apply(args.db, include_anchor_rebase=args.include_anchor_rebase)
+    else:
+        resultado = plan(args.db, include_anchor_rebase=args.include_anchor_rebase)
     print(json.dumps(resultado, indent=2, ensure_ascii=False))
     return 0
 
