@@ -55,7 +55,9 @@ RETIREMENT_MIGRATIONS = (
 #: Las que además exigen una operación gobernada sobre la identidad.
 REQUIRES_ANCHOR_REBASE = frozenset({"036_retire_goals.sql"})
 
-_DROP = re.compile(r"DROP\s+TABLE\s+IF\s+EXISTS\s+([A-Za-z_][A-Za-z0-9_]*)", re.I)
+_DROP = re.compile(
+    r"DROP\s+TABLE\s+IF\s+EXISTS\s+([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE
+)
 
 
 def _now() -> str:
