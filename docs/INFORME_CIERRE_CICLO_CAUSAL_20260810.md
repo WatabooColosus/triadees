@@ -111,8 +111,8 @@ llamaba a `doctor()`.
 
 Ahora drena fuera de la ruta caliente, de diez en diez. Sin borrar el vector
 viejo: `store_embedding` es único por `(document_id, embedding_model)`, así que
-el hash queda inerte y el bueno se añade. **171 vectores reales** al cierre de
-esta sesión, subiendo.
+el hash queda inerte y el bueno se añade. **361 de 369 documentos** con vector real al cierre del soak,
+partiendo de 0.
 
 ## 5. Contradicción: el gate que faltaba
 
@@ -196,7 +196,40 @@ como bug vigente sólo porque la hemorragia se cerró siete horas antes y la
 ventana era de veinticuatro. «Murió hace poco» y «la causa sigue mordiendo» son
 cosas distintas.
 
-## 8. Tabla comparativa
+## 8. Soak de continuidad: 60 minutos
+
+Muestreo por minuto entre 03:49:34 y 04:50:05 UTC, 60 muestras, con el runtime
+levantado por el launcher oficial y sin intervención durante la ventana.
+
+| métrica | inicio | fin | delta |
+|---|---|---|---|
+| tareas completadas | 15.084 | 15.493 | **+409** |
+| tareas fallidas | 0 | 0 | **0** |
+| dead letters | 181 | 181 | **0 nuevas** |
+| recuperaciones del watchdog | 515 | 515 | **0 necesarias** |
+| workers atascados (`leased`) | 0 | 0 | máximo observado **0** |
+| ciclos metabólicos | 14.679 | 14.891 | +212 |
+| `integrity_check` | ok | ok | **ok en las 60 muestras** |
+| FK violations | 0 | 0 | **0 en las 60 muestras** |
+| candidatos | 859 | 879 | +20 |
+| evidencias medidas | 333 | 348 | +15 |
+| `evidence_verified` | 16 | 18 | +2 |
+| vectores reales | 71 | 361 | **+290** |
+| recuperaciones de aprendizaje | 291 | 307 | +16 |
+| RSS del runtime | 250,7 MB | 427,0 MB | **+176,3 MB** |
+
+El organismo trabajó, aprendió y reindexó durante la hora sin perder una sola
+tarea ni necesitar una recuperación.
+
+**La única cifra que no cierra bien es el RSS.** Creció 176 MB en una hora y no
+llegó a estabilizarse: pareció mesetar en ~415 MB hacia el minuto 26 y siguió
+hasta 427. Coincide con el drenaje de embeddings —290 vectores de 768
+dimensiones generados en la ventana—, así que la hipótesis más simple es que sea
+trabajo en curso y no una fuga. **No está caracterizado**: haría falta un soak
+posterior al drenaje, con el corpus ya reindexado, para separar una cosa de la
+otra. No se afirma que sea inocuo.
+
+## 9. Tabla comparativa
 
 Cifras medidas. «Antes» = inicio de sesión sobre `61d65f3`; «después» = cierre.
 
@@ -215,21 +248,21 @@ Cifras medidas. «Antes» = inicio de sesión sobre `61d65f3`; «después» = ci
 | `evidence_verified` | 15 | 17 |
 | consolidados | 1 (forzado por operador) | **2 (1 autónomo)** |
 | documentos semánticos `stable` | 1 | **2** |
-| vectores que la búsqueda puede encontrar | **0** de 351 | **171** y subiendo |
+| vectores que la búsqueda puede encontrar | **0** de 351 | **361** de 369 |
 | usos causales confirmados | 3 (1 candidato) | **13 (4 candidatos)** |
 | aprendizajes independientes medidos `improved` | 1 | **4** |
 | gates de consolidación | 10 | **11** (contradicción) |
 | errores de build de frontend | 0 | 0 |
 | errores de `tsc --noEmit` | 6 | **0** |
 
-## 9. Matriz por subsistema
+## 10. Matriz por subsistema
 
 | subsistema | veredicto | evidencia |
 |---|---|---|
-| **Runtime** | CERTIFIED | 62 min de soak sin fallos; `/health/deep healthy`; `integrity ok`; FK 0; 515 recuperaciones históricas y 0 nuevas |
+| **Runtime** | CERTIFIED | 60 min de soak: 409 tareas, 0 fallos, 0 recuperaciones; `/health/deep healthy`; `integrity ok`; FK 0; 515 recuperaciones históricas y 0 nuevas |
 | **Workers** | CERTIFIED | 16.578 tareas, 0 `leased` colgadas, 0 dead letters nuevas, 31.216 transiciones registradas |
 | **Scheduler** | FUNCTIONAL | 17.403 entradas de historia, 19 métricas por tipo; el cupo por clase ya no se auto-bloquea |
-| **Memory** | FUNCTIONAL | 369 documentos, 2 `stable`, recuperación gobernada con veredicto por documento. Vectorial en reparación activa: 171 de 369 |
+| **Memory** | FUNCTIONAL | 369 documentos, 2 `stable`, recuperación gobernada con veredicto por documento. Vectorial reparada: 361 de 369 con vector real, desde 0 |
 | **Learning** | CERTIFIED | ciclo completo con identificadores reales; 4 aprendizajes medidos `improved`; 13 usos causales; 11 gates con batería adversarial |
 | **Goals** | PARTIAL | `planning_graph` 30 filas y `goal_events` 8 vivos; `goal_dependencies` y `goal_learning_observations` en cero: escritor alcanzable, sin disparo natural |
 | **Improvement** | BLOCKED (por diseño) | `improvement_history` 5, `failure_lessons` 5, `signals` 1; propuestas y canarios en cero tras aprobación humana, clasificado HUMAN_GATED con contrato verificado |
@@ -239,7 +272,7 @@ Cifras medidas. «Antes» = inicio de sesión sobre `61d65f3`; «después» = ci
 | **Observability** | FUNCTIONAL | contrato de deuda medido y reproducible; triaje de dead letters nuevo; `quotas`/`exhausted_quotas` expuestos |
 | **Frontend** | PARTIAL | `npm ci`, `npm run build`, `npm audit` (0 vulnerabilidades) y `tsc --noEmit` verdes. La consola operacional no se ha abordado; ver §10 |
 
-## 10. Lo que queda abierto
+## 11. Lo que queda abierto
 
 Se dice explícitamente porque no está hecho:
 
@@ -258,6 +291,7 @@ Se dice explícitamente porque no está hecho:
    `relational_modulation_*`, `neuron_candidates`, `sandbox_executions` y
    compañía**: 20 de las 21 deudas restantes son tablas con escritor alcanzable
    y sin disparo natural. Auditadas y clasificadas, no reparadas.
-5. **Crecimiento de RSS** durante el soak: 250 → ~390 MB en la primera media
-   hora, coincidiendo con el drenaje de embeddings. No se ha caracterizado si se
-   estabiliza.
+5. **Crecimiento de RSS** durante el soak: 250,7 → 427,0 MB en una hora, sin
+   estabilizarse. Coincide con el drenaje de 290 embeddings, pero **no está
+   caracterizado**: hace falta un soak posterior al drenaje para separar trabajo
+   en curso de fuga. Ver §8.
