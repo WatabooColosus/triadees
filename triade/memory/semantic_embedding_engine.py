@@ -351,6 +351,23 @@ class SemanticEmbeddingEngine:
                 "stale_found": 0,
                 "documents": [],
             }
+        if str(selection.get("reason", "")).startswith("local_fallback"):
+            # En degradación no se reescribe el índice de la memoria estable.
+            # `sentence-transformers` está instalado, así que basta con que
+            # Ollama se caiga un rato para que `select_model()` devuelva el
+            # respaldo local: sin este freno el worker reembebería los 369
+            # documentos con un modelo peor y los volvería a reembeber al
+            # volver Ollama, en un vaivén que además dejaría la memoria
+            # indexada por el modelo degradado justo mientras dura la avería.
+            # La búsqueda sigue funcionando por el canal de palabras clave,
+            # que es exactamente lo que la sostuvo hasta ahora.
+            return {
+                "status": "skipped",
+                "reason": f"degraded:{selection.get('reason')}",
+                "selected_model": modelo,
+                "stale_found": 0,
+                "documents": [],
+            }
         vigentes = {
             item["document_id"]
             for item in self.store.list_embeddings()

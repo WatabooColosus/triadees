@@ -207,3 +207,36 @@ def test_reembed_stale_does_nothing_without_an_embedding_model(tmp_path) -> None
 
     assert resultado["status"] == "skipped"
     assert resultado["reembedded_ok"] == 0
+
+
+def test_a_degraded_model_never_rewrites_the_stable_index(tmp_path) -> None:
+    """Con Ollama caído no se reindexa la memoria con el modelo de respaldo.
+
+    `sentence-transformers` está instalado, así que basta con que Ollama se
+    caiga un rato para que `select_model()` devuelva el respaldo local. Sin
+    freno, el worker reembebería el corpus entero con un modelo peor y lo
+    volvería a reembeber al volver Ollama: un vaivén que además deja la memoria
+    indexada por el modelo degradado justo mientras dura la avería.
+    """
+    engine = make_engine(tmp_path, UnavailableClient(), use_local_fallback=True)
+    documento = engine.store.upsert_document(
+        content="Un modelo peor no reescribe lo que ya está indexado.",
+        domain="conversation",
+        source_type="learning_pipeline",
+        source_ref="run:test",
+        status="stable",
+    )
+    engine.store.store_embedding(
+        documento.document_id, "nomic-embed-text:latest", [0.5] * 768
+    )
+
+    resultado = engine.reembed_stale()
+
+    assert resultado["status"] == "skipped"
+    assert str(resultado["reason"]).startswith("degraded:")
+    assert resultado["reembedded_ok"] == 0
+    modelos = {
+        item["embedding_model"]
+        for item in engine.store.list_embeddings(documento.document_id)
+    }
+    assert modelos == {"nomic-embed-text:latest"}
