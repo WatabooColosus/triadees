@@ -6,7 +6,7 @@ lo que decide si hay que arreglarla, documentarla o descartarla. Sin esa
 separación un contador de 100 no es accionable: mezcla cortes reales con
 subsistemas a medio conectar y con límites conocidos del análisis estático.
 
-Las cinco clases y la regla que las decide, todas comprobables:
+Las seis clases y la regla que las decide, todas comprobables:
 
 `confirmed_break`
     Hay lector vivo, hay escritor alcanzable desde un entrypoint arrancado, y
@@ -26,6 +26,14 @@ Las cinco clases y la regla que las decide, todas comprobables:
     valor manda. Se marca como tal **sólo** cuando se demuestra que existe una
     escritura parametrizada sobre esa columna en un módulo que lee ese estado.
 
+`contracted_by_design`
+    Tiene un contrato de activación cuya evidencia **se sostiene ahora mismo**:
+    una bitácora de sólo escritura, una tabla histórica, una capacidad que
+    espera un estímulo externo que no ha llegado. La decisión ya se tomó y está
+    documentada; volver a contarla infla la deuda y empuja a «arreglarla»
+    inventándole un lector, que no conecta nada y hace parecer que hubo consumo.
+    Si la evidencia deja de sostenerse, el sujeto vuelve a las reglas de arriba.
+
 `resolved`
     Corregido en esta fase, con prueba.
 
@@ -43,6 +51,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from triade.observability.activation_contracts import ContractVerifier, load_contracts
 from triade.observability.alias_debt import build_alias_debt, profiles_from_artifact
 from triade.observability.code_graph import build_module_index, reachable_modules
 from triade.observability.introspection import build_debt_report
@@ -158,6 +167,65 @@ def _classify_status(
     )
 
 
+#: Veredictos de contrato que significan «esto ya se triró, con evidencia, y no
+#: es trabajo pendiente». `DEUDA_REAL` queda fuera a propósito: hay un contrato
+#: que dice exactamente eso de sí mismo, y excusarlo sería usar el sistema de
+#: contratos para tapar lo único que declara no tener excusa.
+CONTRACTED_NOT_PENDING = frozenset(
+    {
+        "AUDIT_LEDGER",
+        "HISTORICAL",
+        "ON_DEMAND",
+        "NO_EXTERNAL_STIMULUS",
+        "EXPECTED_EMPTY",
+        "EXPERIMENTAL",
+        "HUMAN_GATED",
+    }
+)
+
+
+def _contract_verdicts(
+    root: Path,
+    db: Path,
+    tablas_vivas: set[str],
+    perfiles: dict[str, dict[str, Any]],
+    alcanzables: set[str],
+) -> dict[str, Any]:
+    """Veredicto de contrato por sujeto, **reverificado sobre la base viva**.
+
+    El repositorio ya tenía dos sistemas para lo mismo y no se hablaban: los
+    contratos de activación deciden y documentan por qué una tabla vacía o una
+    tarea sin ejecutar es correcta, y este triaje los ignoraba y las volvía a
+    contar como `incomplete_subsystem`. Medido el 2026-08-11: `hardware_senses`
+    y `evidence_remediation_audit` figuraban como subsistema incompleto teniendo
+    contrato `AUDIT_LEDGER` e `HISTORICAL` desde el 2026-08-08, con su evidencia.
+
+    Contar dos veces una decisión ya tomada infla la deuda y, peor, empuja a
+    «arreglarla» inventándole un lector a una bitácora. Un lector falso no
+    conecta nada: hace parecer que hubo consumo.
+
+    Lo que **no** hace esto es fiarse de la etiqueta. El contrato sólo excusa si
+    su evidencia se sostiene ahora mismo: si un fichero declarado desaparece o
+    una tabla que se decía vacía empieza a tener filas, el veredicto deja de
+    sostenerse y el sujeto vuelve a la deuda con el resto de reglas.
+    """
+    contratos = load_contracts()
+    if not contratos:
+        return {}
+    verificador = ContractVerifier(
+        root,
+        table_profiles={
+            tabla: {"rows": (perfiles.get(tabla) or {}).get("rows", 0)}
+            for tabla in tablas_vivas
+        },
+        db_path=db,
+        reachable=alcanzables,
+    )
+    return {
+        sujeto: verificador.verify(contrato) for sujeto, contrato in contratos.items()
+    }
+
+
 def triage(root: Path, db: Path, cache: Path) -> dict[str, Any]:
     root = root.resolve()
     index = build_module_index(root)
@@ -173,6 +241,7 @@ def triage(root: Path, db: Path, cache: Path) -> dict[str, Any]:
     )
     alias = build_alias_debt(root, table_profiles=perfiles)
     por_muerto = {h["dead"]: h for h in alias["findings"]}
+    veredictos = _contract_verdicts(root, db, tablas_vivas, perfiles, alcanzables)
 
     hallazgos: list[dict[str, Any]] = []
     contador = 0
@@ -183,7 +252,22 @@ def triage(root: Path, db: Path, cache: Path) -> dict[str, Any]:
             evidencia_alias = detalle.get("evidence") or {}
             perfil = perfiles.get(nombre, {})
 
-            if categoria in {
+            prefijo = (
+                "task_type" if categoria == "task_types_never_executed" else "table"
+            )
+            veredicto = veredictos.get(f"{prefijo}:{nombre}")
+
+            if (
+                veredicto is not None
+                and veredicto.holds
+                and veredicto.classification in CONTRACTED_NOT_PENDING
+            ):
+                # Decisión ya tomada, documentada y con su evidencia comprobada
+                # en esta misma medición. No es trabajo pendiente.
+                clase, sev = "contracted_by_design", "low"
+                ev = f"contrato {veredicto.classification} vigente: {veredicto.reason}"
+                fuente = ""
+            elif categoria in {
                 "alias_debt_dead_status_value",
                 "alias_debt_suspected_dead_status",
             }:
