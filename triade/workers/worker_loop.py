@@ -1825,6 +1825,28 @@ class WorkerLoop:
 
         approver = "human"
         if row is None and pending is not None and _auto_approval_enabled():
+            # El listón lo pone `auto_approval`, y lo consulta también el
+            # planificador: si cada uno decidiera por su cuenta, el planificador
+            # encolaría trabajo que el worker luego rechaza, o al revés.
+            #
+            # Antes aquí se aprobaba la primera propuesta abierta que hubiera,
+            # sin mirar la calidad de la señal que la origina. El responsable
+            # autorizó el 2026-08-11 la aprobación autónoma sólo por encima de
+            # 0.9 de confianza.
+            from triade.self_improvement.auto_approval import decide_for_proposal
+
+            with _sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = _sqlite3.Row
+                decision = decide_for_proposal(conn, str(pending["proposal_id"]))
+            if not decision.allowed:
+                # Un rechazo gobernado no es un fallo: deja rastro y se va.
+                return {
+                    "status": "observed",
+                    "reason": f"propuesta no auto-aprobable: {decision.reason}",
+                    "proposal_id": str(pending["proposal_id"]),
+                    "auto_approval": decision.to_dict(),
+                    "run_ref": run_ref,
+                }
             # Aprobación por política, no humana. Decisión explícita del
             # responsable (2026-07-31): prefiere umbral altísimo a una firma que
             # no puede verificar. La búsqueda no queda sin límites: las
@@ -1833,14 +1855,21 @@ class WorkerLoop:
             # (self_improvement/store.py:144). El rigor se sostiene en el gate de
             # salida —tolerancia cero en trazabilidad y safety, suite inmutable—
             # no en una firma previa.
-            # Se registra `auto:threshold_policy` para que NUNCA parezca que un
-            # humano aprobó algo que no aprobó.
+            # Se registra con el prefijo `auto:` para que NUNCA parezca que un
+            # humano aprobó algo que no aprobó. Si hay una autorización
+            # permanente declarada, el nombre del responsable se estampa DETRÁS
+            # del prefijo, no en su lugar: la autorización es real, la decisión
+            # concreta fue de la política, y auditar esto dentro de un año exige
+            # poder distinguirlas.
+            from triade.self_improvement.auto_approval import policy_approver
+
+            aprobador = policy_approver()
             from triade.self_improvement.bridge import ImprovementNeuronFactoryBridge
 
             proposal_id = str(pending["proposal_id"])
             try:
                 ImprovementNeuronFactoryBridge(self.db_path).approve(
-                    proposal_id, approved_by="auto:threshold_policy"
+                    proposal_id, approved_by=aprobador
                 )
             except (ValueError, KeyError) as exc:
                 return {
@@ -1849,7 +1878,7 @@ class WorkerLoop:
                     "proposal_id": proposal_id,
                     "run_ref": run_ref,
                 }
-            approver = "auto:threshold_policy"
+            approver = aprobador
             row = pending
 
         if row is None:

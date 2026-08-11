@@ -46,7 +46,14 @@ def _propose(db: Path, proposal_id: str = "p1") -> None:
             observed_score=0.74,
             target_score=0.85,
             impact=0.9,
-            confidence=0.9,
+            # Por encima del umbral de aprobación por política (0.94 desde el
+            # 2026-08-11). Estaba en 0.9 —justo en el listón anterior— y al
+            # subirlo este fixture dejaba de probar lo que dice probar: la
+            # propuesta se rechazaba por confianza y no se llegaba a aprobar
+            # nada. La señal de este test es deliberadamente buena; el rechazo
+            # por confianza baja tiene sus propios casos en
+            # tests/test_auto_approval_gate.py.
+            confidence=0.96,
             estimated_cost=1.0,
         )
     )
