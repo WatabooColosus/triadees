@@ -2,7 +2,20 @@
 set -euo pipefail
 
 # Tríade Ω · Post-Reboot Verification Script
-# Safe, idempotent, non-destructive. Run after every server reboot.
+# Verifica; no arranca nada por su cuenta.
+#
+# Antes sí arrancaba: los pasos 2 y 4 hacían `nohup ollama serve` y
+# `nohup uvicorn` si no encontraban el servicio arriba, pese a que la cabecera
+# decía "safe, non-destructive". Eso lo convertía en un tercer lanzador, y uno
+# especialmente dañino porque on_start.sh lo llamaba en segundo plano justo
+# después de pedirle a systemd que arrancara lo mismo: los dos corrían a la vez
+# por el puerto. El 2026-08-10, reproduciendo un arranque en frío, el nohup de
+# este guion ganó la carrera y dejó al proceso del 8010 fuera de todo cgroup de
+# servicio mientras triade-api.service se reiniciaba por detrás. Es el mismo
+# accidente que el 2026-07-30 con Ollama y sus 150+ reinicios.
+#
+# Ahora, si algo no está arriba, se le pide a systemd —que es quien supervisa—
+# y nunca se lanza un proceso suelto.
 
 SHA=$(cd /teamspace/studios/this_studio/triadees && git rev-parse HEAD 2>/dev/null || echo "unknown")
 HOST=$(hostname)
@@ -40,8 +53,8 @@ echo "[2/10] Ollama..."
 if curl -sf --max-time 3 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
     echo "  ✓ Ollama already running"
 else
-    echo "  Starting Ollama..."
-    nohup "$OLLAMA_BIN" serve >"$LOG_DIR/studio-ollama.log" 2>&1 &
+    echo "  Ollama caído; se lo pido a systemd (no se lanza suelto)"
+    sudo systemctl start triade-ollama.service 2>/dev/null || echo "  ✗ systemd no pudo arrancar triade-ollama.service"
     for i in $(seq 1 60); do
         if curl -sf --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
             echo "  ✓ Ollama started"
@@ -71,9 +84,9 @@ echo "[4/10] API..."
 if curl -sf --max-time 3 "http://127.0.0.1:$PORT/health/live" >/dev/null 2>&1; then
     echo "  ✓ API already running on port $PORT"
 else
-    echo "  Starting API..."
+    echo "  API caída; se la pido a systemd (no se lanza suelta)"
     cd "$REPO_DIR"
-    nohup python -m uvicorn apps.single_port_app:app --host 0.0.0.0 --port "$PORT" --proxy-headers --forwarded-allow-ips='*' >"$LOG_DIR/studio-web.log" 2>&1 &
+    sudo systemctl start triade-api.service 2>/dev/null || echo "  ✗ systemd no pudo arrancar triade-api.service"
     for i in $(seq 1 60); do
         if curl -sf --max-time 2 "http://127.0.0.1:$PORT/health/live" >/dev/null 2>&1; then
             echo "  ✓ API started"

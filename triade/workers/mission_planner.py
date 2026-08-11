@@ -19,6 +19,7 @@ from triade.core.neuron_missions import NeuronMissionStore
 from triade.learning.knowledge_probe import extract_target
 from triade.learning.pipeline import LearningPipeline
 from triade.neurons.education_resolver import MIN_APPLIED_RUNS
+from triade.self_improvement.auto_approval import auto_approvable_open_proposals
 
 MISSION_PLANNER_ERRORS = (
     sqlite3.Error,
@@ -181,11 +182,26 @@ class MissionPlanner:
         return []
 
     def _plan_self_improvement(self) -> list[PlannedTask]:
-        """Agenda el ciclo de automejora SOLO si hay propuestas ya aprobadas.
+        """Agenda el ciclo de automejora si hay algo que evaluar.
 
-        Nunca crea ni aprueba propuestas: si ningún humano ha aprobado nada, no
-        hay nada que planificar y el ciclo no se dispara. Así el bucle no gira en
-        vacío ni se auto-alimenta.
+        «Algo que evaluar» son dos casos, y hasta el 2026-08-11 sólo se miraba
+        el primero:
+
+        1. una propuesta ya `approved` —por una persona o por la política—;
+        2. una propuesta `open` que la política **puede** aprobar ahora.
+
+        Faltar el segundo dejaba el circuito muerto. La aprobación por política
+        vive dentro de `_self_improvement_evaluation`, así que exigir `approved`
+        para encolar esa misma tarea era pedirle a la cadena que empezara por el
+        segundo eslabón: una propuesta abierta no podía llegar a aprobada por sí
+        sola, y todo lo que cuelga de ahí —candidatos, canarios, observaciones—
+        se quedaba a cero para siempre.
+
+        Lo que no se hace, y es deliberado: encolar porque exista una propuesta
+        abierta *cualquiera*. Si la política no va a poder aprobarla —umbral,
+        firma humana exigida—, la tarea no tendría nada que hacer y el bucle
+        giraría en vacío, que es el fallo contrario. Por eso se pregunta si es
+        auto-aprobable, no si existe.
         """
         try:
             with closing(self._connect()) as conn, conn:
@@ -199,18 +215,32 @@ class MissionPlanner:
                     "SELECT COUNT(*) cnt FROM improvement_proposals "
                     "WHERE status = 'approved'"
                 ).fetchone()
-            count = int(row["cnt"] or 0) if row else 0
-            if count:
+                approved = int(row["cnt"] or 0) if row else 0
+                approvable = (
+                    auto_approvable_open_proposals(conn) if not approved else []
+                )
+            if approved:
+                return [
+                    PlannedTask(
+                        task_type="self_improvement_evaluation",
+                        priority=38,
+                        reason=f"{approved} propuesta(s) aprobada(s) esperando verificación",
+                        source="human_approved_improvement",
+                        planner_score=0.65,
+                    )
+                ]
+            if approvable:
                 return [
                     PlannedTask(
                         task_type="self_improvement_evaluation",
                         priority=38,
                         reason=(
-                            f"{count} propuesta(s) aprobada(s) por un humano "
-                            "esperando verificación"
+                            f"{len(approvable)} propuesta(s) abierta(s) por encima del "
+                            "umbral de aprobación por política"
                         ),
-                        source="human_approved_improvement",
+                        source="policy_approvable_improvement",
                         planner_score=0.65,
+                        payload={"proposal_ids": approvable[:5]},
                     )
                 ]
         except MISSION_PLANNER_ERRORS as exc:

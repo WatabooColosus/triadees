@@ -1,5 +1,70 @@
 # Always-On Runtime
 
+> **Dos cosas distintas se llaman «Always-On», y confundirlas costó meses.**
+>
+> 1. **Always-On de proceso** (supervisión): que alguien vuelva a levantar el
+>    proceso cuando muera, y que vuelva tras reiniciar la máquina. De eso se
+>    ocupa systemd, y se documenta en [Arranque y supervisión](#arranque-y-supervisión-del-proceso).
+> 2. **Always-On de runtime** (este documento): que *dentro* del proceso ya
+>    encendido giren el bucle continuo, los workers y el metabolismo.
+>
+> Lo segundo estuvo cierto durante meses mientras lo primero era falso. El
+> proceso lo arrancaba una persona con `nohup` desde una terminal: al cerrar la
+> sesión no volvía nadie, y tras un reinicio del Studio tampoco. Como
+> `/health/live` respondía 200 y este documento decía «Always-On activo», el
+> hueco no aparecía en ninguna superficie. Medido el 2026-08-10, con la máquina
+> 19 minutos arriba: cero units instaladas y nada escuchando en el 8010.
+>
+> Para saber cuál de las dos es cierta ahora mismo, mirar el bloque
+> `supervision` de `/health/deep`, no el estado del runtime.
+
+## Arranque y supervisión del proceso
+
+La cadena es una sola, y la misma tanto si arranca la máquina como si la pide
+una persona:
+
+```
+BOOT
+  └─ ~/.lightning_studio/on_start.sh          (shim; lo invoca la plataforma)
+       └─ deploy/lightning_studio/on_start.sh (lógica versionada)
+            ├─ scripts/restore_file_modes.sh
+            ├─ scripts/install_systemd_units.sh
+            └─ systemctl start …
+                 ├─ triade-ollama.service    modelo (recuperable aparte)
+                 ├─ triade-api.service       API + workers en proceso → :8010
+                 ├─ triade-watchdog.service  progreso interno, NO reinicia el proceso
+                 └─ triade-backup.timer      copia diaria
+```
+
+**Por qué se reinstalan las units en cada arranque.** La raíz de este Studio es
+un overlay de contenedor: sólo persiste `/teamspace/studios/this_studio`, y
+`/etc/systemd/system` se recrea vacío. Una unit habilitada ayer no existe hoy.
+Por eso la fuente de verdad son los ficheros de `deploy/systemd/` del repo, y
+`install_systemd_units.sh` los instala y habilita en cada arranque. Es
+idempotente.
+
+**Un solo mecanismo.** `scripts/triade_runtime.sh up|down|restart|status` es
+cliente de systemd, no un lanzador paralelo. Nada debe arrancar la API ni Ollama
+con `nohup`: un proceso manual que gane la carrera por el puerto deja a la unit
+reiniciándose en bucle mientras sirve tráfico algo que nadie supervisa. Pasó el
+2026-07-30 con Ollama (150+ reinicios) y volvió a pasar el 2026-08-10 desde
+`post_reboot_verify.sh`, que arrancaba procesos pese a anunciarse como verificador.
+
+**Reinicio gobernado.** `Restart=always` con `StartLimitIntervalSec=300` y
+`StartLimitBurst=5`: al sexto arranque en cinco minutos la unit queda en
+`failed` en vez de tormentear. Un incidente visible, no un bucle.
+
+**Ollama no tumba a Tríade.** La API declara `Wants=` y no `Requires=`: si el
+modelo no está, el runtime queda vivo y degradado, y se recupera cuando Ollama
+vuelve.
+
+**Certificación.** `scripts/certify_always_on.py` mata el proceso con SIGKILL y
+mide si vuelve solo, en cuánto y siendo el mismo organismo.
+`scripts/certify_cold_boot.sh` reproduce la pérdida de `/etc/systemd/system` que
+provoca la recreación del contenedor.
+
+## Always-On de runtime (dentro del proceso)
+
 Tríade Ω puede arrancar en modo **Always-On**: el runtime, self-test, neuron nutrition y procesos seguros se activan automáticamente al iniciar la API, sin necesidad de exportar variables de entorno manualmente.
 
 ## Configuración

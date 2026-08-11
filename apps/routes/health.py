@@ -174,8 +174,28 @@ def deep() -> JSONResponse:
         content["heartbeat_error"] = heartbeat_error
     content["readiness_raw"] = ready_payload
     content["runtime_mode"] = _runtime_mode()
+    content["supervision"] = _supervision()
 
     return JSONResponse(status_code=200 if healthy else 503, content=content)
+
+
+def _supervision() -> dict[str, Any]:
+    """Quién mantiene vivo el proceso, y si volvería solo tras un reinicio.
+
+    Va aparte de `status` a propósito: un runtime perfectamente sano puede estar
+    sin supervisar, y ese es exactamente el caso que no se veía. Que este bloque
+    no influya en el 200/503 es deliberado — la salud del organismo y la de su
+    arranque son dos preguntas distintas, y mezclarlas ya escondió una vez la
+    segunda detrás de la primera.
+    """
+    try:
+        from triade.runtime.service_supervision import build_service_supervision
+
+        return build_service_supervision(
+            port=int(os.getenv("TRIADE_STUDIO_PORT", "8010"))
+        )
+    except (OSError, ImportError, RuntimeError, ValueError) as exc:
+        return {"error": type(exc).__name__, "always_on": None}
 
 
 def _runtime_mode() -> dict[str, Any]:

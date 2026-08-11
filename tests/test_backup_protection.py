@@ -469,3 +469,41 @@ def test_una_copia_que_acredita_su_origen_no_es_deuda(
     _backup(tmp_path, "acreditada", age_seconds=60, fingerprint="abc123")
 
     assert _backup_protection_gaps(tmp_path)["count"] == 0
+
+
+def test_el_simulacro_cuenta_el_saber_que_existe(tmp_path) -> None:
+    """Verificaba la restauración contando una tabla vacía para siempre.
+
+    `_semantic_verification` contaba `semantic_memory`, que tiene cero filas y
+    ningún `INSERT` en todo el repositorio. La comprobación que debía detectar
+    una restauración que perdiera la memoria semántica daba 0 **tanto si se
+    perdía como si no**: no podía fallar ni cuando debía. El saber vive en
+    `semantic_documents` (379 filas medidas el 2026-08-11).
+    """
+    import sqlite3
+
+    from triade.memory.encrypted_backup import EncryptedBackup
+
+    db = tmp_path / "triade.db"
+    with sqlite3.connect(db) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE semantic_documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                document_id TEXT, content TEXT, status TEXT
+            );
+            CREATE TABLE semantic_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT, value TEXT
+            );
+            """
+        )
+        conn.executemany(
+            "INSERT INTO semantic_documents (document_id, content, status) VALUES (?,?,?)",
+            [("sem-1", "a", "stable"), ("sem-2", "b", "candidate")],
+        )
+
+    resultado = EncryptedBackup._semantic_verification(db)
+
+    # La tabla vieja sigue vacía, como en producción: si el contador la mirara,
+    # este número sería 0 y el simulacro no vería la diferencia.
+    assert resultado["semantic_memory_count"] == 2

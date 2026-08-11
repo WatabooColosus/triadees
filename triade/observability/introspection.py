@@ -536,6 +536,51 @@ def _entry(values: list[str], evidence: str) -> dict[str, Any]:
 BACKUP_MAX_AGE_SECONDS = 2 * 24 * 60 * 60
 
 
+def _env_file_keys(root: Path) -> set[str]:
+    """Nombres de variable definidos en el .env del repo, sin leer sus valores.
+
+    Se devuelven sólo los nombres a propósito: aquí basta con saber si la clave
+    está configurada, y el fichero tiene secretos que no deben acabar en un
+    informe de deuda.
+    """
+    env_file = root / ".env"
+    try:
+        contenido = env_file.read_text(encoding="utf-8")
+    except OSError:
+        return set()
+    nombres: set[str] = set()
+    for linea in contenido.splitlines():
+        limpia = linea.strip()
+        if not limpia or limpia.startswith("#") or "=" not in limpia:
+            continue
+        nombre, _, valor = limpia.partition("=")
+        if valor.strip().strip("\"'"):
+            nombres.add(nombre.strip())
+    return nombres
+
+
+def _backup_key_configured(root: Path) -> bool:
+    """Si el SISTEMA tiene clave de copia, no si la tiene quien está auditando.
+
+    La comprobación miraba `os.getenv` del proceso auditor. Pero quien hace las
+    copias es el runtime, y el runtime recibe su configuración del .env del repo
+    a través de `EnvironmentFile` de systemd; una shell interactiva no lo tiene
+    cargado. El resultado era un fallo fantasma: el 2026-08-10 el proceso de la
+    API tenía `TRIADE_BACKUP_KEY_FILE` en su entorno y la auditoría declaraba
+    igualmente «sin clave: no se crea ninguna copia».
+
+    Eso es peor que no medir. Esta categoría existe precisamente porque el
+    2026-07-31 la clave desapareció de verdad y nadie se enteró en cuatro días;
+    si además avisa cuando no pasa nada, deja de creerse cuando pasa.
+    """
+    if (
+        os.getenv("TRIADE_BACKUP_KEY", "").strip()
+        or os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
+    ):
+        return True
+    return bool({"TRIADE_BACKUP_KEY", "TRIADE_BACKUP_KEY_FILE"} & _env_file_keys(root))
+
+
 def _backup_protection_gaps(root: Path) -> dict[str, Any]:
     """Lo que impide restaurar: sin clave, sin copia reciente, o sin poder abrirla.
 
@@ -554,16 +599,13 @@ def _backup_protection_gaps(root: Path) -> dict[str, Any]:
     """
     gaps: list[str] = []
 
-    tiene_clave = bool(
-        os.getenv("TRIADE_BACKUP_KEY", "").strip()
-        or os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
-    )
+    tiene_clave = _backup_key_configured(root)
     if not tiene_clave:
         gaps.append(
             "sin TRIADE_BACKUP_KEY ni TRIADE_BACKUP_KEY_FILE: "
             "no se crea ninguna copia y no se abre ninguna existente"
         )
-    gaps.extend(_backup_key_file_gaps())
+    gaps.extend(_backup_key_file_gaps(root))
 
     backup_dir = root / "artifacts" / "backups"
     copias = sorted(
@@ -612,7 +654,30 @@ def _backup_protection_gaps(root: Path) -> dict[str, Any]:
     }
 
 
-def _backup_key_file_gaps() -> list[str]:
+def _backup_key_file_path(root: Path) -> str:
+    """Ruta del fichero de clave, del entorno o —si falta— del .env del repo.
+
+    Sin esto la comprobación de modo de abajo no llegaba a ejecutarse nunca al
+    auditar desde una shell: `os.getenv` venía vacío, la función devolvía lista
+    vacía y el fallo que se buscaba —la clave en 0744— quedaba sin mirar
+    justamente en el sitio donde se mira todo lo demás.
+    """
+    desde_entorno = os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
+    if desde_entorno:
+        return desde_entorno
+    env_file = root / ".env"
+    try:
+        contenido = env_file.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    for linea in contenido.splitlines():
+        limpia = linea.strip()
+        if limpia.startswith("TRIADE_BACKUP_KEY_FILE="):
+            return limpia.partition("=")[2].strip().strip("\"'")
+    return ""
+
+
+def _backup_key_file_gaps(root: Path) -> list[str]:
     """La clave declarada, ¿se puede usar de verdad?
 
     Que la variable exista no significa que la clave sirva. `EncryptedBackup`
@@ -625,7 +690,7 @@ def _backup_key_file_gaps() -> list[str]:
     Encontrado el 2026-08-07 con el fichero en `0744`, al intentar la primera
     restauración real. La rotación del 2026-08-03 lo dejó así y nada lo dijo.
     """
-    key_file = os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
+    key_file = _backup_key_file_path(root)
     if not key_file:
         return []
     path = Path(key_file)

@@ -2,7 +2,14 @@
 Description=Tríade Ω governed API (single-port)
 Documentation=https://github.com/WatabooColosus/triadees
 After=network-online.target triade-ollama.service
+# Wants, no Requires: si Ollama no está, la API debe quedar viva y degradada,
+# no caerse. El modelo se recupera solo cuando Ollama vuelve.
 Wants=network-online.target triade-ollama.service
+# Reinicio gobernado: hasta 5 arranques en 5 minutos. Al sexto, systemd deja la
+# unit en `failed` en vez de seguir reiniciando. Eso convierte una tormenta de
+# reinicios en un incidente visible, que es lo que se quiere poder ver.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -11,12 +18,24 @@ Group=agenciadigitalwataboo
 WorkingDirectory=/teamspace/studios/this_studio/triadees
 Environment="PATH=/home/zeus/miniconda3/envs/cloudspace/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
-EnvironmentFile=/etc/triade/triade.env
+# systemd tomaría HOME de /etc/passwd (/home/zeus), pero la shell interactiva
+# usa /teamspace/studios/this_studio. Dejar que difieran hace que el proceso
+# supervisado y el manual no resuelvan igual las rutas de ~.
+Environment="HOME=/teamspace/studios/this_studio"
+# El .env vive en el repo porque el repo persiste y /etc no: en este Studio
+# /etc/systemd/system se recrea vacío en cada arranque. El guion inicial lo hace
+# opcional: sin él la API arranca igualmente, en vez de que systemd rechace la
+# unit y no quede nada escuchando.
+EnvironmentFile=-/teamspace/studios/this_studio/triadees/.env
 ExecStart=/home/zeus/miniconda3/envs/cloudspace/bin/python -m uvicorn apps.single_port_app:app --host 0.0.0.0 --port 8010 --proxy-headers --forwarded-allow-ips='*'
 Restart=always
 RestartSec=5
+# En modo full el proceso no cierra con SIGINT: libera el puerto pero los hilos
+# de fondo (workers, metabolismo) siguen vivos más de 30 s. systemd remata con
+# SIGKILL al vencer el plazo, y así el puerto queda libre para el arranque.
 TimeoutStopSec=30
 KillSignal=SIGINT
+KillMode=mixed
 
 NoNewPrivileges=true
 PrivateTmp=true

@@ -43,11 +43,22 @@ def build_learning_journal(
         cycles = []
         evidence = []
         candidates_recent = []
+    # La actividad semántica se leía de `semantic_memory`, que tiene **cero
+    # filas y ningún `INSERT` en todo el repositorio**: el diario reportaba
+    # siempre `count: 0`. No era que no pasara nada — la noche del 2026-08-11 se
+    # consolidaron tres memorias estables y el diario siguió diciendo cero,
+    # porque la actividad real vive en `semantic_documents` (379 filas) desde
+    # que el pipeline de aprendizaje escribe ahí.
+    #
+    # Es la avería más cara de este tipo: no falla, miente en voz baja. Quien
+    # mira el diario para saber si el organismo consolida algo concluye que no.
     try:
         semantic_activity = _query_rows(
             db_path,
-            "SELECT id, key, value, status, domain, created_at, updated_at "
-            "FROM semantic_memory WHERE created_at >= ? OR updated_at >= ? ORDER BY id DESC LIMIT ?",
+            "SELECT document_id, status, source_type, source_ref, domain, "
+            "created_at, updated_at "
+            "FROM semantic_documents WHERE created_at >= ? OR updated_at >= ? "
+            "ORDER BY id DESC LIMIT ?",
             (cutoff_iso, cutoff_iso, limit),
         )
     except sqlite3.Error:
@@ -109,7 +120,12 @@ def build_learning_journal(
         "latest_learning_candidates": latest_learning_candidates,
         "latest_consolidations": latest_consolidations,
         "latest_rejections": latest_rejections,
-        "semantic_memory_activity": {
+        # El nombre dice qué tabla se lee. Se llamaba `semantic_memory_activity`
+        # y ahora lee `semantic_documents`: dejarlo así habría creado justo el
+        # alias que este repositorio lleva meses persiguiendo —un lector que
+        # dice una tabla y consulta otra—. No rompe a nadie: la clave anterior
+        # no la leía ni el frontend, ni los tests, ni otro módulo.
+        "semantic_documents_activity": {
             "count": len(semantic_activity),
             "latest": semantic_activity[:limit],
         },

@@ -1603,6 +1603,7 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
     from triade.core.ollama_blood import check_ollama_blood
     from triade.core.repo_runtime_status import build_repo_runtime_status
     from triade.core.technical_debt_audit import build_technical_debt_audit
+    from triade.runtime.service_supervision import build_service_supervision
     from triade.services.event_bus import list_recent_events
     from triade.workers.background_service import WorkerBackgroundService
 
@@ -1663,6 +1664,16 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         lambda: WorkerBackgroundService().status(), "workers", {"status": "unavailable"}
     )
     events = _safe(lambda: list_recent_events(limit=50), "runtime_events", [])
+    # Quién mantiene vivo el proceso. Va aparte del heartbeat a propósito: el
+    # heartbeat sabe si el organismo late, no si alguien lo levantará cuando
+    # deje de latir, y la consola necesita poder distinguir las dos cosas.
+    supervision = _safe(
+        lambda: build_service_supervision(
+            port=int(os.getenv("TRIADE_STUDIO_PORT", "8010"))
+        ),
+        "supervision",
+        {"always_on": None, "service_manager": None},
+    )
 
     return {
         "status": "partial" if _errors else "ok",
@@ -1689,6 +1700,7 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         },
         "always_on": heartbeat.get("always_on", {}),
         "always_on_detail": heartbeat.get("always_on_detail", {}),
+        "supervision": supervision,
         "workers_always_on": heartbeat.get("workers_always_on", {}),
         "edge_context_health": heartbeat.get("edge_context_health", {}),
         "ollama_blood": {

@@ -7,10 +7,15 @@ Type=oneshot
 User=agenciadigitalwataboo
 Group=agenciadigitalwataboo
 WorkingDirectory=/teamspace/studios/this_studio/triadees
-EnvironmentFile=/etc/triade/triade.env
+Environment="PATH=/home/zeus/miniconda3/envs/cloudspace/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="HOME=/teamspace/studios/this_studio"
+EnvironmentFile=-/teamspace/studios/this_studio/triadees/.env
 ExecStart=/home/zeus/miniconda3/envs/cloudspace/bin/python scripts/runtime_backup.py
 NoNewPrivileges=true
 PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/teamspace/studios/this_studio/triadees
 
 [Install]
 WantedBy=multi-user.target

@@ -3,15 +3,19 @@ Description=Ollama model runtime for Tríade Ω
 Documentation=https://github.com/WatabooColosus/triadees
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
 User=agenciadigitalwataboo
 Group=agenciadigitalwataboo
+Environment="HOME=/teamspace/studios/this_studio"
 Environment="OLLAMA_HOST=127.0.0.1:11434"
 Environment="OLLAMA_MODELS=/teamspace/studios/this_studio/.ollama/models"
 Environment="OLLAMA_MAX_LOADED_MODELS=3"
 Environment="OLLAMA_NUM_PARALLEL=2"
+Environment="CUDA_VISIBLE_DEVICES=0"
 ExecStart=/teamspace/studios/this_studio/.ollama/runtime/bin/ollama serve
 Restart=always
 RestartSec=5
