@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import math
-import sqlite3
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar
+
+from triade.db import sqlite3
 
 SCHEMA = Path(__file__).resolve().parent.parent / "memory/schemas.sql"
 MIGRATION = (

@@ -15,11 +15,11 @@ como uso ni generan una puntuación de resultado.
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 from typing import Any
 
 from triade.core.error_bus import record_internal_error
+from triade.db import sqlite3
 from triade.learning.pipeline import LearningPipeline
 from triade.neurons.competency_store import CompetencyStore
 

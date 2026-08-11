@@ -7,11 +7,11 @@ qué ocurre ahora.
 
 from __future__ import annotations
 
-import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.memory.auto_identity_store import AutoIdentityStore
 
 from .life_pulse import LIFE_PULSE, LifePulseEngine

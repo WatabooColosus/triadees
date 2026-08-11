@@ -36,7 +36,7 @@ def _db(tmp_path: Path) -> Path:
     return path
 
 
-def _propose(db: Path, proposal_id: str = "p1") -> None:
+def _propose(db: Path, proposal_id: str = "p1", *, confidence: float = 0.96) -> None:
     store = ImprovementStore(db)
     store.register_signal(
         ImprovementSignal(
@@ -53,7 +53,7 @@ def _propose(db: Path, proposal_id: str = "p1") -> None:
             # nada. La señal de este test es deliberadamente buena; el rechazo
             # por confianza baja tiene sus propios casos en
             # tests/test_auto_approval_gate.py.
-            confidence=0.96,
+            confidence=confidence,
             estimated_cost=1.0,
         )
     )
@@ -75,6 +75,14 @@ def test_el_task_type_esta_registrado():
 def test_sin_propuestas_no_se_agenda(tmp_path: Path):
     """Sin brechas medidas no hay nada que intentar: el bucle no gira en vacío."""
     assert MissionPlanner(_db(tmp_path))._plan_self_improvement() == []
+
+
+def test_confianza_baja_no_hace_girar_el_planificador(tmp_path: Path):
+    """El caso vivo 0.40 queda abierto y bloqueado por el umbral común 0.94."""
+    db = _db(tmp_path)
+    _propose(db, confidence=0.40)
+
+    assert MissionPlanner(db)._plan_self_improvement() == []
 
 
 def test_la_politica_puede_aprobar_sin_humano_pero_queda_registrado(

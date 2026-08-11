@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import sqlite3
 import time
 from pathlib import Path
 from typing import Any
@@ -16,6 +15,7 @@ from triade.core.integrity_verifier import (
 )
 from triade.core.quarantine_trash import trash_path
 from triade.core.system_zones import REPO_ROOT, classify_path
+from triade.db import sqlite3
 
 EVENT_SOURCE = "safe_file_ops"
 SUSPICIOUS_EXTENSIONS = {".exe", ".bat", ".sh", ".dll", ".so", ".dylib", ".bin", ".elf"}

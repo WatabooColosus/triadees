@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import sqlite3
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,6 +10,8 @@ from typing import Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, model_validator
+
+from triade.db import sqlite3
 
 OriginClass = Literal[
     "human", "external_system", "trusted_federated", "autonomous", "derived"

@@ -12,12 +12,12 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import sqlite3
 import time
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 
 log = logging.getLogger(__name__)
 

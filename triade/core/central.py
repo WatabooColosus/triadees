@@ -11,12 +11,12 @@ from __future__ import annotations
 import json
 import logging
 import re
-import sqlite3
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 from triade.models.ollama_client import OllamaClient
 
 log = logging.getLogger(__name__)

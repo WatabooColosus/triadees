@@ -22,7 +22,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import sqlite3
 import unicodedata
 import uuid
 from dataclasses import dataclass, field
@@ -30,6 +29,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.learning.knowledge_probe import is_unverified_transcript
 from triade.memory.retrieval_safety import RetrievalSafetyPolicy
 

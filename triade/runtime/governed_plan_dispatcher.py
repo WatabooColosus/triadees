@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -13,6 +12,7 @@ from triade.capabilities.policy import CapabilityPolicyGuard
 from triade.core.capability_resolver import CapabilityResolver
 from triade.core.central import Central, PlanGraph, PlanStep
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 from triade.runtime.task_leases import AutonomousTaskStore
 
 

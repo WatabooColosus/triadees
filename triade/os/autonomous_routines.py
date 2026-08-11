@@ -2,10 +2,10 @@
 neuronas, entrenamiento autónomo, verificación, degradación y documentación."""
 
 import json
-import sqlite3
 from datetime import UTC, datetime
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 
 
 def _gen_id(prefix: str) -> str:

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 import time
 from contextlib import closing
 from pathlib import Path
 from typing import Any
 
 import psutil  # type: ignore[import-untyped]
+
+from triade.db import sqlite3
 
 
 class LiveHeartbeat:

@@ -6,11 +6,12 @@ import hashlib
 import json
 import math
 import shutil
-import sqlite3
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar
+
+from triade.db import sqlite3
 
 SCHEMA = Path(__file__).resolve().parent / "schemas.sql"
 MIGRATION = Path(__file__).resolve().parent / "migrations/022_relational_modulation.sql"

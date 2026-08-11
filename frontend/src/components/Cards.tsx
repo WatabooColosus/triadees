@@ -952,6 +952,11 @@ export function SupervisionCard({ data }: { data: any }) {
             ? 'no medible' : data.restart_count,
           ultimo_resultado: data.last_result || '—',
           base_de_datos: data.database?.path || '—',
+          modo: data.cloud_mode ? 'cloud' : 'local',
+          rss_mb: data.resources?.rss_mb ?? '—',
+          fd_proceso: data.resources?.process_file_descriptors ?? '—',
+          fd_sqlite: data.resources?.db_file_descriptors ?? '—',
+          conexiones_sqlite_abiertas: data.resources?.open_connections ?? '—',
         }} />
       </div>
     </Card>

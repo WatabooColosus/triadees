@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -16,6 +15,7 @@ from typing import Any
 
 from triade.core.error_bus import record_internal_error
 from triade.core.neuron_missions import NeuronMissionStore
+from triade.db import sqlite3
 from triade.learning.knowledge_probe import extract_target
 from triade.learning.pipeline import LearningPipeline
 from triade.neurons.education_resolver import MIN_APPLIED_RUNS

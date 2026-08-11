@@ -7,13 +7,13 @@ en hypothalamus_state. El mood actual es siempre el último registro.
 from __future__ import annotations
 
 import json
-import sqlite3
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import SignalPacket
+from triade.db import sqlite3
 
 
 def _lastrowid(cursor: sqlite3.Cursor) -> int:

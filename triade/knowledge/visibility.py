@@ -17,11 +17,12 @@ cero y lo dice; nunca rellena el hueco con actividad.
 from __future__ import annotations
 
 import json
-import sqlite3
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
+
+from triade.db import sqlite3
 
 VISIBILITY_VERSION = "knowledge-visibility-1.0.0"
 

@@ -5,13 +5,14 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import sqlite3
 import time
 from base64 import b64decode, b64encode
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 from .registry import FederatedNodeRegistry
 

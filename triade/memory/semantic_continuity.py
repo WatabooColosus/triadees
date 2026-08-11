@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import hashlib
 import math
-import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_store import SemanticMemoryStore
 

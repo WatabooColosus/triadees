@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 import threading
 import time
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 
 class PeftCanaryServer:

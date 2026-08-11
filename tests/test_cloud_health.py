@@ -59,3 +59,23 @@ def test_deep_includes_runtime_heartbeat(tmp_path, monkeypatch):
     assert payload["ready"] is True
     assert payload["heartbeat_ok"] is True
     assert payload["heartbeat"]["pulse"] == 1
+
+
+def test_deep_accepts_governed_model_fallback(monkeypatch):
+    monkeypatch.setattr(
+        health,
+        "build_deep_runtime_health",
+        lambda: {
+            "status": "ok",
+            "checks": {"ollama_blood": True},
+            "ollama_blood": {
+                "status": "degraded_no_ollama",
+                "can_reason": False,
+                "fallback_mode": True,
+            },
+        },
+    )
+
+    response = _client().get("/health/deep")
+    assert response.status_code == 200
+    assert response.json()["heartbeat"]["ollama_blood"]["can_reason"] is False

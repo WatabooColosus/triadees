@@ -7,12 +7,12 @@ declara explícitamente su padre si existe.
 
 from __future__ import annotations
 
-import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 
 from .contracts import new_qualia_id
 

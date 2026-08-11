@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from triade.capabilities.observability import CapabilityObservability
+from triade.db import sqlite3
 from triade.federation.federation import Federation
 from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_store import SemanticMemoryStore

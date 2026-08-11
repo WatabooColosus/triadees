@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+
+from triade.db import sqlite3
 
 
 def utc_now() -> str:

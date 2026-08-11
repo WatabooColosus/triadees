@@ -6,12 +6,12 @@ cuándo ejecutar cada tipo de tarea. Evita sobrecarga y mejora eficiencia.
 
 from __future__ import annotations
 
-import sqlite3
 import time
 from contextlib import closing
 from pathlib import Path
 from typing import Any, ClassVar
 
+from triade.db import sqlite3
 from triade.runtime.resource_ledger import ResourceLedger
 
 _HISTORY_TABLE = """

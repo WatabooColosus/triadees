@@ -17,11 +17,12 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 from .activation_contracts import ContractVerifier, load_contracts
 from .alias_debt import build_alias_debt, profiles_from_artifact

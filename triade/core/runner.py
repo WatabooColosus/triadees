@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import os
 import platform
-import sqlite3
 import sys
 from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.learning.post_run import schedule_learning_from_run
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
 from triade.memory.semantic_governance import SemanticMemoryGovernance

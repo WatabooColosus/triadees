@@ -89,7 +89,10 @@ def build_deep_runtime_health() -> dict[str, Any]:
             not workers.get("configured")
             or (workers.get("active") and workers.get("thread_alive"))
         ),
-        "ollama_blood": bool(blood.get("can_reason")),
+        # Cloud declares Ollama optional. A governed fallback is therefore a
+        # valid reasoning path, while the payload still reports can_reason=false
+        # and status=degraded_no_ollama instead of pretending Ollama is healthy.
+        "ollama_blood": bool(blood.get("can_reason") or blood.get("fallback_mode")),
     }
     return {
         "status": "ok" if all(checks.values()) else "degraded",
@@ -175,8 +178,23 @@ def deep() -> JSONResponse:
     content["readiness_raw"] = ready_payload
     content["runtime_mode"] = _runtime_mode()
     content["supervision"] = _supervision()
+    content["resources"] = _resources()
 
     return JSONResponse(status_code=200 if healthy else 503, content=content)
+
+
+def _resources() -> dict[str, int | float | str]:
+    """Resource lifecycle evidence for the process serving this response."""
+    try:
+        from triade.db import resource_metrics
+
+        database = os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
+        return {
+            "database_path": str(Path(database).resolve()),
+            **resource_metrics(database),
+        }
+    except (OSError, RuntimeError, ValueError) as exc:
+        return {"error": type(exc).__name__}
 
 
 def _supervision() -> dict[str, Any]:

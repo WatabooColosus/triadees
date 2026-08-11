@@ -240,7 +240,20 @@ def build_system_pulse(
         ),
     )
 
-    llm_host_count = edge_llm_host_count_fn(authorized, federation)
+    # ``build_model_capacity_fn`` already returned the authoritative federation
+    # snapshot.  Re-reading it through EdgeRouter used to call this same API on
+    # 127.0.0.1:8010, so every /api/run could enqueue multiple recursive HTTP
+    # requests.  Under SQLite contention those calls lived for the 120 second
+    # transport timeout and amplified both threads and file descriptors.
+    # Keep the injected callbacks for compatibility with callers that provide
+    # an older snapshot, but never perform the fallback when the keys exist.
+    raw_edge_hosts = federation.get("llm_hosts")
+    if isinstance(raw_edge_hosts, list):
+        edge_hosts = raw_edge_hosts
+        llm_host_count = len(edge_hosts)
+    else:
+        edge_hosts = edge_llm_host_snapshot_fn()
+        llm_host_count = edge_llm_host_count_fn(authorized, federation)
 
     checks = [
         pulse_item(
@@ -285,7 +298,7 @@ def build_system_pulse(
             f"{llm_host_count} hosts LLM Android reales",
             {
                 "llm_hosts": federation.get("llm_hosts", []),
-                "edge_router_hosts": edge_llm_host_snapshot_fn(),
+                "edge_router_hosts": edge_hosts,
                 "source": "authorized_or_edge_router",
             },
             "ok" if llm_host_count > 0 else "warn",

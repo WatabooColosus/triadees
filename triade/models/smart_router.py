@@ -2,12 +2,12 @@
 dificultad de tarea, costo, latencia, e historial de rendimiento."""
 
 import hashlib
-import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import ClassVar
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 
 
 def _gen_id(prefix: str) -> str:

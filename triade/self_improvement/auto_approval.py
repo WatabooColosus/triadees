@@ -48,9 +48,10 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 from dataclasses import dataclass
 from typing import Any
+
+from triade.db import sqlite3
 
 #: Umbral por defecto. El responsable lo autorizó en 0.9 el 2026-08-11 y lo
 #: subió a 0.94 el mismo día.

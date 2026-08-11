@@ -15,13 +15,13 @@ import json
 import os
 import resource
 import shutil
-import sqlite3
 import time
 from collections.abc import Iterator
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.observability.code_graph import (
     build_call_graph,
     build_entrypoint_graph,

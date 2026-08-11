@@ -39,10 +39,11 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
 import unicodedata
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 #: Máximo de términos aprendidos por neurona. Una misión larga no debe
 #: convertirse en una red de arrastre que capture cualquier conversación.

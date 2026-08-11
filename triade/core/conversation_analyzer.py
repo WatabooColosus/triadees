@@ -9,13 +9,14 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sqlite3
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from statistics import mean
 from typing import Any
+
+from triade.db import sqlite3
 
 STOPWORDS = {
     "actualiza",

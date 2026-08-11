@@ -10,12 +10,13 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import sqlite3
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar
 from uuid import uuid4
+
+from triade.db import sqlite3
 
 
 @dataclass(slots=True)

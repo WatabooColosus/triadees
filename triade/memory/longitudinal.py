@@ -46,13 +46,14 @@ import json
 import math
 import re
 import shutil
-import sqlite3
 import unicodedata
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar
+
+from triade.db import sqlite3
 
 MIGRATION = Path(__file__).resolve().parent / "migrations/021_longitudinal_memory.sql"
 SCHEMA = Path(__file__).resolve().parent / "schemas.sql"

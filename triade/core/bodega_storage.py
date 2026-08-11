@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 from typing import Any, ClassVar
+
+from triade.db import sqlite3
 
 
 class BodegaStorage:

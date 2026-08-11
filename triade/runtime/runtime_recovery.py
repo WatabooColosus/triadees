@@ -6,13 +6,13 @@ import gzip
 import hashlib
 import json
 import os
-import sqlite3
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from triade.db import sqlite3
 from triade.runtime.task_leases import AutonomousTaskStore
 
 

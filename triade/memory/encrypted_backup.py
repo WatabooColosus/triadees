@@ -7,13 +7,14 @@ import hashlib
 import json
 import os
 import shutil
-import sqlite3
 import tempfile
 import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 
 class EncryptedBackup:

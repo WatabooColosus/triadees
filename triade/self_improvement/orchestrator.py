@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.evaluation import EvaluationRun, compare_evaluations
 from triade.neuron_factory import NeuronEvaluationCoordinator, SandboxExecutionEngine
 from triade.regression import MetricPolicy

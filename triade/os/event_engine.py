@@ -7,11 +7,11 @@ y genera WorkerTasks automáticamente. Incluye cooldown y deduplicación.
 from __future__ import annotations
 
 import re
-import sqlite3
 from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 from triade.os.contracts import SEVERITY_ORDER, EventRule
 from triade.runtime.task_status import ACTIVE, ELIGIBLE, sql_placeholders
 

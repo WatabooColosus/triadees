@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import sqlite3
 import time
 from pathlib import Path
 from typing import Any
@@ -18,6 +17,8 @@ from uuid import uuid4
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
+
+from triade.db import sqlite3
 
 DB_PATH = Path(os.environ.get("TRIADE_RELAY_DB", "triade/memory/public_relay.db"))
 PAIRING_TOKEN = os.environ.get("TRIADE_RELAY_PAIRING_TOKEN", "")

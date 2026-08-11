@@ -263,6 +263,58 @@ class TestBuildAlwaysOnStatus:
 
 
 class TestAlwaysOnStartup:
+    def test_cooldown_at_boot_keeps_recovery_supervisor_alive(self, monkeypatch):
+        """La presión de arranque limita trabajo, no mata el dueño del loop."""
+        import triade.core.always_on as ao
+
+        monkeypatch.setattr(
+            ao,
+            "load_always_on_config",
+            lambda _path="triade.yml": {
+                "enabled": True,
+                "mode": "full_local_guarded",
+                "continuous_runner_autonomy_level": "observe_only",
+                "interval_seconds": 60,
+                "start_delay_seconds": 0,
+                "max_cycles": 0,
+                "_max_cycles_param": None,
+                "require_ollama": False,
+                "safe_only": True,
+                "self_test_on_start": False,
+                "self_test_every_cycles": 5,
+                "_config_source": "test",
+            },
+        )
+        monkeypatch.setattr(ao, "_background_thread_alive", lambda: False)
+        monkeypatch.setattr(
+            ao,
+            "get_internal_runtime_supervisor",
+            lambda **_kw: MagicMock(snapshot=dict),
+        )
+        starter = MagicMock(return_value={"status": "started"})
+        monkeypatch.setattr(ao, "start_internal_runtime_background", starter)
+        monkeypatch.setattr(ao, "run_self_test_cycle", lambda **_kw: {})
+        monkeypatch.setattr(
+            ao, "record_internal_runtime_event", lambda *_a, **_kw: None
+        )
+        monkeypatch.setattr(
+            "triade.core.ollama_blood.check_ollama_blood", lambda: {"ollama_ok": True}
+        )
+        monkeypatch.setattr("triade.core.resource_probe.build_resource_probe", dict)
+        monkeypatch.setattr(
+            ao,
+            "decide_work_mode",
+            lambda *_a: {"effective_mode": "cooldown", "reason": "carga alta"},
+        )
+
+        result = ao.start_always_on_if_enabled()
+
+        starter.assert_called_once()
+        assert starter.call_args.kwargs["mode"] == "full_local_guarded"
+        assert result["status"] == "started"
+        assert result["effective_mode"] == "cooldown"
+        assert result["degraded_by_governor"] is True
+
     def test_resource_mode_is_not_replaced_by_continuous_autonomy(self, monkeypatch):
         """El supervisor conserva guarded aunque LIFE_PULSE promueva stable."""
         import triade.core.always_on as ao

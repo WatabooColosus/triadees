@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -36,6 +35,7 @@ from uuid import uuid4
 from triade.core.contracts import utc_now
 from triade.core.model_policy import get_model_cognitive_policy
 from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
+from triade.db import sqlite3
 from triade.learning.evidence_bridge import LearningEvidenceBridge
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore
@@ -109,6 +109,11 @@ class LearningPipeline:
         "validated_in_runs",
         "evidence_verified",
     )
+
+    #: Un saber ya consolidado puede seguir acumulando evidencia de uso sin
+    #: volver a recorrer ni degradar su estado. Esta lista separa el contrato
+    #: de observación del contrato de promoción.
+    RUN_TRACKABLE_STATES: tuple[str, ...] = (*CONSOLIDATABLE_STATES, "consolidated")
 
     def __init__(
         self,
@@ -415,10 +420,10 @@ class LearningPipeline:
             raise ValueError(
                 "outcome_score positivo requiere evidence_ref real y trazable"
             )
-        if row["status"] not in self.CONSOLIDATABLE_STATES:
+        if row["status"] not in self.RUN_TRACKABLE_STATES:
             raise ValueError(
                 f"Solo se marca uso de candidatos "
-                f"{'/'.join(self.CONSOLIDATABLE_STATES)} (actual: {row['status']})."
+                f"{'/'.join(self.RUN_TRACKABLE_STATES)} (actual: {row['status']})."
             )
 
         scores_raw = row["run_outcome_scores"] or "[]"

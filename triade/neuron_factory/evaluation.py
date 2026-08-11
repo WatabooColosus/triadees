@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 import math
-import sqlite3
 import uuid
 from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.evaluation import EvaluationComparison, EvaluationRun
 from triade.learning.evidence_bridge import LearningEvidenceBridge
 from triade.regression import MetricPolicy, RegressionGate

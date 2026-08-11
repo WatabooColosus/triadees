@@ -19,12 +19,12 @@ from __future__ import annotations
 
 import json
 import logging
-import sqlite3
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
 from triade.core.constitution import GLOBAL_CONSTITUTION, Constitution
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 
 log = logging.getLogger(__name__)
 

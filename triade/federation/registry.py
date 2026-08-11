@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
+
+from triade.db import sqlite3
 
 NodeState = Literal["pending", "trusted", "quarantined", "revoked"]
 VALID_STATES = {"pending", "trusted", "quarantined", "revoked"}

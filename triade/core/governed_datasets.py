@@ -7,12 +7,13 @@ entrenables vinculados a esos datasets.
 from __future__ import annotations
 
 import json
-import sqlite3
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 
 def _utcnow() -> str:

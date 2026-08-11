@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
 from triade.core.contracts import MemoryPacket, utc_now
+from triade.db import sqlite3
 
 from .semantic_store import SemanticMemoryStore
 

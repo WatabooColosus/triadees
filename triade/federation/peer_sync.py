@@ -8,7 +8,6 @@ sistema federation existente como base.
 from __future__ import annotations
 
 import json
-import sqlite3
 import time
 import urllib.error
 import urllib.request
@@ -16,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.guarded_web import MAX_RESPONSE_BYTES, _assert_public_url
+from triade.db import sqlite3
 
 _PEER_TABLE = """
 CREATE TABLE IF NOT EXISTS peer_nodes (

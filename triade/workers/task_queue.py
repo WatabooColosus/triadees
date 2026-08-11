@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 from triade.runtime.task_leases import ACTIVE, AutonomousTaskStore
 
 from .contracts import WORKER_TASK_TYPES, WorkerTask

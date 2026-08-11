@@ -60,11 +60,12 @@ degradadas si cae. Un fallo local se vuelve información del organismo.
 from __future__ import annotations
 
 import json
-import sqlite3
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 from .contracts import ImprovementSignal
 from .store import ImprovementStore

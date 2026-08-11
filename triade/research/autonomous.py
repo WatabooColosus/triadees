@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -13,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.guarded_web import guarded_web_research, requests_web_research
+from triade.db import sqlite3
 from triade.learning.pipeline import LearningPipeline
 
 

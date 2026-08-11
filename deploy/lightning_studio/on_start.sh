@@ -33,19 +33,22 @@ mkdir -p "$LOG_DIR"
 exec >>"$BOOT_LOG" 2>&1
 echo "=== on_start $(date -Is) ==="
 
-# 1. Modos de fichero. El reinicio del Studio deja todo el árbol en 0744, y eso
-#    rompe dos cosas silenciosamente: `ruff check` (715 EXE002 falsos) y la clave
-#    de backup, que EncryptedBackup se niega a usar si no está en 0600. Va antes
-#    que nada porque los servicios ya arrancan leyendo esa clave.
-bash "$REPO_DIR/scripts/restore_file_modes.sh" || echo "AVISO: no se pudieron restaurar los modos"
-
-# 2. Units de systemd: instalar desde el repo, habilitar y arrancar. Idempotente.
+# 1. Units de systemd: instalar desde el repo, habilitar y arrancar. Idempotente.
+#    Este paso va primero porque el hook de plataforma tiene una ventana acotada.
+#    En el boot de 2026-08-11 murió durante la reparación de 849 modos y no llegó
+#    a instalar una sola unit. El runtime debe recuperar dueño antes del trabajo
+#    administrativo del checkout.
 bash "$REPO_DIR/scripts/install_systemd_units.sh" || echo "AVISO: fallo instalando units"
 
 for unit in triade-ollama.service triade-api.service triade-watchdog.service; do
     sudo systemctl start "$unit" || echo "AVISO: no arrancó $unit"
 done
 sudo systemctl start triade-backup.timer || true
+
+# 2. Modos de fichero. El reinicio del Studio deja todo el árbol en 0744, y eso
+#    rompe `ruff check` y los permisos de claves. Ya no bloquea el restablecimiento
+#    de systemd ni de la URL; la unit carga `.env` antes de este paso.
+bash "$REPO_DIR/scripts/restore_file_modes.sh" || echo "AVISO: no se pudieron restaurar los modos"
 
 # 3. Esperar a Ollama sólo para sincronizar modelos. La API no espera por esto:
 #    si Ollama tarda o falla, arranca igual y queda con el modelo degradado.

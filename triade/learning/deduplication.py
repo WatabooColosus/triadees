@@ -17,13 +17,14 @@ from __future__ import annotations
 
 import hashlib
 import re
-import sqlite3
 import unicodedata
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, cast
+
+from triade.db import sqlite3
 
 POLICY_VERSION = "learning-dedup-1.0.0"
 

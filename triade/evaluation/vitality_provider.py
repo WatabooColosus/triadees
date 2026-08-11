@@ -37,10 +37,10 @@ esa capacidad **no existe hoy** y queda registrada como trabajo pendiente.
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.evaluation.contracts import EvaluationRun, MetricResult
 from triade.evaluation.triade_vitality_suite import (
     SUITE_ID,

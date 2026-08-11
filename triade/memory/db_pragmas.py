@@ -17,9 +17,10 @@ from __future__ import annotations
 
 import logging
 import os
-import sqlite3
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 logger = logging.getLogger(__name__)
 

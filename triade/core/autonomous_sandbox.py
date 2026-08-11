@@ -15,7 +15,6 @@ import hashlib
 import json
 import os
 import shutil
-import sqlite3
 import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -23,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 
 
 @dataclass(slots=True)

@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-import sqlite3
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -13,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.constitution import CONSTITUTION_VERSION, GLOBAL_CONSTITUTION
+from triade.db import sqlite3
 
 IDENTITY_NAME = "Triade Omega"
 IDENTITY_VERSION = "1.0.0"

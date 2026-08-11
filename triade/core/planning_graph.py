@@ -7,12 +7,13 @@ Replaces fixed-step mission planning with a dynamic goal graph.
 from __future__ import annotations
 
 import json
-import sqlite3
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 
 def _utc_now() -> str:

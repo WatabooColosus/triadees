@@ -21,8 +21,13 @@ from typing import Any
 
 from triade.learning.retrieval import LearningRetriever, RetrievalDecision
 
-#: Lo único que puede influir en una conversación normal.
-PRODUCTION_STATES: frozenset[str] = frozenset({"evidence_verified", "stable"})
+#: Lo único que puede influir en una conversación normal.  El pipeline persiste
+#: la promoción final como ``consolidated`` en ``learning_queue``; ``stable`` se
+#: conserva por compatibilidad con bases/fixtures anteriores.  Omitir el estado
+#: real excluía precisamente los saberes que ya habían cruzado todos los gates.
+PRODUCTION_STATES: frozenset[str] = frozenset(
+    {"evidence_verified", "consolidated", "stable"}
+)
 
 MAX_KNOWLEDGE_PER_RUN = 3
 

@@ -4,7 +4,6 @@ import hashlib
 import json
 import logging
 import os
-import sqlite3
 import threading
 import time
 from datetime import UTC, datetime
@@ -12,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.config import load_config as _load_cfg_from_file
+from triade.db import sqlite3
 from triade.metabolism.budget import BudgetTracker
 from triade.metabolism.contracts import (
     MetabolicNeed,
@@ -209,6 +209,11 @@ class MetabolicCoordinator:
         if not self._enabled:
             self._release_process_lock()
             return {"status": "disabled", "message": "metabolism.disabled"}
+        # A clean runtime must migrate before recovery reads any cycle.  The
+        # previous order called RecoveryManager against a newly created empty
+        # SQLite file, so cloud `/health/deep` truthfully returned 503 with
+        # `no such table: metabolic_cycle` until the first tick happened to run.
+        self._ensure_tables()
         self._recover()
         self._stop_event.clear()
         self._thread = threading.Thread(
@@ -751,10 +756,15 @@ _COORD_LOCK = threading.Lock()
 
 
 def get_coordinator(
-    db_path: str | Path = "triade/memory/triade.db",
+    db_path: str | Path | None = None,
 ) -> MetabolicCoordinator:
     global _COORDINATOR
     with _COORD_LOCK:
         if _COORDINATOR is None:
-            _COORDINATOR = MetabolicCoordinator(db_path=db_path)
+            resolved_db_path: str | Path = (
+                os.environ.get("TRIADE_DB_PATH", "triade/memory/triade.db")
+                if db_path is None
+                else db_path
+            )
+            _COORDINATOR = MetabolicCoordinator(db_path=resolved_db_path)
         return _COORDINATOR
