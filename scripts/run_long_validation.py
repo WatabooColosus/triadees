@@ -171,9 +171,12 @@ def muestra() -> dict[str, Any]:
             "SELECT COUNT(*) FROM semantic_documents WHERE status='stable'"
         ),
         "learning_events": _scalar("SELECT COUNT(*) FROM learning_evidence"),
-        "causal_uses": _scalar("SELECT COUNT(*) FROM learning_usage_events"),
+        "causal_uses": _scalar(
+            "SELECT COALESCE(SUM(run_use_count),0) FROM learning_queue"
+        ),
         "goals_completed": _scalar(
-            "SELECT COUNT(*) FROM goals WHERE status='completed'"
+            "SELECT COUNT(*) FROM planning_graph "
+            "WHERE parent_id IS NULL AND status='completed'"
         ),
         "evidence_by_decision": {
             str(d): int(n)

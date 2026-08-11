@@ -509,22 +509,23 @@ CONTRACTS: tuple[Contract, ...] = (
     _contract(
         "task_type:self_improvement_evaluation",
         "HUMAN_GATED",
-        decided_at="2026-08-08",
+        decided_at="2026-08-11",
         reason="""
-            `MissionPlanner._plan_self_improvement` sólo encola si hay propuestas
-            ya `approved`, y nunca crea ni aprueba ninguna —lo dice su docstring:
-            así el bucle no gira en vacío ni se auto-alimenta—. Aprobar exige
-            `bridge.approve(proposal_id, *, approved_by)`, que lanza si la firma
-            viene vacía. El handler lo dice en su
-            propio docstring: un humano decide qué dirección se intenta, la
-            máquina hace la verificación rigurosa. Cero ejecuciones significa que
-            nadie ha propuesto todavía una mejora.
+            El planner encola una propuesta `approved` o una `open` que supere
+            la política común de auto-aprobación. Esa política conserva el
+            umbral 0.94; la señal viva actual tiene confianza 0.40 y por tanto
+            debe permanecer abierta, sin hacer girar una evaluación que no
+            puede aprobar nada. La alternativa sigue siendo explícitamente
+            humana: `bridge.approve(..., approved_by)` rechaza una firma vacía.
+            Cero ejecuciones significa que ninguna propuesta ha cruzado uno de
+            esos gates, no que falte productor o handler.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
             "writer_reachable=triade/workers/mission_planner.py",
             "effect_consumer=triade/workers/worker_loop.py::_self_improvement_evaluation",
-            "rows_absent=improvement_proposals",
+            "proof_test=tests/test_auto_approval_gate.py::test_confianza_baja_se_rechaza_y_lo_dice",
+            "proof_test=tests/test_self_improvement_evaluation_gate.py::test_confianza_baja_no_hace_girar_el_planificador",
         ),
     ),
     _contract(

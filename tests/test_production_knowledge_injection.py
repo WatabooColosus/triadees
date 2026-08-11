@@ -104,6 +104,42 @@ def test_un_saber_estable_tambien_es_elegible(tmp_path: Path) -> None:
     assert ProductionKnowledgeInjector(ruta).build(PREGUNTA, run_id="r1").used is True
 
 
+def test_un_saber_consolidado_del_pipeline_es_elegible(tmp_path: Path) -> None:
+    """`consolidated` es el estado final que existe en learning_queue real."""
+    ruta = tmp_path / "t.db"
+    _seed(
+        ruta,
+        [{"candidate_id": "c1", "content": VERIFICADO, "status": "consolidated"}],
+    )
+
+    inyeccion = ProductionKnowledgeInjector(ruta).build(PREGUNTA, run_id="r1")
+
+    assert inyeccion.used is True
+    assert inyeccion.injected_ids == ["c1"]
+
+
+def test_un_saber_consolidado_puede_registrar_uso_sin_degradarse(
+    tmp_path: Path,
+) -> None:
+    ruta = tmp_path / "t.db"
+    _seed(
+        ruta,
+        [{"candidate_id": "c1", "content": VERIFICADO, "status": "consolidated"}],
+    )
+    inyector = ProductionKnowledgeInjector(ruta)
+    inyeccion = inyector.build(PREGUNTA, run_id="r1")
+
+    traza = inyector.confirm_uses(inyeccion, VERIFICADO, run_id="r1")
+
+    assert [item["candidate_id"] for item in traza["confirmed"]] == ["c1"]
+    with sqlite3.connect(ruta) as conn:
+        estado, usos = conn.execute(
+            "SELECT status, run_use_count FROM learning_queue WHERE candidate_id='c1'"
+        ).fetchone()
+    assert estado == "consolidated"
+    assert usos == 1
+
+
 def test_una_memoria_peligrosa_no_llega_al_prompt(tmp_path: Path) -> None:
     ruta = tmp_path / "t.db"
     _seed(ruta, [{"candidate_id": "malo", "content": VENENO}])

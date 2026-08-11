@@ -110,6 +110,11 @@ class LearningPipeline:
         "evidence_verified",
     )
 
+    #: Un saber ya consolidado puede seguir acumulando evidencia de uso sin
+    #: volver a recorrer ni degradar su estado. Esta lista separa el contrato
+    #: de observación del contrato de promoción.
+    RUN_TRACKABLE_STATES: tuple[str, ...] = (*CONSOLIDATABLE_STATES, "consolidated")
+
     def __init__(
         self,
         db_path: str | Path = "triade/memory/triade.db",
@@ -415,10 +420,10 @@ class LearningPipeline:
             raise ValueError(
                 "outcome_score positivo requiere evidence_ref real y trazable"
             )
-        if row["status"] not in self.CONSOLIDATABLE_STATES:
+        if row["status"] not in self.RUN_TRACKABLE_STATES:
             raise ValueError(
                 f"Solo se marca uso de candidatos "
-                f"{'/'.join(self.CONSOLIDATABLE_STATES)} (actual: {row['status']})."
+                f"{'/'.join(self.RUN_TRACKABLE_STATES)} (actual: {row['status']})."
             )
 
         scores_raw = row["run_outcome_scores"] or "[]"
