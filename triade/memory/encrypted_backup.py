@@ -249,11 +249,26 @@ class EncryptedBackup:
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 )
             }
-            memory_count = (
-                conn.execute("SELECT COUNT(*) FROM semantic_memory").fetchone()[0]
-                if "semantic_memory" in tables
-                else 0
-            )
+            # El simulacro de restauración verificaba el saber semántico
+            # contando `semantic_memory`, que tiene cero filas y ningún `INSERT`
+            # en todo el repositorio. O sea: la comprobación que debía detectar
+            # una restauración que perdiera la memoria semántica **daba 0 tanto
+            # si se perdía como si no**. Con 379 documentos vivos en
+            # `semantic_documents` (2026-08-11), el simulacro no podía fallar
+            # por esa vía ni cuando debía.
+            #
+            # Se cuenta la tabla que sostiene el saber, y se deja la vieja como
+            # respaldo por si una base antigua sólo tiene aquélla.
+            if "semantic_documents" in tables:
+                memory_count = conn.execute(
+                    "SELECT COUNT(*) FROM semantic_documents"
+                ).fetchone()[0]
+            elif "semantic_memory" in tables:
+                memory_count = conn.execute(
+                    "SELECT COUNT(*) FROM semantic_memory"
+                ).fetchone()[0]
+            else:
+                memory_count = 0
             task_states = (
                 dict(
                     conn.execute(
