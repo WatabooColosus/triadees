@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from triade.db import sqlite3
 
 SCHEMA = Path(__file__).resolve().parent.parent / "memory/schemas.sql"
 MIGRATION = (

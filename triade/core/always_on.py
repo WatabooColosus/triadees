@@ -406,15 +406,17 @@ def start_always_on_if_enabled(
         preflight_errors.append(f"governor_decision_failed: {exc}")
 
     if effective_mode in ("blocked", "cooldown"):
-        _ALWAYS_ON_STATE["status"] = "blocked_by_governor"
-        _ALWAYS_ON_STATE["error"] = f"Governor bloquea: effective_mode={effective_mode}"
-        return {
-            "status": "blocked",
-            "effective_mode": effective_mode,
-            "preflight_errors": preflight_errors,
-            "message": "ALWAYS-ON no puede iniciar: recursos insuficientes.",
-            "config_source": cfg["_config_source"],
-        }
+        # Resource pressure governs *work*, not ownership of the recovery loop.
+        # Returning here left no background thread capable of observing that
+        # pressure had cleared, so a busy cold start stayed dead until somebody
+        # restarted the service manually.  Start the supervisor in its requested
+        # mode; its per-cycle governor will remain in cooldown/observe-only and
+        # promote work automatically when resources recover.
+        degraded_by_governor = True
+        degradation_reason = (
+            degradation_reason
+            or f"Arranque gobernado en {effective_mode}; supervisor conserva recuperación."
+        )
 
     # ── Start background runtime ──
     try:

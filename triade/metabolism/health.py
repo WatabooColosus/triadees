@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.runtime.task_status import ELIGIBLE, sql_placeholders
 
 

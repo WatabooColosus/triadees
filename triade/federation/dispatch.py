@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 from .exchange import (
     FederatedEnvelope,

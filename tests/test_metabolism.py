@@ -33,6 +33,32 @@ def _coordinator(tmp_path: Path, **overrides: Any) -> MetabolicCoordinator:
 
 
 class TestLifecycle:
+    def test_clean_start_migrates_before_recovery(self, tmp_path: Path) -> None:
+        c = _coordinator(tmp_path, max_cycles=0, interval_seconds=60)
+        observed: list[set[str]] = []
+
+        def inspect_schema() -> list[dict[str, Any]]:
+            with sqlite3.connect(c.db_path) as connection:
+                observed.append(
+                    {
+                        str(row[0])
+                        for row in connection.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table'"
+                        )
+                    }
+                )
+            return []
+
+        c.recovery.recover_interrupted_cycles = inspect_schema  # type: ignore[method-assign]
+        result = c.start()
+        try:
+            assert result["status"] == "started"
+            assert "metabolic_cycle" in observed[0]
+            assert "metabolic_needs" in observed[0]
+            assert "metabolic_receipts" in observed[0]
+        finally:
+            c.stop(timeout=5)
+
     def test_start_stop(self, tmp_path: Path) -> None:
         c = _coordinator(tmp_path)
         c.load_config()
@@ -378,6 +404,16 @@ class TestResourceMeasurement:
 
 
 class TestSingleton:
+    def test_get_coordinator_uses_environment_database(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        import triade.metabolism.coordinator as module
+
+        database = tmp_path / "environment.db"
+        monkeypatch.setenv("TRIADE_DB_PATH", str(database))
+        monkeypatch.setattr(module, "_COORDINATOR", None)
+        assert module.get_coordinator().db_path == database
+
     def test_get_coordinator_is_singleton(self, tmp_path: Path) -> None:
         db = str(tmp_path / "test.db")
         c1 = get_coordinator(db_path=db)

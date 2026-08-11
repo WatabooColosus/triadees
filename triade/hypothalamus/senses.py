@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sqlite3
 import subprocess
 import time
 from dataclasses import dataclass
@@ -19,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 from triade.runtime.task_status import ELIGIBLE, IN_FLIGHT, sql_placeholders
 
 log = logging.getLogger(__name__)

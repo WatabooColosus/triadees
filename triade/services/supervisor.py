@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 import threading
 from collections import Counter
 from pathlib import Path
@@ -17,6 +16,7 @@ from triade.core.life_pulse import LIFE_PULSE
 from triade.core.neuron_missions import NeuronMissionStore
 from triade.core.neuron_nutrition import run_neuron_nutrition_cycle
 from triade.core.qualia import QUALIA
+from triade.db import sqlite3
 from triade.learning.pipeline import LearningPipeline
 from triade.models.hardware_profile import HardwareProfiler
 from triade.models.model_router import ModelRouter

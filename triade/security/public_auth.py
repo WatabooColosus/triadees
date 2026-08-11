@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import os
 import secrets
-import sqlite3
 import time
 import uuid
 from datetime import UTC, datetime
@@ -16,6 +15,7 @@ from urllib.parse import urlparse
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
+from triade.db import sqlite3
 from triade.security.distributed_auth import RedisPublicAuthBackend
 
 SCHEMA = Path(__file__).resolve().parent.parent / "memory/schemas.sql"

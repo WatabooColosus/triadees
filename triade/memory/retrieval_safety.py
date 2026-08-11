@@ -18,12 +18,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import sqlite3
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
+
+from triade.db import sqlite3
 
 POLICY_VERSION = "retrieval-safety-1.0.0"
 

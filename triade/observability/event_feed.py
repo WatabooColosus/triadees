@@ -18,10 +18,11 @@ Todo se lee en `mode=ro`. Este módulo no escribe nunca.
 
 from __future__ import annotations
 
-import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 from .runtime_graph import open_readonly
 

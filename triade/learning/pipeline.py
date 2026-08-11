@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -36,6 +35,7 @@ from uuid import uuid4
 from triade.core.contracts import utc_now
 from triade.core.model_policy import get_model_cognitive_policy
 from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
+from triade.db import sqlite3
 from triade.learning.evidence_bridge import LearningEvidenceBridge
 from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_store import SemanticMemoryStore

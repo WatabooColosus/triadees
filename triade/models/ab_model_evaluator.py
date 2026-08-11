@@ -7,10 +7,11 @@ por tipo de tarea.
 
 from __future__ import annotations
 
-import sqlite3
 import time
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 _EVAL_TABLE = """
 CREATE TABLE IF NOT EXISTS ab_evaluations (

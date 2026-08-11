@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 from typing import cast
+
+from triade.db import sqlite3
 
 from .contracts import GraphEdge, GraphNode, NodeKind, NodeState
 

@@ -8,11 +8,12 @@ y auditoría completa en SQLite.
 from __future__ import annotations
 
 import shutil
-import sqlite3
 import subprocess
 import time
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 from .safety import BLOCKED_KEYWORDS, SANDBOX_ONLY_KEYWORDS
 

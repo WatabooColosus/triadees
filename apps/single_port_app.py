@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sqlite3
 import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -34,6 +33,7 @@ from triade.core.request_context import (
     reset_request_id,
     set_request_id,
 )
+from triade.db import sqlite3
 from triade.federation.node_live_registry import NODE_LIVE_REGISTRY
 
 _ALWAYS_ON_RESULT: dict[str, Any] = {}
@@ -49,11 +49,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Antes de cualquier otra cosa: garantizar WAL. Es idempotente y persistente,
     # pero si la base se creara desde cero sin esto arrancaría en journal_mode
     # 'delete' y no soportaría la concurrencia real del sistema (P1-04).
-    app.state.durability_pragmas = ensure_durability_pragmas()
+    db_path = os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
+    app.state.durability_pragmas = ensure_durability_pragmas(db_path)
 
-    identity = IdentityContinuity(
-        os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
-    ).verify(run_id="single-port-startup")
+    identity = IdentityContinuity(db_path).verify(run_id="single-port-startup")
     app.state.identity_verification = identity
     if identity["integrity"] != "verified":
         global _ALWAYS_ON_RESULT
@@ -151,8 +150,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "single_port_app",
             {"enabled": cfg.get("enabled")},
         )
-        result = start_always_on_if_enabled()
-        workers_result = start_workers_if_configured(cfg)
+        result = start_always_on_if_enabled(db_path=db_path)
+        workers_result = start_workers_if_configured(cfg, db_path=db_path)
         record_internal_runtime_event(
             "workers_autostart_checked", "single_port_app", workers_result
         )
@@ -163,7 +162,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # congelada (F-040).
         from triade.runtime.watchdog_autostart import start_watchdog_if_enabled
 
-        watchdog_result = start_watchdog_if_enabled(cfg)
+        watchdog_result = start_watchdog_if_enabled(cfg, db_path=db_path)
         record_internal_runtime_event(
             "runtime_watchdog_checked", "single_port_app", watchdog_result
         )
@@ -171,7 +170,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             from triade.metabolism.coordinator import get_coordinator
 
-            mc = get_coordinator()
+            mc = get_coordinator(db_path=db_path)
             mc.load_config()
             metabolism_result = mc.start()
         except (ImportError, OSError, RuntimeError, ValueError, sqlite3.Error) as exc:

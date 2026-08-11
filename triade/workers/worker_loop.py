@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import sqlite3
 import threading
 import time
 from collections.abc import Callable
@@ -29,6 +28,7 @@ from triade.core.neuron_autopromoter import NeuronAutopromoter
 from triade.core.neuron_formation_pipeline import form_candidates
 from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
 from triade.core.safety import Safety
+from triade.db import sqlite3
 from triade.federation.federation import Federation
 from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine

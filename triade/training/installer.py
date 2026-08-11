@@ -5,13 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import sqlite3
 import subprocess
 import sys
 import time
 import venv
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 PACKAGE = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9_.-]*(?:\[[A-Za-z0-9_,.-]+\])?(?:==[A-Za-z0-9_.+!-]+)?$"

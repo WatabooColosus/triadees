@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -12,6 +11,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 from urllib.parse import urlparse
 
+from triade.db import sqlite3
 from triade.learning.pipeline import LearningPipeline
 
 SCHEMA = Path(__file__).resolve().parent.parent / "memory/schemas.sql"

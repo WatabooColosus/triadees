@@ -3,12 +3,12 @@ regression detection en tiempo real, y quality metrics compuestas."""
 
 import hashlib
 import json
-import sqlite3
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 
 
 def _gen_id(prefix: str) -> str:

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+
+from triade.db import sqlite3
 
 # El vocabulario vivía aquí, que es donde se escribe. Se movió a
 # `task_status.py` para que los demás módulos puedan importarlo en vez de

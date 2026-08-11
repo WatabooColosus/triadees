@@ -135,6 +135,8 @@ class LifePulseEngine:
         if autonomy not in AUTONOMY_LEVELS:
             autonomy = DEFAULT_AUTONOMY_LEVEL
         return cls(
+            db_path=os.environ.get("TRIADE_DB_PATH", "triade/memory/triade.db"),
+            runs_dir=os.environ.get("TRIADE_RUNS_DIR", "runs"),
             interval_seconds=max(5, interval),
             reflection_limit=max(5, limit),
             continuous_run_enabled=continuous,

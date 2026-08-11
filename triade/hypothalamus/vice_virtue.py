@@ -10,12 +10,12 @@ Persistencia SQLite con historial por run.
 from __future__ import annotations
 
 import json
-import sqlite3
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 
 VIRTUE_NAMES: tuple[str, ...] = (
     "humildad",

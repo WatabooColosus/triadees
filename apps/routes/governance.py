@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 from typing import Any
 from uuid import uuid4
 
@@ -11,6 +10,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from apps.routes.api import require_key
+from triade.db import sqlite3
 
 router = APIRouter(prefix="/api/governance", tags=["governance"])
 

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
 import time
 from pathlib import Path
 from typing import Any, ClassVar
 
+from triade.db import sqlite3
 from triade.metabolism.contracts import ResourceBudget
 
 logger = logging.getLogger(__name__)

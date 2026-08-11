@@ -17,11 +17,11 @@ Dos reglas gobiernan este módulo:
 from __future__ import annotations
 
 import os
-import sqlite3
 from pathlib import Path
 from typing import Any
 
 from triade.core.runtime_scope import source_alimenta_aprendizaje
+from triade.db import sqlite3
 from triade.runtime.task_leases import AutonomousTaskStore
 
 #: Campos que `_learning_candidate_generation` consume hoy de verdad. El resto

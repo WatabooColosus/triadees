@@ -42,10 +42,11 @@ y cada eslabón que se declara, se comprueba.
 from __future__ import annotations
 
 import re
-import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 from .code_graph import build_module_index, reachable_modules
 

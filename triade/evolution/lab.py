@@ -10,7 +10,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import sqlite3
 import uuid
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
@@ -18,6 +17,8 @@ from datetime import UTC, datetime
 from enum import IntEnum
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 
 def _now() -> str:

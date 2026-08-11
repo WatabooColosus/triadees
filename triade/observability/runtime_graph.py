@@ -13,10 +13,10 @@ from __future__ import annotations
 
 import ast
 import re
-import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 
+from triade.db import sqlite3
 from triade.runtime.task_status import ELIGIBLE
 
 from .code_graph import (

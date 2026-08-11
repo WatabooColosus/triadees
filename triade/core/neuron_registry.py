@@ -7,9 +7,10 @@ NeuronSpec y NeuronTrainingResult en estado persistente SQLite.
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 from .neuron_creator import NeuronSpec
 from .neuron_trainer import NeuronTrainingResult

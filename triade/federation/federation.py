@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +26,7 @@ from typing import Any
 from uuid import uuid4
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 from triade.learning.pipeline import LearningPipeline
 from triade.models.hardware_profile import HardwareProfiler
 

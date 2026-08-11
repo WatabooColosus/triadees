@@ -32,11 +32,12 @@ legítimo: con un proxy, lo honesto es un umbral conservador.
 
 from __future__ import annotations
 
-import sqlite3
 import statistics
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 RECORDER_VERSION = "neuron-education-applications-1.0.0"
 

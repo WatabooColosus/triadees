@@ -4,11 +4,11 @@ de la creación."""
 
 import hashlib
 import json
-import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 
 
 def _gen_id(prefix: str) -> str:

@@ -13,11 +13,12 @@ experimento posible y se declara así, en vez de inventar una métrica.
 from __future__ import annotations
 
 import re
-import sqlite3
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+
+from triade.db import sqlite3
 
 #: Un token distintivo: mayúsculas, guiones, dos puntos o dígitos. Las palabras
 #: corrientes no sirven — «informe» aparecería igual sin haber aprendido nada.

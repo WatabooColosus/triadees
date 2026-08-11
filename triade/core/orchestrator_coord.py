@@ -8,9 +8,10 @@ para garantizar que solo un subsistema ejecuta cada tipo de operación.
 
 from __future__ import annotations
 
-import sqlite3
 import time
 from pathlib import Path
+
+from triade.db import sqlite3
 
 _LOCK_TABLE = """
 CREATE TABLE IF NOT EXISTS orchestrator_locks (

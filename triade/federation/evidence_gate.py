@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any, ClassVar
 
+from triade.db import sqlite3
 from triade.evaluation import EvaluationRun, MetricResult
 from triade.regression import MetricPolicy, RegressionGate
 

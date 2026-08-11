@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import builtins
 import json
-import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 VALID_STATES = {"experimental", "active", "deprecated", "blocked"}
 VALID_PERMISSIONS = {"read", "write", "execute", "promote"}

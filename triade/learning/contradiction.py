@@ -23,12 +23,12 @@ aprendizaje legítimo, y aquí bloquear de más es tan caro como bloquear de men
 from __future__ import annotations
 
 import re
-import sqlite3
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.learning.knowledge_probe import extract_target
 
 #: Cuánto tienen que solaparse los sujetos para considerarlos el mismo. Alto a

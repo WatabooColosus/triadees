@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
 from triade.core.resource_probe import build_resource_probe
+from triade.db import sqlite3
 
 HealthState = Literal[
     "healthy", "idle", "degraded", "stalled", "recovering", "critical", "stopped"

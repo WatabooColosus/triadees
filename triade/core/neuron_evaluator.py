@@ -7,10 +7,11 @@ Genera un score compuesto para ranking y promoción.
 
 from __future__ import annotations
 
-import sqlite3
 import time
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 _METRICS_TABLE = """
 CREATE TABLE IF NOT EXISTS neuron_eval_metrics (

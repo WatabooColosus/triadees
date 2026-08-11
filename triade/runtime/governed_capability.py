@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import shutil
-import sqlite3
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from triade.db import sqlite3
 from triade.runtime.effect_receipt import EffectReceipt
 from triade.runtime.task_artifacts import AtomicArtifactWriter
 

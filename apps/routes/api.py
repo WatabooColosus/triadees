@@ -1603,6 +1603,7 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
     from triade.core.ollama_blood import check_ollama_blood
     from triade.core.repo_runtime_status import build_repo_runtime_status
     from triade.core.technical_debt_audit import build_technical_debt_audit
+    from triade.db import resource_metrics
     from triade.runtime.service_supervision import build_service_supervision
     from triade.services.event_bus import list_recent_events
     from triade.workers.background_service import WorkerBackgroundService
@@ -1674,6 +1675,13 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         "supervision",
         {"always_on": None, "service_manager": None},
     )
+    database_path = os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
+    supervision["resources"] = _safe(
+        lambda: resource_metrics(database_path),
+        "resources",
+        {},
+    )
+    supervision["cloud_mode"] = os.getenv("TRIADE_CLOUD_MODE") == "1"
 
     return {
         "status": "partial" if _errors else "ok",

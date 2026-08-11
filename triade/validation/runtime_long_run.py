@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import subprocess
 import tempfile
 import time
@@ -14,6 +13,7 @@ from typing import Any
 
 import psutil
 
+from triade.db import sqlite3
 from triade.runtime.task_leases import AutonomousTaskStore
 
 

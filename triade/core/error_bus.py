@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 import traceback
 from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
 
 ERROR_SEVERITY_POLICY: dict[str, str] = {
     "critical": "Riesgo de corrupción de identidad, memoria estable o seguridad.",

@@ -30,12 +30,13 @@ avanzan sin una persona porque son reversibles y quedan marcados. Promover a
 from __future__ import annotations
 
 import json
-import sqlite3
 import statistics
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 RESOLVER_VERSION = "neuron-education-resolver-1.0.0"
 

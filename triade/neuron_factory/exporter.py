@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any
 
 from triade.capabilities import CapabilityRegistry
+from triade.db import sqlite3
 from triade.learning.evidence_bridge import LearningEvidenceBridge
 
 from .candidate import NeuronCandidateFactory

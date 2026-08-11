@@ -8,12 +8,12 @@ supervisor puede persistirlo además en su tabla de dominio.
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any
 
 from triade.core.contracts import utc_now
 from triade.core.error_bus import prune_worker_events
+from triade.db import sqlite3
 
 
 def _connect(db_path: str | Path) -> sqlite3.Connection:

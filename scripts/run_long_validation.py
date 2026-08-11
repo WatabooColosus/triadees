@@ -32,6 +32,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "triade/memory/triade.db"
 HEARTBEAT = "http://localhost:8010/api/runtime/heartbeat"
+LIVE = "http://127.0.0.1:8010/health/live"
 
 
 def sha() -> str:
@@ -73,13 +74,13 @@ def _proc_metrics() -> dict[str, Any]:
     """RSS y descriptores del proceso de la app, si está viva."""
     try:
         out = subprocess.run(
-            ["pgrep", "-f", "uvicorn apps.single_port_app"],
+            ["systemctl", "show", "-p", "MainPID", "--value", "triade-api.service"],
             capture_output=True,
             text=True,
             timeout=10,
             check=False,
         )
-        pids = [p for p in out.stdout.split() if p.isdigit()]
+        pids = [p for p in out.stdout.split() if p.isdigit() and int(p) > 0]
     except (OSError, subprocess.SubprocessError):
         return {"alive": False}
     if not pids:
@@ -87,7 +88,18 @@ def _proc_metrics() -> dict[str, Any]:
     pid = pids[-1]
     datos: dict[str, Any] = {"alive": True, "pid": int(pid)}
     try:
-        datos["fds"] = len(os.listdir(f"/proc/{pid}/fd"))
+        descriptors = list(Path(f"/proc/{pid}/fd").iterdir())
+        datos["fds"] = len(descriptors)
+        database = str(DB.resolve())
+        sqlite_fds = 0
+        for descriptor in descriptors:
+            try:
+                target = os.readlink(descriptor)
+            except OSError:
+                continue
+            if target == database or target.startswith(f"{database}-"):
+                sqlite_fds += 1
+        datos["sqlite_fds"] = sqlite_fds
     except OSError:
         datos["fds"] = None
     try:
@@ -114,13 +126,30 @@ def muestra() -> dict[str, Any]:
     except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
         latido = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
+    from triade.runtime.service_supervision import build_service_supervision
+
+    supervision = build_service_supervision(port=8010)
+    try:
+        with urllib.request.urlopen(LIVE, timeout=5) as response:
+            url_available = response.status == 200
+    except (urllib.error.URLError, TimeoutError, OSError):
+        url_available = False
     return {
         "at": datetime.now(UTC).isoformat(),
         "sha": sha(),
         "heartbeat": latido,
         "process": _proc_metrics(),
+        "supervision": {
+            "url_available": url_available,
+            "listener_count": supervision.get("listener_count"),
+            "service_managed": supervision.get("service_managed"),
+            "autostart_enabled": supervision.get("autostart_enabled"),
+            "restart_count": supervision.get("restart_count"),
+        },
         "db_bytes": DB.stat().st_size if DB.exists() else 0,
         "wal_bytes": wal.stat().st_size if wal.exists() else 0,
+        "integrity_check": _scalar("PRAGMA integrity_check", "unavailable"),
+        "foreign_key_violations": len(_rows("PRAGMA foreign_key_check")),
         "tasks_by_status": {
             str(s): int(n)
             for s, n in _rows("SELECT status,COUNT(*) FROM autonomous_tasks GROUP BY 1")
@@ -138,6 +167,14 @@ def muestra() -> dict[str, Any]:
             "SELECT COUNT(*) FROM learning_queue WHERE status IN "
             "('evidence_verified','stable')"
         ),
+        "stable_learning": _scalar(
+            "SELECT COUNT(*) FROM semantic_documents WHERE status='stable'"
+        ),
+        "learning_events": _scalar("SELECT COUNT(*) FROM learning_evidence"),
+        "causal_uses": _scalar("SELECT COUNT(*) FROM learning_usage_events"),
+        "goals_completed": _scalar(
+            "SELECT COUNT(*) FROM goals WHERE status='completed'"
+        ),
         "evidence_by_decision": {
             str(d): int(n)
             for d, n in _rows(
@@ -148,6 +185,10 @@ def muestra() -> dict[str, Any]:
         "lease_recoveries": _scalar(
             "SELECT COUNT(*) FROM metabolic_receipts "
             "WHERE need_id LIKE 'lease_supervision%'"
+        ),
+        "watchdog_recoveries": _scalar(
+            "SELECT COUNT(*) FROM runtime_recovery_events "
+            "WHERE state='runtime_recovered'"
         ),
     }
 

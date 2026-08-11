@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import os
 import platform
-import sqlite3
 import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -18,6 +17,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
+from triade.db import sqlite3
 from triade.knowledge.visibility import (
     VISIBILITY_VERSION,
     KnowledgeVisibilityService,

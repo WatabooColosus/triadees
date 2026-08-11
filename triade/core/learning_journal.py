@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.services.event_bus import list_recent_events
 
 

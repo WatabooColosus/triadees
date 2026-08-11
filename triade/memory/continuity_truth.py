@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
-import sqlite3
 from pathlib import Path
 from typing import Any
+
+from triade.db import sqlite3
 
 MEMORY_QUESTION = re.compile(
     r"\b(recuerd|memoria|sesiones?|contexto anterior|olvid|persist|fuera de (?:la|cada) sesi[oó]n)\w*\b",

@@ -9,6 +9,9 @@ services:
       - .env.cloud
     environment:
       TRIADE_CLOUD_MODE: "1"
+      # The current organism remains SQLite-backed. PostgreSQL is a declared
+      # cloud dependency, not yet the source of truth for runtime state.
+      TRIADE_DB_PATH: /app/memory/triade.db
       REDIS_URL: redis://valkey:6379/0
       DATABASE_URL: postgresql://triade:${POSTGRES_PASSWORD}@postgres:5432/triade
     depends_on:
