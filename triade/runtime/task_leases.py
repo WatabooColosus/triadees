@@ -26,6 +26,7 @@ from triade.runtime.task_status import (  # noqa: F401
 )
 
 MAX_DISPATCH_DEFERRALS = 20
+SQLITE_BUSY_TIMEOUT_SECONDS = 30
 
 
 def _now() -> datetime:
@@ -91,9 +92,17 @@ class AutonomousTaskStore:
         —con la pila apuntando aquí— de forma intermitente y sólo con
         `TRIADE_WORKER_CONCURRENCY=1`.
         """
-        conn = sqlite3.connect(self.db_path, timeout=5, isolation_level=None)
+        # Seis workers pueden llegar juntos a BEGIN IMMEDIATE. SQLite seguirá
+        # teniendo un único escritor, pero en un runner cargado 5 s permitían
+        # que uno agotara la espera mientras los demás encadenaban transacciones
+        # cortas. Esperar el turno es el contrato correcto; fallar la tarea no.
+        conn = sqlite3.connect(
+            self.db_path,
+            timeout=SQLITE_BUSY_TIMEOUT_SECONDS,
+            isolation_level=None,
+        )
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_SECONDS * 1000}")
         return conn
 
     @staticmethod
