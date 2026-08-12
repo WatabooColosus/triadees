@@ -899,4 +899,36 @@ CONTRACTS: tuple[Contract, ...] = (
             "rows_absent=goals",
         ),
     ),
+    # ── Vacía en reposo porque eso es estar bien ─────────────────────
+    _contract(
+        "table:orchestrator_locks",
+        "EXPECTED_EMPTY",
+        decided_at="2026-08-12",
+        reason="""
+            Tabla de locks con TTL: una fila existe sólo mientras alguien tiene
+            el turno, y `guard()` la borra al salir del bloque pase lo que pase.
+            En reposo, cero filas es el estado correcto; filas persistentes
+            serían el síntoma de un lock filtrado.
+
+            Esto **no** se podía decir antes del 2026-08-12, y por eso no se
+            dijo: hasta entonces la tabla estaba vacía porque no la usaba nadie.
+            Existían seis guardas `can_*` sin una sola llamada y lo único que se
+            invocaba era `cleanup()` al arrancar, o sea que se limpiaba lo que
+            nadie creaba. Llamar «vacío esperado» a eso habría tapado un
+            circuito abierto con la excusa de que el lock es transitorio.
+
+            Ahora los tres subsistemas que llaman a `NeuronAutopromoter.promote()`
+            —runner, workers y life_pulse— pasan por el lock, y
+            `neuron_autopromotion` acumula 1401 ejecuciones con cadencia de unos
+            tres minutos: la adquisición es real y frecuente. Si alguien saca el
+            lock de uno de los tres, la prueba nombrada lo dice por su nombre.
+        """,
+        evidence=(
+            "writer_reachable=triade/core/orchestrator_coord.py",
+            "reader_exists=triade/core/orchestrator_coord.py",
+            "proof_test=tests/test_promotion_coordination.py::test_dos_hilos_no_promueven_a_la_vez",
+            "proof_test=tests/test_promotion_coordination.py::test_los_tres_llamantes_de_promote_pasan_por_el_lock",
+            "rows_absent=orchestrator_locks",
+        ),
+    ),
 )
