@@ -25,6 +25,7 @@ from triade.core.experimental_neuron_runtime import run_experimental_neurons
 from triade.core.guarded_web import TRUSTED_RESEARCH_HOSTS
 from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.core.neuron_autopromoter import NeuronAutopromoter
+from triade.core.orchestrator_coord import OrchestratorCoordinator
 from triade.core.neuron_formation_pipeline import form_candidates
 from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
 from triade.core.safety import Safety
@@ -2794,7 +2795,18 @@ class WorkerLoop:
     def _neuron_autopromotion(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
-        events = NeuronAutopromoter(db_path=self.db_path).promote()
+        # Ver el comentario en `core/runner.py`: tres subsistemas del mismo
+        # proceso llaman a `promote()`. El lock decide de quién es el turno.
+        coord = OrchestratorCoordinator(db_path=self.db_path)
+        with coord.guard(
+            coord.LOCK_NEURON_PROMOTION, "workers", ttl=180.0
+        ) as es_mi_turno:
+            if not es_mi_turno:
+                return {
+                    "status": "skipped",
+                    "reason": "otro subsistema tiene el turno de promoción",
+                }
+            events = NeuronAutopromoter(db_path=self.db_path).promote()
         qualia = (
             self._publish_qualia_experience(
                 run_ref,

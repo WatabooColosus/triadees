@@ -1095,8 +1095,23 @@ class TriadeRunner:
         autopromotion_events: list[dict[str, Any]] = []
         try:
             from .neuron_autopromoter import NeuronAutopromoter
+            from .orchestrator_coord import OrchestratorCoordinator
 
-            autopromotion_events = NeuronAutopromoter(db_path=self.db_path).promote()
+            # El runner no era el único que promovía: `worker_loop` y
+            # `life_pulse` llaman al mismo `promote()`, y los tres corren como
+            # hilos del mismo proceso. `promote()` lista candidatos y los
+            # asciende, así que dos a la vez pueden ascender el mismo candidato
+            # dos veces. `life_pulse` se protegía con un `if not worker_active`
+            # que ni cubre a este ni resiste un TOCTOU. El lock que ya existía
+            # para esto es el que manda ahora.
+            coord = OrchestratorCoordinator(db_path=self.db_path)
+            with coord.guard(
+                coord.LOCK_NEURON_PROMOTION, "runner", ttl=180.0
+            ) as es_mi_turno:
+                if es_mi_turno:
+                    autopromotion_events = NeuronAutopromoter(
+                        db_path=self.db_path
+                    ).promote()
         except (
             OSError,
             ImportError,

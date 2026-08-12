@@ -701,8 +701,21 @@ class LifePulseEngine:
                 if not worker_active and AUTONOMY_LEVELS.index(
                     level
                 ) >= AUTONOMY_LEVELS.index("promote_experimental"):
-                    autopromoter = NeuronAutopromoter(db_path=self.db_path)
-                    promotion_events = autopromoter.promote()
+                    # `worker_active` es la política —los workers mandan sobre la
+                    # promoción cuando están vivos— pero se lee un instante antes
+                    # de promover y no impide que el runner entre a la vez. El
+                    # lock es el mecanismo, y se queda con la última palabra.
+                    from .orchestrator_coord import OrchestratorCoordinator
+
+                    coord = OrchestratorCoordinator(db_path=self.db_path)
+                    with coord.guard(
+                        coord.LOCK_NEURON_PROMOTION, "life_pulse", ttl=180.0
+                    ) as es_mi_turno:
+                        promotion_events = (
+                            NeuronAutopromoter(db_path=self.db_path).promote()
+                            if es_mi_turno
+                            else []
+                        )
                     for ev in promotion_events:
                         if ev.get("status") == "promoted":
                             with self._lock:
