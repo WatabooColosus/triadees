@@ -40,6 +40,72 @@ _ALWAYS_ON_RESULT: dict[str, Any] = {}
 _ALWAYS_ON_LOCK = threading.Lock()
 
 
+#: Plazo total que el apagado se permite gastar. `TimeoutStopSec` de la unit son
+#: 30 s y systemd remata con SIGKILL al vencer: hay que terminar cómodamente
+#: antes, o el cierre ordenado no llega a ocurrir y volvemos al remate.
+_SHUTDOWN_BUDGET_SECONDS = 12.0
+
+
+def _stop_background(db_path: str) -> dict[str, Any]:
+    """Para lo que el arranque levantó, en orden inverso y con plazo acotado.
+
+    El arranque encendía seis subsistemas —always_on, workers, life_pulse,
+    registro federado, metabolismo y watchdog— y el cierre paraba dos. Los
+    demás seguían vivos, el proceso no terminaba, y systemd lo remataba con
+    SIGKILL a los 30 s dejando la unit en `failed`. La propia unit lo tenía
+    escrito como si fuera el diseño: «los hilos de fondo siguen vivos más de
+    30 s… systemd remata con SIGKILL».
+
+    Un SIGKILL no es un apagado: las tareas en vuelo se quedan en `running`,
+    los leases sin devolver y la base sin punto de control. Eso es exactamente
+    el estado en que apareció Tríade tras el apagado del servidor del
+    2026-08-11.
+
+    Cada parada va en su propio try: si una revienta, las demás tienen que
+    ocurrir igual. Y ninguna puede colgarse —`MetabolismCoordinator.stop()`
+    espera 30 s por defecto, que es justo el plazo entero de systemd—, así que
+    el plazo se pasa explícito.
+    """
+    resultados: dict[str, Any] = {}
+    errores = (OSError, ImportError, RuntimeError, ValueError, sqlite3.Error)
+
+    # Primero lo que produce trabajo nuevo, para que lo de abajo pueda drenar.
+    try:
+        from triade.core.worker_autostart import stop_workers_always_on
+
+        resultados["workers"] = stop_workers_always_on(db_path=db_path)
+    except errores as exc:
+        resultados["workers"] = {"status": "error", "detail": str(exc)}
+
+    try:
+        from triade.metabolism.coordinator import get_coordinator
+
+        resultados["metabolism"] = get_coordinator(db_path=db_path).stop(
+            timeout=_SHUTDOWN_BUDGET_SECONDS / 2
+        )
+    except errores as exc:
+        resultados["metabolism"] = {"status": "error", "detail": str(exc)}
+
+    try:
+        from triade.core.always_on import stop_always_on
+
+        resultados["always_on"] = stop_always_on(db_path=db_path)
+    except errores as exc:
+        resultados["always_on"] = {"status": "error", "detail": str(exc)}
+
+    for nombre, parar in (
+        ("node_live_registry", NODE_LIVE_REGISTRY.stop),
+        ("life_pulse", LIFE_PULSE.stop),
+    ):
+        try:
+            parar()
+            resultados[nombre] = {"status": "stopped"}
+        except errores as exc:
+            resultados[nombre] = {"status": "error", "detail": str(exc)}
+
+    return resultados
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from triade.core.identity_continuity import IdentityContinuity
@@ -203,8 +269,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        NODE_LIVE_REGISTRY.stop()
-        LIFE_PULSE.stop()
+        _stop_background(db_path)
 
 
 app = FastAPI(title="Tríade Ω Single Port", version="0.9.0", lifespan=lifespan)

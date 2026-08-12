@@ -30,9 +30,12 @@ EnvironmentFile=-/teamspace/studios/this_studio/triadees/.env
 ExecStart=/home/zeus/miniconda3/envs/cloudspace/bin/python -m uvicorn apps.single_port_app:app --host 0.0.0.0 --port 8010 --proxy-headers --forwarded-allow-ips='*'
 Restart=always
 RestartSec=5
-# En modo full el proceso no cierra con SIGINT: libera el puerto pero los hilos
-# de fondo (workers, metabolismo) siguen vivos más de 30 s. systemd remata con
-# SIGKILL al vencer el plazo, y así el puerto queda libre para el arranque.
+# El plazo ya no es el mecanismo de apagado, es la red de seguridad. Hasta el
+# 2026-08-12 sí lo era: el arranque encendía seis subsistemas y el cierre paraba
+# dos, así que el proceso no terminaba y systemd lo remataba con SIGKILL a los
+# 30 s dejando la unit en `failed`. Un remate deja las tareas en vuelo en
+# `running`, los leases sin devolver y la base sin punto de control.
+# Ahora `_stop_background()` para lo que arrancó, con un presupuesto de 12 s.
 TimeoutStopSec=30
 KillSignal=SIGINT
 KillMode=mixed

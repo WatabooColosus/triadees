@@ -25,9 +25,9 @@ from triade.core.experimental_neuron_runtime import run_experimental_neurons
 from triade.core.guarded_web import TRUSTED_RESEARCH_HOSTS
 from triade.core.neuron_activity_store import NeuronActivityStore
 from triade.core.neuron_autopromoter import NeuronAutopromoter
-from triade.core.orchestrator_coord import OrchestratorCoordinator
 from triade.core.neuron_formation_pipeline import form_candidates
 from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
+from triade.core.orchestrator_coord import OrchestratorCoordinator
 from triade.core.safety import Safety
 from triade.db import sqlite3
 from triade.federation.federation import Federation

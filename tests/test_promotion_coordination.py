@@ -59,9 +59,10 @@ def test_guard_suelta_el_lock_aunque_el_cuerpo_reviente(tmp_path):
     """
     coord = OrchestratorCoordinator(db_path=tmp_path / "coord.db")
 
-    with pytest.raises(RuntimeError), coord.guard(
-        coord.LOCK_NEURON_PROMOTION, "workers", ttl=180.0
-    ) as es_mi_turno:
+    with (
+        pytest.raises(RuntimeError),
+        coord.guard(coord.LOCK_NEURON_PROMOTION, "workers", ttl=180.0) as es_mi_turno,
+    ):
         assert es_mi_turno
         raise RuntimeError("promote() falló a mitad")
 
@@ -94,9 +95,7 @@ def test_dos_hilos_no_promueven_a_la_vez(tmp_path):
 
     def promotor(nombre: str) -> None:
         nonlocal dentro_a_la_vez, maximo_simultaneo, turnos_concedidos
-        with coord.guard(
-            coord.LOCK_NEURON_PROMOTION, nombre, ttl=60.0
-        ) as es_mi_turno:
+        with coord.guard(coord.LOCK_NEURON_PROMOTION, nombre, ttl=60.0) as es_mi_turno:
             if not es_mi_turno:
                 return
             with mutex:

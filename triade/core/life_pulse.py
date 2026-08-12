@@ -283,10 +283,9 @@ class LifePulseEngine:
                 self._counters["auto_identity_traits"] = (
                     auto_id.get("active_count", 0) if auto_id else 0
                 )
-                self._counters["identity_traits_evolved"] = (
-                    self._counters.get("identity_traits_evolved", 0)
-                    + len(evolved_traits)
-                )
+                self._counters["identity_traits_evolved"] = self._counters.get(
+                    "identity_traits_evolved", 0
+                ) + len(evolved_traits)
                 self._last_tick_at = time.time()
                 self._last_error = None
                 self._last_integrity = integrity
@@ -1090,9 +1089,7 @@ class LifePulseEngine:
         ) as exc:
             return {"status": "error", "error": str(exc)}
 
-    def _evolve_identity_from(
-        self, reflection: dict[str, Any]
-    ) -> list[dict[str, Any]]:
+    def _evolve_identity_from(self, reflection: dict[str, Any]) -> list[dict[str, Any]]:
         """Deja que lo reflexionado se convierta en rasgo, si la reflexión sabe.
 
         `auto_identity` tenía dos lectores productivos —`core/qualia.py:192`, que
