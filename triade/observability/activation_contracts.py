@@ -690,4 +690,158 @@ CONTRACTS: tuple[Contract, ...] = (
             "rows_absent=improvement_canary_observations",
         ),
     ),
+    # ── La otra mitad de la misma cadena de automejora ───────────────
+    #
+    # 2026-08-12: las tres tablas `improvement_*` de arriba estaban excusadas
+    # por el gate de `bridge.py::approve` desde el 2026-08-08, y las cuatro de
+    # abajo seguían contando como subsistema incompleto. Son la misma cadena.
+    #
+    # Lo que lo demuestra, y no es el nombre de las tablas:
+    # `NeuronCandidateFactory` y `NeuronSpecificationStore` se instancian
+    # **únicamente** en `bridge.py:42-43` y `canary.py:18`, y
+    # `SandboxExecutionEngine` sólo en `orchestrator.py:31`. No hay otra puerta.
+    # `bridge.create_candidate` exige que la propuesta esté ya `approved`, o sea
+    # que las cuatro cuelgan de la misma firma que las tres de arriba.
+    #
+    # Contarlas aparte no era prudencia: era pedir que se «arreglaran» cuatro
+    # tablas cuya única forma de tener filas es que un humano apruebe algo.
+    _contract(
+        "table:neuron_specifications",
+        "HUMAN_GATED",
+        decided_at="2026-08-12",
+        reason="""
+            La especificación de la neurona que implementaría una propuesta
+            aprobada. Su store sólo lo construye `bridge.py:43`, un eslabón por
+            debajo de la firma: sin propuesta aprobada no hay especificación que
+            registrar.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/neuron_factory/store.py",
+            "reader_exists=triade/neuron_factory/lifecycle.py",
+            "proof_test=tests/test_neuron_factory_specification.py",
+            "rows_absent=neuron_specifications",
+        ),
+    ),
+    _contract(
+        "table:neuron_specification_history",
+        "HUMAN_GATED",
+        decided_at="2026-08-12",
+        reason="""
+            El historial de transiciones de esa especificación, escrito por
+            `_append_history` dentro del mismo store. No puede tener una fila
+            antes de que exista la especificación de la que es historia.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/neuron_factory/store.py",
+            "reader_exists=triade/neuron_factory/store.py",
+            "proof_test=tests/test_neuron_factory_specification.py",
+            "rows_absent=neuron_specification_history",
+        ),
+    ),
+    _contract(
+        "table:neuron_candidates",
+        "HUMAN_GATED",
+        decided_at="2026-08-12",
+        reason="""
+            El candidato que implementa una propuesta aprobada.
+            `NeuronCandidateFactory` sólo se instancia en `bridge.py:42` y
+            `canary.py:18`, y `create_candidate` rechaza cualquier propuesta que
+            no esté ya `approved`. Un eslabón por debajo de la firma, igual que
+            `improvement_candidate_links`, que ya estaba excusada por esto
+            mismo.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/neuron_factory/candidate.py",
+            "reader_exists=triade/neuron_factory/lifecycle.py",
+            "proof_test=tests/test_neuron_factory_lifecycle.py",
+            "rows_absent=neuron_candidates",
+        ),
+    ),
+    _contract(
+        "table:neuron_candidate_executions",
+        "HUMAN_GATED",
+        decided_at="2026-08-12",
+        reason="""
+            La ejecución en sandbox de una configuración del candidato.
+            `SandboxExecutionEngine` sólo lo construye `orchestrator.py:31` y
+            sólo se llama desde `orchestrator.py:55`, después de que
+            `bridge.create_candidate` haya exigido la aprobación. Dos eslabones
+            por debajo de la firma; no puede ejecutarse un candidato que nadie
+            ha creado.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/neuron_factory/execution.py",
+            "reader_exists=triade/neuron_factory/exporter.py",
+            "proof_test=tests/test_neuron_factory_lifecycle.py",
+            "rows_absent=neuron_candidate_executions",
+        ),
+    ),
+    # ── Capacidades que esperan que alguien de fuera se identifique ──
+    _contract(
+        "table:relational_modulation_states",
+        "NO_EXTERNAL_STIMULUS",
+        decided_at="2026-08-12",
+        reason="""
+            Modula PV-7 por usuario y sesión. El escritor no es un camino aparte
+            que nadie recorra: `get()` llama a `initialize()` cuando no hay fila,
+            y a `get()` lo llama `core/hypothalamus.py:171` en producción. Lo que
+            no llega es el estímulo: la rama exige `user_id` **y** `session_id`
+            en el contexto del paquete, y hoy no los pone nadie —el frontend no
+            los manda y los runs autónomos no tienen usuario por naturaleza—.
+            El día que una llamada identifique usuario y sesión, la primera
+            lectura crea la fila sola y `rows_absent` se cae.
+        """,
+        evidence=(
+            "writer_reachable=triade/memory/relational_modulation.py",
+            "reader_exists=triade/memory/relational_modulation.py",
+            "effect_consumer=triade/core/hypothalamus.py::_relational_store",
+            "proof_test=tests/test_relational_modulation.py",
+            "rows_absent=relational_modulation_states",
+        ),
+    ),
+    _contract(
+        "table:federated_exchange_log",
+        "NO_EXTERNAL_STIMULUS",
+        decided_at="2026-08-12",
+        reason="""
+            Cero filas porque no hay un segundo nodo con quien intercambiar. La
+            cadena local está construida y probada de punta a punta —dispatch,
+            firma ed25519, validación de evidencia—, que es la condición para
+            llamar a esto ausencia de estímulo y no productor roto. El contrato
+            de `task_type:federation_inbox_review` ya usaba esta misma tabla
+            vacía como prueba desde el 2026-08-08; faltaba el de la tabla.
+            Aparece un peer y la evidencia se cae sola.
+        """,
+        evidence=(
+            "writer_reachable=triade/federation/federation.py",
+            "reader_exists=triade/core/observability_view.py",
+            "proof_test=tests/test_federated_exchange.py",
+            "rows_absent=federated_exchange_log",
+        ),
+    ),
+    # ── Historia de una fase que terminó ─────────────────────────────
+    _contract(
+        "table:neuron_certification_transitions",
+        "HISTORICAL",
+        decided_at="2026-08-12",
+        reason="""
+            Las 13 cuarentenas de la fase 12. Su escritor,
+            `neuron_factory/certification.py`, se retiró en el mismo commit que
+            la fase, y esa ausencia es la prueba de que se quitó a propósito y no
+            se perdió: la migración 035 retira `neuron_certifications` y dice
+            explícitamente que ésta **no** se retira, que pasa a bitácora
+            histórica. El contrato vivo es `core/stable_neuron_audit.py`, que
+            decide sobre evidencia medida en vez de sobre un manifiesto firmado
+            a mano. Buscarle lector o escritor sería deshacer una retirada
+            deliberada.
+        """,
+        evidence=(
+            "writer_retired=triade/neuron_factory/certification.py",
+            "rows_present=neuron_certification_transitions",
+        ),
+    ),
 )
