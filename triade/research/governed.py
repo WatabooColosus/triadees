@@ -261,4 +261,40 @@ class GovernedResearchWorker:
                     _now(),
                 ),
             )
+        result["knowledge_graph"] = self._project_into_knowledge_graph(
+            research_id, claims, contradictions, scope
+        )
         return result
+
+    def _project_into_knowledge_graph(
+        self,
+        research_id: str,
+        claims: list[dict[str, Any]],
+        contradictions: list[dict[str, Any]],
+        scope: str | None,
+    ) -> dict[str, Any]:
+        """Deja en el grafo lo que esta investigación averiguó.
+
+        Va después del INSERT y nunca antes: el acta de la investigación es lo
+        que manda, y si proyectar fallara no puede llevarse por delante el
+        registro de que la investigación ocurrió. Por eso el fallo se devuelve
+        como dato y no sube: el grafo es una consecuencia del run, no su
+        condición.
+        """
+        if not claims:
+            return {"nodes_added": 0, "edges_added": 0, "contradictions_detected": 0}
+        try:
+            from triade.os.knowledge_graph import KnowledgeGraph
+            from triade.research.knowledge_projection import (
+                project_research_into_graph,
+            )
+
+            return project_research_into_graph(
+                KnowledgeGraph(self.db_path),
+                research_id=research_id,
+                claims=claims,
+                contradictions=contradictions,
+                domain=scope,
+            )
+        except (OSError, ValueError, TypeError, KeyError, sqlite3.Error) as exc:
+            return {"error": f"{type(exc).__name__}: {exc}"}
