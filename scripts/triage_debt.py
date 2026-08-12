@@ -180,6 +180,7 @@ CONTRACTED_NOT_PENDING = frozenset(
         "EXPECTED_EMPTY",
         "EXPERIMENTAL",
         "HUMAN_GATED",
+        "LEGACY_RETIREMENT_PENDING_OPERATOR",
     }
 )
 

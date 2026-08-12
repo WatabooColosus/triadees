@@ -60,6 +60,7 @@ CLASSIFICATIONS = (
     "AUDIT_LEDGER",
     "HISTORICAL",
     "EXPERIMENTAL",
+    "LEGACY_RETIREMENT_PENDING_OPERATOR",
 )
 
 #: Evidencia que se responde **con el repositorio delante**: ficheros, símbolos,
@@ -72,6 +73,7 @@ STRUCTURAL_EVIDENCE = (
     "writer_retired",
     "append_only",
     "effect_consumer",
+    "retirement_migration",
 )
 
 #: Evidencia que sólo tiene respuesta **sobre la base viva**. En CI no hay base
@@ -287,6 +289,26 @@ class ContractVerifier:
             fuente = self._source(ruta)
             return fuente is not None and bool(
                 re.search(rf"\b{re.escape(simbolo)}\b", fuente)
+            )
+
+        if kind == "retirement_migration":
+            # La retirada ya está escrita y revisada; lo que falta es aplicarla.
+            # Se comprueban las dos mitades, porque una sola miente: que el
+            # fichero exista, y que retire **esta** tabla. Sin lo segundo,
+            # cualquier migración serviría de excusa para cualquier tabla.
+            migracion = self.root / valor
+            if not migracion.exists():
+                return False
+            try:
+                texto = migracion.read_text(encoding="utf-8")
+            except OSError:
+                return False
+            return bool(
+                re.search(
+                    rf"DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?{re.escape(tabla)}\b",
+                    texto,
+                    re.IGNORECASE,
+                )
             )
 
         if kind == "writer_retired":
@@ -842,6 +864,39 @@ CONTRACTS: tuple[Contract, ...] = (
         evidence=(
             "writer_retired=triade/neuron_factory/certification.py",
             "rows_present=neuron_certification_transitions",
+        ),
+    ),
+    # ── Retirada escrita y esperando una firma ───────────────────────
+    #
+    # Distinta de HISTORICAL: allí la retirada ya ocurrió. Aquí la decisión está
+    # tomada y revisada, la migración está en el repositorio, y lo único que
+    # falta es un acto de operador que el sistema exige a propósito. Contarla
+    # como subsistema incompleto pedía «terminar» algo que ya se decidió
+    # terminar al revés.
+    _contract(
+        "table:goals",
+        "LEGACY_RETIREMENT_PENDING_OPERATOR",
+        decided_at="2026-08-12",
+        reason="""
+            El gemelo muerto de `planning_graph`, que es el sistema canónico vivo
+            con 42 filas. Cero filas en producción desde siempre; su único
+            escritor era `tests/test_consciousness.py` —un test que sembraba la
+            única fila que su propio código iba a encontrar— y su lector ya se
+            migró a `planning_graph`.
+
+            La migración `036_retire_goals.sql` está escrita y retira la tabla.
+            No se ha aplicado porque `schema_version` es el número de migración
+            más alto del directorio, así que retirarla mueve el manifiesto de
+            identidad y obliga a rebasar el ancla con
+            `IdentityContinuity.migrate_anchor()`, que exige `approved_by` y
+            `reason` explícitos y lanza `ValueError` sin ellos. Es un gate humano
+            por diseño: firmarlo desde dentro sería que el organismo se autorice
+            a sí mismo un cambio de identidad.
+        """,
+        evidence=(
+            "retirement_migration=triade/memory/migrations/036_retire_goals.sql",
+            "human_gate=triade/core/identity_continuity.py::migrate_anchor",
+            "rows_absent=goals",
         ),
     ),
 )

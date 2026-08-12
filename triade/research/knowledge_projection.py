@@ -110,9 +110,7 @@ def project_research_into_graph(
                 )
                 aristas_nuevas += 1
 
-    contradicciones = (
-        len(kg.detect_contradictions()) if aristas_nuevas else 0
-    )
+    contradicciones = len(kg.detect_contradictions()) if aristas_nuevas else 0
     return {
         "nodes_added": nodos_nuevos,
         "edges_added": aristas_nuevas,
