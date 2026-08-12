@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from triade.db import sqlite3
 from triade.memory.auto_identity_store import AutoIdentityStore
 from triade.memory.hypothalamus_store import HypothalamusStateStore, fatigue_decay
 from triade.memory.trust_store import TrustLevelStore
@@ -264,6 +265,7 @@ class LifePulseEngine:
             reflection = SelfReflectionEngine(db_path=self.db_path).reflect(
                 limit=self.reflection_limit
             )
+            evolved_traits = self._evolve_identity_from(reflection)
             elapsed_ms = int((time.time() - started) * 1000)
             with self._lock:
                 self._counters["cycles"] += 1
@@ -280,6 +282,10 @@ class LifePulseEngine:
                 )
                 self._counters["auto_identity_traits"] = (
                     auto_id.get("active_count", 0) if auto_id else 0
+                )
+                self._counters["identity_traits_evolved"] = (
+                    self._counters.get("identity_traits_evolved", 0)
+                    + len(evolved_traits)
                 )
                 self._last_tick_at = time.time()
                 self._last_error = None
@@ -1083,6 +1089,56 @@ class LifePulseEngine:
             AttributeError,
         ) as exc:
             return {"status": "error", "error": str(exc)}
+
+    def _evolve_identity_from(
+        self, reflection: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Deja que lo reflexionado se convierta en rasgo, si la reflexión sabe.
+
+        `auto_identity` tenía dos lectores productivos —`core/qualia.py:192`, que
+        compone la identidad evolucionada en cada run, y `core/bodega.py`— y cero
+        filas: `evolve_from_reflection` existía y no lo llamaba nadie. Los dos
+        lectores recibían la lista vacía desde siempre, y el contador
+        `auto_identity_traits` de este mismo tick medía 0 por construcción.
+
+        El momento causal es éste y no otro: es donde Tríade acaba de reflexionar
+        sobre lo que le pasó. Lo que faltaba era el gate, porque `load_active()`
+        expone ya los rasgos en `candidate`: un rasgo entra a la identidad en
+        cuanto se escribe. Así que sólo se evoluciona desde una reflexión que
+        **sabe de qué habla** —`knows_what_happened` es la cobertura de
+        trazabilidad ≥95% que calcula el propio motor—. Una reflexión con
+        cobertura pobre observa sobre huecos, y de ahí no debe salir identidad.
+
+        Lo que esto **no** toca es el ancla. `identity_core` son otras 6 filas y
+        otra tabla; la propia reflexión lo declara en `policy.identity_core_modified`,
+        y se comprueba aquí antes de escribir en vez de darlo por hecho. Repetir
+        una observación no crea filas nuevas: `add_or_update` incrementa la
+        evidencia del mismo `trait_key`, que es como un patrón recurrente gana
+        confianza en lugar de inflar la tabla.
+        """
+        awareness = reflection.get("core_awareness") or {}
+        if not awareness.get("knows_what_happened"):
+            return []
+        policy = reflection.get("policy") or {}
+        if policy.get("identity_core_modified"):
+            # La reflexión dice que tocaría el ancla. No se evoluciona a ciegas:
+            # el ancla se rebasa con una decisión del operador, no en un tick.
+            return []
+        try:
+            return AutoIdentityStore(db_path=self.db_path).evolve_from_reflection(
+                f"life_pulse:{self._counters.get('cycles', 0)}", reflection
+            )
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            sqlite3.Error,
+        ):
+            return []
 
     def _check_auto_identity(self) -> dict[str, Any] | None:
         try:
