@@ -139,15 +139,10 @@ def test_la_necesidad_descartada_no_finge_estar_pendiente(db: Path) -> None:
     assert pendientes == {"need-viva"}
 
 
-def test_el_ciclo_autonomo_da_padre_a_su_evento_de_modelo(
+def test_el_health_check_del_supervisor_no_fabrica_inferencias(
     db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """El supervisor escribía un `model_events` por vuelta sin fila en `runs`.
-
-    Se ejecuta `_model_service` de verdad —es el camino que producía las 4.032
-    huérfanas—, sólo con Ollama y el bus de eventos fuera de medio: lo que se
-    prueba es la escritura, no de dónde salió el diagnóstico del modelo.
-    """
+    """Consultar ``/api/tags`` prueba disponibilidad, no una inferencia."""
     from triade.services import supervisor as sup
 
     monkeypatch.setattr(
@@ -161,16 +156,9 @@ def test_el_ciclo_autonomo_da_padre_a_su_evento_de_modelo(
     for _ in range(3):
         supervisor._model_service("observe_only")
 
-    assert huerfanas(db) == []
     with sqlite3.connect(db) as conn:
-        # Una sola fila padre para las tres vueltas: el `OR IGNORE` hace su parte.
-        assert conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 1
-        assert conn.execute("SELECT COUNT(*) FROM model_events").fetchone()[0] == 3
-        origen, estado = conn.execute(
-            "SELECT source, status FROM runs WHERE run_id=?", (supervisor.runtime_id,)
-        ).fetchone()
-    assert origen == "runtime"
-    assert estado == "running"
+        assert conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM model_events").fetchone()[0] == 0
 
 
 class _OllamaFalso:
