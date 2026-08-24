@@ -1,6 +1,6 @@
 """Una retirada escrita no excusa a cualquier tabla, sólo a la que retira.
 
-`LEGACY_RETIREMENT_PENDING_OPERATOR` dice: la decisión de retirar está tomada,
+`LEGACY_RETIRE` dice: la decisión de retirar está tomada,
 la migración está en el repositorio, y lo que falta es un acto de operador que
 el sistema exige a propósito. Es la clase que faltaba para `goals`, cuya
 retirada (`036_retire_goals.sql`) está escrita desde antes de esta sesión y no
@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def _verdict(evidencia: tuple[str, ...], subject: str = "table:goals"):
     contrato = _contract(
         subject,
-        "LEGACY_RETIREMENT_PENDING_OPERATOR",
+        "LEGACY_RETIRE",
         decided_at="2026-08-12",
         reason="prueba",
         evidence=evidencia,
@@ -51,7 +51,7 @@ def test_una_migracion_que_retira_otra_tabla_no_sirve_de_excusa():
     assert not verdict.holds
     assert verdict.failed
     # Y al caerse, el sujeto vuelve a la deuda real diciéndolo.
-    assert verdict.to_dict()["classification"] == "DEUDA_REAL"
+    assert verdict.to_dict()["classification"] == "REAL_BROKEN"
 
 
 def test_una_migracion_que_no_existe_no_sostiene_nada():
@@ -63,7 +63,7 @@ def test_una_migracion_que_no_existe_no_sostiene_nada():
 
 def test_goals_esta_declarada_y_apunta_a_su_retirada_real():
     contrato = load_contracts()["table:goals"]
-    assert contrato.classification == "LEGACY_RETIREMENT_PENDING_OPERATOR"
+    assert contrato.classification == "LEGACY_RETIRE"
     kinds = {e.kind for e in contrato.evidence}
     # La retirada, y el gate humano que impide aplicarla sin firma.
     assert "retirement_migration" in kinds

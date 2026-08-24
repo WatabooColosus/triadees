@@ -286,7 +286,7 @@ def build_debt_report(
     # La separación **no** sale de una lista de nombres: sale de contratos que
     # declaran su evidencia estructural y que se vuelven a comprobar aquí, en
     # cada medición. Lo que no tiene contrato, o lo tiene y no se sostiene, sigue
-    # siendo `DEUDA_REAL`. Ver `activation_contracts.py`.
+    # siendo `REAL_BROKEN`. Ver `activation_contracts.py`.
     clasificado = _classify_with_contracts(
         root, items, rows_by_table, db_path, cache_dir=cache_dir
     )
@@ -324,7 +324,7 @@ def _classify_with_contracts(
 ) -> dict[str, int]:
     """Aplica los contratos y anota en cada categoría lo que sale del contador.
 
-    Devuelve el recuento por clasificación, incluida `DEUDA_REAL`, para que el
+    Devuelve el recuento por clasificación, incluida `REAL_BROKEN`, para que el
     panel pueda enseñarlas separadas sin que ninguna desaparezca. Un contrato que
     no se sostiene no clasifica: deja constancia de qué evidencia se cayó y el
     sujeto se queda donde estaba.
@@ -401,7 +401,7 @@ def _classify_with_contracts(
             entry["classified"] = clasificados
         if rotos:
             entry["contract_broken"] = rotos
-    recuento["DEUDA_REAL"] = sum(
+    recuento["REAL_BROKEN"] = sum(
         entry["count"] - len(entry.get("classified", {})) for entry in items.values()
     )
     return recuento

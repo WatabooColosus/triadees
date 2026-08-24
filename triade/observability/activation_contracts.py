@@ -25,7 +25,7 @@ sostiene, y el detector la vuelve a comprobar en cada medición:
     detector comprueba: ¿existe ese símbolo? ¿en código alcanzable?
                         ¿el escritor escribe esa tabla de verdad?
                         ¿hay lector? ¿la prueba nombrada existe?
-    si algo falla    → vuelve a DEUDA_REAL, diciendo qué evidencia se cayó
+    si algo falla    → vuelve a REAL_BROKEN, diciendo qué evidencia se cayó
 
 O sea: el contrato dice **dónde mirar**, no **qué concluir**. Borra el gate y la
 tabla vuelve al contador sola. Retira el escritor y vuelve. Renombra el símbolo y
@@ -50,18 +50,16 @@ from triade.db import sqlite3
 
 from .code_graph import build_module_index, reachable_modules
 
-#: Las únicas clasificaciones que un contrato puede reclamar. `DEUDA_REAL` no
+#: Las únicas clasificaciones que un contrato puede reclamar. `REAL_BROKEN` no
 #: está: no se declara, es lo que queda cuando ninguna otra se sostiene.
 CLASSIFICATIONS = (
     "HUMAN_GATED",
     "ON_DEMAND",
-    "NO_EXTERNAL_STIMULUS",
     "EXPECTED_EMPTY",
-    "AUDIT_LEDGER",
-    "HISTORICAL",
-    "EXPERIMENTAL",
-    "LEGACY_RETIREMENT_PENDING_OPERATOR",
+    "FUTURE_DECLARED",
+    "LEGACY_RETIRE",
     "MANUAL_TOOL",
+    "TEST_ONLY",
 )
 
 #: Evidencia que se responde **con el repositorio delante**: ficheros, símbolos,
@@ -83,7 +81,7 @@ STRUCTURAL_EVIDENCE = (
 #:
 #: La consecuencia hay que decirla en voz alta: un contrato que mintiera sobre
 #: filas pasaría CI. Lo caza el detector, que reverifica **todo** en cada
-#: medición sobre la base real y devuelve el sujeto a `DEUDA_REAL` si falla. CI
+#: medición sobre la base real y devuelve el sujeto a `REAL_BROKEN` si falla. CI
 #: comprueba que el contrato es *válido*; el detector, que además es *cierto*.
 RUNTIME_EVIDENCE = (
     "rows_present",
@@ -125,7 +123,7 @@ class Verdict:
     def to_dict(self) -> dict[str, Any]:
         return {
             "subject": self.subject,
-            "classification": self.classification if self.holds else "DEUDA_REAL",
+            "classification": self.classification if self.holds else "REAL_BROKEN",
             "reason": self.reason,
             "contract_holds": self.holds,
             "failed_evidence": list(self.failed),
@@ -391,7 +389,7 @@ class ContractVerifier:
 # estructural que la sostiene, y `ContractVerifier` la vuelve a comprobar en cada
 # medición: si el gate desaparece, si el escritor deja de ser alcanzable, si la
 # prueba nombrada se borra o si aparecen filas donde se afirmaba que no las
-# habría, el sujeto **vuelve solo a DEUDA_REAL** diciendo qué evidencia se cayó.
+# habría, el sujeto **vuelve solo a REAL_BROKEN** diciendo qué evidencia se cayó.
 #
 # Añadir una entrada exige haber recorrido la cadena entera —PRODUCTOR → EVENTO →
 # ALCANZABILIDAD → GATE → CONSUMIDOR → EFECTO → EVIDENCIA— y declarar el eslabón
@@ -410,7 +408,7 @@ CONTRACTS: tuple[Contract, ...] = (
     # aparezca uno, deja de ser una bitácora y vuelve al contador.
     _contract(
         "table:hardware_senses",
-        "AUDIT_LEDGER",
+        "ON_DEMAND",
         decided_at="2026-08-08",
         reason="""
             El hipotálamo decide con el snapshot en memoria —`Hypothalamus.sense()`
@@ -429,7 +427,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     _contract(
         "table:governed_research_runs",
-        "AUDIT_LEDGER",
+        "ON_DEMAND",
         decided_at="2026-08-08",
         reason="""
             `GovernedResearchWorker.run()` devuelve claims, contradicciones, bundle
@@ -446,7 +444,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     _contract(
         "table:engineering_evolution_events",
-        "AUDIT_LEDGER",
+        "ON_DEMAND",
         decided_at="2026-08-08",
         reason="""
             Bitácora de decisiones de una evolución de ingeniería: revisión
@@ -470,7 +468,7 @@ CONTRACTS: tuple[Contract, ...] = (
     # camino. Las filas se conservan porque documentan un cambio real de estado.
     _contract(
         "table:evidence_remediation_audit",
-        "HISTORICAL",
+        "LEGACY_RETIRE",
         decided_at="2026-08-08",
         reason="""
             Acta de una remediación puntual: qué evidencia sintética se corrigió,
@@ -572,7 +570,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     _contract(
         "task_type:federation_inbox_review",
-        "NO_EXTERNAL_STIMULUS",
+        "EXPECTED_EMPTY",
         decided_at="2026-08-08",
         reason="""
             `MissionPlanner._plan_federation_inbox` cuenta mensajes federados
@@ -806,7 +804,7 @@ CONTRACTS: tuple[Contract, ...] = (
     # ── Capacidades que esperan que alguien de fuera se identifique ──
     _contract(
         "table:relational_modulation_states",
-        "NO_EXTERNAL_STIMULUS",
+        "EXPECTED_EMPTY",
         decided_at="2026-08-12",
         reason="""
             Modula PV-7 por usuario y sesión. El escritor no es un camino aparte
@@ -828,7 +826,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     _contract(
         "table:federated_exchange_log",
-        "NO_EXTERNAL_STIMULUS",
+        "EXPECTED_EMPTY",
         decided_at="2026-08-12",
         reason="""
             Cero filas porque no hay un segundo nodo con quien intercambiar. La
@@ -849,7 +847,7 @@ CONTRACTS: tuple[Contract, ...] = (
     # ── Historia de una fase que terminó ─────────────────────────────
     _contract(
         "table:neuron_certification_transitions",
-        "HISTORICAL",
+        "LEGACY_RETIRE",
         decided_at="2026-08-12",
         reason="""
             Las 13 cuarentenas de la fase 12. Su escritor,
@@ -876,7 +874,7 @@ CONTRACTS: tuple[Contract, ...] = (
     # terminar al revés.
     _contract(
         "table:goals",
-        "LEGACY_RETIREMENT_PENDING_OPERATOR",
+        "LEGACY_RETIRE",
         decided_at="2026-08-12",
         reason="""
             El gemelo muerto de `planning_graph`, que es el sistema canónico vivo
@@ -1022,7 +1020,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     _contract(
         "table:relational_modulation_events",
-        "NO_EXTERNAL_STIMULUS",
+        "EXPECTED_EMPTY",
         decided_at="2026-08-24",
         reason="""
             Cada fila exige usuario, sesión, tipo gobernado, delta, fuente y

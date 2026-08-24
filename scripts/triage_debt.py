@@ -168,19 +168,18 @@ def _classify_status(
 
 
 #: Veredictos de contrato que significan «esto ya se triró, con evidencia, y no
-#: es trabajo pendiente». `DEUDA_REAL` queda fuera a propósito: hay un contrato
+#: es trabajo pendiente». `REAL_BROKEN` queda fuera a propósito: hay un contrato
 #: que dice exactamente eso de sí mismo, y excusarlo sería usar el sistema de
 #: contratos para tapar lo único que declara no tener excusa.
 CONTRACTED_NOT_PENDING = frozenset(
     {
-        "AUDIT_LEDGER",
-        "HISTORICAL",
         "ON_DEMAND",
-        "NO_EXTERNAL_STIMULUS",
         "EXPECTED_EMPTY",
-        "EXPERIMENTAL",
+        "FUTURE_DECLARED",
         "HUMAN_GATED",
-        "LEGACY_RETIREMENT_PENDING_OPERATOR",
+        "LEGACY_RETIRE",
+        "MANUAL_TOOL",
+        "TEST_ONLY",
     }
 )
 
@@ -199,7 +198,7 @@ def _contract_verdicts(
     tarea sin ejecutar es correcta, y este triaje los ignoraba y las volvía a
     contar como `incomplete_subsystem`. Medido el 2026-08-11: `hardware_senses`
     y `evidence_remediation_audit` figuraban como subsistema incompleto teniendo
-    contrato `AUDIT_LEDGER` e `HISTORICAL` desde el 2026-08-08, con su evidencia.
+    contratos verificables desde el 2026-08-08, con su evidencia.
 
     Contar dos veces una decisión ya tomada infla la deuda y, peor, empuja a
     «arreglarla» inventándole un lector a una bitácora. Un lector falso no
