@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 
 from apps import services
 from apps.gates.safety import safety_gate
+from apps.routes.health import build_deep_runtime_health
 from apps.services import (
     AndroidLocalGenerateRequest,
     DistributedModelDoctorRequest,
@@ -1239,8 +1240,45 @@ def runtime_status() -> dict[str, Any]:
 
 
 @router.get("/api/runtime/heartbeat")
-def runtime_heartbeat(since_hours: int = 24, limit: int = 50) -> dict[str, Any]:
+def runtime_heartbeat(
+    since_hours: int = 24, limit: int = 50, detail: bool = False
+) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_heartbeat")
+    if not detail:
+        health = build_deep_runtime_health()
+        pulse: dict[str, Any] = health.get("live_heartbeat") or {}
+        always_on: dict[str, Any] = health.get("always_on") or {}
+        workers: dict[str, Any] = health.get("workers") or {}
+        blood: dict[str, Any] = health.get("ollama_blood") or {}
+        runtime_enabled = bool(
+            always_on.get("status") == "running"
+            and always_on.get("background_thread_alive")
+        )
+        workers_active = bool(workers.get("active") and workers.get("thread_alive"))
+        return {
+            "status": health.get("status", "degraded"),
+            "api_server_alive": True,
+            "heartbeat_truth": (
+                "ALWAYS-ON activo · Workers vivos · Tríade en proceso continuo"
+                if runtime_enabled and workers_active
+                else "ALWAYS-ON activo · Workers inactivos: revisar autostart/watchdog"
+                if runtime_enabled
+                else "ALWAYS-ON configurado, pero background no está vivo"
+            ),
+            "runtime_enabled": runtime_enabled,
+            "background_thread_alive": bool(always_on.get("background_thread_alive")),
+            "workers_active": workers_active,
+            "active_workers": workers_active,
+            "mode": always_on.get("effective_mode"),
+            "last_cycle_at": pulse.get("updated_at"),
+            "heartbeat_cycle": pulse.get("cycle"),
+            "heartbeat_age_ms": pulse.get("heartbeat_age_ms"),
+            "runtime_pid": pulse.get("pid"),
+            "ollama_blood": blood,
+            "can_reason": bool(blood.get("can_reason")),
+            "fallback_mode": bool(blood.get("fallback_mode")),
+            "detail_available": True,
+        }
     return _legacy_heartbeat_truth(
         build_runtime_heartbeat(since_hours=since_hours, limit=limit)
     )
