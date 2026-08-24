@@ -2,16 +2,6 @@ name: Cloud Foundation
 
 on:
   pull_request:
-    paths:
-      - "Dockerfile.cloud"
-      - "compose.cloud.yml"
-      - ".env.cloud.example"
-      - "deploy/**"
-      - "apps/routes/health.py"
-      - "apps/routes/api.py"
-      - "apps/single_port_app.py"
-      - ".github/workflows/cloud-foundation.yml"
-      - "requirements.txt"
   workflow_dispatch:
 
 permissions:
