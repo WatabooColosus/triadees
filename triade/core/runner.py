@@ -1095,8 +1095,23 @@ class TriadeRunner:
         autopromotion_events: list[dict[str, Any]] = []
         try:
             from .neuron_autopromoter import NeuronAutopromoter
+            from .orchestrator_coord import OrchestratorCoordinator
 
-            autopromotion_events = NeuronAutopromoter(db_path=self.db_path).promote()
+            # El runner no era el único que promovía: `worker_loop` y
+            # `life_pulse` llaman al mismo `promote()`, y los tres corren como
+            # hilos del mismo proceso. `promote()` lista candidatos y los
+            # asciende, así que dos a la vez pueden ascender el mismo candidato
+            # dos veces. `life_pulse` se protegía con un `if not worker_active`
+            # que ni cubre a este ni resiste un TOCTOU. El lock que ya existía
+            # para esto es el que manda ahora.
+            coord = OrchestratorCoordinator(db_path=self.db_path)
+            with coord.guard(
+                coord.LOCK_NEURON_PROMOTION, "runner", ttl=180.0
+            ) as es_mi_turno:
+                if es_mi_turno:
+                    autopromotion_events = NeuronAutopromoter(
+                        db_path=self.db_path
+                    ).promote()
         except (
             OSError,
             ImportError,
@@ -1130,12 +1145,21 @@ class TriadeRunner:
                 ProductionKnowledgeInjector,
             )
 
+            usage_kwargs: dict[str, Any] = {}
+            measured_score = output.memory_diff.get("learning_outcome_score")
+            measured_ref = output.memory_diff.get("learning_outcome_evidence_ref")
+            if measured_score is not None and measured_ref:
+                usage_kwargs = {
+                    "outcome_score": float(measured_score),
+                    "outcome_evidence_ref": str(measured_ref),
+                }
             knowledge_use_result = ProductionKnowledgeInjector(
                 self.db_path
             ).confirm_uses(
                 knowledge_injection,
                 str(getattr(output, "response", "") or ""),
                 run_id=input_packet.run_id,
+                **usage_kwargs,
             )
         except (
             OSError,

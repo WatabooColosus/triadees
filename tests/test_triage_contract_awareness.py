@@ -22,6 +22,8 @@ evidencia se sostenga, y `DEUDA_REAL` no excusa nunca.
 
 from __future__ import annotations
 
+import json
+
 from scripts.triage_debt import CONTRACTED_NOT_PENDING
 
 
@@ -48,6 +50,7 @@ def test_las_clases_excusables_son_las_esperadas() -> None:
         "EXPECTED_EMPTY",
         "EXPERIMENTAL",
         "HUMAN_GATED",
+        "LEGACY_RETIREMENT_PENDING_OPERATOR",
     }
 
 
@@ -71,3 +74,32 @@ def test_los_contratos_del_catalogo_declaran_evidencia() -> None:
         sujeto for sujeto, contrato in contratos.items() if not contrato.evidence
     ]
     assert sin_evidencia == []
+
+
+def test_el_triaje_usa_el_cache_solicitado(tmp_path, monkeypatch) -> None:
+    """No mezcla un informe global con perfiles de otra fotografía."""
+    import scripts.triage_debt as modulo
+
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    (cache / "table_graph.json").write_text(
+        json.dumps({"nodes": [], "edges": []}), encoding="utf-8"
+    )
+    observado = {}
+
+    def informe(root, db, cache_dir, *, allow_build):
+        observado.update(cache_dir=cache_dir, allow_build=allow_build)
+        return {"items": {}, "debt_items_total": 0}
+
+    monkeypatch.setattr(modulo, "build_debt_report", informe)
+    monkeypatch.setattr(modulo, "build_module_index", lambda root: {})
+    monkeypatch.setattr(modulo, "reachable_modules", lambda root, index: set())
+    monkeypatch.setattr(modulo, "_live_tables", lambda db: set())
+    monkeypatch.setattr(modulo, "_scan_sources", lambda root: (set(), {}))
+    monkeypatch.setattr(modulo, "build_alias_debt", lambda *a, **k: {"findings": []})
+    monkeypatch.setattr(modulo, "_contract_verdicts", lambda *a, **k: {})
+
+    resultado = modulo.triage(tmp_path, tmp_path / "db.sqlite3", cache)
+
+    assert observado == {"cache_dir": cache, "allow_build": True}
+    assert resultado["findings_classified"] == 0

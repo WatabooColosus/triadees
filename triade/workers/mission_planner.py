@@ -82,6 +82,7 @@ class MissionPlanner:
         tasks.extend(self._plan_pending_learning())
         tasks.extend(self._plan_failed_recent())
         tasks.extend(self._plan_memory_consolidation())
+        tasks.extend(self._plan_neural_learning_distribution())
         tasks.extend(self._plan_active_missions())
         tasks.extend(self._plan_federation_inbox())
         tasks.extend(self._plan_system_debt())
@@ -157,6 +158,49 @@ class MissionPlanner:
             tasks = tasks[:15]
 
         return tasks
+
+    def _plan_neural_learning_distribution(self) -> list[PlannedTask]:
+        """Distribuye un consolidado todavía no asignado a ninguna neurona."""
+        try:
+            # Inicializar el router aplica la migración canónica antes de leer.
+            from triade.neurons.learning_router import NeuralLearningRouter
+
+            NeuralLearningRouter(self.db_path)
+            with closing(self._connect()) as conn, conn:
+                row = conn.execute(
+                    """SELECT q.candidate_id FROM learning_queue q
+                    WHERE q.status='consolidated'
+                      AND COALESCE(q.risk_level,'low') IN ('none','low','medium')
+                      AND EXISTS (
+                        SELECT 1 FROM learning_evidence e
+                        WHERE e.candidate_id=q.candidate_id AND e.decision='improved'
+                      )
+                      AND NOT EXISTS (
+                        SELECT 1 FROM neuron_learning_assignments a
+                        WHERE a.candidate_id=q.candidate_id
+                      )
+                    ORDER BY q.updated_at LIMIT 1"""
+                ).fetchone()
+            if row is None:
+                return []
+            candidate_id = str(row["candidate_id"])
+            return [
+                PlannedTask(
+                    task_type="neural_learning_distribution",
+                    priority=24,
+                    reason=f"conocimiento consolidado {candidate_id} sin destino neuronal",
+                    source="governed_neural_learning",
+                    planner_score=0.85,
+                    payload={"candidate_id": candidate_id},
+                )
+            ]
+        except MISSION_PLANNER_ERRORS as exc:
+            record_internal_error(
+                "mission_planner.neural_learning_distribution",
+                exc,
+                db_path=self.db_path,
+            )
+            return []
 
     def _plan_research_curriculum(self) -> list[PlannedTask]:
         try:
@@ -368,6 +412,10 @@ class MissionPlanner:
                         reason="; ".join(reasons),
                         source="governed_neuron_education",
                         planner_score=0.7,
+                        # Resolver una lección que ya alcanzó el mínimo de usos es
+                        # consecuencia de un evento, no mantenimiento periódico.
+                        # No debe esperar el intervalo adaptativo del ciclo.
+                        payload={"resolution_ready": bool(resolvable_sessions)},
                     )
                 ]
         except MISSION_PLANNER_ERRORS as exc:

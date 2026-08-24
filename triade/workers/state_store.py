@@ -393,6 +393,13 @@ class WorkerStateStore:
             }
         recent_runs = self.list_worker_runs(limit=1)
         last_run: dict[str, Any] | None = recent_runs[0] if recent_runs else None
+        # El switch de retirada legacy estaba gobernado y probado, pero era
+        # invisible para el runtime: sólo scripts y tests importaban su
+        # controlador. Publicar sus métricas aquí mantiene observable el modo
+        # canónico sin conceder a los workers permiso para cambiarlo.
+        from triade.runtime.legacy_compatibility import LegacyCompatibilityController
+
+        compatibility = LegacyCompatibilityController(self.db_path).metrics()
         return {
             "status": "ok",
             "mode": "triade-living-workers",
@@ -401,6 +408,7 @@ class WorkerStateStore:
             "run_counts": run_counts,
             "last_run": last_run,
             "state": self.get_state("workers") or {},
+            "queue_compatibility": compatibility,
         }
 
     def _run_still_has_work_in_flight(self, run_ref: str) -> bool:

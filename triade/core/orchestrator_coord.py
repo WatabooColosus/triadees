@@ -8,7 +8,10 @@ para garantizar que solo un subsistema ejecuta cada tipo de operación.
 
 from __future__ import annotations
 
+import os
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from triade.db import sqlite3
@@ -143,3 +146,26 @@ class OrchestratorCoordinator:
 
     def cleanup(self) -> int:
         return self.lock.cleanup_expired()
+
+    @contextmanager
+    def guard(
+        self, lock_key: str, subsystem: str, ttl: float = 120.0
+    ) -> Iterator[bool]:
+        """Toma un lock para este bloque y lo suelta pase lo que pase.
+
+        Sin esto, conectar la coordinación obligaría a cada llamante a repetir
+        el `try/finally`, y el día que uno se lo olvide el lock se queda tomado
+        hasta que expire el TTL: el subsistema no haría su trabajo durante
+        minutos y el síntoma —«a veces no promueve»— no apuntaría al olvido.
+
+        `subsystem` identifica a quién pertenece el turno; se le añade el PID
+        porque `release` sólo suelta si el owner coincide, y dos procesos con el
+        mismo nombre no deben poder soltarse el lock el uno al otro.
+        """
+        owner = f"{subsystem}:{os.getpid()}"
+        acquired = self.lock.try_acquire(lock_key, owner, ttl)
+        try:
+            yield acquired
+        finally:
+            if acquired:
+                self.lock.release(lock_key, owner)

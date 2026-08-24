@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 
 from triade.core.runner import TriadeRunner
@@ -112,7 +113,7 @@ def test_runner_records_model_metadata(tmp_path: Path) -> None:
     assert result["memory_diff"]["central_model_event_id"] is not None
 
 
-def test_runner_post_run_learning_creates_candidate_only(
+def test_runner_post_run_learning_delegates_to_governed_worker(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("TRIADE_POST_RUN_LEARNING", "1")
@@ -125,12 +126,25 @@ def test_runner_post_run_learning_creates_candidate_only(
     post_run = result["memory_diff"]["post_run_learning"]
     run_path = Path(result["run_path"])
     integrity = json.loads((run_path / "integrity.json").read_text(encoding="utf-8"))
+    governed = result["memory_diff"]["governed_learning_task"]
     assert post_run["enabled"] is True
-    assert post_run["mode"] == "candidate_only"
-    assert post_run["status"] == "candidate"
-    assert post_run["candidate_id"]
+    assert post_run["mode"] == "delegated_to_governed_post_run_worker"
+    assert post_run["status"] == "scheduled"
+    assert governed["scheduled"] is True
+    assert governed["task_id"]
     assert (run_path / "post_run_learning.json").exists()
-    assert integrity["post_run_learning"]["candidate_id"] == post_run["candidate_id"]
+    assert integrity["post_run_learning"]["source_ref"] == post_run["source_ref"]
+    with sqlite3.connect(tmp_path / "triade.db") as conn:
+        task = conn.execute(
+            "SELECT task_type FROM autonomous_tasks WHERE task_id=?",
+            (governed["task_id"],),
+        ).fetchone()
+        inline_candidates = conn.execute(
+            "SELECT COUNT(*) FROM learning_queue WHERE source_ref=?",
+            (post_run["source_ref"],),
+        ).fetchone()[0]
+    assert task[0] == "learning_candidate_generation"
+    assert inline_candidates == 0
 
 
 def test_runner_accepts_model_overrides(tmp_path: Path) -> None:

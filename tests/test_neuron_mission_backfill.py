@@ -120,7 +120,7 @@ def test_backfill_creates_missions_and_is_idempotent(tmp_path: Path) -> None:
     )
     before_semantic = (
         sqlite3.connect(db_path)
-        .execute("SELECT COUNT(*) FROM semantic_memory")
+        .execute("SELECT COUNT(*) FROM semantic_documents")
         .fetchone()[0]
     )
 
@@ -154,7 +154,7 @@ def test_backfill_creates_missions_and_is_idempotent(tmp_path: Path) -> None:
     )
     after_semantic = (
         sqlite3.connect(db_path)
-        .execute("SELECT COUNT(*) FROM semantic_memory")
+        .execute("SELECT COUNT(*) FROM semantic_documents")
         .fetchone()[0]
     )
     assert after_identity == before_identity

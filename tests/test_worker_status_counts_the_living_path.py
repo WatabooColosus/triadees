@@ -95,3 +95,11 @@ def test_pending_tasks_on_the_dashboard_is_not_frozen(tmp_path: Path) -> None:
         leases.enqueue("pulse_check", {"n": i}, idempotency_key=f"pend-{i}")
 
     assert store.status()["task_counts"].get("pending") == 3
+
+
+def test_worker_status_publica_el_switch_legacy_sin_cambiarlo(tmp_path: Path) -> None:
+    db = tmp_path / "triade.db"
+    status = WorkerStateStore(db).status()["queue_compatibility"]
+
+    assert status["mode"] == "v2_canonical"
+    assert status["compatibility_events"] == 0

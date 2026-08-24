@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .adaptive_scheduler import AdaptiveScheduler
-from .contracts import WORKER_TASK_TYPES, WorkerRunConfig
+from .contracts import EVENT_DRIVEN_TASK_TYPES, WORKER_TASK_TYPES, WorkerRunConfig
 from .task_queue import WorkerTaskQueue
 
 
@@ -48,8 +48,11 @@ class WorkerScheduler:
         """Encola tareas planificadas con metadata de razón y fuente."""
         tasks = []
         for item in planned:
-            if not item.payload.get("goal_id") and self.adaptive.should_skip_task(
-                item.task_type
+            if (
+                not item.payload.get("goal_id")
+                and not item.payload.get("resolution_ready")
+                and item.task_type not in EVENT_DRIVEN_TASK_TYPES
+                and self.adaptive.should_skip_task(item.task_type)
             ):
                 continue
             payload = {

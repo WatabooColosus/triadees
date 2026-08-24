@@ -11,7 +11,7 @@ from triade.core.neuron_missions import (
     NeuronMissionStore,
 )
 from triade.workers.contracts import WORKER_TASK_TYPES, WorkerRunConfig
-from triade.workers.mission_planner import MissionPlanner
+from triade.workers.mission_planner import MissionPlanner, PlannedTask
 from triade.workers.scheduler import WorkerScheduler
 
 
@@ -78,6 +78,23 @@ def test_scheduler_includes_planner_metadata(tmp_path: Path) -> None:
         payload = learning_tasks[0].get("payload", {})
         assert "reason" in payload
         assert "source" in payload
+
+
+def test_event_driven_learning_is_not_dropped_by_type_cooldown(tmp_path: Path) -> None:
+    db_path = make_db(tmp_path)
+    scheduler = WorkerScheduler(db_path=db_path)
+    scheduler.adaptive.record_task_execution(
+        "neural_learning_distribution", 1.0, True, run_ref="previous-event"
+    )
+    planned = PlannedTask(
+        task_type="neural_learning_distribution",
+        priority=10,
+        reason="different candidate",
+        source="test",
+        payload={"candidate_id": "candidate-2"},
+    )
+    tasks = scheduler._enqueue_planned([planned], run_ref="new-event")
+    assert [task["task_type"] for task in tasks] == ["neural_learning_distribution"]
 
 
 def test_scheduler_with_active_missions(tmp_path: Path) -> None:

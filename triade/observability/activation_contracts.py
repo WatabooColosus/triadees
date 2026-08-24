@@ -60,6 +60,7 @@ CLASSIFICATIONS = (
     "AUDIT_LEDGER",
     "HISTORICAL",
     "EXPERIMENTAL",
+    "LEGACY_RETIREMENT_PENDING_OPERATOR",
 )
 
 #: Evidencia que se responde **con el repositorio delante**: ficheros, símbolos,
@@ -72,6 +73,7 @@ STRUCTURAL_EVIDENCE = (
     "writer_retired",
     "append_only",
     "effect_consumer",
+    "retirement_migration",
 )
 
 #: Evidencia que sólo tiene respuesta **sobre la base viva**. En CI no hay base
@@ -287,6 +289,26 @@ class ContractVerifier:
             fuente = self._source(ruta)
             return fuente is not None and bool(
                 re.search(rf"\b{re.escape(simbolo)}\b", fuente)
+            )
+
+        if kind == "retirement_migration":
+            # La retirada ya está escrita y revisada; lo que falta es aplicarla.
+            # Se comprueban las dos mitades, porque una sola miente: que el
+            # fichero exista, y que retire **esta** tabla. Sin lo segundo,
+            # cualquier migración serviría de excusa para cualquier tabla.
+            migracion = self.root / valor
+            if not migracion.exists():
+                return False
+            try:
+                texto = migracion.read_text(encoding="utf-8")
+            except OSError:
+                return False
+            return bool(
+                re.search(
+                    rf"DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?{re.escape(tabla)}\b",
+                    texto,
+                    re.IGNORECASE,
+                )
             )
 
         if kind == "writer_retired":
@@ -688,6 +710,364 @@ CONTRACTS: tuple[Contract, ...] = (
             "reader_exists=triade/self_improvement/canary.py",
             "proof_test=tests/test_self_improvement_door.py",
             "rows_absent=improvement_canary_observations",
+        ),
+    ),
+    # ── La otra mitad de la misma cadena de automejora ───────────────
+    #
+    # 2026-08-12: las tres tablas `improvement_*` de arriba estaban excusadas
+    # por el gate de `bridge.py::approve` desde el 2026-08-08, y las cuatro de
+    # abajo seguían contando como subsistema incompleto. Son la misma cadena.
+    #
+    # Lo que lo demuestra, y no es el nombre de las tablas:
+    # `NeuronCandidateFactory` y `NeuronSpecificationStore` se instancian
+    # **únicamente** en `bridge.py:42-43` y `canary.py:18`, y
+    # `SandboxExecutionEngine` sólo en `orchestrator.py:31`. No hay otra puerta.
+    # `bridge.create_candidate` exige que la propuesta esté ya `approved`, o sea
+    # que las cuatro cuelgan de la misma firma que las tres de arriba.
+    #
+    # Contarlas aparte no era prudencia: era pedir que se «arreglaran» cuatro
+    # tablas cuya única forma de tener filas es que un humano apruebe algo.
+    _contract(
+        "table:neuron_specifications",
+        "HUMAN_GATED",
+        decided_at="2026-08-12",
+        reason="""
+            La especificación de la neurona que implementaría una propuesta
+            aprobada. Su store sólo lo construye `bridge.py:43`, un eslabón por
+            debajo de la firma: sin propuesta aprobada no hay especificación que
+            registrar.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/neuron_factory/store.py",
+            "reader_exists=triade/neuron_factory/lifecycle.py",
+            "proof_test=tests/test_neuron_factory_specification.py",
+            "rows_absent=neuron_specifications",
+        ),
+    ),
+    _contract(
+        "table:neuron_specification_history",
+        "HUMAN_GATED",
+        decided_at="2026-08-12",
+        reason="""
+            El historial de transiciones de esa especificación, escrito por
+            `_append_history` dentro del mismo store. No puede tener una fila
+            antes de que exista la especificación de la que es historia.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/neuron_factory/store.py",
+            "reader_exists=triade/neuron_factory/store.py",
+            "proof_test=tests/test_neuron_factory_specification.py",
+            "rows_absent=neuron_specification_history",
+        ),
+    ),
+    _contract(
+        "table:neuron_candidates",
+        "HUMAN_GATED",
+        decided_at="2026-08-12",
+        reason="""
+            El candidato que implementa una propuesta aprobada.
+            `NeuronCandidateFactory` sólo se instancia en `bridge.py:42` y
+            `canary.py:18`, y `create_candidate` rechaza cualquier propuesta que
+            no esté ya `approved`. Un eslabón por debajo de la firma, igual que
+            `improvement_candidate_links`, que ya estaba excusada por esto
+            mismo.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/neuron_factory/candidate.py",
+            "reader_exists=triade/neuron_factory/lifecycle.py",
+            "proof_test=tests/test_neuron_factory_lifecycle.py",
+            "rows_absent=neuron_candidates",
+        ),
+    ),
+    _contract(
+        "table:neuron_candidate_executions",
+        "HUMAN_GATED",
+        decided_at="2026-08-12",
+        reason="""
+            La ejecución en sandbox de una configuración del candidato.
+            `SandboxExecutionEngine` sólo lo construye `orchestrator.py:31` y
+            sólo se llama desde `orchestrator.py:55`, después de que
+            `bridge.create_candidate` haya exigido la aprobación. Dos eslabones
+            por debajo de la firma; no puede ejecutarse un candidato que nadie
+            ha creado.
+        """,
+        evidence=(
+            "human_gate=triade/self_improvement/bridge.py::approve",
+            "writer_reachable=triade/neuron_factory/execution.py",
+            "reader_exists=triade/neuron_factory/exporter.py",
+            "proof_test=tests/test_neuron_factory_lifecycle.py",
+            "rows_absent=neuron_candidate_executions",
+        ),
+    ),
+    # ── Capacidades que esperan que alguien de fuera se identifique ──
+    _contract(
+        "table:relational_modulation_states",
+        "NO_EXTERNAL_STIMULUS",
+        decided_at="2026-08-12",
+        reason="""
+            Modula PV-7 por usuario y sesión. El escritor no es un camino aparte
+            que nadie recorra: `get()` llama a `initialize()` cuando no hay fila,
+            y a `get()` lo llama `core/hypothalamus.py:171` en producción. Lo que
+            no llega es el estímulo: la rama exige `user_id` **y** `session_id`
+            en el contexto del paquete, y hoy no los pone nadie —el frontend no
+            los manda y los runs autónomos no tienen usuario por naturaleza—.
+            El día que una llamada identifique usuario y sesión, la primera
+            lectura crea la fila sola y `rows_absent` se cae.
+        """,
+        evidence=(
+            "writer_reachable=triade/memory/relational_modulation.py",
+            "reader_exists=triade/memory/relational_modulation.py",
+            "effect_consumer=triade/core/hypothalamus.py::_relational_store",
+            "proof_test=tests/test_relational_modulation.py",
+            "rows_absent=relational_modulation_states",
+        ),
+    ),
+    _contract(
+        "table:federated_exchange_log",
+        "NO_EXTERNAL_STIMULUS",
+        decided_at="2026-08-12",
+        reason="""
+            Cero filas porque no hay un segundo nodo con quien intercambiar. La
+            cadena local está construida y probada de punta a punta —dispatch,
+            firma ed25519, validación de evidencia—, que es la condición para
+            llamar a esto ausencia de estímulo y no productor roto. El contrato
+            de `task_type:federation_inbox_review` ya usaba esta misma tabla
+            vacía como prueba desde el 2026-08-08; faltaba el de la tabla.
+            Aparece un peer y la evidencia se cae sola.
+        """,
+        evidence=(
+            "writer_reachable=triade/federation/federation.py",
+            "reader_exists=triade/core/observability_view.py",
+            "proof_test=tests/test_federated_exchange.py",
+            "rows_absent=federated_exchange_log",
+        ),
+    ),
+    # ── Historia de una fase que terminó ─────────────────────────────
+    _contract(
+        "table:neuron_certification_transitions",
+        "HISTORICAL",
+        decided_at="2026-08-12",
+        reason="""
+            Las 13 cuarentenas de la fase 12. Su escritor,
+            `neuron_factory/certification.py`, se retiró en el mismo commit que
+            la fase, y esa ausencia es la prueba de que se quitó a propósito y no
+            se perdió: la migración 035 retira `neuron_certifications` y dice
+            explícitamente que ésta **no** se retira, que pasa a bitácora
+            histórica. El contrato vivo es `core/stable_neuron_audit.py`, que
+            decide sobre evidencia medida en vez de sobre un manifiesto firmado
+            a mano. Buscarle lector o escritor sería deshacer una retirada
+            deliberada.
+        """,
+        evidence=(
+            "writer_retired=triade/neuron_factory/certification.py",
+            "rows_present=neuron_certification_transitions",
+        ),
+    ),
+    # ── Retirada escrita y esperando una firma ───────────────────────
+    #
+    # Distinta de HISTORICAL: allí la retirada ya ocurrió. Aquí la decisión está
+    # tomada y revisada, la migración está en el repositorio, y lo único que
+    # falta es un acto de operador que el sistema exige a propósito. Contarla
+    # como subsistema incompleto pedía «terminar» algo que ya se decidió
+    # terminar al revés.
+    _contract(
+        "table:goals",
+        "LEGACY_RETIREMENT_PENDING_OPERATOR",
+        decided_at="2026-08-12",
+        reason="""
+            El gemelo muerto de `planning_graph`, que es el sistema canónico vivo
+            con 42 filas. Cero filas en producción desde siempre; su único
+            escritor era `tests/test_consciousness.py` —un test que sembraba la
+            única fila que su propio código iba a encontrar— y su lector ya se
+            migró a `planning_graph`.
+
+            La migración `036_retire_goals.sql` está escrita y retira la tabla.
+            No se ha aplicado porque `schema_version` es el número de migración
+            más alto del directorio, así que retirarla mueve el manifiesto de
+            identidad y obliga a rebasar el ancla con
+            `IdentityContinuity.migrate_anchor()`, que exige `approved_by` y
+            `reason` explícitos y lanza `ValueError` sin ellos. Es un gate humano
+            por diseño: firmarlo desde dentro sería que el organismo se autorice
+            a sí mismo un cambio de identidad.
+        """,
+        evidence=(
+            "retirement_migration=triade/memory/migrations/036_retire_goals.sql",
+            "human_gate=triade/core/identity_continuity.py::migrate_anchor",
+            "rows_absent=goals",
+        ),
+    ),
+    # ── Vacía en reposo porque eso es estar bien ─────────────────────
+    _contract(
+        "table:orchestrator_locks",
+        "EXPECTED_EMPTY",
+        decided_at="2026-08-12",
+        reason="""
+            Tabla de locks con TTL: una fila existe sólo mientras alguien tiene
+            el turno, y `guard()` la borra al salir del bloque pase lo que pase.
+            En reposo, cero filas es el estado correcto; filas persistentes
+            serían el síntoma de un lock filtrado.
+
+            Esto **no** se podía decir antes del 2026-08-12, y por eso no se
+            dijo: hasta entonces la tabla estaba vacía porque no la usaba nadie.
+            Existían seis guardas `can_*` sin una sola llamada y lo único que se
+            invocaba era `cleanup()` al arrancar, o sea que se limpiaba lo que
+            nadie creaba. Llamar «vacío esperado» a eso habría tapado un
+            circuito abierto con la excusa de que el lock es transitorio.
+
+            Ahora los tres subsistemas que llaman a `NeuronAutopromoter.promote()`
+            —runner, workers y life_pulse— pasan por el lock, y
+            `neuron_autopromotion` acumula 1401 ejecuciones con cadencia de unos
+            tres minutos: la adquisición es real y frecuente. Si alguien saca el
+            lock de uno de los tres, la prueba nombrada lo dice por su nombre.
+        """,
+        evidence=(
+            "writer_reachable=triade/core/orchestrator_coord.py",
+            "reader_exists=triade/core/orchestrator_coord.py",
+            "proof_test=tests/test_promotion_coordination.py::test_dos_hilos_no_promueven_a_la_vez",
+            "proof_test=tests/test_promotion_coordination.py::test_los_tres_llamantes_de_promote_pasan_por_el_lock",
+            "rows_absent=orchestrator_locks",
+        ),
+    ),
+    # ── Relaciones que sólo existen cuando la evidencia las produce ──
+    _contract(
+        "table:kg_edges",
+        "ON_DEMAND",
+        decided_at="2026-08-24",
+        reason="""
+            Los claims de investigación se proyectan siempre como nodos, pero
+            una arista no se inventa por proximidad textual: el productor sólo
+            crea `contradicts` cuando una investigación gobernada entrega dos
+            valores distintos para la misma clave. La base viva tiene claims y
+            ninguna contradicción de fuente; cero aristas conserva esa verdad.
+            Si se elimina el productor, lector o prueba causal, el contrato cae.
+        """,
+        evidence=(
+            "writer_reachable=triade/research/knowledge_projection.py",
+            "reader_exists=triade/os/knowledge_graph.py",
+            "proof_test=tests/test_knowledge_projection.py::test_la_contradiccion_produce_arista_y_se_materializa",
+            "rows_absent=kg_edges",
+        ),
+    ),
+    _contract(
+        "table:kg_contradictions",
+        "EXPECTED_EMPTY",
+        decided_at="2026-08-24",
+        reason="""
+            Es la materialización auditable de aristas `contradicts`, no una
+            cuota de actividad. Sin una arista contradictoria, estar vacía es
+            el estado sano; `detect_contradictions()` la llena cuando existe el
+            par y la prueba verifica ambos efectos sobre SQLite.
+        """,
+        evidence=(
+            "writer_reachable=triade/os/knowledge_graph.py",
+            "reader_exists=triade/os/knowledge_graph.py",
+            "proof_test=tests/test_knowledge_projection.py::test_la_contradiccion_produce_arista_y_se_materializa",
+            "rows_absent=kg_contradictions",
+        ),
+    ),
+    _contract(
+        "table:auto_identity",
+        "ON_DEMAND",
+        decided_at="2026-08-24",
+        reason="""
+            El tick está conectado al escritor, pero sólo acepta una reflexión
+            que sepa qué ocurrió y que no pretenda tocar el ancla identitaria.
+            Con cobertura insuficiente, cero rasgos es el resultado seguro; la
+            prueba verifica producción, rechazo y acumulación de evidencia.
+        """,
+        evidence=(
+            "writer_reachable=triade/memory/auto_identity_store.py",
+            "reader_exists=triade/core/bodega.py",
+            "proof_test=tests/test_identity_evolution_gate.py",
+            "rows_absent=auto_identity",
+        ),
+    ),
+    _contract(
+        "table:goal_dependencies",
+        "ON_DEMAND",
+        decided_at="2026-08-24",
+        reason="""
+            Una fila representa una dependencia explícita entre dos objetivos,
+            no un latido obligatorio. El planificador lee la tabla para bloquear
+            únicamente los objetivos que declaren esa relación; los objetivos
+            independientes no deben recibir dependencias inventadas.
+        """,
+        evidence=(
+            "writer_reachable=triade/core/planning_graph.py",
+            "reader_exists=triade/core/planning_graph.py",
+            "proof_test=tests/test_goals_end_to_end_real.py",
+            "rows_absent=goal_dependencies",
+        ),
+    ),
+    _contract(
+        "table:governed_peft_active_slot",
+        "HUMAN_GATED",
+        decided_at="2026-08-24",
+        reason="""
+            El slot sólo puede existir después de canary exitoso, compatibilidad
+            con un modelo servido y aprobación humana nominal. Tener un canary
+            sin activar no autoriza al runtime a firmarse un adaptador.
+        """,
+        evidence=(
+            "writer_reachable=triade/training/serving_governance.py",
+            "reader_exists=triade/training/serving_governance.py",
+            "human_gate=triade/training/serving_governance.py::activate",
+            "proof_test=tests/test_peft_base_model_gate.py",
+            "rows_absent=governed_peft_active_slot",
+        ),
+    ),
+    _contract(
+        "table:relational_modulation_events",
+        "NO_EXTERNAL_STIMULUS",
+        decided_at="2026-08-24",
+        reason="""
+            Cada fila exige usuario, sesión, tipo gobernado, delta, fuente y
+            explicación. Los ciclos autónomos no tienen identidad de usuario y
+            no deben fabricar una relación; una interacción identificada activa
+            el mismo escritor que la prueba ejerce y revierte.
+        """,
+        evidence=(
+            "writer_reachable=triade/memory/relational_modulation.py",
+            "reader_exists=triade/memory/relational_modulation.py",
+            "proof_test=tests/test_relational_modulation.py",
+            "rows_absent=relational_modulation_events",
+        ),
+    ),
+    _contract(
+        "table:rollback_operations",
+        "ON_DEMAND",
+        decided_at="2026-08-24",
+        reason="""
+            Una operación sólo se planifica ante una regresión medida, con
+            candidato, reporte, objetivo y solicitante explícitos. Cero filas
+            significa que no hubo una regresión que justificara revertir; crear
+            una para poblar la tabla falsearía precisamente esa evidencia.
+        """,
+        evidence=(
+            "writer_reachable=triade/regression/rollback.py",
+            "reader_exists=triade/regression/rollback.py",
+            "proof_test=tests/test_regression_rollback.py",
+            "rows_absent=rollback_operations",
+        ),
+    ),
+    _contract(
+        "table:runtime_queue_compatibility_events",
+        "EXPECTED_EMPTY",
+        decided_at="2026-08-24",
+        reason="""
+            El estado vivo de workers publica continuamente el modo y el número
+            de transiciones, pero no cambia el switch. Producción permanece en
+            `v2_canonical`; una fila sólo aparece si un operador invoca la
+            compatibilidad con actor y motivo explícitos.
+        """,
+        evidence=(
+            "writer_reachable=triade/runtime/legacy_compatibility.py",
+            "reader_exists=triade/runtime/legacy_compatibility.py",
+            "proof_test=tests/test_worker_status_counts_the_living_path.py::test_worker_status_publica_el_switch_legacy_sin_cambiarlo",
+            "rows_absent=runtime_queue_compatibility_events",
         ),
     ),
 )

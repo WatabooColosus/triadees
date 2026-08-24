@@ -83,6 +83,7 @@ WorkerTaskType = Literal[
     "learning_candidate_generation",
     "learning_candidate_deduplication",
     "learning_evidence_generation",
+    "neural_learning_distribution",
 ]
 
 #: Se deriva del `Literal`, no se reescribe. Las dos listas se venían
@@ -91,6 +92,16 @@ WorkerTaskType = Literal[
 #: olvide de la otra. Entonces el tipo existiría para el validador y no para el
 #: registro, o al revés.
 WORKER_TASK_TYPES: tuple[str, ...] = get_args(WorkerTaskType)
+
+# Eventos con identidad propia: un cooldown por tipo no puede descartar uno
+# porque otro evento distinto del mismo tipo ocurrió hace poco.
+EVENT_DRIVEN_TASK_TYPES: frozenset[str] = frozenset(
+    {
+        "learning_candidate_generation",
+        "learning_evidence_generation",
+        "neural_learning_distribution",
+    }
+)
 
 # Era `{"completed", "failed", "blocked", "skipped"}`: dejaba fuera `observed`,
 # `dead_letter`, `timeout`, `lease_lost`, `dry_run` y `cancelled`. Sólo los dos

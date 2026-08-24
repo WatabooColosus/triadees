@@ -200,18 +200,14 @@ def test_gobierno_autoriza_las_palabras_clave_de_un_documento_stable(
 
 
 def test_la_busqueda_ya_no_depende_de_semantic_memory(tmp_path: Path) -> None:
-    """Una fila `stable` en la tabla vieja no vuelve a colarse en el recall.
-
-    No es una prueba de que `semantic_memory` esté retirada —no lo está, ver
-    docs/debt/SEMANTIC_MEMORY_ALIAS.md— sino de que este lector ya no la mira.
-    """
+    """El esquema retirado no resucita al inicializar ni al consultar Bodega."""
     db_path = tmp_path / "triade.db"
     bodega = Bodega(db_path=db_path)
     with bodega._connect() as conn:
-        conn.execute(
-            "INSERT INTO semantic_memory (key, value, domain, source_ref, confidence, status)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            ("grafos", CONTENIDO, "observabilidad", FUENTE, 1.0, "stable"),
-        )
+        legacy = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+            ("semantic_memory",),
+        ).fetchone()
 
+    assert legacy is None
     assert _keyword_matches(db_path) == []

@@ -253,8 +253,8 @@ class AutonomousRoutines:
         """Diagnostica duplicados; una rutina autónoma no borra memoria."""
         try:
             rows = self._conn.execute(
-                """SELECT key,value,COUNT(*) count FROM semantic_memory
-                GROUP BY key,value HAVING COUNT(*)>1"""
+                """SELECT content_hash,COUNT(*) count FROM semantic_documents
+                GROUP BY content_hash HAVING COUNT(*)>1"""
             ).fetchall()
             return {
                 "action": "memory_organization",

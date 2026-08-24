@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import threading
 import time
 from typing import Any
 
@@ -389,6 +390,34 @@ def learning_pending(limit: int = 50) -> dict[str, Any]:
         pending.extend(pipe.list_candidates(status=state, limit=limit))
     pending = pending[:limit]
     return {"status": "ok", "count": len(pending), "candidates": pending}
+
+
+@router.get("/api/runtime/neural-learning")
+def neural_learning_trace(
+    neuron_id: int | None = None, limit: int = 100
+) -> dict[str, Any]:
+    """Traza RUN→KNOWLEDGE→NEURON→OUTCOME sin consultar SQLite a mano."""
+    from triade.neurons.learning_router import NeuralLearningRouter
+
+    db_path = os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
+    router = NeuralLearningRouter(db_path)
+    history = router.history(neuron_id, limit=max(1, min(limit, 500)))
+    rejections = router.rejections(limit=max(1, min(limit, 500)))
+    return {
+        "status": "ok",
+        "neuron_id": neuron_id,
+        "count": len(history),
+        "assignments": history,
+        "rejections": rejections,
+        "states": {
+            state: sum(1 for row in history if row.get("status") == state)
+            for state in ("experimental", "beneficial", "rolled_back", "rejected")
+        },
+        "truth_policy": (
+            "consolidated knowledge→reversible neural assignment→causal uses→"
+            "beneficial, experimental or rollback"
+        ),
+    }
 
 
 # ── QualiaBus ──────────────────────────────────────────────────────────
@@ -2935,11 +2964,34 @@ def reject_neuron_candidate(
 # ── Run ─────────────────────────────────────────────────────────────────
 
 
+def _run_concurrency_limit() -> int:
+    try:
+        return max(1, int(os.getenv("TRIADE_RUN_CONCURRENCY", "2")))
+    except ValueError:
+        return 4
+
+
+_RUN_SLOTS = threading.BoundedSemaphore(_run_concurrency_limit())
+
+
 @router.post("/api/run")
 @router.post("/triade/run")
 def run_triade(
     request: RunRequest,
     x_triade_api_key: str | None = Header(default=None),
+) -> dict[str, Any]:
+    # Un run construye el organismo completo y toca varios consumidores nativos
+    # (SQLite, embeddings y grafos). Starlette permite un número mucho mayor de
+    # threads que el proceso puede sostener: bajo 8 runs simultáneos medimos un
+    # pico de 1000.8 MB y SIGBUS. Las solicitudes esperan aquí; no se descartan,
+    # no se crea un segundo launcher y el límite es configurable por hardware.
+    with _RUN_SLOTS:
+        return _run_triade(request, x_triade_api_key)
+
+
+def _run_triade(
+    request: RunRequest,
+    x_triade_api_key: str | None = None,
 ) -> dict[str, Any]:
     LIFE_PULSE.record_action("run")
     require_key(x_triade_api_key)

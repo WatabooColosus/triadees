@@ -166,11 +166,17 @@ def deep() -> JSONResponse:
         heartbeat_error = type(exc).__name__
 
     ready_ok = readiness.status_code == 200
-    healthy = ready_ok and heartbeat_ok
+    identity = _identity()
+    # `None` es «no se pudo leer», que no es lo mismo que «está mal»: un fallo
+    # transitorio leyendo el ancla no debe declarar degradado a un organismo
+    # sano. Se publica el estado igualmente para que la duda se vea.
+    identity_ok = identity.get("integrity_ok")
+    healthy = ready_ok and heartbeat_ok and identity_ok is not False
     content: dict[str, Any] = {
         "status": "healthy" if healthy else "degraded",
         "ready": ready_ok,
         "heartbeat_ok": heartbeat_ok,
+        "identity": identity,
         "heartbeat": heartbeat,
     }
     if heartbeat_error:
@@ -181,6 +187,46 @@ def deep() -> JSONResponse:
     content["resources"] = _resources()
 
     return JSONResponse(status_code=200 if healthy else 503, content=content)
+
+
+def _identity() -> dict[str, Any]:
+    """Continuidad de identidad, releída ahora y no heredada del arranque.
+
+    El 2026-08-12 Tríade se estaba autoverificando como manipulada
+    —`integrity=degraded_safe`, `tamper_detected=true`, con `schema_version` y
+    `manifest_hash` sin coincidir con su ancla— y `/health/deep` respondía
+    `healthy` con un 200. La identidad sólo se comprobaba en el arranque
+    (`single_port_app.py:55`) y su resultado no llegaba a ningún endpoint, así
+    que un desajuste posterior era invisible hasta que alguien lo buscara a
+    mano. Un organismo que detecta que lo han manipulado y lo reporta como sano
+    tiene, además del desajuste, un problema de observabilidad.
+
+    Se lee con `record=False`: esto es un sondeo, y no debe dejar una fila de
+    verificación por cada vez que alguien mire el health.
+    """
+    try:
+        from triade.core.identity_continuity import IdentityContinuity
+
+        db_path = os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
+        verdict = IdentityContinuity(db_path).verify(record=False)
+    except (
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
+        return {"integrity_ok": None, "error": type(exc).__name__}
+    return {
+        "integrity_ok": not bool(verdict.get("degraded_mode")),
+        "integrity": verdict.get("integrity"),
+        "tamper_detected": bool(verdict.get("tamper_detected")),
+        "mismatches": list(verdict.get("mismatches") or []),
+        "schema_version": verdict.get("schema_version"),
+        "continuity_from_previous_run": verdict.get("continuity_from_previous_run"),
+    }
 
 
 def _resources() -> dict[str, int | float | str]:

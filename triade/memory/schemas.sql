@@ -40,18 +40,6 @@ CREATE TABLE IF NOT EXISTS episodic_memory (
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 
-CREATE TABLE IF NOT EXISTS semantic_memory (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    key TEXT NOT NULL UNIQUE,
-    value TEXT NOT NULL,
-    domain TEXT,
-    source_ref TEXT,
-    confidence REAL DEFAULT 0.8,
-    status TEXT DEFAULT 'stable',
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS semantic_documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     document_id TEXT NOT NULL UNIQUE,
@@ -322,7 +310,6 @@ CREATE TABLE IF NOT EXISTS reinforcement_log (
 CREATE INDEX IF NOT EXISTS idx_runs_run_id ON runs(run_id);
 CREATE INDEX IF NOT EXISTS idx_episodic_memory_run_id ON episodic_memory(run_id);
 CREATE INDEX IF NOT EXISTS idx_episodic_memory_tags ON episodic_memory(tags);
-CREATE INDEX IF NOT EXISTS idx_semantic_memory_domain ON semantic_memory(domain);
 CREATE INDEX IF NOT EXISTS idx_learning_queue_status ON learning_queue(status);
 CREATE INDEX IF NOT EXISTS idx_neurons_status ON neurons(status);
 CREATE INDEX IF NOT EXISTS idx_verification_reports_run_id ON verification_reports(run_id);
@@ -477,24 +464,6 @@ CREATE INDEX IF NOT EXISTS idx_qualia_signals_experience_id ON qualia_signals(ex
 CREATE INDEX IF NOT EXISTS idx_qualia_central_packets_run_id ON qualia_central_packets(run_id);
 CREATE INDEX IF NOT EXISTS idx_qualia_storage_packets_run_id ON qualia_storage_packets(run_id);
 CREATE INDEX IF NOT EXISTS idx_qualia_states_run_id ON qualia_states(run_id);
-
--- Autonomous Sandbox execution log
-CREATE TABLE IF NOT EXISTS sandbox_executions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    execution_id TEXT NOT NULL UNIQUE,
-    task_type TEXT NOT NULL,
-    code_preview TEXT DEFAULT '',
-    working_dir TEXT DEFAULT '',
-    snapshot_json TEXT DEFAULT '{}',
-    changes_json TEXT DEFAULT '{}',
-    success INTEGER DEFAULT 0,
-    rollback_performed INTEGER DEFAULT 0,
-    rollback_verified INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_sandbox_executions_task_type ON sandbox_executions(task_type);
-CREATE INDEX IF NOT EXISTS idx_sandbox_executions_created_at ON sandbox_executions(created_at);
 
 CREATE TABLE IF NOT EXISTS hypothalamus_state (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

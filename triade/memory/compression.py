@@ -165,18 +165,18 @@ class MemoryConsolidator:
         removed = 0
         details: list[str] = []
         rows = conn.execute(
-            "SELECT id, key, value, confidence, source_ref FROM semantic_memory ORDER BY confidence DESC"
+            "SELECT id, content_hash FROM semantic_documents ORDER BY id"
         ).fetchall()
         seen: dict[str, list[int]] = {}
         for row in rows:
-            combo = f"{row['key']}||{row['value']}"
+            combo = str(row["content_hash"])
             seen.setdefault(combo, []).append(row["id"])
             processed += 1
         for combo, ids in seen.items():
             if len(ids) > 1:
                 to_remove = ids[1:]
                 for rid in to_remove:
-                    conn.execute("DELETE FROM semantic_memory WHERE id=?", (rid,))
+                    conn.execute("DELETE FROM semantic_documents WHERE id=?", (rid,))
                     removed += 1
                 details.append(f"Duplicate {combo[:40]}: {len(ids)}→1")
         conn.commit()

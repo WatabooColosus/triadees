@@ -243,7 +243,7 @@ def test_neuron_nutrition_does_not_modify_identity_core(tmp_path: Path) -> None:
         )
         before_stable = int(
             conn.execute(
-                "SELECT COUNT(*) FROM semantic_memory WHERE status = 'stable'"
+                "SELECT COUNT(*) FROM semantic_documents WHERE status = 'stable'"
             ).fetchone()[0]
         )
 
@@ -257,7 +257,7 @@ def test_neuron_nutrition_does_not_modify_identity_core(tmp_path: Path) -> None:
         )
         after_stable = int(
             conn.execute(
-                "SELECT COUNT(*) FROM semantic_memory WHERE status = 'stable'"
+                "SELECT COUNT(*) FROM semantic_documents WHERE status = 'stable'"
             ).fetchone()[0]
         )
 

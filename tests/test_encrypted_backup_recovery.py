@@ -11,8 +11,10 @@ from triade.workers.worker_loop import WorkerLoop
 
 def source(path: Path) -> None:
     with sqlite3.connect(path) as conn:
-        conn.execute("CREATE TABLE semantic_memory(id INTEGER PRIMARY KEY, value TEXT)")
-        conn.execute("INSERT INTO semantic_memory(value) VALUES ('remember me')")
+        conn.execute(
+            "CREATE TABLE semantic_documents(id INTEGER PRIMARY KEY, content TEXT)"
+        )
+        conn.execute("INSERT INTO semantic_documents(content) VALUES ('remember me')")
         conn.execute(
             "CREATE TABLE autonomous_tasks(id TEXT,status TEXT,result_ref TEXT)"
         )

@@ -133,6 +133,56 @@ def test_repeated_dispatch_deferral_terminates_in_dead_letter(tmp_path: Path) ->
     assert current["last_error"] == "dispatch_livelock_guard"
 
 
+def test_resource_backpressure_never_becomes_dispatch_dead_letter(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    task = store.enqueue("pulse_check", {}, idempotency_key="backpressure")
+    task_id = str(task["task_id"])
+    for _ in range(MAX_DISPATCH_DEFERRALS + 3):
+        leased = _lease(store, task_id)
+        assert store.defer_unstarted(
+            task_id,
+            "worker-1",
+            int(leased["lease_generation"]),
+            "resource_backpressure",
+            delay_seconds=0,
+        )
+    current = store.get(task_id)
+    assert current and current["status"] == "deferred"
+    assert current["attempt"] == 0
+
+
+def test_only_dispatch_guard_dead_letter_can_be_recovered(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    guarded = store.enqueue("pulse_check", {}, idempotency_key="guarded")
+    guarded_id = str(guarded["task_id"])
+    for _ in range(MAX_DISPATCH_DEFERRALS + 1):
+        leased = _lease(store, guarded_id)
+        store.defer_unstarted(
+            guarded_id,
+            "worker-1",
+            int(leased["lease_generation"]),
+            "concurrency:lane_limit",
+            delay_seconds=0,
+        )
+        if store.get(guarded_id)["status"] == "dead_letter":
+            break
+    assert store.recover_dispatch_dead_letter(
+        guarded_id, reason="policy_corrected:resource_backpressure"
+    )
+    assert store.get(guarded_id)["status"] == "recovered"
+
+    failed = store.enqueue("pulse_check", {}, idempotency_key="failed", max_attempts=1)
+    leased = _lease(store, str(failed["task_id"]))
+    store.fail(
+        str(failed["task_id"]), "worker-1", int(leased["lease_generation"]), "boom"
+    )
+    assert not store.recover_dispatch_dead_letter(
+        str(failed["task_id"]), reason="must_not_reopen_handler_failure"
+    )
+
+
 def test_handler_failure_retries_then_dead_letters(tmp_path: Path) -> None:
     store = _store(tmp_path)
     task = store.enqueue("pulse_check", {}, idempotency_key="failure", max_attempts=1)

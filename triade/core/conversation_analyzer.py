@@ -273,7 +273,7 @@ class ConversationAnalyzer:
 
     @staticmethod
     def _semantic_counts(conn: sqlite3.Connection) -> dict[str, int]:
-        tables = ["semantic_memory", "semantic_documents", "semantic_embeddings"]
+        tables = ["semantic_documents", "semantic_embeddings"]
         counts: dict[str, int] = {}
         existing = {
             str(row["name"])

@@ -246,6 +246,29 @@ class NeuronEducationResolver:
                         session_id,
                     ),
                 )
+                # Si la lección procede del router neuronal, el veredicto
+                # gobierna también su uso futuro. ``rolled_back`` deja de ser
+                # elegible inmediatamente para la inyección productiva.
+                if self._has_table(conn, "neuron_learning_assignments"):
+                    assignment_state = {
+                        "improved": "beneficial",
+                        "neutral": "experimental",
+                        "degraded": "rolled_back",
+                        "insufficient_evidence": "experimental",
+                    }[decision]
+                    conn.execute(
+                        """UPDATE neuron_learning_assignments
+                        SET status=?,decision=?,outcome_score=?,use_count=?,updated_at=?
+                        WHERE session_id=?""",
+                        (
+                            assignment_state,
+                            decision,
+                            post,
+                            len(scores),
+                            _now(),
+                            session_id,
+                        ),
+                    )
                 self._record_event(
                     conn,
                     session_id,

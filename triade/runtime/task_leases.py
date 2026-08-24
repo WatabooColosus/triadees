@@ -11,6 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from triade.db import sqlite3
+from triade.runtime.effect_receipt import EffectReceipt
 
 # El vocabulario vivía aquí, que es donde se escribe. Se movió a
 # `task_status.py` para que los demás módulos puedan importarlo en vez de
@@ -495,14 +496,19 @@ class AutonomousTaskStore:
                 # Si ya está 'running' es que alguien la arrancó: no se toca.
                 conn.commit()
                 return False
+            guarded_livelock = reason.startswith(("concurrency:", "exclusive:"))
             deferrals = int(
                 conn.execute(
                     """SELECT COUNT(*) FROM autonomous_task_transitions
-                    WHERE task_id=? AND to_status='deferred'""",
-                    (task_id,),
+                    WHERE task_id=? AND to_status='deferred' AND reason=?""",
+                    (task_id, reason),
                 ).fetchone()[0]
             )
-            if deferrals >= MAX_DISPATCH_DEFERRALS:
+            # La presión de CPU/RAM es una condición externa transitoria. No es
+            # livelock del dispatcher y nunca debe convertir trabajo no iniciado
+            # en dead letter. El guard queda reservado a una contención lógica
+            # repetida del mismo carril/clave.
+            if guarded_livelock and deferrals >= MAX_DISPATCH_DEFERRALS:
                 changed = conn.execute(
                     """UPDATE autonomous_tasks SET status='dead_letter',
                     last_error='dispatch_livelock_guard',lease_expires_at=NULL,updated_at=?
@@ -532,6 +538,100 @@ class AutonomousTaskStore:
                     (task_id,worker_id,lease_generation,from_status,to_status,reason,created_at)
                     VALUES(?,?,?,?,'deferred',?,?)""",
                     (task_id, worker_id, lease_generation, previous, reason, now),
+                )
+            conn.commit()
+        return changed == 1
+
+    def recover_dispatch_dead_letter(self, task_id: str, *, reason: str) -> bool:
+        """Reabre sólo una dead letter creada por el guard de despacho.
+
+        No es un bypass genérico: errores del handler y tareas agotadas siguen
+        cerrados. Sirve para reparar una clasificación de backpressure como
+        livelock después de corregir la política, conservando toda la historia.
+        """
+        now = _iso()
+        with closing(self._connect()) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT lease_generation,last_error FROM autonomous_tasks WHERE task_id=? AND status='dead_letter'",
+                (task_id,),
+            ).fetchone()
+            if row is None or str(row["last_error"]) != "dispatch_livelock_guard":
+                conn.commit()
+                return False
+            changed = conn.execute(
+                """UPDATE autonomous_tasks SET status='recovered',attempt=0,
+                retry_after=NULL,last_error=?,worker_id=NULL,lease_acquired_at=NULL,
+                lease_expires_at=NULL,heartbeat_at=NULL,updated_at=?
+                WHERE task_id=? AND status='dead_letter'""",
+                (reason, now, task_id),
+            ).rowcount
+            if changed:
+                conn.execute(
+                    """INSERT INTO autonomous_task_transitions
+                    (task_id,worker_id,lease_generation,from_status,to_status,reason,created_at)
+                    VALUES(?,NULL,?,'dead_letter','recovered',?,?)""",
+                    (task_id, int(row["lease_generation"]), reason, now),
+                )
+            conn.commit()
+        return changed == 1
+
+    def reconcile_verified_effect_dead_letter(
+        self, task_id: str, receipt: EffectReceipt
+    ) -> bool:
+        """Cierra un falso fallo cuando el efecto ya tiene postcondición real.
+
+        Está limitado al error histórico de recibo ausente. No reejecuta una
+        mutación ya aplicada y sólo acepta un ``EffectReceipt`` validado por su
+        propio contrato, preservando la transición dead_letter -> completed.
+        """
+        if not receipt.verified or receipt.postcondition.get("passed") is not True:
+            return False
+        now = _iso()
+        result_ref = receipt.evidence_refs[0]
+        with closing(self._connect()) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """SELECT lease_generation,last_error FROM autonomous_tasks
+                WHERE task_id=? AND status='dead_letter'""",
+                (task_id,),
+            ).fetchone()
+            receipt_error = "El handler afirmó un efecto sin recibo verificable"
+            historical_receipt_failure = bool(
+                row
+                and conn.execute(
+                    """SELECT 1 FROM autonomous_task_transitions
+                    WHERE task_id=? AND to_status='retry_wait' AND reason=? LIMIT 1""",
+                    (task_id, receipt_error),
+                ).fetchone()
+            )
+            if row is None or (
+                str(row["last_error"]) != receipt_error
+                and not (
+                    str(row["last_error"]) == "expired_lease_attempts_exhausted"
+                    and historical_receipt_failure
+                )
+            ):
+                conn.commit()
+                return False
+            changed = conn.execute(
+                """UPDATE autonomous_tasks SET status='completed',result_ref=?,
+                last_error=NULL,retry_after=NULL,worker_id=NULL,lease_acquired_at=NULL,
+                lease_expires_at=NULL,heartbeat_at=NULL,updated_at=?
+                WHERE task_id=? AND status='dead_letter'""",
+                (result_ref, now, task_id),
+            ).rowcount
+            if changed:
+                conn.execute(
+                    """INSERT INTO autonomous_task_transitions
+                    (task_id,worker_id,lease_generation,from_status,to_status,reason,created_at)
+                    VALUES(?,NULL,?,'dead_letter','completed',?,?)""",
+                    (
+                        task_id,
+                        int(row["lease_generation"]),
+                        "verified_effect_receipt_reconciliation",
+                        now,
+                    ),
                 )
             conn.commit()
         return changed == 1
