@@ -3,8 +3,8 @@
 El repositorio tenía dos sistemas para lo mismo y no se hablaban:
 
 - los **contratos de activación** deciden y documentan, con evidencia, por qué
-  una tabla vacía o una tarea sin ejecutar es correcta (`AUDIT_LEDGER`,
-  `HISTORICAL`, `NO_EXTERNAL_STIMULUS`, `HUMAN_GATED`…);
+  una tabla vacía o una tarea sin ejecutar es correcta (`EXPECTED_EMPTY`,
+  `ON_DEMAND`, `HUMAN_GATED`…);
 - `scripts/triage_debt.py` los ignoraba y volvía a etiquetar esos mismos
   sujetos como `incomplete_subsystem`.
 
@@ -17,7 +17,7 @@ lector a una bitácora de sólo escritura. Un lector falso no conecta nada — h
 parecer que hubo consumo, que es peor que la tabla huérfana.
 
 Lo que se comprueba aquí es que el contrato **no sella**: excusa sólo mientras su
-evidencia se sostenga, y `DEUDA_REAL` no excusa nunca.
+evidencia se sostenga, y `REAL_BROKEN` no excusa nunca.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def test_deuda_real_nunca_excusa() -> None:
     Sería el agujero evidente: usar el sistema de contratos para excusar lo
     único que dice de sí mismo que no tiene excusa.
     """
-    assert "DEUDA_REAL" not in CONTRACTED_NOT_PENDING
+    assert "REAL_BROKEN" not in CONTRACTED_NOT_PENDING
 
 
 def test_las_clases_excusables_son_las_esperadas() -> None:
@@ -43,14 +43,13 @@ def test_las_clases_excusables_son_las_esperadas() -> None:
     como deuda hasta que se decida explícitamente que no lo es.
     """
     assert CONTRACTED_NOT_PENDING == {
-        "AUDIT_LEDGER",
-        "HISTORICAL",
         "ON_DEMAND",
-        "NO_EXTERNAL_STIMULUS",
         "EXPECTED_EMPTY",
-        "EXPERIMENTAL",
+        "FUTURE_DECLARED",
         "HUMAN_GATED",
-        "LEGACY_RETIREMENT_PENDING_OPERATOR",
+        "LEGACY_RETIRE",
+        "MANUAL_TOOL",
+        "TEST_ONLY",
     }
 
 

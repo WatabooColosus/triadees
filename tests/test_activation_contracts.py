@@ -8,7 +8,7 @@ son estas pruebas.
 Las tres que importan:
 
 - una declaración **sin evidencia** no carga (sería una exclusión por nombre);
-- una evidencia que deja de cumplirse devuelve el sujeto a `DEUDA_REAL`, y dice
+- una evidencia que deja de cumplirse devuelve el sujeto a `REAL_BROKEN`, y dice
   cuál se cayó;
 - clasificar **no baja** el total observado: lo que se separa sigue contándose
   aparte, a la vista.
@@ -63,7 +63,17 @@ def test_una_clasificacion_inventada_no_carga(tmp_path: Path) -> None:
 
 def test_deuda_real_no_se_puede_declarar() -> None:
     """No es una categoría que se pida: es lo que queda cuando ninguna se sostiene."""
-    assert "DEUDA_REAL" not in CLASSIFICATIONS
+    assert "REAL_BROKEN" not in CLASSIFICATIONS
+    assert set(CLASSIFICATIONS) | {"REAL_BROKEN"} == {
+        "REAL_BROKEN",
+        "EXPECTED_EMPTY",
+        "ON_DEMAND",
+        "HUMAN_GATED",
+        "FUTURE_DECLARED",
+        "LEGACY_RETIRE",
+        "MANUAL_TOOL",
+        "TEST_ONLY",
+    }
 
 
 # --- Falsabilidad: la propiedad que sostiene todo lo demás --------------------
@@ -94,7 +104,7 @@ def test_si_desaparece_el_gate_el_sujeto_vuelve_al_contador(tmp_path: Path) -> N
     veredicto = otro.verify(contrato)
 
     assert not veredicto.holds
-    assert veredicto.to_dict()["classification"] == "DEUDA_REAL"
+    assert veredicto.to_dict()["classification"] == "REAL_BROKEN"
     assert veredicto.failed == ("human_gate=store.py::approve",)
 
 
@@ -144,7 +154,7 @@ def test_una_bitacora_que_empieza_a_mutarse_deja_de_serlo(tmp_path: Path) -> Non
     """
     writer = tmp_path / "ledger.py"
     writer.write_text("SQL = 'INSERT INTO actas VALUES (?)'\n", encoding="utf-8")
-    contrato = _declarar("table:actas", "AUDIT_LEDGER", ("append_only=ledger.py",))
+    contrato = _declarar("table:actas", "ON_DEMAND", ("append_only=ledger.py",))
 
     assert ContractVerifier(tmp_path).verify(contrato).holds
 
@@ -185,7 +195,7 @@ def test_clasificar_no_baja_el_total_observado() -> None:
 
     assert informe["debt_items_total"] == observado
     assert informe["debt_real_total"] == observado - clasificados
-    assert informe["by_classification"].get("DEUDA_REAL") == informe["debt_real_total"]
+    assert informe["by_classification"].get("REAL_BROKEN") == informe["debt_real_total"]
 
 
 # --- El fichero real ----------------------------------------------------------
@@ -206,7 +216,7 @@ def test_todos_los_contratos_declarados_son_validos_hoy() -> None:
 
     La consecuencia hay que decirla en voz alta: un contrato que mintiera sobre
     filas pasaría por aquí. Lo caza el detector, que reverifica **todo** sobre la
-    base real en cada medición y devuelve el sujeto a `DEUDA_REAL` si falla. Aquí
+    base real en cada medición y devuelve el sujeto a `REAL_BROKEN` si falla. Aquí
     se comprueba que el contrato es *válido*; allí, que además es *cierto*.
     """
     contratos = load_contracts()

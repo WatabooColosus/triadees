@@ -194,7 +194,7 @@ def test_administrative_entrypoint_stays_visible_but_not_real_debt(
     assert verdict["classification"] == "ON_DEMAND"
     assert verdict["contract_holds"] is True
     assert counts["ON_DEMAND"] == 1
-    assert counts["DEUDA_REAL"] == 0
+    assert counts["REAL_BROKEN"] == 0
 
 
 def test_manual_diagnostic_stays_visible_as_manual_tool(tmp_path: Path) -> None:
@@ -238,7 +238,7 @@ def test_manual_diagnostic_stays_visible_as_manual_tool(tmp_path: Path) -> None:
 
     verdict = entrypoints["classified"]["scripts/stress.py"]
     assert verdict["classification"] == "MANUAL_TOOL"
-    assert counts == {"MANUAL_TOOL": 1, "DEUDA_REAL": 0}
+    assert counts == {"MANUAL_TOOL": 1, "REAL_BROKEN": 0}
 
 
 def test_graph_and_node_routes_expose_color_and_evidence(
