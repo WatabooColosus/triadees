@@ -2569,7 +2569,6 @@ class WorkerLoop:
         """
         from triade.learning.evidence_producer import LearningEvidenceProducer
         from triade.learning.knowledge_probe import build_probe
-        from triade.models.ollama_client import OllamaClient
 
         payload = task.payload if isinstance(task.payload, dict) else {}
         candidate_id = str(payload.get("candidate_id") or "")
@@ -2606,7 +2605,13 @@ class WorkerLoop:
                 "stable_memory_written": False,
             }
 
-        client = OllamaClient()
+        client = self._observable_ollama_client(
+            task,
+            run_ref,
+            cognitive_function="learning_evaluation",
+            artifact="learning_evidence",
+            consumer="LearningEvidenceProducer",
+        )
         if not client.health().get("ok"):
             # Esperar recursos no puede gastar un intento del candidato.
             return {
@@ -2687,7 +2692,14 @@ class WorkerLoop:
         # El motor que sabe embeber de verdad ya existía y no lo disparaba nadie.
         # Aquí es donde toca: fuera de la conversación, acotado, e incremental.
         reembedding = SemanticEmbeddingEngine(
-            store=SemanticMemoryStore(db_path=self.db_path)
+            store=SemanticMemoryStore(db_path=self.db_path),
+            client=self._observable_ollama_client(
+                task,
+                run_ref,
+                cognitive_function="semantic_embedding",
+                artifact="semantic_embeddings",
+                consumer="SemanticMemoryStore",
+            ),
         ).reembed_stale(limit=int(task.payload.get("reembed_limit") or 10))
         qualia = self._publish_qualia_experience(
             run_ref,
@@ -3526,7 +3538,7 @@ class WorkerLoop:
             # ingiere nada: 153 ejecuciones así en producción hasta el
             # 2026-08-09, todas sin candidato. El proveedor devolvía la
             # transcripción cruda y nadie la convertía en afirmación.
-            client, modelo = self._claim_model_client()
+            client, modelo = self._claim_model_client(task, run_ref)
             fuentes = []
             for source in result.get("sources", []):
                 texto = str(source.get("content") or source.get("excerpt") or "")
@@ -3624,7 +3636,48 @@ class WorkerLoop:
             rollback_ref=f"learning_queue:{candidate_id}",
         )
 
-    def _claim_model_client(self) -> tuple[Any, str]:
+    def _observable_ollama_client(
+        self,
+        task: WorkerTask,
+        run_ref: str,
+        *,
+        cognitive_function: str,
+        artifact: str,
+        consumer: str,
+    ) -> Any:
+        """Cliente de worker con evidencia causal segura y correlacionable."""
+        from triade.models.ollama_client import OllamaClient
+        from triade.services.event_bus import publish_event
+
+        task_id = _integer_task_id(task.id)
+
+        def observe(model_event: dict[str, Any]) -> None:
+            payload = {
+                **model_event,
+                "task_id": str(task.id) if task.id is not None else None,
+                "run_ref": run_ref,
+                "worker": "living_worker",
+                "cognitive_function": cognitive_function,
+                "artifact": artifact,
+                "consumer": consumer,
+                "effect": "available_to_task_handler"
+                if model_event.get("ok")
+                else "none",
+            }
+            publish_event(
+                "ollama_call_completed",
+                "worker_loop",
+                payload,
+                severity="info" if model_event.get("ok") else "error",
+                db_path=self.db_path,
+                run_ref=run_ref,
+                task_id=task_id,
+                task_type=task.task_type,
+            )
+
+        return OllamaClient(event_callback=observe)
+
+    def _claim_model_client(self, task: WorkerTask, run_ref: str) -> tuple[Any, str]:
         """Sangre cognitiva para destilar, si la política del rol la concede.
 
         Destilar afirmaciones **es** una evaluación de aprendizaje, así que se
@@ -3640,14 +3693,22 @@ class WorkerLoop:
         """
         try:
             from triade.core.ollama_blood import check_ollama_blood, ollama_blood_policy
-            from triade.models.ollama_client import OllamaClient
 
             sangre = check_ollama_blood()
             politica = ollama_blood_policy("learning_evaluation", sangre)
             modelo = str(politica.get("model_used") or "")
             if not politica.get("allowed") or not modelo:
                 return None, ""
-            return OllamaClient(), modelo
+            return (
+                self._observable_ollama_client(
+                    task,
+                    run_ref,
+                    cognitive_function="learning_evaluation",
+                    artifact="distilled_claims",
+                    consumer="GovernedResearchWorker",
+                ),
+                modelo,
+            )
         except (ImportError, OSError, RuntimeError, KeyError, TypeError):
             return None, ""
 

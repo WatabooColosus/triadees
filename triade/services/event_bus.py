@@ -75,16 +75,22 @@ def publish_event(
 
 
 def list_recent_events(
-    limit: int = 100, db_path: str | Path = "triade/memory/triade.db"
+    limit: int = 100,
+    db_path: str | Path = "triade/memory/triade.db",
+    *,
+    event_type: str | None = None,
 ) -> list[dict[str, Any]]:
     with _connect(db_path) as conn:
-        rows = conn.execute(
-            """SELECT id, run_ref, task_id, task_type, event_type, status, message, payload_json, created_at
-            FROM worker_events
-            ORDER BY id DESC
-            LIMIT ?""",
-            (limit,),
-        ).fetchall()
+        query = """SELECT id, run_ref, task_id, task_type, event_type, status,
+                          message, payload_json, created_at
+                   FROM worker_events"""
+        parameters: tuple[Any, ...]
+        if event_type is None:
+            parameters = (limit,)
+        else:
+            query += " WHERE event_type = ?"
+            parameters = (event_type, limit)
+        rows = conn.execute(query + " ORDER BY id DESC LIMIT ?", parameters).fetchall()
     return [_row_to_dict(row) for row in rows]
 
 

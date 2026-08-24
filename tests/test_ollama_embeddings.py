@@ -77,3 +77,23 @@ def test_embed_reports_invalid_response() -> None:
 
     assert result.ok is False
     assert "embeddings válidos" in str(result.error)
+
+
+def test_embed_observability_never_contains_input_or_vectors() -> None:
+    events: list[dict[str, object]] = []
+
+    def fake_urlopen(request, timeout):
+        if request.full_url.endswith("/api/ps"):
+            return FakeResponse({"models": []})
+        return FakeResponse(
+            {"model": "embed", "embeddings": [[0.1, 0.2]], "prompt_eval_count": 1}
+        )
+
+    client = OllamaClient(event_callback=events.append)
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        assert client.embed("embed", "texto privado").ok is True
+
+    assert events[0]["operation"] == "embed"
+    assert events[0]["embedding_count"] == 1
+    assert events[0]["dimensions"] == 2
+    assert not ({"input", "input_text", "embeddings", "vectors"} & events[0].keys())

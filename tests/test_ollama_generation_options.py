@@ -87,3 +87,55 @@ def test_el_system_sigue_funcionando_junto_a_options(captura) -> None:
     payload = captura.payloads[0]
     assert payload["system"] == "eres X"
     assert payload["options"] == {"seed": 1}
+
+
+def test_observability_reports_metadata_without_prompt_or_system(monkeypatch) -> None:
+    events: list[dict[str, Any]] = []
+
+    def fake_urlopen(request, timeout=None):
+        if request.full_url.endswith("/api/ps"):
+            body = {"models": [{"name": "actual", "size_vram": 2048}]}
+        else:
+            body = {
+                "model": "actual",
+                "response": "contenido privado",
+                "total_duration": 10,
+                "prompt_eval_count": 3,
+                "eval_count": 2,
+            }
+
+        class _Resp:
+            def read(self_inner) -> bytes:
+                return json.dumps(body).encode()
+
+            def __enter__(self_inner):
+                return self_inner
+
+            def __exit__(self_inner, *args):
+                return None
+
+        return _Resp()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    result = OllamaClient(event_callback=events.append).generate(
+        "requested", "prompt secreto", system="sistema secreto"
+    )
+
+    assert result.ok is True
+    assert events == [
+        {
+            "operation": "generate",
+            "endpoint": "http://127.0.0.1:11434/api/generate",
+            "requested_model": "requested",
+            "model_used": "actual",
+            "duration_ms": events[0]["duration_ms"],
+            "total_duration": 10,
+            "load_duration": None,
+            "prompt_eval_count": 3,
+            "eval_count": 2,
+            "ok": True,
+            "device_reported": "gpu",
+            "size_vram": 2048,
+        }
+    ]
+    assert not ({"prompt", "system", "response", "text"} & events[0].keys())

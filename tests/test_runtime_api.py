@@ -52,7 +52,7 @@ def test_runtime_api_endpoints(monkeypatch, tmp_path):
             db_path=db_path, runs_dir=runs_dir, limit=limit
         ),
     )
-    monkeypatch.setattr(api_module, "list_recent_events", lambda limit=50: [])
+    monkeypatch.setattr(api_module, "list_recent_events", lambda limit=50, **kwargs: [])
     monkeypatch.setattr(
         api_module,
         "audit_stable_neurons",
@@ -86,6 +86,13 @@ def test_runtime_api_endpoints(monkeypatch, tmp_path):
         == 200
     )
     assert client.get("/api/runtime/events").status_code == 200
+    ollama_calls = client.get("/api/runtime/ollama-calls").json()
+    assert ollama_calls == {
+        "status": "ok",
+        "count": 0,
+        "last_ollama_call_at": None,
+        "events": [],
+    }
     assert (
         client.get(
             "/api/runtime/context", params={"user_input": "estado runtime"}
