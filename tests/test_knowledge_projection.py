@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from triade.os.knowledge_graph import KnowledgeGraph
 from triade.observability.activation_contracts import ContractVerifier, load_contracts
+from triade.os.knowledge_graph import KnowledgeGraph
 from triade.research.knowledge_projection import project_research_into_graph
 
 CLAIMS = [
