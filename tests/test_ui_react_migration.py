@@ -61,6 +61,20 @@ def test_api_runtime_heartbeat_contains_ollama_blood():
     )
 
 
+def test_runtime_heartbeat_summary_does_not_build_expensive_detail(monkeypatch):
+    """El pulso operativo no reconstruye contexto, journal ni memoria."""
+    from apps.routes import api as api_module
+
+    monkeypatch.setattr(
+        api_module,
+        "build_runtime_heartbeat",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("heavy detail called")),
+    )
+    response = client.get("/api/runtime/heartbeat")
+    assert response.status_code == 200
+    assert response.json().get("detail_available") is True
+
+
 def test_api_models_ollama_blood():
     """GET /api/models/ollama/blood debe responder con sangre cognitiva."""
     resp = client.get("/api/models/ollama/blood")

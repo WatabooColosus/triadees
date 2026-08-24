@@ -351,7 +351,7 @@ def test_runtime_heartbeat_endpoint(monkeypatch, tmp_path: Path) -> None:
     )
 
     client = TestClient(app)
-    response = client.get("/api/runtime/heartbeat")
+    response = client.get("/api/runtime/heartbeat?detail=true")
 
     assert response.status_code == 200
     body = response.json()
