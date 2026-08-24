@@ -6,6 +6,7 @@ import json
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -19,6 +20,10 @@ class ModelResult:
     model: str
     provider: str = "ollama"
     error: str | None = None
+    total_duration: int | None = None
+    load_duration: int | None = None
+    prompt_eval_count: int | None = None
+    eval_count: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -27,6 +32,10 @@ class ModelResult:
             "model": self.model,
             "provider": self.provider,
             "error": self.error,
+            "total_duration": self.total_duration,
+            "load_duration": self.load_duration,
+            "prompt_eval_count": self.prompt_eval_count,
+            "eval_count": self.eval_count,
         }
 
 
@@ -72,10 +81,50 @@ class OllamaClient:
     """
 
     def __init__(
-        self, base_url: str = "http://127.0.0.1:11434", timeout: int = 60
+        self,
+        base_url: str = "http://127.0.0.1:11434",
+        timeout: int = 60,
+        event_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.event_callback = event_callback
+
+    def _observe(self, payload: dict[str, Any]) -> None:
+        """Notifica metadatos seguros; observar nunca puede romper la inferencia."""
+        if self.event_callback is None:
+            return
+        try:
+            self.event_callback(payload)
+        except Exception:  # noqa: BLE001  # callback de observabilidad aislado
+            return
+
+    def _device_report(self, model: str) -> dict[str, Any]:
+        """Lee /api/ps después de trabajo real; no carga ni mantiene modelos."""
+        if self.event_callback is None:
+            return {"device_reported": "unknown", "size_vram": None}
+        request = urllib.request.Request(f"{self.base_url}/api/ps", method="GET")
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                parsed = json.loads(response.read().decode("utf-8"))
+            for loaded in parsed.get("models", []):
+                if str(loaded.get("name") or loaded.get("model") or "") == model:
+                    size_vram = int(loaded.get("size_vram") or 0)
+                    return {
+                        "device_reported": "gpu" if size_vram > 0 else "cpu",
+                        "size_vram": size_vram,
+                    }
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            json.JSONDecodeError,
+            OSError,
+            AttributeError,
+            TypeError,
+            ValueError,
+        ):
+            pass
+        return {"device_reported": "unknown", "size_vram": None}
 
     def generate(
         self,
@@ -109,15 +158,36 @@ class OllamaClient:
             method="POST",
         )
 
+        started = time.perf_counter()
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 body = response.read().decode("utf-8")
                 parsed = json.loads(body)
-                return ModelResult(
+                result = ModelResult(
                     ok=True,
                     text=str(parsed.get("response", "")).strip(),
-                    model=model,
+                    model=str(parsed.get("model") or model),
+                    total_duration=parsed.get("total_duration"),
+                    load_duration=parsed.get("load_duration"),
+                    prompt_eval_count=parsed.get("prompt_eval_count"),
+                    eval_count=parsed.get("eval_count"),
                 )
+                self._observe(
+                    {
+                        "operation": "generate",
+                        "endpoint": f"{self.base_url}/api/generate",
+                        "requested_model": model,
+                        "model_used": result.model,
+                        "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                        "total_duration": result.total_duration,
+                        "load_duration": result.load_duration,
+                        "prompt_eval_count": result.prompt_eval_count,
+                        "eval_count": result.eval_count,
+                        "ok": True,
+                        **self._device_report(result.model),
+                    }
+                )
+                return result
         except (
             urllib.error.URLError,
             TimeoutError,
@@ -125,12 +195,24 @@ class OllamaClient:
             OSError,
             ImportError,
         ) as exc:
-            return ModelResult(
+            result = ModelResult(
                 ok=False,
                 text="",
                 model=model,
                 error=str(exc),
             )
+            self._observe(
+                {
+                    "operation": "generate",
+                    "endpoint": f"{self.base_url}/api/generate",
+                    "requested_model": model,
+                    "model_used": model,
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                    "ok": False,
+                    "error": str(exc),
+                }
+            )
+            return result
 
     def embed(
         self,
@@ -173,6 +255,7 @@ class OllamaClient:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
+        started = time.perf_counter()
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 parsed = json.loads(response.read().decode("utf-8"))
@@ -190,7 +273,7 @@ class OllamaClient:
                         error="Ollama no retornó embeddings válidos.",
                     )
                 embeddings = [[float(value) for value in vector] for vector in vectors]
-                return EmbeddingResult(
+                result = EmbeddingResult(
                     ok=True,
                     model=str(parsed.get("model", model.strip())),
                     embeddings=embeddings,
@@ -198,6 +281,23 @@ class OllamaClient:
                     load_duration=parsed.get("load_duration"),
                     prompt_eval_count=parsed.get("prompt_eval_count"),
                 )
+                self._observe(
+                    {
+                        "operation": "embed",
+                        "endpoint": f"{self.base_url}/api/embed",
+                        "requested_model": model.strip(),
+                        "model_used": result.model,
+                        "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                        "total_duration": result.total_duration,
+                        "load_duration": result.load_duration,
+                        "prompt_eval_count": result.prompt_eval_count,
+                        "embedding_count": len(result.embeddings),
+                        "dimensions": result.dimensions,
+                        "ok": True,
+                        **self._device_report(result.model),
+                    }
+                )
+                return result
         except (
             urllib.error.URLError,
             TimeoutError,
@@ -207,7 +307,19 @@ class OllamaClient:
             TypeError,
             ValueError,
         ) as exc:
-            return EmbeddingResult(ok=False, model=model.strip(), error=str(exc))
+            result = EmbeddingResult(ok=False, model=model.strip(), error=str(exc))
+            self._observe(
+                {
+                    "operation": "embed",
+                    "endpoint": f"{self.base_url}/api/embed",
+                    "requested_model": model.strip(),
+                    "model_used": model.strip(),
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                    "ok": False,
+                    "error": str(exc),
+                }
+            )
+            return result
 
     def health(self) -> dict[str, Any]:
         request = urllib.request.Request(f"{self.base_url}/api/tags", method="GET")

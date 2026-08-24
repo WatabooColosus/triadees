@@ -1561,6 +1561,20 @@ def runtime_events(limit: int = 50) -> dict[str, Any]:
     return {"status": "ok", "count": len(events), "events": events}
 
 
+@router.get("/api/runtime/ollama-calls")
+def runtime_ollama_calls(limit: int = 20) -> dict[str, Any]:
+    """Últimas llamadas causales de workers, sin prompts ni vectores."""
+    LIFE_PULSE.record_action("runtime_ollama_calls")
+    safe_limit = max(1, min(int(limit), 100))
+    events = list_recent_events(limit=safe_limit, event_type="ollama_call_completed")
+    return {
+        "status": "ok",
+        "count": len(events),
+        "last_ollama_call_at": events[0].get("created_at") if events else None,
+        "events": events,
+    }
+
+
 @router.get("/api/runtime/audit-history")
 def runtime_audit_history(limit: int = 20) -> dict[str, Any]:
     """Expone bitácoras reales sin cargas JSON ni datos de prompts."""
