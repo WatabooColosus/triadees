@@ -197,6 +197,50 @@ def test_administrative_entrypoint_stays_visible_but_not_real_debt(
     assert counts["DEUDA_REAL"] == 0
 
 
+def test_manual_diagnostic_stays_visible_as_manual_tool(tmp_path: Path) -> None:
+    cache = tmp_path / "graphs"
+    cache.mkdir()
+    (cache / "entrypoint_graph.json").write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "node_id": "entrypoint:scripts/stress.py",
+                        "label": "scripts/stress.py",
+                        "metadata": {
+                            "path": "scripts/stress.py",
+                            "launchers": 0,
+                            "activation": "manual_diagnostic",
+                            "activation_evidence": "bounded diagnostic CLI",
+                        },
+                        "state": "disconnected",
+                    }
+                ],
+                "edges": [],
+                "metadata": {"generated_at": datetime.now(UTC).isoformat()},
+            }
+        ),
+        encoding="utf-8",
+    )
+    entrypoints = {
+        "count": 1,
+        "items": ["scripts/stress.py"],
+        "sample": ["scripts/stress.py"],
+    }
+
+    counts = _classify_with_contracts(
+        REPO_ROOT,
+        {"entrypoints_without_launcher": entrypoints},
+        {},
+        None,
+        cache_dir=cache,
+    )
+
+    verdict = entrypoints["classified"]["scripts/stress.py"]
+    assert verdict["classification"] == "MANUAL_TOOL"
+    assert counts == {"MANUAL_TOOL": 1, "DEUDA_REAL": 0}
+
+
 def test_graph_and_node_routes_expose_color_and_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

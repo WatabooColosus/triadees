@@ -61,6 +61,7 @@ CLASSIFICATIONS = (
     "HISTORICAL",
     "EXPERIMENTAL",
     "LEGACY_RETIREMENT_PENDING_OPERATOR",
+    "MANUAL_TOOL",
 )
 
 #: Evidencia que se responde **con el repositorio delante**: ficheros, símbolos,

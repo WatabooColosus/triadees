@@ -347,6 +347,11 @@ def _classify_with_contracts(
         for node in entrypoints.get("nodes", ())
         if (node.get("metadata") or {}).get("activation") == "administrative_on_demand"
     }
+    manual_diagnostics = {
+        str(node.get("label") or ""): node.get("metadata") or {}
+        for node in entrypoints.get("nodes", ())
+        if (node.get("metadata") or {}).get("activation") == "manual_diagnostic"
+    }
     for categoria, entry in items.items():
         if not entry.get("count"):
             continue
@@ -365,6 +370,21 @@ def _classify_with_contracts(
                     "evidence": metadata.get("activation_evidence"),
                 }
                 recuento["ON_DEMAND"] = recuento.get("ON_DEMAND", 0) + 1
+                continue
+            if (
+                categoria == "entrypoints_without_launcher"
+                and nombre in manual_diagnostics
+            ):
+                metadata = manual_diagnostics[nombre]
+                clasificados[nombre] = {
+                    "subject": f"entrypoint:{nombre}",
+                    "classification": "MANUAL_TOOL",
+                    "reason": "Diagnóstico manual acotado; no es un daemon ni runtime",
+                    "contract_holds": True,
+                    "failed_evidence": [],
+                    "evidence": metadata.get("activation_evidence"),
+                }
+                recuento["MANUAL_TOOL"] = recuento.get("MANUAL_TOOL", 0) + 1
                 continue
             contrato = contratos.get(f"{prefijo}:{nombre}")
             if contrato is None:

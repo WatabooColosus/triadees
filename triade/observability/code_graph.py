@@ -406,6 +406,7 @@ def build_entrypoint_graph(
                 continue
             node_id = f"entrypoint:{relative}"
             administrative = _administrative_on_demand(tree, relative)
+            manual_diagnostic = _manual_diagnostic(tree, relative)
             nodes[node_id] = GraphNode(
                 node_id,
                 "file",
@@ -418,11 +419,17 @@ def build_entrypoint_graph(
                     "line": ast_node.lineno,
                     "launchers": 0,
                     "activation": (
-                        "administrative_on_demand" if administrative else "runtime"
+                        "administrative_on_demand"
+                        if administrative
+                        else "runtime"
+                        if not manual_diagnostic
+                        else "manual_diagnostic"
                     ),
                     "activation_evidence": (
                         "argparse --apply gate + rollback option"
                         if administrative
+                        else "bounded diagnostic CLI; explicit run count; Ollama disabled"
+                        if manual_diagnostic
                         else "main_guard_only"
                     ),
                 },
@@ -498,6 +505,43 @@ def _administrative_on_demand(tree: ast.Module, relative: str) -> bool:
             )
     rollback = {"--rollback", "--revert", "--revertir"}
     return imports_argparse and "--apply" in options and bool(options & rollback)
+
+
+def _manual_diagnostic(tree: ast.Module, relative: str) -> bool:
+    """Reconoce diagnósticos manuales acotados sin fingir un launcher.
+
+    El contrato exige una cantidad explícita de ejecuciones, controles de
+    concurrencia/timeout y que la carga cognitiva esté desactivada. Un simple
+    ``__main__`` o la palabra «stress» en el nombre no bastan.
+    """
+    if not relative.startswith("scripts/"):
+        return False
+    options: set[str] = set()
+    imports_argparse = False
+    ollama_disabled = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports_argparse |= any(alias.name == "argparse" for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            imports_argparse |= node.module == "argparse"
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if node.func.attr == "add_argument":
+                options.update(
+                    arg.value
+                    for arg in node.args
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+                )
+        elif isinstance(node, ast.Dict):
+            for key, value in zip(node.keys, node.values, strict=False):
+                if (
+                    isinstance(key, ast.Constant)
+                    and key.value == "use_ollama"
+                    and isinstance(value, ast.Constant)
+                    and value.value is False
+                ):
+                    ollama_disabled = True
+    required = {"runs", "--concurrency", "--timeout", "--url", "--database"}
+    return imports_argparse and required <= options and ollama_disabled
 
 
 def reachable_modules(
