@@ -96,6 +96,7 @@ from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
 from triade.models.compatibility_matrix import ModelCompatibilityMatrix
 from triade.models.ollama_client import check_ollama_cognitive_health
+from triade.observability.audit_history import build_audit_history
 from triade.qualia.bus import QualiaBus
 from triade.qualia.contracts import NeuronExperience
 from triade.qualia.store import QualiaStore
@@ -1558,6 +1559,14 @@ def runtime_events(limit: int = 50) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_events")
     events = list_recent_events(limit=limit)
     return {"status": "ok", "count": len(events), "events": events}
+
+
+@router.get("/api/runtime/audit-history")
+def runtime_audit_history(limit: int = 20) -> dict[str, Any]:
+    """Expone bitácoras reales sin cargas JSON ni datos de prompts."""
+    LIFE_PULSE.record_action("runtime_audit_history")
+    db_path = os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
+    return build_audit_history(db_path, limit=limit)
 
 
 @router.get("/api/runtime/learning-journal")
