@@ -91,6 +91,20 @@ class RunLearningService:
         report: Any,
         intent: str,
     ) -> dict[str, Any]:
+        from triade.learning.post_run import post_run_learning_enabled
+
+        if post_run_learning_enabled():
+            # El runner ya encoló ``learning_candidate_generation`` antes de
+            # llegar aquí. Mantener además este volcado inline produciría dos
+            # candidatos distintos por experiencia y volvería a poner trabajo
+            # de aprendizaje en el camino síncrono de la respuesta.
+            return {
+                "enabled": True,
+                "mode": "delegated_to_governed_post_run_worker",
+                "status": "scheduled",
+                "source_ref": f"run:{input_packet.run_id}",
+                "policy": "single_canonical_learning_source",
+            }
         if self._synthetic_source(input_packet.source):
             return {
                 "enabled": False,

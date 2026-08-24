@@ -2,7 +2,33 @@ import os
 import tempfile
 from pathlib import Path
 
+import pytest
+
 _ORIGINAL_CWD: str | None = None
+
+
+@pytest.fixture(autouse=True)
+def isolate_contract_tests_from_host_load(request, monkeypatch):
+    """Evita que el orden de la suite convierta carga del host en resultados.
+
+    La política del Resource Governor conserva su probe real en su propia
+    suite. El resto de pruebas usa RAM/disco/modelos reales, pero no hereda el
+    load average producido por los constructores de grafos ejecutados antes.
+    """
+    if request.node.path.name == "test_resource_governor.py":
+        yield
+        return
+    from triade.core import resource_probe
+
+    original = resource_probe.build_resource_probe
+
+    def stable_load():
+        probe = original()
+        probe["cpu"]["load_1min"] = 0.0
+        return probe
+
+    monkeypatch.setattr(resource_probe, "build_resource_probe", stable_load)
+    yield
 
 
 def pytest_configure(config):

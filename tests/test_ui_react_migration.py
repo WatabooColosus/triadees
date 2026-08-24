@@ -146,6 +146,14 @@ def test_technical_debt_endpoint():
     assert "recommended_actions" in data
 
 
+def test_technical_debt_no_cuenta_compatibilidad_ni_documento_vigente() -> None:
+    data = client.get("/api/system/technical-debt").json()
+    areas = {item["area"] for item in data["debts"]}
+
+    assert "api_duplication" not in areas
+    assert "docs" not in areas
+
+
 def test_identity_core_not_modified_by_ui_dashboard():
     """Los endpoints de dashboard no deben modificar identity_core."""
     resp_debt = client.get("/api/system/technical-debt")

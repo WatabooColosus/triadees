@@ -87,16 +87,8 @@ def build_technical_debt_audit() -> dict[str, Any]:
         )
         score -= 10
 
-    # ── Duplicaciones de rutas en api.py (alias)
-    debts.append(
-        {
-            "area": "api_duplication",
-            "item": "Alias de rutas",
-            "detail": "Varias rutas tienen alias (/api/health = /health, /api/observability = /api/system/observability, etc.). Mantener compatibilidad.",
-            "severity": "low",
-        }
-    )
-    score -= 3
+    # Los alias declarados sobre una misma función son compatibilidad, no
+    # duplicación: no mantienen dos implementaciones ni pueden divergir.
 
     # ── APIs core disponibles
     available_endpoints = 0
@@ -139,7 +131,7 @@ def build_technical_debt_audit() -> dict[str, Any]:
 
     # ── Docs vigentes
     doc_files = [
-        "docs/STATUS_CURRENT.md",
+        "STATUS_CURRENT.md",
         "docs/UI_REACT_MIGRATION.md",
         "docs/DEPRECATED_UI_ROUTES.md",
         "docs/OLLAMA_BLOOD.md",
@@ -149,15 +141,23 @@ def build_technical_debt_audit() -> dict[str, Any]:
             warnings.append(f"Documento faltante: {doc}")
 
     # ── STATUS_CURRENT.md desactualizado
-    status_file = REPO_ROOT / "docs/STATUS_CURRENT.md"
+    status_file = REPO_ROOT / "STATUS_CURRENT.md"
     if status_file.exists():
         content = status_file.read_text(encoding="utf-8")
-        if "UI oficial React SPA" not in content:
+        # El contrato operativo real es verificable sin exigir una frase
+        # mágica: el documento declara el build React y que lo sirve el único
+        # entrypoint. Renombrar un encabezado no crea deuda.
+        declares_react = "frontend/dist/" in content
+        declares_single_port = "apps.single_port_app:app" in content
+        if not (declares_react and declares_single_port):
             debts.append(
                 {
                     "area": "docs",
-                    "item": "STATUS_CURRENT.md no declara React como UI oficial",
-                    "detail": "docs/STATUS_CURRENT.md debe tener sección UI oficial React SPA.",
+                    "item": "STATUS_CURRENT.md no declara la UI desplegada",
+                    "detail": (
+                        "STATUS_CURRENT.md debe vincular frontend/dist/ con "
+                        "apps.single_port_app:app."
+                    ),
                     "severity": "medium",
                 }
             )

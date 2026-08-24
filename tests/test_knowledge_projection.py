@@ -12,7 +12,10 @@ claims con su fuente y detecta las claves cuyas fuentes no coinciden.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from triade.os.knowledge_graph import KnowledgeGraph
+from triade.observability.activation_contracts import ContractVerifier, load_contracts
 from triade.research.knowledge_projection import project_research_into_graph
 
 CLAIMS = [
@@ -23,6 +26,7 @@ CLAIMS = [
 CONTRADICCIONES = [
     {"claim_key": "altura", "values": ["8848 m", "8849 m"], "resolution": "unresolved"}
 ]
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _kg(tmp_path) -> KnowledgeGraph:
@@ -127,3 +131,26 @@ def test_un_claim_sin_clave_o_sin_valor_no_entra(tmp_path):
         "contradictions_detected": 0,
     }
     assert kg.count_nodes() == 0
+
+
+def test_las_tablas_relacionales_vacias_tienen_contrato_falsable(tmp_path):
+    kg = _kg(tmp_path)
+    project_research_into_graph(
+        kg,
+        research_id="sin-conflicto",
+        claims=[{"key": "estado", "value": "verificado"}],
+        contradictions=[],
+        domain="d",
+    )
+    verifier = ContractVerifier(
+        ROOT,
+        table_profiles={
+            "kg_edges": {"rows": 0},
+            "kg_contradictions": {"rows": 0},
+        },
+        db_path=kg.db_path,
+    )
+    contracts = load_contracts()
+
+    assert verifier.verify(contracts["table:kg_edges"]).holds
+    assert verifier.verify(contracts["table:kg_contradictions"]).holds

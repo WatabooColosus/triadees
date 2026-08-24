@@ -234,7 +234,11 @@ def triage(root: Path, db: Path, cache: Path) -> dict[str, Any]:
     tablas_vivas = _live_tables(db)
     migrados, parametrizados = _scan_sources(root)
 
-    informe = build_debt_report(root, db, allow_build=False)
+    # El informe y los perfiles deben salir de la misma fotografía. Antes el
+    # parámetro ``cache`` se ignoraba aquí: el informe se leía del cache global
+    # mientras ``perfiles`` se cargaba del directorio solicitado. Con un cache
+    # nuevo eso convertía todos los escritores en cero y fabricaba cortes.
+    informe = build_debt_report(root, db, cache_dir=cache, allow_build=True)
     perfiles = profiles_from_artifact(
         json.loads((cache / "table_graph.json").read_text(encoding="utf-8"))
         if (cache / "table_graph.json").exists()

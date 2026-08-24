@@ -217,8 +217,10 @@ def test_semantic_governance_is_planned_from_the_live_store(tmp_path: Path) -> N
         source_ref="tests/test_mission_planner.py",
     )
     with sqlite3.connect(db_path) as conn:
-        # La tabla retirada sigue existiendo y sigue vacía, como en producción.
-        assert conn.execute("SELECT COUNT(*) FROM semantic_memory").fetchone()[0] == 0
+        assert not conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+            ("semantic_memory",),
+        ).fetchone()
         assert (
             conn.execute("SELECT COUNT(*) FROM semantic_documents").fetchone()[0] == 1
         )

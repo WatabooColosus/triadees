@@ -99,6 +99,11 @@ class LegacyCompatibilityController:
                     GROUP BY autonomous_task_id HAVING COUNT(*) > 1)"""
                 ).fetchone()[0]
             )
+            compatibility_events = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM runtime_queue_compatibility_events"
+                ).fetchone()[0]
+            )
         status = self.status()
         return {
             "mode": str(status["mode"]),
@@ -107,4 +112,5 @@ class LegacyCompatibilityController:
             "legacy_pending_reconciliation": pending,
             "v2_total": v2_total,
             "duplicate_links": duplicate_links,
+            "compatibility_events": compatibility_events,
         }

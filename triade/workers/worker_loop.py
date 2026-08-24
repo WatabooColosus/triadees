@@ -57,6 +57,7 @@ from triade.runtime.wake_bus import runtime_wake_event
 from .adaptive_scheduler import AdaptiveScheduler
 from .concurrency import GovernedTaskPool, policy_for
 from .contracts import (
+    EVENT_DRIVEN_TASK_TYPES,
     WORKER_TASK_TYPES,
     WorkerRunConfig,
     WorkerTask,
@@ -215,7 +216,14 @@ class WorkerLoop:
         # que un diagnóstico válido quedara en `blocked` en runners limpios,
         # antes incluso de alcanzar el handler y su whitelist.
         "goal_safe_command",
+        "learning_candidate_generation",
+        "learning_candidate_deduplication",
+        "neural_learning_distribution",
+        "neuron_education_cycle",
     }
+    # Estas tareas representan un evento concreto y traen una clave de
+    # idempotencia propia. El cooldown sirve para trabajo periódico, no para
+    # descartar la segunda conversación porque otra persona habló hace poco.
 
     def __init__(
         self,
@@ -1242,7 +1250,13 @@ class WorkerLoop:
         cancellation = CancellationToken(lambda: self.stop_file.exists())
         cancellation.checkpoint()
         goal_task = bool(task.payload.get("goal_id"))
-        if not goal_task and self.adaptive_scheduler.should_skip_task(task.task_type):
+        resolution_task = bool(task.payload.get("resolution_ready"))
+        if (
+            not goal_task
+            and not resolution_task
+            and task.task_type not in EVENT_DRIVEN_TASK_TYPES
+            and self.adaptive_scheduler.should_skip_task(task.task_type)
+        ):
             result: dict[str, Any] = {
                 "status": "skipped",
                 "reason": "adaptive_interval_not_elapsed",
@@ -1408,6 +1422,9 @@ class WorkerLoop:
                     ),
                     "learning_evidence_generation": (
                         self._learning_evidence_generation
+                    ),
+                    "neural_learning_distribution": (
+                        self._neural_learning_distribution
                     ),
                     "peft_canary_observation": self._peft_canary_observation,
                 }
@@ -1766,6 +1783,52 @@ class WorkerLoop:
         # Promover a estable es HUMAN_REQUIRED. El resolutor sólo mueve
         # versiones experimentales, que son reversibles y quedan marcadas.
         result["stable_neuron_promotion"] = False
+        # Este ciclo escribe sesiones y puede resolver/revertir una versión. El
+        # contrato general del worker rechaza correctamente cualquier efecto
+        # sin recibo; antes el handler mutaba la DB y después la tarea quedaba
+        # en retry_wait como si hubiese fallado. Verificamos los identificadores
+        # que los propios stores acaban de devolver y dejamos provenance DB.
+        session_refs = {
+            str(value)
+            for value in (
+                result.get("session_id"),
+                resolucion.get("session_id"),
+            )
+            if value
+        }
+        if session_refs:
+            with sqlite3.connect(self.db_path) as conn:
+                verified_refs = [
+                    session_id
+                    for session_id in session_refs
+                    if conn.execute(
+                        "SELECT 1 FROM neuron_education_sessions WHERE session_id=?",
+                        (session_id,),
+                    ).fetchone()
+                ]
+            receipt = EffectReceipt(
+                action="update_neuron_learning",
+                target=f"neuron_education:{task.id}",
+                execution={
+                    "session_ids": sorted(session_refs),
+                    "resolution": resolucion.get("decision"),
+                },
+                postcondition={
+                    "passed": len(verified_refs) == len(session_refs),
+                    "sessions_verified": len(verified_refs),
+                },
+                verified=len(verified_refs) == len(session_refs),
+                verifier="neuron_education_database_postcondition",
+                evidence_refs=[
+                    f"sqlite:neuron_education_sessions:{session_id}"
+                    for session_id in verified_refs
+                ],
+                rollback_ref=resolved_rollback
+                if (resolved_rollback := resolucion.get("rollback_ref"))
+                else None,
+            )
+            result["effect_receipt"] = receipt.model_dump(mode="json")
+            result["status"] = "completed"
         return result
 
     def _self_improvement_evaluation(
@@ -2365,9 +2428,30 @@ class WorkerLoop:
 
         candidato = resultado.candidates[0]
         creado = producer.persist(candidato)
-        (task_dir / "candidate.json").write_text(
+        candidate_ref = task_dir / "candidate.json"
+        candidate_ref.write_text(
             json.dumps(candidato.to_dict(), ensure_ascii=False, indent=2),
             encoding="utf-8",
+        )
+        with sqlite3.connect(self.db_path) as conn:
+            candidate_exists = bool(
+                conn.execute(
+                    "SELECT 1 FROM learning_queue WHERE candidate_id=?",
+                    (candidato.candidate_id,),
+                ).fetchone()
+            )
+        candidate_verified = candidate_ref.is_file() and candidate_exists
+        receipt = EffectReceipt(
+            action="persist_learning_candidate" if creado else "observe",
+            target=candidato.candidate_id,
+            execution={"source_run_id": source_run_id, "created": creado},
+            postcondition={"passed": candidate_verified},
+            verified=candidate_verified,
+            verifier="learning_candidate_artifact_postcondition",
+            evidence_refs=[
+                str(candidate_ref),
+                f"sqlite:learning_queue:{candidato.candidate_id}",
+            ],
         )
         return {
             "status": "completed",
@@ -2376,6 +2460,7 @@ class WorkerLoop:
             "candidate_type": candidato.type,
             "created": creado,
             "stable_memory_written": False,
+            "effect_receipt": receipt.model_dump(mode="json"),
         }
 
     def _learning_candidate_deduplication(
@@ -2401,6 +2486,76 @@ class WorkerLoop:
             "unique_contents": reporte.unique_contents,
             "rows_deleted": 0,
             "stable_memory_written": False,
+        }
+
+    def _neural_learning_distribution(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Asigna conocimiento consolidado a una neurona, sin saltar evidencia."""
+        from triade.neurons.learning_router import NeuralLearningRouter
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+        candidate_id = str(payload.get("candidate_id") or "")
+        if not candidate_id:
+            return {
+                "status": "completed",
+                "effect": "no_op",
+                "skipped_reason": "sin_candidate_id",
+                "stable_memory_written": False,
+            }
+        router = NeuralLearningRouter(self.db_path)
+        try:
+            routed = router.route(candidate_id)
+        except (KeyError, ValueError) as exc:
+            rejected = router.record_rejection(candidate_id, str(exc))
+            receipt = EffectReceipt(
+                action="reject_neural_learning",
+                target=candidate_id,
+                execution={"reason": str(exc)},
+                postcondition={"passed": True, "event_id": rejected["event_id"]},
+                verified=True,
+                verifier="neuron_education_event_postcondition",
+                evidence_refs=[
+                    f"sqlite:neuron_education_events:{rejected['event_id']}"
+                ],
+            )
+            return {
+                "status": "completed",
+                "effect": "rejected",
+                "candidate_id": candidate_id,
+                "skipped_reason": str(exc),
+                "stable_memory_written": False,
+                "rejection": rejected,
+                "effect_receipt": receipt.model_dump(mode="json"),
+            }
+        (task_dir / "neural-learning-route.json").write_text(
+            json.dumps(routed, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        route_event_id = routed.get("event_id")
+        evidence_refs = [
+            f"sqlite:neuron_learning_assignments:{routed['assignment_id']}"
+        ]
+        if route_event_id is not None:
+            evidence_refs.append(f"sqlite:neuron_education_events:{route_event_id}")
+        receipt = EffectReceipt(
+            action=(
+                "route_neural_learning" if routed["status"] == "routed" else "observe"
+            ),
+            target=str(routed["assignment_id"]),
+            execution={"candidate_id": candidate_id},
+            postcondition={"passed": True, "event_id": route_event_id},
+            verified=True,
+            verifier="neuron_learning_assignment_postcondition",
+            evidence_refs=evidence_refs,
+            rollback_ref=f"neuron_learning_assignment:{routed['assignment_id']}",
+        )
+        return {
+            **routed,
+            "status": "completed",
+            "route_status": routed["status"],
+            "effect": routed["status"],
+            "stable_memory_written": False,
+            "effect_receipt": receipt.model_dump(mode="json"),
         }
 
     def _learning_evidence_generation(

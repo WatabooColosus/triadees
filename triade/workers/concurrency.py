@@ -130,6 +130,9 @@ TASK_CONCURRENCY_POLICY: dict[str, TaskConcurrencyPolicy] = {
     "learning_evidence_generation": TaskConcurrencyPolicy(
         "evaluation", 1, "model", ("candidate_id",)
     ),
+    "neural_learning_distribution": TaskConcurrencyPolicy(
+        "memory_write", 1, "light", ("candidate_id",)
+    ),
     "federation_inbox_review": TaskConcurrencyPolicy("read_only", 4, "io"),
     "system_debt_scan": TaskConcurrencyPolicy("read_only", 4, "light"),
     "bodega_global_review": TaskConcurrencyPolicy("read_only", 4, "light"),

@@ -1145,12 +1145,21 @@ class TriadeRunner:
                 ProductionKnowledgeInjector,
             )
 
+            usage_kwargs: dict[str, Any] = {}
+            measured_score = output.memory_diff.get("learning_outcome_score")
+            measured_ref = output.memory_diff.get("learning_outcome_evidence_ref")
+            if measured_score is not None and measured_ref:
+                usage_kwargs = {
+                    "outcome_score": float(measured_score),
+                    "outcome_evidence_ref": str(measured_ref),
+                }
             knowledge_use_result = ProductionKnowledgeInjector(
                 self.db_path
             ).confirm_uses(
                 knowledge_injection,
                 str(getattr(output, "response", "") or ""),
                 run_id=input_packet.run_id,
+                **usage_kwargs,
             )
         except (
             OSError,

@@ -82,7 +82,15 @@ def ensure_graphs(
         return (cache_dir / "index.json").exists()
     # Import local: `build_all` arrastra todos los constructores y este módulo
     # se importa desde el worker, donde el arranque debe ser barato.
-    from scripts.build_internal_graphs import build_all
+    try:
+        from scripts.build_internal_graphs import build_all
+    except ModuleNotFoundError as exc:
+        # ``python scripts/triage_debt.py`` pone ``scripts/`` —no la raíz— al
+        # frente de sys.path. Esa es la invocación documentada y debe poder
+        # regenerar un cache vacío igual que ``python -m scripts.triage_debt``.
+        if exc.name != "scripts":
+            raise
+        from build_internal_graphs import build_all
 
     build_all(root, db_path, cache_dir, render=False)
     return True

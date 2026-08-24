@@ -72,6 +72,22 @@ def test_disk_pressure_blocks_effectful_tasks(tmp_path: Path) -> None:
     assert not pressure.allows("goal_install", effectful=True)
 
 
+def test_exhausted_model_budget_keeps_local_learning_nervous_system_alive(
+    tmp_path: Path,
+) -> None:
+    ledger = ResourceLedger(tmp_path / "ledger.db")
+    pressure = RuntimeBackpressure(
+        ledger,
+        probe=lambda: PressureSnapshot(
+            "observe_only", ("daily_budget_exhausted",), None, 5000, None
+        ),
+    )
+    assert pressure.allows("learning_candidate_generation", effectful=True)
+    assert pressure.allows("neural_learning_distribution", effectful=True)
+    assert not pressure.allows("learning_evidence_generation", effectful=True)
+    assert not pressure.allows("goal_lora_train", effectful=True)
+
+
 def test_thermal_pressure_defers_gpu_work(tmp_path: Path) -> None:
     ledger = ResourceLedger(tmp_path / "ledger.db")
     pressure = RuntimeBackpressure(

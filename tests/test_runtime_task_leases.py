@@ -4,6 +4,7 @@ import sqlite3
 import threading
 from datetime import UTC, datetime, timedelta
 
+from triade.runtime.effect_receipt import EffectReceipt
 from triade.runtime.task_leases import AutonomousTaskStore
 
 
@@ -155,3 +156,30 @@ def test_claim_specific_task_is_atomic(tmp_path):
     assert claimed["status"] == "leased"
     assert store.claim_task(second["task_id"], "worker-b") is None
     assert store.get(first["task_id"])["status"] == "pending"
+
+
+def test_reconciles_only_receipt_missing_dead_letter_with_verified_effect(tmp_path):
+    path = tmp_path / "tasks.db"
+    store = AutonomousTaskStore(path)
+    task = store.enqueue("neuron_education_cycle", {}, idempotency_key="education")
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "UPDATE autonomous_tasks SET status='dead_letter',last_error=? WHERE task_id=?",
+            (
+                "El handler afirmó un efecto sin recibo verificable",
+                task["task_id"],
+            ),
+        )
+    receipt = EffectReceipt(
+        action="update_neuron_learning",
+        target="session-1",
+        postcondition={"passed": True},
+        verified=True,
+        verifier="database_postcondition",
+        evidence_refs=["sqlite:neuron_education_events:1"],
+    )
+
+    assert store.reconcile_verified_effect_dead_letter(task["task_id"], receipt)
+    reconciled = store.get(task["task_id"])
+    assert reconciled["status"] == "completed"
+    assert reconciled["result_ref"] == "sqlite:neuron_education_events:1"

@@ -63,7 +63,7 @@ def test_runtime_runs_without_chat_and_reports_live_thinking(tmp_path):
         )
         stable_memory_rows = int(
             conn.execute(
-                "SELECT COUNT(*) FROM semantic_memory WHERE status = 'stable'"
+                "SELECT COUNT(*) FROM semantic_documents WHERE status = 'stable'"
             ).fetchone()[0]
         )
 

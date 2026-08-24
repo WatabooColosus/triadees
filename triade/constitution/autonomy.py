@@ -211,6 +211,7 @@ TASK_OPERATION: dict[str, str] = {
     "learning_evidence_generation": "generate_evidence",
     "pending_learning_review": "evaluate_candidate",
     "stable_consolidation_review": "consolidate_low_risk_knowledge",
+    "neural_learning_distribution": "use_knowledge_experimental",
     "semantic_memory_governance": "contrast_with_memory",
     # ── observación e informes ───────────────────────────────────────
     "pulse_check": "measure_results",

@@ -230,7 +230,6 @@ class QualiaEngine:
                 ).fetchall()
             }
             documents = self._counts_by_status(conn, "semantic_documents", tables)
-            semantic_memory = self._counts_by_status(conn, "semantic_memory", tables)
             embeddings = self._count(conn, "semantic_embeddings", tables)
             governance_events = self._count(conn, "semantic_governance_events", tables)
         stable_documents = int(documents.get("stable", 0))
@@ -240,7 +239,7 @@ class QualiaEngine:
             "status": "ok",
             "db_exists": True,
             "documents_by_status": documents,
-            "semantic_memory_by_status": semantic_memory,
+            "semantic_memory_by_status": documents,
             "embeddings": embeddings,
             "governance_events": governance_events,
             "stable_documents": stable_documents,

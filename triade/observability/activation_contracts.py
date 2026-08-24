@@ -931,4 +931,143 @@ CONTRACTS: tuple[Contract, ...] = (
             "rows_absent=orchestrator_locks",
         ),
     ),
+    # ── Relaciones que sólo existen cuando la evidencia las produce ──
+    _contract(
+        "table:kg_edges",
+        "ON_DEMAND",
+        decided_at="2026-08-24",
+        reason="""
+            Los claims de investigación se proyectan siempre como nodos, pero
+            una arista no se inventa por proximidad textual: el productor sólo
+            crea `contradicts` cuando una investigación gobernada entrega dos
+            valores distintos para la misma clave. La base viva tiene claims y
+            ninguna contradicción de fuente; cero aristas conserva esa verdad.
+            Si se elimina el productor, lector o prueba causal, el contrato cae.
+        """,
+        evidence=(
+            "writer_reachable=triade/research/knowledge_projection.py",
+            "reader_exists=triade/os/knowledge_graph.py",
+            "proof_test=tests/test_knowledge_projection.py::test_la_contradiccion_produce_arista_y_se_materializa",
+            "rows_absent=kg_edges",
+        ),
+    ),
+    _contract(
+        "table:kg_contradictions",
+        "EXPECTED_EMPTY",
+        decided_at="2026-08-24",
+        reason="""
+            Es la materialización auditable de aristas `contradicts`, no una
+            cuota de actividad. Sin una arista contradictoria, estar vacía es
+            el estado sano; `detect_contradictions()` la llena cuando existe el
+            par y la prueba verifica ambos efectos sobre SQLite.
+        """,
+        evidence=(
+            "writer_reachable=triade/os/knowledge_graph.py",
+            "reader_exists=triade/os/knowledge_graph.py",
+            "proof_test=tests/test_knowledge_projection.py::test_la_contradiccion_produce_arista_y_se_materializa",
+            "rows_absent=kg_contradictions",
+        ),
+    ),
+    _contract(
+        "table:auto_identity",
+        "ON_DEMAND",
+        decided_at="2026-08-24",
+        reason="""
+            El tick está conectado al escritor, pero sólo acepta una reflexión
+            que sepa qué ocurrió y que no pretenda tocar el ancla identitaria.
+            Con cobertura insuficiente, cero rasgos es el resultado seguro; la
+            prueba verifica producción, rechazo y acumulación de evidencia.
+        """,
+        evidence=(
+            "writer_reachable=triade/memory/auto_identity_store.py",
+            "reader_exists=triade/core/bodega.py",
+            "proof_test=tests/test_identity_evolution_gate.py",
+            "rows_absent=auto_identity",
+        ),
+    ),
+    _contract(
+        "table:goal_dependencies",
+        "ON_DEMAND",
+        decided_at="2026-08-24",
+        reason="""
+            Una fila representa una dependencia explícita entre dos objetivos,
+            no un latido obligatorio. El planificador lee la tabla para bloquear
+            únicamente los objetivos que declaren esa relación; los objetivos
+            independientes no deben recibir dependencias inventadas.
+        """,
+        evidence=(
+            "writer_reachable=triade/core/planning_graph.py",
+            "reader_exists=triade/core/planning_graph.py",
+            "proof_test=tests/test_goals_end_to_end_real.py",
+            "rows_absent=goal_dependencies",
+        ),
+    ),
+    _contract(
+        "table:governed_peft_active_slot",
+        "HUMAN_GATED",
+        decided_at="2026-08-24",
+        reason="""
+            El slot sólo puede existir después de canary exitoso, compatibilidad
+            con un modelo servido y aprobación humana nominal. Tener un canary
+            sin activar no autoriza al runtime a firmarse un adaptador.
+        """,
+        evidence=(
+            "writer_reachable=triade/training/serving_governance.py",
+            "reader_exists=triade/training/serving_governance.py",
+            "human_gate=triade/training/serving_governance.py::activate",
+            "proof_test=tests/test_peft_base_model_gate.py",
+            "rows_absent=governed_peft_active_slot",
+        ),
+    ),
+    _contract(
+        "table:relational_modulation_events",
+        "NO_EXTERNAL_STIMULUS",
+        decided_at="2026-08-24",
+        reason="""
+            Cada fila exige usuario, sesión, tipo gobernado, delta, fuente y
+            explicación. Los ciclos autónomos no tienen identidad de usuario y
+            no deben fabricar una relación; una interacción identificada activa
+            el mismo escritor que la prueba ejerce y revierte.
+        """,
+        evidence=(
+            "writer_reachable=triade/memory/relational_modulation.py",
+            "reader_exists=triade/memory/relational_modulation.py",
+            "proof_test=tests/test_relational_modulation.py",
+            "rows_absent=relational_modulation_events",
+        ),
+    ),
+    _contract(
+        "table:rollback_operations",
+        "ON_DEMAND",
+        decided_at="2026-08-24",
+        reason="""
+            Una operación sólo se planifica ante una regresión medida, con
+            candidato, reporte, objetivo y solicitante explícitos. Cero filas
+            significa que no hubo una regresión que justificara revertir; crear
+            una para poblar la tabla falsearía precisamente esa evidencia.
+        """,
+        evidence=(
+            "writer_reachable=triade/regression/rollback.py",
+            "reader_exists=triade/regression/rollback.py",
+            "proof_test=tests/test_regression_rollback.py",
+            "rows_absent=rollback_operations",
+        ),
+    ),
+    _contract(
+        "table:runtime_queue_compatibility_events",
+        "EXPECTED_EMPTY",
+        decided_at="2026-08-24",
+        reason="""
+            El estado vivo de workers publica continuamente el modo y el número
+            de transiciones, pero no cambia el switch. Producción permanece en
+            `v2_canonical`; una fila sólo aparece si un operador invoca la
+            compatibilidad con actor y motivo explícitos.
+        """,
+        evidence=(
+            "writer_reachable=triade/runtime/legacy_compatibility.py",
+            "reader_exists=triade/runtime/legacy_compatibility.py",
+            "proof_test=tests/test_worker_status_counts_the_living_path.py::test_worker_status_publica_el_switch_legacy_sin_cambiarlo",
+            "rows_absent=runtime_queue_compatibility_events",
+        ),
+    ),
 )

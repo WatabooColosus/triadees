@@ -492,9 +492,6 @@ def test_el_simulacro_cuenta_el_saber_que_existe(tmp_path) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 document_id TEXT, content TEXT, status TEXT
             );
-            CREATE TABLE semantic_memory (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT, value TEXT
-            );
             """
         )
         conn.executemany(
@@ -504,6 +501,4 @@ def test_el_simulacro_cuenta_el_saber_que_existe(tmp_path) -> None:
 
     resultado = EncryptedBackup._semantic_verification(db)
 
-    # La tabla vieja sigue vacía, como en producción: si el contador la mirara,
-    # este número sería 0 y el simulacro no vería la diferencia.
     assert resultado["semantic_memory_count"] == 2

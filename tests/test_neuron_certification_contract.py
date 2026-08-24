@@ -44,9 +44,10 @@ def test_el_contrato_retirado_no_tiene_lector_en_produccion() -> None:
         path.relative_to(ROOT).as_posix()
         for path in _ficheros_productivos()
         if "neuron_certifications" in path.read_text(encoding="utf-8")
-        # El detector de deuda y su triaje nombran la tabla para explicar su
-        # propia historia; eso es documentación, no una consulta.
+        # Los detectores y el catálogo de contratos nombran la tabla para
+        # explicar su propia historia; eso es documentación, no una consulta.
         and "observability/alias_debt.py" not in path.as_posix()
+        and "observability/activation_contracts.py" not in path.as_posix()
         and "triage" not in path.name
     ]
 

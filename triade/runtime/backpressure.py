@@ -22,6 +22,20 @@ class PressureSnapshot:
 
 
 class RuntimeBackpressure:
+    # Trabajo SQLite local, pequeño e idempotente que mantiene cerrado el
+    # circuito aun cuando se agotó el presupuesto de inferencia/investigación.
+    # No incluye generación de evidencia: esa sí consume modelo y espera cuota.
+    ESSENTIAL_LOCAL_TASKS = frozenset(
+        {
+            "pulse_check",
+            "encrypted_backup",
+            "learning_candidate_generation",
+            "learning_candidate_deduplication",
+            "neural_learning_distribution",
+            "neuron_education_cycle",
+        }
+    )
+
     def __init__(
         self,
         ledger: ResourceLedger,
@@ -50,8 +64,10 @@ class RuntimeBackpressure:
 
     def allows(self, task_type: str, *, effectful: bool) -> bool:
         pressure = self.snapshot()
-        if pressure.state in {"critical", "observe_only"}:
+        if pressure.state == "critical":
             return task_type in {"pulse_check", "encrypted_backup"} and not effectful
+        if pressure.state == "observe_only":
+            return task_type in self.ESSENTIAL_LOCAL_TASKS
         return not (pressure.state == "degraded" and effectful)
 
 
