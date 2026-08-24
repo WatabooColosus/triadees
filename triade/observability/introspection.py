@@ -19,6 +19,7 @@ import json
 import os
 import time
 from datetime import UTC, datetime
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
@@ -83,16 +84,16 @@ def ensure_graphs(
     # Import local: `build_all` arrastra todos los constructores y este módulo
     # se importa desde el worker, donde el arranque debe ser barato.
     try:
-        from scripts.build_internal_graphs import build_all
+        graph_builder = import_module("scripts.build_internal_graphs")
     except ModuleNotFoundError as exc:
         # ``python scripts/triage_debt.py`` pone ``scripts/`` —no la raíz— al
         # frente de sys.path. Esa es la invocación documentada y debe poder
         # regenerar un cache vacío igual que ``python -m scripts.triage_debt``.
         if exc.name != "scripts":
             raise
-        from build_internal_graphs import build_all
+        graph_builder = import_module("build_internal_graphs")
 
-    build_all(root, db_path, cache_dir, render=False)
+    graph_builder.build_all(root, db_path, cache_dir, render=False)
     return True
 
 
