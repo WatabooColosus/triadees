@@ -14,9 +14,7 @@ def source(path: Path) -> None:
         conn.execute(
             "CREATE TABLE semantic_documents(id INTEGER PRIMARY KEY, content TEXT)"
         )
-        conn.execute(
-            "INSERT INTO semantic_documents(content) VALUES ('remember me')"
-        )
+        conn.execute("INSERT INTO semantic_documents(content) VALUES ('remember me')")
         conn.execute(
             "CREATE TABLE autonomous_tasks(id TEXT,status TEXT,result_ref TEXT)"
         )
