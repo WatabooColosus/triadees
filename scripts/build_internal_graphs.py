@@ -15,6 +15,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 from triade.observability.alias_debt import build_alias_debt
@@ -43,6 +46,15 @@ def _summarise(nodes: list[GraphNode], edges: list[GraphEdge]) -> dict[str, obje
     for node in nodes:
         states[node.state] = states.get(node.state, 0) + 1
     return {"nodes": len(nodes), "edges": len(edges), "states": states}
+
+
+def _commit_sha(root: Path) -> str | None:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=root, text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
 
 
 def build_all(
@@ -111,10 +123,20 @@ def build_all(
         encoding="utf-8",
     )
 
+    generated_at = datetime.now(UTC).isoformat()
+    commit_sha = _commit_sha(root)
+    generation_id = f"{(commit_sha or 'unknown')[:12]}-{time.time_ns()}"
     index_payload = {
         "schema_version": 1,
+        "generation_id": generation_id,
+        "generated_at": generated_at,
+        "commit_sha": commit_sha,
         "root": root.name,
         "database": str(db_path) if db_path and db_path.exists() else None,
+        "database_size_bytes": db_path.stat().st_size
+        if db_path and db_path.exists()
+        else None,
+        "output": str(output.resolve()),
         "legend": legend(),
         "graphs": summary,
     }

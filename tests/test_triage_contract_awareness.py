@@ -102,3 +102,43 @@ def test_el_triaje_usa_el_cache_solicitado(tmp_path, monkeypatch) -> None:
 
     assert observado == {"cache_dir": cache, "allow_build": True}
     assert resultado["findings_classified"] == 0
+
+
+def test_el_triaje_hereda_la_generacion_exacta_del_cache(tmp_path, monkeypatch) -> None:
+    import scripts.triage_debt as modulo
+
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    (cache / "index.json").write_text(
+        json.dumps(
+            {
+                "commit_sha": "abc123",
+                "generation_id": "abc123-7",
+                "generated_at": "2026-08-24T13:00:00+00:00",
+                "database": "/production/triade.db",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (cache / "table_graph.json").write_text(
+        json.dumps({"nodes": [], "edges": []}), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        modulo,
+        "build_debt_report",
+        lambda *a, **k: {"items": {}, "debt_items_total": 0},
+    )
+    monkeypatch.setattr(modulo, "build_module_index", lambda root: {})
+    monkeypatch.setattr(modulo, "reachable_modules", lambda root, index: set())
+    monkeypatch.setattr(modulo, "_live_tables", lambda db: set())
+    monkeypatch.setattr(modulo, "_scan_sources", lambda root: (set(), {}))
+    monkeypatch.setattr(modulo, "build_alias_debt", lambda *a, **k: {"findings": []})
+    monkeypatch.setattr(modulo, "_contract_verdicts", lambda *a, **k: {})
+
+    result = modulo.triage(tmp_path, tmp_path / "db.sqlite3", cache)
+
+    assert result["base_sha"] == "abc123"
+    assert result["graph_generation_id"] == "abc123-7"
+    assert result["graphs_generated_at"] == "2026-08-24T13:00:00+00:00"
+    assert result["graph_database"] == "/production/triade.db"
+    assert result["graph_cache"] == str(cache.resolve())

@@ -110,7 +110,8 @@ def _build(
 def test_script_completes_and_writes_every_graph(tmp_path: Path) -> None:
     root = _sample_repo(tmp_path)
     output = tmp_path / "out"
-    result = _build(root, _sample_db(tmp_path), output)
+    db = _sample_db(tmp_path)
+    result = _build(root, db, output)
     assert result.returncode == 0, result.stderr
     for stem in GRAPH_FILES:
         for suffix in (".json", ".dot", ".mmd", ".md"):
@@ -118,6 +119,11 @@ def test_script_completes_and_writes_every_graph(tmp_path: Path) -> None:
     index = json.loads((output / "index.json").read_text(encoding="utf-8"))
     assert set(GRAPH_FILES).issubset(index["graphs"])
     assert index["legend"], "la leyenda de colores debe viajar con los grafos"
+    assert index["generation_id"]
+    assert index["generated_at"].endswith("+00:00")
+    assert index["database"] == str(db)
+    assert index["database_size_bytes"] > 0
+    assert index["output"] == str(output.resolve())
 
 
 def test_output_is_deterministic(tmp_path: Path) -> None:
