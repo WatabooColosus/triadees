@@ -8,6 +8,7 @@ on:
       - ".env.cloud.example"
       - "deploy/**"
       - "apps/routes/health.py"
+      - "apps/routes/api.py"
       - "apps/single_port_app.py"
       - ".github/workflows/cloud-foundation.yml"
       - "requirements.txt"
