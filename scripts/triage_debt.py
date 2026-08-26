@@ -359,9 +359,18 @@ def triage(root: Path, db: Path, cache: Path) -> dict[str, Any]:
     resumen: dict[str, int] = {}
     for h in hallazgos:
         resumen[h["classification"]] = resumen.get(h["classification"], 0) + 1
+    graph_index: dict[str, Any] = {}
+    try:
+        graph_index = json.loads((cache / "index.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        pass
     return {
         "generated_at": datetime.now(UTC).isoformat(),
-        "base_sha": "",
+        "base_sha": graph_index.get("commit_sha") or "",
+        "graph_generation_id": graph_index.get("generation_id"),
+        "graphs_generated_at": graph_index.get("generated_at"),
+        "graph_database": graph_index.get("database"),
+        "graph_cache": str(cache.resolve()),
         "debt_items_total": informe.get("debt_items_total"),
         "findings_classified": len(hallazgos),
         "by_classification": resumen,
