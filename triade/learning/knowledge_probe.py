@@ -24,9 +24,25 @@ from triade.db import sqlite3
 #: corrientes no sirven — «informe» aparecería igual sin haber aprendido nada.
 # Sin `\b` final tras `::`: los dos puntos no son carácter de palabra, así que
 # un límite ahí nunca casaría y `WRK::` se perdía.
+#
+# La rama `snake_case` no puede ser `[a-z]`: en castellano descarta en silencio
+# sujetos legítimos. Medido el 2026-08-26 sobre los candidatos `web` elegibles,
+# `dia_del_amigo` pasaba y `día_del_amigo` no; lo mismo `término_rubia_tonta`.
+# No era una decisión, era el rango ASCII. `[^\W\dA-Z_]` es «carácter de palabra
+# que no sea dígito, mayúscula ASCII ni guión bajo», es decir letra Unicode en
+# minúscula, que es justo lo que produce `_normalizar_clave`.
+_MINUSCULA = r"[^\W\dA-Z_]"
 _DISTINTIVO = re.compile(
-    r"(?:\b[A-Z][A-Z0-9]{2,}(?:[-_][A-Z0-9]+)+\b|\b[A-Z]{2,}::|\b[a-z]+_[a-z_]+\b)"
+    r"(?:\b[A-Z][A-Z0-9]{2,}(?:[-_][A-Z0-9]+)+\b|\b[A-Z]{2,}::"
+    rf"|\b{_MINUSCULA}+_(?:{_MINUSCULA}|_)+\b)"
 )
+
+
+def _sin_tildes(texto: str) -> str:
+    """Forma ASCII de un token, conservando `_`. Sólo para comparar."""
+    plano = unicodedata.normalize("NFKD", str(texto))
+    return "".join(ch for ch in plano if not unicodedata.combining(ch))
+
 
 #: Identificadores de andamiaje: aparecen en todo el repositorio, en los propios
 #: enunciados y en el vocabulario común de cualquier modelo. No cumplen el
@@ -110,8 +126,13 @@ def extract_target(content: str) -> str | None:
     el candidato es inmedible, que es una respuesta legítima de este módulo.
     """
     texto = str(content or "")
+    # Se compara sin tildes pero se devuelve el token **literal**: quien llama
+    # lo usa para tapar el hueco con `.replace()` y como respuesta esperada, así
+    # que devolver la forma normalizada dejaría el hueco sin tapar.
     candidatos = [
-        token for token in _DISTINTIVO.findall(texto) if token not in _ANDAMIAJE
+        token
+        for token in _DISTINTIVO.findall(texto)
+        if _sin_tildes(token) not in _ANDAMIAJE
     ]
     if not candidatos:
         return None

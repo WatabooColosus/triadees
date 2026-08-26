@@ -530,6 +530,59 @@ class MissionPlanner:
                         )
                     )
 
+                # learning_claim_distillation: sólo si hay padres `web` sin
+                # hijo destilado y **sin intento previo**. La segunda condición
+                # es la que de verdad frena: de 46 padres `web` reales sólo 6
+                # dan aserción, y sin mirar `learning_distillation_attempts` los
+                # otros 40 volverían a contarse en cada ciclo. La tarea correría
+                # para siempre devolviendo `no_op`, que es justo lo que hace
+                # parecer vivo un panel muerto.
+                #
+                # Va **antes** de la evidencia a propósito: si el planner no
+                # encuentra ningún candidato medible, la reparación no es bajar
+                # el listón de la sonda sino producir algo que sí se pueda
+                # medir. El 2026-08-26 eran 0 de 149.
+                base_destilar = """SELECT COUNT(*) AS cnt FROM learning_queue p
+                        WHERE p.status = 'internally_checked'
+                          AND p.source_type = 'web'
+                          AND NOT EXISTS (
+                            SELECT 1 FROM learning_queue h
+                            WHERE h.source_type = 'distilled'
+                              AND h.source_ref = 'candidate:' || p.candidate_id)
+                          {intentos}"""
+                intentos_sql = """AND NOT EXISTS (
+                            SELECT 1 FROM learning_distillation_attempts a
+                            WHERE a.candidate_id = p.candidate_id)"""
+                try:
+                    try:
+                        sin_destilar = conn.execute(
+                            base_destilar.format(intentos=intentos_sql)
+                        ).fetchone()
+                    except sqlite3.OperationalError:
+                        # `learning_distillation_attempts` la crea el promotor la
+                        # primera vez que corre. Si aquí se contara 0 por no
+                        # existir, la tarea no se encolaría nunca y la tabla no
+                        # llegaría a crearse: arranque en frío bloqueado por sí
+                        # mismo. Sin la tabla, ningún padre tiene intento.
+                        sin_destilar = conn.execute(
+                            base_destilar.format(intentos="")
+                        ).fetchone()
+                    sin_destilar_cnt = (
+                        int(sin_destilar["cnt"] or 0) if sin_destilar else 0
+                    )
+                except sqlite3.Error:
+                    sin_destilar_cnt = 0
+                if sin_destilar_cnt > 0:
+                    tasks.append(
+                        PlannedTask(
+                            task_type="learning_claim_distillation",
+                            priority=6,
+                            reason=f"{sin_destilar_cnt} fuentes web sin destilar",
+                            source="mission_planner_baseline",
+                            planner_score=min(1.0, 0.4 + sin_destilar_cnt / 200),
+                        )
+                    )
+
                 # learning_evidence_generation: un candidato elegible por ciclo.
                 # Gasta inferencias, así que se pide de uno en uno. Ese ritmo es
                 # el único freno real de esta rama —el worker no consulta al

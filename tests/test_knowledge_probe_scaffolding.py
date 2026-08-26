@@ -141,3 +141,29 @@ def test_una_certificacion_no_es_una_conversacion(tmp_path) -> None:
     assert prueba["scheduled"] is False
     assert "source_sin_aprendizaje" in prueba["reason"]
     assert real["scheduled"] is True, "la UI real sí tiene que aprender"
+
+
+def test_un_sujeto_acentuado_sigue_siendo_medible() -> None:
+    """El rango ASCII descartaba sujetos legítimos sin decirlo.
+
+    Medido el 2026-08-26 sobre los candidatos `web` elegibles: la rama
+    `snake_case` de `_DISTINTIVO` era `[a-z]+_[a-z_]+`, así que `dia_del_amigo`
+    pasaba y `día_del_amigo` no. No era una política sobre qué es medible: era
+    el alfabeto del regex. En castellano eso descarta buena parte de los
+    sujetos reales.
+    """
+    from triade.learning.knowledge_probe import extract_target
+
+    assert extract_target("día_del_amigo") == "día_del_amigo"
+    assert extract_target("término_rubia_tonta") == "término_rubia_tonta"
+    # Y se devuelve el token literal, no su forma sin tildes: quien llama lo usa
+    # para tapar el hueco con `.replace()` y como respuesta esperada.
+    assert extract_target("la fecha es día_del_amigo hoy") == "día_del_amigo"
+
+
+def test_el_andamiaje_se_filtra_aunque_llegue_acentuado() -> None:
+    """Comparar sin tildes no puede abrir la puerta al andamiaje."""
+    from triade.learning.knowledge_probe import extract_target
+
+    assert extract_target("verification_status") is None
+    assert extract_target("mission_id") is None
