@@ -115,17 +115,56 @@ class ResourceUsageReceipt:
         return float(item.value or 0) if item else 0.0
 
 
+#: `RUSAGE_SELF` cuenta **todo el proceso**, no el hilo que mide.
+#:
+#: Los Living Workers corren en hilos dentro de un único proceso, así que la
+#: ventana de medición de una tarea se quedaba también con la CPU que gastaban
+#: las demás a la vez. Medido el 2026-08-26 sobre `resource_ledger`: **5.912 de
+#: 6.484 entradas del día declaraban más CPU que duración** —media de 1,65
+#: núcleos aparentes, pico de 4,7—, cosa imposible para un handler de un hilo.
+#:
+#: No es contabilidad decorativa: `cpu_minutes_daily` es una de las cuatro
+#: `PRESSURE_LINES`, y al inflarse hasta 713 min sobre un presupuesto de 600
+#: `policy()` ponía el organismo en `observe_only`, que excluye la clase `light`
+#: —dedup, destilación y evidencia, o sea la cadena de aprendizaje entera—. El
+#: gobernador frenaba de verdad por una cifra que no era real.
+#:
+#: `RUSAGE_THREAD` es Linux y conserva el desglose user/system. Donde no exista
+#: se cae a `RUSAGE_SELF`, que es lo que había: sobreestimar es preferible a no
+#: medir, pero se registra en `cpu_scope` para que la cifra sea interpretable.
+_RUSAGE_THREAD = getattr(resource, "RUSAGE_THREAD", None)
+
+
+def _cpu_propio() -> tuple[float, float, str]:
+    """CPU del hilo que llama, o del proceso si la plataforma no distingue."""
+    if _RUSAGE_THREAD is not None:
+        try:
+            uso = resource.getrusage(_RUSAGE_THREAD)
+            return uso.ru_utime, uso.ru_stime, "thread"
+        except (OSError, ValueError):
+            pass
+    uso = resource.getrusage(resource.RUSAGE_SELF)
+    return uso.ru_utime, uso.ru_stime, "process"
+
+
 class ResourceMeasurementCollector:
     def __init__(self) -> None:
         self.started_at = datetime.now(UTC).isoformat()
         self.started_wall = time.monotonic()
-        self.self_before = resource.getrusage(resource.RUSAGE_SELF)
+        self.self_utime_before, self.self_stime_before, self.cpu_scope = _cpu_propio()
+        # Los hijos siguen siendo del proceso: `RUSAGE_CHILDREN` no se desglosa
+        # por hilo. Un subproceso lanzado por otra tarea a la vez sigue cayendo
+        # aquí, pero son raros y acotados frente a la CPU propia.
         self.children_before = resource.getrusage(resource.RUSAGE_CHILDREN)
 
     def finish(self) -> ResourceUsageReceipt:
         finished_at = datetime.now(UTC).isoformat()
-        self_after = resource.getrusage(resource.RUSAGE_SELF)
+        self_utime_after, self_stime_after, _ = _cpu_propio()
         children_after = resource.getrusage(resource.RUSAGE_CHILDREN)
+        # `ru_maxrss` es el pico de residente **del proceso** por definición: no
+        # existe una versión por hilo, porque la memoria no se reparte por hilo.
+        # Se lee aparte para que el cambio de ámbito de la CPU no lo arrastre.
+        self_after = resource.getrusage(resource.RUSAGE_SELF)
         measured = {
             "wall_time": (
                 time.monotonic() - self.started_wall,
@@ -133,20 +172,20 @@ class ResourceMeasurementCollector:
                 "time.monotonic",
             ),
             "cpu_user": (
-                self_after.ru_utime
-                - self.self_before.ru_utime
+                self_utime_after
+                - self.self_utime_before
                 + children_after.ru_utime
                 - self.children_before.ru_utime,
                 "seconds",
-                "resource.getrusage",
+                f"resource.getrusage[{self.cpu_scope}]",
             ),
             "cpu_system": (
-                self_after.ru_stime
-                - self.self_before.ru_stime
+                self_stime_after
+                - self.self_stime_before
                 + children_after.ru_stime
                 - self.children_before.ru_stime,
                 "seconds",
-                "resource.getrusage",
+                f"resource.getrusage[{self.cpu_scope}]",
             ),
             "peak_rss": (
                 float(max(self_after.ru_maxrss, children_after.ru_maxrss)) / 1024,

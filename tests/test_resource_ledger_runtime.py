@@ -130,3 +130,47 @@ def test_runtime_budget_is_read_from_declared_config(tmp_path):
     assert presupuesto["deep_evaluations_daily"] == 7.0
     assert presupuesto["cpu_minutes_daily"] == DEFAULT_BUDGET["cpu_minutes_daily"]
     assert load_runtime_budget(tmp_path / "no-existe.yml") == DEFAULT_BUDGET
+
+
+def test_la_cpu_se_mide_por_hilo_no_por_proceso():
+    """`RUSAGE_SELF` cuenta todo el proceso, y los workers son hilos.
+
+    Medido el 2026-08-26 en producción: 5.912 de 6.484 entradas del día
+    declaraban más CPU que duración —media de 1,65 núcleos aparentes, pico de
+    4,7— porque la ventana de cada tarea se quedaba también con la CPU de las
+    demás. `cpu_minutes_daily` llegó a 713 sobre un presupuesto de 600 y
+    `policy()` puso el organismo en `observe_only`, que excluye la clase
+    `light`: la cadena de aprendizaje entera parada por una cifra irreal.
+
+    Con varios hilos quemando CPU a la vez, ninguno puede declarar más de un
+    núcleo: bajo el GIL el bucle de Python puro no se paraleliza.
+    """
+    import threading
+    import time
+
+    from triade.runtime.resource_ledger import ResourceMeasurementCollector
+
+    medidas: dict[int, tuple[float, float]] = {}
+
+    def medir(indice: int) -> None:
+        collector = ResourceMeasurementCollector()
+        fin = time.monotonic() + 0.4
+        while time.monotonic() < fin:
+            pass
+        recibo = collector.finish()
+        cpu = recibo.value("cpu_user") + recibo.value("cpu_system")
+        medidas[indice] = (cpu, recibo.value("wall_time"))
+
+    hilos = [threading.Thread(target=medir, args=(i,)) for i in range(4)]
+    for hilo in hilos:
+        hilo.start()
+    for hilo in hilos:
+        hilo.join()
+
+    assert len(medidas) == 4
+    for indice, (cpu, wall) in medidas.items():
+        nucleos = cpu / wall if wall else 0.0
+        assert nucleos <= 1.2, (
+            f"el hilo {indice} declara {nucleos:.2f} núcleos: está contando"
+            " la CPU de los otros hilos"
+        )
