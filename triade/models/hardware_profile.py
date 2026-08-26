@@ -11,9 +11,52 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
+
+#: Cuánto vale una sonda estática antes de repetirla.
+#:
+#: `detect()` mezcla datos que cambian —RAM disponible, disco libre— con datos
+#: que no: el modelo de GPU, su VRAM total, la versión del driver y la de
+#: `ollama`. Los segundos salen de `subprocess`, y eso es lo que cuesta.
+#:
+#: Medido el 2026-08-26: `build_system_pulse()` llama a `detect()` **tres veces**
+#: y cada llamada lanza sus subprocesos; 19 `subprocess.run` por pulso, 0,87 s de
+#: los 1,9 s del perfil sólo en `select.poll`. Con `pulse_check` cada 30 s eso
+#: eran 458 de los 600 minutos diarios de CPU presupuestados, y al reventar el
+#: presupuesto `ResourceLedger` ponía el organismo en `observe_only`, que excluye
+#: la clase `light` —o sea la cadena de aprendizaje entera—.
+#:
+#: No es caché eterna a propósito: un TTL corto recoge un cambio de driver o una
+#: actualización de `ollama` sin obligar a reiniciar el proceso, y sigue
+#: colapsando las tres llamadas del mismo pulso en una sonda real.
+STATIC_PROBE_TTL_SECONDS = 300.0
+
+_T = TypeVar("_T")
+
+#: `{clave: (caducidad_monotónica, valor)}`. Sin cerrojo: bajo el GIL las
+#: operaciones de dict son atómicas, y lo peor que puede pasar en una carrera es
+#: que dos hilos sonden a la vez y uno pise al otro con el mismo resultado.
+_SONDAS: dict[str, tuple[float, Any]] = {}
+
+
+def _cached_probe(clave: str, productor: Callable[[], _T]) -> _T:
+    """Resultado de una sonda estática, re-sondeando sólo si venció el TTL."""
+    ahora = time.monotonic()
+    guardado = _SONDAS.get(clave)
+    if guardado is not None and guardado[0] > ahora:
+        return guardado[1]  # type: ignore[no-any-return]
+    valor = productor()
+    _SONDAS[clave] = (ahora + STATIC_PROBE_TTL_SECONDS, valor)
+    return valor
+
+
+def reset_static_probes() -> None:
+    """Vacía la caché de sondas. Para los tests y para forzar un re-sondeo."""
+    _SONDAS.clear()
 
 
 @dataclass(slots=True)
@@ -213,6 +256,14 @@ class HardwareProfiler:
 
     @staticmethod
     def _detect_gpus() -> list[GPUInfo]:
+        # El inventario de GPU es estático: `nvidia-smi` se consulta por
+        # `name,memory.total,driver_version` y ninguno de los tres cambia
+        # mientras el proceso vive. No se pide VRAM libre por aquí, así que
+        # cachearlo no oculta ningún dato dinámico.
+        return _cached_probe("gpus", HardwareProfiler._detect_gpus_uncached)
+
+    @staticmethod
+    def _detect_gpus_uncached() -> list[GPUInfo]:
         gpus = HardwareProfiler._nvidia_smi_gpus()
         if gpus:
             return gpus
@@ -316,6 +367,14 @@ class HardwareProfiler:
 
     @staticmethod
     def _command_version(name: str, command: list[str]) -> str:
+        # La versión de una herramienta instalada no cambia entre dos pulsos.
+        return _cached_probe(
+            f"version:{name}",
+            lambda: HardwareProfiler._command_version_uncached(name, command),
+        )
+
+    @staticmethod
+    def _command_version_uncached(name: str, command: list[str]) -> str:
         if not shutil.which(name):
             return "not_found"
         output = HardwareProfiler._run_command(command)
@@ -323,6 +382,12 @@ class HardwareProfiler:
 
     @staticmethod
     def _ollama_version() -> str:
+        return _cached_probe(
+            "version:ollama", HardwareProfiler._ollama_version_uncached
+        )
+
+    @staticmethod
+    def _ollama_version_uncached() -> str:
         if not shutil.which("ollama"):
             return "not_found"
         output = HardwareProfiler._run_command(["ollama", "--version"])

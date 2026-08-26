@@ -1420,6 +1420,7 @@ class WorkerLoop:
                     "learning_candidate_deduplication": (
                         self._learning_candidate_deduplication
                     ),
+                    "learning_claim_distillation": (self._learning_claim_distillation),
                     "learning_evidence_generation": (
                         self._learning_evidence_generation
                     ),
@@ -2484,6 +2485,34 @@ class WorkerLoop:
             "processed_count": reporte.total_rows,
             "grouped_count": escritos,
             "unique_contents": reporte.unique_contents,
+            "rows_deleted": 0,
+            "stable_memory_written": False,
+        }
+
+    def _learning_claim_distillation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Da un hijo sondeable a los candidatos `web` que no lo son.
+
+        No toca al padre: escribe una fila `distilled` que apunta a él. Ver
+        `AssertionPromoter` para por qué no se reescribe la transcripción.
+        """
+        from triade.learning.assertion_promoter import AssertionPromoter
+
+        reporte = AssertionPromoter(self.db_path).run()
+        (task_dir / "distillation.json").write_text(
+            json.dumps(reporte.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return {
+            "status": "completed",
+            # Inspeccionar 40 padres y no destilar ninguno es un no-op, no un
+            # éxito: casi ninguna fuente afirma un hecho con sujeto nombrable, y
+            # el panel no debe parecer vivo por haber corrido.
+            "effect": "distilled" if reporte.written else "no_op",
+            "processed_count": reporte.inspected,
+            "distilled_count": reporte.distilled,
+            "written_count": reporte.written,
             "rows_deleted": 0,
             "stable_memory_written": False,
         }

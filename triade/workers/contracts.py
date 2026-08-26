@@ -82,6 +82,10 @@ WorkerTaskType = Literal[
     # tipo distinto porque tienen carril, coste y exclusividad distintos.
     "learning_candidate_generation",
     "learning_candidate_deduplication",
+    # Destilar va entre deduplicar y medir: sin una aserción con sujeto no hay
+    # sonda, y sin sonda la etapa siguiente no tiene a qué agarrarse. El
+    # 2026-08-26 eran 0 candidatos medibles de 149 elegibles.
+    "learning_claim_distillation",
     "learning_evidence_generation",
     "neural_learning_distribution",
 ]

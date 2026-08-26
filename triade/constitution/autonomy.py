@@ -208,6 +208,10 @@ TASK_OPERATION: dict[str, str] = {
     # ── trabajo de fondo del aprendizaje continuo ────────────────────
     "learning_candidate_generation": "create_learning_candidate",
     "learning_candidate_deduplication": "deduplicate_candidates",
+    # Destilar escribe una fila nueva en `learning_queue` y nada más: es crear
+    # un candidato, no evaluarlo. El hijo pasa por el gate de evidencia igual
+    # que cualquier otro.
+    "learning_claim_distillation": "create_learning_candidate",
     "learning_evidence_generation": "generate_evidence",
     "pending_learning_review": "evaluate_candidate",
     "stable_consolidation_review": "consolidate_low_risk_knowledge",

@@ -126,6 +126,11 @@ TASK_CONCURRENCY_POLICY: dict[str, TaskConcurrencyPolicy] = {
     "learning_candidate_deduplication": TaskConcurrencyPolicy(
         "memory_write", 1, "light"
     ),
+    # Serial por el mismo motivo que la deduplicación: el handler **no recibe**
+    # un padre, se los busca él. Dos obreros a la vez escribirían dos hijos para
+    # el mismo padre —el `NOT EXISTS` no los ve mutuamente dentro de la misma
+    # transacción— y la cola acabaría con la afirmación duplicada.
+    "learning_claim_distillation": TaskConcurrencyPolicy("memory_write", 1, "light"),
     # La evidencia gasta inferencias: una por candidato, y pocas a la vez.
     "learning_evidence_generation": TaskConcurrencyPolicy(
         "evaluation", 1, "model", ("candidate_id",)
