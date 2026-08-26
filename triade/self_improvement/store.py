@@ -27,6 +27,16 @@ class ImprovementStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.max_open_proposals = max_open_proposals
         self.clock = clock
+        # `created_at REAL` es epoch, **no** el ISO con `T` que usa el resto de
+        # la base. No es un descuido y no se debe "arreglar": el cooldown de
+        # `create_proposal` hace aritmética directa sobre la columna
+        # (`now - float(created_at) < cooldown_seconds`), y con texto ISO esa
+        # resta reventaría.
+        #
+        # Lo que sí hay que saber: un `WHERE created_at > datetime('now', ...)`
+        # sobre estas tablas compara un float con una cadena y no devuelve lo
+        # que parece. Para leerlas en horas humanas hay que convertir en la
+        # consulta. Ver `test_self_improvement_store.py`.
         with self._connect() as conn:
             conn.executescript(
                 """

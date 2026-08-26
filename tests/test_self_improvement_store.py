@@ -119,3 +119,42 @@ def test_global_open_proposal_limit_is_enforced(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="límite global"):
         store.create_proposal(other_proposal)
+
+
+def test_created_at_es_epoch_y_no_iso(tmp_path: Path) -> None:
+    """La columna es numérica a propósito, y el cooldown depende de ello.
+
+    El 2026-08-26 esta columna se leyó como si fuera ISO —el formato del resto
+    de la base— y la fila de producción parecía corrupta: `1786406149.44` donde
+    se esperaba `2026-08-10T23:55:49`. No lo estaba. Pero un
+    `WHERE created_at > datetime('now','-1 day')` sobre estas tablas compara un
+    float con una cadena y no filtra lo que aparenta.
+
+    Este test existe para que nadie "arregle" la columna a ISO: `create_proposal`
+    hace `now - float(created_at)` para el cooldown y esa resta reventaría.
+    """
+    import sqlite3
+
+    db = tmp_path / "triade.db"
+    store = ImprovementStore(db, clock=Clock(1786406149.44))
+    store.register_signal(signal())
+    store.create_proposal(proposal())
+
+    conn = sqlite3.connect(db)
+    try:
+        for tabla in (
+            "improvement_signals",
+            "improvement_proposals",
+            "improvement_history",
+        ):
+            tipos = {
+                fila[1]: fila[2] for fila in conn.execute(f"PRAGMA table_info({tabla})")
+            }
+            assert tipos["created_at"] == "REAL", tabla
+        guardado = conn.execute(
+            "SELECT created_at FROM improvement_proposals"
+        ).fetchone()[0]
+        assert isinstance(guardado, float)
+        assert guardado == pytest.approx(1786406149.44)
+    finally:
+        conn.close()
