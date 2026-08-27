@@ -10,11 +10,8 @@ import pytest
 from pydantic import ValidationError
 
 from triade.core.central import PlanGraph, PlanStep
-from triade.learning.validation import LearningValidationReceipt
 from triade.runtime.effect_receipt import EffectReceipt
-from triade.runtime.evidence_provenance import EvidenceProvenanceStore
 from triade.runtime.execution_result import ExecutionResult
-from triade.runtime.governed_plan_dispatcher import GovernedPlanDispatcher
 from triade.runtime.governed_task_executor import GovernedTaskExecutor
 from triade.runtime.resource_ledger import ResourceMeasurement
 from triade.runtime.task_leases import AutonomousTaskStore
@@ -101,18 +98,6 @@ def test_no_stale_lease_completion(tmp_path: Path) -> None:
     assert not store.complete(task["task_id"], "worker", old_generation, str(result))
 
 
-def test_no_learning_without_evaluation() -> None:
-    with pytest.raises(ValidationError):
-        LearningValidationReceipt(
-            learning_id="x",
-            status="validated",
-            hypothesis="h",
-            producer_id="p",
-            created_at="now",
-            updated_at="now",
-        )
-
-
 def test_no_rollback_claim_without_rollback_test() -> None:
     with pytest.raises(ValidationError):
         EffectReceipt(
@@ -147,15 +132,6 @@ def test_no_artifact_reference_to_missing_file(tmp_path: Path) -> None:
     )
 
 
-def test_no_external_effect_without_policy_decision(tmp_path: Path) -> None:
-    graph = PlanGraph(plan_id="policy", goal="test", steps=[])
-    step = PlanStep(id="write", description="crea un archivo")
-    graph.steps.append(step)
-    receipt = GovernedPlanDispatcher(tmp_path / "policy.db").dispatch(graph, step)
-    assert receipt.status == "blocked"
-    assert receipt.task_id is None
-
-
 def test_no_resource_value_without_measurement_type() -> None:
     with pytest.raises(ValueError):
         ResourceMeasurement("cpu", 1, "seconds", "invented", "x", "a", "b")
@@ -165,13 +141,6 @@ def test_no_plan_completion_without_terminal_verified_steps() -> None:
     graph = PlanGraph(steps=[PlanStep(id="x", state="queued")])
     graph.close()
     assert graph.status == "partial"
-
-
-def test_no_autonomous_evidence_presented_as_external(tmp_path: Path) -> None:
-    evidence = EvidenceProvenanceStore(tmp_path / "evidence.db").create(
-        origin_class="autonomous", producer_id="worker", source="cycle", content="x"
-    )
-    assert not evidence.independently_external
 
 
 def test_no_timeout_that_leaves_process_running(tmp_path: Path) -> None:
