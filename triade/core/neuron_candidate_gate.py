@@ -48,6 +48,67 @@ THANKS = (
     "thanks",
 )
 
+#: `gracias a X` es causal, no un agradecimiento.
+#:
+#: Medido sobre un input real: «Dime una cosa concreta que hayas aprendido
+#: **gracias a** nuestras conversaciones…» se clasificaba como `thanks` y el
+#: sistema contestaba «De nada. Seguimos.» La comparación era por subcadena, y
+#: en castellano `gracias a` es una locución preposicional causal que no tiene
+#: nada que ver con agradecer.
+#:
+#: La excepción de la excepción: `gracias a ti`, `gracias a vosotros`,
+#: `gracias a todos` sí agradecen. Se listan porque el complemento es una
+#: persona, no una causa.
+_GRACIAS_CAUSAL = re.compile(r"\bgracias\s+a\s+(?!ti\b|vos\b|vosotros\b|usted|todos\b)")
+
+#: Un agradecimiento es corto. Una petición larga que menciona `gracias` por el
+#: medio es una petición, no un agradecimiento: sin este tope bastaba con que la
+#: palabra apareciera en cualquier parte de un párrafo entero.
+_MAX_PALABRAS_AGRADECIMIENTO = 8
+
+#: Marcas de pregunta operativa o introspectiva. No son «temas»: son señales de
+#: que la respuesta exige mirar el estado real del sistema, no recuperar un dato.
+#:
+#: Medido sobre inputs reales: «¿Qué le falta a una neurona para pasar a
+#: funcional?» y «¿Qué mejora deberías realizar?» acababan en `factual_simple`
+#: sólo por empezar con «qué», y con ello en `score=0.15` y la ruta de
+#: aprendizaje trivial. La heurística no miraba de qué se preguntaba.
+OPERATIONAL_QUESTION_HINTS = (
+    "que le falta",
+    "que falta",
+    "deberias",
+    "deberia",
+    "justifique",
+    "justifica",
+    "evidencia",
+    "criterios",
+    "criterio",
+    "compara",
+    "contradictor",
+    "compatibles",
+    "diagnostico",
+    "propon",
+    "propuesta",
+    "mejora",
+    "canary",
+    "lora",
+    "peft",
+    "federad",
+    "gobernad",
+    "promover",
+    "promocion",
+    "funcional",
+    "objetivo",
+    "subobjetivo",
+    "neurona",
+    "aprendido",
+    "aprendiste",
+    "por que",
+    "explicame",
+    "explica",
+    "demuestra",
+)
+
 ACKNOWLEDGEMENT = (
     "ok",
     "perfecto",
@@ -113,6 +174,7 @@ def evaluate_neuron_candidate_worthiness(
     explicit_create = _looks_like_explicit_create(text, intent, context)
     operational_need = _looks_like_operational_need(text, intent, domain, context)
     factual_simple = _looks_like_factual_simple(text)
+    operational_question = detected_type == "operational_question"
     feedback_like = detected_type in {
         "positive_feedback",
         "thanks",
@@ -159,6 +221,16 @@ def evaluate_neuron_candidate_worthiness(
         score = 0.12
         reason = "minor_correction_should_update_context_not_create_neuron"
         required_evidence = ["correction_trace"]
+    elif operational_question:
+        # Una pregunta sobre el estado real del sistema no crea neurona, pero
+        # tampoco es trivial: se conserva como candidata de aprendizaje con el
+        # peso que le corresponde. Antes caía en la rama `factual_simple` con
+        # 0.15 y el motivo «no debería crear neurona», que era cierto y a la vez
+        # engañoso: describía mal por qué.
+        route = "learning_candidate"
+        score = 0.45
+        reason = "operational_question_needs_system_state_not_a_new_neuron"
+        required_evidence = ["runtime_evidence", "later_recurrence"]
     elif operational_need:
         route = "learning_candidate"
         score = 0.62
@@ -191,6 +263,7 @@ def evaluate_neuron_candidate_worthiness(
             "explicit_create": explicit_create,
             "operational_need": operational_need,
             "factual_simple": factual_simple,
+            "operational_question": operational_question,
             "feedback_like": feedback_like,
             "correction_like": correction_like,
             "plain": plain[:200],
@@ -212,7 +285,7 @@ def _detect_type(text: str) -> str:
     plain = _strip_accents(text)
     if any(hint in plain for hint in MINOR_CORRECTION_HINTS):
         return "correction"
-    if any(phrase in plain for phrase in THANKS):
+    if _is_gratitude(plain):
         return "thanks"
     if any(phrase in plain for phrase in ACKNOWLEDGEMENT) and (
         len(plain.split()) <= 3 or plain.startswith(("ok ", "vale ", "listo "))
@@ -220,6 +293,12 @@ def _detect_type(text: str) -> str:
         return "acknowledgement"
     if any(phrase in plain for phrase in POSITIVE_FEEDBACK):
         return "positive_feedback"
+    # El orden importa: una pregunta operativa **también** es una pregunta, así
+    # que si `_looks_like_question` decidiera primero, toda pregunta caería en
+    # `factual_simple` por el mero hecho de serlo. Eso es exactamente lo que
+    # pasaba con «¿Qué le falta a una neurona para pasar a funcional?».
+    if _looks_like_operational_question(plain):
+        return "operational_question"
     if _looks_like_question(plain):
         return "factual_simple"
     if any(hint in plain for hint in EXPLICIT_CREATE_HINTS):
@@ -291,9 +370,46 @@ def _looks_like_operational_need(
     )
 
 
+def _is_gratitude(plain: str) -> bool:
+    """¿Agradece, o sólo contiene la palabra?
+
+    Tres condiciones, y las tres hacen falta:
+
+    1. `gracias`/`thanks` como **palabra**, no como subcadena;
+    2. que no sea la locución causal `gracias a <algo>`, salvo cuando el
+       complemento es una persona (`gracias a ti`);
+    3. que el mensaje sea corto. Agradecer es un acto breve; un párrafo que
+       menciona `gracias` por el medio está pidiendo otra cosa.
+    """
+    if not re.search(r"\b(?:gracias|thanks)\b", plain):
+        return False
+    if _GRACIAS_CAUSAL.search(plain):
+        return False
+    return len(plain.split()) <= _MAX_PALABRAS_AGRADECIMIENTO
+
+
+def _looks_like_operational_question(plain: str) -> bool:
+    """Pregunta que exige mirar el estado real del sistema, no recuperar un dato.
+
+    No se decide por longitud ni por la palabra inicial: se decide por lo que
+    se pregunta. «¿Cuál es la capital de Francia?» empieza igual que «¿Cuál es
+    la evidencia que exigirías antes de promover la neurona?» y no son la misma
+    clase de pregunta.
+    """
+    if not _looks_like_question(plain):
+        return False
+    return any(hint in plain for hint in OPERATIONAL_QUESTION_HINTS)
+
+
 def _looks_like_factual_simple(text: str) -> bool:
     plain = _strip_accents(text)
     if not _looks_like_question(plain):
+        return False
+    # Una pregunta operativa no es factual simple aunque sea corta y aunque
+    # empiece por una palabra interrogativa. Esta comprobación va **antes** que
+    # el conteo de tokens justamente porque el conteo daba `True` a todo lo
+    # corto, y «¿Qué mejora deberías realizar?» tiene cinco palabras.
+    if _looks_like_operational_question(plain):
         return False
     tokens = [token for token in re.findall(r"[a-z0-9áéíóúüñ]+", plain) if token]
     if len(tokens) <= 10:
