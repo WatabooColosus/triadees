@@ -233,6 +233,40 @@ class ContractVerifier:
         except sqlite3.Error:
             return None
 
+    def _table_missing(self, table: str) -> bool | None:
+        """¿La tabla no existe, o es que no se pudo mirar?
+
+        `_rows()` devuelve `None` para las dos cosas y son muy distintas. Una
+        tabla **retirada** no tiene filas por definición, y para un contrato
+        `LEGACY_RETIRE` eso es justo el éxito. No poder abrir la base, en
+        cambio, no autoriza a afirmar nada.
+
+        Medido el 2026-08-26: `table:goals` figuraba como contrato incumplido
+        —`rows_absent=goals`— cuando la migración `036_retire_goals.sql` ya se
+        había aplicado y la tabla no existía. La retirada estaba hecha y la
+        deuda seguía contándola.
+        """
+        if self.profiles.get(table) is not None:
+            return False
+        if self.db_path is None or not Path(self.db_path).is_file():
+            return None
+        try:
+            with sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True) as conn:
+                fila = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                    (table,),
+                ).fetchone()
+            return fila is None
+        except sqlite3.Error:
+            return None
+
+    def _sin_filas(self, table: str) -> bool:
+        """Ausencia de filas, contando la tabla retirada como ausencia."""
+        filas = self._rows(table)
+        if filas is not None:
+            return filas == 0
+        return self._table_missing(table) is True
+
     # ── comprobaciones ───────────────────────────────────────────────
 
     def _check(self, contract: Contract, evidence: Evidence) -> bool:
@@ -334,14 +368,12 @@ class ContractVerifier:
             return filas is not None and filas > 0
 
         if kind == "rows_absent":
-            filas = self._rows(valor or tabla)
-            return filas == 0
+            return self._sin_filas(valor or tabla)
 
         if kind == "empty_source_table":
             # «No ha pasado porque no hay con quién»: el estímulo externo se
             # mide, no se supone. Si aparece un peer, el contrato se cae solo.
-            filas = self._rows(valor)
-            return filas == 0
+            return self._sin_filas(valor)
 
         return False
 
@@ -626,14 +658,16 @@ CONTRACTS: tuple[Contract, ...] = (
         "HUMAN_GATED",
         decided_at="2026-08-08",
         reason="""
-            Primer eslabón: una capacidad que rinde por debajo de su objetivo. Se registra por `POST /api/governance/improvement/signals`, con llave. Sin señal no hay propuesta, y sin propuesta no hay nada más abajo.
+            Primer eslabón: una capacidad que rinde por debajo de su objetivo. Se registra por `POST /api/governance/improvement/signals`, con llave.
+
+            **Ya no está vacía.** El 2026-08-09 se registró la primera señal real (`fail-rep-ev-…-learning_recall`) y el contrato seguía declarando `rows_absent`, es decir seguía explicando un vacío que había dejado de existir. La compuerta humana sigue siendo cierta, pero está más abajo: en `approve()`, no en el registro de la señal.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
             "writer_reachable=triade/self_improvement/store.py",
             "reader_exists=triade/self_improvement/store.py",
             "proof_test=tests/test_self_improvement_door.py",
-            "rows_absent=improvement_signals",
+            "rows_present=improvement_signals",
         ),
     ),
     _contract(
@@ -642,13 +676,15 @@ CONTRACTS: tuple[Contract, ...] = (
         decided_at="2026-08-08",
         reason="""
             La dirección que se propone intentar. Es el punto exacto donde entra la firma humana: `approve()` lanza si `approved_by` viene vacío.
+
+            **Ya no está vacía.** Existe una propuesta real en estado `open` desde el 2026-08-10, esperando firma. Eso es exactamente lo que `HUMAN_GATED` debe describir: no que no haya pasado nada, sino que lo que hay está detenido en la compuerta correcta. Declarar `rows_absent` lo contaba como capacidad sin estrenar.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
             "writer_reachable=triade/self_improvement/store.py",
             "reader_exists=triade/self_improvement/orchestrator.py",
             "proof_test=tests/test_self_improvement_door.py",
-            "rows_absent=improvement_proposals",
+            "rows_present=improvement_proposals",
         ),
     ),
     _contract(
@@ -656,14 +692,16 @@ CONTRACTS: tuple[Contract, ...] = (
         "HUMAN_GATED",
         decided_at="2026-08-08",
         reason="""
-            El rastro de cada transición de una propuesta. Vacía porque no hay propuestas, no porque no se escriba.
+            El rastro de cada transición de una propuesta.
+
+            **Ya no está vacía**: seis transiciones registradas. El motivo anterior —«vacía porque no hay propuestas»— era cierto cuando se escribió y dejó de serlo en cuanto hubo una. Un contrato que explica un vacío inexistente no es evidencia de nada.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
             "writer_reachable=triade/self_improvement/store.py",
             "reader_exists=triade/self_improvement/store.py",
             "proof_test=tests/test_self_improvement_door.py",
-            "rows_absent=improvement_history",
+            "rows_present=improvement_history",
         ),
     ),
     _contract(
@@ -974,14 +1012,19 @@ CONTRACTS: tuple[Contract, ...] = (
         reason="""
             El tick está conectado al escritor, pero sólo acepta una reflexión
             que sepa qué ocurrió y que no pretenda tocar el ancla identitaria.
-            Con cobertura insuficiente, cero rasgos es el resultado seguro; la
-            prueba verifica producción, rechazo y acumulación de evidencia.
+
+            **Ya produce.** El 2026-08-26 había 106 rasgos, el último escrito
+            ese mismo día. El contrato seguía declarando `rows_absent`, es decir
+            seguía explicando por qué la tabla estaría vacía mucho después de
+            haber dejado de estarlo. La clasificación `ON_DEMAND` sigue siendo
+            correcta —se escribe cuando hay reflexión con cobertura, no en cada
+            tick— pero la evidencia era falsa.
         """,
         evidence=(
             "writer_reachable=triade/memory/auto_identity_store.py",
             "reader_exists=triade/core/bodega.py",
             "proof_test=tests/test_identity_evolution_gate.py",
-            "rows_absent=auto_identity",
+            "rows_present=auto_identity",
         ),
     ),
     _contract(

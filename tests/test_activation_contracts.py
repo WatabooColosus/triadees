@@ -253,3 +253,74 @@ def test_la_evidencia_de_runtime_no_se_comprueba_sin_base() -> None:
     assert verificador.verify(contrato, structural_only=True).holds
     # Con base: la evidencia se comprueba y no se sostiene.
     assert not verificador.verify(contrato).holds
+
+
+# ── §16/§17: una retirada completada no es deuda ────────────────────────────
+
+
+def test_una_tabla_retirada_satisface_rows_absent(tmp_path):
+    """`_rows()` devolvía `None` tanto si la tabla faltaba como si no se pudo mirar.
+
+    Medido el 2026-08-26: `table:goals` figuraba como contrato incumplido
+    —`failed=('rows_absent=goals',)`— cuando la migración `036_retire_goals.sql`
+    ya se había aplicado y la tabla no existía. La retirada estaba hecha y el
+    detector la seguía contando como rotura: una tabla que no existe no tiene
+    filas, que es exactamente lo que `LEGACY_RETIRE` persigue.
+    """
+    import sqlite3
+
+    from triade.observability.activation_contracts import ContractVerifier
+
+    db = tmp_path / "triade.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE viva (id TEXT)")
+
+    verificador = ContractVerifier(ROOT, db_path=db)
+    assert verificador._sin_filas("retirada") is True, "tabla ausente = sin filas"
+    assert verificador._sin_filas("viva") is True, "tabla vacía = sin filas"
+
+    with sqlite3.connect(db) as conn:
+        conn.execute("INSERT INTO viva VALUES ('x')")
+    assert verificador._sin_filas("viva") is False
+
+
+def test_sin_base_no_se_afirma_ausencia(tmp_path):
+    """No poder mirar no autoriza a concluir. Es la mitad que faltaba.
+
+    Sin esta distinción, arreglar el caso de la tabla retirada habría hecho que
+    cualquier contrato `rows_absent` se diera por bueno en CI, donde no hay base.
+    """
+    from triade.observability.activation_contracts import ContractVerifier
+
+    verificador = ContractVerifier(ROOT, db_path=tmp_path / "no-existe.db")
+    assert verificador._sin_filas("lo_que_sea") is False
+
+
+def test_todos_los_contratos_declarados_se_sostienen_en_la_base_viva():
+    """Un contrato que explica un vacío inexistente no es evidencia de nada.
+
+    Cuatro declaraban `rows_absent` sobre tablas que ya producían —`auto_identity`
+    con 106 filas, y las tres de automejora—. Pasar a `rows_present` no relaja
+    nada: es una afirmación más falsable, porque se cae sola si dejan de escribirse.
+    """
+    from triade.observability.activation_contracts import (
+        ContractVerifier,
+        load_contracts,
+    )
+
+    # Absoluta desde `ROOT`: con ruta relativa el test se saltaba en silencio
+    # según desde dónde se invocara pytest, que es la peor forma de no probar.
+    db = ROOT / "triade" / "memory" / "triade.db"
+    if not db.is_file():
+        import pytest
+
+        pytest.skip("sin base viva: la evidencia de runtime no se puede comprobar")
+
+    contratos = load_contracts()
+    verificador = ContractVerifier(ROOT, db_path=db)
+    caidos = {
+        sujeto: verificador.verify(contrato).failed
+        for sujeto, contrato in contratos.items()
+        if not verificador.verify(contrato).holds
+    }
+    assert not caidos, f"contratos que dejaron de sostenerse: {caidos}"
