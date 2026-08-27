@@ -285,3 +285,61 @@ def test_sin_confirmacion_del_evaluador_no_hay_uso_causal(retriever) -> None:
     assert (
         retriever.confirm_causal_use(d, "c-runbook", evaluator_confirmed=False) is False
     )
+
+
+# ── los gemelos no viajan al prompt ───────────────────────────────────
+
+
+def test_una_copia_no_canonica_no_se_recupera(db: Path) -> None:
+    """El mismo saber dos veces gastaría dos de los tres huecos del bloque.
+
+    La deduplicación agrupa sin borrar —y hace bien: borrar haría irrepetible la
+    auditoría—, pero eso deja las copias vivas en `learning_queue`. De los
+    cuatro consumidores, éste era el único que no las excluía: consolidación,
+    selección de evidencia y el panel de saber sí. En la base viva son 428
+    copias, todas en `internally_checked`, así que el hueco no se ha llegado a
+    abrir; lo impedían las *otras* puertas, no ésta.
+    """
+    import sqlite3 as sq
+
+    conn = sq.connect(db)
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS learning_candidate_groups (
+            canonical_candidate_id TEXT, member_candidate_id TEXT)"""
+    )
+    conn.execute(
+        "INSERT INTO learning_candidate_groups VALUES (?, ?)",
+        ("c-runbook", "c-runbook"),
+    )
+    conn.execute(
+        """INSERT INTO learning_queue
+        (candidate_id, content, domain, status, source_ref, risk_level, confidence)
+        VALUES ('c-runbook-copia',
+                'El identificador del runbook de recuperación es RBK-7731-QUETZAL.',
+                'operations', 'stable', 'run:x', 'low', 0.9)"""
+    )
+    conn.execute(
+        "INSERT INTO learning_candidate_groups VALUES (?, ?)",
+        ("c-runbook", "c-runbook-copia"),
+    )
+    conn.commit()
+    conn.close()
+
+    decision = LearningRetriever(db_path=db).retrieve_decision(
+        "¿cuál es el identificador del runbook de recuperación?", run_id="run-dup"
+    )
+    assert "c-runbook-copia" not in decision.retrieved_ids
+    assert "c-runbook" in decision.retrieved_ids
+    assert any(
+        s.get("candidate_id") == "c-runbook-copia"
+        and s.get("reason") == "duplicado_no_canonico"
+        for s in decision.skipped
+    ), decision.skipped
+
+
+def test_sin_tabla_de_grupos_la_recuperacion_sigue_viva(db: Path) -> None:
+    """Una base recién montada no tiene la tabla: no puede tumbar el prompt."""
+    decision = LearningRetriever(db_path=db).retrieve_decision(
+        "¿cuál es el identificador del runbook de recuperación?", run_id="run-limpio"
+    )
+    assert "c-runbook" in decision.retrieved_ids

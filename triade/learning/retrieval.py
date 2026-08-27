@@ -69,6 +69,25 @@ def _tokens(text: str) -> set[str]:
     return {t for t in _normalize(text).split() if len(t) > 2}
 
 
+def _miembros_no_canonicos(conn: sqlite3.Connection) -> set[str]:
+    """Copias que no son el canónico de su grupo.
+
+    La tabla la crea el deduplicador la primera vez que corre, así que en una
+    base recién montada no existe: entonces no hay copias que excluir. Sin este
+    respaldo, añadir el filtro tumbaría la recuperación entera en cualquier
+    despliegue limpio — el mismo cuidado que ya tienen `pipeline.py` y
+    `mission_planner.py` con esta misma tabla.
+    """
+    try:
+        filas = conn.execute(
+            "SELECT member_candidate_id FROM learning_candidate_groups "
+            "WHERE member_candidate_id != canonical_candidate_id"
+        ).fetchall()
+    except sqlite3.Error:
+        return set()
+    return {str(fila[0]) for fila in filas}
+
+
 def _sha(text: str) -> str:
     return hashlib.sha256(str(text).encode("utf-8")).hexdigest()
 
@@ -161,6 +180,21 @@ class LearningRetriever:
                     "FROM learning_queue"
                 ).fetchall()
             ]
+            # Las copias no canónicas no viajan al prompt. La deduplicación
+            # agrupa sin borrar —y hace bien: borrar haría irrepetible la
+            # auditoría— pero eso deja 428 filas con el mismo contenido vivas en
+            # la tabla, y este era el único de los cuatro consumidores que no
+            # las excluía: consolidación (`pipeline.py`), selección de evidencia
+            # (`mission_planner.py`) y el panel de saber (`visibility.py`) sí.
+            #
+            # Hoy ninguna copia está en estado de producción, así que el hueco
+            # no se ha llegado a abrir. Pero eso lo garantiza el filtro de las
+            # *otras* tres puertas, no ésta: una tarea de evidencia encolada a
+            # mano sobre una copia bastaría para promoverla, y entonces el mismo
+            # saber entraría dos veces en el mismo bloque, gastando dos de los
+            # tres huecos de `MAX_KNOWLEDGE_PER_RUN`. Se cierra por estructura y
+            # no por casualidad.
+            duplicados = _miembros_no_canonicos(conn)
 
         query_tokens = _tokens(query)
         if not query_tokens:
@@ -175,6 +209,11 @@ class LearningRetriever:
             content = str(row.get("content") or "")
             status = str(row.get("status") or "")
 
+            if cid in duplicados:
+                decision.skipped.append(
+                    {"candidate_id": cid, "reason": "duplicado_no_canonico"}
+                )
+                continue
             if only_candidate_ids is not None and cid not in only_candidate_ids:
                 continue
             if exclude_candidate_ids and cid in exclude_candidate_ids:

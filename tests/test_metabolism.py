@@ -455,3 +455,63 @@ def test_el_metabolismo_encuentra_su_config_desde_cualquier_directorio(tmp_path)
     assert meta.get("mode") == "full", (
         "cayó a observe_only por no leer su configuración: degradación silenciosa"
     )
+
+
+# ── el organismo se reconoce de punta a punta ─────────────────────────
+
+
+def test_el_metabolismo_detecta_un_eslabon_vital_roto(tmp_path: Path) -> None:
+    """«Algo no cuadra» tiene que poder decirlo el organismo, no un informe.
+
+    Los otros cinco sensores miran recursos —disco, memoria, latido, leases,
+    cola— y ninguno mira si la cadena que va del pulso al efecto futuro sigue
+    entera. Es el único fallo que no se nota desde fuera: el sistema puede tener
+    disco de sobra, latido puntual y cola vacía justamente *porque* un eslabón
+    dejó de producir.
+
+    La comprobación existía en `observability/introspection.py`, dentro del
+    informe de deuda, que se arma sobre un artefacto de hasta seis horas. Un
+    diagnóstico de hace seis horas describe un sistema que ya no existe.
+    """
+    from triade.metabolism.health import HealthSensors
+
+    db = tmp_path / "triade.db"
+    conn = sqlite3.connect(db)
+    # Una base con tablas pero sin una sola fila: la cadena entera sin latido.
+    for tabla in ("metabolic_cycle", "metabolic_needs", "runs", "learning_queue"):
+        conn.execute(f"CREATE TABLE {tabla} (id INTEGER PRIMARY KEY, created_at TEXT)")
+    conn.commit()
+    conn.close()
+
+    cadena = HealthSensors(db).inspect()["vital_chain"]
+    assert cadena["ok"] is False
+    assert cadena["stages"] == 11
+    assert cadena["broken"], "la cadena vacía tiene que producir cortes"
+    assert any("sin filas" in str(x) for x in cadena["broken"]), cadena["broken"]
+
+
+def test_la_cadena_vital_entra_en_la_salud_general(tmp_path: Path) -> None:
+    """Si no entra en `healthy`, el coordinador nunca se entera."""
+    from triade.metabolism.health import HealthSensors
+
+    db = tmp_path / "triade.db"
+    sqlite3.connect(db).close()
+    sensores = HealthSensors(db).inspect()
+    assert "vital_chain" in sensores
+
+
+def test_el_aviso_nombra_el_eslabon_y_no_solo_el_sensor(tmp_path: Path) -> None:
+    """Un aviso que no dice qué mirar se acaba ignorando."""
+    from triade.metabolism.coordinator import MetabolicCoordinator
+
+    db = tmp_path / "triade.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE metabolic_cycle (id INTEGER PRIMARY KEY)")
+    conn.commit()
+    conn.close()
+
+    coord = MetabolicCoordinator(db_path=db)
+    estado, mensaje = coord._action_health_check()
+    assert estado == "success"
+    if "vital_chain" in mensaje:
+        assert "cadena vital:" in mensaje, mensaje
