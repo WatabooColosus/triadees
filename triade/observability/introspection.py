@@ -218,6 +218,40 @@ def build_debt_report(
             orphans, "import_graph.json: módulo de producción que nadie importa"
         )
 
+        # Un escalón más sutil que el anterior, y el que de verdad escondía
+        # denervación: el módulo **sí** tiene importador, pero es su propio
+        # test. Eso demuestra que el código corre, no que participe en ninguna
+        # cadena — y como el grafo lo pintaba `active`, ni aparecía.
+        # Se excluyen los `__init__.py`, que Python ejecuta al importar
+        # cualquier submódulo, y los entrypoints, que se arrancan en vez de
+        # importarse y ya los cuenta `entrypoints_without_launcher`.
+        #
+        # Y se mira sólo `triade/`, no `apps/`. No es una lista de exclusión:
+        # es el alcance de lo que este grafo puede ver. A una app la arranca una
+        # configuración de despliegue —`render.yaml` levanta
+        # `uvicorn apps.public_relay_app:app`— y eso no es un import de Python,
+        # así que aquí no hay forma de distinguir la app servida de la
+        # abandonada. Contarlas produciría falsos positivos sobre superficie de
+        # producción real. Cuando el grafo lea configuración de despliegue,
+        # `apps/` entra aquí sin más cambios.
+        entrypoint_paths = {
+            str(n["metadata"].get("path", ""))
+            for n in (_load(cache_dir, "entrypoint_graph") or {}).get("nodes", [])
+            if str(n.get("node_id", "")).startswith("entrypoint:")
+        }
+        solo_tests = [
+            ruta
+            for n in imports["nodes"]
+            if n["metadata"].get("only_test_importers")
+            and (ruta := str(n["metadata"].get("path", ""))).startswith("triade/")
+            and not ruta.endswith("__init__.py")
+            and ruta not in entrypoint_paths
+        ]
+        items["modules_imported_only_by_tests"] = _entry(
+            solo_tests,
+            "import_graph.json: módulo de producción cuyo único importador es un test",
+        )
+
     entrypoints = _load(cache_dir, "entrypoint_graph")
     if entrypoints:
         unlaunched = [

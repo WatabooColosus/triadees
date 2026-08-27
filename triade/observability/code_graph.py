@@ -155,6 +155,12 @@ def build_import_graph(
     nodes: dict[str, GraphNode] = {}
     edges: list[GraphEdge] = []
     imported: set[str] = set()
+    #: Igual que `imported`, pero sin contar las importaciones que vienen de
+    #: `tests/`. Un test que importa un módulo demuestra que el módulo *corre*,
+    #: no que participe en ninguna cadena — y confundir las dos cosas es lo que
+    #: hacía invisible al detector la forma exacta de denervación que existe
+    #: para encontrar: código escrito, probado y nunca conectado.
+    imported_by_production: set[str] = set()
 
     for relative, dotted in sorted(index.by_path.items()):
         node_id = f"module:{relative}"
@@ -202,6 +208,8 @@ def build_import_graph(
                         continue
                     target_id = f"module:{resolved}"
                     imported.add(target_id)
+                    if not relative.startswith("tests/"):
+                        imported_by_production.add(target_id)
                     relation = "imports"
                 else:
                     root_package = target.partition(".")[0]
@@ -230,14 +238,31 @@ def build_import_graph(
     # de dentro, aunque nadie lo nombre. Contarlo como huérfano marcaba como
     # código muerto el `__init__` de paquetes en uso —incluido el de este mismo
     # módulo—, que es una conclusión que el propio import desmiente.
-    for node_id in list(imported):
-        relative = node_id.partition(":")[2]
-        parts = relative.split("/")[:-1]
-        while parts:
-            package_init = f"module:{'/'.join([*parts, '__init__.py'])}"
-            if package_init in nodes:
-                imported.add(package_init)
-            parts.pop()
+    for conjunto in (imported, imported_by_production):
+        for node_id in list(conjunto):
+            relative = node_id.partition(":")[2]
+            parts = relative.split("/")[:-1]
+            while parts:
+                package_init = f"module:{'/'.join([*parts, '__init__.py'])}"
+                if package_init in nodes:
+                    conjunto.add(package_init)
+                parts.pop()
+
+    # Un módulo interno que sólo aparece importado desde `tests/` queda marcado
+    # aquí y no cambia de `state`: el estado lo consumen otros grafos y moverlo
+    # cambiaría lo que significan. La marca es aditiva y falsable — desaparece
+    # sola en cuanto alguien lo importe desde producción.
+    for node_id, node in nodes.items():
+        if not node.metadata.get("internal"):
+            continue
+        if node_id in imported and node_id not in imported_by_production:
+            nodes[node_id] = GraphNode(
+                node.node_id,
+                node.kind,
+                node.label,
+                node.state,
+                {**node.metadata, "only_test_importers": True},
+            )
 
     for node_id, node in nodes.items():
         if not node.metadata.get("internal") or node_id in imported:
