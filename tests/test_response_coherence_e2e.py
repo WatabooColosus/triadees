@@ -207,3 +207,42 @@ def test_runner_explicit_neuron_request_creates_candidate(
     assert (
         result["memory_diff"]["traceability"]["neuron_candidate_gate_route"] == "neuron"
     )
+
+
+def test_gracias_a_causal_no_dispara_el_acuse_de_agradecimiento():
+    """§18.1 sobre el módulo que **decide la respuesta**.
+
+    Había dos detectores con la misma lista y reglas distintas. Reparar sólo
+    `neuron_candidate_gate` no cambió nada en producción: la batería del
+    2026-08-27 volvió a contestar «De nada. Seguimos.» a «Dime una cosa
+    concreta que hayas aprendido gracias a nuestras conversaciones», porque
+    quien redacta la respuesta es esta compuerta.
+
+    Ahora ambas delegan en el mismo detector. Si alguien vuelve a duplicarlo,
+    este test se cae.
+    """
+    from triade.core.response_coherence_gate import (
+        _detect_input_type,
+        evaluate_response_coherence,
+    )
+
+    entrada = (
+        "Dime una cosa concreta que hayas aprendido gracias a nuestras "
+        "conversaciones y explícame qué evidencia lo demuestra"
+    )
+    assert _detect_input_type(entrada) != "thanks"
+
+    veredicto = evaluate_response_coherence(entrada, "Aprendí que X porque Y.")
+    assert veredicto["final_response"] != "De nada. Seguimos."
+
+
+def test_un_agradecimiento_real_sigue_recibiendo_acuse():
+    from triade.core.response_coherence_gate import (
+        _detect_input_type,
+        evaluate_response_coherence,
+    )
+
+    assert _detect_input_type("gracias") == "thanks"
+    assert _detect_input_type("muchas gracias") == "thanks"
+    veredicto = evaluate_response_coherence("gracias", "Contenido cualquiera.")
+    assert veredicto["final_response"] == "De nada. Seguimos."

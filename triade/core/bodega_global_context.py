@@ -101,6 +101,42 @@ def _group_project_context(
     return grouped
 
 
+#: Qué hace falta en la pregunta para que valga la pena calcular el readiness.
+#:
+#: No es un filtro de temas: es un freno de coste. `evaluate_stable_readiness()`
+#: recorre el libro de evidencia experimental y midió **0,69 s de CPU** en el
+#: perfilado del 2026-08-26. Añadirlo a cada run repetiría exactamente el error
+#: de `pulse_check`, que se comió 458 de los 600 minutos diarios de presupuesto y
+#: metió el organismo en `observe_only`.
+_PREGUNTA_READINESS = (
+    "neurona",
+    "neuronas",
+    "candidata",
+    "candidatas",
+    "funcional",
+    "promover",
+    "promocion",
+    "promoción",
+    "readiness",
+    "estabilizar",
+    "que le falta",
+    "qué le falta",
+)
+
+
+def _asks_about_neuron_readiness(user_input: str) -> bool:
+    """¿La pregunta necesita saber qué le falta a una neurona?
+
+    Medido en la batería del 2026-08-26: la UI mostraba `diagnosis_count 0 < 5`
+    y `test_plan_count 0 < 3`, y al preguntar «¿Qué le falta exactamente para
+    pasar de candidata a funcional?» la respuesta no usaba ese dato. No estaba
+    mal calculado: **no llegaba**. `readiness` no aparecía en `runner.py` ni en
+    este contexto, así que el modelo contestaba sin tenerlo delante.
+    """
+    plano = str(user_input or "").lower()
+    return any(marca in plano for marca in _PREGUNTA_READINESS)
+
+
 def _detect_contradictions(
     *,
     confidence_level: str,
@@ -362,6 +398,64 @@ def build_bodega_global_context(
         ):
             stable_audit_summary = {"status": "unavailable"}
 
+        # Readiness de neuronas: el puente que faltaba entre lo que el sistema
+        # ya sabe y lo que el modelo tiene delante al responder. Se calcula sólo
+        # si la pregunta lo necesita — ver `_asks_about_neuron_readiness`.
+        neuron_readiness: dict[str, Any] = {"status": "not_requested"}
+        if _asks_about_neuron_readiness(user_input):
+            try:
+                from triade.core.stable_promotion_readiness import (
+                    evaluate_stable_readiness,
+                )
+
+                readiness = evaluate_stable_readiness(
+                    runs_dir=runs_dir, db_path=db_path, prefer_db=True
+                )
+                filas = readiness.get("neurons") or []
+                pendientes = [
+                    {
+                        "name": fila.get("name"),
+                        "neuron_id": fila.get("neuron_id"),
+                        "status": fila.get("status"),
+                        # `blockers` es la lista literal que ya calcula el
+                        # evaluador: «diagnosis_count 0 < 5». Se pasa tal cual;
+                        # reformularla aquí sería reinterpretar la evidencia.
+                        "blockers": fila.get("blockers") or [],
+                        "requires_human_decision": bool(
+                            fila.get("required_human_decision")
+                        ),
+                        "activation_count": fila.get("activation_count"),
+                        "diagnosis_count": fila.get("diagnosis_count"),
+                        "test_plan_count": fila.get("test_plan_count"),
+                    }
+                    for fila in filas
+                    if not fila.get("ready_for_stable_review")
+                ]
+                neuron_readiness = {
+                    "status": "ok",
+                    "summary": readiness.get("summary", {}),
+                    "ready_count": sum(
+                        1 for f in filas if f.get("ready_for_stable_review")
+                    ),
+                    "not_ready_count": len(pendientes),
+                    # Acotado: una respuesta no puede razonar sobre 35 neuronas,
+                    # y meterlas todas en el prompt sería ruido, no contexto.
+                    "not_ready": pendientes[:5],
+                }
+            except (
+                OSError,
+                ImportError,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as exc:
+                neuron_readiness = {
+                    "status": "unavailable",
+                    "error": f"{type(exc).__name__}",
+                }
+
         qualia_context = _get_qualia_snapshot()
         from triade.core.federated_global_edge import (
             build_federated_global_edge_context,
@@ -424,6 +518,7 @@ def build_bodega_global_context(
             "qualia_context": qualia_context,
             "federated_global_edge_context": federated_global_edge_context,
             "stable_audit_summary": stable_audit_summary,
+            "neuron_readiness": neuron_readiness,
             "continuity_summary": continuity_summary,
             "contradictions": contradictions,
             "memory_confidence": confidence_level,
@@ -497,6 +592,7 @@ def build_bodega_global_context(
             "qualia_context": {},
             "federated_global_edge_context": {"status": "unavailable", "nodes": []},
             "stable_audit_summary": {"status": "unavailable"},
+            "neuron_readiness": {"status": "unavailable"},
             "continuity_summary": "error al construir contexto",
             "contradictions": ["Error al construir Bodega Global Context."],
             "memory_confidence": "low",

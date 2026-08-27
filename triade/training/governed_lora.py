@@ -9,6 +9,64 @@ from typing import Any
 from triade.db import sqlite3
 
 from .lora_trainer import LoraTrainingConfig, RealLoraTrainer
+from .serving_governance import normalize_model_id
+
+#: Traducción de etiqueta Ollama a identificador HuggingFace.
+#:
+#: No es cosmética: `RealLoraTrainer` carga pesos de HuggingFace y el runtime
+#: sirve etiquetas de Ollama. Sin el puente, la base por defecto era
+#: `Qwen/Qwen2.5-0.5B-Instruct` —un modelo de 0,5B que **no está servido**—
+#: mientras producción sirve `qwen2.5:3b-instruct`.
+#:
+#: Medido el 2026-08-27 con `normalize_model_id`: la clave de la base por
+#: defecto era `qwen2.50.5binstruct` y ninguno de los cinco modelos servidos
+#: reducía a eso. Cualquier adaptador entrenado con la configuración de fábrica
+#: era **inactivable por construcción**: `activate()` bloquea por
+#: incompatibilidad, correctamente, y el trabajo de entrenamiento se tiraba
+#: entero. `goal_lora_train` y `governed_peft_active_slot` estaban muertos por
+#: la misma razón que lo estuvo el circuito de automejora: no podían empezar.
+_OLLAMA_A_HUGGINGFACE: dict[str, str] = {
+    "qwen2.5:3b-instruct": "Qwen/Qwen2.5-3B-Instruct",
+    "qwen2.5-coder:3b": "Qwen/Qwen2.5-Coder-3B",
+    "qwen3:1.7b": "Qwen/Qwen3-1.7B",
+    "qwen3:4b": "Qwen/Qwen3-4B",
+    "gemma3:4b": "google/gemma-3-4b-it",
+}
+
+
+def default_base_model(config_path: str | Path = "triade.yml") -> str:
+    """La base a entrenar, derivada del modelo que el runtime sirve de verdad.
+
+    Se lee de `models.roles.central`, que es el modelo con el que responde el
+    sistema. Entrenar contra otro produce un adaptador que la compuerta de
+    servicio rechazará, y hacerlo por defecto convertía la capacidad entera en
+    inalcanzable.
+    """
+    from triade.core.config import load_config
+
+    try:
+        cfg = load_config(config_path)
+    except (OSError, ValueError, TypeError, KeyError):
+        cfg = {}
+    roles = (
+        ((cfg.get("models") or {}).get("roles") or {}) if isinstance(cfg, dict) else {}
+    )
+    etiqueta = str(roles.get("central") or "").strip()
+    return _OLLAMA_A_HUGGINGFACE.get(etiqueta, "") or etiqueta
+
+
+def served_model_labels(config_path: str | Path = "triade.yml") -> list[str]:
+    """Etiquetas de los modelos que el runtime declara servir."""
+    from triade.core.config import load_config
+
+    try:
+        cfg = load_config(config_path)
+    except (OSError, ValueError, TypeError, KeyError):
+        return []
+    roles = (
+        ((cfg.get("models") or {}).get("roles") or {}) if isinstance(cfg, dict) else {}
+    )
+    return [str(v).strip() for v in roles.values() if str(v).strip()]
 
 
 class GovernedLoraJobRunner:
@@ -32,8 +90,22 @@ class GovernedLoraJobRunner:
         max_steps = max(1, min(int(payload.get("max_steps") or 20), 100))
         goal_id = str(payload.get("goal_id") or "manual")
         output = Path("artifacts/adapters") / f"{goal_id}-{max_steps}steps"
+        base_model = str(payload.get("base_model") or "") or default_base_model()
+        if not base_model:
+            return {"status": "blocked", "reason": "no_served_model_configured"}
+        # Se comprueba **antes** de gastar GPU. Entrenar contra una base que la
+        # compuerta de servicio va a rechazar es tirar el trabajo entero, y el
+        # rechazo llegaba al final, tras el entrenamiento.
+        clave = normalize_model_id(base_model)
+        if not any(normalize_model_id(s) == clave for s in served_model_labels()):
+            return {
+                "status": "blocked",
+                "reason": "base_model_not_served",
+                "base_model": base_model,
+                "served": served_model_labels(),
+            }
         config = LoraTrainingConfig(
-            base_model=str(payload.get("base_model") or "Qwen/Qwen2.5-0.5B-Instruct"),
+            base_model=base_model,
             output_dir=str(output),
             max_steps=max_steps,
             maximum_gpu_minutes=min(

@@ -136,3 +136,47 @@ def test_una_pregunta_no_abre_un_expediente(
     assert resolucion.capability == "conversation"
     assert resolucion.worker_task_type is None
     assert resolucion.requires_human_approval is False
+
+
+# ── §13: un diagnóstico es un artefacto, no una modificación de código ──────
+
+
+def test_crear_un_diagnostico_enruta_a_artefacto_gobernado():
+    """Input literal de la batería del 2026-08-26.
+
+    Contestaba «Modificar código requiere alcance, workspace candidato y
+    aprobación humana» y abría un objetivo pendiente de aprobación. No se pedía
+    tocar código: se pedía escribir un artefacto y guardarlo si existía ruta
+    gobernada para ello.
+
+    Dos causas: `diagnóstico` no figuraba entre los sustantivos de entregable, y
+    después el verbo «crea» decidía `repo_modification` por sí solo.
+    """
+    resolucion = CapabilityResolver().resolve(
+        "Crea un diagnóstico interno breve sobre el mayor fallo que detectes en "
+        "tu propio funcionamiento y guarda el resultado únicamente si existe "
+        "una ruta gobernada real para hacerlo"
+    )
+    assert resolucion.capability == "write_governed_text_artifact"
+
+
+def test_modificar_codigo_de_verdad_sigue_pidiendo_aprobacion():
+    """Estrechar la regla no puede abrir la puerta al código."""
+    for peticion in (
+        "Crea una función nueva en el módulo de workers",
+        "Repara el bug del planificador",
+        "Corrige el código del handler",
+    ):
+        resolucion = CapabilityResolver().resolve(peticion)
+        assert resolucion.capability == "repo_modification", peticion
+        assert resolucion.requires_human_approval is True, peticion
+
+
+def test_un_verbo_de_creacion_sin_objeto_de_codigo_no_es_modificar_codigo():
+    """Lo que deja de casar cae en `unsupported_action`, que sigue bloqueado.
+
+    Estrechar `repo_modification` no concede permisos nuevos: reclasifica.
+    """
+    resolucion = CapabilityResolver().resolve("Crea un poema bonito")
+    assert resolucion.capability == "unsupported_action"
+    assert resolucion.available is False
