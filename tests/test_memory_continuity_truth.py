@@ -64,6 +64,11 @@ SNAPSHOT_VIVO = {
         "semantic_documents": 869,
         "learning_queue": 1002,
     },
+    # Las publica `memory_truth_snapshot()` y faltaban aquí: una fixture que no
+    # tiene la forma del dato real prueba otra cosa que la que se cree.
+    "identity_continuous": True,
+    "session_boundary_does_not_delete_memory": True,
+    "recall_is_selective_not_total": True,
 }
 
 
@@ -131,3 +136,99 @@ def test_el_enforcement_es_idempotente():
     segunda, correcciones = enforce_memory_truth(pregunta, primera, SNAPSHOT_VIVO)
     assert segunda == primera
     assert correcciones == []
+
+
+# ── Contradicción afirmada: no se le cree al modelo, se comprueba ─────────────
+
+
+def test_una_contradiccion_afirmada_se_comprueba_antes_de_aceptarla():
+    """El fallo medido el 2026-08-26, con la ruta que lo comprueba.
+
+    Preguntado por «la memoria persiste entre sesiones» frente a «el recall es
+    selectivo», el sistema las declaró contradictorias. No lo son, y lo
+    desmiente este mismo módulo: `memory_truth_snapshot()` publica
+    `session_boundary_does_not_delete_memory` y `recall_is_selective_not_total`
+    como ciertas a la vez. El veredicto lo producía el modelo por su cuenta, sin
+    ninguna ruta que lo verificara: `classify_relation` existía desde el día
+    anterior con su prueba, y no lo llamaba nadie.
+    """
+    salida, correcciones = enforce_memory_truth(
+        "¿la memoria persiste entre sesiones, o el recall es selectivo?",
+        "Las dos afirmaciones se contradicen. La Bodega indexa episodios.",
+        SNAPSHOT_VIVO,
+    )
+
+    assert "asserted_contradiction_corrected" in correcciones
+    assert "removed:se contradicen" in correcciones
+    # El veredicto no se afirma por criterio propio: se cita el del clasificador.
+    assert "classify_relation" in salida
+    assert "compatible" in salida.lower()
+    # Y el resto de la respuesta sobrevive.
+    assert "La Bodega indexa episodios." in salida
+    assert "se contradicen" not in salida.lower()
+
+
+def test_una_respuesta_que_no_afirma_contradiccion_no_se_toca():
+    """La compuerta corrige un veredicto falso, no comenta cualquier respuesta."""
+    original = (
+        "Sí: conservo memoria persistente fuera de cada sesión, y recordar es "
+        "selectivo."
+    )
+    salida, correcciones = enforce_memory_truth(
+        "¿persiste tu memoria entre sesiones?", original, SNAPSHOT_VIVO
+    )
+
+    assert "classify_relation" not in salida
+    assert "asserted_contradiction_corrected" not in correcciones
+
+
+def test_el_veredicto_sale_del_clasificador_y_no_de_una_frase_fija():
+    """Si el clasificador dijera que sí hay contradicción, no se corregiría nada.
+
+    Es la diferencia entre comprobar y volver a acusar desde el otro lado: la
+    compuerta sólo interviene cuando el veredicto comprobado dice que las dos
+    afirmaciones se sostienen. Se fija aquí para que nadie sustituya la llamada
+    por un texto enlatado.
+    """
+    from triade.memory.continuity_truth import (
+        PERSISTENCE_CLAIM,
+        SELECTIVE_RECALL_CLAIM,
+    )
+    from triade.os.claim_relation import ClaimRelation, classify_relation
+
+    veredicto = classify_relation(PERSISTENCE_CLAIM, SELECTIVE_RECALL_CLAIM)
+    assert veredicto.relation is not ClaimRelation.CONTRADICTION
+    assert veredicto.reason
+
+
+def test_la_compuerta_invoca_al_clasificador():
+    """Un módulo probado y sin llamador no arregla nada.
+
+    `claim_relation.py` llegó a `main` con 260 líneas, su prueba y **cero**
+    importadores de producción: el arreglo estaba escrito y desconectado, así
+    que el fallo que corregía seguía vivo. Esta prueba mira el cableado, no la
+    conducta: si alguien quita la llamada, las de arriba podrían seguir en verde.
+    """
+    import ast
+    from pathlib import Path
+
+    modulo = (
+        Path(__file__).resolve().parents[1]
+        / "triade"
+        / "memory"
+        / "continuity_truth.py"
+    )
+    arbol = ast.parse(modulo.read_text(encoding="utf-8"))
+
+    assert any(
+        isinstance(n, ast.ImportFrom)
+        and n.module == "triade.os.claim_relation"
+        and any(a.name == "classify_relation" for a in n.names)
+        for n in ast.walk(arbol)
+    ), "continuity_truth ya no importa classify_relation"
+    assert any(
+        isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Name)
+        and n.func.id == "classify_relation"
+        for n in ast.walk(arbol)
+    ), "importa el clasificador pero no lo llama"
