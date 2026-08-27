@@ -80,8 +80,26 @@ class CapabilityResolver:
     #: pide en conversación y contestarlo con un fichero sorprendería. Fuera
     #: también «archivo» y «fichero», porque cualquier `.py` lo es y eso volvería
     #: a cruzarse con la modificación de código.
+    #: `diagnostico` entra por el mismo criterio que `informe`: nombra un
+    #: entregable, no una respuesta de chat. Faltaba, y por eso el input real
+    #: «Crea un diagnóstico interno breve … y **guarda el resultado**» no
+    #: activaba esta regla y caía en `repo_modification`, contestando que
+    #: «modificar código requiere alcance y aprobación humana». No se pedía
+    #: tocar código: se pedía escribir un artefacto.
     ARTEFACTO_TEXTO = re.compile(
-        r"\b(documento|informe|reporte|acta|minuta|artefacto)\b",
+        r"\b(documento|informe|reporte|acta|minuta|artefacto|diagn[oó]stico)\b",
+        re.IGNORECASE,
+    )
+
+    #: Objetos sobre los que sí se modifica código. `repo_modification` los
+    #: exige: sin ellos, el verbo decidía solo y «crea un diagnóstico» pesaba
+    #: igual que «crea una función». Estrechar esta regla no concede permisos
+    #: —lo que deja de casar cae en `unsupported_action`, que sigue bloqueado—;
+    #: lo que hace es dejar de etiquetar como código lo que no lo es.
+    OBJETO_CODIGO = re.compile(
+        r"\b(c[oó]digo|m[oó]dulo|funci[oó]n|clase|m[eé]todo|script|"
+        r"archivo|fichero|test|endpoint|api|bug|repositorio|repo|"
+        r"commit|rama|branch|migraci[oó]n|handler|worker)\b",
         re.IGNORECASE,
     )
 
@@ -284,7 +302,7 @@ class CapabilityResolver:
             )
         if re.search(
             r"\b(repara|reparar|corrige|corregir|crea|crear|construye|construir)\b", low
-        ):
+        ) and self.OBJETO_CODIGO.search(low):
             return CapabilityResolution(
                 True,
                 "repo_modification",
