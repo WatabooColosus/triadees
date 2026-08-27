@@ -10,6 +10,8 @@ from triade.core.neuron_missions import (
     NeuronMission,
     NeuronMissionStore,
 )
+from triade.learning.deduplication import LearningDeduplicator
+from triade.learning.pipeline import LearningPipeline
 from triade.workers.contracts import WORKER_TASK_TYPES, WorkerRunConfig
 from triade.workers.mission_planner import MissionPlanner, PlannedTask
 from triade.workers.scheduler import WorkerScheduler
@@ -206,3 +208,121 @@ def test_scheduler_task_types_include_governed_education() -> None:
     assert "learning_candidate_generation" in types
     assert "learning_candidate_deduplication" in types
     assert "learning_evidence_generation" in types
+
+
+def _seed_candidato(
+    conn: sqlite3.Connection, cid: str, contenido: str, creado: str
+) -> None:
+    conn.execute(
+        """INSERT INTO learning_queue
+        (candidate_id, title, content, source_type, risk_level, confidence,
+         status, domain, source_ref, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            cid,
+            cid,
+            contenido,
+            "conversation",
+            "low",
+            0.9,
+            "internally_checked",
+            "general",
+            "run-dedup",
+            creado,
+        ),
+    )
+
+
+def test_el_dedup_no_se_replanifica_sin_material_nuevo(tmp_path: Path) -> None:
+    """La condición de planificación tiene que poder cumplirse alguna vez.
+
+    `LearningDeduplicator.analyze()` descarta los grupos de un solo miembro, así
+    que un candidato único **nunca** recibe fila en `learning_candidate_groups`.
+    Preguntar «cuántos candidatos no tienen fila de grupo» los cuenta a todos
+    para siempre: entre el 1 y el 27 de agosto de 2026 eso replanificó la tarea
+    8.448 veces sin escribir una sola fila, gastando ranura de obrero y el mismo
+    presupuesto de CPU que el gobernador usa para frenar la cadena de
+    aprendizaje. Un no-op repetido no es gratis: compite.
+
+    Lo que decide si hay trabajo es si entró material sin examinar.
+    """
+    db_path = make_db(tmp_path)
+    # `run_use_count` y compañía no las crea ninguna migración: las añade
+    # `LearningPipeline._migrate_learning_queue` al construirse, y el
+    # deduplicador las lee. Se instancia para que la tabla tenga la forma real
+    # de producción y no una recortada donde el fallo no se reproduciría.
+    LearningPipeline(db_path=db_path)
+    # El deduplicador crea `learning_candidate_groups` en su primera conexión.
+    # Se le hace crearla antes de sembrar nada para que la condición vieja se
+    # evalúe por su rama real: con la tabla ausente caía al respaldo y el fallo
+    # que se quiere fijar aquí no llegaba a aparecer.
+    dedup = LearningDeduplicator(db_path)
+    dedup.analyze()
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript(
+            Path("triade/memory/migrations/009_runtime_resilience.sql").read_text(
+                encoding="utf-8"
+            )
+        )
+        # Tres candidatos sin un solo duplicado entre ellos: el caso que la
+        # condición vieja no sabía dar por terminado.
+        for i in range(3):
+            _seed_candidato(
+                conn,
+                f"cand-uni-{i}",
+                f"afirmacion distinta numero {i}",
+                f"2026-08-27T01:0{i}:00+00:00",
+            )
+
+    def planifica() -> list[str]:
+        return [
+            t.task_type
+            for t in MissionPlanner(db_path=db_path).plan_cycle("dedup-livelock")
+        ]
+
+    # Material sin examinar: hay trabajo legítimo.
+    assert "learning_candidate_deduplication" in planifica()
+
+    # Corre el deduplicador de verdad, no una imitación: crea su tabla, examina
+    # los tres candidatos y no escribe nada, que es la respuesta correcta cuando
+    # no hay duplicados. Es justo ese cero el que la condición vieja leía como
+    # «queda trabajo».
+    reporte = dedup.analyze()
+    assert reporte.groups == []
+    assert dedup.apply(reporte) == 0
+    with sqlite3.connect(db_path) as conn:
+        assert (
+            conn.execute("SELECT COUNT(*) FROM learning_candidate_groups").fetchone()[0]
+            == 0
+        )
+
+    # La tarea queda registrada como completada.
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """INSERT INTO autonomous_tasks
+            (task_id, task_type, idempotency_key, status, created_at, updated_at,
+             payload_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                "t-dedup-1",
+                "learning_candidate_deduplication",
+                "k-dedup-1",
+                "completed",
+                "2026-08-27T02:00:00+00:00",
+                "2026-08-27T02:00:05+00:00",
+                "hash-dedup-1",
+            ),
+        )
+
+    # Sin material nuevo no se replanifica. Con la condición vieja, sí lo hacía.
+    assert "learning_candidate_deduplication" not in planifica()
+
+    # Y en cuanto entra un candidato nuevo vuelve a haber trabajo que hacer.
+    with sqlite3.connect(db_path) as conn:
+        _seed_candidato(
+            conn,
+            "cand-uni-nuevo",
+            "afirmacion recien llegada",
+            "2026-08-27T03:00:00+00:00",
+        )
+    assert "learning_candidate_deduplication" in planifica()

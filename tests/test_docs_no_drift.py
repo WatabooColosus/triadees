@@ -70,6 +70,29 @@ _RETIRADOS = (
     # Implementación alternativa del juicio sobre capacidades: dos de sus cinco
     # contadores eran imposibles por construcción y el resto estaba duplicado.
     "triade/capabilities/matrix.py",
+    # Retirados el 2026-08-27. Los seis compartían la misma forma: su único
+    # importador era su propio test, ninguno tuvo jamás un importador de
+    # producción en toda la historia del repositorio, y sus tablas exclusivas no
+    # existen en la base viva. Cada uno tenía un gemelo vivo con filas reales.
+    #
+    # `ARCHITECTURE_MAP.md` y `TECHNICAL_DEBT.md` los citan al registrar por qué
+    # se los dejó en pie en julio —«tienen cobertura de test real»— y ese
+    # razonamiento es justo el que se refutó: un test demuestra que el módulo
+    # corre, no que participe en ninguna cadena. Las citas se conservan porque
+    # son el registro de la decisión anterior, no una afirmación sobre el
+    # sistema de hoy.
+    "triade/core/cognitive_integrator.py",
+    "tests/test_cognitive_integrator_e2e.py",
+    "triade/learning/validation.py",
+    "tests/test_learning_validation.py",
+    "triade/regression/learning_rollback.py",
+    "tests/test_learning_rollback_adapter.py",
+    "tests/test_learning_rollback_import_order.py",
+    "triade/runtime/evidence_provenance.py",
+    "tests/test_evidence_provenance.py",
+    "triade/runtime/governed_plan_dispatcher.py",
+    "tests/test_governed_plan_dispatcher.py",
+    "tests/test_governed_text_artifact_e2e.py",
 )
 
 #: Un documento se declara histórico con esta marca en su propio texto. No se

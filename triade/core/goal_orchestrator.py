@@ -218,21 +218,36 @@ class GoalOrchestrator:
             "dry_run",
             "blocked",
         }:
+            # `blocked` es terminal: desde ahí un goal sólo puede ir a
+            # `archived`. No se reintenta, no se aprueba, no vuelve. Registrar
+            # como motivo la palabra «blocked» —el propio estado— convierte esa
+            # muerte en indiagnosticable: el 2026-08-27 tres peticiones reales
+            # («crea un diagnóstico interno breve… y guárdalo») murieron en 0,77
+            # segundos con `reason: "blocked"`, y el motivo verdadero
+            # —`target_and_authorized_root_required`— sólo estaba en
+            # `autonomous_tasks.last_error`, en otra tabla y sin enlace.
+            #
+            # El handler ya lo dice; sólo hay que no tirarlo por el camino.
+            detalle = str(result.get("reason") or result.get("error") or "").strip()
+            motivo = f"{status}:{detalle}" if detalle else status
+            evidencia = {"result_status": status}
+            if detalle:
+                evidencia["blocked_reason"] = detalle
             self.graph.transition(
                 step_id,
                 "blocked",
                 actor="worker_result",
-                reason=status,
+                reason=motivo,
                 event_type="task_result",
-                evidence={"result_status": status},
+                evidence=evidencia,
             )
             self.graph.transition(
                 root_id,
                 "blocked",
                 actor="worker_result",
-                reason=status,
+                reason=motivo,
                 event_type="goal_closed",
-                evidence={"result_status": status},
+                evidence=evidencia,
             )
             self._record_learning_observation(
                 root_id, payload, result, disposition="failure_signal"
