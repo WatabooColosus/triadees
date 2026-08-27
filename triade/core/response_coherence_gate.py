@@ -10,6 +10,8 @@ import re
 from difflib import SequenceMatcher
 from typing import Any
 
+from triade.core.neuron_candidate_gate import _is_gratitude
+
 _SPACE_RE = re.compile(r"\s+")
 _PUNCT_RE = re.compile(r"[^\w\sáéíóúüñ¿?¡!]")
 
@@ -284,7 +286,19 @@ def _detect_input_type(text: str, previous_user: str = "") -> str:
         phrase in plain for phrase in CORRECTION_PHRASES
     ):
         return "correction"
-    if any(phrase == text or phrase in text for phrase in THANKS_PHRASES):
+    # Se delega en `neuron_candidate_gate._is_gratitude` en vez de comparar
+    # contra la copia local de `THANKS_PHRASES`.
+    #
+    # Había **dos** detectores con la misma lista y reglas distintas. Reparar
+    # sólo uno no cambió nada en producción: la batería del 2026-08-27 volvió a
+    # contestar «De nada. Seguimos.» a «Dime una cosa concreta que hayas
+    # aprendido **gracias a** nuestras conversaciones», porque quien decide la
+    # respuesta es este módulo, no aquél. Es el mismo patrón que ya costó una
+    # reparación con `CONSOLIDATABLE_STATES` duplicado entre planner y handler.
+    #
+    # `THANKS_PHRASES` se conserva porque forma parte del contrato público del
+    # módulo, pero ya no decide.
+    if _is_gratitude(plain):
         return "thanks"
     if any(phrase == text or phrase in text for phrase in ACKNOWLEDGEMENT_PHRASES) and (
         len(text.split()) <= 3 or plain.startswith(("ok ", "vale ", "listo "))
