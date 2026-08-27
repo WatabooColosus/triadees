@@ -53,6 +53,17 @@ VALID_SOURCE_TYPES = {
     "tool",
     "federated_node",
     "qualia_bus",
+    # `experience` faltaba y es el origen más productivo que hay: son las
+    # afirmaciones explícitas del usuario, con 88% de `improved` medido el
+    # 2026-08-27 y cinco de los seis hechos consolidados de la base viva.
+    # `CandidateProducer` lo escribe con un INSERT directo, así que existía en
+    # producción mientras esta lista lo declaraba inválido: cualquiera que
+    # intentara crearlo por la vía normal recibía «source_type inválido» para un
+    # valor que la tabla lleva usando desde julio.
+    "experience",
+    # Lo escribe `AssertionPromoter` al destilar un padre `web` en una aserción
+    # sondeable. Mismo caso: vivo en la tabla y ausente de la lista.
+    "distilled",
 }
 # Frases que delatan un intento de alterar la identidad o memoria núcleo.
 IDENTITY_RED_FLAGS = (
@@ -109,6 +120,17 @@ class LearningPipeline:
         "validated_in_runs",
         "evidence_verified",
     )
+
+    #: Orígenes con derecho a sustituir un hecho ya consolidado.
+    #:
+    #: Sólo la afirmación explícita del usuario. La máquina puede **añadir**
+    #: memoria por cualquiera de sus vías, pero no puede retirar un hecho que
+    #: una persona dio por bueno: un candidato malo borraría uno bueno y la
+    #: memoria dejaría de ser auditable hacia atrás. Medido el 2026-08-27: los
+    #: cinco hechos `stable` que son preferencias del usuario llegaron con
+    #: `source_type='experience'`; el sexto es una hipótesis de misión con
+    #: origen `tool`, y ése no debe poder retirar nada.
+    SUPERSEDING_SOURCE_TYPES: frozenset[str] = frozenset({"experience"})
 
     #: Un saber ya consolidado puede seguir acumulando evidencia de uso sin
     #: volver a recorrer ni degradar su estado. Esta lista separa el contrato
@@ -540,13 +562,28 @@ class LearningPipeline:
         from triade.learning.contradiction import find_contradiction
 
         contradiccion = find_contradiction(self.db_path, str(row["content"]))
+        sustituye: str | None = None
         if contradiccion is not None:
-            raise ValueError(
-                "Contradice memoria estable "
-                f"{contradiccion.document_id}: ya consolidado "
-                f"'{contradiccion.existing_target}', el candidato afirma "
-                f"'{contradiccion.candidate_target}'."
-            )
+            # Bloquear sin más dejaba un callejón sin salida. Los hechos que se
+            # consolidan son en su mayoría preferencias del usuario —ventana de
+            # mantenimiento, identificador del entorno de pruebas, nombre en
+            # clave de un informe— y ésas cambian. Comprobado contra la base
+            # viva el 2026-08-27: al afirmar una ventana nueva, el hecho nuevo
+            # quedaba rechazado y el viejo, ya falso, seguía `stable` y seguía
+            # recuperándose. La memoria se quedaba anclada a la primera versión
+            # de un dato mutable, para siempre.
+            #
+            # Sigue sin ser un worker quien elige cuál sobrevive: lo elige el
+            # origen. Sólo una afirmación explícita del usuario sustituye.
+            origen = str(row["source_type"] or "").strip().lower()
+            if origen not in self.SUPERSEDING_SOURCE_TYPES:
+                raise ValueError(
+                    "Contradice memoria estable "
+                    f"{contradiccion.document_id}: ya consolidado "
+                    f"'{contradiccion.existing_target}', el candidato afirma "
+                    f"'{contradiccion.candidate_target}'."
+                )
+            sustituye = contradiccion.document_id
 
         # Rollback Obligatorio (Artículo III de la Constitución)
         from triade.regression.mandatory_rollback import MandatoryRollbackEnforcer
@@ -679,12 +716,20 @@ class LearningPipeline:
             evidence={"candidate_id": candidate_id},
         )
 
+        # La sustitución va **después** de que el hecho nuevo sea `stable`, no
+        # antes: si se retirase primero y algo fallara en medio —el consejo, una
+        # transición—, la memoria se quedaría sin ninguno de los dos. En este
+        # orden, el peor caso deja los dos vivos un instante, que es recuperable.
+        if sustituye:
+            self.semantic_store.supersede(sustituye, document.document_id)
+
         consolidation = {
             "decision": "consolidated",
             "approved_by": approver,
             "auto_consolidated": used_auto,
             "risk": risk,
             "semantic_document_id": document.document_id,
+            "supersedes": sustituye,
             "at": utc_now(),
             **model_guard["metadata"],
         }

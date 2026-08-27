@@ -12,6 +12,7 @@ import json
 import math
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar
 from uuid import uuid4
@@ -54,6 +55,12 @@ class SemanticMemoryStore:
         "experimental",
         "stable",
         "rejected",
+        # Un hecho que fue cierto y dejó de serlo. No se borra: `stable` no
+        # está en su estado, así que deja de influir solo —
+        # `DEFAULT_INFLUENCE_STATUSES` es lista blanca— y `superseded_by`
+        # dice quién ocupó su lugar. Es olvido reversible: para deshacerlo
+        # basta devolverle el estado.
+        "superseded",
     }
 
     def __init__(
@@ -80,6 +87,31 @@ class SemanticMemoryStore:
             )
         with self._connect() as conn:
             conn.executescript(self.migration_path.read_text(encoding="utf-8"))
+            self._migrate_supersession(conn)
+
+    @staticmethod
+    def _migrate_supersession(conn: sqlite3.Connection) -> None:
+        """Añade las columnas de sustitución si faltan.
+
+        Se hace aquí y no en un `.sql` nuevo porque la base viva no tiene tabla
+        `schema_migrations`: cada subsistema reejecuta su propio fichero en cada
+        arranque, y un `ALTER TABLE ADD COLUMN` crudo falla con «duplicate
+        column name» la segunda vez. Comprobar con `PRAGMA` antes de añadir es
+        el idioma que este repositorio ya usa para el mismo problema en
+        `LearningPipeline._migrate_learning_queue`.
+        """
+        columnas = {
+            fila["name"]
+            for fila in conn.execute("PRAGMA table_info(semantic_documents)").fetchall()
+        }
+        for nombre, ddl in (
+            ("superseded_by", "TEXT"),
+            ("superseded_at", "TEXT"),
+        ):
+            if nombre not in columnas:
+                conn.execute(
+                    f"ALTER TABLE semantic_documents ADD COLUMN {nombre} {ddl}"
+                )
 
     def upsert_document(
         self,
@@ -237,6 +269,31 @@ class SemanticMemoryStore:
             )
             cursor = conn.execute(
                 "DELETE FROM semantic_documents WHERE document_id = ?", (document_id,)
+            )
+            return cursor.rowcount > 0
+
+    def supersede(
+        self, old_document_id: str, new_document_id: str, *, at: str | None = None
+    ) -> bool:
+        """Retira un hecho consolidado porque otro lo sustituye.
+
+        No borra. `delete_document` existe justo al lado y aquí sería lo
+        equivocado: un hecho que fue cierto y dejó de serlo es información —
+        cuándo dejó de valer y qué ocupó su lugar—, y borrarlo hace imposible
+        auditar por qué la memoria dice hoy otra cosa que ayer.
+
+        Devolverle el estado `stable` deshace la operación por completo, que es
+        lo que hace reversible al olvido.
+        """
+        if old_document_id == new_document_id:
+            raise ValueError("Un documento no puede sustituirse a sí mismo.")
+        momento = at or datetime.now(UTC).isoformat()
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "UPDATE semantic_documents SET status = 'superseded', "
+                "superseded_by = ?, superseded_at = ?, updated_at = ? "
+                "WHERE document_id = ? AND status != 'superseded'",
+                (new_document_id, momento, momento, old_document_id),
             )
             return cursor.rowcount > 0
 
