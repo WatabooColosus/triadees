@@ -60,6 +60,11 @@ class ImprovementProposalRequest(BaseModel):
     hypothesis: str = Field(min_length=5, max_length=2000)
     requested_capability: str = Field(min_length=1)
     max_candidates: int = Field(default=1, ge=1, le=5)
+    # A qué neurona y versión apunta la mejora. Sin esto la propuesta se aprueba
+    # y muere en el handler, que exige la terna completa para su clave de
+    # idempotencia. Ver `ImprovementProposal.neuron_id`.
+    neuron_id: str | None = Field(default=None, min_length=1)
+    version: str | None = Field(default=None, min_length=1)
 
 
 def _key(value: str | None) -> None:

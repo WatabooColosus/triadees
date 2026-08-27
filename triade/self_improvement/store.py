@@ -161,6 +161,12 @@ class ImprovementStore:
             "max_candidates": proposal.max_candidates,
             "cooldown_seconds": proposal.cooldown_seconds,
         }
+        # El objetivo sólo viaja si se declaró. Escribir `None` haría que el
+        # handler leyera la clave y la descartara igual, pero dejaría en la base
+        # una propuesta que *parece* apuntar a algo.
+        if proposal.neuron_id and proposal.version:
+            payload["neuron_id"] = proposal.neuron_id
+            payload["version"] = proposal.version
         with self._connect() as conn:
             signal = conn.execute(
                 "SELECT payload_json, status FROM improvement_signals WHERE signal_id = ?",

@@ -272,6 +272,23 @@ class MissionPlanner:
         firma humana exigida—, la tarea no tendría nada que hacer y el bucle
         giraría en vacío, que es el fallo contrario. Por eso se pregunta si es
         auto-aprobable, no si existe.
+
+        **Y se lleva el destino en el payload.** Hasta el 2026-08-27 esta rama
+        encolaba la tarea sin payload alguno, y
+        `_self_improvement_evaluation` lee `neuron_id`/`version` de
+        `task.payload` —no de la propuesta—. Es decir: la tarea nacía sin saber
+        sobre qué neurona trabajar y salía por
+        `blocked: no declara neuron_id/version` **siempre**, incluso con una
+        propuesta aprobada a mano y correcta. Comprobado en vivo el 2026-08-27:
+        la propuesta se auto-aprobó por primera vez y murió justo ahí, con
+        `improvement_canaries`, `improvement_candidate_links` y
+        `neuron_candidates` en cero detrás.
+
+        Por la misma razón que el párrafo anterior, una propuesta que no declara
+        destino **no se encola**: sería exactamente el bucle en vacío que este
+        método evita, y ya van tres veces en este repositorio que reelegir lo que
+        no puede avanzar se convierte en un livelock. El estado queda legible en
+        la propia fila de `improvement_proposals`, que se ve sin destino.
         """
         try:
             with closing(self._connect()) as conn, conn:
@@ -281,36 +298,49 @@ class MissionPlanner:
                 ).fetchone()
                 if not table:
                     return []
-                row = conn.execute(
-                    "SELECT COUNT(*) cnt FROM improvement_proposals "
-                    "WHERE status = 'approved'"
-                ).fetchone()
-                approved = int(row["cnt"] or 0) if row else 0
+                aprobadas = [
+                    str(fila["proposal_id"])
+                    for fila in conn.execute(
+                        "SELECT proposal_id FROM improvement_proposals "
+                        "WHERE status = 'approved' ORDER BY rowid ASC"
+                    ).fetchall()
+                ]
                 approvable = (
-                    auto_approvable_open_proposals(conn) if not approved else []
+                    auto_approvable_open_proposals(conn) if not aprobadas else []
                 )
-            if approved:
+                objetivo, destino = self._improvement_target(
+                    conn, aprobadas or approvable
+                )
+            if aprobadas and objetivo:
                 return [
                     PlannedTask(
                         task_type="self_improvement_evaluation",
                         priority=38,
-                        reason=f"{approved} propuesta(s) aprobada(s) esperando verificación",
+                        reason=(
+                            f"{len(aprobadas)} propuesta(s) aprobada(s) esperando"
+                            f" verificación; se trabaja {objetivo}"
+                        ),
                         source="human_approved_improvement",
                         planner_score=0.65,
+                        payload={"proposal_id": objetivo, **destino},
                     )
                 ]
-            if approvable:
+            if approvable and objetivo:
                 return [
                     PlannedTask(
                         task_type="self_improvement_evaluation",
                         priority=38,
                         reason=(
                             f"{len(approvable)} propuesta(s) abierta(s) por encima del "
-                            "umbral de aprobación por política"
+                            f"umbral de aprobación por política; se trabaja {objetivo}"
                         ),
                         source="policy_approvable_improvement",
                         planner_score=0.65,
-                        payload={"proposal_ids": approvable[:5]},
+                        payload={
+                            "proposal_id": objetivo,
+                            "proposal_ids": approvable[:5],
+                            **destino,
+                        },
                     )
                 ]
         except MISSION_PLANNER_ERRORS as exc:
@@ -318,6 +348,38 @@ class MissionPlanner:
                 "mission_planner.self_improvement", exc, db_path=self.db_path
             )
         return []
+
+    def _improvement_target(
+        self, conn: sqlite3.Connection, proposal_ids: list[str]
+    ) -> tuple[str, dict[str, Any]]:
+        """La primera propuesta que declara a qué neurona apunta.
+
+        Devuelve `("", {})` si ninguna lo declara: entonces no hay trabajo que
+        encolar, sólo una propuesta a la que le falta destino.
+        """
+        for proposal_id in proposal_ids:
+            fila = conn.execute(
+                "SELECT payload_json FROM improvement_proposals WHERE proposal_id = ?",
+                (proposal_id,),
+            ).fetchone()
+            if fila is None:
+                continue
+            try:
+                payload = json.loads(fila["payload_json"] or "{}")
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(payload, dict):
+                continue
+            neuron_id = str(payload.get("neuron_id") or "")
+            version = str(payload.get("version") or "")
+            if not neuron_id or not version:
+                continue
+            destino: dict[str, Any] = {"neuron_id": neuron_id, "version": version}
+            capacidad = payload.get("requested_capability")
+            if capacidad:
+                destino["requested_capability"] = str(capacidad)
+            return proposal_id, destino
+        return "", {}
 
     def _plan_canary_observation(self) -> list[PlannedTask]:
         """Observa el canary abierto, si lo hay.

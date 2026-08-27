@@ -36,7 +36,13 @@ def _db(tmp_path: Path) -> Path:
     return path
 
 
-def _propose(db: Path, proposal_id: str = "p1", *, confidence: float = 0.96) -> None:
+def _propose(
+    db: Path,
+    proposal_id: str = "p1",
+    *,
+    confidence: float = 0.96,
+    con_destino: bool = True,
+) -> None:
     store = ImprovementStore(db)
     store.register_signal(
         ImprovementSignal(
@@ -64,6 +70,13 @@ def _propose(db: Path, proposal_id: str = "p1", *, confidence: float = 0.96) -> 
             hypothesis="mejora la coherencia",
             requested_capability="triade_vitality",
             requires_human_approval=True,
+            # A qué neurona apunta. Este fixture no lo declaraba y el test de
+            # abajo daba por buena una tarea que en producción **siempre**
+            # terminaba en `blocked`: el handler lee `neuron_id`/`version` de
+            # `task.payload` y el planner encolaba sin payload. El test estaba
+            # verde y la cadena muerta.
+            neuron_id="7" if con_destino else None,
+            version="1.0.0" if con_destino else None,
         )
     )
 
@@ -138,6 +151,42 @@ def test_con_aprobacion_humana_se_agenda(tmp_path: Path):
     planned = MissionPlanner(db)._plan_self_improvement()
     assert [t.task_type for t in planned] == ["self_improvement_evaluation"]
     assert planned[0].source == "human_approved_improvement"
+    # Y llega sabiendo sobre qué trabajar, que es lo que faltaba.
+    assert planned[0].payload["proposal_id"] == "p1"
+    assert planned[0].payload["neuron_id"] == "7"
+    assert planned[0].payload["version"] == "1.0.0"
+
+
+def test_una_propuesta_sin_destino_no_se_agenda(tmp_path: Path):
+    """Encolarla sería girar en vacío: la tarea no puede hacer nada con ella.
+
+    `_self_improvement_evaluation` lee `neuron_id`/`version` de `task.payload`.
+    Hasta el 2026-08-27 el planner encolaba **sin payload alguno**, así que toda
+    propuesta —incluso aprobada a mano y correcta— salía por
+    `blocked: no declara neuron_id/version`. Comprobado en la base viva: la
+    única propuesta se auto-aprobó por primera vez y murió justo ahí.
+
+    Ahora, sin destino no se encola. El estado queda legible en la propia fila de
+    `improvement_proposals`, y no se repite por cuarta vez el patrón de reelegir
+    cada ciclo lo que no puede avanzar.
+    """
+    db = _db(tmp_path)
+    _propose(db, con_destino=False)
+    ImprovementNeuronFactoryBridge(db).approve("p1", approved_by="Santiago")
+    assert MissionPlanner(db)._plan_self_improvement() == []
+
+
+def test_el_destino_se_declara_entero_o_no_se_declara() -> None:
+    """Media terna rompe la clave de idempotencia del handler."""
+    with pytest.raises(ValueError, match="neuron_id y version"):
+        ImprovementProposal(
+            proposal_id="p-medio",
+            signal_id="sig",
+            hypothesis="mejora la coherencia",
+            requested_capability="triade_vitality",
+            requires_human_approval=True,
+            neuron_id="7",
+        ).validate()
 
 
 def test_no_se_acepta_aprobacion_anonima(tmp_path: Path):

@@ -1996,10 +1996,20 @@ class WorkerLoop:
         neuron_id = str(payload.get("neuron_id") or "")
         version = str(payload.get("version") or "")
         if not neuron_id or not version:
+            # Se nombra la capacidad que quedó sin destino. «No declara
+            # neuron_id/version» leído en un panel parece una propuesta
+            # malformada; el estado real es que nadie ha dicho a qué neurona
+            # apunta esta mejora, y hasta el 2026-08-27 el contrato ni siquiera
+            # permitía decirlo.
+            capacidad = str(payload.get("requested_capability") or "sin capacidad")
             return _stamp(
                 {
                     "status": "blocked",
-                    "reason": "la propuesta aprobada no declara neuron_id/version",
+                    "reason": (
+                        f"la mejora de '{capacidad}' no tiene neurona destino"
+                        " declarada (neuron_id/version)"
+                    ),
+                    "requested_capability": capacidad,
                 }
             )
 

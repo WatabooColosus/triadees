@@ -90,6 +90,54 @@ _SEVERITY: dict[str, tuple[float, str]] = {
 #: `ImprovementSignal.validate()` de todas formas.
 MIN_REAL_GAP = 1e-6
 
+#: Confianza de una brecha medida **una sola vez**. Es real —la midió el gate—
+#: pero no está replicada, y una sola observación no autoriza a nadie a actuar
+#: solo.
+CONFIDENCE_BASE = 0.60
+
+#: Cuánto se cierra la distancia hasta la certeza con cada corroboración
+#: independiente. Con 0.55: 1→0.60, 2→0.78, 3→0.88, 4→0.93, **5→0.96**.
+CONFIDENCE_DECAY = 0.55
+
+#: Nunca 1.0. Una medición repetida no es una demostración, y dejar el techo por
+#: debajo de la certeza impide que ningún umbral futuro se fije en «seguro».
+CONFIDENCE_CEILING = 0.97
+
+
+def evidence_confidence(corroboraciones: int) -> float:
+    """Cuánto sabemos que la brecha es real, a partir de mediciones repetidas.
+
+    Este campo significaba dos cosas distintas en dos módulos, y por eso el
+    circuito de auto-mejora no podía empezar nunca.
+
+    `auto_approval.evaluate()` lo lee como *cuánto sabemos que la hipótesis es
+    cierta* —lo dice su propio comentario, y por eso mira confianza y no
+    impacto—. Pero aquí se escribía como `max(0.3, 1.0 - 0.15 * (intento - 1))`,
+    es decir *cuánto creemos que un intento más lo arregla*. Son cosas opuestas:
+    la primera **sube** cuando el fallo se repite en mediciones independientes,
+    porque deja de poder ser ruido; la segunda **baja**.
+
+    La consecuencia era estructural, no de matiz. Con el umbral en 0.94, sólo un
+    intento 1 (confianza 1.0) podía aprobarse solo. En cuanto la señal se
+    refrescaba una vez caía a 0.85 y ya no había vuelta: quedaba `open` para
+    siempre, y como `register_signal` rechaza una segunda señal abierta para la
+    misma capacidad+métrica y hay tope de propuestas abiertas, bloqueaba además
+    a todas las demás. Medido el 2026-08-27 sobre la base viva: una única señal,
+    `open` desde el 10-ago, con confianza 0.40 —intento 5— y toda la cadena
+    (`improvement_canaries`, `improvement_candidate_links`, `neuron_candidates`,
+    `improvement_canary_observations`) en cero detrás de ella.
+
+    **No se toca el umbral.** Sigue en 0.94. Lo que cambia es que ahora se puede
+    alcanzar con evidencia: hacen falta cinco informes de regresión
+    independientes midiendo la misma brecha. Y el rendimiento decreciente no se
+    pierde, porque ya estaba representado donde corresponde —`estimated_cost`
+    crece con el intento y `priority()` divide por él—, así que meterlo también
+    en la confianza era contarlo dos veces.
+    """
+    n = max(1, int(corroboraciones))
+    valor = 1.0 - (1.0 - CONFIDENCE_BASE) * (CONFIDENCE_DECAY ** (n - 1))
+    return round(min(CONFIDENCE_CEILING, valor), 4)
+
 
 class FailureLearningLoop:
     """Convierte informes de regresión reprobados en señales de mejora dirigidas."""
@@ -164,6 +212,28 @@ class FailureLearningLoop:
             ).fetchone()
         return int(row["total"]) if row else 0
 
+    def corroborations_for(self, capability_id: str, metric_id: str) -> int:
+        """Informes **independientes** que midieron esta misma brecha.
+
+        Se cuentan `report_id` distintos y sólo los que traen una brecha real:
+        una lección archivada sin puntuaciones o con brecha por debajo de
+        `MIN_REAL_GAP` no corrobora nada, y dejarla contar permitiría subir la
+        confianza acumulando ruido.
+        """
+        with self._connect() as conn:
+            if not _table_exists(conn, "improvement_failure_lessons"):
+                return 0
+            row = conn.execute(
+                """SELECT COUNT(DISTINCT report_id) AS total
+                   FROM improvement_failure_lessons
+                   WHERE capability_id = ? AND metric_id = ?
+                     AND baseline_score IS NOT NULL
+                     AND candidate_score IS NOT NULL
+                     AND (baseline_score - candidate_score) >= ?""",
+                (capability_id, metric_id, MIN_REAL_GAP),
+            ).fetchone()
+        return int(row["total"]) if row else 0
+
     def affected_neurons(self, capability_id: str) -> dict[str, list[str]]:
         """Quién provee esa capacidad y quién depende de ella.
 
@@ -234,7 +304,79 @@ class FailureLearningLoop:
                     summary["signals"].append(outcome)
                 else:
                     summary["skipped"].append(outcome)
+
+        summary["reconciled"] = self._reconcile_open_signals()
         return summary
+
+    def _reconcile_open_signals(self) -> list[dict[str, Any]]:
+        """Vuelve a medir la confianza de las señales abiertas ya archivadas.
+
+        La confianza es estado **derivado** de las lecciones, no un dato que se
+        escriba una vez: si aparecen corroboraciones nuevas —o si la fórmula que
+        la calculaba estaba mal, que es lo que pasó— la señal abierta tiene que
+        reflejarlo sin que nadie la edite a mano.
+
+        Sin esto, la señal viva del 10-ago se habría quedado con la confianza
+        0.40 que le puso la fórmula vieja para siempre: sólo se refresca al
+        cosechar un informe reprobado nuevo, y el último es del 9-ago. Una
+        cadena que necesita que alguien entre a arreglar una fila no es
+        autónoma.
+
+        No inventa nada: recalcula sobre las lecciones que el gate ya escribió,
+        y si la cifra no cambia no toca la fila.
+        """
+        reconciliadas: list[dict[str, Any]] = []
+        with self._connect() as conn:
+            if not _table_exists(conn, "improvement_signals"):
+                return reconciliadas
+            abiertas = conn.execute(
+                """SELECT signal_id, capability_id, metric_id, payload_json
+                   FROM improvement_signals WHERE status = 'open'"""
+            ).fetchall()
+
+        for fila in abiertas:
+            capability = str(fila["capability_id"])
+            metric = str(fila["metric_id"])
+            payload = _loads_dict(fila["payload_json"])
+            anterior = _as_float(payload.get("confidence"))
+            nueva = evidence_confidence(self.corroborations_for(capability, metric))
+            if anterior is not None and abs(anterior - nueva) < 1e-9:
+                continue
+            observed = _as_float(payload.get("observed_score"))
+            target = _as_float(payload.get("target_score"))
+            impact = _as_float(payload.get("impact"))
+            cost = _as_float(payload.get("estimated_cost"))
+            if observed is None or target is None or impact is None or cost is None:
+                continue
+            try:
+                señal = ImprovementSignal(
+                    signal_id=str(fila["signal_id"]),
+                    capability_id=capability,
+                    metric_id=metric,
+                    observed_score=float(observed),
+                    target_score=float(target),
+                    impact=float(impact),
+                    confidence=nueva,
+                    estimated_cost=float(cost),
+                    risk_level=str(payload.get("risk_level") or "low"),
+                    source_ref=payload.get("source_ref"),
+                )
+                actualizada = self.store.refresh_open_signal(señal)
+            except (ValueError, sqlite3.Error):
+                continue
+            if actualizada is None:
+                continue
+            reconciliadas.append(
+                {
+                    "signal_id": str(fila["signal_id"]),
+                    "capability_id": capability,
+                    "metric_id": metric,
+                    "confidence_before": anterior,
+                    "confidence_after": nueva,
+                    "corroborations": self.corroborations_for(capability, metric),
+                }
+            )
+        return reconciliadas
 
     def _learn(
         self, report: dict[str, Any], finding: dict[str, Any]
@@ -288,10 +430,12 @@ class FailureLearningLoop:
             observed_score=candidate,
             target_score=baseline,
             impact=impact,
-            # Es una brecha MEDIDA por el gate, no una estimación. La confianza
-            # baja con los intentos: si ya falló varias veces, la hipótesis de
-            # que un intento más lo arregla vale menos.
-            confidence=max(0.3, 1.0 - 0.15 * (attempt - 1)),
+            # Cuánto sabemos que la brecha es real, no cuánto creemos que el
+            # intento siguiente la arregla: ver `evidence_confidence`. Sube con
+            # cada informe independiente que mide lo mismo, porque cada uno
+            # descarta que fuera ruido. El rendimiento decreciente sigue vivo
+            # justo debajo, en `estimated_cost`.
+            confidence=evidence_confidence(self.corroborations_for(capability, metric)),
             # El coste crece con los intentos: `priority()` divide por él, así
             # que una métrica terca cede el turno sola.
             estimated_cost=float(attempt),
@@ -377,6 +521,16 @@ class FailureLearningLoop:
             f"recuperar {metric_id} en {capability_id} con un enfoque distinto: "
             f"{previos}"
         )
+
+
+def _loads_dict(raw: Any) -> dict[str, Any]:
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 def _failed_findings(findings_json: Any) -> Sequence[dict[str, Any]]:
