@@ -210,7 +210,9 @@ def test_scheduler_task_types_include_governed_education() -> None:
     assert "learning_evidence_generation" in types
 
 
-def _seed_candidato(conn: sqlite3.Connection, cid: str, contenido: str, creado: str) -> None:
+def _seed_candidato(
+    conn: sqlite3.Connection, cid: str, contenido: str, creado: str
+) -> None:
     conn.execute(
         """INSERT INTO learning_queue
         (candidate_id, title, content, source_type, risk_level, confidence,
