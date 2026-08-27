@@ -185,9 +185,44 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         from triade.core.foundational_neurons import ensure_foundational_neurons
         from triade.core.internal_runtime import record_internal_runtime_event
         from triade.core.model_acquisition import start_model_acquisition_background
+        from triade.core.neuron_trigger_learning import NeuronTriggerLearner
         from triade.core.worker_autostart import start_workers_if_configured
 
         foundational_result = ensure_foundational_neurons()
+
+        # Tercer caso del mismo patrón, y por eso va justo aquí: una neurona con
+        # la columna `triggers` vacía sólo puede activarse por la cadena de
+        # cuatro dominios escrita a mano o por el fallback de nombre. Medido el
+        # 2026-08-27 sobre la base viva: de 36 neuronas sólo dos la tenían
+        # vacía —`Neurona Visual` y `Neurona de Código y Reparación`— y son
+        # exactamente las dos que la auditoría del 2026-07-31 encontró con cero
+        # activaciones. Un mes después seguían las dos en cero, mientras las 34
+        # con triggers promediaban 80,7 activaciones en siete días.
+        #
+        # `NeuronTriggerLearner` existía desde el 2026-07-31 con su prueba, y
+        # nunca lo importó nadie: el arreglo estaba escrito y desconectado.
+        #
+        # No amplía el alcance de ninguna neurona por su cuenta: los términos
+        # salen de `mission` y `domain` —campos que escribió una persona y que
+        # la neurona no puede modificar—, con tope de ocho, y nunca pisan lo que
+        # alguien declaró. Las neuronas nuevas ya nacen con triggers desde
+        # `primary_neuron_pipeline`, así que esto sólo alcanza a las
+        # preexistentes que se quedaron mudas.
+        #
+        # Se aplica **sólo a las que tienen la columna literalmente vacía**, y
+        # no a las que llevan `every_session`/`relevant_context`. Esos dos son
+        # de ciclo de vida y el aprendiz no los cuenta como declarados, así que
+        # el plan completo alcanzaba a doce neuronas en vez de a dos. Medido
+        # sobre la base viva antes de aplicar nada: eso habría dado el término
+        # `detectar` a los siete Impulsos a la vez, y un texto con esa palabra
+        # los habría activado todos. Es la red de arrastre que este mismo módulo
+        # existe para evitar —«una activación que ocurre siempre no es evidencia
+        # de nada»— y ampliar el alcance de diez neuronas que ya se activan por
+        # sesión no arregla ningún defecto medido.
+        _propuestas = [
+            p for p in NeuronTriggerLearner().plan() if not p["existing_triggers"]
+        ]
+        triggers_result = NeuronTriggerLearner().apply(_propuestas)
         # Mismo lugar y mismo motivo que las neuronas fundacionales: es un
         # arranque idempotente que deja existiendo lo que el sistema da por
         # supuesto. Sólo lo llamaban los tests, así que `capability_registry` y
@@ -248,6 +283,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 "workers_always_on": workers_result,
                 "neuron_lifecycle_background": continuous_result,
                 "foundational_neurons": foundational_result,
+                "neuron_triggers_learned": {
+                    "updated": triggers_result["updated"],
+                    "source": triggers_result["source"],
+                    "neurons": [
+                        p["name"] for p in triggers_result.get("proposals", [])
+                    ],
+                },
                 "core_capabilities": len(capabilities_result),
                 "model_acquisition": model_acquisition_result,
                 "metabolism": metabolism_result,
