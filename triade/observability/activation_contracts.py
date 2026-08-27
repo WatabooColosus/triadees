@@ -639,20 +639,27 @@ CONTRACTS: tuple[Contract, ...] = (
             "effect_consumer=triade/workers/worker_loop.py::_write_governed_text_artifact",
         ),
     ),
-    # ── Automejora: una cadena entera colgando de una firma ──────────
+    # ── Automejora: una cadena entera colgando de un listón ──────────
     #
-    # Las seis cuelgan del mismo punto y por diseño: una propuesta que un humano
-    # aprueba. `bridge.approve()` lanza si la firma viene vacía y
-    # `create_candidate` exige que la propuesta esté ya `approved`. La separación
-    # es deliberada —el humano elige qué se intenta, la máquina hace la
-    # verificación rigurosa— y ahora, además, es **ejercitable**: las rutas
-    # `/api/governance/improvement/{signals,proposals,proposals/{id}/approve}`
-    # existen y están probadas de punta a punta.
+    # Las seis cuelgan del mismo punto: `bridge.approve()`, que lanza si
+    # `approved_by` viene vacío, y `create_candidate`, que exige la propuesta ya
+    # `approved`. Lo que cambió el 2026-08-11 es **quién puede cruzar esa
+    # puerta**: ya no sólo una persona. `self_improvement/auto_approval.py`
+    # aprueba sin humano cuando la señal supera el umbral de confianza (0.94),
+    # y estampa `auto:threshold_policy (autorizado por …)` en el mismo
+    # `approved_by`. Por eso la evidencia `human_gate` sigue siendo cierta —el
+    # gate existe y todo pasa por él— pero describir la cadena como «detenida
+    # esperando una firma» dejó de serlo.
     #
-    # Cero filas significa, literalmente, que nadie ha propuesto todavía una
-    # mejora. La evidencia `rows_absent` es la que hace que esto caduque solo: en
-    # cuanto alguien ejerza el gate, el contrato deja de sostenerse y hay que
-    # volver a mirar la tabla con datos delante.
+    # Estos contratos se decidieron el 2026-08-08, tres días antes que la
+    # política, y su prosa se quedó en la versión anterior mientras
+    # `table:self_improvement_evaluation` sí se actualizaba. Un fichero de
+    # contratos que se contradice a sí mismo no es evidencia de nada.
+    #
+    # Cero filas significa que ninguna propuesta ha cruzado el listón todavía.
+    # La evidencia `rows_absent` hace que esto caduque solo: en cuanto una lo
+    # cruce, el contrato deja de sostenerse y hay que volver a mirar la tabla
+    # con datos delante.
     _contract(
         "table:improvement_signals",
         "HUMAN_GATED",
@@ -675,9 +682,9 @@ CONTRACTS: tuple[Contract, ...] = (
         "HUMAN_GATED",
         decided_at="2026-08-08",
         reason="""
-            La dirección que se propone intentar. Es el punto exacto donde entra la firma humana: `approve()` lanza si `approved_by` viene vacío.
+            La dirección que se propone intentar. Es el punto exacto donde está la compuerta: `approve()` lanza si `approved_by` viene vacío.
 
-            **Ya no está vacía.** Existe una propuesta real en estado `open` desde el 2026-08-10, esperando firma. Eso es exactamente lo que `HUMAN_GATED` debe describir: no que no haya pasado nada, sino que lo que hay está detenido en la compuerta correcta. Declarar `rows_absent` lo contaba como capacidad sin estrenar.
+            **Ya no está vacía.** Existe una propuesta real en estado `open` desde el 2026-08-10. Lo que la detiene **no es la falta de una firma**: desde el 2026-08-11 la política de auto-aprobación puede cruzar esta puerta sin humano si la señal supera el umbral de confianza. La señal que originó esta propuesta tiene `confidence` 0.4 y el umbral está en 0.94, así que la política responde con un rechazo razonado y con rastro. Detenida en la compuerta correcta, por el motivo correcto — y decir «esperando firma» explicaba mal cuál era ese motivo.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
@@ -709,7 +716,7 @@ CONTRACTS: tuple[Contract, ...] = (
         "HUMAN_GATED",
         decided_at="2026-08-08",
         reason="""
-            Une la propuesta aprobada con el candidato que la implementa. `create_candidate` exige que la propuesta esté ya `approved`: un eslabón por debajo de la firma.
+            Une la propuesta aprobada con el candidato que la implementa. `create_candidate` exige que la propuesta esté ya `approved`: un eslabón por debajo de la compuerta.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
@@ -724,7 +731,7 @@ CONTRACTS: tuple[Contract, ...] = (
         "HUMAN_GATED",
         decided_at="2026-08-08",
         reason="""
-            Un canario nace de un candidato, que nace de una propuesta aprobada a mano. Dos eslabones por debajo de la firma.
+            Un canario nace de un candidato, que nace de una propuesta `approved`. Dos eslabones por debajo de la compuerta, la cruce una persona o la política de auto-aprobación.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
@@ -739,7 +746,7 @@ CONTRACTS: tuple[Contract, ...] = (
         "HUMAN_GATED",
         decided_at="2026-08-08",
         reason="""
-            Las observaciones que deciden si el canario gradúa o revierte. Tres eslabones por debajo de la firma; no puede haber ninguna mientras no haya canario.
+            Las observaciones que deciden si el canario gradúa o revierte. Tres eslabones por debajo de la compuerta; no puede haber ninguna mientras no haya canario.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
@@ -760,7 +767,7 @@ CONTRACTS: tuple[Contract, ...] = (
     # **únicamente** en `bridge.py:42-43` y `canary.py:18`, y
     # `SandboxExecutionEngine` sólo en `orchestrator.py:31`. No hay otra puerta.
     # `bridge.create_candidate` exige que la propuesta esté ya `approved`, o sea
-    # que las cuatro cuelgan de la misma firma que las tres de arriba.
+    # que las cuatro cuelgan de la misma compuerta que las tres de arriba.
     #
     # Contarlas aparte no era prudencia: era pedir que se «arreglaran» cuatro
     # tablas cuya única forma de tener filas es que un humano apruebe algo.
@@ -771,7 +778,7 @@ CONTRACTS: tuple[Contract, ...] = (
         reason="""
             La especificación de la neurona que implementaría una propuesta
             aprobada. Su store sólo lo construye `bridge.py:43`, un eslabón por
-            debajo de la firma: sin propuesta aprobada no hay especificación que
+            debajo de la compuerta: sin propuesta aprobada no hay especificación que
             registrar.
         """,
         evidence=(
@@ -807,7 +814,7 @@ CONTRACTS: tuple[Contract, ...] = (
             El candidato que implementa una propuesta aprobada.
             `NeuronCandidateFactory` sólo se instancia en `bridge.py:42` y
             `canary.py:18`, y `create_candidate` rechaza cualquier propuesta que
-            no esté ya `approved`. Un eslabón por debajo de la firma, igual que
+            no esté ya `approved`. Un eslabón por debajo de la compuerta, igual que
             `improvement_candidate_links`, que ya estaba excusada por esto
             mismo.
         """,
@@ -828,7 +835,7 @@ CONTRACTS: tuple[Contract, ...] = (
             `SandboxExecutionEngine` sólo lo construye `orchestrator.py:31` y
             sólo se llama desde `orchestrator.py:55`, después de que
             `bridge.create_candidate` haya exigido la aprobación. Dos eslabones
-            por debajo de la firma; no puede ejecutarse un candidato que nadie
+            por debajo de la compuerta; no puede ejecutarse un candidato que nadie
             ha creado.
         """,
         evidence=(
