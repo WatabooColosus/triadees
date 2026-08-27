@@ -537,8 +537,20 @@ class MissionPlanner:
                         int(sin_examinar["cnt"] or 0) if sin_examinar else 0
                     )
                 except sqlite3.Error:
-                    # Sin cola todavía: nada se ha examinado nunca.
-                    sin_examinar_cnt = lr_cnt or 1
+                    # Sin cola de tareas todavía no se ha examinado nada, así
+                    # que está sin examinar **todo lo que haya** — que en una
+                    # base recién creada es cero. Poner un 1 de respaldo, como
+                    # se hacía antes, planificaba una deduplicación sobre una
+                    # cola vacía: trabajo garantizado sin nada que agrupar.
+                    try:
+                        pendiente = conn.execute(
+                            "SELECT COUNT(*) AS cnt FROM learning_queue"
+                        ).fetchone()
+                        sin_examinar_cnt = (
+                            int(pendiente["cnt"] or 0) if pendiente else 0
+                        )
+                    except sqlite3.Error:
+                        sin_examinar_cnt = 0
                 if sin_examinar_cnt > 0:
                     tasks.append(
                         PlannedTask(
