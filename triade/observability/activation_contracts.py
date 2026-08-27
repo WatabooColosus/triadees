@@ -629,10 +629,29 @@ CONTRACTS: tuple[Contract, ...] = (
             Lo produce `GoalOrchestrator` cuando `CapabilityResolver` resuelve esa
             capacidad, y **estuvo muerto por construcción**: la única forma de
             activarlo era escribir su identificador interno literal en la
-            petición. Eso ya se corrigió —ahora exige verbo de redacción y
+            petición. Eso se corrigió —ahora exige verbo de redacción y
             sustantivo de entregable, que es más estricto que la compuerta
-            general, no más laxo—. Queda a la espera de que alguien pida por
-            escrito un entregable de texto: estímulo conversacional, no gate.
+            general, no más laxo—.
+
+            **El estímulo ya llegó, y la cadena se rompe en el eslabón
+            siguiente.** El 2026-08-27 cuatro peticiones reales resolvieron esta
+            capacidad y encolaron su tarea; las cuatro murieron con
+            `target_and_authorized_root_required`. El handler exige `target`,
+            `content` y `authorized_root` en el payload, y el payload que arma
+            `GoalOrchestrator` no lleva ninguno de los tres: `CapabilityResolution`
+            no tiene campo para parámetros de capacidad. Ninguna ruta de
+            producción construye un payload válido — sólo los tests.
+
+            Así que **cero ejecuciones ya no significa «nadie lo ha pedido»**.
+            Significa que se pidió y no se pudo. Es un primitivo de escritura
+            («escribe estos bytes ahí») conectado a una intención («produce un
+            documento y guárdalo») que necesita antes un paso que genere el
+            contenido, y ese paso no existe.
+
+            La evidencia estructural de abajo **sigue sosteniéndose** —escritor y
+            consumidor existen— y por eso el detector no ve el corte: comprueba
+            que los extremos estén, no que la cadena complete. Se deja dicho aquí
+            hasta que el eslabón exista.
         """,
         evidence=(
             "writer_reachable=triade/core/capability_resolver.py",
