@@ -10,6 +10,7 @@ detiene en un gate real, no por casualidad.
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -275,3 +276,119 @@ def test_a_rejected_candidate_cannot_be_consolidated(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         pipe.consolidate(cid, approved_by="operador")
+
+
+# ── Sustitución: cuando el usuario cambia un dato que ya estaba consolidado ────
+
+
+def _documento_estable(pipe: LearningPipeline, fragmento: str) -> dict:
+    """El documento semántico que contiene ese fragmento, sea cual sea su estado."""
+    for doc in pipe.semantic_store.list_documents():
+        if fragmento in str(doc.get("content") or ""):
+            return doc
+    raise AssertionError(f"no hay documento con «{fragmento}»")
+
+
+def test_una_afirmacion_explicita_del_usuario_sustituye_el_hecho_viejo(
+    tmp_path: Path,
+) -> None:
+    """Bloquear sin salida dejaba la memoria anclada al primer valor de un dato mutable.
+
+    Los hechos que se consolidan son en su mayoría preferencias del usuario, y
+    ésas cambian. Comprobado contra la base viva el 2026-08-27: al afirmar una
+    ventana de mantenimiento nueva, el hecho nuevo quedaba rechazado y el viejo
+    —ya falso— seguía `stable` y seguía recuperándose.
+    """
+    pipe = pipeline(tmp_path)
+    viejo = _consolidable(
+        pipe,
+        "Mi ventana de mantenimiento acordada es VENTANA_JUEVES_0300.",
+        source_type="experience",
+    )
+    pipe.consolidate(viejo, approved_by="operador")
+
+    nuevo = _consolidable(
+        pipe,
+        "Mi ventana de mantenimiento acordada es VENTANA_MARTES_0500.",
+        source_type="experience",
+    )
+    assert pipe.consolidate(nuevo, approved_by="operador")["status"] == "consolidated"
+
+    doc_viejo = _documento_estable(pipe, "VENTANA_JUEVES_0300")
+    doc_nuevo = _documento_estable(pipe, "VENTANA_MARTES_0500")
+
+    assert doc_nuevo["status"] == "stable"
+    # El viejo no se borra: queda dicho cuándo dejó de valer y quién lo sustituyó.
+    assert doc_viejo["status"] == "superseded"
+    assert doc_viejo["superseded_by"] == doc_nuevo["document_id"]
+    assert doc_viejo["superseded_at"]
+    assert doc_viejo["content"]
+
+
+def test_el_hecho_sustituido_deja_de_influir(tmp_path: Path) -> None:
+    """No hace falta borrarlo: `stable` es lista blanca, y `superseded` no está."""
+    from triade.memory.semantic_governance import influence_allowed_statuses
+
+    pipe = pipeline(tmp_path)
+    viejo = _consolidable(
+        pipe, "Mi entorno de pruebas es ENTORNO_LIMA_4462.", source_type="experience"
+    )
+    pipe.consolidate(viejo, approved_by="operador")
+    nuevo = _consolidable(
+        pipe, "Mi entorno de pruebas es ENTORNO_LIMA_9999.", source_type="experience"
+    )
+    pipe.consolidate(nuevo, approved_by="operador")
+
+    assert "superseded" not in influence_allowed_statuses()
+    assert "superseded" not in influence_allowed_statuses(allow_experimental=True)
+    assert _documento_estable(pipe, "ENTORNO_LIMA_4462")["status"] == "superseded"
+
+
+def test_el_aprendizaje_autonomo_no_puede_retirar_un_hecho(tmp_path: Path) -> None:
+    """La máquina añade memoria por cualquier vía, pero no retira lo que una persona dio por bueno.
+
+    Si un candidato de origen `tool` pudiera sustituir, una hipótesis de misión
+    borraría una preferencia declarada y la memoria dejaría de ser auditable
+    hacia atrás.
+    """
+    pipe = pipeline(tmp_path)
+    humano = _consolidable(
+        pipe,
+        "El nombre en clave de mi informe trimestral es INFORME_CETRO_9051.",
+        source_type="experience",
+    )
+    pipe.consolidate(humano, approved_by="operador")
+
+    maquina = _consolidable(
+        pipe,
+        "El nombre en clave de mi informe trimestral es INFORME_CETRO_0000.",
+        source_type="tool",
+    )
+    with pytest.raises(ValueError, match="Contradice memoria estable"):
+        pipe.consolidate(maquina, approved_by="operador")
+
+    assert _documento_estable(pipe, "INFORME_CETRO_9051")["status"] == "stable"
+
+
+def test_la_sustitucion_es_reversible(tmp_path: Path) -> None:
+    """Es olvido reversible, no borrado: devolver el estado lo deshace entero."""
+    pipe = pipeline(tmp_path)
+    viejo = _consolidable(
+        pipe, "Mi marcador de auditoría es MARCADOR_ALFA.", source_type="experience"
+    )
+    pipe.consolidate(viejo, approved_by="operador")
+    nuevo = _consolidable(
+        pipe, "Mi marcador de auditoría es MARCADOR_BETA.", source_type="experience"
+    )
+    pipe.consolidate(nuevo, approved_by="operador")
+
+    doc = _documento_estable(pipe, "MARCADOR_ALFA")
+    assert doc["status"] == "superseded"
+
+    with sqlite3.connect(tmp_path / "triade.db") as conn:
+        conn.execute(
+            "UPDATE semantic_documents SET status='stable' WHERE document_id=?",
+            (doc["document_id"],),
+        )
+
+    assert _documento_estable(pipe, "MARCADOR_ALFA")["status"] == "stable"

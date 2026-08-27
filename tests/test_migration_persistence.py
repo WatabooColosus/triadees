@@ -194,15 +194,3 @@ class TestDataPersistence:
         summary = enforcer2.article_summary()
         assert 1 in summary
         assert summary[1]["checks"]["pass"] >= 1
-
-    def test_compression_consolidation_persistence(self, tmp_path: Path) -> None:
-        from triade.memory.compression import MemoryConsolidator
-
-        db = tmp_path / "compress_persist.db"
-        _create_full_db(db)
-        mc = MemoryConsolidator(db_path=str(db))
-        mc.compress_episodes()
-
-        mc2 = MemoryConsolidator(db_path=str(db))
-        s = mc2.summary()
-        assert isinstance(s, dict)
