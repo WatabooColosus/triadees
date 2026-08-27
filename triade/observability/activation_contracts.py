@@ -73,6 +73,13 @@ STRUCTURAL_EVIDENCE = (
     "append_only",
     "effect_consumer",
     "retirement_migration",
+    # Un guion de operador que **debe** carecer de lanzador. Se comprueba que el
+    # fichero exista, que tenga guarda `__main__` —si no la tiene no es un
+    # entrypoint y el contrato sobra— y que **ningún módulo de producción lo
+    # invoque**. Falsable en la dirección correcta: el día que alguien le ponga
+    # un lanzador deja de ser una herramienta manual, el contrato cae y el sujeto
+    # vuelve a la deuda para que se mire con datos delante.
+    "manual_tool",
 )
 
 #: Evidencia que sólo tiene respuesta **sobre la base viva**. En CI no hay base
@@ -300,6 +307,27 @@ class ContractVerifier:
             return fuente is not None and bool(
                 re.search(rf"\bdef\s+{re.escape(simbolo)}\b", fuente)
             )
+
+        if kind == "manual_tool":
+            fuente = self._source(valor)
+            if fuente is None or "__main__" not in fuente:
+                return False
+            modulo = valor.rsplit("/", 1)[-1].removesuffix(".py")
+            # Que nadie de producción lo llame: ni por import ni por subproceso.
+            #
+            # Este mismo fichero queda fuera: el contrato **nombra** a su sujeto,
+            # y confundir «declaro un contrato sobre X» con «invoco X» haría que
+            # todo contrato de herramienta manual se autoinvalidara al escribirlo.
+            propio = (
+                Path(__file__).resolve().relative_to(self.root.resolve()).as_posix()
+            )
+            for ruta in self.reachable:
+                if ruta in (valor, propio) or ruta.startswith("tests/"):
+                    continue
+                otra = self._source(ruta)
+                if otra and re.search(rf"\b{re.escape(modulo)}\b", otra):
+                    return False
+            return True
 
         if kind == "proof_test":
             ruta, _, nombre = valor.partition("::")
@@ -1137,5 +1165,62 @@ CONTRACTS: tuple[Contract, ...] = (
             "proof_test=tests/test_worker_status_counts_the_living_path.py::test_worker_status_publica_el_switch_legacy_sin_cambiarlo",
             "rows_absent=runtime_queue_compatibility_events",
         ),
+    ),
+    # ── Herramientas de operador: sin lanzador y así debe ser ────────
+    #
+    # Los tres guiones se clasificaban `legacy_expected` por una regla fija de
+    # categoría, sin contrato. Y esa clase el propio triaje la define como «algo
+    # que ya nadie debe escribir, típicamente una migración que retira un
+    # estado»: no describe una herramienta manual, describe otra cosa. La
+    # diferencia importa porque es exactamente la que el detector tiene que
+    # saber hacer — entrypoint de producción desconectado frente a utilidad de
+    # operador correctamente sin lanzador—, y una regla por categoría no la hace:
+    # trata igual a los tres que a un servicio que se quedó sin arrancar.
+    #
+    # `manual_tool` la hace falsable: exige guarda `__main__` y que ningún módulo
+    # de producción lo invoque. El día que alguien le ponga un lanzador, el
+    # contrato cae solo y el sujeto vuelve a la deuda.
+    _contract(
+        "entrypoint:scripts/backfill_metabolic_fk_parents.py",
+        "MANUAL_TOOL",
+        decided_at="2026-08-27",
+        reason="""
+            Backfill histórico de padres metabólicos. Reconstruye filas que un
+            escritor antiguo nunca escribió, sin borrar recibos, y su modo por
+            defecto es `dry-run`: `--apply` es una decisión explícita de una
+            persona que además deja manifiesto.
+
+            Una reparación de datos históricos se ejecuta cuando alguien decide
+            que hay que ejecutarla. Darle lanzador la convertiría en una rutina
+            que reescribe el pasado en cada arranque, que es lo contrario de lo
+            que hace falta.
+        """,
+        evidence=("manual_tool=scripts/backfill_metabolic_fk_parents.py",),
+    ),
+    _contract(
+        "entrypoint:scripts/backfill_runtime_runs.py",
+        "MANUAL_TOOL",
+        decided_at="2026-08-27",
+        reason="""
+            Backfill de las filas `runs` que el ciclo del supervisor no escribió
+            hasta el 2026-08-09. La causa está corregida en el código, así que
+            esto sólo repara lo de antes: un backfill que corriera solo seguiría
+            corriendo para siempre sobre un agujero que ya no se abre.
+        """,
+        evidence=("manual_tool=scripts/backfill_runtime_runs.py",),
+    ),
+    _contract(
+        "entrypoint:scripts/stress_api_run_resources.py",
+        "MANUAL_TOOL",
+        decided_at="2026-08-27",
+        reason="""
+            Banco de estrés acotado sobre `/api/run` con evidencia de recursos de
+            proceso y de SQLite. Se lanza para medir bajo carga deliberada.
+
+            Automatizarlo sería meter carga sintética en el mismo presupuesto de
+            CPU con el que el gobernador decide si el aprendizaje puede correr:
+            la medición competiría con lo medido.
+        """,
+        evidence=("manual_tool=scripts/stress_api_run_resources.py",),
     ),
 )

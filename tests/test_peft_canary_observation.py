@@ -22,7 +22,12 @@ from triade.workers.mission_planner import MissionPlanner
 from triade.workers.worker_loop import WorkerLoop
 
 
-def _db_con_canary(tmp_path: Path, *, status: str) -> Path:
+def _db_con_canary(
+    tmp_path: Path,
+    *,
+    status: str,
+    base_model: str = "Qwen/Qwen2.5-3B-Instruct",
+) -> Path:
     tmp_path.mkdir(parents=True, exist_ok=True)
     db = tmp_path / "triade.db"
     with sqlite3.connect(db) as conn:
@@ -37,8 +42,8 @@ def _db_con_canary(tmp_path: Path, *, status: str) -> Path:
         conn.execute(
             "INSERT INTO governed_peft_versions VALUES "
             "('peft-abc','/adapters/x','sha','ds',?,5.0,-4.087,'rb',NULL,NULL,"
-            "'2026-07-29T23:57:35Z','2026-07-29T23:57:35Z','Qwen/Qwen2.5-0.5B-Instruct')",
-            (status,),
+            "'2026-07-29T23:57:35Z','2026-07-29T23:57:35Z',?)",
+            (status, base_model),
         )
     return db
 
@@ -54,6 +59,8 @@ def test_el_tipo_de_tarea_existe_y_es_serial_en_gpu() -> None:
 
 
 def test_un_canary_abierto_se_planifica(tmp_path: Path) -> None:
+    # Sobre el modelo que el runtime sí sirve: un canary que no puede graduarse
+    # tiene su propio caso más abajo.
     db = _db_con_canary(tmp_path, status="canary")
 
     planeadas = MissionPlanner(db_path=db)._plan_peft_canary_observation()
@@ -61,6 +68,26 @@ def test_un_canary_abierto_se_planifica(tmp_path: Path) -> None:
     assert [t.task_type for t in planeadas] == ["peft_canary_observation"]
     assert planeadas[0].payload["version_id"] == "peft-abc"
     assert planeadas[0].payload["adapter_path"] == "/adapters/x"
+
+
+def test_un_canary_sobre_un_modelo_no_servido_no_se_observa(tmp_path: Path) -> None:
+    """Observar un adaptador que nunca podrá activarse es quemar GPU.
+
+    `activate()` exige que el runtime sirva el modelo base. El adaptador de la
+    base viva se entrenó sobre `Qwen/Qwen2.5-0.5B-Instruct` mientras el runtime
+    sirve `qwen2.5:3b-instruct`: la verja lo habría rechazado cualquiera de los
+    29 días que llevaba en canary, y aun así el planner encolaba una observación
+    cada veinte o cuarenta minutos, catorce segundos de GPU cada una. Quinta
+    aparición del patrón de reelegir lo que no puede avanzar.
+
+    No se cierra el canary ni se toca su estado: eso es una decisión con firma.
+    Sólo se deja de gastar en él.
+    """
+    db = _db_con_canary(
+        tmp_path, status="canary", base_model="Qwen/Qwen2.5-0.5B-Instruct"
+    )
+
+    assert MissionPlanner(db_path=db)._plan_peft_canary_observation() == []
 
 
 def test_sin_canary_abierto_no_se_planifica_nada(tmp_path: Path) -> None:

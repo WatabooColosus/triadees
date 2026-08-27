@@ -324,3 +324,97 @@ def test_todos_los_contratos_declarados_se_sostienen_en_la_base_viva():
         if not verificador.verify(contrato).holds
     }
     assert not caidos, f"contratos que dejaron de sostenerse: {caidos}"
+
+
+# ── Herramientas de operador: sin lanzador y así debe ser ─────────────────────
+
+
+def _guion(tmp_path: Path, nombre: str, con_main: bool = True) -> str:
+    ruta = tmp_path / "scripts"
+    ruta.mkdir(exist_ok=True)
+    cuerpo = "def principal():\n    return 1\n"
+    if con_main:
+        cuerpo += '\n\nif __name__ == "__main__":\n    principal()\n'
+    (ruta / nombre).write_text(cuerpo, encoding="utf-8")
+    return f"scripts/{nombre}"
+
+
+def test_una_herramienta_manual_sin_lanzador_sostiene_su_contrato(
+    tmp_path: Path,
+) -> None:
+    """Un guion de operador sin lanzador **no** es un entrypoint desconectado.
+
+    Es la distinción que el detector tiene que saber hacer, y no la hacía: los
+    tres guiones caían en `legacy_expected` por una regla fija de categoría, que
+    el propio triaje define como «algo que ya nadie debe escribir, típicamente
+    una migración que retira un estado». Eso describe otra cosa.
+    """
+    ruta = _guion(tmp_path, "backfill_de_prueba.py")
+    contrato = _contract(
+        f"entrypoint:{ruta}",
+        "MANUAL_TOOL",
+        decided_at="2026-08-27",
+        reason="Reparación histórica que se ejecuta cuando alguien lo decide.",
+        evidence=(f"manual_tool={ruta}",),
+    )
+
+    assert ContractVerifier(tmp_path, reachable={ruta}).verify(contrato).holds
+
+
+def test_un_lanzador_de_produccion_tumba_el_contrato(tmp_path: Path) -> None:
+    """Falsable en la dirección correcta.
+
+    El día que alguien le ponga un lanzador deja de ser una herramienta manual:
+    el contrato tiene que caer solo y devolver el sujeto a la deuda, no seguir
+    excusándolo. Si no cayera, sería una exclusión por nombre disfrazada.
+    """
+    ruta = _guion(tmp_path, "backfill_con_lanzador.py")
+    (tmp_path / "runner.py").write_text(
+        "import subprocess\n\n\ndef arranca():\n"
+        "    subprocess.run(['python', 'scripts/backfill_con_lanzador.py'])\n",
+        encoding="utf-8",
+    )
+    contrato = _contract(
+        f"entrypoint:{ruta}",
+        "MANUAL_TOOL",
+        decided_at="2026-08-27",
+        reason="Ya no es cierto: alguien lo arranca.",
+        evidence=(f"manual_tool={ruta}",),
+    )
+
+    veredicto = ContractVerifier(tmp_path, reachable={ruta, "runner.py"}).verify(
+        contrato
+    )
+    assert not veredicto.holds
+    assert veredicto.to_dict()["classification"] == "REAL_BROKEN"
+
+
+def test_sin_guarda_main_no_hay_herramienta_que_contratar(tmp_path: Path) -> None:
+    """Si no tiene `__main__` no es un entrypoint y el contrato sobra."""
+    ruta = _guion(tmp_path, "sin_main.py", con_main=False)
+    contrato = _contract(
+        f"entrypoint:{ruta}",
+        "MANUAL_TOOL",
+        decided_at="2026-08-27",
+        reason="No debería sostenerse.",
+        evidence=(f"manual_tool={ruta}",),
+    )
+
+    assert not ContractVerifier(tmp_path, reachable={ruta}).verify(contrato).holds
+
+
+def test_los_tres_guiones_reales_estan_contratados() -> None:
+    """Contra el repositorio de verdad, no contra una muestra."""
+    contratos = load_contracts()
+    esperados = {
+        "entrypoint:scripts/backfill_metabolic_fk_parents.py",
+        "entrypoint:scripts/backfill_runtime_runs.py",
+        "entrypoint:scripts/stress_api_run_resources.py",
+    }
+    assert esperados <= set(contratos)
+
+    verificador = ContractVerifier(Path("."))
+    for sujeto in esperados:
+        veredicto = verificador.verify(contratos[sujeto])
+        assert veredicto.holds, (sujeto, veredicto.failed)
+        assert veredicto.classification == "MANUAL_TOOL"

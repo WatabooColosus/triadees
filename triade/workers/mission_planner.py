@@ -351,14 +351,25 @@ class MissionPlanner:
 
     @staticmethod
     def _modelo_base_servido(base_model: str, normalizar: Any) -> bool:
-        """¿Sirve el runtime el modelo sobre el que se entrenó el adaptador?"""
-        try:
-            from triade.models.ollama_client import OllamaClient
+        """¿Sirve el runtime el modelo sobre el que se entrenó el adaptador?
 
-            servidos = [str(m) for m in (OllamaClient().health().get("models") or [])]
+        Se pregunta a la **configuración** (`triade.yml`), no a Ollama. Planificar
+        es barato y reversible; la comprobación que decide de verdad la hace
+        `GovernedPeftServing.activate()` contra los modelos servidos en ese
+        momento, que es cuando importa. Preguntar aquí por red metería una
+        dependencia viva en una decisión de planificación —y en sus tests, que
+        pasarían o no según hubiera un Ollama al lado—.
+
+        Sin configuración legible no se decide que no: se sigue observando, que
+        es el lado recuperable del error.
+        """
+        try:
+            from triade.training.governed_lora import served_model_labels
+
+            servidos = served_model_labels()
         except (OSError, ImportError, RuntimeError, ValueError, TypeError, KeyError):
-            # Sin poder preguntar no se decide que no: se sigue observando, que
-            # es el lado recuperable del error.
+            return True
+        if not servidos:
             return True
         clave = normalizar(base_model)
         return not clave or any(normalizar(m) == clave for m in servidos)
