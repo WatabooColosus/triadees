@@ -1231,3 +1231,138 @@ function Metrica({ label, valor, color, destacado }: { label: string; valor: num
     </div>
   )
 }
+
+// ── Compuerta humana: todo lo que espera tu firma, en un solo sitio ──
+//
+// Las compuertas estaban repartidas y sólo una se veía: el adaptador PEFT tenía
+// su tarjeta y la aprobación de una propuesta de auto-mejora sólo existía como
+// ruta HTTP, sin ningún sitio donde apareciera que estaba esperando. Una
+// compuerta que nadie ve no gobierna: deja el circuito parado con aspecto de
+// estar funcionando.
+//
+// Muestra también por qué NO se puede firmar. El canary PEFT de la base lleva
+// desde el 29-jul acumulando observaciones y `activate()` lo habría rechazado
+// igual cualquiera de esos días: se inscribió sin `base_model`. Sin decirlo,
+// quien mira ve «listo para aprobar» y descubre el bloqueo al firmar.
+export function CompuertaHumanaCard() {
+  const [data, setData] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [approvedBy, setApprovedBy] = useState(() => localStorage.getItem('triade_approver_name') || '')
+  const [busy, setBusy] = useState<string | null>(null)
+  const [lastResult, setLastResult] = useState<any>(null)
+
+  async function load() {
+    try {
+      setData(await liveApi('/api/governance/pending-human-gates'))
+      setError(null)
+    } catch (e: any) {
+      setError(e.message || 'Error al consultar compuertas pendientes')
+    }
+  }
+
+  useEffect(() => {
+    load()
+    const id = setInterval(load, 20000)
+    return () => clearInterval(id)
+  }, [])
+
+  async function firmar(gate: any) {
+    if (busy || !approvedBy.trim()) return
+    localStorage.setItem('triade_approver_name', approvedBy.trim())
+    setBusy(gate.id)
+    setLastResult(null)
+    try {
+      const body = { ...(gate.payload_hint || {}), approved_by: approvedBy.trim() }
+      setLastResult(await liveApi(gate.endpoint, { method: 'POST', body: JSON.stringify(body) }))
+      await load()
+    } catch (e: any) {
+      setLastResult({ status: 'error', reason: e.message })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const gates: any[] = data?.gates || []
+  const listas = data?.ready ?? 0
+  const bloqueadas = data?.blocked ?? 0
+  const color = listas > 0 ? '#f59e0b' : bloqueadas > 0 ? '#94a3b8' : '#22c55e'
+
+  return (
+    <Card
+      title={`Compuerta · esperando tu firma${gates.length ? ` (${listas}/${gates.length})` : ''}`}
+      color={color}
+    >
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+        Tríade decide sola todo lo que puede demostrar. Lo que queda aquí es lo
+        que exige un nombre propio detrás. Leer no aprueba nada.
+      </div>
+      {error && <div style={{ fontSize: 11, color: '#ef4444' }}>{error}</div>}
+      {!error && gates.length === 0 && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          Nada esperando tu firma ahora mismo.
+        </div>
+      )}
+      {gates.length > 0 && (
+        <>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Tu nombre</span>
+            <input
+              value={approvedBy}
+              onChange={e => setApprovedBy(e.target.value)}
+              placeholder="quién aprueba"
+              style={{
+                flex: 1, background: 'var(--bg-base)', color: 'var(--text-primary)',
+                border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 11,
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {gates.map((g: any) => (
+              <div
+                key={g.id}
+                style={{
+                  padding: '6px 8px', background: 'var(--bg-base)', borderRadius: 6, fontSize: 11,
+                  borderLeft: `2px solid ${g.ready ? '#f59e0b' : '#94a3b8'}`,
+                }}
+              >
+                <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{g.title}</div>
+                <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 10 }}>{g.detail}</div>
+                <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 10, fontFamily: 'monospace' }}>
+                  {g.id} · desde {g.since}
+                </div>
+                {g.policy_would_approve === true && (
+                  <div style={{ color: '#22c55e', marginTop: 2, fontSize: 10 }}>
+                    La política puede aprobarla sola: {g.policy_reason}
+                  </div>
+                )}
+                {g.policy_would_approve === false && g.policy_reason && (
+                  <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 10 }}>
+                    Sin firma no avanza: {g.policy_reason}
+                  </div>
+                )}
+                {(g.blockers || []).map((b: string, i: number) => (
+                  <div key={i} style={{ color: '#ef4444', marginTop: 2, fontSize: 10 }}>
+                    Bloqueado: {b}
+                  </div>
+                ))}
+                <button
+                  onClick={() => firmar(g)}
+                  disabled={!g.ready || busy === g.id || !approvedBy.trim()}
+                  style={{ ...btn, marginTop: 4, opacity: g.ready && approvedBy.trim() ? 1 : 0.4 }}
+                  title={g.ready ? 'Firmar y activar' : 'Hay que resolver el bloqueo antes de poder firmar'}
+                >
+                  {busy === g.id ? 'Firmando…' : g.ready ? 'Firmar y activar' : 'No se puede firmar todavía'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {lastResult && (
+        <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+          {JSON.stringify(lastResult).slice(0, 220)}
+        </div>
+      )}
+    </Card>
+  )
+}

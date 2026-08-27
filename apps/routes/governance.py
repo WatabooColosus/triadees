@@ -112,6 +112,24 @@ def peft_pending_approval() -> dict[str, Any]:
     return PeftCanaryServer().pending_approval()
 
 
+@router.get("/pending-human-gates")
+def pending_human_gates_route() -> dict[str, Any]:
+    """Todo lo que espera una firma humana, en un solo sitio.
+
+    Las compuertas estaban repartidas y sólo una se veía: el adaptador PEFT
+    tenía tarjeta en Cabina Viva y la aprobación de una propuesta de auto-mejora
+    sólo existía como ruta HTTP, sin ningún sitio donde apareciera que estaba
+    esperando. Una compuerta que nadie ve no gobierna: deja el circuito parado
+    con aspecto de estar funcionando.
+
+    Sólo lee. Firmar sigue siendo una llamada explícita al endpoint de cada
+    subsistema, con un nombre propio detrás.
+    """
+    from triade.core.human_gates import pending_human_gates
+
+    return pending_human_gates(_db())
+
+
 @router.post("/peft/canary")
 def peft_canary(
     request: CanaryRequest,

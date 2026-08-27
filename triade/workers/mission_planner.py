@@ -349,6 +349,20 @@ class MissionPlanner:
             )
         return []
 
+    @staticmethod
+    def _modelo_base_servido(base_model: str, normalizar: Any) -> bool:
+        """¿Sirve el runtime el modelo sobre el que se entrenó el adaptador?"""
+        try:
+            from triade.models.ollama_client import OllamaClient
+
+            servidos = [str(m) for m in (OllamaClient().health().get("models") or [])]
+        except (OSError, ImportError, RuntimeError, ValueError, TypeError, KeyError):
+            # Sin poder preguntar no se decide que no: se sigue observando, que
+            # es el lado recuperable del error.
+            return True
+        clave = normalizar(base_model)
+        return not clave or any(normalizar(m) == clave for m in servidos)
+
     def _improvement_target(
         self, conn: sqlite3.Connection, proposal_ids: list[str]
     ) -> tuple[str, dict[str, Any]]:
@@ -998,10 +1012,33 @@ class MissionPlanner:
                 ).fetchone():
                     return []
                 fila = conn.execute(
-                    "SELECT version_id, adapter_path FROM governed_peft_versions "
+                    "SELECT version_id, adapter_path, base_model "
+                    "FROM governed_peft_versions "
                     "WHERE status = 'canary' ORDER BY created_at LIMIT 1"
                 ).fetchone()
             if fila is None:
+                return []
+            # Un canary que no puede graduarse no merece más inferencia.
+            #
+            # `activate()` exige que el runtime sirva el modelo base del
+            # adaptador. El de la base viva se entrenó sobre
+            # `Qwen/Qwen2.5-0.5B-Instruct` y el runtime sirve
+            # `qwen2.5:3b-instruct`: la verja lo habría rechazado cualquiera de
+            # los 29 días que lleva en canary, y aun así el planner encolaba una
+            # observación cada veinte o cuarenta minutos, catorce segundos de
+            # GPU cada una. Es la quinta vez que aparece el mismo patrón en este
+            # repositorio: reelegir cada ciclo lo que no puede avanzar.
+            #
+            # No se cierra el canary ni se toca su estado: eso es una decisión
+            # con firma. Sólo se deja de gastar en él, y la razón queda visible
+            # en la compuerta de Cabina Viva.
+            from triade.core.human_gates import _base_model_del_manifiesto
+            from triade.training.serving_governance import normalize_model_id
+
+            base = str(fila["base_model"] or "").strip() or (
+                _base_model_del_manifiesto(str(fila["adapter_path"] or ""))
+            )
+            if base and not self._modelo_base_servido(base, normalize_model_id):
                 return []
             return [
                 PlannedTask(

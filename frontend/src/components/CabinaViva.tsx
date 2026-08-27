@@ -8,6 +8,7 @@ import {
   LearningJournalCard, TechnicalDebtCard, WorkersCard,
   SafeShellCard, EventsFeed, AlwaysOnCard, SupervisionCard, WorkersAlwaysOnCard,
   EdgeContextHealthCard, LoraApprovalCard, NeuronEducationCard,
+  CompuertaHumanaCard,
 } from './Cards'
 
 export function CabinaViva() {
@@ -165,6 +166,9 @@ export function CabinaViva() {
       )}
 
       <Grid cols={2}>
+        {/* Primera de todas: si algo espera una firma, es lo primero que hay
+            que ver al abrir la Cabina. */}
+        <CompuertaHumanaCard />
         <LoraApprovalCard />
         <SupervisionCard data={dash.supervision} />
         <AlwaysOnCard data={dash.always_on || dash.heartbeat?.always_on || dash.always_on_detail || {}} />
