@@ -252,6 +252,48 @@ def build_debt_report(
             "import_graph.json: módulo de producción cuyo único importador es un test",
         )
 
+        # El escalón que faltaba, y por el que se colaron 35 módulos.
+        #
+        # Las dos categorías de arriba miran *quién importa*. Una isla de
+        # módulos que se importan **entre sí** las pasa las dos: cada uno tiene
+        # importador y ninguno es un test. Medido el 2026-08-27: el informe
+        # daba `modules_without_importer: 0` mientras `triade/dashboard/` y
+        # `triade/os/triadeos_complete.py` —un gemelo del TriadeOS que sí corre,
+        # 304 ciclos al día desde `services/supervisor.py`— estaban
+        # desconectados del sistema entero, y con ellos los únicos consumidores
+        # de `SystemMonitor`, `ConstitutionEnforcer`, `AdvancedScheduler`,
+        # `FederationAdvanced`, `SmartModelRouter` y cinco más.
+        #
+        # Lo que separa «alguien lo importa» de «el sistema lo conecta» es la
+        # alcanzabilidad desde un entrypoint que **algo arranca**, y esa función
+        # ya existía: `reachable_modules` la usa `triage_debt.py` para decidir
+        # si el escritor de una tabla es alcanzable. Aquí no se usaba.
+        #
+        # Se excluyen los `__init__.py`: Python los ejecuta al importar
+        # cualquier submódulo, así que un paquete vivo tiene su `__init__`
+        # «inalcanzable» sin que eso signifique nada.
+        try:
+            from triade.observability.code_graph import (
+                build_module_index,
+                reachable_modules,
+            )
+
+            indice = build_module_index(root)
+            alcanzables = reachable_modules(root, indice)
+            islas = sorted(
+                ruta
+                for ruta in indice.by_path
+                if ruta.startswith("triade/")
+                and ruta not in alcanzables
+                and not ruta.endswith("__init__.py")
+            )
+        except (OSError, ValueError, ImportError, AttributeError):
+            islas = []
+        items["modules_unreachable_from_entrypoint"] = _entry(
+            islas,
+            "code_graph.reachable_modules: módulo que ningún entrypoint arrancado alcanza",
+        )
+
     entrypoints = _load(cache_dir, "entrypoint_graph")
     if entrypoints:
         unlaunched = [

@@ -3316,6 +3316,35 @@ class WorkerLoop:
             db_path=Path(self.db_path),
         )
         content = summarise_for_humans(report)
+
+        # Y si los órganos siguen cumpliendo su teoría operativa.
+        #
+        # `CoreAlignment` estaba escrito entero —comprueba por introspección real
+        # del código que Central planifica, que el Hipotálamo regula, que la
+        # Bodega persiste, que el Cristal compara y que el Runner cierra el
+        # ciclo— y **no lo importaba nadie**: ni un módulo, ni un script, ni un
+        # test. Un auditor de órganos que nunca se ejecuta no audita nada.
+        #
+        # Va aquí y no en `HealthSensors` porque mide estructura, no estado: el
+        # resultado sólo cambia cuando cambia el código, así que correrlo en
+        # cada ciclo metabólico sería gastar por gastar. La deuda estructural se
+        # escanea unas 150 veces al día y ése es su sitio.
+        alignment: dict[str, Any] = {}
+        try:
+            from triade.core.alignment import CoreAlignment
+
+            alignment = CoreAlignment().evaluate_static_core()
+        except (ImportError, OSError, RuntimeError, ValueError, TypeError) as exc:
+            alignment = {"status": "error", "error": f"{type(exc).__name__}: {exc}"}
+        organos_flojos = [
+            f"{o['organ']}: {'; '.join(o['missing'])}"
+            for o in alignment.get("organs", [])
+            if o.get("missing")
+        ]
+        if organos_flojos:
+            content = f"{content} · órganos con capacidades sin cumplir: " + " · ".join(
+                organos_flojos
+            )
         qualia = self._publish_qualia_experience(
             run_ref,
             "system_debt_scan",
@@ -3345,6 +3374,7 @@ class WorkerLoop:
             "status": "observed",
             "observation": content,
             "debt": report,
+            "core_alignment": alignment,
             "learning_candidate": None,
             "truth": "worker_self_observation_not_learning_evidence",
             "qualia": qualia,

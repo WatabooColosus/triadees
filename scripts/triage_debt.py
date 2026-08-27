@@ -323,6 +323,22 @@ def triage(root: Path, db: Path, cache: Path) -> dict[str, Any]:
                 clase, sev = "legacy_expected", "low"
                 ev = "guard __main__ sin lanzador: utilidad manual, no ruta viva"
                 fuente = nombre
+            elif categoria == "modules_unreachable_from_entrypoint":
+                # No es «nadie lo importa» —eso es la categoría de abajo y da
+                # cero—: es que sus importadores tampoco los alcanza nada. Una
+                # isla de módulos que se importan entre sí pasa los dos filtros
+                # antiguos, y así se acumularon 35 sin aparecer en ningún
+                # contador. Se clasifica como subsistema sin terminar porque es
+                # exactamente eso: el código existe y el circuito nunca se
+                # cerró. Convertirlo en falso positivo exigiría demostrar un
+                # arranque que el grafo no ve, y esa prueba se aporta, no se
+                # presume.
+                clase, sev = "incomplete_subsystem", "medium"
+                ev = (
+                    "ningún entrypoint arrancado lo alcanza por imports: "
+                    "existe, pero el sistema no lo conecta"
+                )
+                fuente = nombre
             elif categoria == "modules_without_importer":
                 clase = (
                     "incomplete_subsystem"

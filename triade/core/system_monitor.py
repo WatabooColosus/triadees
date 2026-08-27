@@ -8,6 +8,8 @@ from typing import Any, ClassVar
 from triade.core.contracts import utc_now
 from triade.db import sqlite3
 
+DEFAULT_DB_PATH = "triade/memory/triade.db"
+
 
 def _gen_id(prefix: str) -> str:
     import hashlib
@@ -74,7 +76,18 @@ class SystemMonitor:
     def __init__(
         self, db_path: str | None = None, conn: sqlite3.Connection | None = None
     ):
-        self._conn = conn or sqlite3.connect(db_path or ":memory:")
+        # La base real por defecto, no `:memory:`.
+        #
+        # Con `:memory:` todo lo que este componente mide se escribe en RAM y se
+        # tira al recolectar el objeto. Sus dos llamadores de producción
+        # —`dashboard/routes.py` y `os/triadeos_complete.py`— construyen sin
+        # argumentos, así que en la base viva del 2026-08-27 sus tablas **no
+        # existían**: ni una fila, ni el esquema. El componente se ejecutaba y
+        # no dejaba rastro de nada.
+        #
+        # El repositorio ya tiene esta convención en 161 sitios; aquí faltaba.
+        # Los tests que necesitan aislamiento pasan su ruta y siguen aislados.
+        self._conn = conn or sqlite3.connect(db_path or DEFAULT_DB_PATH)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA_SQL)
         self._ensure_thresholds()
