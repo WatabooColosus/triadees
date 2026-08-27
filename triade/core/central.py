@@ -520,6 +520,30 @@ class Central:
             rollback=PlanRollback(plan_id=graph.plan_id),
         )
 
+    @staticmethod
+    def _neuron_readiness_of(input_packet: Any) -> dict[str, Any] | None:
+        """El readiness de neuronas del contexto, si lo hay y sirve.
+
+        Devuelve `None` cuando no se pidió: `build_bodega_global_context` sólo
+        lo calcula si la pregunta lo necesita, porque medía 0,69 s de CPU y
+        ponerlo en cada run repetiría el error de `pulse_check`.
+        """
+        ctx = getattr(input_packet, "context", {})
+        if not isinstance(ctx, dict):
+            return None
+        bgc = ctx.get("bodega_global_context")
+        if not isinstance(bgc, dict):
+            return None
+        readiness = bgc.get("neuron_readiness")
+        if not isinstance(readiness, dict) or readiness.get("status") != "ok":
+            return None
+        return {
+            "thresholds": (readiness.get("summary") or {}).get("thresholds", {}),
+            "ready_count": readiness.get("ready_count", 0),
+            "not_ready_count": readiness.get("not_ready_count", 0),
+            "not_ready": readiness.get("not_ready", [])[:3],
+        }
+
     def _chain_of_thought(
         self,
         input_packet: Any,
@@ -530,18 +554,27 @@ class Central:
         if self.model_client is None:
             return self._chain_of_thought_rules(input_packet, signals, memory, crystal)
         try:
-            context = json.dumps(
-                {
-                    "user_input": input_packet.user_input[:500],
-                    "intent": signals.intent,
-                    "risk": signals.risk,
-                    "urgency": signals.urgency,
-                },
-                ensure_ascii=False,
-            )
+            payload: dict[str, Any] = {
+                "user_input": input_packet.user_input[:500],
+                "intent": signals.intent,
+                "risk": signals.risk,
+                "urgency": signals.urgency,
+            }
+            # El readiness va **aquí**, no sólo en la rama de reglas: con Ollama
+            # disponible los pasos los genera el modelo y la rama de respaldo no
+            # se ejecuta nunca. Wirearlo sólo allí dejaba el puente construido y
+            # sin tránsito, que es como estaba antes: el dato existía en
+            # `bodega_global_context` y no llegaba a ninguna parte.
+            readiness = self._neuron_readiness_of(input_packet)
+            if readiness:
+                payload["neuron_readiness"] = readiness
+            context = json.dumps(payload, ensure_ascii=False)
             system = (
                 "Eres Central de Tríade. Genera una cadena de razonamiento en 3-5 pasos. "
-                "Formato: lista de strings, uno por paso."
+                "Formato: lista de strings, uno por paso. "
+                "Si la entrada trae `neuron_readiness`, usa esos datos literales "
+                "—nombre, id y bloqueadores— en vez de razonar de memoria: son el "
+                "estado real medido del sistema."
             )
             result = self.model_client.generate(
                 self.central_model,
@@ -603,6 +636,24 @@ class Central:
             stable_audit = bgc.get("stable_audit_summary") or {}
             if stable_audit.get("stable_needs_review", 0) > 0:
                 steps.append("Neuronas stable requieren revisión de evidencia.")
+            # El readiness sólo sirve si llega hasta aquí. Estaba calculado en
+            # `bodega_global_context` y no lo leía nadie, así que a «¿qué le
+            # falta a una neurona candidata para pasar a funcional?» el modelo
+            # contestaba sobre neuronas biológicas: no tenía el dato delante.
+            readiness = bgc.get("neuron_readiness") or {}
+            if readiness.get("status") == "ok" and readiness.get("not_ready"):
+                umbrales = (readiness.get("summary") or {}).get("thresholds") or {}
+                steps.append(
+                    f"Readiness de neuronas: {readiness.get('ready_count', 0)} listas y "
+                    f"{readiness.get('not_ready_count', 0)} no listas. "
+                    f"Umbrales: {umbrales}."
+                )
+                for fila in readiness["not_ready"][:3]:
+                    bloqueos = ", ".join(str(b) for b in (fila.get("blockers") or []))
+                    steps.append(
+                        f"A la neurona «{fila.get('name')}» (id {fila.get('neuron_id')}, "
+                        f"{fila.get('status')}) le falta: {bloqueos or 'nada registrado'}."
+                    )
         if temporal in {"critical", "degrading"}:
             steps.append(
                 "Reforzar prudencia por degradación temporal y registrar alerta."
