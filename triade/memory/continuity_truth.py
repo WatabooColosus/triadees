@@ -67,6 +67,36 @@ FALSE_EPHEMERAL_CLAIMS = (
 )
 
 
+#: Frases con las que una respuesta **afirma** que hay contradicción.
+#:
+#: El fallo que esto corrige es real y quedó medido el 2026-08-26: preguntado por
+#: «la memoria persiste entre sesiones» frente a «el recall es selectivo y no
+#: garantiza recuperar cada detalle», el sistema las declaró contradictorias. No
+#: lo son, y lo demuestra este mismo módulo: `memory_truth_snapshot()` publica
+#: `session_boundary_does_not_delete_memory` y `recall_is_selective_not_total`
+#: como ciertas **a la vez**. El veredicto lo producía el modelo por su cuenta,
+#: sin ninguna ruta que lo comprobara.
+CONTRADICTION_CLAIMS = (
+    "se contradicen",
+    "es contradictorio",
+    "son contradictorias",
+    "son contradictorios",
+    "hay una contradicción",
+    "hay una contradiccion",
+    "son incompatibles",
+    "no pueden ser ciertas a la vez",
+    "no pueden ser verdad a la vez",
+    "se excluyen",
+)
+
+#: Las dos afirmaciones que el snapshot publica juntas, en el texto con el que
+#: se le preguntó al sistema. Se comparan con `classify_relation`, que decide por
+#: sujeto y eje: persistir y recuperar selectivamente son ejes distintos, así que
+#: pueden sostenerse las dos por mucho vocabulario que compartan.
+PERSISTENCE_CLAIM = "la memoria persiste entre sesiones"
+SELECTIVE_RECALL_CLAIM = "el recall es selectivo y no garantiza recuperar cada detalle"
+
+
 def memory_truth_snapshot(db_path: str | Path) -> dict[str, Any]:
     path = Path(db_path)
     counts = {
@@ -151,7 +181,40 @@ def enforce_memory_truth(
             ["false_ephemeral_memory_claim_corrected", *tocados],
         )
 
-    # Caso 2: se pregunta de verdad por la continuidad y la respuesta no la
+    # Caso 2: la respuesta afirma que las dos verdades de este snapshot se
+    # contradicen. No se le cree por decirlo: se comprueba.
+    #
+    # `classify_relation` decide por sujeto y **eje**. Persistir y recuperar
+    # selectivamente son ejes distintos, así que las dos pueden sostenerse por
+    # mucho vocabulario que compartan — medir solape léxico las habría hecho
+    # parecer más contradictorias, no menos. Sólo se corrige si el veredicto
+    # comprobado dice que **no** hay contradicción; si dijera que sí, la
+    # respuesta se deja intacta, porque entonces el modelo tendría razón.
+    if (
+        _claims_contradiction(lowered)
+        and snapshot.get("session_boundary_does_not_delete_memory")
+        and snapshot.get("recall_is_selective_not_total")
+    ):
+        from triade.os.claim_relation import ClaimRelation, classify_relation
+
+        veredicto = classify_relation(PERSISTENCE_CLAIM, SELECTIVE_RECALL_CLAIM)
+        if veredicto.relation is not ClaimRelation.CONTRADICTION:
+            corregida, tocados = _redact_contradiction_claims(response)
+            aclaracion = (
+                "Las dos afirmaciones se sostienen a la vez, y no por criterio "
+                "propio: hablan de ejes distintos —una de si la memoria "
+                "persiste, otra de si se recupera entera— y "
+                f"`classify_relation` las clasifica como {veredicto.relation.value} "
+                f"({veredicto.reason})."
+            )
+            if not corregida.strip():
+                return aclaracion, ["asserted_contradiction_replaced", *tocados]
+            return (
+                f"{aclaracion}\n\n{corregida.lstrip()}",
+                ["asserted_contradiction_corrected", *tocados],
+            )
+
+    # Caso 3: se pregunta de verdad por la continuidad y la respuesta no la
     # afirma. Se **añade** el hecho; no se tira lo que ya dijo.
     #
     # `asks_continuity` es lo que antes era `asks_memory`: entonces bastaba con
@@ -166,6 +229,29 @@ def enforce_memory_truth(
         )
 
     return response, []
+
+
+def _claims_contradiction(lowered: str) -> bool:
+    """Si la respuesta afirma que hay contradicción, con sus propias palabras."""
+    return any(frase in lowered for frase in CONTRADICTION_CLAIMS)
+
+
+def _redact_contradiction_claims(response: str) -> tuple[str, list[str]]:
+    """Quita las frases que afirman la contradicción, no la respuesta entera.
+
+    Mismo criterio que `_redact_false_claims`: una respuesta larga y útil puede
+    llevar una sola frase equivocada, y tirarla entera destruye trabajo bueno.
+    """
+    frases = re.split(r"(?<=[.!?])\s+", response)
+    conservadas: list[str] = []
+    tocados: list[str] = []
+    for frase in frases:
+        culpable = next((c for c in CONTRADICTION_CLAIMS if c in frase.lower()), None)
+        if culpable is None:
+            conservadas.append(frase)
+        else:
+            tocados.append(f"removed:{culpable}")
+    return " ".join(conservadas).strip(), tocados
 
 
 def _redact_false_claims(response: str) -> tuple[str, list[str]]:
