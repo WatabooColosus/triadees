@@ -451,3 +451,42 @@ def test_package_init_is_reachable_through_its_modules(tmp_path: Path) -> None:
     # Ninguno de los dos `__init__` se nombra, pero ambos se ejecutan.
     assert by_id["module:pkg/sub/__init__.py"].state == "active"
     assert by_id["module:pkg/__init__.py"].state == "active"
+
+
+def test_un_importador_de_test_no_cuenta_como_conexion(tmp_path: Path) -> None:
+    """Que un test lo importe demuestra que el módulo corre, no que participe.
+
+    Es la forma de denervación que el atlas existe para encontrar —código
+    escrito, probado y nunca conectado— y era justo la que no veía: `imported`
+    era un conjunto plano, así que la importación desde `tests/` pintaba el
+    módulo `active` y `modules_without_importer` daba cero. El 2026-08-27 había
+    ocho módulos de producción en ese hueco, incluido uno añadido ese mismo día.
+
+    La marca es aditiva: `state` no cambia, porque lo consumen otros grafos.
+    """
+    root = _sample_repo(tmp_path)
+    (root / "pkg" / "solo_probado.py").write_text(
+        "def calcula():\n    return 1\n", encoding="utf-8"
+    )
+    (root / "tests").mkdir(exist_ok=True)
+    (root / "tests" / "test_solo_probado.py").write_text(
+        "from pkg.solo_probado import calcula\n\n\ndef test_calcula():\n"
+        "    assert calcula() == 1\n",
+        encoding="utf-8",
+    )
+
+    nodes, _ = build_import_graph(root)
+    por_id = {n.node_id: n for n in nodes}
+    solo_probado = por_id["module:pkg/solo_probado.py"]
+
+    assert solo_probado.metadata.get("only_test_importers") is True
+    # No se le toca el estado: tiene importador, y decir lo contrario sería
+    # mentir en la otra dirección.
+    assert solo_probado.state == "active"
+
+    # Un módulo con importador de producción no lleva la marca, aunque además
+    # lo importe un test.
+    assert por_id["module:pkg/store.py"].metadata.get("only_test_importers") is None
+    # Y uno que no importa nadie sigue siendo huérfano a secas.
+    assert por_id["module:pkg/orphan.py"].state == "disconnected"
+    assert por_id["module:pkg/orphan.py"].metadata.get("only_test_importers") is None
