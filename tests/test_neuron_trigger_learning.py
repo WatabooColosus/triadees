@@ -200,3 +200,43 @@ def test_the_proposal_carries_its_justification(tmp_path: Path) -> None:
     proposal = NeuronTriggerLearner(path).plan()[0]
     assert proposal["source"] == "charter"
     assert "sandbox" in proposal["justification"]
+
+
+def test_el_arranque_invoca_al_aprendiz() -> None:
+    """Un componente probado y sin llamador no arregla nada.
+
+    Este módulo existía desde el 2026-07-31 con catorce pruebas —incluidas las
+    de las dos neuronas concretas del caso— y **nadie lo importaba**. Las dos
+    seguían con cero activaciones un mes después. Las pruebas de comportamiento
+    de arriba no podían detectarlo: pasaban todas con el arreglo desconectado.
+
+    Por eso esta prueba mira el cableado y no la conducta. Es deliberadamente
+    estructural: si alguien quita la llamada del arranque, las otras catorce
+    seguirán en verde y sólo caerá ésta.
+    """
+    import ast
+    from pathlib import Path
+
+    arranque = Path(__file__).resolve().parents[1] / "apps" / "single_port_app.py"
+    arbol = ast.parse(arranque.read_text(encoding="utf-8"))
+
+    importado = any(
+        isinstance(n, ast.ImportFrom)
+        and n.module == "triade.core.neuron_trigger_learning"
+        and any(a.name == "NeuronTriggerLearner" for a in n.names)
+        for n in ast.walk(arbol)
+    )
+    assert importado, "el arranque ya no importa NeuronTriggerLearner"
+
+    # Importarlo no basta: hay que llamarlo. Se busca `NeuronTriggerLearner(...)`
+    # seguido de `.apply(...)`, que es la forma que escribe de verdad.
+    aplicado = any(
+        isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "apply"
+        and isinstance(n.func.value, ast.Call)
+        and isinstance(n.func.value.func, ast.Name)
+        and n.func.value.func.id == "NeuronTriggerLearner"
+        for n in ast.walk(arbol)
+    )
+    assert aplicado, "el arranque importa el aprendiz pero no llama a apply()"
