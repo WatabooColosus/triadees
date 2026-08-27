@@ -141,16 +141,7 @@ def build_system_events(
             }
         )
     if post_run_learning.get("enabled"):
-        events.append(
-            {
-                "type": "post_run_learning_candidate",
-                "severity": "important",
-                "status": post_run_learning.get("status", "candidate_only"),
-                "message": f"Aprendizaje post-run registrado como candidato: {post_run_learning.get('candidate_id')}. Se evaluará y consolidará en segundo plano.",
-                "action_required": "none",
-                "payload": post_run_learning,
-            }
-        )
+        events.append(_post_run_learning_event(post_run_learning))
     if getattr(crystal, "temporal_status", "stable") in {"critical", "degrading"}:
         events.append(
             {
@@ -172,3 +163,58 @@ def build_system_events(
             }
         )
     return events
+
+
+def _post_run_learning_event(post_run_learning: dict[str, Any]) -> dict[str, Any]:
+    """Dice qué pasó de verdad con el aprendizaje de este run.
+
+    El mensaje anterior era «Aprendizaje post-run registrado como candidato:
+    {candidate_id}», y se emitía con cualquier `enabled`. En el camino vivo
+    —`delegated_to_governed_post_run_worker`— **no hay `candidate_id` por
+    diseño**: se encola una tarea y el candidato lo crea el worker después. La
+    plantilla interpolaba una clave inexistente y la UI acababa mostrando
+    literalmente «registrado como candidato: None», afirmando un registro que
+    no había ocurrido.
+
+    Son tres desenlaces distintos y ninguno debe confundirse con otro:
+
+    - ``candidate_created``   — existe fila y se da su id;
+    - ``candidate_scheduled`` — hay tarea encolada, el id llegará después;
+    - ``no_candidate_created``— no se creó nada, y se dice por qué.
+    """
+    modo = str(post_run_learning.get("mode") or "")
+    candidate_id = post_run_learning.get("candidate_id")
+    estado = str(post_run_learning.get("status") or "")
+
+    if candidate_id:
+        provenance = "candidate_created"
+        message = (
+            f"Aprendizaje post-run registrado como candidato {candidate_id}. "
+            "Se evaluará y consolidará en segundo plano."
+        )
+    elif modo == "delegated_to_governed_post_run_worker" or estado == "scheduled":
+        provenance = "candidate_scheduled"
+        message = (
+            "Aprendizaje post-run delegado al worker gobernado: hay tarea "
+            "encolada y todavía no existe candidato. El id se asignará cuando "
+            "la tarea se ejecute."
+        )
+    else:
+        provenance = "no_candidate_created"
+        motivo = str(
+            post_run_learning.get("reason")
+            or post_run_learning.get("error")
+            or "sin motivo declarado"
+        )
+        message = f"No se creó candidato de aprendizaje para este run: {motivo}."
+
+    return {
+        "type": "post_run_learning_candidate",
+        "severity": "important",
+        "status": estado or "candidate_only",
+        "provenance": provenance,
+        "candidate_id": candidate_id or None,
+        "message": message,
+        "action_required": "none",
+        "payload": post_run_learning,
+    }

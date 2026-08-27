@@ -82,3 +82,62 @@ def test_filter_obsolete_edge_candidates_removes_android_pairing_debt() -> None:
     )
 
     assert [candidate["name"] for candidate in filtered] == ["memory"]
+
+
+# ── §18.10: la procedencia del aprendizaje post-run nunca miente ────────────
+
+from triade.core.run_system_events import _post_run_learning_event  # noqa: E402
+
+
+def test_el_camino_delegado_no_afirma_haber_creado_candidato():
+    """El bug literal: la UI mostraba «registrado como candidato: None».
+
+    `delegated_to_governed_post_run_worker` es el camino vivo y **no produce
+    `candidate_id` por diseño**: encola una tarea y el worker crea la fila
+    después. La plantilla interpolaba una clave inexistente y afirmaba un
+    registro que no había ocurrido.
+    """
+    evento = _post_run_learning_event(
+        {
+            "enabled": True,
+            "mode": "delegated_to_governed_post_run_worker",
+            "status": "scheduled",
+        }
+    )
+    assert evento["provenance"] == "candidate_scheduled"
+    assert evento["candidate_id"] is None
+    assert "None" not in evento["message"]
+    assert "todavía no existe candidato" in evento["message"]
+
+
+def test_un_candidato_real_se_nombra_por_su_id():
+    evento = _post_run_learning_event(
+        {"enabled": True, "mode": "candidate_only", "candidate_id": "exp-abc123"}
+    )
+    assert evento["provenance"] == "candidate_created"
+    assert evento["candidate_id"] == "exp-abc123"
+    assert "exp-abc123" in evento["message"]
+
+
+def test_cuando_no_se_crea_nada_se_dice_el_motivo():
+    evento = _post_run_learning_event(
+        {
+            "enabled": True,
+            "status": "skipped",
+            "reason": "source_sin_aprendizaje:phase1-real-e2e",
+        }
+    )
+    assert evento["provenance"] == "no_candidate_created"
+    assert evento["candidate_id"] is None
+    assert "source_sin_aprendizaje:phase1-real-e2e" in evento["message"]
+
+
+def test_ningun_desenlace_imprime_none_en_el_mensaje():
+    """La invariante que faltaba: `None` nunca es un id que enseñar."""
+    for payload in (
+        {"enabled": True, "mode": "delegated_to_governed_post_run_worker"},
+        {"enabled": True, "mode": "candidate_only", "candidate_id": None},
+        {"enabled": True, "status": "error", "reason": "enqueue_failed"},
+        {"enabled": True},
+    ):
+        assert "None" not in _post_run_learning_event(payload)["message"], payload
