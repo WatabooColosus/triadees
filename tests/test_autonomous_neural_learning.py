@@ -233,7 +233,7 @@ def test_no_distribuye_sin_consolidacion_ni_evidencia(tmp_path: Path) -> None:
         domain="audit",
         risk_level="low",
     )
-    with pytest.raises(ValueError, match="requires_consolidated_knowledge"):
+    with pytest.raises(ValueError, match="requires_verified_knowledge"):
         NeuralLearningRouter(db).route(str(row["candidate_id"]))
 
     task_dir = tmp_path / "rejected"
@@ -251,3 +251,89 @@ def test_no_distribuye_sin_consolidacion_ni_evidencia(tmp_path: Path) -> None:
     assert (
         NeuralLearningRouter(db).rejections()[0]["candidate_id"] == row["candidate_id"]
     )
+
+
+def test_lo_verificado_por_evidencia_ya_puede_recibir_destino(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """El círculo que impedía que un saber nuevo llegara nunca a un prompt.
+
+    Con `TRIADE_NEURAL_LEARNING_ROUTING=1` sólo se inyecta lo que tiene ruta
+    neuronal, y el router sólo aceptaba `consolidated`. Pero consolidar exige
+    `run_use_count >= 3`, y ese contador sólo lo mueve `confirm_uses()`, que
+    exige que el saber se haya **inyectado**. No se podía inyectar sin estar
+    consolidado ni consolidar sin haber sido inyectado.
+
+    Los tests no lo veían porque `_prepared_db` llama a `mark_used_in_run` tres
+    veces a mano antes de consolidar: le regala al candidato los usos que en
+    producción sólo puede ganar siendo inyectado. Medido en la base viva el
+    2026-08-27, las 22 rutas eran todas del 11-ago y no había ni una posterior.
+
+    Aquí el candidato llega a `evidence_verified` por la puerta del Measurement
+    Core y **con `run_use_count` en 0**, que es como llega de verdad.
+    """
+    monkeypatch.setenv("TRIADE_NEURAL_LEARNING_ROUTING", "1")
+    db, candidate_id, _neuron_id = _prepared_db_sin_usos(tmp_path)
+
+    pipe = LearningPipeline(db)
+    fila = pipe.get_candidate(candidate_id) or {}
+    assert fila["status"] == "evidence_verified"
+    assert int(fila["run_use_count"] or 0) == 0
+
+    ruta = NeuralLearningRouter(db).route(candidate_id)
+    assert ruta["status"] == "routed"
+
+    injection = ProductionKnowledgeInjector(db).build(QUERY, run_id="run-tras-ruta")
+    assert candidate_id in injection.injected_ids
+    assert candidate_id in injection.neural_routes
+
+
+def test_el_planner_encola_destino_para_lo_verificado(tmp_path: Path) -> None:
+    """Y el planner tiene que verlo solo, o la ruta nunca se crea sin ayuda."""
+    db, candidate_id, _neuron_id = _prepared_db_sin_usos(tmp_path)
+    planned = MissionPlanner(db_path=db)._plan_neural_learning_distribution()
+    assert [t.payload["candidate_id"] for t in planned] == [candidate_id]
+
+
+def _prepared_db_sin_usos(tmp_path: Path) -> tuple[Path, str, int]:
+    """Como `_prepared_db`, pero sin regalarle usos ni consolidar.
+
+    Es el estado real de un saber recién medido: `evidence_verified` por
+    `promote_if_verified()` y `run_use_count` a cero.
+    """
+    db, candidate_id, neuron_id = _prepared_db(tmp_path, baseline_score=0.50)
+    # Instanciar el router aplica su migración: la tabla de asignaciones no está
+    # en `schemas.sql` y sin esto la limpieza de abajo no tendría qué borrar.
+    NeuralLearningRouter(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "UPDATE learning_queue SET status='evidence_verified', run_use_count=0,"
+            " run_outcome_scores='[]', avg_outcome_score=0 WHERE candidate_id=?",
+            (candidate_id,),
+        )
+        conn.execute(
+            "DELETE FROM neuron_learning_assignments WHERE candidate_id=?",
+            (candidate_id,),
+        )
+    return db, candidate_id, neuron_id
+
+
+def test_un_rechazo_no_vuelve_a_elegirse_cada_ciclo(tmp_path: Path) -> None:
+    """Quien decide que no, tiene que dejarlo escrito.
+
+    `record_rejection` no escribe asignación —y hace bien: fabricar una sería
+    inventar un destino que nadie autorizó—, pero el planner filtraba sólo por
+    `neuron_learning_assignments`. El resultado es que el mismo candidato salía
+    elegido en cada ciclo para volver a ser rechazado: 25 rechazos idénticos de
+    `dst-a705dd2c47a368e1` por `no_compatible_neuron` en once minutos, medidos
+    en la base viva el 2026-08-27. Es la tercera aparición del mismo patrón,
+    después de `learning_evidence_generation` (F-037) y del destilador.
+    """
+    db, candidate_id, _neuron_id = _prepared_db_sin_usos(tmp_path)
+    planner = MissionPlanner(db_path=db)
+    assert [
+        t.payload["candidate_id"] for t in planner._plan_neural_learning_distribution()
+    ] == [candidate_id]
+
+    NeuralLearningRouter(db).record_rejection(candidate_id, "no_compatible_neuron")
+    assert planner._plan_neural_learning_distribution() == []

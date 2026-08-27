@@ -63,8 +63,18 @@ _VERBOS_PREFERENCIA = (
 # el verbo, sino que el filtro de seguridad y la sonda objetiva lo aprueben
 # después.
 _DIRECTIVA = r"(?:siempre|nunca|jamas)\s+[a-z]{3,}|[a-z]{3,}\s+(?:siempre|nunca)"
+# `quiero que` a secas **no** está: pide una tarea, no enuncia una regla.
+# «quiero que me hagas la imagen de un ave» se guardaba como `preference` con la
+# misma dignidad que «usa siempre la etiqueta X», y no es lo mismo: el encargo se
+# agota al cumplirlo y no afirma nada que se pueda sondear. Los cinco así de la
+# base viva llevaban en `internally_checked` desde el principio, ninguno llegó a
+# medirse y ninguno podía. Una petición que sí funda una regla sigue entrando por
+# otra puerta: «quiero que uses siempre X» casa con `_DIRECTIVA`, y «quiero que
+# sepas que mi identificador es X» casa con `_HECHO`. Comprobado sobre los 39
+# candidatos `experience` de la base: se descartan 5, y los 7 `improved` se
+# quedan.
 _PREFERENCIA = re.compile(
-    rf"\b(?:prefiero|prefiere|quiero que|{_DIRECTIVA}|"
+    rf"\b(?:prefiero|prefiere|{_DIRECTIVA}|"
     rf"{_VERBOS_PREFERENCIA}\s+primero|"
     r"a partir de ahora|de ahora en adelante|por norma|por regla)\b"
 )
@@ -80,6 +90,14 @@ _PROCEDIMIENTO = re.compile(
     r"\b(?:primero|luego|despues|por ultimo|el paso|procedimiento|"
     r"para\s+\w+\s+hay que)\b"
 )
+
+#: Una pregunta no funda ninguna proposición. Se separa por frases y no por el
+#: mensaje entero a propósito: medido sobre la base viva el 2026-08-27, el único
+#: candidato `experience` productivo que empieza por interrogación —«¿Cuál es mi
+#: marcador de auditoría? Responde exactamente sólo MARCADOR_AZUL…»— lleva el
+#: dato en la frase siguiente, y descartarlo por contener un «?» habría tirado un
+#: `improved` real.
+_INTERROGATIVA = re.compile(r"^\s*¿|\?\s*$")
 
 #: Marcas de que la frase no afirma nada estable.
 _ESPECULACION = re.compile(
@@ -202,6 +220,8 @@ class ExperienceLearningCandidateProducer:
             return "autorreferencial_o_transcripcion"
         if _ESPECULACION.search(norm):
             return "especulativo"
+        if self._solo_preguntas(texto):
+            return "solo_preguntas_no_afirma"
         veredicto = self._safety_verdict(texto)
         if veredicto is not None and veredicto.decision != "allowed":
             return f"inseguro:{veredicto.decision}:{','.join(veredicto.reason_codes)}"
@@ -231,6 +251,30 @@ class ExperienceLearningCandidateProducer:
             )
         except (ValueError, TypeError, re.error):
             return None
+
+    @staticmethod
+    def _frases(texto: str) -> list[str]:
+        """Parte el mensaje en frases conservando los signos que las cierran."""
+        crudo = re.split(r"(?<=[.!?])\s+", str(texto or "").strip())
+        return [f.strip() for f in crudo if f.strip()]
+
+    @classmethod
+    def _solo_preguntas(cls, texto: str) -> bool:
+        """¿El mensaje entero es interrogativo?
+
+        Es el hueco por el que entraba la mayor parte del ruido. `_HECHO` casa
+        con un `\bes\b` suelto, así que «cuanto es 2 mas 2 y como me llamo yo?»
+        y «hola que dia es hoy?» se guardaban como `fact`. No afirman nada:
+        `extract_target()` devuelve `None` para todos, nunca se pueden medir, y
+        se quedan para siempre en la tanda que `MissionPlanner` reescanea cada
+        ciclo. Medido el 2026-08-27 sobre la base viva: 163 candidatos elegibles
+        para generar evidencia, **0 medibles**, y la etapa entera parada por
+        material que no podía afirmar nada.
+        """
+        frases = cls._frases(texto)
+        if not frases:
+            return True
+        return all(_INTERROGATIVA.search(f) for f in frases)
 
     @staticmethod
     def _classify(texto: str) -> tuple[CandidateType | None, dict[str, Any]]:

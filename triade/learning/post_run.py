@@ -103,11 +103,30 @@ def schedule_learning_from_run(
         store = AutonomousTaskStore(db_path)
         # Clave de idempotencia por run: reintentar el cierre de un run no puede
         # duplicar su aprendizaje.
+        # Prioridad 25, no 70. En `autonomous_tasks` gana el número **bajo**, y
+        # 70 era el peor valor de los diecinueve tipos de tarea del sistema —el
+        # siguiente peor es `research_curriculum` con 45 y todo lo demás está en
+        # 35 o menos—. Justo la tarea que convierte una conversación en saber
+        # iba la última de la cola.
+        #
+        # `claim()` envejece un punto por minuto (`priority - min(100, edad)`),
+        # así que con 70 hacían falta ~60 minutos para superar a un `pulse_check`
+        # recién creado, y de esos entran unos tres por minuto. Medido sobre los
+        # últimos siete días de la base viva: mediana de 124 s y máximo de 5.682 s
+        # —95 minutos—, contra 5 s de mediana en `pulse_check` y 1 s en el resto
+        # de las etapas de aprendizaje.
+        #
+        # 25 no adelanta a nada que importe: sigue por detrás del latido (10),
+        # la copia cifrada (4), la deduplicación (6), la bodega (12), la
+        # gobernanza semántica (13) y la educación neuronal (20). Sólo deja de
+        # ser un caso aparte. La regla de que aprender no puede retrasar una
+        # conversación se sostiene igual: aquí sólo se escribe una fila, y el
+        # trabajo ocurre después en el worker.
         task = store.enqueue(
             "learning_candidate_generation",
             payload,
             idempotency_key=f"post-run-learning:{run_id}",
-            priority=70,
+            priority=25,
         )
     except (sqlite3.Error, OSError, ValueError) as exc:
         # Se devuelve dicho, no tragado. `except Exception: pass` aquí sería

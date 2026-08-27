@@ -1121,6 +1121,28 @@ class WorkerLoop:
         } or bool(raw_receipt and str(raw_receipt.get("action") or "") != "observe")
         if raw_receipt:
             receipt = EffectReceipt.model_validate(raw_receipt)
+            if not receipt.verified:
+                # Un handler que dice «completado» con un recibo sin verificar
+                # se contradice a sí mismo. Antes esto llegaba a
+                # `ExecutionResult` y reventaba con un `ValueError` que el bucle
+                # trata como fallo *reintentable*: el mismo dato producía el
+                # mismo recibo tres veces y la tarea acababa en `dead_letter`
+                # con un error de validación en vez de una causa. Se devuelve el
+                # mismo veredicto que la rama de abajo, y no reintentable porque
+                # es determinista.
+                return ExecutionResult(
+                    status="failed",
+                    executed=True,
+                    retryable=False,
+                    error_code="unverified_effect_receipt",
+                    message=(
+                        "El handler declaró 'completed' con un recibo sin"
+                        f" verificar: {receipt.action} sobre {receipt.target}"
+                    ),
+                    artifacts=evidence,
+                    evidence=evidence,
+                    resource_usage=resource_usage,
+                )
         elif not effect_applied and evidence:
             receipt = EffectReceipt(
                 action="observe",
@@ -2434,30 +2456,53 @@ class WorkerLoop:
             json.dumps(candidato.to_dict(), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        # El recibo tiene que apuntar a la fila que de verdad guarda el saber,
+        # y esa no siempre lleva el `candidate_id` que acaba de generarse.
+        # `candidate_id` es un `uuid4` nuevo en cada intento, mientras que
+        # `persist()` deduplica por `normalized_summary`: ante un duplicado
+        # devuelve False y **no** escribe fila, así que buscar el id nuevo no
+        # encuentra nada. El recibo salía `verified=False` sobre un
+        # `status="completed"` y `ExecutionResult` lo rechazaba con
+        # `completed_requires_verified_effect_receipt`; tres reintentos
+        # deterministas después, la tarea moría en `dead_letter`. Medido el
+        # 2026-08-27 sobre la base viva: los 4 `dead_letter` del día eran los 4
+        # duplicados del día. El saber ya estaba en la cola; lo que fallaba era
+        # el sitio donde se comprobaba.
         with sqlite3.connect(self.db_path) as conn:
-            candidate_exists = bool(
-                conn.execute(
-                    "SELECT 1 FROM learning_queue WHERE candidate_id=?",
-                    (candidato.candidate_id,),
+            fila = conn.execute(
+                "SELECT candidate_id FROM learning_queue WHERE candidate_id=?",
+                (candidato.candidate_id,),
+            ).fetchone()
+            if fila is None:
+                fila = conn.execute(
+                    "SELECT candidate_id FROM learning_queue"
+                    " WHERE normalized_summary=?",
+                    (candidato.normalized_content,),
                 ).fetchone()
-            )
-        candidate_verified = candidate_ref.is_file() and candidate_exists
+        stored_id = str(fila[0]) if fila else None
+        candidate_verified = candidate_ref.is_file() and stored_id is not None
         receipt = EffectReceipt(
             action="persist_learning_candidate" if creado else "observe",
-            target=candidato.candidate_id,
-            execution={"source_run_id": source_run_id, "created": creado},
-            postcondition={"passed": candidate_verified},
+            target=stored_id or candidato.candidate_id,
+            execution={
+                "source_run_id": source_run_id,
+                "created": creado,
+                "produced_candidate_id": candidato.candidate_id,
+            },
+            postcondition={"passed": candidate_verified, "stored_id": stored_id},
             verified=candidate_verified,
             verifier="learning_candidate_artifact_postcondition",
             evidence_refs=[
                 str(candidate_ref),
-                f"sqlite:learning_queue:{candidato.candidate_id}",
+                f"sqlite:learning_queue:{stored_id or candidato.candidate_id}",
             ],
         )
         return {
             "status": "completed",
             "effect": "candidate_created" if creado else "duplicate_skipped",
-            "candidate_id": candidato.candidate_id,
+            # El id que se reporta es el de la fila viva. Devolver el uuid
+            # descartado dejaba una referencia que no resuelve contra la tabla.
+            "candidate_id": stored_id or candidato.candidate_id,
             "candidate_type": candidato.type,
             "created": creado,
             "stable_memory_written": False,

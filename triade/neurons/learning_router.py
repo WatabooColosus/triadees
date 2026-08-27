@@ -16,6 +16,31 @@ ROUTER_VERSION = "neural-learning-router-1.0.0"
 AUTHORIZED_TYPES = frozenset({"fact", "preference", "correction", "procedure"})
 ACTIVE_ASSIGNMENT_STATES = frozenset({"experimental", "beneficial"})
 
+#: Estados desde los que un saber puede recibir destino neuronal.
+#:
+#: `evidence_verified` faltaba, y su ausencia cerraba el círculo entero. Con
+#: `TRIADE_NEURAL_LEARNING_ROUTING=1` —encendido en `.env` y en el servicio—
+#: `ProductionKnowledgeInjector.build()` restringe la recuperación a los
+#: candidatos **con ruta activa**. Y sólo tenía ruta lo `consolidated`. Pero
+#: `LearningPipeline.consolidate()` exige `run_use_count >= 3`, y ese contador
+#: sólo lo mueve `confirm_uses()`, que a su vez exige que el saber se haya
+#: **inyectado**. Es decir: no se podía inyectar sin estar consolidado, y no se
+#: podía consolidar sin haber sido inyectado.
+#:
+#: Medido en vivo el 2026-08-27 con un saber recién verificado: 2 candidatos
+#: inyectados con el flag apagado, **0** con el flag encendido. Las 22 rutas de
+#: la base son todas del 2026-08-11 entre las 17:15 y las 17:20; ni una desde
+#: entonces. Todo lo aprendido y verificado después era invisible al prompt.
+#:
+#: Esto **no** relaja ningún listón: `evidence_verified` lo escribe
+#: `evidence_producer.promote_if_verified()` tras pasar el mismo
+#: `require_improvement()` del Measurement Core, y abajo se sigue exigiendo
+#: evidencia `improved`, riesgo autorizado y la `RetrievalSafetyPolicy` en cada
+#: inyección. Es la misma corrección que ya se hizo un piso más abajo con
+#: `LearningPipeline.CONSOLIDATABLE_STATES`, que también se había quedado sólo
+#: con la puerta antigua.
+ROUTABLE_STATES = frozenset({"evidence_verified", "consolidated"})
+
 
 def _tokens(value: str) -> set[str]:
     return {token for token in re.findall(r"[a-z0-9]{3,}", value.lower())}
@@ -116,8 +141,8 @@ class NeuralLearningRouter:
             ).fetchone()
             if row is None:
                 raise KeyError(f"candidato inexistente: {candidate_id}")
-            if str(row["status"]) != "consolidated":
-                raise ValueError("neural_distribution_requires_consolidated_knowledge")
+            if str(row["status"]) not in ROUTABLE_STATES:
+                raise ValueError("neural_distribution_requires_verified_knowledge")
             # Bases anteriores usaban el literal ``none`` para "sin riesgo
             # clasificado". No equivale a high; la RetrievalSafetyPolicy vuelve
             # a evaluar el contenido antes de cada inyección.
@@ -333,7 +358,21 @@ class NeuralLearningRouter:
                 VALUES(NULL,NULL,'neural_knowledge_rejected',?,?)""",
                 (
                     json.dumps(
-                        {"candidate_id": candidate_id, "reason": reason},
+                        {
+                            "candidate_id": candidate_id,
+                            "reason": reason,
+                            # Sin esto el rechazo no se puede consultar y el
+                            # planner vuelve a elegir al mismo para siempre:
+                            # un rechazo no escribe asignación, así que el
+                            # `NOT EXISTS` sobre `neuron_learning_assignments`
+                            # sigue siendo cierto. Medido el 2026-08-27: 25
+                            # rechazos seguidos de `dst-a705dd2c47a368e1` por
+                            # `no_compatible_neuron` en once minutos. Subir
+                            # `ROUTER_VERSION` reabre a los descartados sin
+                            # borrar una sola fila, igual que `PROMOTER_VERSION`
+                            # en `assertion_promoter`.
+                            "router_version": ROUTER_VERSION,
+                        },
                         ensure_ascii=False,
                     ),
                     now,

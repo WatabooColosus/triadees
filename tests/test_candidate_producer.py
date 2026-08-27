@@ -206,3 +206,90 @@ def test_reconoce_las_formas_normales_de_declarar_una_preferencia(
     r = producer.produce(run_id="r1", role="user", message=mensaje)
     assert len(r.candidates) == 1, r.rejected
     assert r.candidates[0].type == "preference"
+
+
+# ── lo que pregunta o encarga, pero no afirma ─────────────────────────
+
+
+@pytest.mark.parametrize(
+    "mensaje",
+    [
+        "hola que dia es hoy?",
+        "cuanto es 2 mas 2 y como me llamo yo?",
+        "¿Cuántos planetas tiene el sistema solar?",
+    ],
+)
+def test_una_pregunta_no_es_un_saber(
+    producer: ExperienceLearningCandidateProducer, mensaje: str
+) -> None:
+    """`_HECHO` casa con un `es` suelto, y así entraba media conversación.
+
+    Los dos primeros están en la base viva guardados como `fact`. No afirman
+    nada: `extract_target()` da `None`, nunca se pueden medir y se quedan para
+    siempre en la tanda que `MissionPlanner` reescanea cada ciclo. Medido el
+    2026-08-27: 163 candidatos elegibles para evidencia, 0 medibles.
+    """
+    r = producer.produce(run_id="run-1", message=mensaje, role="user")
+    assert not r.candidates
+    assert r.rejected[0]["reason"] == "solo_preguntas_no_afirma"
+
+
+def test_una_pregunta_con_el_dato_en_la_frase_siguiente_si_entra(
+    producer: ExperienceLearningCandidateProducer,
+) -> None:
+    """El filtro es por frase, no por mensaje, y esta es la razón.
+
+    Este contenido está en la base viva y es uno de los siete `improved` de
+    `experience`: la interrogación abre, pero el dato sondeable va después.
+    Rechazar todo mensaje que contenga un «?» habría tirado evidencia real.
+    """
+    r = producer.produce(
+        run_id="run-1",
+        message=(
+            "¿Cuál es mi marcador de auditoría? Responde exactamente sólo "
+            "MARCADOR_AZUL seguido del número acordado."
+        ),
+        role="user",
+    )
+    assert r.candidates, r.rejected
+
+
+@pytest.mark.parametrize(
+    "mensaje",
+    [
+        "quiero que me hagas la imagen de un ave",
+        "quiero que aprendas a hacer imagenes digitales",
+        "quiero que busques la forma de aprender a crear imagenes",
+    ],
+)
+def test_un_encargo_puntual_no_es_una_regla(
+    producer: ExperienceLearningCandidateProducer, mensaje: str
+) -> None:
+    """Pedir una tarea no enuncia ninguna norma.
+
+    Los tres están en la base viva como `preference`, con la misma dignidad que
+    «usa siempre la etiqueta X». El encargo se agota al cumplirlo y no deja nada
+    que sondear: los cinco de este tipo llevaban en `internally_checked` desde
+    que se crearon y ninguno llegó a medirse.
+    """
+    r = producer.produce(run_id="run-1", message=mensaje, role="user")
+    assert not r.candidates
+
+
+@pytest.mark.parametrize(
+    "mensaje",
+    [
+        "quiero que uses siempre la etiqueta VEREDICTO-TRIADE en los informes",
+        "quiero que sepas que el identificador de mi entorno es ENTORNO_ALFA",
+    ],
+)
+def test_una_peticion_que_si_funda_una_regla_sigue_entrando(
+    producer: ExperienceLearningCandidateProducer, mensaje: str
+) -> None:
+    """Quitar `quiero que` no puede cerrar la puerta a lo que sí afirma.
+
+    Entran por `_DIRECTIVA` y por `_HECHO` respectivamente, que es donde debían
+    entrar desde el principio.
+    """
+    r = producer.produce(run_id="run-1", message=mensaje, role="user")
+    assert r.candidates, r.rejected

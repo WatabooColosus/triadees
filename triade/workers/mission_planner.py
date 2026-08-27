@@ -163,13 +163,21 @@ class MissionPlanner:
         """Distribuye un consolidado todavía no asignado a ninguna neurona."""
         try:
             # Inicializar el router aplica la migración canónica antes de leer.
-            from triade.neurons.learning_router import NeuralLearningRouter
+            from triade.neurons.learning_router import (
+                ROUTER_VERSION,
+                NeuralLearningRouter,
+            )
 
             NeuralLearningRouter(self.db_path)
             with closing(self._connect()) as conn, conn:
                 row = conn.execute(
+                    # `evidence_verified` entra aquí junto a `consolidated`
+                    # porque pedir sólo lo consolidado cerraba el círculo: ver
+                    # `ROUTABLE_STATES` en `learning_router.py`. Sin esto el
+                    # planner no encolaba destino para nada aprendido después
+                    # del 2026-08-11 y la inyección se quedaba a cero.
                     """SELECT q.candidate_id FROM learning_queue q
-                    WHERE q.status='consolidated'
+                    WHERE q.status IN ('evidence_verified','consolidated')
                       AND COALESCE(q.risk_level,'low') IN ('none','low','medium')
                       AND EXISTS (
                         SELECT 1 FROM learning_evidence e
@@ -179,7 +187,25 @@ class MissionPlanner:
                         SELECT 1 FROM neuron_learning_assignments a
                         WHERE a.candidate_id=q.candidate_id
                       )
-                    ORDER BY q.updated_at LIMIT 1"""
+                      -- Un rechazo no escribe asignación, así que sin esta
+                      -- cláusula el `NOT EXISTS` de arriba sigue siendo cierto
+                      -- y el mismo candidato vuelve a salir elegido cada ciclo:
+                      -- 25 rechazos idénticos de `dst-a705dd2c47a368e1` por
+                      -- `no_compatible_neuron` en once minutos, medidos el
+                      -- 2026-08-27. Es la tercera vez que aparece este patrón
+                      -- —antes en `learning_evidence_generation` (F-037) y en
+                      -- `learning_distillation_attempts`—: quien decide que no
+                      -- tiene que dejarlo escrito, o no ha decidido nada.
+                      AND NOT EXISTS (
+                        SELECT 1 FROM neuron_education_events ev
+                        WHERE ev.event_type='neural_knowledge_rejected'
+                          AND json_extract(ev.payload_json,'$.candidate_id')
+                              = q.candidate_id
+                          AND json_extract(ev.payload_json,'$.router_version')
+                              = ?
+                      )
+                    ORDER BY q.updated_at LIMIT 1""",
+                    (ROUTER_VERSION,),
                 ).fetchone()
             if row is None:
                 return []
