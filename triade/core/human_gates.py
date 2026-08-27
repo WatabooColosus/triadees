@@ -50,7 +50,7 @@ def _modelos_servidos() -> list[str]:
         return []
 
 
-def _base_model_del_manifiesto(adapter_path: str) -> str:
+def base_model_del_manifiesto(adapter_path: str) -> str:
     """El modelo base que declara el artefacto en disco.
 
     Una versión inscrita antes de que existiera la columna `base_model` la tiene
@@ -104,7 +104,7 @@ def _peft_gates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         # propio `activate()`.
         if observaciones < 1:
             bloqueos.append("sin una sola observación con éxito")
-        base = str(fila["base_model"] or "").strip() or _base_model_del_manifiesto(
+        base = str(fila["base_model"] or "").strip() or base_model_del_manifiesto(
             str(fila["adapter_path"] or "")
         )
         servido = _base_model_servido(base)

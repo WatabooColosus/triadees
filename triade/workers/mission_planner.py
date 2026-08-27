@@ -1032,11 +1032,11 @@ class MissionPlanner:
             # No se cierra el canary ni se toca su estado: eso es una decisión
             # con firma. Sólo se deja de gastar en él, y la razón queda visible
             # en la compuerta de Cabina Viva.
-            from triade.core.human_gates import _base_model_del_manifiesto
+            from triade.core.human_gates import base_model_del_manifiesto
             from triade.training.serving_governance import normalize_model_id
 
             base = str(fila["base_model"] or "").strip() or (
-                _base_model_del_manifiesto(str(fila["adapter_path"] or ""))
+                base_model_del_manifiesto(str(fila["adapter_path"] or ""))
             )
             if base and not self._modelo_base_servido(base, normalize_model_id):
                 return []
