@@ -504,29 +504,52 @@ class MissionPlanner:
                         )
                     )
 
-                # learning_candidate_deduplication: solo si hay candidatos sin
-                # agrupar. Sin esta condición la tarea correría eternamente sin
-                # efecto, que es justo lo que hace parecer vivo un panel muerto.
+                # learning_candidate_deduplication: sólo si ha entrado material
+                # que `analyze()` todavía no haya examinado.
+                #
+                # Aquí vivía la condición «candidatos sin fila en
+                # `learning_candidate_groups`», y era insatisfacible por
+                # construcción: `analyze()` descarta todo grupo de un solo
+                # miembro (`len(grupo) < 2`), así que un candidato único nunca
+                # recibe fila y cuenta como «sin agrupar» para siempre. El
+                # 2026-08-27 eran 612 de 1.040, y la tarea llevaba 8.448
+                # ejecuciones desde el 1-ago sin escribir una sola fila: los 428
+                # duplicados reales ya estaban guardados y `apply()` es
+                # idempotente. Cada pasada gastaba ranura de obrero y
+                # presupuesto de CPU del gobernador, que es el mismo que frena
+                # la cadena de aprendizaje: el no-op no era gratis, competía.
+                #
+                # Lo que decide si hay trabajo no es quién quedó agrupado, sino
+                # si hay material nuevo desde el último examen. La marca de agua
+                # es la fecha en que se **programó** el último dedup completado,
+                # no la de su fin: un candidato que entra mientras la tarea
+                # corre puede no haber sido leído, y equivocarse hacia una
+                # pasada de más es recuperable — hacia una de menos, no.
                 try:
-                    sin_grupo = conn.execute(
+                    sin_examinar = conn.execute(
                         """SELECT COUNT(*) AS cnt FROM learning_queue q
-                        WHERE NOT EXISTS (
-                            SELECT 1 FROM learning_candidate_groups g
-                            WHERE g.member_candidate_id = q.candidate_id
-                               OR g.canonical_candidate_id = q.candidate_id)"""
+                        WHERE q.created_at > COALESCE(
+                            (SELECT MAX(t.created_at) FROM autonomous_tasks t
+                              WHERE t.task_type = 'learning_candidate_deduplication'
+                                AND t.status = 'completed'), '')"""
                     ).fetchone()
-                    sin_grupo_cnt = int(sin_grupo["cnt"] or 0) if sin_grupo else 0
+                    sin_examinar_cnt = (
+                        int(sin_examinar["cnt"] or 0) if sin_examinar else 0
+                    )
                 except sqlite3.Error:
-                    # La tabla aún no existe: entonces todo está sin agrupar.
-                    sin_grupo_cnt = lr_cnt or 1
-                if sin_grupo_cnt > 1:
+                    # Sin cola todavía: nada se ha examinado nunca.
+                    sin_examinar_cnt = lr_cnt or 1
+                if sin_examinar_cnt > 0:
                     tasks.append(
                         PlannedTask(
                             task_type="learning_candidate_deduplication",
                             priority=6,
-                            reason=f"{sin_grupo_cnt} candidatos sin agrupar",
+                            reason=(
+                                f"{sin_examinar_cnt} candidatos sin examinar "
+                                "desde el último dedup"
+                            ),
                             source="mission_planner_baseline",
-                            planner_score=min(1.0, 0.4 + sin_grupo_cnt / 200),
+                            planner_score=min(1.0, 0.4 + sin_examinar_cnt / 200),
                         )
                     )
 
