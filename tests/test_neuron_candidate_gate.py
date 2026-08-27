@@ -62,7 +62,7 @@ def test_gate_allows_domain_specific_recurrent_need() -> None:
 
 # ── §18: regresiones sobre casos reales de la batería conversacional ────────
 
-from triade.core.neuron_candidate_gate import (  # noqa: E402
+from triade.core.neuron_candidate_gate import (
     _detect_type,
     _looks_like_factual_simple,
 )

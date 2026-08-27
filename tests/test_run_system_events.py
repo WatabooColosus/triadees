@@ -86,7 +86,7 @@ def test_filter_obsolete_edge_candidates_removes_android_pairing_debt() -> None:
 
 # ── §18.10: la procedencia del aprendizaje post-run nunca miente ────────────
 
-from triade.core.run_system_events import _post_run_learning_event  # noqa: E402
+from triade.core.run_system_events import _post_run_learning_event
 
 
 def test_el_camino_delegado_no_afirma_haber_creado_candidato():
