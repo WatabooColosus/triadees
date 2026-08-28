@@ -76,11 +76,43 @@ def test_live_snapshot_reads_real_sources_without_simulation(
     )
 
 
+def _worker_graph_artifact(destino: Path) -> Path:
+    """Genera el grafo de workers con su constructor real.
+
+    Sin esto la prueba dependía de `artifacts/internal_graphs/worker_graph.json`,
+    que está en `.gitignore`: existía en la máquina de quien lo generó alguna vez
+    y **no** en CI. La prueba salía verde en local y roja en CI —y así llegó a
+    `main` el 2026-08-28, con `required-result` en rojo—. Una prueba cuyo
+    resultado depende de un fichero sin versionar no prueba nada.
+    """
+    from dataclasses import asdict
+
+    from triade.observability.runtime_graph import build_worker_graph
+
+    # `internal_graphs_live.ROOT`, no `Path.cwd()`: `conftest` mueve el cwd a un
+    # sandbox con cuatro enlaces simbólicos y sin `.github/workflows`, `Procfile`
+    # ni `Dockerfile`. La alcanzabilidad se calcula desde ahí, sale vacía, ningún
+    # contrato de activación se sostiene y `ready_when_idle` queda a cero —el
+    # mismo síntoma que producía el artefacto ausente en CI, por otra causa—.
+    # En producción el módulo usa esta misma raíz.
+    nodes, _edges = build_worker_graph(internal_graphs_live.ROOT, db_path=None)
+    destino.mkdir(parents=True, exist_ok=True)
+    artefacto = destino / "worker_graph.json"
+    artefacto.write_text(
+        json.dumps({"nodes": [asdict(n) for n in nodes]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return artefacto
+
+
 def test_pulse_carries_live_signals_not_structure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """El pulso debe ser barato: relee SQLite, nunca el AST del repositorio."""
     monkeypatch.setenv("TRIADE_DB_PATH", str(_db(tmp_path)))
+    artefactos = tmp_path / "internal_graphs"
+    _worker_graph_artifact(artefactos)
+    monkeypatch.setattr(internal_graphs_live, "ARTIFACT_DIR", artefactos)
     internal_graphs_live._cache.clear()
 
     pulse, _ = internal_graphs_live.build_pulse()
@@ -89,10 +121,32 @@ def test_pulse_carries_live_signals_not_structure(
     assert pulse["legend"], "el color viaja con el pulso para que la UI no lo invente"
     signals = pulse["signals"]
     assert "LIFE_PULSE" in signals["stages"]
+    assert signals["readiness_source"] == "worker_graph_artifact"
     # Los tipos declarados sin una sola ejecución son justo lo que hay que ver.
     assert signals["task_types"]["pulse_check"]["executions"] == 1
     assert signals["task_types"]["goal_lora_train"]["executions"] == 0
     assert signals["task_types"]["goal_lora_train"]["state"] == "ready"
+
+
+def test_sin_el_artefacto_el_pulso_dice_que_no_sabe_en_vez_de_inventar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Falta el grafo de workers: eso es ignorancia, no desconexión.
+
+    Antes el conjunto de `ready_when_idle` quedaba vacío en silencio y un tipo
+    humano-gateado salía `disconnected` —«no está conectado»— cuando la verdad
+    era «no he podido mirarlo».
+    """
+    monkeypatch.setenv("TRIADE_DB_PATH", str(_db(tmp_path)))
+    monkeypatch.setattr(internal_graphs_live, "ARTIFACT_DIR", tmp_path / "sin-nada")
+    internal_graphs_live._cache.clear()
+
+    signals = internal_graphs_live.build_pulse()[0]["signals"]
+
+    assert signals["readiness_source"] == "missing"
+    assert signals["task_types"]["goal_lora_train"]["state"] == "unknown"
+    # Lo que sí se midió sigue midiéndose: la ignorancia es sólo del readiness.
+    assert signals["task_types"]["pulse_check"]["executions"] == 1
 
 
 def test_timeline_reads_persisted_history_without_changing_sse_cursor(
@@ -306,9 +360,12 @@ def test_declared_manual_entrypoint_classifies_its_module_chain(tmp_path: Path) 
 
     assert counts == {"MANUAL_TOOL": 2, "REAL_BROKEN": 0}
     assert set(modules["classified"]) == set(modules["items"])
-    assert modules["classified"]["triade/evaluation/metric.py"]["evidence"][0][
-        "entrypoint"
-    ] == "scripts/verify.py"
+    assert (
+        modules["classified"]["triade/evaluation/metric.py"]["evidence"][0][
+            "entrypoint"
+        ]
+        == "scripts/verify.py"
+    )
 
 
 def test_graph_and_node_routes_expose_color_and_evidence(

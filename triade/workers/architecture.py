@@ -50,7 +50,23 @@ class WorkerTaskContract:
 
 TASK_PRODUCERS: dict[str, str] = {
     **{task_type: "MissionPlanner" for task_type in WORKER_TASK_TYPES},
-    "learning_candidate_generation": "triade.learning.post_run.schedule_post_run_learning",
+    # El sensor: un run terminado deja constancia y se aparta. No elige etapa.
+    "central_learning_observation": "triade.learning.post_run.schedule_learning_from_run",
+    # Las etapas del aprendizaje tienen **dos** productores legítimos y conviene
+    # decirlo, porque son cosas distintas:
+    #
+    # - `CentralLearningPlanner` las encola con `goal_id` y `goal_step_id` como
+    #   pasos de un plan, cuando decide que una experiencia merece aprenderse;
+    # - `MissionPlanner` las sigue encolando sin objetivo para barrer el
+    #   *backlog* histórico —1.013 candidatos anteriores a que existiera el
+    #   plan—, que si no se quedaría sin quien lo empuje.
+    #
+    # El nombre anterior de este productor, `schedule_post_run_learning`, no
+    # existía en el código: la función se llama `schedule_learning_from_run`.
+    "learning_candidate_generation": "CentralLearningPlanner | MissionPlanner",
+    "learning_candidate_deduplication": "CentralLearningPlanner | MissionPlanner",
+    "learning_evidence_generation": "CentralLearningPlanner | MissionPlanner",
+    "pending_learning_review": "CentralLearningPlanner | MissionPlanner",
     "goal_research": "GoalOrchestrator",
     "goal_safe_command": "GoalOrchestrator",
     "goal_install": "GoalOrchestrator.approve_install",

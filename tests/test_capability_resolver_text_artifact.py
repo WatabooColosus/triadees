@@ -180,3 +180,39 @@ def test_un_verbo_de_creacion_sin_objeto_de_codigo_no_es_modificar_codigo():
     resolucion = CapabilityResolver().resolve("Crea un poema bonito")
     assert resolucion.capability == "unsupported_action"
     assert resolucion.available is False
+
+
+def test_pedir_un_documento_para_descargar_no_es_instalar_en_el_entorno() -> None:
+    """El usuario bajándose un fichero no cambia el entorno de Tríade.
+
+    Ocurrió de verdad el 2026-08-28. «quiero que me des el documento para to
+    descargar» casaba con `\\bdescargar\\b` y abría un goal `environment_install`
+    en `awaiting_approval`; el usuario, que sólo quería el PDF que Tríade acababa
+    de redactar en el turno anterior, recibió «Instalar o descargar cambia el
+    entorno y requiere propuesta y aprobación».
+
+    El verbo decidía solo, sin mirar el objeto —el mismo defecto que
+    `OBJETO_CODIGO` ya corrigió para `repo_modification`—.
+    """
+    resolucion = CapabilityResolver().resolve(
+        "quiero que me des el documento para to descargar"
+    )
+    assert resolucion.capability != "environment_install"
+    assert resolucion.requires_human_approval is False
+
+
+def test_una_instalacion_de_verdad_sigue_exigiendo_persona() -> None:
+    """Estrechar la regla no puede abrir la puerta: falla cerrada."""
+    resolver = CapabilityResolver()
+    for peticion in (
+        "instala numpy",
+        "instala la libreria torch",
+        "descarga el modelo qwen3",
+        "descarga el paquete de dependencias",
+        # Un entregable de texto **junto a** algo instalable sigue siendo
+        # instalación: la exención es sólo para el caso sin nada que instalar.
+        "descarga el informe y el modelo qwen",
+    ):
+        resolucion = resolver.resolve(peticion)
+        assert resolucion.capability == "environment_install", peticion
+        assert resolucion.requires_human_approval is True, peticion

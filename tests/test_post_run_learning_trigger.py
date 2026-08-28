@@ -18,6 +18,17 @@ se actúa nunca.
 Aprender no puede retrasar una conversación, así que esto encola y se aparta:
 una fila, con clave de idempotencia por run, y jamás una excepción que rompa la
 respuesta al usuario.
+
+**Actualizado el 2026-08-28.** Conectar el nervio dejó a la vista el defecto
+siguiente: al encolar directamente `learning_candidate_generation`, este módulo
+se había convertido en la *autoridad* de aprendizaje. Decidía por su cuenta que
+había algo que aprender y cuál era la primera etapa, y lo hacía sin `goal_id`,
+así que Central no se enteraba —737 extracciones en la base viva, ninguna
+enlazada a un objetivo—. Ahora encola una **observación**
+(`central_learning_observation`) y quien clasifica, consulta lo que ya se sabe,
+decide y planifica es `CentralLearningPlanner`, después, en un worker. Lo que
+esta prueba fija sigue siendo lo mismo: una fila, idempotente, sin inferencia y
+sin excepciones.
 """
 
 from __future__ import annotations
@@ -61,7 +72,10 @@ def test_a_finished_run_enqueues_its_own_learning(tmp_path: Path) -> None:
     assert out["scheduled"] is True, out
     filas = _tasks(db)
     assert len(filas) == 1, filas
-    assert filas[0]["task_type"] == "learning_candidate_generation"
+    # Una OBSERVACIÓN, no una etapa. Si esto vuelve a ser
+    # `learning_candidate_generation`, el sensor ha recuperado la autoridad y
+    # Central se queda otra vez fuera del circuito.
+    assert filas[0]["task_type"] == "central_learning_observation"
     assert '"source_run_id": "run-1"' in filas[0]["payload_json"]
     assert "euros" in filas[0]["payload_json"]
 

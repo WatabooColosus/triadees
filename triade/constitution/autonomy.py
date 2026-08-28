@@ -206,6 +206,11 @@ def authorize(operation: str | None) -> AutonomyDecision:
 #: le concedió, que es como llegan las cosas peligrosas a producción.
 TASK_OPERATION: dict[str, str] = {
     # ── trabajo de fondo del aprendizaje continuo ────────────────────
+    # Central mirando una experiencia y decidiendo qué hacer con ella. No
+    # escribe saber ni toca neuronas: clasifica, consulta lo que ya se sabe,
+    # decide y planifica. La operación es la de un informe porque su único
+    # efecto sobre el mundo es un objetivo en `planning_graph` y su registro.
+    "central_learning_observation": "produce_report",
     "learning_candidate_generation": "create_learning_candidate",
     "learning_candidate_deduplication": "deduplicate_candidates",
     # Destilar escribe una fila nueva en `learning_queue` y nada más: es crear

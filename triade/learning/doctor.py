@@ -127,7 +127,16 @@ class ContinuousLearningDoctor:
         return defecto, "default"
 
     def _config(self) -> dict[str, Any]:
-        crudo, origen = self._lookup("TRIADE_POST_RUN_LEARNING", "0")
+        # El defecto del código dejó de ser `0` el 2026-08-28: en producción el
+        # aprendizaje continuo va encendido salvo que alguien lo apague. Si aquí
+        # siguiera puesto `0`, el diagnóstico diría `off` sobre un organismo que
+        # está aprendiendo — el mismo falso negativo que motivó `_lookup`, sólo
+        # que un escalón más abajo.
+        from triade.learning.post_run import post_run_learning_enabled
+
+        crudo, origen = self._lookup(
+            "TRIADE_POST_RUN_LEARNING", "1" if post_run_learning_enabled() else "0"
+        )
         concurrencia, origen_conc = self._lookup("TRIADE_WORKER_CONCURRENCY", "1")
         return {
             "learning_enabled": crudo in {"1", "true", "yes", "on"},

@@ -103,6 +103,34 @@ class CapabilityResolver:
         re.IGNORECASE,
     )
 
+    #: Lo que de verdad se instala. `environment_install` los exige por el mismo
+    #: criterio que `repo_modification` exige `OBJETO_CODIGO`: sin objeto, el
+    #: verbo decidía solo.
+    #:
+    #: El 2026-08-28, «quiero que me des el documento para to descargar» abrió un
+    #: goal `environment_install` en `awaiting_approval` y el usuario recibió
+    #: «Instalar o descargar cambia el entorno y requiere propuesta y
+    #: aprobación» cuando lo único que pedía era el fichero que Tríade acababa de
+    #: redactar. `descargar` ahí es el usuario bajándose un entregable, no Tríade
+    #: metiendo algo en su entorno: no hay nada que aprobar y la puerta correcta
+    #: no es ésta.
+    #:
+    #: Estrechar la regla no concede permisos. Lo que deja de casar aquí cae en
+    #: las ramas siguientes y, si ninguna lo reconoce, en `unsupported_action`,
+    #: que sigue bloqueado. Y las formas que sí instalan —«instala numpy»,
+    #: «descarga el modelo qwen», «pip install …»— siguen exigiendo persona.
+    OBJETO_INSTALABLE = re.compile(
+        r"\b(paquete|dependencia|dependencias|librer[ií]a|libreria|biblioteca|"
+        r"m[oó]dulo|driver|controlador|modelo|adaptador|binario|ejecutable|"
+        r"herramienta|programa|software|aplicaci[oó]n|entorno|versi[oó]n|"
+        r"pip|npm|apt|conda|docker|cuda|torch|ollama)\b",
+        re.IGNORECASE,
+    )
+
+    #: Gestores que ya nombran la operación por sí solos: `pip install x` no
+    #: necesita que además se diga «paquete».
+    GESTOR_PAQUETES = re.compile(r"\b(pip|npm|apt|conda|docker)\b", re.IGNORECASE)
+
     ACTION_WORDS = frozenset(
         {
             "haz",
@@ -190,6 +218,32 @@ class CapabilityResolver:
             return RequestIntent("command", 0.95, actions, (), "explicit_action")
         return RequestIntent("conversation", 0.9, (), (), "no_explicit_action")
 
+    @classmethod
+    def _pide_instalacion(cls, low: str) -> bool:
+        """¿Pide instalar/descargar algo **en el entorno de Tríade**?
+
+        La regla sigue siendo amplia y falla cerrada: cualquier «instala X» o
+        «descarga X» pide persona, aunque X sea un nombre de paquete suelto que
+        ninguna lista va a contener («instala numpy»). Estrechar eso a una lista
+        de sustantivos dejaría pasar sin aprobación justo las instalaciones
+        reales.
+
+        Lo único que se exime es el falso positivo concreto: el objeto es un
+        entregable de texto y no hay ni rastro de algo instalable. «Dame el
+        documento para descargar» es el usuario bajándose un fichero que Tríade
+        escribió, no Tríade cambiando su entorno. «Descarga el modelo y el
+        informe» sí lleva algo instalable y sigue exigiendo aprobación.
+        """
+        if cls.GESTOR_PAQUETES.search(low):
+            return True
+        if not re.search(r"\b(instala|instalar|descarga|descargar)\b", low):
+            return False
+        # El objeto es un entregable de texto y no hay nada instalable a la
+        # vista: no es una instalación.
+        return not (
+            cls.ARTEFACTO_TEXTO.search(low) and not cls.OBJETO_INSTALABLE.search(low)
+        )
+
     def resolve(self, request: str) -> CapabilityResolution:
         text = " ".join(str(request).strip().split())
         low = text.lower()
@@ -232,10 +286,7 @@ class CapabilityResolver:
         if not self.ACTION.search(text):
             return self._none("No es una orden operativa explícita.")
 
-        if re.search(
-            r"\b(instala|instalar|descarga|descargar|pip|npm|apt|paquete|dependencia|driver)\b",
-            low,
-        ):
+        if self._pide_instalacion(low):
             return CapabilityResolution(
                 True,
                 "environment_install",

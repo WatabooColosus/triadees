@@ -78,6 +78,13 @@ WorkerTaskType = Literal[
     # una sola observación: ni graduaba ni revertía, exactamente el mismo agujero
     # que tenía el canary de automejora antes de tener productor.
     "peft_canary_observation",
+    # La entrada del aprendizaje a Central. Un run terminado no encola su
+    # extracción: encola una **observación**, y Central decide qué hacer con
+    # ella. Sin este tipo, `post_run` era la autoridad de aprendizaje —encolaba
+    # `learning_candidate_generation` a ciegas, sin `goal_id`— y Central no se
+    # enteraba de nada: 737 extracciones en la base viva, ninguna enlazada a un
+    # objetivo.
+    "central_learning_observation",
     # El aprendizaje productivo: extraer, deduplicar y medir. Cada etapa es un
     # tipo distinto porque tienen carril, coste y exclusividad distintos.
     "learning_candidate_generation",

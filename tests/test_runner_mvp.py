@@ -113,9 +113,20 @@ def test_runner_records_model_metadata(tmp_path: Path) -> None:
     assert result["memory_diff"]["central_model_event_id"] is not None
 
 
-def test_runner_post_run_learning_delegates_to_governed_worker(
+def test_runner_post_run_learning_delegates_to_central(
     tmp_path: Path, monkeypatch
 ) -> None:
+    """El run cierra dejando una observación, y no decide nada más.
+
+    Hasta el 2026-08-28 el runner encolaba directamente
+    `learning_candidate_generation`: era el propio cierre del run el que decidía
+    que había algo que aprender y cuál era la primera etapa, y lo hacía sin
+    `goal_id`. Ahora encola una observación y quien decide es
+    `CentralLearningPlanner`, después, en un worker.
+
+    Lo que esta prueba sigue fijando es lo de siempre: una sola tarea, ningún
+    candidato escrito en línea, y el artefacto del run coherente con la base.
+    """
     monkeypatch.setenv("TRIADE_POST_RUN_LEARNING", "1")
     runner = TriadeRunner(
         runs_dir=tmp_path / "runs", db_path=tmp_path / "triade.db", use_ollama=False
@@ -128,8 +139,8 @@ def test_runner_post_run_learning_delegates_to_governed_worker(
     integrity = json.loads((run_path / "integrity.json").read_text(encoding="utf-8"))
     governed = result["memory_diff"]["governed_learning_task"]
     assert post_run["enabled"] is True
-    assert post_run["mode"] == "delegated_to_governed_post_run_worker"
-    assert post_run["status"] == "scheduled"
+    assert post_run["mode"] == "delegated_to_central_learning_planner"
+    assert post_run["status"] == "observed"
     assert governed["scheduled"] is True
     assert governed["task_id"]
     assert (run_path / "post_run_learning.json").exists()
@@ -143,7 +154,8 @@ def test_runner_post_run_learning_delegates_to_governed_worker(
             "SELECT COUNT(*) FROM learning_queue WHERE source_ref=?",
             (post_run["source_ref"],),
         ).fetchone()[0]
-    assert task[0] == "learning_candidate_generation"
+    # Una observación, no una etapa: la etapa la elige Central al planificar.
+    assert task[0] == "central_learning_observation"
     assert inline_candidates == 0
 
 

@@ -1340,6 +1340,37 @@ class WorkerLoop:
                 run_ref=run_ref,
             )
             return result
+        # Una dependencia de plan no es una sugerencia. `PlanningGraph` sabía
+        # representarlas desde el principio y no las miraba nadie:
+        # `goal_dependencies` tenía **cero filas** en producción el 2026-08-28.
+        # Central sólo encola pasos ya listos, así que en el camino normal esto
+        # no se dispara nunca; está para que encolar una etapa a mano —o un
+        # reintento fuera de orden— no pueda saltarse el orden del plan.
+        bloqueo_dependencia = self._unsatisfied_dependency(task)
+        if bloqueo_dependencia is not None:
+            result = {
+                "status": "blocked",
+                "reason": "goal_step_dependency_not_satisfied",
+                "goal_step_id": bloqueo_dependencia,
+                "task_type": task.task_type,
+            }
+            self.store.finish_task(
+                _integer_task_id(task.id) or 0,
+                "blocked",
+                result,
+                "approved",
+                run_ref=run_ref,
+            )
+            self.store.record_event(
+                "task_blocked_by_dependency",
+                result["reason"],
+                run_ref=run_ref,
+                task_id=_integer_task_id(task.id),
+                task_type=task.task_type,
+                status="blocked",
+                payload=result,
+            )
+            return result
         blood = check_ollama_blood()
         blood_policy = ollama_blood_policy("worker_cycle", blood)
         safety = self._safety_for_task(task, run_ref)
@@ -1485,6 +1516,9 @@ class WorkerLoop:
                     "self_improvement_canary_observation": (
                         self._self_improvement_canary_observation
                     ),
+                    "central_learning_observation": (
+                        self._central_learning_observation
+                    ),
                     "learning_candidate_generation": (
                         self._learning_candidate_generation
                     ),
@@ -1608,6 +1642,12 @@ class WorkerLoop:
                 if task.payload.get("goal_id"):
                     from triade.core.goal_orchestrator import GoalOrchestrator
 
+                    # La etapa viaja en el payload y Central la necesita en el
+                    # resultado para decidir: sin ella no puede distinguir «la
+                    # extracción no encontró nada que aprender» —que invalida el
+                    # resto del plan— de un fallo cualquiera que sí se reintenta.
+                    if task.payload.get("stage") and not result.get("stage"):
+                        result["stage"] = task.payload.get("stage")
                     GoalOrchestrator(self.db_path).record_task_result(
                         task.payload, result
                     )
@@ -2487,6 +2527,96 @@ class WorkerLoop:
     # ── Aprendizaje productivo ───────────────────────────────────────────
     # Las tres etapas que antes sólo existían en `scripts/run_knowledge_zero_to_one.py`.
     # El script demostraba el circuito; estos handlers lo hacen ocurrir solo.
+
+    def _unsatisfied_dependency(self, task: WorkerTask) -> str | None:
+        """El paso de plan cuyas dependencias no están completas, si lo hay."""
+        payload = task.payload if isinstance(task.payload, dict) else {}
+        step_id = str(payload.get("goal_step_id") or "")
+        if not step_id:
+            return None
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                filas = conn.execute(
+                    """SELECT dep.status FROM goal_dependencies gd
+                    JOIN planning_graph dep ON gd.depends_on_id = dep.goal_id
+                    WHERE gd.goal_id = ?""",
+                    (step_id,),
+                ).fetchall()
+        except sqlite3.Error:
+            # Sin tabla de dependencias no hay dependencia que incumplir. Fallar
+            # abierto aquí es correcto: el guardián protege un orden, no un
+            # permiso.
+            return None
+        if any(str(fila[0]) != "completed" for fila in filas):
+            return step_id
+        return None
+
+    def _central_learning_observation(
+        self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
+    ) -> dict[str, Any]:
+        """Central mira una experiencia y decide si aprender, y qué plan seguir.
+
+        Es el primer eslabón del aprendizaje y el único que razona antes de
+        actuar. Corre aquí, en un worker, y no en el camino de respuesta: el
+        usuario ya recibió su contestación cuando esto empieza.
+        """
+        from triade.core.learning_planner import CentralLearningPlanner
+
+        payload = task.payload if isinstance(task.payload, dict) else {}
+        source_run_id = str(payload.get("source_run_id") or "")
+        if not source_run_id or not str(payload.get("message") or "").strip():
+            return {
+                "status": "completed",
+                "effect": "no_op",
+                "skipped_reason": "observacion_incompleta",
+                "stable_memory_written": False,
+            }
+
+        planner = CentralLearningPlanner(self.db_path)
+        decision = planner.plan_from_observation(payload)
+        plan_ref = task_dir / "learning_plan.json"
+        plan_ref.write_text(
+            json.dumps(decision, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
+        goal_id = str(decision.get("goal_id") or "")
+        # El recibo comprueba lo que de verdad tiene que existir: un objetivo de
+        # aprendizaje en `planning_graph` con su decisión registrada. Un plan
+        # que no se puede leer de la base no es un plan.
+        with sqlite3.connect(self.db_path) as conn:
+            fila = conn.execute(
+                "SELECT status FROM planning_graph WHERE goal_id=?", (goal_id,)
+            ).fetchone()
+        verificado = plan_ref.is_file() and fila is not None
+        receipt = EffectReceipt(
+            action="plan_learning_goal",
+            target=goal_id or f"run:{source_run_id}",
+            execution={
+                "source_run_id": source_run_id,
+                "disposition": decision.get("disposition"),
+                "steps": len(decision.get("steps") or []),
+            },
+            postcondition={
+                "passed": verificado,
+                "goal_status": str(fila[0]) if fila else None,
+            },
+            verified=verificado,
+            verifier="learning_goal_planning_postcondition",
+            evidence_refs=[str(plan_ref), f"sqlite:planning_graph:{goal_id}"],
+        )
+        return {
+            "status": "completed",
+            "effect": "learning_plan_created"
+            if decision.get("steps")
+            else "learning_declined",
+            "goal_id": goal_id,
+            "disposition": decision.get("disposition"),
+            "reason": decision.get("reason"),
+            "planned_steps": [p.get("stage") for p in (decision.get("steps") or [])],
+            "first_task_id": decision.get("task_id"),
+            "stable_memory_written": False,
+            "effect_receipt": receipt.model_dump(mode="json"),
+        }
 
     def _learning_candidate_generation(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
