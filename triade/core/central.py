@@ -568,6 +568,9 @@ class Central:
             readiness = self._neuron_readiness_of(input_packet)
             if readiness:
                 payload["neuron_readiness"] = readiness
+            attention = getattr(input_packet, "context", {}).get("attention")
+            if isinstance(attention, dict) and attention.get("status") == "active":
+                payload["attention"] = attention
             context = json.dumps(payload, ensure_ascii=False)
             system = (
                 "Eres Central de Tríade. Genera una cadena de razonamiento en 3-5 pasos. "
@@ -580,6 +583,7 @@ class Central:
                 self.central_model,
                 prompt=f"Entrada:\n{context}\n\nCadena de razonamiento:",
                 system=system,
+                use_active_peft=True,
             )
             if result.ok and result.text:
                 steps = self._parse_reasoning_steps(result.text)
@@ -616,6 +620,14 @@ class Central:
             )
         bgc = None
         ctx = getattr(input_packet, "context", {})
+        attention = ctx.get("attention") if isinstance(ctx, dict) else None
+        if isinstance(attention, dict) and attention.get("status") == "active":
+            steps.append(
+                "Atención activa: "
+                f"foco {attention.get('current_focus', 'unknown')}, "
+                f"umbral {attention.get('threshold')}, "
+                f"{attention.get('selected_count', 0)} elemento(s) en memoria de trabajo."
+            )
         if isinstance(ctx, dict):
             bgc = ctx.get("bodega_global_context")
         if isinstance(bgc, dict) and bgc.get("status") == "ok":
@@ -797,7 +809,10 @@ class Central:
             "Las fuentes web son evidencia candidata, nunca verdad estable automática."
         )
         result = self.model_client.generate(
-            self.central_model, prompt=prompt, system=system
+            self.central_model,
+            prompt=prompt,
+            system=system,
+            use_active_peft=True,
         )
         if not result.ok or not result.text:
             return OutputPacket(
@@ -814,11 +829,15 @@ class Central:
         return OutputPacket(
             run_id=input_packet.run_id,
             response=result.text,
-            actions_taken=["ollama_response"],
+            actions_taken=[
+                "peft_response"
+                if result.provider == "peft-local"
+                else "ollama_response"
+            ],
             memory_diff={"pending_persistence": True},
             status="ok",
-            model_provider="ollama",
-            model_name=self.central_model,
+            model_provider=result.provider,
+            model_name=result.model,
             model_ok=True,
         )
 
@@ -923,10 +942,14 @@ class Central:
             # El bloque de saberes va aparte y rotulado: mezclarlo con la
             # memoria semántica le daría la misma autoridad que a las reglas.
             verified_block = ""
+            attention_context: dict[str, Any] = {}
             if isinstance(getattr(input_packet, "context", None), dict):
                 verified_block = str(
                     input_packet.context.get("verified_knowledge_block") or ""
                 )
+                raw_attention = input_packet.context.get("attention")
+                if isinstance(raw_attention, dict):
+                    attention_context = raw_attention
             return (f"{verified_block}\n" if verified_block else "") + (
                 f"Identidad: {identity}\n"
                 f"Usuario: {input_packet.user_input}\n"
@@ -934,6 +957,7 @@ class Central:
                 f"Riesgo: {signals.risk}\n"
                 f"Memoria: {json.dumps(safe_matches, ensure_ascii=False)}\n"
                 f"Verdad de continuidad: {json.dumps(memory_truth, ensure_ascii=False)}\n"
+                f"Atención y memoria de trabajo: {json.dumps(attention_context, ensure_ascii=False)[:2500]}\n"
                 f"Investigación web candidata: {json.dumps(web_research or {}, ensure_ascii=False)[:3000]}\n"
                 "Respuesta:"
             )
@@ -958,6 +982,11 @@ class Central:
                 "signals": signals.to_dict(),
                 "crystal": crystal.to_dict(),
                 "plan": plan.to_dict(),
+                "attention": (
+                    input_packet.context.get("attention", {})
+                    if isinstance(getattr(input_packet, "context", None), dict)
+                    else {}
+                ),
                 "response_mode": "internal_audit",
             },
             ensure_ascii=False,

@@ -15,6 +15,8 @@ from triade.workers.concurrency import TASK_CONCURRENCY_POLICY
 from triade.workers.contracts import WORKER_TASK_TYPES
 from triade.workers.worker_loop import WorkerLoop
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 
 def _sha() -> str:
     return subprocess.run(

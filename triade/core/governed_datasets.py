@@ -6,6 +6,7 @@ entrenables vinculados a esos datasets.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import uuid
 from dataclasses import asdict, dataclass
@@ -322,6 +323,58 @@ class GovernedDatasets:
         if rules.get("requires_consent") and not rules.get("consent_obtained"):
             return {"allowed": False, "reason": "Requiere consentimiento no obtenido."}
         return {"allowed": True, "reason": "Uso compatible con reglas de gobernanza."}
+
+    def authorize_training_source(self, source: str | Path) -> dict[str, Any]:
+        """Autoriza el archivo exacto que un job LoRA pretende consumir.
+
+        El path por sí solo no basta: una fila ``training_ready`` puede apuntar
+        a un archivo que cambió después de revisarse. La huella aprobada vive en
+        ``governance_rules.source_sha256`` y se vuelve a calcular justo antes
+        del entrenamiento.
+        """
+        path = Path(source).resolve()
+        if not path.is_file():
+            return {"allowed": False, "reason": "dataset_source_not_found"}
+        dataset = next(
+            (
+                item
+                for item in self.list_datasets(status="training_ready")
+                if item.source and Path(item.source).resolve() == path
+            ),
+            None,
+        )
+        if dataset is None:
+            return {"allowed": False, "reason": "dataset_not_registered"}
+        governance = self.check_governance(dataset.dataset_id, "lora_training")
+        if not governance["allowed"]:
+            return {
+                "allowed": False,
+                "reason": "dataset_use_not_authorized",
+                "detail": governance["reason"],
+                "dataset_id": dataset.dataset_id,
+            }
+        expected = str(dataset.governance_rules.get("source_sha256") or "")
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if not expected:
+            return {
+                "allowed": False,
+                "reason": "dataset_sha256_not_registered",
+                "dataset_id": dataset.dataset_id,
+            }
+        if actual != expected:
+            return {
+                "allowed": False,
+                "reason": "dataset_sha256_mismatch",
+                "dataset_id": dataset.dataset_id,
+                "expected_sha256": expected,
+                "actual_sha256": actual,
+            }
+        return {
+            "allowed": True,
+            "reason": "training_source_authorized",
+            "dataset_id": dataset.dataset_id,
+            "source_sha256": actual,
+        }
 
     def get_training_report(self, adapter_id: str) -> dict[str, Any]:
         adapter = self.get_adapter(adapter_id)

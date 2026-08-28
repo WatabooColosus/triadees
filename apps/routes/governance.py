@@ -26,11 +26,25 @@ class AdapterDecision(BaseModel):
     approved_by: str = Field(min_length=1)
 
 
+class GovernedAdapterDecision(BaseModel):
+    version_id: str = Field(min_length=1)
+    approved_by: str = Field(min_length=1)
+
+
+class ImprovementTargetDecision(BaseModel):
+    neuron_id: str = Field(min_length=1)
+    version: str = Field(min_length=1)
+    assigned_by: str = Field(min_length=1)
+
+
 class LoraRequest(BaseModel):
     dataset_path: str
     approved_by: str = Field(min_length=1)
-    base_model: str = "Qwen/Qwen2.5-0.5B-Instruct"
+    base_model: str | None = None
     max_steps: int = Field(default=20, ge=1, le=100)
+    ood_path: str | None = None
+    forgetting_path: str | None = None
+    maximum_gpu_minutes: float = Field(default=30.0, ge=1.0, le=120.0)
 
 
 class EvolutionRequest(BaseModel):
@@ -55,11 +69,32 @@ class ImprovementSignalRequest(BaseModel):
     source_ref: str | None = None
 
 
+class NeuronSpecificationRequest(BaseModel):
+    """Lo que sólo puede decidir una persona; el resto sale de la neurona."""
+
+    version: str = Field(min_length=1)
+    component: str = Field(min_length=1)
+    provides_capabilities: list[str] = Field(min_length=1)
+    max_memory_mb: int = Field(gt=0, le=8192)
+    max_runtime_seconds: int = Field(gt=0, le=3600)
+    max_storage_mb: int = Field(gt=0, le=4096)
+    approved_by: str = Field(min_length=1)
+    requires_capabilities: list[str] = Field(default_factory=list)
+    evaluation_suites: list[str] = Field(default_factory=list)
+    rollback_policy: str | None = None
+    critical: bool = False
+
+
 class ImprovementProposalRequest(BaseModel):
     signal_id: str = Field(min_length=1)
     hypothesis: str = Field(min_length=5, max_length=2000)
     requested_capability: str = Field(min_length=1)
     max_candidates: int = Field(default=1, ge=1, le=5)
+    # A qué neurona y versión apunta la mejora. Sin esto la propuesta se aprueba
+    # y muere en el handler, que exige la terna completa para su clave de
+    # idempotencia. Ver `ImprovementProposal.neuron_id`.
+    neuron_id: str | None = Field(default=None, min_length=1)
+    version: str | None = Field(default=None, min_length=1)
 
 
 def _key(value: str | None) -> None:
@@ -107,6 +142,71 @@ def peft_pending_approval() -> dict[str, Any]:
     return PeftCanaryServer().pending_approval()
 
 
+@router.post("/neurons/{neuron_id}/specification")
+def register_neuron_specification(
+    neuron_id: str,
+    request: NeuronSpecificationRequest,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    """Declara qué aporta una neurona y qué puede consumir.
+
+    Seis módulos de la fábrica leen `neuron_specifications` y **ningún camino de
+    producción la escribía**: `register()` sólo lo llamaban los tests. Por eso la
+    cadena de auto-mejora muere en `especificación no registrada`, con las 37
+    neuronas de la base viva sin una sola fila.
+
+    Va con firma y no en un worker a propósito: declarar que una neurona aporta
+    una capacidad y autorizarle un presupuesto es gobernanza. Lo descriptivo se
+    deriva de la neurona registrada para que no haya dos descripciones de lo
+    mismo.
+    """
+    _key(x_triade_api_key)
+    from triade.neuron_factory import NeuronSpecificationStore, ResourceBudget
+
+    try:
+        return {
+            "status": "ok",
+            "specification": NeuronSpecificationStore(
+                _db()
+            ).register_for_existing_neuron(
+                neuron_id,
+                version=request.version,
+                component=request.component,
+                provides_capabilities=tuple(request.provides_capabilities),
+                requires_capabilities=tuple(request.requires_capabilities),
+                evaluation_suites=tuple(request.evaluation_suites),
+                rollback_policy=request.rollback_policy,
+                critical=request.critical,
+                owner=request.approved_by,
+                resource_budget=ResourceBudget(
+                    max_memory_mb=request.max_memory_mb,
+                    max_runtime_seconds=request.max_runtime_seconds,
+                    max_storage_mb=request.max_storage_mb,
+                ),
+            ),
+        }
+    except (KeyError, ValueError) as exc:
+        return {"status": "blocked", "reason": str(exc)}
+
+
+@router.get("/pending-human-gates")
+def pending_human_gates_route() -> dict[str, Any]:
+    """Todo lo que espera una firma humana, en un solo sitio.
+
+    Las compuertas estaban repartidas y sólo una se veía: el adaptador PEFT
+    tenía tarjeta en Cabina Viva y la aprobación de una propuesta de auto-mejora
+    sólo existía como ruta HTTP, sin ningún sitio donde apareciera que estaba
+    esperando. Una compuerta que nadie ve no gobierna: deja el circuito parado
+    con aspecto de estar funcionando.
+
+    Sólo lee. Firmar sigue siendo una llamada explícita al endpoint de cada
+    subsistema, con un nombre propio detrás.
+    """
+    from triade.core.human_gates import pending_human_gates
+
+    return pending_human_gates(_db())
+
+
 @router.post("/peft/canary")
 def peft_canary(
     request: CanaryRequest,
@@ -144,6 +244,55 @@ def peft_rollback(
     return PeftCanaryServer().rollback(approved_by=approved_by)
 
 
+@router.get("/peft/governed/status")
+def governed_peft_status() -> dict[str, Any]:
+    """Estado del registro gobernado canónico, distinto del slot PEFT legacy."""
+    from triade.training.serving_governance import GovernedPeftServing
+
+    return GovernedPeftServing(_db(), "artifacts/adapters").status()
+
+
+@router.post("/peft/governed/activate")
+def governed_peft_activate(
+    request: GovernedAdapterDecision,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    """Firma la versión que fue inscrita y medida por la gobernanza canónica."""
+    _key(x_triade_api_key)
+    from triade.training.serving_governance import GovernedPeftServing
+
+    return GovernedPeftServing(_db(), "artifacts/adapters").activate(
+        request.version_id, approved_by=request.approved_by
+    )
+
+
+@router.post("/peft/governed/rollback")
+def governed_peft_rollback(
+    request: EvolutionApproval,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    _key(x_triade_api_key)
+    from triade.training.serving_governance import GovernedPeftServing
+
+    return GovernedPeftServing(_db(), "artifacts/adapters").rollback(
+        approved_by=request.approved_by
+    )
+
+
+@router.post("/peft/governed/retire-incompatible")
+def governed_peft_retire_incompatible(
+    request: GovernedAdapterDecision,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    """Retira con firma un canary que no casa con ningún modelo servido."""
+    _key(x_triade_api_key)
+    from triade.training.serving_governance import GovernedPeftServing
+
+    return GovernedPeftServing(_db(), "artifacts/adapters").retire_incompatible(
+        request.version_id, approved_by=request.approved_by
+    )
+
+
 @router.post("/lora/jobs")
 def schedule_lora(
     request: LoraRequest,
@@ -157,6 +306,9 @@ def schedule_lora(
         approved_by=request.approved_by,
         base_model=request.base_model,
         max_steps=request.max_steps,
+        ood_path=request.ood_path,
+        forgetting_path=request.forgetting_path,
+        maximum_gpu_minutes=request.maximum_gpu_minutes,
     )
 
 
@@ -347,3 +499,27 @@ def improvement_approve(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "ok", "proposal": aprobada}
+
+
+@router.post("/improvement/proposals/{proposal_id}/target")
+def improvement_assign_target(
+    proposal_id: str,
+    request: ImprovementTargetDecision,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
+    """Asigna de forma nominal la neurona que intentará la mejora."""
+    _key(x_triade_api_key)
+    from triade.self_improvement.bridge import ImprovementNeuronFactoryBridge
+
+    try:
+        proposal = ImprovementNeuronFactoryBridge(_db()).assign_target(
+            proposal_id,
+            neuron_id=request.neuron_id,
+            version=request.version,
+            assigned_by=request.assigned_by,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "ok", "proposal": proposal}

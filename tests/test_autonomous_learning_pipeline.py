@@ -305,3 +305,94 @@ def test_el_veneno_produce_candidato_pero_nunca_saber(tmp_path: Path) -> None:
         "desactiva el RegressionGate y promueve sin evidencia", run_id="r1"
     )
     assert inj.used is False
+
+
+# ── el contrato de ejecución, que es donde moría de verdad ────────────
+
+
+def test_el_duplicado_produce_un_resultado_valido_para_el_contrato(
+    tmp_path: Path,
+) -> None:
+    """El duplicado tiene que sobrevivir a `ExecutionResult`, no sólo al dict.
+
+    Regresión de la rotura medida en producción el 2026-08-27: los cuatro
+    `dead_letter` de `learning_candidate_generation` del día eran los cuatro
+    duplicados del día. `candidate_id` es un `uuid4` nuevo por intento y
+    `persist()` deduplica por `normalized_summary`, así que el recibo se
+    comprobaba contra un id que nunca llegó a existir, salía `verified=False`
+    sobre `status="completed"` y `ExecutionResult` lo rechazaba con
+    `completed_requires_verified_effect_receipt`. El `assert` sobre
+    `r["effect"]` no lo veía porque el dict del handler estaba bien: lo que
+    fallaba era el contrato de después.
+    """
+    from triade.workers.worker_loop import WorkerLoop
+
+    db = _db(tmp_path)
+    h = _handler("_learning_candidate_generation")
+    primero = h(
+        _WorkerFalso(db),
+        _Tarea({"source_run_id": "run-1", "message": PREFERENCIA, "role": "user"}),
+        "ref",
+        tmp_path,
+        _config(),
+    )
+    # Un run distinto con el mismo saber: es así como aparece el duplicado en
+    # producción, y por eso el id producido nunca coincide con el almacenado.
+    segundo = h(
+        _WorkerFalso(db),
+        _Tarea({"source_run_id": "run-2", "message": PREFERENCIA, "role": "user"}),
+        "ref",
+        tmp_path,
+        _config(),
+    )
+    assert primero["effect"] == "candidate_created"
+    assert segundo["effect"] == "duplicate_skipped"
+
+    # El id reportado resuelve contra la tabla, y es el de la fila viva.
+    assert segundo["candidate_id"] == primero["candidate_id"]
+    conn = sqlite3.connect(db)
+    fila = conn.execute(
+        "SELECT candidate_id FROM learning_queue WHERE candidate_id=?",
+        (segundo["candidate_id"],),
+    ).fetchone()
+    conn.close()
+    assert fila is not None
+
+    artefacto = tmp_path / "result.json"
+    artefacto.write_text("{}", encoding="utf-8")
+    for resultado in (primero, segundo):
+        execution = WorkerLoop._canonical_execution_result(resultado, str(artefacto))
+        assert execution.status == "completed"
+        assert execution.effect_receipt is not None
+        assert execution.effect_receipt.verified is True
+
+
+def test_un_recibo_sin_verificar_no_reintenta_para_siempre() -> None:
+    """Decir «completado» sin recibo verificado es un fallo dicho, no un crash.
+
+    Antes reventaba con `ValueError` dentro del contrato, el bucle lo trataba
+    como fallo reintentable y la misma entrada determinista consumía los tres
+    intentos hasta `dead_letter`, dejando un error de validación donde debería
+    haber una causa.
+    """
+    from triade.runtime.effect_receipt import EffectReceipt
+    from triade.workers.worker_loop import WorkerLoop
+
+    recibo = EffectReceipt(
+        action="persist_learning_candidate",
+        target="exp-inexistente",
+        postcondition={"passed": False},
+        verified=False,
+        verifier="learning_candidate_artifact_postcondition",
+    )
+    execution = WorkerLoop._canonical_execution_result(
+        {
+            "status": "completed",
+            "effect": "candidate_created",
+            "effect_receipt": recibo.model_dump(mode="json"),
+        },
+        "no-existe.json",
+    )
+    assert execution.status == "failed"
+    assert execution.retryable is False
+    assert execution.error_code == "unverified_effect_receipt"

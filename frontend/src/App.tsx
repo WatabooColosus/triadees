@@ -21,7 +21,11 @@ async function api(path: string, opts?: RequestInit) {
       throw err
     }
     const text = await res.text().catch(() => res.statusText)
-    const err: any = new Error(`${res.status}: ${text}`)
+    const err: any = new Error(
+      res.status === 401
+        ? 'API Key inválida o ausente. Abre la barra lateral, pega la clave local de Tríade en “API Key” y vuelve a intentar.'
+        : `${res.status}: ${text}`,
+    )
     err.status = res.status
     throw err
   }
@@ -71,7 +75,7 @@ export default function App() {
     return 'chat'
   })
   const [health, setHealth] = useState<any>(null)
-  const [apiKey, setApiKey] = useState('')
+  const [apiKey, setApiKey] = useState(() => sessionStorage.getItem('triade_api_key') || '')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const pendingCount = usePendingCount()
 
@@ -145,7 +149,12 @@ export default function App() {
           {sidebarOpen && (
             <input
               type="password" placeholder="API Key"
-              value={apiKey} onChange={e => setApiKey(e.target.value)}
+              value={apiKey} onChange={e => {
+                const next = e.target.value
+                setApiKey(next)
+                if (next) sessionStorage.setItem('triade_api_key', next)
+                else sessionStorage.removeItem('triade_api_key')
+              }}
               style={{
                 background: 'var(--bg-base)', border: '1px solid var(--border)',
                 color: 'var(--text-primary)', borderRadius: 6, padding: '6px 8px',
@@ -163,7 +172,7 @@ export default function App() {
       </aside>
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {tab === 'cabin' && <ErrorBoundary><CabinaViva /></ErrorBoundary>}
+        {tab === 'cabin' && <ErrorBoundary><CabinaViva apiKey={apiKey} /></ErrorBoundary>}
         {tab === 'chat' && <ChatTab apiKey={apiKey} />}
         {tab === 'system' && <SystemTab />}
         {tab === 'observability' && <ObservabilityTab />}

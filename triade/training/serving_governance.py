@@ -236,6 +236,64 @@ class GovernedPeftServing:
             "previous_version_id": previous,
         }
 
+    def retire_incompatible(
+        self, version_id: str, *, approved_by: str
+    ) -> dict[str, Any]:
+        """Cierra un canary cuya base demostrablemente no está servida.
+
+        No convierte un fallo en éxito ni borra sus observaciones. Conserva la
+        versión y su evidencia, registra quién decidió retirarla y evita seguir
+        presentando como firmable algo que nunca podría llegar a producción.
+        """
+        if not approved_by.strip():
+            return {"status": "blocked", "reason": "named_human_approval_required"}
+        served = self._resolve_served_models()
+        if not served:
+            return {"status": "blocked", "reason": "served_models_unavailable"}
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT status,base_model,adapter_path FROM governed_peft_versions "
+                "WHERE version_id=?",
+                (version_id,),
+            ).fetchone()
+            if row is None:
+                return {"status": "blocked", "reason": "version_not_found"}
+            previous_status = str(row[0])
+            if previous_status not in {"canary", "canary_failed"}:
+                return {"status": "blocked", "reason": "version_not_retirable"}
+            active = conn.execute(
+                "SELECT 1 FROM governed_peft_active_slot "
+                "WHERE slot='production' AND version_id=?",
+                (version_id,),
+            ).fetchone()
+            if active:
+                return {"status": "blocked", "reason": "active_version_requires_rollback"}
+            base_model = str(row[1] or "").strip() or self._manifest_base_model(
+                str(row[2] or "")
+            )
+            if not base_model:
+                return {"status": "blocked", "reason": "base_model_unknown"}
+            if any(
+                normalize_model_id(model) == normalize_model_id(base_model)
+                for model in served
+            ):
+                return {"status": "blocked", "reason": "base_model_is_served"}
+            conn.execute(
+                "UPDATE governed_peft_versions SET status='retired',approved_by=?,"
+                "updated_at=? WHERE version_id=?",
+                (approved_by.strip(), _now(), version_id),
+            )
+        return {
+            "status": "retired",
+            "version_id": version_id,
+            "previous_status": previous_status,
+            "reason": "base_model_not_served",
+            "base_model": base_model,
+            "served_models": served,
+            "approved_by": approved_by.strip(),
+            "observations_preserved": True,
+        }
+
     def rollback(self, *, approved_by: str) -> dict[str, Any]:
         if not approved_by.strip():
             return {"status": "blocked", "reason": "named_human_approval_required"}
@@ -302,6 +360,20 @@ class GovernedPeftServing:
             for servido in self._resolve_served_models()
             if normalize_model_id(servido) == clave
         ]
+
+    @staticmethod
+    def _manifest_base_model(adapter_path: str) -> str:
+        if not adapter_path:
+            return ""
+        try:
+            manifest = json.loads(
+                (Path(adapter_path) / "triade_adapter_manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+        except (OSError, ValueError, TypeError):
+            return ""
+        return str(manifest.get("base_model") or "").strip()
 
     def _verify_blobs(
         self, adapter_path: str | Path

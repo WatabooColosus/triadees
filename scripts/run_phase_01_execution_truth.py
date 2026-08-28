@@ -14,12 +14,13 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from triade.os.autonomous_routines import AutonomousRoutines
 from triade.runtime.effect_receipt import EffectReceipt
 from triade.runtime.execution_result import ExecutionResult
 from triade.runtime.governed_capability import GovernedFileWriteCapability
 from triade.runtime.governed_task_executor import GovernedTaskExecutor
 from triade.runtime.task_leases import AutonomousTaskStore
+
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
 
 
 def _late_write(path: str) -> dict[str, Any]:
@@ -41,22 +42,6 @@ def run_validation() -> dict[str, Any]:
     details: dict[str, Any] = {}
     with tempfile.TemporaryDirectory(prefix="triade-phase-01-") as directory:
         root = Path(directory)
-
-        routines = AutonomousRoutines(str(root / "legacy.db"))
-        blocked = routines.create_routine("autonomous_research")
-        observed = routines.create_routine("health_maintenance")
-        blocked_result = routines.execute_routine(blocked["routine_id"])
-        observed_result = routines.execute_routine(observed["routine_id"])
-        checks["blocked_never_completed"] = blocked_result["status"] == "blocked"
-        checks["observed_never_completed"] = observed_result["status"] == "observed"
-        checks["legacy_improvement_write_blocked"] = (
-            routines.record_improvement("x", "x", "x")["status"] == "blocked"
-            and routines.improvements() == []
-        )
-        details["legacy"] = {
-            "blocked": blocked_result["status"],
-            "observed": observed_result["status"],
-        }
 
         checks["completed_requires_receipt"] = _rejected(
             lambda: ExecutionResult(

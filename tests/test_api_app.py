@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sqlite3
+
 from fastapi.testclient import TestClient
 
 from apps.single_port_app import app
@@ -104,3 +106,93 @@ def test_single_port_app_exposes_observability_and_ui() -> None:
 
     ui = client.get("/observabilidad")
     assert ui.status_code == 200
+
+
+def test_governance_registers_existing_neuron_specification(tmp_path, monkeypatch) -> None:
+    db = tmp_path / "triade.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            """CREATE TABLE neurons (
+                id INTEGER PRIMARY KEY, name TEXT NOT NULL, mission TEXT NOT NULL,
+                domain TEXT, inputs_allowed TEXT, outputs_allowed TEXT,
+                created_by TEXT)"""
+        )
+        conn.execute(
+            """INSERT INTO neurons VALUES
+            (1,'Central','coordinar','coordination','["signal"]','["proposal"]','bootstrap')"""
+        )
+    monkeypatch.setenv("TRIADE_DB_PATH", str(db))
+    monkeypatch.setenv("TRIADE_API_KEY", "test-secret")
+
+    response = client.post(
+        "/api/governance/neurons/1/specification",
+        headers={"X-TRIADE-API-Key": "test-secret"},
+        json={
+            "version": "1.0.0",
+            "component": "triade.neurons.central",
+            "provides_capabilities": ["learning_coordination"],
+            "max_memory_mb": 512,
+            "max_runtime_seconds": 60,
+            "max_storage_mb": 128,
+            "approved_by": "human-reviewer",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["specification"]["state"] == "specified"
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM neuron_specifications").fetchone()[0] == 1
+
+
+def test_cabina_runtime_mutations_require_its_api_key(monkeypatch) -> None:
+    monkeypatch.setenv("TRIADE_API_KEY", "cabin-secret")
+
+    for endpoint in (
+        "/api/runtime/once",
+        "/api/runtime/start",
+        "/api/runtime/stop",
+        "/api/runtime/workers/once",
+    ):
+        response = client.post(endpoint, json={})
+        assert response.status_code == 401, endpoint
+
+
+def test_governed_peft_signature_uses_canonical_version_id(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("TRIADE_DB_PATH", str(tmp_path / "triade.db"))
+    monkeypatch.setenv("TRIADE_API_KEY", "cabin-secret")
+
+    denied = client.post(
+        "/api/governance/peft/governed/activate",
+        json={"version_id": "missing", "approved_by": "reviewer"},
+    )
+    assert denied.status_code == 401
+
+    response = client.post(
+        "/api/governance/peft/governed/activate",
+        headers={"X-TRIADE-API-Key": "cabin-secret"},
+        json={"version_id": "missing", "approved_by": "reviewer"},
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "blocked",
+        "reason": "passing_canary_required",
+    }
+
+
+def test_governed_remediation_routes_require_api_key(monkeypatch) -> None:
+    monkeypatch.setenv("TRIADE_API_KEY", "cabin-secret")
+    payloads = {
+        "/api/governance/peft/governed/retire-incompatible": {
+            "version_id": "missing",
+            "approved_by": "Santiago",
+        },
+        "/api/governance/improvement/proposals/missing/target": {
+            "neuron_id": "1",
+            "version": "1.0.0",
+            "assigned_by": "Santiago",
+        },
+    }
+    for endpoint, payload in payloads.items():
+        assert client.post(endpoint, json=payload).status_code == 401

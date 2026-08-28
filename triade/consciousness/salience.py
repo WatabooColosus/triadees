@@ -38,11 +38,18 @@ class SalienceEngine:
     }
 
     def score(
-        self, user_input: str, intent: str, urgency: str, risk: str, tone: str
+        self,
+        user_input: str,
+        intent: str,
+        urgency: str,
+        risk: str,
+        tone: str,
+        *,
+        run_id: str | None = None,
     ) -> SalienceVector:
         emotional = self._emotional_salience(user_input, tone)
         goal = self._goal_salience(user_input)
-        novelty = self._novelty_salience(user_input)
+        novelty = self._novelty_salience(user_input, exclude_run_id=run_id)
         urgency_sal = self._urgency_salience(urgency, risk)
 
         total = (
@@ -159,7 +166,9 @@ class SalienceEngine:
             )
             return 0.1
 
-    def _novelty_salience(self, user_input: str) -> float:
+    def _novelty_salience(
+        self, user_input: str, *, exclude_run_id: str | None = None
+    ) -> float:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 # Se mide la novedad de lo que dijo alguien frente a lo que se
@@ -173,11 +182,19 @@ class SalienceEngine:
                 # con el orden temporal mientras nadie escriba una fila vieja, y
                 # el 2026-08-09 se reconstruyeron 719 filas de julio que se
                 # llevaron los ids más altos.
-                recent = conn.execute(
-                    """SELECT user_input FROM runs
-                    WHERE source <> 'runtime'
-                    ORDER BY created_at DESC LIMIT 10"""
-                ).fetchall()
+                if exclude_run_id:
+                    recent = conn.execute(
+                        """SELECT user_input FROM runs
+                        WHERE source <> 'runtime' AND run_id <> ?
+                        ORDER BY created_at DESC LIMIT 10""",
+                        (exclude_run_id,),
+                    ).fetchall()
+                else:
+                    recent = conn.execute(
+                        """SELECT user_input FROM runs
+                        WHERE source <> 'runtime'
+                        ORDER BY created_at DESC LIMIT 10"""
+                    ).fetchall()
                 if not recent:
                     return 0.8
                 words = set(user_input.lower().split())

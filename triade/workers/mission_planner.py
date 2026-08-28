@@ -163,13 +163,21 @@ class MissionPlanner:
         """Distribuye un consolidado todavía no asignado a ninguna neurona."""
         try:
             # Inicializar el router aplica la migración canónica antes de leer.
-            from triade.neurons.learning_router import NeuralLearningRouter
+            from triade.neurons.learning_router import (
+                ROUTER_VERSION,
+                NeuralLearningRouter,
+            )
 
             NeuralLearningRouter(self.db_path)
             with closing(self._connect()) as conn, conn:
                 row = conn.execute(
+                    # `evidence_verified` entra aquí junto a `consolidated`
+                    # porque pedir sólo lo consolidado cerraba el círculo: ver
+                    # `ROUTABLE_STATES` en `learning_router.py`. Sin esto el
+                    # planner no encolaba destino para nada aprendido después
+                    # del 2026-08-11 y la inyección se quedaba a cero.
                     """SELECT q.candidate_id FROM learning_queue q
-                    WHERE q.status='consolidated'
+                    WHERE q.status IN ('evidence_verified','consolidated')
                       AND COALESCE(q.risk_level,'low') IN ('none','low','medium')
                       AND EXISTS (
                         SELECT 1 FROM learning_evidence e
@@ -179,7 +187,25 @@ class MissionPlanner:
                         SELECT 1 FROM neuron_learning_assignments a
                         WHERE a.candidate_id=q.candidate_id
                       )
-                    ORDER BY q.updated_at LIMIT 1"""
+                      -- Un rechazo no escribe asignación, así que sin esta
+                      -- cláusula el `NOT EXISTS` de arriba sigue siendo cierto
+                      -- y el mismo candidato vuelve a salir elegido cada ciclo:
+                      -- 25 rechazos idénticos de `dst-a705dd2c47a368e1` por
+                      -- `no_compatible_neuron` en once minutos, medidos el
+                      -- 2026-08-27. Es la tercera vez que aparece este patrón
+                      -- —antes en `learning_evidence_generation` (F-037) y en
+                      -- `learning_distillation_attempts`—: quien decide que no
+                      -- tiene que dejarlo escrito, o no ha decidido nada.
+                      AND NOT EXISTS (
+                        SELECT 1 FROM neuron_education_events ev
+                        WHERE ev.event_type='neural_knowledge_rejected'
+                          AND json_extract(ev.payload_json,'$.candidate_id')
+                              = q.candidate_id
+                          AND json_extract(ev.payload_json,'$.router_version')
+                              = ?
+                      )
+                    ORDER BY q.updated_at LIMIT 1""",
+                    (ROUTER_VERSION,),
                 ).fetchone()
             if row is None:
                 return []
@@ -246,6 +272,23 @@ class MissionPlanner:
         firma humana exigida—, la tarea no tendría nada que hacer y el bucle
         giraría en vacío, que es el fallo contrario. Por eso se pregunta si es
         auto-aprobable, no si existe.
+
+        **Y se lleva el destino en el payload.** Hasta el 2026-08-27 esta rama
+        encolaba la tarea sin payload alguno, y
+        `_self_improvement_evaluation` lee `neuron_id`/`version` de
+        `task.payload` —no de la propuesta—. Es decir: la tarea nacía sin saber
+        sobre qué neurona trabajar y salía por
+        `blocked: no declara neuron_id/version` **siempre**, incluso con una
+        propuesta aprobada a mano y correcta. Comprobado en vivo el 2026-08-27:
+        la propuesta se auto-aprobó por primera vez y murió justo ahí, con
+        `improvement_canaries`, `improvement_candidate_links` y
+        `neuron_candidates` en cero detrás.
+
+        Por la misma razón que el párrafo anterior, una propuesta que no declara
+        destino **no se encola**: sería exactamente el bucle en vacío que este
+        método evita, y ya van tres veces en este repositorio que reelegir lo que
+        no puede avanzar se convierte en un livelock. El estado queda legible en
+        la propia fila de `improvement_proposals`, que se ve sin destino.
         """
         try:
             with closing(self._connect()) as conn, conn:
@@ -255,36 +298,72 @@ class MissionPlanner:
                 ).fetchone()
                 if not table:
                     return []
-                row = conn.execute(
-                    "SELECT COUNT(*) cnt FROM improvement_proposals "
-                    "WHERE status = 'approved'"
-                ).fetchone()
-                approved = int(row["cnt"] or 0) if row else 0
+                aprobadas = [
+                    str(fila["proposal_id"])
+                    for fila in conn.execute(
+                        "SELECT proposal_id FROM improvement_proposals "
+                        "WHERE status = 'approved' ORDER BY rowid ASC"
+                    ).fetchall()
+                ]
+                diferidas = [
+                    str(fila["proposal_id"])
+                    for fila in conn.execute(
+                        "SELECT proposal_id FROM improvement_proposals "
+                        "WHERE status = 'candidate_created' ORDER BY rowid ASC"
+                    ).fetchall()
+                ]
                 approvable = (
-                    auto_approvable_open_proposals(conn) if not approved else []
+                    auto_approvable_open_proposals(conn)
+                    if not aprobadas and not diferidas
+                    else []
                 )
-            if approved:
+                objetivo, destino = self._improvement_target(
+                    conn, diferidas or aprobadas or approvable
+                )
+            if diferidas and objetivo:
+                return [
+                    PlannedTask(
+                        task_type="self_improvement_evaluation",
+                        priority=39,
+                        reason=(
+                            f"{len(diferidas)} candidata(s) de mejora esperan "
+                            f"evidencia posterior; se reevalúa {objetivo}"
+                        ),
+                        source="deferred_improvement_evidence",
+                        planner_score=0.7,
+                        payload={"proposal_id": objetivo, **destino},
+                    )
+                ]
+            if aprobadas and objetivo:
                 return [
                     PlannedTask(
                         task_type="self_improvement_evaluation",
                         priority=38,
-                        reason=f"{approved} propuesta(s) aprobada(s) esperando verificación",
+                        reason=(
+                            f"{len(aprobadas)} propuesta(s) aprobada(s) esperando"
+                            f" verificación; se trabaja {objetivo}"
+                        ),
                         source="human_approved_improvement",
                         planner_score=0.65,
+                        payload={"proposal_id": objetivo, **destino},
                     )
                 ]
-            if approvable:
+            if approvable and objetivo:
                 return [
                     PlannedTask(
                         task_type="self_improvement_evaluation",
                         priority=38,
                         reason=(
                             f"{len(approvable)} propuesta(s) abierta(s) por encima del "
-                            "umbral de aprobación por política"
+                            f"umbral de aprobación por política; se trabaja {objetivo}"
                         ),
                         source="policy_approvable_improvement",
                         planner_score=0.65,
-                        payload={"proposal_ids": approvable[:5]},
+                        payload={
+                            "proposal_id": objetivo,
+                            "proposal_ids": approvable[:5],
+                            **destino,
+                        },
                     )
                 ]
         except MISSION_PLANNER_ERRORS as exc:
@@ -292,6 +371,63 @@ class MissionPlanner:
                 "mission_planner.self_improvement", exc, db_path=self.db_path
             )
         return []
+
+    @staticmethod
+    def _modelo_base_servido(base_model: str, normalizar: Any) -> bool:
+        """¿Sirve el runtime el modelo sobre el que se entrenó el adaptador?
+
+        Se pregunta a la **configuración** (`triade.yml`), no a Ollama. Planificar
+        es barato y reversible; la comprobación que decide de verdad la hace
+        `GovernedPeftServing.activate()` contra los modelos servidos en ese
+        momento, que es cuando importa. Preguntar aquí por red metería una
+        dependencia viva en una decisión de planificación —y en sus tests, que
+        pasarían o no según hubiera un Ollama al lado—.
+
+        Sin configuración legible no se decide que no: se sigue observando, que
+        es el lado recuperable del error.
+        """
+        try:
+            from triade.training.governed_lora import served_model_labels
+
+            servidos = served_model_labels()
+        except (OSError, ImportError, RuntimeError, ValueError, TypeError, KeyError):
+            return True
+        if not servidos:
+            return True
+        clave = normalizar(base_model)
+        return not clave or any(normalizar(m) == clave for m in servidos)
+
+    def _improvement_target(
+        self, conn: sqlite3.Connection, proposal_ids: list[str]
+    ) -> tuple[str, dict[str, Any]]:
+        """La primera propuesta que declara a qué neurona apunta.
+
+        Devuelve `("", {})` si ninguna lo declara: entonces no hay trabajo que
+        encolar, sólo una propuesta a la que le falta destino.
+        """
+        for proposal_id in proposal_ids:
+            fila = conn.execute(
+                "SELECT payload_json FROM improvement_proposals WHERE proposal_id = ?",
+                (proposal_id,),
+            ).fetchone()
+            if fila is None:
+                continue
+            try:
+                payload = json.loads(fila["payload_json"] or "{}")
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(payload, dict):
+                continue
+            neuron_id = str(payload.get("neuron_id") or "")
+            version = str(payload.get("version") or "")
+            if not neuron_id or not version:
+                continue
+            destino: dict[str, Any] = {"neuron_id": neuron_id, "version": version}
+            capacidad = payload.get("requested_capability")
+            if capacidad:
+                destino["requested_capability"] = str(capacidad)
+            return proposal_id, destino
+        return "", {}
 
     def _plan_canary_observation(self) -> list[PlannedTask]:
         """Observa el canary abierto, si lo hay.
@@ -910,10 +1046,33 @@ class MissionPlanner:
                 ).fetchone():
                     return []
                 fila = conn.execute(
-                    "SELECT version_id, adapter_path FROM governed_peft_versions "
+                    "SELECT version_id, adapter_path, base_model "
+                    "FROM governed_peft_versions "
                     "WHERE status = 'canary' ORDER BY created_at LIMIT 1"
                 ).fetchone()
             if fila is None:
+                return []
+            # Un canary que no puede graduarse no merece más inferencia.
+            #
+            # `activate()` exige que el runtime sirva el modelo base del
+            # adaptador. El de la base viva se entrenó sobre
+            # `Qwen/Qwen2.5-0.5B-Instruct` y el runtime sirve
+            # `qwen2.5:3b-instruct`: la verja lo habría rechazado cualquiera de
+            # los 29 días que lleva en canary, y aun así el planner encolaba una
+            # observación cada veinte o cuarenta minutos, catorce segundos de
+            # GPU cada una. Es la quinta vez que aparece el mismo patrón en este
+            # repositorio: reelegir cada ciclo lo que no puede avanzar.
+            #
+            # No se cierra el canary ni se toca su estado: eso es una decisión
+            # con firma. Sólo se deja de gastar en él, y la razón queda visible
+            # en la compuerta de Cabina Viva.
+            from triade.core.human_gates import base_model_del_manifiesto
+            from triade.training.serving_governance import normalize_model_id
+
+            base = str(fila["base_model"] or "").strip() or (
+                base_model_del_manifiesto(str(fila["adapter_path"] or ""))
+            )
+            if base and not self._modelo_base_servido(base, normalize_model_id):
                 return []
             return [
                 PlannedTask(

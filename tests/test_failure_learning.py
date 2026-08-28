@@ -303,3 +303,124 @@ def test_un_fallo_local_identifica_a_las_neuronas_dependientes(tmp_path: Path):
     afectadas = FailureLearningLoop(db).affected_neurons(CAP)
     assert afectadas["provides"] == ["neuron.provee"]
     assert afectadas["requires"] == ["neuron.depende"]
+
+
+# ── la confianza es evidencia, no pronóstico ──────────────────────────
+
+
+def test_la_confianza_sube_con_cada_medicion_independiente(tmp_path: Path):
+    """Repetir la medición hace la brecha **más** creíble, no menos.
+
+    Este campo significaba cosas opuestas en dos módulos.
+    `auto_approval.evaluate()` lo lee como «cuánto sabemos que la hipótesis es
+    cierta» —lo dice su propio comentario—, pero aquí se escribía como
+    `max(0.3, 1.0 - 0.15 * (intento - 1))`, es decir «cuánto creemos que un
+    intento más lo arregla». Con el umbral en 0.94 sólo un intento 1 podía
+    aprobarse solo; al primer refresco caía a 0.85 y la señal quedaba `open`
+    para siempre, bloqueando además a las demás porque `register_signal` rechaza
+    una segunda señal abierta de la misma capacidad+métrica.
+    """
+    from triade.self_improvement.auto_approval import min_confidence
+
+    db = tmp_path / "t.db"
+    loop = FailureLearningLoop(db)
+    confianzas = []
+    for i in range(1, 6):
+        _reprobar(db, f"r{i}", candidate_id=f"c{i}")
+        for signal in loop.harvest(limit=20)["signals"]:
+            confianzas.append(_confianza(db))
+
+    assert confianzas == sorted(confianzas), confianzas
+    assert confianzas[0] < min_confidence(), "una sola medición no puede aprobar sola"
+    assert confianzas[-1] >= min_confidence(), (
+        "cinco informes independientes midiendo la misma brecha tienen que poder"
+        f" cruzar el umbral; quedaron en {confianzas[-1]}"
+    )
+
+
+def test_el_rendimiento_decreciente_sigue_vivo_en_la_prioridad(tmp_path: Path):
+    """Subir la confianza no puede resucitar una métrica terca.
+
+    El decaimiento vivía duplicado: en la confianza y en `estimated_cost`.
+    `priority()` divide por el coste, así que quitarlo de la confianza no lo
+    pierde — y contarlo dos veces era lo que rompía la aprobación.
+    """
+    db = tmp_path / "t.db"
+    loop = FailureLearningLoop(db)
+    prioridades = []
+    for i in range(1, 5):
+        _reprobar(db, f"r{i}", candidate_id=f"c{i}")
+        for signal in loop.harvest(limit=20)["signals"]:
+            prioridades.append(signal["priority"])
+    assert prioridades == sorted(prioridades, reverse=True), prioridades
+
+
+def test_una_senal_abierta_se_reconcilia_sola(tmp_path: Path):
+    """Sin esto haría falta que una persona editara una fila para desbloquear.
+
+    La señal sólo se refresca al cosechar un informe reprobado nuevo. La de la
+    base viva llevaba desde el 10-ago con la confianza que le puso la fórmula
+    vieja y el último informe reprobado era del 9-ago: se habría quedado en 0.40
+    para siempre. La confianza es estado derivado de las lecciones, y volver a
+    calcularla no inventa nada.
+    """
+    import json
+    import sqlite3 as sq
+
+    db = tmp_path / "t.db"
+    loop = FailureLearningLoop(db)
+    for i in range(1, 5):
+        _reprobar(db, f"r{i}", candidate_id=f"c{i}")
+    loop.harvest(limit=20)
+
+    conn = sq.connect(db)
+    fila = conn.execute(
+        "SELECT signal_id, payload_json FROM improvement_signals"
+    ).fetchone()
+    payload = json.loads(fila[1])
+    payload["confidence"] = 0.4  # como la dejó la fórmula vieja
+    conn.execute(
+        "UPDATE improvement_signals SET payload_json=? WHERE signal_id=?",
+        (json.dumps(payload), fila[0]),
+    )
+    conn.commit()
+    conn.close()
+
+    reporte = loop.harvest(limit=20)
+    assert reporte["reconciled"], "la señal abierta no se reconcilió"
+    assert reporte["reconciled"][0]["confidence_before"] == 0.4
+    assert reporte["reconciled"][0]["confidence_after"] > 0.4
+    assert _confianza(db) > 0.4
+
+
+def test_el_ruido_no_corrobora(tmp_path: Path):
+    """Sólo cuenta lo que trae una brecha real, o se subiría la confianza sola."""
+    db = tmp_path / "t.db"
+    loop = FailureLearningLoop(db)
+    _reprobar(db, "r1", candidate_id="c1")
+    loop.harvest(limit=20)
+    assert loop.corroborations_for(CAP, "coherence") == 1
+    # Una lección sin puntuaciones queda archivada pero no corrobora nada.
+    import sqlite3 as sq
+
+    conn = sq.connect(db)
+    conn.execute(
+        """INSERT INTO improvement_failure_lessons
+        (capability_id, metric_id, report_id, candidate_id, severity,
+         baseline_score, candidate_score, absolute_delta, reason, created_at)
+        VALUES (?,?,?,?,?,NULL,NULL,NULL,?,0)""",
+        (CAP, "coherence", "r-sin-puntuaciones", "cX", "high", "sin datos"),
+    )
+    conn.commit()
+    conn.close()
+    assert loop.corroborations_for(CAP, "coherence") == 1
+
+
+def _confianza(db: Path) -> float:
+    import json
+    import sqlite3 as sq
+
+    conn = sq.connect(db)
+    fila = conn.execute("SELECT payload_json FROM improvement_signals").fetchone()
+    conn.close()
+    return float(json.loads(fila[0])["confidence"])

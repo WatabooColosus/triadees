@@ -1,5 +1,99 @@
 # Deuda técnica vigente · Tríade Ω
 
+## Corte vivo 2026-08-28 · organismo, workers y deuda estructural
+
+- **Deuda estructural real: 0.** El detector observa 33 elementos, pero todos
+  conservan un contrato verificado: 7 `EXPECTED_EMPTY`, 4 `HUMAN_GATED`, 6
+  `ON_DEMAND` y 16 `MANUAL_TOOL`. Tras desplegar y ejecutar una petición real,
+  Constitución escribió 4 checks y 1 enforcement; `constitution_violations`
+  quedó correctamente vacía. El informe vivo devolvió `REAL_BROKEN=0`.
+- **Workers: 45 `active`, 6 `ready`, 0 `legacy`, 0 `disconnected`.** Se añadió
+  `ready` para la capacidad conectada y ejecutable que espera un estímulo
+  válido. No se fabricaron ejecuciones: `experimental_neuron_activity`,
+  `goal_research`, `goal_safe_command`, `goal_install`,
+  `federation_inbox_review` y `self_improvement_canary_observation` se sostienen
+  mediante contratos falsables de productor/gate/handler/prueba. El runtime
+  consume ahora `workers/architecture.py` antes de despachar, por lo que ese
+  contrato dejó de existir sólo para tests.
+- **CORREGIDO: Constitución y atención ya atraviesan un run real.** Runner
+  calcula saliencia, foco y working context, los entrega a Central y registra la
+  decisión en plan y memoria. ConstitutionEnforcer audita los artículos con
+  evidencia disponible, modifica Safety cuando corresponde y persiste checks,
+  violaciones y enforcement. El run vivo `run-20260828-010405-024c02c3`
+  seleccionó 2 contextos, pasó los artículos 1/2/3/6 y cerró `allow`.
+- **CORREGIDO: reinicio bloqueado por pestañas SSE.** El stream rota cada 8 s y
+  reanuda por `Last-Event-ID`, preservando el cursor. Con un cliente SSE real
+  abierto, systemd sustituyó el PID de API en 14 s y el cliente terminó solo;
+  ya no fue necesario interrumpir Uvicorn a la fuerza.
+- **CORREGIDO: isla runtime legacy retirada.** Se eliminaron los gemelos de
+  monitor, dashboard, evaluación, federación, integración, aprendizaje,
+  router/modelos, fábrica, OS, sandbox y workers que ningún entrypoint vivo
+  alcanzaba. No había ninguna de sus 42 tablas privadas en la base viva. Los
+  reemplazos canónicos y la ausencia de los módulos retirados quedan fijados en
+  `tests/test_legacy_runtime_island_retired.py` y en el acta de deuda.
+- **LoRA: fuente de entrenamiento gobernada antes de GPU.** El entrenador exige
+  dataset registrado, estado `training_ready`, uso `lora_training` autorizado y
+  SHA-256 vigente antes de cargar el modelo. El slot canónico sigue activo y la
+  base viva registra 37/37 `production_generation` exitosas para la versión
+  aprobada.
+- **Cabina y URL pública verificadas en navegador real.** HTML, JS y CSS
+  respondieron 200; las diez pestañas abrieron. Sistema, Observabilidad y
+  Federación completaron sus cargas diferidas con todas las llamadas API en
+  200, sin errores JavaScript. Health vivo: API, DATABASE, MODEL, WORKERS y
+  SCHEDULER en `healthy`; compuertas humanas pendientes: 0.
+- **SIGUEN ABIERTAS:** latencia de primera inferencia PEFT fría, retirada final
+  de los endpoints/tablas PEFT legacy y rotación de la API key corta que fue
+  expuesta en conversación. No se rebajan estas tres por tener la estructura
+  general en verde.
+
+## Corte vivo 2026-08-27 · LoRA, Cabina y cola de muertos
+
+- **Cola `dead_letter`: sin hemorragia activa.** Hay 203 filas históricas, pero
+  `scripts/triage_dead_letters.py --window-hours 24` devuelve
+  `new_dead_letters_in_window=0` y `retryable_total=0`. Clasificación: 156
+  tareas periódicas sustituidas por ejecuciones posteriores, 22 efectos
+  correctamente rechazados por falta de recibo, 15 resultados inciertos
+  puestos en cuarentena, 6 fallos antiguos de entorno y 4 tipos recuperados.
+  Las filas se conservan como evidencia; borrarlas no saldaría deuda.
+- **CORREGIDO: Cabina perdía la API key en todas sus acciones administrativas.**
+  El campo existía en `App.tsx`, pero `CabinaViva` no lo recibía. Las firmas
+  LoRA y de auto-mejora, reinicio/ciclo de workers, runtime, shell segura,
+  restauración y planificación delegada salían sin `X-TRIADE-API-Key`.
+  Cabina propaga ahora la clave y los endpoints mutables de runtime que no
+  tenían verja (`start`, `stop`, `once`, `workers/once`) llaman a `require_key`.
+- **CORREGIDO: dos autoridades LoRA rivales en Cabina.** La tarjeta PEFT legacy
+  ofrecía activar por `adapter_path`, mientras la compuerta canónica audita
+  `governed_peft_versions` por `version_id`. Se añadieron rutas gobernadas de
+  estado, activación y rollback; la Compuerta Humana firma exclusivamente esa
+  versión. La tarjeta legacy queda de solo diagnóstico.
+- **CORREGIDO: LoRA aprobado sí llega a la inferencia de Central.** El adaptador
+  incompatible de 0,5B fue retirado con firma de Santiago y conserva sus 306
+  observaciones. Se entrenó una versión nueva sobre
+  `Qwen/Qwen2.5-3B-Instruct` (la base realmente servida), con dataset gobernado,
+  OOD y olvido independientes; mejoró validación en 0,040935, no mostró olvido
+  catastrófico (-0,067443), pasó dos canaries —incluido el contrato exacto
+  `canary-ok`— y fue activada con firma. `OllamaClient` consulta ahora el slot
+  canónico sólo cuando Central lo solicita; Hipotálamo y embeddings no heredan
+  el adaptador. Verificado en vivo con cuatro eventos
+  `production_generation` exitosos. La tarjeta distingue `active_routable` de
+  `active_observed` y ya no muestra como pendiente el artefacto retirado.
+- **P1 ABIERTA: primera inferencia PEFT fría todavía es lenta.** El primer run
+  completo terminó después de que el cliente agotara 240 s: la primera fase
+  generó durante 196,5 s porque heredaba 512 tokens. El tope por defecto se
+  redujo a 128; el siguiente run completo cerró 200 en 87,9 s (38,7 s + 13,9 s
+  de generación PEFT), pero sigue siendo una latencia alta frente a Ollama.
+  Queda medir warmup persistente/cuantización sin sacrificar la trazabilidad.
+- **P1 ABIERTA: dos tablas legacy PEFT siguen existiendo.** La autoridad de
+  activación es `governed_peft_*`; `peft_serving_state` y sus endpoints antiguos
+  se mantienen por compatibilidad, sólo como diagnóstico. La UI ya excluye
+  versiones retiradas sin borrar evidencia, pero falta una migración final que
+  retire esa segunda autoridad del API.
+- **SEGURIDAD ABIERTA:** `TRIADE_PUBLIC_GUARDED=false`; las mutaciones exigen API
+  key y se verificó 200 con clave / 401 sin ella, pero la clave elegida por el
+  operador es corta y apareció en la conversación. Debe rotarse por una de alta
+  entropía antes de considerar la URL exposición pública permanente. La SPA la
+  conserva sólo en `sessionStorage`, nunca la imprime ni la guarda en el repo.
+
 Corte: 2026-08-01. SHA documental base: `8f44814`. Esta lista es canónica;
 los reportes anteriores son históricos cuando la contradicen.
 

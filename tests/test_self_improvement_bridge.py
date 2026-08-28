@@ -80,6 +80,27 @@ def test_proposal_requires_explicit_approval(tmp_path: Path) -> None:
     assert approved["approved_by"] == "human-operator"
 
 
+def test_open_proposal_receives_audited_target(tmp_path: Path) -> None:
+    db_path = tmp_path / "triade.db"
+    bridge, neuron_id = prepare(db_path)
+
+    assigned = bridge.assign_target(
+        "proposal-quality",
+        neuron_id=neuron_id,
+        version="1.0.0",
+        assigned_by="Santiago",
+    )
+
+    assert assigned["neuron_id"] == neuron_id
+    assert assigned["target_assigned_by"] == "Santiago"
+    with bridge._connect() as conn:
+        action = conn.execute(
+            "SELECT action FROM improvement_history "
+            "WHERE entity_id='proposal-quality' ORDER BY rowid DESC LIMIT 1"
+        ).fetchone()[0]
+    assert action == "target_assigned"
+
+
 def test_approved_proposal_creates_sandbox_candidate(tmp_path: Path) -> None:
     db_path = tmp_path / "triade.db"
     bridge, neuron_id = prepare(db_path)

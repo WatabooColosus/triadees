@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -93,7 +94,7 @@ def test_react_dashboard_endpoint_read_only():
     resp = client.get("/api/ui/react-dashboard")
     assert resp.status_code == 200
     data = resp.json()
-    assert data.get("status") in ("ok", "partial")
+    assert data.get("status") in ("ok", "partial", "refreshing")
     assert data.get("policy", {}).get("read_only") is True
     assert data.get("policy", {}).get("identity_core_protected") is True
     assert data.get("policy", {}).get("no_shell_execution") is True
@@ -111,12 +112,40 @@ def test_react_dashboard_errors_array():
         assert "error" in err
 
 
+def test_react_dashboard_coalesces_identical_pollers(monkeypatch):
+    """Varias pestañas no reconstruyen en paralelo el mismo snapshot pesado."""
+    import apps.routes.api as api_routes
+
+    calls = 0
+
+    def build(*, query: str, limit: int):
+        nonlocal calls
+        calls += 1
+        return {"status": "ok", "query": query, "limit": limit, "errors": []}
+
+    monkeypatch.setattr(api_routes, "_build_react_dashboard", build)
+    monkeypatch.setattr(api_routes, "_DASHBOARD_CACHE", None)
+    monkeypatch.setattr(api_routes, "_DASHBOARD_CACHE_AT", 0.0)
+    monkeypatch.setattr(api_routes, "_DASHBOARD_REFRESHING", False)
+
+    first = client.get("/api/ui/react-dashboard")
+    deadline = time.monotonic() + 1.0
+    while api_routes._DASHBOARD_CACHE is None and time.monotonic() < deadline:
+        time.sleep(0.01)
+    second = client.get("/api/ui/react-dashboard")
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["status"] in {"refreshing", "ok"}
+    assert second.json()["status"] == "ok"
+    assert calls == 1
+
+
 def test_react_dashboard_partial_not_500():
     """Si un bloque falla, status es 'partial' y no 500."""
     resp = client.get("/api/ui/react-dashboard")
     assert resp.status_code == 200
     data = resp.json()
-    assert data.get("status") in ("ok", "partial")
+    assert data.get("status") in ("ok", "partial", "refreshing")
     if data.get("errors"):
         # al menos un bloque falló — asegurarse que los demás bloques existen
         assert "heartbeat" in data

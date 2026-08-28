@@ -21,6 +21,7 @@ class HealthSensors:
             "heartbeat": self._check_heartbeat(),
             "leases": self._check_leases(),
             "queue": self._check_queue(),
+            "vital_chain": self._check_vital_chain(),
         }
         healthy = all(
             s.get("ok", False) for s in sensors.values() if isinstance(s, dict)
@@ -146,6 +147,72 @@ class HealthSensors:
                 }
         except (sqlite3.Error, OSError) as exc:
             return {"ok": False, "error": type(exc).__name__}
+
+    def _check_vital_chain(self) -> dict[str, Any]:
+        """¿Sigue el organismo reconociéndose de punta a punta?
+
+        Los otros cinco sensores miran recursos: disco, memoria, latido, leases,
+        cola. Ninguno mira si la cadena que va del pulso al efecto futuro sigue
+        entera, y ése es el único fallo que no se nota desde fuera — el sistema
+        puede tener disco de sobra, latido puntual y cola vacía justamente
+        *porque* un eslabón dejó de producir.
+
+        La comprobación existía y vivía fuera del organismo: `_vital_chain_gaps`
+        en `observability/introspection.py`, dentro del informe de deuda, que se
+        arma sobre un artefacto de hasta seis horas. Un diagnóstico de hace seis
+        horas describe un sistema que ya no existe. Aquí se lee la base viva en
+        cada ciclo, que es lo que permite decir «algo no cuadra» y no
+        «algo no cuadraba».
+
+        Se reutiliza `VITAL_CHAIN` a propósito. Una segunda lista de eslabones
+        escrita aparte es una lista que acabará divergiendo de la primera, y
+        entonces habría dos verdades sobre qué es la cadena vital.
+        """
+        try:
+            from triade.observability.introspection import (
+                live_table_counts,
+                open_readonly,
+                recent_activity,
+            )
+            from triade.observability.runtime_graph import (
+                ON_DEMAND_STAGES,
+                VITAL_CHAIN,
+            )
+        except ImportError as exc:
+            return {"ok": True, "note": f"sin observabilidad: {type(exc).__name__}"}
+
+        conn = open_readonly(self.db_path)
+        if conn is None:
+            return {"ok": True, "note": "sin base viva"}
+        try:
+            filas = live_table_counts(conn)
+            frescas = recent_activity(
+                conn, [t for _, _, tablas in VITAL_CHAIN for t in tablas]
+            )
+        except (sqlite3.Error, OSError) as exc:
+            return {"ok": False, "error": type(exc).__name__}
+        finally:
+            conn.close()
+
+        cortes: list[str] = []
+        for etapa, _anclas, tablas in VITAL_CHAIN:
+            presentes = [t for t in tablas if t in filas]
+            total = sum(filas.get(t, 0) for t in presentes)
+            if total == 0:
+                cortes.append(f"{etapa}: sin filas")
+            elif not any(frescas.get(t) for t in presentes):
+                # Un eslabón bajo demanda ocioso no es un corte: nadie pidió
+                # nada. Sin filas **nunca** sí se cuenta arriba, porque entonces
+                # no hay prueba de que haya funcionado jamás.
+                if etapa in ON_DEMAND_STAGES:
+                    continue
+                cortes.append(f"{etapa}: {total} filas, ninguna en 24 h")
+        return {
+            "ok": not cortes,
+            "stages": len(VITAL_CHAIN),
+            "broken": cortes,
+            "evidence": "SQLite en mode=ro sobre las tablas de cada eslabón",
+        }
 
     def _check_queue(self) -> dict[str, Any]:
         """Trabajo esperando en la cola viva.

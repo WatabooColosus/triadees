@@ -252,6 +252,52 @@ def build_debt_report(
             "import_graph.json: módulo de producción cuyo único importador es un test",
         )
 
+        # El escalón que faltaba, y por el que se colaron 35 módulos.
+        #
+        # Las dos categorías de arriba miran *quién importa*. Una isla de
+        # módulos que se importan **entre sí** las pasa las dos: cada uno tiene
+        # importador y ninguno es un test. Medido el 2026-08-27: el informe
+        # daba `modules_without_importer: 0` mientras `triade/dashboard/` y
+        # `triade/os/triadeos_complete.py` —un gemelo del TriadeOS que sí corre,
+        # 304 ciclos al día desde `services/supervisor.py`— estaban
+        # desconectados del sistema entero, y con ellos los únicos consumidores
+        # de `SystemMonitor`, `ConstitutionEnforcer`, `AdvancedScheduler`,
+        # `FederationAdvanced`, `SmartModelRouter` y cinco más.
+        #
+        # Lo que separa «alguien lo importa» de «el sistema lo conecta» es la
+        # alcanzabilidad desde un entrypoint que **algo arranca**, y esa función
+        # ya existía: `reachable_modules` la usa `triage_debt.py` para decidir
+        # si el escritor de una tabla es alcanzable. Aquí no se usaba.
+        #
+        # Se excluyen los `__init__.py`: Python los ejecuta al importar
+        # cualquier submódulo, así que un paquete vivo tiene su `__init__`
+        # «inalcanzable» sin que eso signifique nada.
+        # La reconstrucción ya publicó exactamente los módulos y sus imports.
+        # Releer aquí los ~900 AST hacía que una consulta interactiva de deuda
+        # tardara decenas de segundos aun con artefactos frescos, y el worker
+        # ``system_debt_scan`` podía expirar haciendo el mismo trabajo dos veces.
+        # La alcanzabilidad se deriva del mismo artefacto que alimenta el panel.
+        alcanzables = _reachable_paths_from_artifacts(cache_dir)
+        rutas_publicadas = {
+            str(nodo.get("metadata", {}).get("path", ""))
+            for nodo in imports.get("nodes", ())
+        }
+        islas = (
+            sorted(
+                ruta
+                for ruta in rutas_publicadas
+                if ruta.startswith("triade/")
+                and ruta not in alcanzables
+                and not ruta.endswith("__init__.py")
+            )
+            if alcanzables is not None
+            else []
+        )
+        items["modules_unreachable_from_entrypoint"] = _entry(
+            islas,
+            "import_graph.json + entrypoint_graph.json: módulo que ningún entrypoint arrancado alcanza",
+        )
+
     entrypoints = _load(cache_dir, "entrypoint_graph")
     if entrypoints:
         unlaunched = [
@@ -386,6 +432,7 @@ def _classify_with_contracts(
         for node in entrypoints.get("nodes", ())
         if (node.get("metadata") or {}).get("activation") == "manual_diagnostic"
     }
+    manual_module_routes = _declared_manual_module_reachability(cache_dir)
     for categoria, entry in items.items():
         if not entry.get("count"):
             continue
@@ -393,6 +440,30 @@ def _classify_with_contracts(
         clasificados: dict[str, Any] = {}
         rotos: dict[str, Any] = {}
         for nombre in entry.get("items", entry.get("sample", [])):
+            if (
+                categoria == "modules_unreachable_from_entrypoint"
+                and nombre in manual_module_routes
+            ):
+                routes = manual_module_routes[nombre]
+                classifications = {route["classification"] for route in routes}
+                classification = (
+                    "ON_DEMAND"
+                    if classifications == {"ON_DEMAND"}
+                    else "MANUAL_TOOL"
+                )
+                clasificados[nombre] = {
+                    "subject": f"module:{nombre}",
+                    "classification": classification,
+                    "reason": (
+                        "Módulo de soporte alcanzable desde una herramienta "
+                        "manual declarada; no forma parte del runtime continuo"
+                    ),
+                    "contract_holds": True,
+                    "failed_evidence": [],
+                    "evidence": routes,
+                }
+                recuento[classification] = recuento.get(classification, 0) + 1
+                continue
             if categoria == "entrypoints_without_launcher" and nombre in administrative:
                 metadata = administrative[nombre]
                 clasificados[nombre] = {
@@ -439,6 +510,75 @@ def _classify_with_contracts(
         entry["count"] - len(entry.get("classified", {})) for entry in items.values()
     )
     return recuento
+
+
+def _declared_manual_module_reachability(
+    cache_dir: Path,
+) -> dict[str, list[dict[str, str]]]:
+    """Módulos que pertenecen a CLIs manuales declaradas explícitamente.
+
+    Un ``__main__`` o una mención en documentación no bastan: el entrypoint debe
+    declarar ``TRIADE_ENTRYPOINT_KIND`` con el vocabulario cerrado que publica
+    ``code_graph``. Desde él se sigue el grafo de imports publicado. Si se borra
+    la declaración o se corta el import, el módulo deja de clasificar en el
+    siguiente build y vuelve automáticamente a ``REAL_BROKEN``.
+    """
+    imports = _load(cache_dir, "import_graph") or {}
+    entrypoints = _load(cache_dir, "entrypoint_graph") or {}
+    if not imports or not entrypoints:
+        return {}
+
+    adjacency: dict[str, set[str]] = {}
+    for edge in imports.get("edges", ()):
+        if edge.get("relation") != "imports":
+            continue
+        source = str(edge.get("source", "")).removeprefix("module:")
+        target = str(edge.get("target", "")).removeprefix("module:")
+        if source and target:
+            adjacency.setdefault(source, set()).add(target)
+
+    routes: dict[str, list[dict[str, str]]] = {}
+    for node in entrypoints.get("nodes", ()):
+        metadata = node.get("metadata") or {}
+        activation = str(metadata.get("activation") or "")
+        evidence = str(metadata.get("activation_evidence") or "")
+        if activation not in {"administrative_on_demand", "manual_diagnostic"}:
+            continue
+        # Sólo una decisión explícita en el propio script puede clasificar sus
+        # dependencias. Las heurísticas sirven para mostrar un entrypoint, no
+        # para sacar una isla entera del contador de deuda.
+        if not evidence.startswith("declared:TRIADE_ENTRYPOINT_KIND="):
+            continue
+        root = str(metadata.get("path") or node.get("label") or "")
+        if not root:
+            continue
+        reached: set[str] = set()
+        pending = list(adjacency.get(root, ()))
+        while pending:
+            current = pending.pop()
+            if current in reached:
+                continue
+            reached.add(current)
+            pending.extend(adjacency.get(current, ()))
+        classification = (
+            "ON_DEMAND"
+            if activation == "administrative_on_demand"
+            else "MANUAL_TOOL"
+        )
+        for module in reached:
+            if not module.startswith("triade/"):
+                continue
+            routes.setdefault(module, []).append(
+                {
+                    "entrypoint": root,
+                    "classification": classification,
+                    "activation_evidence": evidence,
+                }
+            )
+    return {
+        module: sorted(found, key=lambda route: route["entrypoint"])
+        for module, found in routes.items()
+    }
 
 
 def _reachable_paths_from_artifacts(cache_dir: Path) -> set[str] | None:

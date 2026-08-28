@@ -25,6 +25,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from triade.learning.post_run import schedule_learning_from_run
 from triade.runtime.task_leases import AutonomousTaskStore
 
@@ -147,3 +149,46 @@ def test_the_payload_carries_what_the_handler_consumes(tmp_path: Path) -> None:
     for campo in ("source_run_id", "message", "role", "domain"):
         assert payload.get(campo), f"falta {campo} en {payload}"
     assert payload["domain"] == "formato"
+
+
+def test_la_entrada_del_aprendizaje_no_va_la_ultima_de_la_cola(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La tarea que convierte una conversación en saber iba con prioridad 70.
+
+    En `autonomous_tasks` gana el número bajo, y 70 era el peor valor de los
+    diecinueve tipos del sistema. `claim()` envejece un punto por minuto, así
+    que hacían falta ~60 minutos para superar a un `pulse_check` recién creado
+    —y de esos entran unos tres por minuto—. Medido sobre siete días de la base
+    viva: mediana de 124 s y máximo de 5.682 s, contra 5 s de `pulse_check`.
+
+    Se fija contra el latido en vez de contra un número mágico: lo que importa
+    no es el valor, sino que aprender no sea el último de la fila. Debe seguir
+    **por detrás** del latido —una conversación manda sobre aprender de ella—
+    pero dentro del mismo orden de magnitud.
+    """
+    monkeypatch.setenv("TRIADE_POST_RUN_LEARNING", "1")
+    db = tmp_path / "triade.db"
+    AutonomousTaskStore(db)
+    resultado = schedule_learning_from_run(
+        db,
+        run_id="run-prioridad",
+        message="Esta es una preferencia explícita: mi marcador es MARCA_9",
+        response="anotado",
+        source="react-ui",
+    )
+    assert resultado["scheduled"] is True
+
+    conn = sqlite3.connect(db)
+    prioridad = conn.execute(
+        "SELECT priority FROM autonomous_tasks WHERE task_id=?",
+        (resultado["task_id"],),
+    ).fetchone()[0]
+    conn.close()
+
+    latido = 10  # `pulse_check`, el tipo más frecuente del sistema
+    assert prioridad > latido, "aprender no puede adelantar al latido"
+    assert prioridad <= 35, (
+        "la entrada del aprendizaje no puede ser el peor valor del sistema: "
+        f"{prioridad} la deja esperando a que envejezca {prioridad - latido} min"
+    )

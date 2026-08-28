@@ -520,22 +520,60 @@ def build_worker_graph(
     db_available = db_path is not None and db_path.exists()
     executed = task_type_counts(db_path)
     recent = task_type_recency(db_path)
+    # Un tipo bajo demanda no está roto porque nadie haya producido hoy su
+    # estímulo. La diferencia entre «esperando» y «desconectado» la decide el
+    # mismo contrato falsable que usa el detector de deuda: productor/gate,
+    # consumidor y, cuando aplica, condición viva en SQLite.
+    from .activation_contracts import ContractVerifier, load_contracts
+
+    activation_contracts = load_contracts()
+    activation_verifier = ContractVerifier(
+        root,
+        db_path=db_path,
+        reachable=reachable,
+    )
+    ready_classifications = {"HUMAN_GATED", "ON_DEMAND", "EXPECTED_EMPTY"}
 
     for task_type in sorted(set(declared) | set(handlers)):
         node_id = f"task_type:{task_type}"
         handler = handlers.get(task_type)
         count = executed.get(task_type, 0) if db_available else None
         fresh = recent.get(task_type, False) if db_available else None
+        contract = activation_contracts.get(node_id)
+        verdict = (
+            activation_verifier.verify(
+                contract,
+                structural_only=not db_available,
+            )
+            if contract is not None
+            else None
+        )
+        ready_when_idle = bool(
+            verdict
+            and verdict.holds
+            and verdict.classification in ready_classifications
+        )
         nodes[node_id] = GraphNode(
             node_id,
             "task",
             task_type,
-            _task_type_state(handler, count, fresh=fresh),
+            _task_type_state(
+                handler,
+                count,
+                fresh=fresh,
+                ready_when_idle=ready_when_idle,
+            ),
             {
                 "declared": task_type in declared,
                 "handler": handler or "MISSING",
                 "executions": count if count is not None else "UNKNOWN",
                 "recent_24h": fresh if fresh is not None else "UNKNOWN",
+                "ready_when_idle": ready_when_idle,
+                "activation_classification": (
+                    verdict.classification if verdict and verdict.holds else None
+                ),
+                "activation_contract_holds": verdict.holds if verdict else False,
+                "activation_contract_failures": list(verdict.failed) if verdict else [],
             },
         )
         if contracts in index.by_path and task_type in declared:
@@ -560,7 +598,11 @@ def build_worker_graph(
 
 
 def _task_type_state(
-    handler: str | None, count: int | None, *, fresh: bool | None = None
+    handler: str | None,
+    count: int | None,
+    *,
+    fresh: bool | None = None,
+    ready_when_idle: bool = False,
 ) -> NodeState:
     """Estado de un tipo de tarea: sin handler, sin ejecución, o desde cuándo.
 
@@ -574,11 +616,13 @@ def _task_type_state(
         return "disconnected"
     if count is None:
         return "unknown"
-    if count <= 0:
-        return "disconnected"
     if fresh is None:
         return "unknown"
-    return "active" if fresh else "legacy"
+    if fresh:
+        return "active"
+    if ready_when_idle:
+        return "ready"
+    return "disconnected" if count <= 0 else "legacy"
 
 
 #: Las dos colas de tareas. `worker_tasks` es la histórica y `autonomous_tasks`
@@ -641,10 +685,9 @@ def task_type_counts(db_path: Path | None) -> dict[str, int]:
 def task_type_recency(db_path: Path | None, *, hours: int = 24) -> dict[str, bool]:
     """¿Se ejecutó este tipo en las últimas `hours`?
 
-    El corte se calcula con `strftime` en formato con `T`, igual que
-    `recent_activity()`: las tablas guardan ISO-8601 con `T` y `datetime('now')`
-    usa espacio, así que comparar los dos formatos ensancha la ventana en
-    silencio.
+    Se normaliza con ``julianday`` porque conviven timestamps ISO con ``T`` y
+    valores de ``CURRENT_TIMESTAMP`` con espacio. Ninguno de los dos formatos
+    puede compararse lexicalmente contra el otro sin falsos positivos/negativos.
     """
     connection = open_readonly(db_path)
     if connection is None:
@@ -655,7 +698,7 @@ def task_type_recency(db_path: Path | None, *, hours: int = 24) -> dict[str, boo
             try:
                 rows = connection.execute(
                     f"SELECT task_type, COUNT(*) FROM {table} "
-                    "WHERE created_at >= strftime('%Y-%m-%dT%H:%M:%S', 'now', ?) "
+                    "WHERE julianday(created_at) >= julianday('now', ?) "
                     "GROUP BY task_type",
                     (f"-{int(hours)} hours",),
                 ).fetchall()
@@ -873,9 +916,9 @@ def recent_activity(
 ) -> dict[str, bool]:
     """¿Escribió alguien en las últimas 24 h?
 
-    Las tablas guardan ISO-8601 con `T`, y `datetime('now')` usa espacio: la
-    comparación textual entre ambos formatos ensancha la ventana en silencio.
-    Por eso el corte se calcula con `strftime` en el mismo formato con `T`.
+    Las tablas mezclan ISO-8601 con ``T`` y ``CURRENT_TIMESTAMP`` con espacio.
+    ``julianday`` interpreta ambos antes de comparar y evita que la Bodega viva
+    parezca inactiva sólo por el separador del timestamp.
     """
     if connection is None:
         return {}
@@ -902,7 +945,7 @@ def recent_activity(
         try:
             row = connection.execute(
                 f"SELECT COUNT(*) FROM {table} "  # identificador validado con isidentifier()
-                f"WHERE {column} >= strftime('%Y-%m-%dT%H:%M:%S', 'now', '-1 day')"
+                f"WHERE julianday({column}) >= julianday('now', '-1 day')"
             ).fetchone()
         except sqlite3.Error:
             continue

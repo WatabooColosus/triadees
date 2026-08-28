@@ -242,6 +242,42 @@ if __name__ == '__main__':
     assert "--apply" in node.metadata["activation_evidence"]
 
 
+def test_entrypoint_kind_can_be_declared_with_a_closed_vocabulary(
+    tmp_path: Path,
+) -> None:
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "rotate_secret.py").write_text(
+        """TRIADE_ENTRYPOINT_KIND = 'administrative_on_demand'
+def main(): return 0
+if __name__ == '__main__': raise SystemExit(main())
+""",
+        encoding="utf-8",
+    )
+
+    nodes, _ = build_entrypoint_graph(tmp_path)
+    node = next(item for item in nodes if item.label == "scripts/rotate_secret.py")
+
+    assert node.metadata["activation"] == "administrative_on_demand"
+    assert node.metadata["activation_evidence"].startswith("declared:")
+
+
+def test_unknown_entrypoint_kind_does_not_hide_runtime_debt(tmp_path: Path) -> None:
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "mystery.py").write_text(
+        """TRIADE_ENTRYPOINT_KIND = 'trust_me'
+if __name__ == '__main__': pass
+""",
+        encoding="utf-8",
+    )
+
+    nodes, _ = build_entrypoint_graph(tmp_path)
+    node = next(item for item in nodes if item.label == "scripts/mystery.py")
+
+    assert node.metadata["activation"] == "runtime"
+
+
 def test_workers_and_task_types_are_identified() -> None:
     """Sobre el repositorio real: los tipos salen del `Literal`, no de una lista."""
     nodes, edges = build_worker_graph(REPO_ROOT, build_module_index(REPO_ROOT))

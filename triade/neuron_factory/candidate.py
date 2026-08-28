@@ -5,11 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from triade.capabilities import CapabilityRegistry
+from triade.core.contracts import utc_now
 from triade.db import sqlite3
 
 from .store import NeuronSpecificationStore
@@ -23,6 +24,17 @@ class NeuronCandidate:
     sandbox_id: str
     specification_sha256: str
     status: str = "created"
+    #: Cuándo nació el candidato. Sin este dato no hay comparación honesta.
+    #:
+    #: `VitalityEvaluationProvider` separa baseline de candidato por un corte
+    #: temporal y **exige** `artifact["created_at"]`: sin él rechaza la
+    #: evaluación con «sin corte temporal la comparación no es honesta», y hace
+    #: bien —medir el «después» contra runs que ocurrieron antes de existir el
+    #: candidato mezclaría las dos poblaciones—. El manifiesto no lo llevaba, así
+    #: que la cadena de auto-mejora moría ahí después de haber creado candidato,
+    #: enlace y ejecución en sandbox. Lo sabe la fábrica en el momento exacto en
+    #: que lo crea; no hay nada que estimar.
+    created_at: str = field(default_factory=utc_now)
 
     def to_dict(self) -> dict[str, str]:
         return {
@@ -32,6 +44,7 @@ class NeuronCandidate:
             "sandbox_id": self.sandbox_id,
             "specification_sha256": self.specification_sha256,
             "status": self.status,
+            "created_at": self.created_at,
         }
 
 

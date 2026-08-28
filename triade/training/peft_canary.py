@@ -80,7 +80,14 @@ class PeftCanaryServer:
             return model, tokenizer, path
 
     def generate(
-        self, adapter_path: str, prompt: str, *, max_new_tokens: int = 64
+        self,
+        adapter_path: str,
+        prompt: str,
+        *,
+        max_new_tokens: int = 64,
+        system: str | None = None,
+        options: dict[str, Any] | None = None,
+        event: str = "canary_generation",
     ) -> dict[str, Any]:
         if not prompt.strip():
             return {"status": "blocked", "reason": "empty_prompt"}
@@ -90,16 +97,33 @@ class PeftCanaryServer:
             import torch
 
             model, tokenizer, path = self._load(adapter_path)
+            rendered_prompt = prompt
+            if callable(getattr(tokenizer, "apply_chat_template", None)):
+                messages = []
+                if system:
+                    messages.append({"role": "system", "content": system})
+                messages.append({"role": "user", "content": prompt})
+                rendered_prompt = tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
             encoded = tokenizer(
-                prompt, return_tensors="pt", truncation=True, max_length=1024
+                rendered_prompt, return_tensors="pt", truncation=True, max_length=1024
             )
             encoded = {key: value.to(model.device) for key, value in encoded.items()}
+            generation_options = dict(options or {})
+            temperature = float(generation_options.get("temperature") or 0.0)
+            if generation_options.get("seed") is not None:
+                torch.manual_seed(int(generation_options["seed"]))
+            generate_kwargs: dict[str, Any] = {
+                "max_new_tokens": max(1, min(max_new_tokens, 1024)),
+                "do_sample": temperature > 0,
+            }
+            if temperature > 0:
+                generate_kwargs["temperature"] = temperature
+                if generation_options.get("top_p") is not None:
+                    generate_kwargs["top_p"] = float(generation_options["top_p"])
             with torch.inference_mode():
-                output = model.generate(
-                    **encoded,
-                    max_new_tokens=max(1, min(max_new_tokens, 256)),
-                    do_sample=False,
-                )
+                output = model.generate(**encoded, **generate_kwargs)
             text = tokenizer.decode(
                 output[0][encoded["input_ids"].shape[1] :], skip_special_tokens=True
             )
@@ -110,11 +134,9 @@ class PeftCanaryServer:
                 "response": text,
                 "latency_ms": latency,
                 "canary": True,
-                "production_share": 0.0,
+                "production_share": 1.0 if event == "production_generation" else 0.0,
             }
-            self._event(
-                str(path), "canary_generation", True, latency, digest, result=result
-            )
+            self._event(str(path), event, True, latency, digest, result=result)
             return result
         except (
             OSError,
@@ -126,9 +148,7 @@ class PeftCanaryServer:
             KeyError,
             AttributeError,
         ) as exc:
-            self._event(
-                adapter_path, "canary_generation", False, 0, digest, error=str(exc)
-            )
+            self._event(adapter_path, event, False, 0, digest, error=str(exc))
             return {"status": "error", "error": str(exc), "canary": True}
 
     def activate(self, adapter_path: str, *, approved_by: str) -> dict[str, Any]:
@@ -197,39 +217,85 @@ class PeftCanaryServer:
     def status(self) -> dict[str, Any]:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            row = conn.execute(
+            legacy_row = conn.execute(
                 "SELECT * FROM peft_serving_state WHERE slot='production'"
             ).fetchone()
+            tables = {
+                str(item[0])
+                for item in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND "
+                    "name IN ('governed_peft_active_slot','governed_peft_versions')"
+                )
+            }
+            canonical_row = (
+                conn.execute(
+                    """SELECT v.version_id,v.adapter_path,v.base_model,v.approved_by,
+                              v.status,s.updated_at
+                       FROM governed_peft_active_slot s
+                       JOIN governed_peft_versions v ON v.version_id=s.version_id
+                       WHERE s.slot='production' AND v.status='active'"""
+                ).fetchone()
+                if len(tables) == 2
+                else None
+            )
             recent = [
                 dict(item)
                 for item in conn.execute(
                     "SELECT * FROM peft_canary_events ORDER BY id DESC LIMIT 20"
                 )
             ]
-        active_in_db = bool(row and str(row["status"]) == "active")
+            production_successes = (
+                int(
+                    conn.execute(
+                        "SELECT COUNT(*) FROM peft_canary_events "
+                        "WHERE adapter_path=? AND event='production_generation' "
+                        "AND success=1",
+                        (str(canonical_row["adapter_path"]),),
+                    ).fetchone()[0]
+                )
+                if canonical_row is not None
+                else 0
+            )
+        canonical = dict(canonical_row) if canonical_row is not None else None
+        legacy = dict(legacy_row) if legacy_row is not None else None
+        active_in_db = canonical is not None or bool(
+            legacy_row and str(legacy_row["status"]) == "active"
+        )
+        routed = canonical is not None
+        observed_in_production = production_successes > 0
         return {
             "status": "ok",
-            "serving": dict(row) if row else {"status": "base_only"},
+            "serving": canonical or legacy or {"status": "base_only"},
+            "canonical_serving": canonical,
+            "legacy_serving": legacy,
             "loaded_in_process": self._loaded_adapter,
             "recent_events": recent,
-            # Verdad de servicio (auditoría 2026-07-31, P0-01). `peft_serving_state`
-            # podía decir slot=production/status=active mientras NINGÚN componente
-            # de la ruta de inferencia leía ese slot: las respuestas salen por HTTP
-            # a Ollama, que no recibe adaptador. Se expone explícitamente para que
-            # ningún panel ni decisión interprete "active" como "está sirviendo".
-            "served_by_inference": False,
+            "served_by_inference": routed,
             "serving_truth": {
                 "adapter_approved_and_registered": active_in_db,
+                "routing_connected": routed,
                 "loaded_in_this_process": self._loaded_adapter is not None,
-                "used_by_production_inference": False,
-                "effective_state": "approved_not_served"
-                if active_in_db
-                else "base_only",
+                "used_by_production_inference": observed_in_production,
+                "production_successes": production_successes,
+                "effective_state": (
+                    "active_observed"
+                    if observed_in_production
+                    else "active_routable"
+                    if routed
+                    else "approved_not_served"
+                    if active_in_db
+                    else "base_only"
+                ),
                 "reason": (
-                    "La inferencia de producción usa Ollama (proceso externo) y no "
-                    "consulta peft_serving_state. Un adaptador marcado 'active' aquí "
-                    "no influye en ninguna respuesta real. Para servirlo haría falta "
-                    "fusionarlo como modelo Ollama o mover la inferencia al motor PEFT."
+                    "Central consulta el slot gobernado antes de Ollama y sirvió al "
+                    "menos una respuesta real con el adaptador."
+                    if observed_in_production
+                    else "Central consulta el slot gobernado y lo usará en la próxima "
+                    "inferencia; aún no hay una respuesta de producción observada."
+                    if routed
+                    else "El registro legacy no está conectado a la inferencia canónica."
+                    if active_in_db
+                    else "No hay adaptador activo."
                 ),
             },
         }
@@ -255,7 +321,40 @@ class PeftCanaryServer:
                 "SELECT adapter_path FROM peft_serving_state "
                 "WHERE slot = 'production' AND status = 'active'"
             ).fetchone()
-        active_path = current["adapter_path"] if current else None
+            tables = {
+                str(item[0])
+                for item in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND "
+                    "name IN ('governed_peft_active_slot','governed_peft_versions')"
+                )
+            }
+            canonical = (
+                conn.execute(
+                    """SELECT v.adapter_path FROM governed_peft_active_slot s
+                    JOIN governed_peft_versions v ON v.version_id=s.version_id
+                    WHERE s.slot='production' AND v.status='active'"""
+                ).fetchone()
+                if len(tables) == 2
+                else None
+            )
+            retired_paths = (
+                {
+                    str(row[0])
+                    for row in conn.execute(
+                        "SELECT adapter_path FROM governed_peft_versions "
+                        "WHERE status IN ('retired','rolled_back','canary_failed')"
+                    )
+                }
+                if "governed_peft_versions" in tables
+                else set()
+            )
+        active_path = (
+            canonical["adapter_path"]
+            if canonical
+            else current["adapter_path"]
+            if current
+            else None
+        )
         pending = [
             {
                 "adapter_path": row["adapter_path"],
@@ -264,6 +363,7 @@ class PeftCanaryServer:
             }
             for row in passed
             if row["adapter_path"] != active_path
+            and str(row["adapter_path"]) not in retired_paths
         ]
         return {
             "status": "ok",

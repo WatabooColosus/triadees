@@ -5,6 +5,8 @@ import argparse
 
 from triade.validation.runtime_long_run import run_wall_clock_validation, write_report
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()

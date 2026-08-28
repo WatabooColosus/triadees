@@ -42,8 +42,9 @@ prolongada; esas capacidades conservan sus fases y gates propios.
 - El adaptador canónico de workers marca el artefacto como obligatorio.
 - Un handler sin `status` explícito se rechaza; no existe éxito por defecto.
 - Dry-run se persiste como `dry_run`, no `completed`.
-- `AutonomousRoutines` conserva estados terminales canónicos y bloquea resultados
-  legacy desconocidos.
+- La isla `AutonomousRoutines` fue retirada el 2026-08-28 al demostrarse que no
+  tenía tablas ni consumidores vivos; las garantías canónicas permanecen en
+  `ExecutionResult`, receipts y workers.
 - `GoalOrchestrator` no completa goals desde `candidate_created`, `no_evidence`,
   `observed`, `skipped` o `dry_run`.
 - El learning pipeline exige Ollama Blood o aprobación humana nominal para evaluar;
@@ -59,11 +60,9 @@ El runner reproducible es:
 python scripts/run_phase_01_execution_truth.py
 ```
 
-Resultado observado: 9/9 checks aprobados.
+El bundle original conservó 9/9 checks. Tras retirar la isla legacy, el runner
+actual reproduce los seis invariantes canónicos que siguen vigentes:
 
-- `blocked_never_completed = true`
-- `observed_never_completed = true`
-- `legacy_improvement_write_blocked = true`
 - `completed_requires_receipt = true`
 - `completed_requires_artifact_when_declared = true`
 - `reversible_requires_rollback_ref = true`

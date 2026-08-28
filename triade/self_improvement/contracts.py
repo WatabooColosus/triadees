@@ -62,6 +62,25 @@ class ImprovementProposal:
     requires_human_approval: bool
     max_candidates: int = 1
     cooldown_seconds: int = 3600
+    #: A qué neurona y versión se le construye la candidata.
+    #:
+    #: Faltaban, y su ausencia era un contrato roto entre productor y consumidor:
+    #: `_self_improvement_evaluation` exige `payload["neuron_id"]` y
+    #: `payload["version"]`, el store escribe en `payload_json` exactamente los
+    #: campos de esta clase, y aquí no existían. **Ninguna propuesta creada por
+    #: la vía soportada podía pasar de la aprobación**, hiciera lo que hiciera
+    #: quien la creara. Comprobado el 2026-08-27 sobre la base viva: la única
+    #: propuesta se aprobó sola por primera vez y murió en
+    #: «la propuesta aprobada no declara neuron_id/version».
+    #:
+    #: Se dejan opcionales a propósito. Resolverlos desde la capacidad exigiría
+    #: que alguna neurona declarara `provides_capabilities`, y eso lo escribe
+    #: `neuron_specifications` —que se puebla *después* de aprobar—: derivarlos
+    #: ahí sería cerrar otro círculo. Quien propone una mejora sabe a qué apunta;
+    #: si no lo sabe, el handler lo dice con ese nombre y no como propuesta
+    #: malformada.
+    neuron_id: str | None = None
+    version: str | None = None
 
     def validate(self) -> None:
         required = (
@@ -76,3 +95,7 @@ class ImprovementProposal:
             raise ValueError("max_candidates debe ser al menos 1")
         if self.cooldown_seconds < 0:
             raise ValueError("cooldown_seconds no puede ser negativo")
+        # Declarar el objetivo a medias es peor que no declararlo: el handler
+        # necesita la terna completa para su clave de idempotencia.
+        if bool(self.neuron_id) != bool(self.version):
+            raise ValueError("neuron_id y version se declaran juntos o ninguno")

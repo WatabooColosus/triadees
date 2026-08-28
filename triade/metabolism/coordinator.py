@@ -559,7 +559,16 @@ class MetabolicCoordinator:
             for k, v in sensors.items()
             if isinstance(v, dict) and not v.get("ok", True)
         ]
-        return ("success", f"degraded_sensors:{','.join(issues)}")
+        # Nombrar el eslabón, no sólo el sensor. «degraded_sensors:vital_chain»
+        # obliga a ir a buscar qué se rompió; el organismo ya lo sabe y puede
+        # decirlo. Un aviso que no dice qué mirar se acaba ignorando.
+        cadena = sensors.get("vital_chain")
+        detalle = ""
+        if isinstance(cadena, dict) and cadena.get("broken"):
+            detalle = " | cadena vital: " + "; ".join(
+                str(x) for x in list(cadena["broken"])[:3]
+            )
+        return ("success", f"degraded_sensors:{','.join(issues)}{detalle}")
 
     def _action_heartbeat(self) -> tuple[str, str]:
         try:

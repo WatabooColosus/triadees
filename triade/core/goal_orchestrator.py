@@ -367,9 +367,17 @@ class GoalOrchestrator:
         *,
         dataset_path: str,
         approved_by: str,
-        base_model: str = "Qwen/Qwen2.5-0.5B-Instruct",
+        base_model: str | None = None,
         max_steps: int = 20,
+        ood_path: str | None = None,
+        forgetting_path: str | None = None,
+        maximum_gpu_minutes: float = 30.0,
     ) -> dict[str, Any]:
+        from triade.training.governed_lora import default_base_model
+
+        resolved_base_model = str(base_model or "").strip() or default_base_model()
+        if not resolved_base_model:
+            return {"status": "blocked", "reason": "no_served_model_configured"}
         root = self.graph.create_goal(
             "Entrenar adaptador LoRA gobernado",
             dataset_path,
@@ -378,7 +386,7 @@ class GoalOrchestrator:
         )
         step = self.graph.create_goal(
             "Entrenamiento y evaluación canary",
-            base_model,
+            resolved_base_model,
             parent_id=root.goal_id,
             priority=1,
         )
@@ -389,8 +397,11 @@ class GoalOrchestrator:
                 "goal_step_id": step.goal_id,
                 "worker_task_type": "goal_lora_train",
                 "dataset_path": dataset_path,
-                "base_model": base_model,
+                "base_model": resolved_base_model,
                 "max_steps": max_steps,
+                "ood_path": ood_path,
+                "forgetting_path": forgetting_path,
+                "maximum_gpu_minutes": max(1.0, min(float(maximum_gpu_minutes), 120.0)),
                 "human_approved": True,
                 "approved_by": approved_by,
                 "attempt": 1,

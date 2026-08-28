@@ -15,6 +15,11 @@ from .contracts import GraphEdge, GraphNode
 #: estado verificado → (color de relleno, borde, significado)
 STATE_COLORS: dict[str, tuple[str, str, str]] = {
     "active": ("#1b7f4b", "#0d3f25", "conectado y con ejecución demostrada"),
+    "ready": (
+        "#147d92",
+        "#073d48",
+        "conectado y ejecutable; espera un estímulo válido",
+    ),
     "legacy": ("#b8860b", "#6b4f06", "existe y se usó, sin actividad reciente"),
     "disconnected": ("#b03030", "#5c1818", "sin lector, sin caller o sin ejecución"),
     "failed": ("#7a1f1f", "#3d0f0f", "falló en ejecución real"),

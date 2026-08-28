@@ -143,6 +143,16 @@ def _cpu_propio() -> tuple[float, float, str]:
             return uso.ru_utime, uso.ru_stime, "thread"
         except (OSError, ValueError):
             pass
+    # `time.thread_time()` es el reloj de CPU por hilo estandarizado por
+    # Python. Algunas compilaciones Linux no exponen `resource.RUSAGE_THREAD`
+    # aunque el kernel sí soporte la medición; caer directamente a
+    # `RUSAGE_SELF` en ellas vuelve a sumar la CPU de todos los Living Workers.
+    # El reloj no separa user/system, así que conservamos el total en user y
+    # dejamos system a cero: el ledger gobierna por la suma de ambos.
+    try:
+        return time.thread_time(), 0.0, "thread_clock"
+    except (AttributeError, OSError):
+        pass
     uso = resource.getrusage(resource.RUSAGE_SELF)
     return uso.ru_utime, uso.ru_stime, "process"
 

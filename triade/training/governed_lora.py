@@ -6,10 +6,15 @@ import json
 from pathlib import Path
 from typing import Any
 
+from triade.core.governed_datasets import GovernedDatasets
 from triade.db import sqlite3
 
 from .lora_trainer import LoraTrainingConfig, RealLoraTrainer
-from .serving_governance import normalize_model_id
+from .serving_governance import (
+    GovernedPeftServing,
+    build_integrity_bundle,
+    normalize_model_id,
+)
 
 #: Traducción de etiqueta Ollama a identificador HuggingFace.
 #:
@@ -104,6 +109,25 @@ class GovernedLoraJobRunner:
                 "base_model": base_model,
                 "served": served_model_labels(),
             }
+        # Estas dos muestras son parte del contrato de entrada, no un detalle
+        # opcional de evaluación. Sin OOD no se puede inscribir el adaptador y
+        # sin una muestra de olvido independiente no hay evidencia causal de
+        # que el ajuste haya preservado lo que el modelo ya sabía.
+        ood = self._governed_auxiliary_path(payload.get("ood_path"))
+        if ood is None:
+            return {"status": "blocked", "reason": "ood_dataset_required"}
+        forgetting = self._governed_auxiliary_path(payload.get("forgetting_path"))
+        if forgetting is None:
+            return {"status": "blocked", "reason": "forgetting_dataset_required"}
+        dataset_authorization = GovernedDatasets(
+            self.db_path
+        ).authorize_training_source(dataset)
+        if not dataset_authorization["allowed"]:
+            return {
+                "status": "blocked",
+                "reason": dataset_authorization["reason"],
+                "dataset_authorization": dataset_authorization,
+            }
         config = LoraTrainingConfig(
             base_model=base_model,
             output_dir=str(output),
@@ -120,20 +144,61 @@ class GovernedLoraJobRunner:
         try:
             result = RealLoraTrainer(config).train(
                 dataset,
-                ood_path=payload.get("ood_path"),
-                forgetting_path=payload.get("forgetting_path"),
+                ood_path=ood,
+                forgetting_path=forgetting,
                 db_path=self.db_path,
             )
+            adapter_path = Path(str(result.get("output_dir") or "")).resolve()
+            adapters_root = Path("artifacts/adapters").resolve()
+            if not adapter_path.is_dir() or adapters_root not in adapter_path.parents:
+                raise ValueError("trainer_output_outside_governed_adapters")
+            build_integrity_bundle(adapter_path)
+            canary = GovernedPeftServing(
+                self.db_path,
+                adapters_root,
+                served_models=served_model_labels(),
+            ).enroll(adapter_path, traffic_percent=5.0)
             result.update(
                 {
+                    # Estado canónico del worker; el estado de negocio queda en
+                    # `canary.status` y en `governed_peft_versions`.
+                    "status": "completed",
                     "job_id": job_id,
                     "canary_required": True,
+                    "canary": canary,
+                    "dataset_authorization": dataset_authorization,
                     "automatic_activation": False,
+                    "effect_receipt": {
+                        "action": "enroll_peft_canary",
+                        "target": canary["version_id"],
+                        "precondition": {
+                            "human_approved": True,
+                            "base_model_served": True,
+                            "dataset_authorized": True,
+                            "dataset_id": dataset_authorization["dataset_id"],
+                        },
+                        "execution": {
+                            "job_id": job_id,
+                            "traffic_percent": canary["traffic_percent"],
+                        },
+                        "postcondition": {
+                            "passed": canary["status"] == "canary",
+                            "status": canary["status"],
+                        },
+                        "verified": canary["status"] == "canary",
+                        "verifier": "governed_peft_serving_enroll",
+                        "evidence_refs": [
+                            str(adapter_path / "triade_adapter_manifest.json"),
+                            str(adapter_path / "serving_integrity.json"),
+                        ],
+                        "rollback_ref": str(adapter_path / "rollback.json"),
+                        "rollback_required": True,
+                    },
                 }
             )
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
-                    "UPDATE lora_jobs SET status='trained_pending_canary',finished_at=CURRENT_TIMESTAMP,result_json=? WHERE id=?",
+                    "UPDATE lora_jobs SET status='canary',finished_at=CURRENT_TIMESTAMP,result_json=? WHERE id=?",
                     (json.dumps(result, default=str), job_id),
                 )
             return result
@@ -158,3 +223,15 @@ class GovernedLoraJobRunner:
                 "error": str(exc),
                 "automatic_activation": False,
             }
+
+    @staticmethod
+    def _governed_auxiliary_path(value: Any) -> Path | None:
+        if not str(value or "").strip():
+            return None
+        candidate = Path(str(value)).resolve()
+        roots = [Path("data/lora").resolve(), Path("artifacts/datasets").resolve()]
+        if not candidate.is_file() or not any(
+            root == candidate.parent or root in candidate.parents for root in roots
+        ):
+            return None
+        return candidate

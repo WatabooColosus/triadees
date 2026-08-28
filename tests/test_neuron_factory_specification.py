@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -104,3 +105,62 @@ def test_export_is_deterministic_for_unchanged_store(tmp_path: Path) -> None:
     assert first == second
     assert len(first["sha256"]) == 64
     assert first["specification"]["resource_budget"]["max_memory_mb"] == 1024
+
+
+def test_registers_specification_from_existing_neuron_contract(tmp_path: Path) -> None:
+    db = tmp_path / "triade.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            """CREATE TABLE neurons (
+                id INTEGER PRIMARY KEY, name TEXT NOT NULL, mission TEXT NOT NULL,
+                domain TEXT, inputs_allowed TEXT, outputs_allowed TEXT,
+                created_by TEXT)"""
+        )
+        conn.execute(
+            """INSERT INTO neurons VALUES
+            (1, 'Central', 'coordinar aprendizaje', 'coordination',
+             '["signal"]', '["proposal"]', 'bootstrap')"""
+        )
+
+    registered = NeuronSpecificationStore(db).register_for_existing_neuron(
+        "1",
+        version="1.0.0",
+        component="triade.neurons.central",
+        provides_capabilities=("learning_coordination",),
+        owner="human-reviewer",
+        resource_budget=ResourceBudget(512, 60, 128),
+    )
+
+    assert registered["state"] == "specified"
+    assert registered["name"] == "Central"
+    assert registered["mission"] == "coordinar aprendizaje"
+    assert registered["input_contract"] == {"allowed": ["signal"]}
+    assert registered["output_contract"] == {"allowed": ["proposal"]}
+    assert [event["action"] for event in NeuronSpecificationStore(db).history("1")] == [
+        "registered",
+        "state_changed",
+    ]
+
+
+def test_existing_neuron_without_contract_is_not_invented(tmp_path: Path) -> None:
+    db = tmp_path / "triade.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            """CREATE TABLE neurons (
+                id INTEGER PRIMARY KEY, name TEXT NOT NULL, mission TEXT NOT NULL,
+                domain TEXT, inputs_allowed TEXT, outputs_allowed TEXT,
+                created_by TEXT)"""
+        )
+        conn.execute(
+            "INSERT INTO neurons VALUES (1,'Central','coordinar','general',NULL,'[]','bootstrap')"
+        )
+
+    with pytest.raises(ValueError, match="inputs_allowed"):
+        NeuronSpecificationStore(db).register_for_existing_neuron(
+            "1",
+            version="1.0.0",
+            component="triade.neurons.central",
+            provides_capabilities=("learning_coordination",),
+            owner="human-reviewer",
+            resource_budget=ResourceBudget(512, 60, 128),
+        )

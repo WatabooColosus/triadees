@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from triade.models.model_router import ModelRouter
@@ -85,10 +87,14 @@ class OllamaClient:
         base_url: str = "http://127.0.0.1:11434",
         timeout: int = 60,
         event_callback: Callable[[dict[str, Any]], None] | None = None,
+        db_path: str | Path | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.event_callback = event_callback
+        self.db_path = Path(
+            db_path or os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
+        )
 
     def _observe(self, payload: dict[str, Any]) -> None:
         """Notifica metadatos seguros; observar nunca puede romper la inferencia."""
@@ -132,6 +138,8 @@ class OllamaClient:
         prompt: str,
         system: str | None = None,
         options: dict[str, Any] | None = None,
+        *,
+        use_active_peft: bool = False,
     ) -> ModelResult:
         """Genera texto. `options` viaja tal cual al campo `options` de Ollama.
 
@@ -140,6 +148,13 @@ class OllamaClient:
         se omite el campo y Ollama aplica sus propios valores por defecto, que
         es lo que hacían todas las llamadas existentes.
         """
+        if use_active_peft:
+            peft_result = self._generate_with_active_peft(
+                model, prompt, system=system, options=options
+            )
+            if peft_result is not None:
+                return peft_result
+
         payload: dict[str, Any] = {
             "model": model,
             "prompt": prompt,
@@ -213,6 +228,121 @@ class OllamaClient:
                 }
             )
             return result
+
+    def _generate_with_active_peft(
+        self,
+        model: str,
+        prompt: str,
+        *,
+        system: str | None,
+        options: dict[str, Any] | None,
+    ) -> ModelResult | None:
+        """Sirve el slot PEFT canónico sólo para llamadas que lo solicitan.
+
+        Central opta explícitamente por este camino; Hipotálamo y embeddings no
+        cambian de modelo por accidente. Si el slot no está activo se devuelve
+        ``None`` y la llamada continúa por Ollama como siempre. Si el adaptador
+        activo falla, también hay fallback a Ollama y el fallo queda registrado
+        por ``PeftCanaryServer``.
+        """
+        try:
+            from triade.db import sqlite3
+            from triade.training.serving_governance import normalize_model_id
+
+            if not self.db_path.is_file():
+                return None
+            with sqlite3.connect(self.db_path) as conn:
+                tables = {
+                    str(row[0])
+                    for row in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND "
+                        "name IN ('governed_peft_active_slot','governed_peft_versions')"
+                    )
+                }
+                if len(tables) != 2:
+                    return None
+                row = conn.execute(
+                    """SELECT v.version_id,v.adapter_path,v.base_model
+                    FROM governed_peft_active_slot s
+                    JOIN governed_peft_versions v ON v.version_id=s.version_id
+                    WHERE s.slot='production' AND v.status='active'"""
+                ).fetchone()
+            if row is None or normalize_model_id(
+                str(row[2] or "")
+            ) != normalize_model_id(model):
+                return None
+
+            from triade.training.peft_canary import PeftCanaryServer
+
+            adapter_path = str(row[1])
+            generation = PeftCanaryServer(
+                self.db_path, Path(adapter_path).parent
+            ).generate(
+                adapter_path,
+                prompt,
+                system=system,
+                options=options,
+                max_new_tokens=int((options or {}).get("num_predict") or 128),
+                event="production_generation",
+            )
+            if (
+                generation.get("status") != "completed"
+                or not str(generation.get("response") or "").strip()
+            ):
+                self._observe(
+                    {
+                        "operation": "generate",
+                        "endpoint": "local://peft",
+                        "requested_model": model,
+                        "model_used": f"peft:{row[0]}",
+                        "ok": False,
+                        "error": str(generation.get("error") or "empty_peft_response"),
+                        "fallback": "ollama",
+                    }
+                )
+                return None
+            result = ModelResult(
+                ok=True,
+                text=str(generation["response"]).strip(),
+                model=f"peft:{row[0]}",
+                provider="peft-local",
+                total_duration=int(
+                    float(generation.get("latency_ms") or 0) * 1_000_000
+                ),
+            )
+            self._observe(
+                {
+                    "operation": "generate",
+                    "endpoint": "local://peft",
+                    "requested_model": model,
+                    "model_used": result.model,
+                    "duration_ms": generation.get("latency_ms"),
+                    "ok": True,
+                    "device_reported": "gpu",
+                    "adapter_path": adapter_path,
+                }
+            )
+            return result
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
+            self._observe(
+                {
+                    "operation": "generate",
+                    "endpoint": "local://peft",
+                    "requested_model": model,
+                    "ok": False,
+                    "error": str(exc),
+                    "fallback": "ollama",
+                }
+            )
+            return None
 
     def embed(
         self,

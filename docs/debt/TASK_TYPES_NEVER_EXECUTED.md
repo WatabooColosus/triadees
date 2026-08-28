@@ -75,7 +75,7 @@ Es el único de los ocho sin productor real.
 
 No aparece en `MissionPlanner`. Sus menciones son: el mapa de handlers, la lista
 `READ_ONLY_TASKS_WITHOUT_BLOOD`, y `AdvancedScheduler.TASK_TYPES` —otro
-planificador, que sólo usa `triade/dashboard/routes.py`—.
+planificador, cuya superficie viva se sirve desde `apps/routes/api.py`—.
 
 Su única vía de encolado es `WorkerTaskQueue.enqueue_defaults()`, que encola
 *todos* los tipos. Y eso es el **fallback** de `WorkerScheduler.schedule_cycle`:

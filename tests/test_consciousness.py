@@ -287,3 +287,30 @@ def test_la_saliencia_de_objetivo_lee_los_objetivos_vivos(tmp_path) -> None:
         "cualquier frase que no lo mencione"
     )
     assert con_objetivo > 0.1, "0.1 es el suelo: significa que no leyó nada"
+
+
+def test_la_atencion_influye_y_deja_huella_en_un_run_real(tmp_path: Path) -> None:
+    """Los tres módulos de atención tienen que llegar a Central, no sólo al test."""
+    from triade.core.runner import TriadeRunner
+
+    runner = TriadeRunner(
+        db_path=tmp_path / "triade.db",
+        runs_dir=tmp_path / "runs",
+        use_ollama=False,
+    )
+    result = runner.run(
+        "Prioriza la deuda técnica urgente de la memoria",
+        context={
+            "conversation_history": [
+                {"role": "user", "content": "Seguimos con la auditoría"}
+            ]
+        },
+        semantic_recall_enabled=False,
+        propose_neurons=False,
+    )
+
+    attention = result["memory_diff"]["attention"]
+    assert attention["status"] == "active"
+    assert attention["selected_count"] >= 1
+    assert attention["context"]
+    assert "attention_context_applied" in result["memory_diff"]["actions_taken"]

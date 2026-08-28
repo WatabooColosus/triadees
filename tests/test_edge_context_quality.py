@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from fastapi.testclient import TestClient
-
 
 def test_parse_model_json_safely_empty_is_observation_not_error() -> None:
     from triade.core.edge_context import parse_model_json_safely
@@ -149,8 +147,8 @@ def test_repeated_empty_edge_creates_learning_candidate(tmp_path) -> None:
 
 
 def test_dashboard_edge_context_health_reports_empty_count(monkeypatch) -> None:
+    import apps.routes.api as api_routes
     import triade.core.internal_runtime as runtime_mod
-    from apps.single_port_app import app
 
     monkeypatch.setattr(
         runtime_mod,
@@ -166,12 +164,10 @@ def test_dashboard_edge_context_health_reports_empty_count(monkeypatch) -> None:
         },
     )
 
-    response = TestClient(app, raise_server_exceptions=False).get(
-        "/api/ui/react-dashboard"
-    )
-    payload = response.json()
+    # El endpoint usa stale-while-revalidate; esta prueba comprueba el builder
+    # del snapshot, no una copia global que puede pertenecer a otra prueba.
+    payload = api_routes._build_react_dashboard()
 
-    assert response.status_code == 200
     assert payload["edge_context_health"]["status"] == "empty_response_repeated"
     assert payload["edge_context_health"]["empty_count_24h"] == 4
 

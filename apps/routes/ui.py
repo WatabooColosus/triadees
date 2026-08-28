@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -24,6 +24,7 @@ from apps.internal_graphs_live import (
     REFRESHER,
     build_graph,
     build_live_snapshot,
+    decode_stream_cursor,
     event_stream,
     node_detail,
     refresh_artifacts,
@@ -179,9 +180,17 @@ def internal_graphs_timeline(
 
 
 @router.get("/api/internal-graphs/stream")
-def internal_graphs_stream() -> StreamingResponse:
-    """Pulso SSE: estados por grafo mientras el runtime trabaja."""
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+def internal_graphs_stream(request: Request) -> StreamingResponse:
+    """Pulso SSE reanudable y con vida acotada para permitir apagar el API."""
+    cursor = decode_stream_cursor(request.headers.get("last-event-id"))
+    return StreamingResponse(
+        event_stream(cursor=cursor),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/", response_class=HTMLResponse)

@@ -11,6 +11,8 @@ from pathlib import Path
 
 from triade.capabilities.metacognition import CapabilityAwareness
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()

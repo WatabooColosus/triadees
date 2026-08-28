@@ -149,3 +149,30 @@ def test_progress_metrics_come_from_the_living_queue(tmp_path: Path) -> None:
         f"la cola de progreso arrastra filas de la tabla retirada: {metrics['queue']}"
     )
     assert metrics.get("legacy_queue", {}).get("completed") == 1
+
+
+def test_iso_errors_outside_the_window_do_not_degrade_health(tmp_path: Path) -> None:
+    """ISO-8601 con ``T`` no se compara lexicalmente con ``datetime()``.
+
+    SQLite devuelve ``YYYY-MM-DD HH:MM`` para ``datetime('now')``. Los eventos
+    del runtime usan ``YYYY-MM-DDTHH:MM+00:00``; comparar ambos como texto hacía
+    que cualquier error del mismo día pareciera reciente hasta medianoche.
+    """
+    db = _db(tmp_path)
+    _heartbeat(db)
+    con = sqlite3.connect(db)
+    for index in range(5):
+        con.execute(
+            "INSERT INTO worker_events (id,event_type,status,created_at) "
+            "VALUES (?, 'old_error', 'error', datetime('now','-1 hour') || 'Z')",
+            (index + 1,),
+        )
+    con.commit()
+    con.close()
+
+    health = ServiceHealth(db).inspect(
+        process_running=True, ollama_probe=_OLLAMA_OK
+    )
+
+    assert health.metrics["recent_repeated_errors"] == 0
+    assert "repeated_worker_errors" not in health.reasons

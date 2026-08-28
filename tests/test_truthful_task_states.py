@@ -72,6 +72,15 @@ def test_unknown_status_is_rejected() -> None:
         WorkerLoop._canonical_execution_result({"status": "pretend_success"}, "missing")
 
 
+@pytest.mark.parametrize("status", ["deferred", "cancelled", "lease_lost"])
+def test_active_non_success_statuses_have_canonical_execution(status: str) -> None:
+    execution = WorkerLoop._canonical_execution_result(
+        {"status": status, "reason": status}, "missing"
+    )
+    assert execution.status == status
+    assert execution.status != "completed"
+
+
 def test_execution_result_invariants() -> None:
     with pytest.raises(ValidationError, match="completed_requires_executed_true"):
         ExecutionResult(status="completed", executed=False, evidence=["run:1"])

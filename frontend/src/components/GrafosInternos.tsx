@@ -33,7 +33,11 @@ type LiveEvent = {
   source: string; row_id: number; at: string | null; graph: string
   node_id: string | null; action: string; status: string; evidence: string
 }
-type DebtEntry = { count: number; sample: string[]; evidence: string }
+type DebtEntry = {
+  count: number; sample: string[]; evidence: string
+  classified?: Record<string, { classification?: string; reason?: string }>
+  contract_broken?: Record<string, any>
+}
 type Refresh = {
   running: boolean; stale: boolean; stale_after_seconds: number
   age_seconds: number | null; last_build_seconds: number | null
@@ -43,7 +47,8 @@ type Refresh = {
 }
 type Debt = {
   status: string; reason?: string; summary?: string
-  debt_items_total?: number; graphs_age_seconds?: number
+  debt_items_total?: number; debt_real_total?: number
+  by_classification?: Record<string, number>; graphs_age_seconds?: number
   items: Record<string, DebtEntry>; refresh?: Refresh
 }
 type Health = {
@@ -383,11 +388,17 @@ function DebtPanel({ debt }: { debt: Debt | null }) {
   }
   const entries = Object.entries(debt.items).sort((a, b) => b[1].count - a[1].count)
   const r = debt.refresh
+  const observed = debt.debt_items_total ?? 0
+  const real = debt.debt_real_total ?? observed
+  const classified = Math.max(0, observed - real)
   return (
     <div style={{ fontSize: 12 }}>
       <h3 style={{ fontSize: 13, margin: '0 0 8px' }}>
-        {debt.debt_items_total} elementos de deuda
+        {real} elementos de deuda real · {observed} hallazgos observados
       </h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px' }}>
+        {classified} hallazgos tienen contrato verificado (bajo demanda, compuerta o vacío esperado) y no se cuentan como rotura.
+      </p>
       <p style={{ color: 'var(--text-muted)', fontSize: 11 }}>
         grafos de hace {Math.round((debt.graphs_age_seconds || 0) / 60)} min
         {r?.running
@@ -403,15 +414,23 @@ function DebtPanel({ debt }: { debt: Debt | null }) {
         exit={r.exit_code ?? '—'} · {r.command || 'comando desconocido'} · último válido {r.last_valid_artifact || 'ninguno'}
         {r.last_valid_age_seconds != null ? ` (${Math.round(r.last_valid_age_seconds)} s)` : ''}
       </div>}
-      {entries.map(([name, e]) => (
+      {entries.map(([name, e]) => {
+        const classifiedCount = Object.keys(e.classified || {}).length
+        const realCount = Math.max(0, e.count - classifiedCount)
+        return (
         <div key={name} style={{ padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
-          <b>{name.replace(/_/g, ' ')}</b> — {e.count}
+          <b>{name.replace(/_/g, ' ')}</b> — {realCount} real / {e.count} observado(s)
           <div style={{ color: 'var(--text-muted)', fontSize: 10, margin: '3px 0' }}>{e.evidence}</div>
-          {e.sample.map(s => (
-            <div key={s} style={{ fontSize: 10, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{s}</div>
-          ))}
+          {e.sample.map(s => {
+            const classification = e.classified?.[s]?.classification
+            return (
+              <div key={s} style={{ fontSize: 10, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                {s}{classification ? ` · ${classification}` : ' · REAL_BROKEN'}
+              </div>
+            )
+          })}
         </div>
-      ))}
+      )})}
     </div>
   )
 }
@@ -419,16 +438,17 @@ function DebtPanel({ debt }: { debt: Debt | null }) {
 function DebtChart({ debt }: { debt: Debt | null }) {
   if (!debt || debt.status !== 'measured') return null
   const entries = Object.entries(debt.items).sort((a, b) => b[1].count - a[1].count)
-  const max = Math.max(...entries.map(([, e]) => e.count), 1)
+  const realCount = (e: DebtEntry) => Math.max(0, e.count - Object.keys(e.classified || {}).length)
+  const max = Math.max(...entries.map(([, e]) => realCount(e)), 1)
   return (
     <svg style={{ width: '100%', height: '100%' }}>
       {entries.map(([name, e], i) => (
         <g key={name} transform={`translate(24,${28 + i * 46})`}>
           {/* La longitud es el recuento, no una estimación. */}
-          <rect width={`${Math.max((e.count / max) * 70, 0.5)}%`} height={26} rx={4}
-            fill={e.count ? '#b03030' : '#1b7f4b'} />
+          <rect width={`${Math.max((realCount(e) / max) * 70, 0.5)}%`} height={26} rx={4}
+            fill={realCount(e) ? '#b03030' : '#1b7f4b'} />
           <text x={8} y={18} fill="#fff" fontSize={12}>
-            {e.count}  {name.replace(/_/g, ' ')}
+            {realCount(e)} real  {name.replace(/_/g, ' ')}
           </text>
         </g>
       ))}

@@ -9,6 +9,8 @@ from pydantic import ValidationError
 
 from triade.runtime.utility_ledger import UtilityLedger, UtilityReceipt
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 
 def main() -> int:
     with tempfile.TemporaryDirectory() as directory:
