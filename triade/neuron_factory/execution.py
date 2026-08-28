@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any, ClassVar
 
+from triade.core.contracts import utc_now
 from triade.db import sqlite3
 
 from .candidate import NeuronCandidateFactory
@@ -75,6 +76,19 @@ class SandboxExecutionEngine:
             "policy": policy,
             "configuration": json.loads(payload.decode("utf-8")),
             "status": "completed",
+            # Cuándo se ejecutó, en reloj de pared. `duration_ms` sale de
+            # `perf_counter()`, que es monótono y sirve para medir cuánto tardó,
+            # no para situarlo en el tiempo — y situarlo es justo lo que hace
+            # falta aguas abajo.
+            #
+            # `VitalityEvaluationProvider` separa baseline de candidato por un
+            # corte temporal y lee `artifact["created_at"] or ["started_at"]`.
+            # Ninguno de los dos se escribía nunca, así que rechazaba la
+            # evaluación con «sin corte temporal la comparación no es honesta» y
+            # la cadena de auto-mejora moría ahí, después de haber creado
+            # especificación, candidato, enlace y ejecución en sandbox. El
+            # campo que esperaba tenía este nombre exacto desde el principio.
+            "started_at": utc_now(),
         }
         canonical = json.dumps(artifact, sort_keys=True, separators=(",", ":"))
         artifact["sha256"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()

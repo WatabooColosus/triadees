@@ -8,6 +8,8 @@ from pathlib import Path
 
 from triade.verification import TriadeVerifier
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()

@@ -22,6 +22,8 @@ from triade.models.measured_orchestration import (
 )
 from triade.runtime.task_artifacts import AtomicArtifactWriter
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 OLLAMA = "http://127.0.0.1:11434"
 BASELINE = "qwen3:4b"
 ROUTES = {

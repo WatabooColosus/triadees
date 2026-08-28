@@ -10,6 +10,8 @@ from pathlib import Path
 
 from triade.learning.context_selection_benchmark import run_phase_1_experiment
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]

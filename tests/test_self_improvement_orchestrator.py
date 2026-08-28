@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from triade.evaluation import EvaluationRun, MetricResult
 from triade.neuron_factory import (
     NeuronSpecification,
@@ -143,3 +145,44 @@ def test_regression_is_quarantined_without_canary(tmp_path: Path) -> None:
     assert result["evidence"]["promotable"] is False
     assert orchestrator.snapshot()["canaries"] == {}
     assert orchestrator.snapshot()["proposals"] == {"rejected": 1}
+
+
+def test_insufficient_evidence_keeps_candidate_resumable(tmp_path: Path) -> None:
+    db_path = tmp_path / "triade.db"
+    prepare(db_path)
+    orchestrator = SelfImprovementOrchestrator(db_path)
+
+    def insufficient(_candidate_id: str, _artifact: dict):
+        raise ValueError("evidencia insuficiente después del candidato")
+
+    with pytest.raises(ValueError, match="evidencia insuficiente"):
+        orchestrator.run_once(
+            "proposal-quality",
+            neuron_id="neuron.research.improved",
+            version="1.0.0",
+            configuration={"mode": "verified"},
+            evaluation_provider=insufficient,
+        )
+
+    snapshot = orchestrator.snapshot()
+    assert snapshot["proposals"] == {"candidate_created": 1}
+    assert snapshot["candidate_links"] == {"active": 1}
+    candidate_id = orchestrator.export("proposal-quality")["candidate_links"][0][
+        "candidate_id"
+    ]
+
+    def sufficient(candidate_id: str, _artifact: dict):
+        return (
+            run(candidate_id, 0.5, "eval-baseline"),
+            run(candidate_id, 0.9, "eval-candidate"),
+            (MetricPolicy("quality", severity="high"),),
+        )
+
+    result = orchestrator.resume_once(
+        "proposal-quality",
+        candidate_id=candidate_id,
+        evaluation_provider=sufficient,
+    )
+
+    assert result["status"] == "canary_running"
+    assert orchestrator.snapshot()["proposals"] == {"completed": 1}

@@ -11,6 +11,8 @@ from pathlib import Path
 
 from triade.learning.autonomous_cycle import GovernedAutonomousLearningCycle
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()

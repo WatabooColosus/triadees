@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from triade.consciousness import FocusModulator, SalienceEngine, WorkingMemory
+from triade.constitution.enforcer import ConstitutionEnforcer
 from triade.db import sqlite3
 from triade.learning.post_run import schedule_learning_from_run
 from triade.memory.semantic_embedding_engine import SemanticEmbeddingEngine
@@ -208,7 +210,9 @@ class TriadeRunner:
         self.model_client = None
         if use_ollama and self.model_provider == "ollama":
             self.model_client = OllamaClient(
-                base_url=self.ollama_base_url, timeout=self.ollama_timeout
+                base_url=self.ollama_base_url,
+                timeout=self.ollama_timeout,
+                db_path=self.db_path,
             )
         selected = self._select_models(
             manual_hypothalamus=hypothalamus_model,
@@ -232,6 +236,14 @@ class TriadeRunner:
         self.central = Central(
             model_client=self.model_client, central_model=self.central_model
         )
+        # Atención viva: el Hipotálamo aporta tono/riesgo, Salience decide qué
+        # pesa ahora, Focus ajusta el umbral con mood/fatiga y WorkingMemory
+        # entrega a Central un contexto pequeño. Antes estos tres módulos sólo
+        # podían ejecutarse desde tests y nunca influían en un run real.
+        self.salience = SalienceEngine(db_path=self.db_path)
+        self.focus = FocusModulator(db_path=self.db_path)
+        self.working_memory = WorkingMemory(max_size=10)
+        self.constitution = ConstitutionEnforcer(db_path=str(self.db_path))
         self.safety = Safety()
         self.verifier = Verifier()
 
@@ -320,6 +332,167 @@ class TriadeRunner:
         if self.semantic_governance is None:
             self.semantic_governance = SemanticMemoryGovernance(db_path=self.db_path)
         return self.semantic_governance
+
+    def _apply_attention(
+        self, input_packet: InputPacket, signals: Any, memory: Any
+    ) -> dict[str, Any]:
+        """Selecciona contexto activo y lo inyecta en el paquete que lee Central."""
+        try:
+            current = self.salience.score(
+                input_packet.user_input,
+                str(signals.intent),
+                str(signals.urgency),
+                str(signals.risk),
+                str(signals.tone),
+                run_id=input_packet.run_id,
+            )
+            self.working_memory.push(input_packet.user_input, "user_current", current)
+
+            history = input_packet.context.get("conversation_history")
+            if isinstance(history, list):
+                for item in history[-4:]:
+                    if not isinstance(item, dict):
+                        continue
+                    text = str(item.get("content") or "").strip()
+                    if not text or text == input_packet.user_input:
+                        continue
+                    salience = self.salience.score(
+                        text[:1000],
+                        str(signals.intent),
+                        "low",
+                        "low",
+                        "constructive",
+                        run_id=input_packet.run_id,
+                    )
+                    self.working_memory.push(
+                        text[:1000], str(item.get("role") or "conversation"), salience
+                    )
+
+            for match in list(getattr(memory, "semantic_matches", []) or [])[:3]:
+                if not isinstance(match, dict):
+                    continue
+                text = str(match.get("content") or "").strip()
+                if not text:
+                    continue
+                salience = self.salience.score(
+                    text[:1000],
+                    str(signals.intent),
+                    "low",
+                    "low",
+                    "constructive",
+                    run_id=input_packet.run_id,
+                )
+                self.working_memory.push(text[:1000], "semantic_memory", salience)
+
+            threshold = self.focus.threshold()
+            selected = self.working_memory.get_relevant(
+                min_relevance=threshold, limit=5
+            )
+            state = {
+                "status": "active",
+                "threshold": round(threshold, 4),
+                "current": current.to_dict(),
+                "current_focus": (
+                    "foreground" if current.relevance >= threshold else "background"
+                ),
+                "selected_count": len(selected),
+                "selected": [item.to_dict() for item in selected],
+                "context": self.working_memory.get_context(max_chars=1600),
+                "policy": (
+                    "La atención prioriza contexto; nunca descarta la petición actual."
+                ),
+            }
+        except (
+            OSError,
+            ImportError,
+            sqlite3.Error,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as exc:
+            from .error_bus import record_internal_error
+
+            record_internal_error(
+                "runner.attention",
+                exc,
+                run_id=input_packet.run_id,
+                db_path=self.db_path,
+            )
+            state = {
+                "status": "unavailable",
+                "error": type(exc).__name__,
+                "policy": "Central continúa sin filtrar la petición actual.",
+            }
+        input_packet.context["attention"] = state
+        return state
+
+    def _apply_constitution(
+        self, input_packet: InputPacket, signals: Any, plan: Any, safety: Any
+    ) -> dict[str, Any]:
+        """Audita reglas constitucionales demostrables y hace efectivo el veto."""
+        text = input_packet.user_input.lower()
+        identity_mutation = any(
+            term in text
+            for term in (
+                "modifica tu identidad",
+                "cambia tu identidad",
+                "borra tu identidad",
+                "reescribe identity_core",
+            )
+        )
+        destructive = safety.status == "blocked" and "security" in safety.risk_types
+        context = {
+            "modifies_identity": identity_mutation,
+            "critical": str(signals.risk) == "critical",
+            "human_approved": bool(
+                input_packet.context.get("human_approved_by")
+                or input_packet.context.get("approved_by")
+            ),
+            "destructive": destructive,
+            "has_rollback": getattr(plan, "rollback", None) is not None,
+            "is_auditable": bool(input_packet.run_id),
+        }
+        checks = [
+            self.constitution.check_article("runner", article, context)
+            for article in (1, 2, 3, 6)
+        ]
+        violations = [check for check in checks if check["status"] == "violation"]
+        action = "allow"
+        if any(check["article"] in {1, 3} for check in violations):
+            safety.status = "blocked"
+            safety.human_approval_required = False
+            action = "block"
+        elif any(check["article"] == 2 for check in violations):
+            safety.status = "requires_human_approval"
+            safety.human_approval_required = True
+            action = "require_human_approval"
+        if violations:
+            safety.risk_types = list(
+                dict.fromkeys([*safety.risk_types, "constitution_violation"])
+            )
+            details = ", ".join(
+                f"artículo {check['article']}: {check['details'].get('reason')}"
+                for check in violations
+            )
+            safety.reason = f"{safety.reason} Constitución: {details}.".strip()
+        enforcement = self.constitution.enforce(
+            "runner",
+            action,
+            details={
+                "run_id": input_packet.run_id,
+                "check_ids": [check["check_id"] for check in checks],
+                "violations": [check["article"] for check in violations],
+            },
+        )
+        return {
+            "status": "blocked" if action == "block" else action,
+            "checks": checks,
+            "violations": len(violations),
+            "enforcement": enforcement,
+            "policy": "Sólo se evalúan artículos con evidencia disponible en el run.",
+        }
 
     def run(
         self,
@@ -458,6 +631,7 @@ class TriadeRunner:
                 memory, allow_experimental=semantic_allow_experimental
             )
         enrich_research(input_packet, memory, user_input, source, self.db_path)
+        attention_state = self._apply_attention(input_packet, signals, memory)
         memory.semantic_recall["qualia_bus"] = qualia_context_for_memory(
             self.db_path, limit=5
         )
@@ -471,6 +645,7 @@ class TriadeRunner:
         crystal_id = self.bodega.store_crystal(crystal)
         plan = self.central.plan(input_packet, signals, memory, crystal)
         plan_dict = plan.to_dict()
+        plan_dict["attention"] = attention_state
         plan_dict["edge_context"] = {
             "used_edge": bool(edge_context.get("used_edge")),
             "accepted": bool(edge_context.get("accepted")),
@@ -516,6 +691,10 @@ class TriadeRunner:
                 "Incorporar edge_context como señal auxiliar validada; no usarlo como autoridad final."
             )
         safety = self.safety.review(signals, plan, crystal=crystal, memory=memory)
+        constitution_state = self._apply_constitution(
+            input_packet, signals, plan, safety
+        )
+        plan_dict["constitution"] = constitution_state
         safety_id = self.bodega.store_safety(safety)
         sandbox_result = None
 
@@ -580,6 +759,9 @@ class TriadeRunner:
             output.status = "pending_approval"
         else:
             output = self.central.respond(input_packet, signals, memory, crystal, plan)
+        if attention_state.get("status") == "active":
+            output.actions_taken.append("attention_context_applied")
+        output.actions_taken.append("constitution_enforced")
         web_research = (
             input_packet.context.get("guarded_web_research")
             if isinstance(input_packet.context, dict)
@@ -1059,6 +1241,8 @@ class TriadeRunner:
             "model_ok": output.model_ok,
             "model_error": output.model_error,
             "model_selection": self.model_selection,
+            "attention": attention_state,
+            "constitution": constitution_state,
         }
         report = self.verifier.verify(output, safety, crystal=crystal, memory=memory)
         verification_id = self.bodega.store_verification_report(report)
@@ -1280,6 +1464,7 @@ class TriadeRunner:
         output.memory_diff["expression_hidden_evidence"] = expression_hidden_evidence
         output.memory_diff["source_labels"] = output_gate.get("source_labels", {})
         output.memory_diff["source_labels"]["neuron_proposal"] = bool(neuron_proposal)
+        output.memory_diff["actions_taken"] = list(output.actions_taken)
         output.memory_diff["traceability"] = _build_traceability(
             run_id=input_packet.run_id,
             output=output,

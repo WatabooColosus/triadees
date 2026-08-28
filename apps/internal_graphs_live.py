@@ -16,6 +16,7 @@ import os
 import resource
 import shutil
 import time
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 from collections.abc import Iterator
 from dataclasses import asdict
 from pathlib import Path
@@ -474,6 +475,18 @@ def build_signals() -> dict[str, Any]:
     # un tipo que no corre desde hace días late en verde igual que uno que acaba
     # de ejecutarse: el mismo estado que ya distinguen los eslabones de arriba.
     recent = task_type_recency(db_path)
+    ready_when_idle: set[str] = set()
+    worker_artifact = ARTIFACT_DIR / "worker_graph.json"
+    try:
+        worker_nodes = json.loads(worker_artifact.read_text(encoding="utf-8")).get(
+            "nodes", []
+        )
+    except (OSError, ValueError, AttributeError):
+        worker_nodes = []
+    for node in worker_nodes:
+        metadata = node.get("metadata") or {}
+        if metadata.get("ready_when_idle"):
+            ready_when_idle.add(str(node.get("label") or ""))
     # Los tipos que nunca se ejecutaron no aparecen en la cola, y son justo los
     # que hay que ver: se parten de los declarados, no de los encontrados.
     declared = literal_strings(ROOT, "triade/workers/contracts.py", "WorkerTaskType")
@@ -486,8 +499,11 @@ def build_signals() -> dict[str, Any]:
                 if not available
                 else "disconnected"
                 if executions.get(task_type, 0) <= 0
+                and task_type not in ready_when_idle
                 else "active"
                 if recent.get(task_type, False)
+                else "ready"
+                if task_type in ready_when_idle
                 else "legacy"
             ),
         }
@@ -630,17 +646,57 @@ def operational_timeline(
     }
 
 
-def event_stream(interval_seconds: float = 2.0) -> Iterator[str]:
-    """Entrega pulsos SSE; una desconexión del cliente termina el generador.
+def encode_stream_cursor(cursor: FeedCursor) -> str:
+    """Cursor compacto y opaco para el campo ``id`` de Server-Sent Events."""
+    raw = json.dumps(cursor.to_dict(), separators=(",", ":"), sort_keys=True).encode()
+    return urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+def decode_stream_cursor(value: str | None) -> FeedCursor | None:
+    """Recupera ``Last-Event-ID`` sin confiar en datos enviados por el cliente."""
+    if not value or len(value) > 1024:
+        return None
+    try:
+        padding = "=" * (-len(value) % 4)
+        raw = json.loads(urlsafe_b64decode(value + padding))
+        if not isinstance(raw, dict):
+            return None
+        positions = {
+            str(table): int(position)
+            for table, position in raw.items()
+            if isinstance(table, str)
+            and isinstance(position, int)
+            and position >= 0
+        }
+        if positions.keys() != raw.keys():
+            return None
+        return FeedCursor.from_dict(positions)
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def event_stream(
+    interval_seconds: float = 2.0,
+    *,
+    cursor: FeedCursor | None = None,
+    max_lifetime_seconds: float = 8.0,
+) -> Iterator[str]:
+    """Entrega pulsos SSE en conexiones cortas que se reanudan por cursor.
 
     El cursor arranca en el presente: quien se conecta ve lo que ocurre desde
-    ese momento, no un volcado del historial disfrazado de ahora.
+    ese momento, no un volcado del historial disfrazado de ahora. Tras ocho
+    segundos la conexión termina a propósito y ``EventSource`` reconecta con el
+    último ``id``; así Uvicorn no queda retenido por una pestaña durante el
+    apagado y tampoco se pierden eventos entre dos conexiones.
     """
-    cursor = latest_cursor(_db_path())
-    while True:
+    cursor = cursor if cursor is not None else latest_cursor(_db_path())
+    started = time.monotonic()
+    emitted = 0
+    while emitted == 0 or time.monotonic() - started < max_lifetime_seconds:
         try:
             payload, cursor = build_pulse(cursor)
             yield (
+                f"id: {encode_stream_cursor(cursor)}\n"
                 "event: pulse\n"
                 f"data: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
             )
@@ -651,4 +707,7 @@ def event_stream(interval_seconds: float = 2.0) -> Iterator[str]:
                 "detail": str(exc),
             }
             yield f"event: graph_error\ndata: {json.dumps(error, ensure_ascii=False)}\n\n"
+        emitted += 1
+        if time.monotonic() - started >= max_lifetime_seconds:
+            break
         time.sleep(max(1.0, interval_seconds))

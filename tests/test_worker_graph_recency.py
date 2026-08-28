@@ -6,8 +6,9 @@ congelada desde el 2026-07-29, y mientras el estado se decidiera sólo por
 con 2 499 filas y `memory_consolidation_review` con 208— salían en verde
 exactamente igual que `pulse_check`, que corre cada minuto.
 
-`legacy` ya existía en la paleta con el significado correcto: «existe y se usó,
-sin actividad reciente».
+Una tarea periódica sin latido sigue siendo `legacy`. Una tarea bajo demanda con
+productor y consumidor verificados queda `ready`: conectada, pero sin fingir una
+ejecución que no ocurrió.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from triade.observability.code_graph import build_module_index
 from triade.observability.runtime_graph import (
     _task_type_state,
     build_worker_graph,
+    recent_activity,
     task_type_counts,
     task_type_recency,
 )
@@ -67,15 +69,32 @@ def test_una_cola_congelada_no_cuenta_como_actividad_reciente(tmp_path: Path) ->
     assert fresh["pulse_check"] is True
 
 
-def test_el_grafo_pinta_legacy_lo_que_se_uso_y_ya_no(tmp_path: Path) -> None:
+def test_recency_accepts_current_timestamp_with_space(tmp_path: Path) -> None:
+    """Los dos formatos reales de SQLite pertenecen a la misma línea temporal."""
+    db = tmp_path / "mixed.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE events(created_at TEXT DEFAULT CURRENT_TIMESTAMP)")
+    conn.execute("INSERT INTO events DEFAULT VALUES")
+    conn.commit()
+
+    fresh = recent_activity(conn, ["events"])
+    conn.close()
+
+    assert fresh["events"] is True
+
+
+def test_el_grafo_separa_bajo_demanda_preparado_de_actividad_real(
+    tmp_path: Path,
+) -> None:
     db = _db_con_dos_colas(tmp_path)
     nodes, _edges = build_worker_graph(REPO_ROOT, build_module_index(REPO_ROOT), db)
     por_tipo = {n.label: n for n in nodes if n.node_id.startswith("task_type:")}
 
     congelado = por_tipo["experimental_neuron_activity"]
-    assert congelado.state == "legacy"
+    assert congelado.state == "ready"
     assert congelado.metadata["executions"] == 25
     assert congelado.metadata["recent_24h"] is False
+    assert congelado.metadata["activation_classification"] == "ON_DEMAND"
 
     vivo = por_tipo["pulse_check"]
     assert vivo.state == "active"
@@ -100,3 +119,6 @@ def test_sin_base_el_estado_es_unknown_no_inventado() -> None:
     assert _task_type_state("handler", 10, fresh=None) == "unknown"
     assert _task_type_state("handler", 10, fresh=False) == "legacy"
     assert _task_type_state("handler", 10, fresh=True) == "active"
+    assert (
+        _task_type_state("handler", 0, fresh=False, ready_when_idle=True) == "ready"
+    )

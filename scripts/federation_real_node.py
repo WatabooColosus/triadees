@@ -20,6 +20,8 @@ from triade.federation.exchange import (
 )
 from triade.federation.registry import FederatedNodeIdentity, FederatedNodeRegistry
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 
 class Node:
     def __init__(

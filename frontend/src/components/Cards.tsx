@@ -967,12 +967,9 @@ export function SupervisionCard({ data }: { data: any }) {
 // un humano real -- esta tarjeta hace que esa aprobación sea de un clic en
 // vez de un trámite: se refresca sola, no depende del poll pesado del
 // dashboard.
-export function LoraApprovalCard() {
+export function LoraApprovalCard({ apiKey }: { apiKey: string }) {
   const [data, setData] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
-  const [approvedBy, setApprovedBy] = useState(() => localStorage.getItem('triade_approver_name') || '')
-  const [busy, setBusy] = useState<string | null>(null)
-  const [lastResult, setLastResult] = useState<any>(null)
 
   const [serving, setServing] = useState<any>(null)
 
@@ -997,41 +994,25 @@ export function LoraApprovalCard() {
     return () => clearInterval(id)
   }, [])
 
-  async function approve(adapterPath: string) {
-    if (busy || !approvedBy.trim()) return
-    localStorage.setItem('triade_approver_name', approvedBy.trim())
-    setBusy(adapterPath)
-    setLastResult(null)
-    try {
-      const res = await liveApi('/api/governance/peft/activate', {
-        method: 'POST',
-        body: JSON.stringify({ adapter_path: adapterPath, approved_by: approvedBy.trim() }),
-      })
-      setLastResult(res)
-      await load()
-    } catch (e: any) {
-      setLastResult({ status: 'error', reason: e.message })
-    } finally {
-      setBusy(null)
-    }
-  }
-
   const pending = data?.pending || []
   const hasPending = pending.length > 0
-  const color = hasPending ? '#f59e0b' : '#22c55e'
+  const effectiveState = serving?.serving_truth?.effective_state
+  const approvedNotServed = effectiveState === 'approved_not_served'
+  const activeRoutable = effectiveState === 'active_routable'
+  const activeObserved = effectiveState === 'active_observed'
+  const color = activeObserved ? '#22c55e' : approvedNotServed || activeRoutable || hasPending ? '#f59e0b' : '#22c55e'
 
   return (
-    <Card title={`LoRA · aprobación de producción${hasPending ? ` (${pending.length})` : ''}`} color={color}>
+    <Card title="LoRA · verdad de servicio" color={color}>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
-        El sistema entrena y prueba en canary sin ayuda. Tu aprobación queda
-        registrada, pero hoy NO pone el adaptador a servir: la inferencia real sale
-        por Ollama y no lee este slot. Falta construir esa ruta.
+        La firma vive en la Compuerta Humana. Esta tarjeta comprueba además si
+        Central consulta el slot canónico y si ya existe tráfico real observado.
       </div>
       {error && <div style={{ fontSize: 11, color: '#ef4444' }}>{error}</div>}
       {!error && !hasPending && (
         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Nada esperando aprobación ahora mismo.</div>
       )}
-      {serving?.serving_truth?.effective_state === 'approved_not_served' && (
+      {approvedNotServed && (
         <div style={{
           marginTop: 6, padding: '6px 8px', borderRadius: 6, fontSize: 11,
           background: 'var(--bg-base)', border: '1px solid #f59e0b', color: 'var(--text-primary)',
@@ -1041,20 +1022,27 @@ export function LoraApprovalCard() {
           Ollama y no consulta este slot: <strong>no influye en ninguna respuesta</strong>.
         </div>
       )}
+      {activeRoutable && (
+        <div style={{
+          marginTop: 6, padding: '6px 8px', borderRadius: 6, fontSize: 11,
+          background: 'var(--bg-base)', border: '1px solid #f59e0b', color: 'var(--text-primary)',
+        }}>
+          <strong style={{ color: '#f59e0b' }}>Activo y conectado.</strong>{' '}
+          Central consultará el adaptador en la próxima respuesta; todavía falta
+          una inferencia de producción exitosa para afirmar que circuló tráfico.
+        </div>
+      )}
+      {activeObserved && (
+        <div style={{
+          marginTop: 6, padding: '6px 8px', borderRadius: 6, fontSize: 11,
+          background: 'var(--bg-base)', border: '1px solid #22c55e', color: 'var(--text-primary)',
+        }}>
+          <strong style={{ color: '#22c55e' }}>En servicio real.</strong>{' '}
+          Central ya respondió con el adaptador activo. Inferencias verificadas:{' '}
+          {serving?.serving_truth?.production_successes ?? 0}.
+        </div>
+      )}
       {hasPending && (
-        <>
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Tu nombre</span>
-            <input
-              value={approvedBy}
-              onChange={e => setApprovedBy(e.target.value)}
-              placeholder="quién aprueba"
-              style={{
-                flex: 1, background: 'var(--bg-base)', color: 'var(--text-primary)',
-                border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 11,
-              }}
-            />
-          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {pending.map((item: any) => (
               <div key={item.adapter_path} style={{ padding: '6px 8px', background: 'var(--bg-base)', borderRadius: 6, fontSize: 11 }}>
@@ -1064,26 +1052,12 @@ export function LoraApprovalCard() {
                 <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 10 }}>
                   {item.successful_canaries} canary(s) exitoso(s) · último {item.last_success_at}
                 </div>
-                <button
-                  onClick={() => approve(item.adapter_path)}
-                  disabled={busy === item.adapter_path || !approvedBy.trim()}
-                  style={{ ...btn, marginTop: 4, opacity: approvedBy.trim() ? 1 : 0.5 }}
-                >
-                  {busy === item.adapter_path ? 'Activando…' : 'Aprobar y activar en producción'}
-                </button>
+                <div style={{ color: '#f59e0b', marginTop: 4, fontSize: 10 }}>
+                  Registro legacy: no se puede activar desde aquí. Revisa la Compuerta Humana.
+                </div>
               </div>
             ))}
           </div>
-        </>
-      )}
-      {lastResult && (
-        <div style={{
-          marginTop: 8, padding: '6px 8px', borderRadius: 6, fontSize: 10, fontFamily: 'monospace',
-          whiteSpace: 'pre-wrap', color: lastResult.status === 'active' ? '#22c55e' : '#ef4444',
-          background: 'var(--bg-base)',
-        }}>
-          {JSON.stringify(lastResult, null, 2)}
-        </div>
       )}
     </Card>
   )
@@ -1244,7 +1218,7 @@ function Metrica({ label, valor, color, destacado }: { label: string; valor: num
 // desde el 29-jul acumulando observaciones y `activate()` lo habría rechazado
 // igual cualquiera de esos días: se inscribió sin `base_model`. Sin decirlo,
 // quien mira ve «listo para aprobar» y descubre el bloqueo al firmar.
-export function CompuertaHumanaCard() {
+export function CompuertaHumanaCard({ apiKey }: { apiKey: string }) {
   const [data, setData] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [approvedBy, setApprovedBy] = useState(() => localStorage.getItem('triade_approver_name') || '')
@@ -1273,7 +1247,11 @@ export function CompuertaHumanaCard() {
     setLastResult(null)
     try {
       const body = { ...(gate.payload_hint || {}), approved_by: approvedBy.trim() }
-      setLastResult(await liveApi(gate.endpoint, { method: 'POST', body: JSON.stringify(body) }))
+      setLastResult(await liveApi(gate.endpoint, {
+        method: 'POST',
+        headers: apiKey ? { 'X-TRIADE-API-Key': apiKey } : {},
+        body: JSON.stringify(body),
+      }))
       await load()
     } catch (e: any) {
       setLastResult({ status: 'error', reason: e.message })
@@ -1286,15 +1264,32 @@ export function CompuertaHumanaCard() {
   const listas = data?.ready ?? 0
   const bloqueadas = data?.blocked ?? 0
   const color = listas > 0 ? '#f59e0b' : bloqueadas > 0 ? '#94a3b8' : '#22c55e'
+  const title = listas > 0
+    ? `Compuerta · esperando tu firma (${listas}/${gates.length})`
+    : bloqueadas > 0
+      ? `Compuerta · bloqueos que requieren resolución (${bloqueadas})`
+      : 'Compuerta · sin decisiones pendientes'
+
+  function gateSince(raw: any) {
+    const text = String(raw ?? '')
+    if (/^\d+(\.\d+)?$/.test(text)) {
+      const value = Number(text)
+      return new Date(value < 10_000_000_000 ? value * 1000 : value).toISOString()
+    }
+    return text || 'sin fecha'
+  }
 
   return (
     <Card
-      title={`Compuerta · esperando tu firma${gates.length ? ` (${listas}/${gates.length})` : ''}`}
+      title={title}
       color={color}
     >
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
-        Tríade decide sola todo lo que puede demostrar. Lo que queda aquí es lo
-        que exige un nombre propio detrás. Leer no aprueba nada.
+        {listas > 0
+          ? 'Estas decisiones están listas y exigen un nombre propio detrás. Leer no aprueba nada.'
+          : bloqueadas > 0
+            ? 'Ninguna firma puede resolver estas entradas todavía. Primero hay que cerrar sus bloqueos técnicos.'
+            : 'No hay decisiones humanas pendientes.'}
       </div>
       {error && <div style={{ fontSize: 11, color: '#ef4444' }}>{error}</div>}
       {!error && gates.length === 0 && (
@@ -1328,7 +1323,7 @@ export function CompuertaHumanaCard() {
                 <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{g.title}</div>
                 <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 10 }}>{g.detail}</div>
                 <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 10, fontFamily: 'monospace' }}>
-                  {g.id} · desde {g.since}
+                  {g.id} · desde {gateSince(g.since)}
                 </div>
                 {g.policy_would_approve === true && (
                   <div style={{ color: '#22c55e', marginTop: 2, fontSize: 10 }}>

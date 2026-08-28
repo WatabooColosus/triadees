@@ -318,11 +318,20 @@ class ContractVerifier:
             # Este mismo fichero queda fuera: el contrato **nombra** a su sujeto,
             # y confundir «declaro un contrato sobre X» con «invoco X» haría que
             # todo contrato de herramienta manual se autoinvalidara al escribirlo.
+            archivo_propio = Path(__file__).resolve()
+            raiz = self.root.resolve()
+            # Los verificadores también se usan sobre repositorios sintéticos
+            # en /tmp. En ese caso este módulo no pertenece a la raíz auditada
+            # y, por tanto, tampoco puede aparecer en su conjunto `reachable`.
+            # `relative_to()` no debe convertir esa ausencia normal en un
+            # fallo del contrato que se está verificando.
             propio = (
-                Path(__file__).resolve().relative_to(self.root.resolve()).as_posix()
+                archivo_propio.relative_to(raiz).as_posix()
+                if archivo_propio.is_relative_to(raiz)
+                else None
             )
             for ruta in self.reachable:
-                if ruta in (valor, propio) or ruta.startswith("tests/"):
+                if ruta == valor or ruta == propio or ruta.startswith("tests/"):
                     continue
                 otra = self._source(ruta)
                 if otra and re.search(rf"\b{re.escape(modulo)}\b", otra):
@@ -552,6 +561,52 @@ CONTRACTS: tuple[Contract, ...] = (
     #
     # Nunca se ejecutan tareas falsas en produccion para vaciar esta categoría.
     _contract(
+        "task_type:experimental_neuron_activity",
+        "ON_DEMAND",
+        decided_at="2026-08-28",
+        reason="""
+            MissionPlanner sólo la produce cuando una misión experimental o
+            estable recibe evidencia externa posterior a su último ciclo. Sus
+            ejecuciones históricas demuestran el efecto; que no haya evidencia
+            nueva en 24 horas significa espera, no retirada del handler.
+        """,
+        evidence=(
+            "writer_reachable=triade/workers/mission_planner.py",
+            "effect_consumer=triade/workers/worker_loop.py::_experimental_neuron_activity",
+            "proof_test=tests/test_mission_planner.py::test_plan_active_missions",
+        ),
+    ),
+    _contract(
+        "task_type:goal_research",
+        "ON_DEMAND",
+        decided_at="2026-08-28",
+        reason="""
+            Sólo nace de una orden explícita que CapabilityResolver clasifica
+            como investigación y GoalOrchestrator convierte en tarea. La falta
+            de una orden reciente no vuelve legacy a la capacidad.
+        """,
+        evidence=(
+            "writer_reachable=triade/core/capability_resolver.py",
+            "effect_consumer=triade/workers/worker_loop.py::_goal_research",
+            "proof_test=tests/test_capability_goal_orchestrator.py::test_resolver_only_delegates_explicit_actions",
+        ),
+    ),
+    _contract(
+        "task_type:goal_safe_command",
+        "ON_DEMAND",
+        decided_at="2026-08-28",
+        reason="""
+            Sólo nace de una orden explícita resuelta a una operación Safe Shell
+            gobernada. Productor, sandbox, handler y cierre del goal están
+            probados de extremo a extremo; sin orden reciente queda preparada.
+        """,
+        evidence=(
+            "writer_reachable=triade/core/goal_orchestrator.py",
+            "effect_consumer=triade/workers/worker_loop.py::_goal_safe_command",
+            "proof_test=tests/test_goals_end_to_end_real.py::test_valid_diagnostic_order_is_executed_by_real_worker",
+        ),
+    ),
+    _contract(
         "task_type:goal_install",
         "HUMAN_GATED",
         decided_at="2026-08-08",
@@ -764,13 +819,17 @@ CONTRACTS: tuple[Contract, ...] = (
         decided_at="2026-08-08",
         reason="""
             Une la propuesta aprobada con el candidato que la implementa. `create_candidate` exige que la propuesta esté ya `approved`: un eslabón por debajo de la compuerta.
+
+            La cadena ya se ejerció en producción y el enlace existe. La
+            evidencia pasa a `rows_present`: el gate sigue gobernando cómo nace
+            un enlace, pero ya no se puede explicar esta tabla como vacía.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
             "writer_reachable=triade/self_improvement/bridge.py",
             "reader_exists=triade/self_improvement/orchestrator.py",
             "proof_test=tests/test_self_improvement_door.py",
-            "rows_absent=improvement_candidate_links",
+            "rows_present=improvement_candidate_links",
         ),
     ),
     _contract(
@@ -826,14 +885,15 @@ CONTRACTS: tuple[Contract, ...] = (
             La especificación de la neurona que implementaría una propuesta
             aprobada. Su store sólo lo construye `bridge.py:43`, un eslabón por
             debajo de la compuerta: sin propuesta aprobada no hay especificación que
-            registrar.
+            registrar. La propuesta vigente ya cruzó esa compuerta y produjo la
+            primera especificación, por lo que el contrato acredita presencia.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
             "writer_reachable=triade/neuron_factory/store.py",
             "reader_exists=triade/neuron_factory/lifecycle.py",
             "proof_test=tests/test_neuron_factory_specification.py",
-            "rows_absent=neuron_specifications",
+            "rows_present=neuron_specifications",
         ),
     ),
     _contract(
@@ -843,14 +903,16 @@ CONTRACTS: tuple[Contract, ...] = (
         reason="""
             El historial de transiciones de esa especificación, escrito por
             `_append_history` dentro del mismo store. No puede tener una fila
-            antes de que exista la especificación de la que es historia.
+            antes de que exista la especificación de la que es historia. Como la
+            especificación ya existe y ha transitado, el historial también debe
+            conservar filas.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
             "writer_reachable=triade/neuron_factory/store.py",
             "reader_exists=triade/neuron_factory/store.py",
             "proof_test=tests/test_neuron_factory_specification.py",
-            "rows_absent=neuron_specification_history",
+            "rows_present=neuron_specification_history",
         ),
     ),
     _contract(
@@ -863,14 +925,15 @@ CONTRACTS: tuple[Contract, ...] = (
             `canary.py:18`, y `create_candidate` rechaza cualquier propuesta que
             no esté ya `approved`. Un eslabón por debajo de la compuerta, igual que
             `improvement_candidate_links`, que ya estaba excusada por esto
-            mismo.
+            mismo. El candidato aprobado vigente demuestra que la cadena ya se
+            ejerció; `rows_present` evita seguir describiéndola como nonata.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
             "writer_reachable=triade/neuron_factory/candidate.py",
             "reader_exists=triade/neuron_factory/lifecycle.py",
             "proof_test=tests/test_neuron_factory_lifecycle.py",
-            "rows_absent=neuron_candidates",
+            "rows_present=neuron_candidates",
         ),
     ),
     _contract(
@@ -883,14 +946,36 @@ CONTRACTS: tuple[Contract, ...] = (
             sólo se llama desde `orchestrator.py:55`, después de que
             `bridge.create_candidate` haya exigido la aprobación. Dos eslabones
             por debajo de la compuerta; no puede ejecutarse un candidato que nadie
-            ha creado.
+            ha creado. Ya existe una ejecución gobernada del candidato vigente,
+            así que su acta debe permanecer presente.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
             "writer_reachable=triade/neuron_factory/execution.py",
             "reader_exists=triade/neuron_factory/exporter.py",
             "proof_test=tests/test_neuron_factory_lifecycle.py",
-            "rows_absent=neuron_candidate_executions",
+            "rows_present=neuron_candidate_executions",
+        ),
+    ),
+    _contract(
+        "table:constitution_violations",
+        "EXPECTED_EMPTY",
+        decided_at="2026-08-28",
+        reason="""
+            Esta tabla no es un contador de uso: contiene únicamente vetos
+            constitucionales. El runner consulta los artículos 1, 2, 3 y 6 en
+            cada ciclo y guarda sus checks y su decisión de enforcement en las
+            tablas hermanas; una ejecución sana debe dejar ésta vacía. La prueba
+            negativa demuestra que una petición de reescritura de identidad sí
+            crea la violación y bloquea el run. Si el escritor, el lector o ese
+            veto desaparecen, el contrato cae.
+        """,
+        evidence=(
+            "writer_reachable=triade/constitution/enforcer.py",
+            "reader_exists=triade/constitution/enforcer.py",
+            "effect_consumer=triade/core/runner.py::_apply_constitution",
+            "proof_test=tests/test_constitution_runtime.py::test_identidad_no_puede_reescribirse_desde_una_conversacion",
+            "rows_absent=constitution_violations",
         ),
     ),
     # ── Capacidades que esperan que alguien de fuera se identifique ──
@@ -998,8 +1083,10 @@ CONTRACTS: tuple[Contract, ...] = (
         reason="""
             Tabla de locks con TTL: una fila existe sólo mientras alguien tiene
             el turno, y `guard()` la borra al salir del bloque pase lo que pase.
-            En reposo, cero filas es el estado correcto; filas persistentes
-            serían el síntoma de un lock filtrado.
+            En reposo, cero filas es el estado correcto; durante una promoción,
+            una fila viva también es correcta. Por eso el contrato verifica
+            productor, consumidor y exclusión mutua, no una fotografía
+            `rows_absent` vulnerable a carreras legítimas.
 
             Esto **no** se podía decir antes del 2026-08-12, y por eso no se
             dijo: hasta entonces la tabla estaba vacía porque no la usaba nadie.
@@ -1019,7 +1106,6 @@ CONTRACTS: tuple[Contract, ...] = (
             "reader_exists=triade/core/orchestrator_coord.py",
             "proof_test=tests/test_promotion_coordination.py::test_dos_hilos_no_promueven_a_la_vez",
             "proof_test=tests/test_promotion_coordination.py::test_los_tres_llamantes_de_promote_pasan_por_el_lock",
-            "rows_absent=orchestrator_locks",
         ),
     ),
     # ── Relaciones que sólo existen cuando la evidencia las produce ──
@@ -1105,14 +1191,16 @@ CONTRACTS: tuple[Contract, ...] = (
         reason="""
             El slot sólo puede existir después de canary exitoso, compatibilidad
             con un modelo servido y aprobación humana nominal. Tener un canary
-            sin activar no autoriza al runtime a firmarse un adaptador.
+            sin activar no autoriza al runtime a firmarse un adaptador. Santiago
+            ya aprobó el adaptador compatible y el slot canónico está activo; la
+            evidencia correcta es ahora su presencia, no el vacío anterior.
         """,
         evidence=(
             "writer_reachable=triade/training/serving_governance.py",
             "reader_exists=triade/training/serving_governance.py",
             "human_gate=triade/training/serving_governance.py::activate",
             "proof_test=tests/test_peft_base_model_gate.py",
-            "rows_absent=governed_peft_active_slot",
+            "rows_present=governed_peft_active_slot",
         ),
     ),
     _contract(

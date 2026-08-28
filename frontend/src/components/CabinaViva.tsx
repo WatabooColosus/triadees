@@ -11,12 +11,13 @@ import {
   CompuertaHumanaCard,
 } from './Cards'
 
-export function CabinaViva() {
+export function CabinaViva({ apiKey }: { apiKey: string }) {
   const { data, loading, error, lastUpdated, refresh } = useLiveDashboard()
   const [busy, setBusy] = useState<string | null>(null)
   const [actionMsg, setActionMsg] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [shellResult, setShellResult] = useState<{ key: string; stdout: string } | null>(null)
+  const authHeaders = apiKey ? { 'X-TRIADE-API-Key': apiKey } : {}
 
   async function act(label: string, fn: () => Promise<any>) {
     if (busy) return
@@ -36,7 +37,7 @@ export function CabinaViva() {
 
   function runCycle() {
     act('Ejecutar ciclo', () =>
-      liveApi('/api/runtime/once', { method: 'POST', body: JSON.stringify({ mode: 'observe_only' }) }))
+      liveApi('/api/runtime/once', { method: 'POST', headers: authHeaders, body: JSON.stringify({ mode: 'observe_only' }) }))
   }
 
   function startMode(mode: string) {
@@ -49,20 +50,21 @@ export function CabinaViva() {
     act(`Encender ${mode}`, () =>
       liveApi('/api/runtime/start', {
         method: 'POST',
+        headers: authHeaders,
         body: JSON.stringify({ mode, interval_seconds: mode === 'observe_only' ? 30 : 60 }),
       }))
   }
 
   function stopRuntime() {
-    act('Apagar', () => liveApi('/api/runtime/stop', { method: 'POST' }))
+    act('Apagar', () => liveApi('/api/runtime/stop', { method: 'POST', headers: authHeaders }))
   }
 
   function restartWorkers() {
-    act('Reiniciar workers', () => liveApi('/api/runtime/workers/restart', { method: 'POST' }))
+    act('Reiniciar workers', () => liveApi('/api/runtime/workers/restart', { method: 'POST', headers: authHeaders }))
   }
 
   function runWorkerOnce() {
-    act('Ejecutar worker cycle', () => liveApi('/api/runtime/workers/once', { method: 'POST' }))
+    act('Ejecutar worker cycle', () => liveApi('/api/runtime/workers/once', { method: 'POST', headers: authHeaders }))
   }
 
   if (loading && !data) {
@@ -99,6 +101,7 @@ export function CabinaViva() {
     try {
       const res = await liveApi('/api/system/safe-shell/run', {
         method: 'POST',
+        headers: authHeaders,
         body: JSON.stringify({ command_key: key }),
       })
       setShellResult({ key, stdout: res.stdout || res.stderr || '(sin salida)' })
@@ -118,7 +121,7 @@ export function CabinaViva() {
           </span>
           <Badge status={dash.status || 'unknown'} />
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            /api/ui/react-dashboard · refresh {Math.round((dash.refresh_hint_seconds || 5) / 5)}s
+            /api/ui/react-dashboard · refresh {dash.refresh_hint_seconds || 30}s
           </span>
         </div>
         <button onClick={refresh} style={btn} disabled={!!busy}>Refrescar</button>
@@ -168,8 +171,8 @@ export function CabinaViva() {
       <Grid cols={2}>
         {/* Primera de todas: si algo espera una firma, es lo primero que hay
             que ver al abrir la Cabina. */}
-        <CompuertaHumanaCard />
-        <LoraApprovalCard />
+        <CompuertaHumanaCard apiKey={apiKey} />
+        <LoraApprovalCard apiKey={apiKey} />
         <SupervisionCard data={dash.supervision} />
         <AlwaysOnCard data={dash.always_on || dash.heartbeat?.always_on || dash.always_on_detail || {}} />
         <PulseCard data={dash.heartbeat} onCycle={runCycle} onStart={startMode} onStop={stopRuntime} />
@@ -183,12 +186,14 @@ export function CabinaViva() {
         <TrashCard data={dash.autonomy_delegation} onRestore={(manifestPath) => act('Restaurar', () =>
           liveApi('/api/trash/restore', {
             method: 'POST',
+            headers: authHeaders,
             body: JSON.stringify({ manifest_path: manifestPath }),
           })
         )} />
         <DelegatedActionsCard onPlan={async (intent, path, level) => {
           const res = await liveApi('/api/delegated/plan', {
             method: 'POST',
+            headers: authHeaders,
             body: JSON.stringify({ intent, paths: [path], autonomy_level: level }),
           })
           return res

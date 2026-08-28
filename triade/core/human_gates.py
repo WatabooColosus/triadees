@@ -136,9 +136,9 @@ def _peft_gates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
                     f"{fila['traffic_percent']}% de tráfico"
                 ),
                 "since": str(fila["created_at"] or ""),
-                "endpoint": "/api/governance/peft/activate",
+                "endpoint": "/api/governance/peft/governed/activate",
                 "payload_hint": {
-                    "adapter_path": str(fila["adapter_path"] or ""),
+                    "version_id": str(fila["version_id"]),
                     "approved_by": "<tu nombre>",
                 },
                 "ready": not bloqueos,
@@ -146,6 +146,20 @@ def _peft_gates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             }
         )
     return salida
+
+
+def _tiene_especificacion(
+    conn: sqlite3.Connection, neuron_id: str, version: str
+) -> bool:
+    if not _tabla(conn, "neuron_specifications"):
+        return False
+    return (
+        conn.execute(
+            "SELECT 1 FROM neuron_specifications WHERE neuron_id=? AND version=?",
+            (neuron_id, version),
+        ).fetchone()
+        is not None
+    )
 
 
 def _improvement_gates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
@@ -167,10 +181,22 @@ def _improvement_gates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         bloqueos: list[str] = []
         # Sin destino la propuesta se aprueba y muere en el handler, así que
         # firmarla no serviría de nada. Decirlo aquí evita una firma inútil.
-        if not (payload.get("neuron_id") and payload.get("version")):
+        neuron_id = str(payload.get("neuron_id") or "")
+        version = str(payload.get("version") or "")
+        if not (neuron_id and version):
             bloqueos.append(
                 "la propuesta no declara neurona destino (neuron_id/version): "
                 "aprobarla no la haría avanzar"
+            )
+        elif not _tiene_especificacion(conn, neuron_id, version):
+            # El eslabón siguiente, y el que hoy para la cadena entera. Se dice
+            # aquí con la ruta que lo resuelve, o el bloqueo aparece como
+            # `especificación no registrada` en un log que nadie mira.
+            bloqueos.append(
+                f"la neurona {neuron_id}@{version} no tiene especificación "
+                "registrada: declárala en "
+                f"POST /api/governance/neurons/{neuron_id}/specification "
+                "(capacidades que aporta y presupuesto de recursos)"
             )
         salida.append(
             {

@@ -80,6 +80,7 @@ from triade.core.stable_neuron_audit import (
     apply_stable_neuron_audit,
     audit_stable_neurons,
 )
+from triade.db import sqlite3
 from triade.federation.contracts import (
     FederatedJobResultPayload,
     SignedEnvelope,
@@ -296,9 +297,12 @@ def runtime_workers_restart(
 
 @router.post("/api/runtime/workers/once")
 def runtime_workers_once(
-    dry_run: bool = False, task_timeout: float = 30.0
+    dry_run: bool = False,
+    task_timeout: float = 30.0,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
 ) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_workers_once")
+    require_key(x_triade_api_key)
     return _worker_service().run_once(dry_run=dry_run, task_timeout=task_timeout)
 
 
@@ -718,6 +722,7 @@ def system_neurons_full(limit: int = 100, mission_limit: int = 50) -> dict[str, 
             ).fetchall()
         learning_usage = [dict(row) for row in rows]
     except (
+        sqlite3.Error,
         OSError,
         ImportError,
         RuntimeError,
@@ -1286,8 +1291,12 @@ def runtime_heartbeat(
 
 
 @router.post("/api/runtime/once")
-def runtime_once(body: dict[str, Any] | None = None) -> dict[str, Any]:
+def runtime_once(
+    body: dict[str, Any] | None = None,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_once")
+    require_key(x_triade_api_key)
     payload = body or {}
     result = get_internal_runtime_supervisor().run_once(mode=payload.get("mode"))
     event_ids = []
@@ -1331,8 +1340,12 @@ def runtime_once(body: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 @router.post("/api/runtime/start")
-def runtime_start(body: dict[str, Any] | None = None) -> dict[str, Any]:
+def runtime_start(
+    body: dict[str, Any] | None = None,
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_start")
+    require_key(x_triade_api_key)
     payload = body or {}
     result = start_internal_runtime_background(
         mode=payload.get("mode"),
@@ -1354,8 +1367,11 @@ def runtime_start(body: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 @router.post("/api/runtime/stop")
-def runtime_stop() -> dict[str, Any]:
+def runtime_stop(
+    x_triade_api_key: str | None = Header(default=None, alias="X-TRIADE-API-Key"),
+) -> dict[str, Any]:
     LIFE_PULSE.record_action("runtime_stop")
+    require_key(x_triade_api_key)
     result = stop_internal_runtime_background()
     return {
         "status": result.get("status", "stopped"),
@@ -1679,8 +1695,146 @@ def system_bodega_global_context(query: str = "", limit: int = 10) -> dict[str, 
 # ── React Dashboard ─────────────────────────────────────────────────────
 
 
+_DASHBOARD_CACHE_LOCK = threading.Lock()
+_DASHBOARD_CACHE: dict[str, Any] | None = None
+_DASHBOARD_CACHE_AT = 0.0
+_DASHBOARD_CACHE_TTL_SECONDS = 30.0
+_DASHBOARD_REFRESHING = False
+_DASHBOARD_REFRESH_ERROR = ""
+
+
+def _dashboard_bootstrap_snapshot() -> dict[str, Any]:
+    """Respuesta mínima mientras el primer snapshot se construye en background."""
+    return {
+        "status": "refreshing",
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "refresh_hint_seconds": 5,
+        "errors": (
+            [{"block": "dashboard_refresh", "error": _DASHBOARD_REFRESH_ERROR}]
+            if _DASHBOARD_REFRESH_ERROR
+            else []
+        ),
+        "heartbeat": {
+            "api_server_alive": True,
+            "heartbeat_truth": "API viva · preparando snapshot de Cabina",
+            "runtime_enabled": None,
+            "mode": None,
+        },
+        # El primer 200 también cumple el contrato de forma. Las tarjetas no
+        # tienen que adivinar si falta el bloque o si aún se está midiendo.
+        "always_on": {
+            "enabled": None,
+            "status": "refreshing",
+            "background_thread_alive": None,
+        },
+        "always_on_detail": {"status": "refreshing"},
+        "workers_always_on": {
+            "configured": None,
+            "active": None,
+            "status": "refreshing",
+        },
+        "edge_context_health": {"status": "refreshing", "empty_count_24h": None},
+        "supervision": {"always_on": None, "status": "refreshing"},
+        "ollama_blood": {
+            "status": "refreshing",
+            "cognitive_blood_active": False,
+        },
+        "git_status": {"status": "refreshing", "branch": "cargando"},
+        "technical_debt": {"score": 0, "debts": [], "warnings": []},
+        "system_processes": {
+            "runtime_enabled": None,
+            "runtime_mode": None,
+            "background_thread_alive": None,
+            "workers_active": None,
+            "active_tasks": 0,
+            "cycles_last_hour": 0,
+            "latest_action": None,
+        },
+        "runtime_events": [],
+        "policy": {
+            "read_only": True,
+            "identity_core_protected": True,
+            "no_shell_execution": True,
+        },
+    }
+
+
+def _refresh_dashboard_cache(query: str, limit: int) -> None:
+    global _DASHBOARD_CACHE, _DASHBOARD_CACHE_AT
+    global _DASHBOARD_REFRESHING, _DASHBOARD_REFRESH_ERROR
+    try:
+        payload = _build_react_dashboard(query=query, limit=limit)
+    except (
+        sqlite3.Error,
+        OSError,
+        ImportError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
+        with _DASHBOARD_CACHE_LOCK:
+            _DASHBOARD_REFRESH_ERROR = f"{type(exc).__name__}: {exc}"[:200]
+    else:
+        with _DASHBOARD_CACHE_LOCK:
+            _DASHBOARD_CACHE = payload
+            _DASHBOARD_CACHE_AT = time.monotonic()
+            _DASHBOARD_REFRESH_ERROR = ""
+    finally:
+        with _DASHBOARD_CACHE_LOCK:
+            _DASHBOARD_REFRESHING = False
+
+
+def _start_dashboard_refresh(query: str, limit: int) -> None:
+    global _DASHBOARD_REFRESHING
+    with _DASHBOARD_CACHE_LOCK:
+        if _DASHBOARD_REFRESHING:
+            return
+        _DASHBOARD_REFRESHING = True
+    threading.Thread(
+        target=_refresh_dashboard_cache,
+        args=(query, limit),
+        name="react-dashboard-refresh",
+        daemon=True,
+    ).start()
+
+
 @router.get("/api/ui/react-dashboard")
 def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
+    """Entrega un único snapshot compartido a todas las pestañas de Cabina.
+
+    El payload es costoso: toca memoria semántica, workers, deuda, git y
+    observabilidad. Cada pestaña lo pedía cada cinco segundos y, al coincidir,
+    llenaba los 40 hilos de AnyIO construyendo el mismo snapshot contra SQLite.
+    Cuando eso ocurría hasta `/health/live` quedaba sin hilo y el proxy público
+    parecía caído. Un solo productor por ventana evita esa estampida.
+    """
+    now = time.monotonic()
+    cached = _DASHBOARD_CACHE
+    if cached is not None and now - _DASHBOARD_CACHE_AT < _DASHBOARD_CACHE_TTL_SECONDS:
+        return cached
+    _start_dashboard_refresh(query=query, limit=limit)
+    # Nunca se espera el escaneo pesado. Si existe una copia anterior se sirve
+    # aunque haya vencido; durante el arranque se entrega un esqueleto válido
+    # que permite abrir y cambiar de pestaña.
+    payload = cached if cached is not None else _dashboard_bootstrap_snapshot()
+    # No se muta la copia canónica: el estado de refresco pertenece a esta
+    # respuesta. Antes, un fallo del productor quedaba oculto detrás de una
+    # copia vieja que seguía diciendo ``status=ok`` indefinidamente.
+    if cached is not None and now - _DASHBOARD_CACHE_AT >= _DASHBOARD_CACHE_TTL_SECONDS:
+        payload = dict(cached)
+        payload["cache_status"] = "refreshing" if _DASHBOARD_REFRESHING else "stale"
+        payload["cache_age_seconds"] = round(now - _DASHBOARD_CACHE_AT, 1)
+        if _DASHBOARD_REFRESH_ERROR:
+            payload["errors"] = [
+                *(cached.get("errors") or []),
+                {"block": "dashboard_refresh", "error": _DASHBOARD_REFRESH_ERROR},
+            ]
+    return payload
+
+
+def _build_react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
     """Payload agregado vivo read-only para la SPA React.
 
     No ejecuta workers, no modifica memoria, no toca identity_core.
@@ -1776,7 +1930,7 @@ def react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
     return {
         "status": "partial" if _errors else "ok",
         "generated_at": _time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "refresh_hint_seconds": 5,
+        "refresh_hint_seconds": int(_DASHBOARD_CACHE_TTL_SECONDS),
         "errors": _errors,
         "heartbeat": {
             "api_server_alive": heartbeat.get("api_server_alive", True),

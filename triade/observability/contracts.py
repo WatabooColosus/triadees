@@ -7,7 +7,14 @@ NodeKind = Literal[
     "directory", "file", "module", "class", "function", "table", "run", "neuron", "task"
 ]
 NodeState = Literal[
-    "active", "disconnected", "legacy", "hidden", "protected", "failed", "unknown"
+    "active",
+    "ready",
+    "disconnected",
+    "legacy",
+    "hidden",
+    "protected",
+    "failed",
+    "unknown",
 ]
 
 

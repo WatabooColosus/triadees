@@ -53,49 +53,15 @@ class SelfImprovementOrchestrator:
         candidate_id = linked["candidate"]["candidate_id"]
         try:
             artifact = self.execution.execute_configuration(candidate_id, configuration)
-            baseline, candidate, policies = evaluation_provider(candidate_id, artifact)
-            comparison = compare_evaluations(baseline, candidate)
-            evidence = self.evaluation.record_evidence(
-                candidate_id,
-                hypothesis=self._proposal(proposal_id)["hypothesis"],
-                capability=self._proposal(proposal_id)["requested_capability"],
-                baseline=baseline,
-                candidate=candidate,
-                comparison=comparison,
-                policies=policies,
-                artifact_ref=artifact["execution_id"],
-            )
-            if not evidence["promotable"]:
-                self.evaluation.quarantine(
-                    candidate_id, "evidencia insuficiente o regresión"
-                )
-                self.bridge.release_candidate(candidate_id, outcome="rejected")
-                return self._result(
-                    proposal_id,
-                    candidate_id,
-                    "quarantined",
-                    artifact=artifact,
-                    evidence=evidence,
-                )
-
-            promotion = self.evaluation.promote(candidate_id)
-            canary = self.canary.start(
-                candidate_id,
-                baseline_score=candidate.aggregate_score,
-                tolerance=canary_tolerance,
-                traffic_percent=canary_traffic_percent,
-                min_observations=canary_min_observations,
-                max_observations=canary_max_observations,
-            )
-            self.bridge.release_candidate(candidate_id, outcome="completed")
-            return self._result(
+            return self._evaluate_candidate(
                 proposal_id,
                 candidate_id,
-                "canary_running",
-                artifact=artifact,
-                evidence=evidence,
-                promotion=promotion,
-                canary=canary,
+                artifact,
+                evaluation_provider,
+                canary_traffic_percent=canary_traffic_percent,
+                canary_tolerance=canary_tolerance,
+                canary_min_observations=canary_min_observations,
+                canary_max_observations=canary_max_observations,
             )
         except (
             OSError,
@@ -106,12 +72,103 @@ class SelfImprovementOrchestrator:
             TypeError,
             KeyError,
             AttributeError,
-        ):
+        ) as exc:
+            # Un candidato que sólo espera más runs ya fue creado y ejecutado.
+            # Cancelarlo contradice el resultado `deferred` del worker y hace
+            # imposible reanudarlo sin falsificar todo el ciclo de vida.
+            if "evidencia insuficiente" in str(exc):
+                raise
             try:
                 self.bridge.release_candidate(candidate_id, outcome="cancelled")
             except (KeyError, ValueError):
                 pass
             raise
+
+    def resume_once(
+        self,
+        proposal_id: str,
+        *,
+        candidate_id: str,
+        evaluation_provider: EvaluationProvider,
+        canary_traffic_percent: int = 10,
+        canary_tolerance: float = 0.02,
+        canary_min_observations: int = 3,
+        canary_max_observations: int = 10,
+    ) -> dict[str, Any]:
+        """Reevalúa una candidata ya ejecutada sin crear un gemelo."""
+        candidate = self.bridge.candidates.get(candidate_id)
+        if candidate is None or candidate.get("status") != "executed":
+            raise ValueError("la candidata diferida no está ejecutada")
+        execution_id = str(candidate.get("execution_id") or "")
+        artifact = self.execution.get_execution(execution_id)
+        if artifact is None:
+            raise ValueError("la candidata diferida no conserva su artefacto")
+        return self._evaluate_candidate(
+            proposal_id,
+            candidate_id,
+            artifact,
+            evaluation_provider,
+            canary_traffic_percent=canary_traffic_percent,
+            canary_tolerance=canary_tolerance,
+            canary_min_observations=canary_min_observations,
+            canary_max_observations=canary_max_observations,
+        )
+
+    def _evaluate_candidate(
+        self,
+        proposal_id: str,
+        candidate_id: str,
+        artifact: dict[str, Any],
+        evaluation_provider: EvaluationProvider,
+        *,
+        canary_traffic_percent: int,
+        canary_tolerance: float,
+        canary_min_observations: int,
+        canary_max_observations: int,
+    ) -> dict[str, Any]:
+        baseline, candidate, policies = evaluation_provider(candidate_id, artifact)
+        comparison = compare_evaluations(baseline, candidate)
+        proposal = self._proposal(proposal_id)
+        evidence = self.evaluation.record_evidence(
+            candidate_id,
+            hypothesis=proposal["hypothesis"],
+            capability=proposal["requested_capability"],
+            baseline=baseline,
+            candidate=candidate,
+            comparison=comparison,
+            policies=policies,
+            artifact_ref=artifact["execution_id"],
+        )
+        if not evidence["promotable"]:
+            self.evaluation.quarantine(candidate_id, "evidencia insuficiente o regresión")
+            self.bridge.release_candidate(candidate_id, outcome="rejected")
+            return self._result(
+                proposal_id,
+                candidate_id,
+                "quarantined",
+                artifact=artifact,
+                evidence=evidence,
+            )
+
+        promotion = self.evaluation.promote(candidate_id)
+        canary = self.canary.start(
+            candidate_id,
+            baseline_score=candidate.aggregate_score,
+            tolerance=canary_tolerance,
+            traffic_percent=canary_traffic_percent,
+            min_observations=canary_min_observations,
+            max_observations=canary_max_observations,
+        )
+        self.bridge.release_candidate(candidate_id, outcome="completed")
+        return self._result(
+            proposal_id,
+            candidate_id,
+            "canary_running",
+            artifact=artifact,
+            evidence=evidence,
+            promotion=promotion,
+            canary=canary,
+        )
 
     def snapshot(self) -> dict[str, Any]:
         with sqlite3.connect(self.db_path) as conn:

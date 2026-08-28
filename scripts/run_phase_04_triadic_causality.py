@@ -12,6 +12,8 @@ from pathlib import Path
 from triade.core.runner import TriadeRunner
 from triade.evaluation.triadic_ablation import run_triadic_ablation_benchmark
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()

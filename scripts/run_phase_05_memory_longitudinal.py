@@ -13,6 +13,8 @@ from triade.evaluation.memory_longitudinal import (
     run_memory_longitudinal_benchmark,
 )
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()

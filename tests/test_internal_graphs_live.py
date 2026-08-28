@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from apps import internal_graphs_live
 from apps.single_port_app import app
 from triade.observability.event_feed import (
+    FeedCursor,
     latest_cursor,
     read_new_events,
     read_recent_events,
@@ -91,7 +92,7 @@ def test_pulse_carries_live_signals_not_structure(
     # Los tipos declarados sin una sola ejecución son justo lo que hay que ver.
     assert signals["task_types"]["pulse_check"]["executions"] == 1
     assert signals["task_types"]["goal_lora_train"]["executions"] == 0
-    assert signals["task_types"]["goal_lora_train"]["state"] == "disconnected"
+    assert signals["task_types"]["goal_lora_train"]["state"] == "ready"
 
 
 def test_timeline_reads_persisted_history_without_changing_sse_cursor(
@@ -241,6 +242,75 @@ def test_manual_diagnostic_stays_visible_as_manual_tool(tmp_path: Path) -> None:
     assert counts == {"MANUAL_TOOL": 1, "REAL_BROKEN": 0}
 
 
+def test_declared_manual_entrypoint_classifies_its_module_chain(tmp_path: Path) -> None:
+    cache = tmp_path / "graphs"
+    cache.mkdir()
+    (cache / "entrypoint_graph.json").write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "node_id": "entrypoint:scripts/verify.py",
+                        "label": "scripts/verify.py",
+                        "metadata": {
+                            "path": "scripts/verify.py",
+                            "launchers": 0,
+                            "activation": "manual_diagnostic",
+                            "activation_evidence": (
+                                "declared:TRIADE_ENTRYPOINT_KIND=manual_diagnostic"
+                            ),
+                        },
+                    }
+                ],
+                "edges": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (cache / "import_graph.json").write_text(
+        json.dumps(
+            {
+                "nodes": [],
+                "edges": [
+                    {
+                        "source": "module:scripts/verify.py",
+                        "target": "module:triade/evaluation/check.py",
+                        "relation": "imports",
+                    },
+                    {
+                        "source": "module:triade/evaluation/check.py",
+                        "target": "module:triade/evaluation/metric.py",
+                        "relation": "imports",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    modules = {
+        "count": 2,
+        "items": [
+            "triade/evaluation/check.py",
+            "triade/evaluation/metric.py",
+        ],
+        "sample": [],
+    }
+
+    counts = _classify_with_contracts(
+        REPO_ROOT,
+        {"modules_unreachable_from_entrypoint": modules},
+        {},
+        None,
+        cache_dir=cache,
+    )
+
+    assert counts == {"MANUAL_TOOL": 2, "REAL_BROKEN": 0}
+    assert set(modules["classified"]) == set(modules["items"])
+    assert modules["classified"]["triade/evaluation/metric.py"]["evidence"][0][
+        "entrypoint"
+    ] == "scripts/verify.py"
+
+
 def test_graph_and_node_routes_expose_color_and_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -272,6 +342,33 @@ def test_graph_and_node_routes_expose_color_and_evidence(
     body = detail.json()
     assert body["node"]["label"] == "Bodega"
     assert body["degree"]["in"] + body["degree"]["out"] > 0
+
+
+def test_sse_cursor_roundtrip_and_bounded_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """El stream cierra solo y el navegador puede reanudar sin saltos."""
+    initial = FeedCursor({"worker_events": 41, "runs": 7})
+    advanced = FeedCursor({"worker_events": 42, "runs": 7})
+
+    monkeypatch.setattr(
+        internal_graphs_live,
+        "build_pulse",
+        lambda cursor: ({"cursor": advanced.to_dict()}, advanced),
+    )
+
+    chunks = list(
+        internal_graphs_live.event_stream(
+            cursor=initial,
+            interval_seconds=0,
+            max_lifetime_seconds=0,
+        )
+    )
+
+    assert len(chunks) == 1
+    event_id = chunks[0].splitlines()[0].removeprefix("id: ")
+    assert internal_graphs_live.decode_stream_cursor(event_id) == advanced
+    assert internal_graphs_live.decode_stream_cursor("no-es-base64") is None
 
 
 # --- Lectura interna: la propia Tríade ----------------------------------------

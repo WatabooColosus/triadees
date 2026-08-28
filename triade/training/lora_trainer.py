@@ -23,7 +23,7 @@ PII = re.compile(
 
 @dataclass(frozen=True, slots=True)
 class LoraTrainingConfig:
-    base_model: str = "Qwen/Qwen2.5-0.5B-Instruct"
+    base_model: str = "Qwen/Qwen2.5-3B-Instruct"
     output_dir: str = "artifacts/adapters/triade-lora"
     rank: int = 8
     alpha: int = 16

@@ -168,3 +168,40 @@ def test_la_aprobacion_humana_sigue_siendo_obligatoria(tmp_path: Path) -> None:
     assert serving.activate(version_id, approved_by="")["reason"] == (
         "named_human_approval_required"
     )
+
+
+def test_canary_incompatible_se_retira_sin_borrar_observaciones(tmp_path: Path) -> None:
+    serving, version_id = _canary_listo(
+        tmp_path / "triade.db",
+        base_model="Qwen/Qwen2.5-0.5B-Instruct",
+        servidos=SERVIDOS_REALES,
+    )
+
+    result = serving.retire_incompatible(version_id, approved_by="Santiago")
+
+    assert result["status"] == "retired"
+    assert result["reason"] == "base_model_not_served"
+    assert result["observations_preserved"] is True
+    with sqlite3.connect(tmp_path / "triade.db") as conn:
+        status, approved_by = conn.execute(
+            "SELECT status,approved_by FROM governed_peft_versions WHERE version_id=?",
+            (version_id,),
+        ).fetchone()
+        observations = conn.execute(
+            "SELECT COUNT(*) FROM governed_peft_observations WHERE version_id=?",
+            (version_id,),
+        ).fetchone()[0]
+    assert (status, approved_by, observations) == ("retired", "Santiago", 1)
+
+
+def test_no_se_retira_un_canary_compatible(tmp_path: Path) -> None:
+    serving, version_id = _canary_listo(
+        tmp_path / "triade.db",
+        base_model="Qwen/Qwen2.5-3B-Instruct",
+        servidos=SERVIDOS_REALES,
+    )
+
+    assert serving.retire_incompatible(version_id, approved_by="Santiago") == {
+        "status": "blocked",
+        "reason": "base_model_is_served",
+    }

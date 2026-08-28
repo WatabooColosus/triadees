@@ -287,11 +287,38 @@ class EncryptedBackup:
                 for (result_ref,) in conn.execute(
                     "SELECT result_ref FROM autonomous_tasks WHERE result_ref IS NOT NULL"
                 ):
-                    path = Path(str(result_ref))
-                    if path.is_file():
+                    reference = str(result_ref)
+                    if reference.startswith("sqlite:"):
+                        parts = reference.split(":", 2)
+                        table = parts[1] if len(parts) == 3 else ""
+                        identifier = parts[2] if len(parts) == 3 else ""
+                        safe_table = bool(table) and table.replace("_", "").isalnum()
+                        columns = (
+                            list(conn.execute(f'PRAGMA table_info("{table}")'))
+                            if safe_table and table in tables
+                            else []
+                        )
+                        primary_key = next(
+                            (
+                                str(column[1])
+                                for column in columns
+                                if int(column[5]) > 0
+                            ),
+                            None,
+                        )
+                        exists = bool(
+                            primary_key
+                            and conn.execute(
+                                f'SELECT 1 FROM "{table}" WHERE "{primary_key}"=?',
+                                (identifier,),
+                            ).fetchone()
+                        )
+                    else:
+                        exists = Path(reference).is_file()
+                    if exists:
                         artifacts_checked += 1
                     else:
-                        artifact_failures.append(str(path))
+                        artifact_failures.append(reference)
         return {
             "integrity_check": integrity,
             "identity_manifest_hash": identity_anchor[0] if identity_anchor else None,

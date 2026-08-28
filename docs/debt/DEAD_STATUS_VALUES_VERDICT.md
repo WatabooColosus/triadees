@@ -11,7 +11,7 @@ instrumento**.
 |---|---|---|
 | `nadie_lo_escribe` | `tests/test_alias_debt.py` | **TEST_ONLY** — fixture del propio detector |
 | `quizas_vivo` | `tests/test_alias_debt.py` | **TEST_ONLY** — fixture del propio detector |
-| `unhealthy` | `triade/workers/worker_supervisor.py` | **DEAD_STATE en módulo muerto** — ya contado |
+| `unhealthy` | `triade/workers/worker_supervisor.py` | **DEAD_STATE en módulo retirado** — ya contado |
 | `preparing` | `triade/evolution/engineering_worker.py` | **ACTIVE** — lo escribe su `INSERT` |
 | `retry_wait` | `triade/runtime/task_leases.py` | **ACTIVE** — rama de un ternario |
 | `replanning` | `triade/core/planning_graph.py` | **ACTIVE** — destino declarado de dos transiciones |

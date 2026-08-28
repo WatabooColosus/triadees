@@ -5,6 +5,7 @@ import argparse
 import json
 
 from triade.training import LoraTrainingConfig, RealLoraTrainer
+from triade.training.governed_lora import default_base_model
 
 
 def main() -> int:
@@ -12,7 +13,7 @@ def main() -> int:
         description="Entrenamiento LoRA real y gobernado de Tríade Ω"
     )
     p.add_argument("dataset")
-    p.add_argument("--base-model", default="Qwen/Qwen2.5-0.5B-Instruct")
+    p.add_argument("--base-model", default=None)
     p.add_argument("--output", default="artifacts/adapters/triade-lora")
     p.add_argument("--max-steps", type=int, default=20)
     p.add_argument("--max-length", type=int, default=512)
@@ -21,7 +22,7 @@ def main() -> int:
     p.add_argument("--campaign-id")
     args = p.parse_args()
     cfg = LoraTrainingConfig(
-        base_model=args.base_model,
+        base_model=args.base_model or default_base_model(),
         output_dir=args.output,
         max_steps=args.max_steps,
         max_length=args.max_length,

@@ -125,6 +125,48 @@ def test_un_adaptador_ausente_no_gasta_la_gpu(tmp_path: Path) -> None:
     assert resultado["skipped_reason"] == "adaptador_ausente_en_disco"
 
 
+def test_el_probe_exige_la_respuesta_exacta(tmp_path: Path, monkeypatch) -> None:
+    """Texto no vacío no basta para afirmar que el canary obedeció el probe."""
+    db = _db_con_canary(tmp_path, status="canary")
+    adapter = tmp_path / "adapters/x"
+    adapter.mkdir(parents=True)
+    observado: dict[str, object] = {}
+
+    def fake_generate(self, adapter_path, prompt, **kwargs):
+        return {
+            "status": "completed",
+            "response": "Canary OK significa que el servicio funciona.",
+            "latency_ms": 10,
+        }
+
+    def fake_observe(self, version_id, **kwargs):
+        observado.update(kwargs)
+        return {"version_id": version_id, "status": "canary_failed"}
+
+    monkeypatch.setattr(
+        "triade.training.peft_canary.PeftCanaryServer.generate", fake_generate
+    )
+    monkeypatch.setattr(
+        "triade.training.serving_governance.GovernedPeftServing.observe",
+        fake_observe,
+    )
+
+    task = type(
+        "Task",
+        (),
+        {"payload": {"version_id": "peft-abc", "adapter_path": str(adapter)}},
+    )()
+    result = WorkerLoop(
+        db_path=db, runs_dir=tmp_path / "runs"
+    )._peft_canary_observation(task, "run-test", tmp_path, _config())
+
+    assert observado["success"] is False
+    assert observado["quality"] == -10.0
+    assert result["canary_status"] == "canary_failed"
+    evidence = (tmp_path / "peft_canary_observation.json").read_text(encoding="utf-8")
+    assert '"response_matches": false' in evidence
+
+
 def _config():
     from triade.workers.contracts import WorkerRunConfig
 

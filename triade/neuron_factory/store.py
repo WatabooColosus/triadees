@@ -74,6 +74,97 @@ class NeuronSpecificationStore:
             )
         return payload
 
+    def register_for_existing_neuron(
+        self,
+        neuron_id: str,
+        *,
+        version: str,
+        component: str,
+        provides_capabilities: tuple[str, ...],
+        resource_budget: ResourceBudget,
+        owner: str,
+        requires_capabilities: tuple[str, ...] = (),
+        evaluation_suites: tuple[str, ...] = (),
+        rollback_policy: str | None = None,
+        critical: bool = False,
+    ) -> dict[str, Any]:
+        """Registra la especificación de una neurona que **ya existe**.
+
+        `register()` sólo lo llamaban los tests: seis módulos de la fábrica leen
+        `neuron_specifications` y ningún camino de producción la escribía. La
+        consecuencia se ve al final de la cadena de auto-mejora, que muere en
+        `especificación no registrada: 1@1.0.0` con las 37 neuronas de la base
+        viva sin una sola fila.
+
+        Lo descriptivo **se deriva de la neurona registrada** —nombre, misión,
+        dominio y sus contratos de entrada y salida—: inventarlo aquí crearía una
+        segunda descripción de la misma neurona, y dos descripciones divergen.
+        Lo que no se puede derivar se pide, porque es decisión y no dato:
+
+        - `provides_capabilities`, que la fábrica usa para comprobar que la
+          mejora pedida la aporta de verdad esta neurona;
+        - `resource_budget`, que limita lo que una candidata puede consumir;
+        - `component` y `version`, que dicen qué código la implementa y cuál de
+          sus versiones se está contratando.
+
+        Declarar esto es un acto de gobernanza, no una migración automática: por
+        eso lo expone una ruta con firma y no un worker.
+        """
+        with self._connect() as conn:
+            fila = conn.execute(
+                "SELECT name, mission, domain, inputs_allowed, outputs_allowed,"
+                " created_by FROM neurons WHERE id = ?",
+                (neuron_id,),
+            ).fetchone()
+        if fila is None:
+            raise KeyError(f"neurona no registrada: {neuron_id}")
+
+        def _contrato(crudo: Any, etiqueta: str) -> dict[str, Any]:
+            try:
+                valor = json.loads(crudo) if crudo else []
+            except (TypeError, ValueError):
+                valor = []
+            if not valor:
+                # Sin contrato declarado no se inventa uno vacío: `validate()`
+                # lo rechazaría igual y con un mensaje peor.
+                raise ValueError(f"la neurona no declara {etiqueta}")
+            return {"allowed": list(valor)}
+
+        especificacion = NeuronSpecification(
+            neuron_id=str(neuron_id),
+            name=str(fila["name"] or ""),
+            mission=str(fila["mission"] or ""),
+            domain=str(fila["domain"] or "general"),
+            version=version,
+            owner=owner or str(fila["created_by"] or ""),
+            component=component,
+            input_contract=_contrato(fila["inputs_allowed"], "inputs_allowed"),
+            output_contract=_contrato(fila["outputs_allowed"], "outputs_allowed"),
+            provides_capabilities=tuple(provides_capabilities),
+            requires_capabilities=tuple(requires_capabilities),
+            evaluation_suites=tuple(evaluation_suites),
+            rollback_policy=rollback_policy,
+            critical=critical,
+            resource_budget=resource_budget,
+        )
+        registrada = self.register(especificacion)
+        # `draft → specified` es la única transición del ciclo de vida sin un
+        # solo llamador en todo el repositorio: `candidate.py` mueve a
+        # `training`, `evaluation.py` a `promoted` o `quarantined`, y
+        # `lifecycle.py` a `quarantined`. Nadie declaraba una especificación
+        # como revisada, así que una recién registrada se quedaba en `draft`
+        # para siempre y la fábrica la rechazaba con «la especificación debe
+        # estar en estado specified».
+        #
+        # Se hace aquí porque esta llamada **es** la revisión: la firma con
+        # nombre que la autoriza. Pedir un segundo acto firmado a la misma
+        # persona no añade una comprobación, añade un trámite — y un trámite que
+        # se firma sin mirar es peor que no tenerlo.
+        return {
+            **registrada,
+            **self.transition(especificacion.neuron_id, version, "specified"),
+        }
+
     def get(self, neuron_id: str, version: str | None = None) -> dict[str, Any] | None:
         sql = "SELECT payload_json FROM neuron_specifications WHERE neuron_id = ?"
         params: list[Any] = [neuron_id]

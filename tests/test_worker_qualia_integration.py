@@ -91,7 +91,13 @@ def test_idle_worker_run_does_not_fabricate_qualia(tmp_path: Path) -> None:
     from triade.workers.background_service import WorkerBackgroundService
 
     service = WorkerBackgroundService(db_path=db, runs_dir=str(tmp_path / "runs"))
-    result = service.run_once(dry_run=False, task_timeout=10.0)
+    # Un repositorio con deuda real planifica ``system_debt_scan`` incluso sobre
+    # una DB nueva, por lo que no sería un ciclo inactivo. Aislamos el caso que
+    # el nombre de la prueba declara: planificador sin ninguna tarea elegible.
+    with patch(
+        "triade.workers.scheduler.WorkerScheduler.schedule_cycle", return_value=[]
+    ):
+        result = service.run_once(dry_run=False, task_timeout=10.0)
     assert result["status"] in {
         "completed",
         "completed_with_errors",

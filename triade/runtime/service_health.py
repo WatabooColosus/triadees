@@ -184,7 +184,9 @@ class ServiceHealth:
                             reasons.append("worker_cycle_stalled")
                 if "worker_events" in tables:
                     repeated = conn.execute(
-                        "SELECT COUNT(*) FROM worker_events WHERE status IN ('error','failed') AND created_at>=datetime('now','-15 minutes')"
+                        "SELECT COUNT(*) FROM worker_events "
+                        "WHERE status IN ('error','failed') "
+                        "AND julianday(created_at)>=julianday('now','-15 minutes')"
                     ).fetchone()[0]
                     metrics["recent_repeated_errors"] = int(repeated)
                     if repeated >= 5:

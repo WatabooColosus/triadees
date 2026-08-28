@@ -305,12 +305,35 @@ class MissionPlanner:
                         "WHERE status = 'approved' ORDER BY rowid ASC"
                     ).fetchall()
                 ]
+                diferidas = [
+                    str(fila["proposal_id"])
+                    for fila in conn.execute(
+                        "SELECT proposal_id FROM improvement_proposals "
+                        "WHERE status = 'candidate_created' ORDER BY rowid ASC"
+                    ).fetchall()
+                ]
                 approvable = (
-                    auto_approvable_open_proposals(conn) if not aprobadas else []
+                    auto_approvable_open_proposals(conn)
+                    if not aprobadas and not diferidas
+                    else []
                 )
                 objetivo, destino = self._improvement_target(
-                    conn, aprobadas or approvable
+                    conn, diferidas or aprobadas or approvable
                 )
+            if diferidas and objetivo:
+                return [
+                    PlannedTask(
+                        task_type="self_improvement_evaluation",
+                        priority=39,
+                        reason=(
+                            f"{len(diferidas)} candidata(s) de mejora esperan "
+                            f"evidencia posterior; se reevalúa {objetivo}"
+                        ),
+                        source="deferred_improvement_evidence",
+                        planner_score=0.7,
+                        payload={"proposal_id": objetivo, **destino},
+                    )
+                ]
             if aprobadas and objetivo:
                 return [
                     PlannedTask(

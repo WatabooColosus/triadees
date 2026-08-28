@@ -30,6 +30,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
+
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 

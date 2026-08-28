@@ -66,6 +66,11 @@ def test_un_canary_sobre_un_modelo_no_servido_no_se_puede_firmar(
     assert len(peft) == 1
     assert peft[0]["ready"] is False
     assert any("no sirve" in b for b in peft[0]["blockers"]), peft[0]["blockers"]
+    assert peft[0]["endpoint"] == "/api/governance/peft/governed/activate"
+    assert peft[0]["payload_hint"] == {
+        "version_id": "v1",
+        "approved_by": "<tu nombre>",
+    }
 
 
 def test_leer_la_compuerta_no_aprueba_nada(tmp_path: Path) -> None:
@@ -116,6 +121,50 @@ def test_una_propuesta_sin_destino_se_marca_como_no_firmable(tmp_path: Path) -> 
     assert prop[0]["ready"] is False
     assert any("neurona destino" in b for b in prop[0]["blockers"])
     assert prop[0]["policy_would_approve"] is False
+
+
+def test_una_propuesta_con_destino_sin_especificacion_explica_el_eslabon(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "triade.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        """CREATE TABLE improvement_proposals (
+            proposal_id TEXT PRIMARY KEY, signal_id TEXT, status TEXT,
+            payload_json TEXT, created_at TEXT);
+        CREATE TABLE improvement_signals (
+            signal_id TEXT PRIMARY KEY, capability_id TEXT, metric_id TEXT,
+            status TEXT, priority REAL, payload_json TEXT, created_at TEXT);
+        CREATE TABLE neuron_specifications (
+            neuron_id TEXT, version TEXT, state TEXT, payload_json TEXT);"""
+    )
+    conn.execute(
+        "INSERT INTO improvement_signals VALUES ('s1','cap','met','open',0.1,?,'0')",
+        (json.dumps({"confidence": 0.4, "capability_id": "cap"}),),
+    )
+    conn.execute(
+        "INSERT INTO improvement_proposals VALUES ('p1','s1','open',?,'0')",
+        (
+            json.dumps(
+                {
+                    "hypothesis": "mejorar cap",
+                    "requested_capability": "cap",
+                    "neuron_id": "1",
+                    "version": "1.0.0",
+                }
+            ),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    proposal = next(
+        gate
+        for gate in pending_human_gates(db)["gates"]
+        if gate["kind"] == "improvement_proposal"
+    )
+    assert proposal["ready"] is False
+    assert any("/neurons/1/specification" in blocker for blocker in proposal["blockers"])
 
 
 def test_sin_base_viva_no_revienta(tmp_path: Path) -> None:

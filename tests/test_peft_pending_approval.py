@@ -106,3 +106,29 @@ def test_pending_disappears_after_real_activation(tmp_path: Path) -> None:
     after = server.pending_approval()
     assert after["pending_count"] == 0
     assert after["active_adapter_path"] == str(adapter_dir)
+
+
+def test_retired_canonical_adapter_keeps_evidence_but_is_not_pending(
+    tmp_path: Path,
+) -> None:
+    server = _server(tmp_path)
+    with sqlite3.connect(server.db_path) as conn:
+        conn.execute(
+            "CREATE TABLE governed_peft_versions "
+            "(version_id TEXT PRIMARY KEY, adapter_path TEXT, status TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO governed_peft_versions VALUES ('old','/adapters/old','retired')"
+        )
+        conn.execute(
+            "INSERT INTO peft_canary_events(adapter_path,event,success) "
+            "VALUES ('/adapters/old','canary_generation',1)"
+        )
+
+    result = server.pending_approval()
+
+    assert result["pending_count"] == 0
+    with sqlite3.connect(server.db_path) as conn:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM peft_canary_events WHERE adapter_path='/adapters/old'"
+        ).fetchone()[0] == 1

@@ -2,36 +2,38 @@
 
 Regenerar: `python scripts/build_system_inventory.py`
 
-- módulos analizados: **759**
-- clases: **623** · funciones: **6493**
-- tipos de tarea declarados: **24**
+- módulos analizados: **791**
+- clases: **617** · funciones: **6869**
+- tipos de tarea declarados: **26**
 
 | task_type | productor en producción | scripts | pruebas | ejecuciones |
 |---|---|---|---|---|
-| `bodega_global_review` | `triade/workers/mission_planner.py:400` | 0 | 0 | 570 |
-| `encrypted_backup` | `triade/workers/mission_planner.py:120` | 0 | 1 | 60 |
-| `experimental_neuron_activity` | `triade/workers/mission_planner.py:879`, `triade/os/neuron_scheduler.py:253` | 0 | 8 | 0 |
-| `federation_inbox_review` | `triade/workers/mission_planner.py:923` | 0 | 0 | 0 |
-| `goal_install` | `triade/core/goal_orchestrator.py:318` | 0 | 1 | 0 |
-| `goal_lora_train` | `triade/core/goal_orchestrator.py:370` | 0 | 1 | 0 |
-| `goal_research` | **NINGUNO** | 0 | 0 | 3 |
-| `goal_safe_command` | **NINGUNO** | 0 | 2 | 5 |
-| `learning_candidate_deduplication` | `triade/workers/mission_planner.py:446` | 0 | 0 | 3131 |
-| `learning_candidate_generation` | `triade/learning/post_run.py:106` | 0 | 0 | 141 |
-| `learning_evidence_generation` | `triade/workers/mission_planner.py:564` | 0 | 0 | 1359 |
-| `neuron_autopromotion` | `triade/workers/mission_planner.py:616` | 0 | 0 | 1043 |
-| `neuron_candidate_formation` | `triade/workers/mission_planner.py:1061` | 0 | 1 | 1125 |
-| `neuron_education_cycle` | `triade/workers/mission_planner.py:319` | 0 | 1 | 52 |
-| `peft_canary_observation` | `triade/workers/mission_planner.py:753` | 0 | 0 | 104 |
-| `pending_learning_review` | `triade/workers/mission_planner.py:420`, `triade/workers/mission_planner.py:654`, `triade/evaluation/suites.py:67` | 0 | 2 | 457 |
-| `pulse_check` | `triade/workers/mission_planner.py:383` | 8 | 52 | 5634 |
-| `research_curriculum` | `triade/workers/mission_planner.py:169` | 0 | 0 | 225 |
-| `self_improvement_canary_observation` | `triade/workers/mission_planner.py:250` | 0 | 0 | 0 |
-| `self_improvement_evaluation` | `triade/workers/mission_planner.py:205` | 0 | 4 | 0 |
-| `semantic_memory_governance` | `triade/workers/mission_planner.py:593` | 0 | 1 | 752 |
-| `stable_consolidation_review` | `triade/workers/mission_planner.py:836` | 0 | 3 | 27 |
-| `system_debt_scan` | `triade/workers/mission_planner.py:966`, `triade/workers/mission_planner.py:993` | 0 | 0 | 683 |
-| `write_governed_text_artifact` | **NINGUNO** | 0 | 0 | 0 |
+| `bodega_global_review` | `triade/workers/mission_planner.py:591` | 0 | 0 | 2881 |
+| `encrypted_backup` | `triade/workers/mission_planner.py:122` | 0 | 1 | 276 |
+| `experimental_neuron_activity` | `triade/os/neuron_scheduler.py:253`, `triade/workers/mission_planner.py:1181` | 0 | 8 | 0 |
+| `federation_inbox_review` | `triade/workers/mission_planner.py:1225` | 0 | 0 | 0 |
+| `goal_install` | `triade/core/goal_orchestrator.py:333` | 0 | 1 | 0 |
+| `goal_lora_train` | `triade/core/goal_orchestrator.py:385` | 0 | 1 | 0 |
+| `goal_research` | **NINGUNO** | 0 | 1 | 6 |
+| `goal_safe_command` | **NINGUNO** | 0 | 2 | 10 |
+| `learning_candidate_deduplication` | `triade/workers/mission_planner.py:669` | 0 | 0 | 8688 |
+| `learning_candidate_generation` | `triade/learning/post_run.py:125` | 0 | 0 | 721 |
+| `learning_claim_distillation` | `triade/workers/mission_planner.py:725` | 0 | 0 | 1 |
+| `learning_evidence_generation` | `triade/workers/mission_planner.py:843` | 1 | 0 | 1513 |
+| `neural_learning_distribution` | `triade/workers/mission_planner.py:214` | 0 | 1 | 68 |
+| `neuron_autopromotion` | `triade/workers/mission_planner.py:895` | 0 | 0 | 2328 |
+| `neuron_candidate_formation` | `triade/workers/mission_planner.py:1363` | 0 | 1 | 2944 |
+| `neuron_education_cycle` | `triade/workers/mission_planner.py:506` | 0 | 2 | 358 |
+| `peft_canary_observation` | `triade/workers/mission_planner.py:1055` | 0 | 0 | 324 |
+| `pending_learning_review` | `triade/evaluation/suites.py:67`, `triade/workers/mission_planner.py:611`, `triade/workers/mission_planner.py:933` | 0 | 2 | 651 |
+| `pulse_check` | `triade/workers/mission_planner.py:574` | 8 | 55 | 22240 |
+| `research_curriculum` | `triade/workers/mission_planner.py:240` | 0 | 0 | 286 |
+| `self_improvement_canary_observation` | `triade/workers/mission_planner.py:437` | 0 | 0 | 0 |
+| `self_improvement_evaluation` | `triade/workers/mission_planner.py:316`, `triade/workers/mission_planner.py:330` | 0 | 4 | 0 |
+| `semantic_memory_governance` | `triade/workers/mission_planner.py:872` | 0 | 1 | 2794 |
+| `stable_consolidation_review` | `triade/workers/mission_planner.py:1138` | 0 | 3 | 101 |
+| `system_debt_scan` | `triade/workers/mission_planner.py:1268`, `triade/workers/mission_planner.py:1295` | 0 | 0 | 1352 |
+| `write_governed_text_artifact` | **NINGUNO** | 0 | 0 | 4 |
 
 ## Tipos sin productor **literal** en producción
 
@@ -84,6 +86,7 @@ Regenerar: `python scripts/build_system_inventory.py`
 - `TRIADE_LIFE_REFLECTION_LIMIT`
 - `TRIADE_MEASURED_ROUTING_PATH`
 - `TRIADE_MOBILE_STATE`
+- `TRIADE_NEURAL_LEARNING_ROUTING`
 - `TRIADE_NODE_ID`
 - `TRIADE_NODE_ONLINE_TTL_SECONDS`
 - `TRIADE_NODE_SWEEP_SECONDS`
@@ -100,13 +103,18 @@ Regenerar: `python scripts/build_system_inventory.py`
 - `TRIADE_RELAY_PAIRING_TOKEN`
 - `TRIADE_RELAY_TOKEN_FILE`
 - `TRIADE_RELAY_URL`
+- `TRIADE_RUNS_DIR`
 - `TRIADE_RUNTIME_INTERVAL_SECONDS`
 - `TRIADE_RUNTIME_MAX_CYCLES`
 - `TRIADE_RUNTIME_MODE`
 - `TRIADE_RUNTIME_SCOPE`
 - `TRIADE_RUNTIME_URL`
+- `TRIADE_RUN_CONCURRENCY`
 - `TRIADE_SELF_IMPROVEMENT_AUTO_APPROVE`
+- `TRIADE_SELF_IMPROVEMENT_AUTO_APPROVE_MIN_CONFIDENCE`
+- `TRIADE_SELF_IMPROVEMENT_POLICY_AUTHORIZER`
 - `TRIADE_SELF_TEST_EVERY_CYCLES`
+- `TRIADE_STUDIO_PORT`
 - `TRIADE_SYNTHETIC_CANARY`
 - `TRIADE_TEST_ROOT`
 - `TRIADE_WATCHDOG_INTERVAL`

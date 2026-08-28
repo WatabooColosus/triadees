@@ -55,6 +55,7 @@ from triade.runtime.task_status import TERMINAL_FAILURE
 from triade.runtime.wake_bus import runtime_wake_event
 
 from .adaptive_scheduler import AdaptiveScheduler
+from .architecture import contract_for
 from .concurrency import GovernedTaskPool, policy_for
 from .contracts import (
     EVENT_DRIVEN_TASK_TYPES,
@@ -68,6 +69,27 @@ from .neuron_mission_executor import NeuronMissionExecutor
 from .scheduler import WorkerScheduler
 from .state_store import WorkerStateStore
 from .task_queue import WorkerTaskQueue
+
+
+def _timeout_for_task(task: WorkerTask, base_seconds: float, attempt: int) -> float:
+    """Plazo real del handler, incluido el presupuesto explícito de GPU.
+
+    Un entrenamiento LoRA no cabe en el timeout interactivo de 30 segundos: la
+    descarga/carga del modelo, las evaluaciones y el guardado rodean al bucle de
+    GPU. El límite del entrenador sigue siendo el presupuesto autorizado y se
+    añade un margen acotado de 15 minutos para esas fases. Todos los demás
+    handlers conservan exactamente la escalada general 30→60→120.
+    """
+    standard = timeout_for_attempt(base_seconds, attempt)
+    if task.task_type != "goal_lora_train":
+        return standard
+    try:
+        gpu_minutes = float(task.payload.get("maximum_gpu_minutes") or 30.0)
+    except (TypeError, ValueError):
+        gpu_minutes = 30.0
+    gpu_minutes = max(1.0, min(gpu_minutes, 120.0))
+    return max(standard, gpu_minutes * 60.0 + 15.0 * 60.0)
+
 
 #: `summary` es el único estado en memoria que varias tareas mutan a la vez, y
 #: `+=` sobre un dict no es atómico en CPython.
@@ -910,7 +932,7 @@ class WorkerLoop:
             # sobre el base: si el timeout escala a 120 s y el lease siguiera
             # valiendo 60, `recover_expired` daría la tarea por perdida mientras
             # todavía se está ejecutando, y otro worker la tomaría en paralelo.
-            plazo = timeout_for_attempt(config.task_timeout, intento)
+            plazo = _timeout_for_task(task, config.task_timeout, intento)
             heartbeat = LeaseHeartbeat(
                 self.autonomous_tasks,
                 autonomous_task_id,
@@ -1078,6 +1100,28 @@ class WorkerLoop:
                 retryable=True,
                 error_code=str(result.get("defer_cause") or "deferred"),
                 message=message,
+                artifacts=evidence,
+                evidence=evidence,
+                resource_usage=resource_usage,
+            )
+        if raw_status == "cancelled":
+            return ExecutionResult(
+                status="cancelled",
+                executed=True,
+                retryable=False,
+                error_code="cancelled",
+                message=message,
+                artifacts=evidence,
+                evidence=evidence,
+                resource_usage=resource_usage,
+            )
+        if raw_status == "lease_lost":
+            return ExecutionResult(
+                status="lease_lost",
+                executed=True,
+                retryable=True,
+                error_code="lease_lost",
+                message=str(result.get("error") or message),
                 artifacts=evidence,
                 evidence=evidence,
                 resource_usage=resource_usage,
@@ -1268,6 +1312,10 @@ class WorkerLoop:
         attempt: int = 1,
     ) -> dict[str, Any]:
         started = time.monotonic()
+        # El contrato arquitectónico deja de ser una lámina mantenida sólo para
+        # tests: cada despacho real lo resuelve antes de tocar el efecto. Un tipo
+        # nuevo sin productor/política/handler declarado falla cerrado aquí.
+        architecture_contract = contract_for(task.task_type)
         resource_collector = ResourceMeasurementCollector()
         cancellation = CancellationToken(lambda: self.stop_file.exists())
         cancellation.checkpoint()
@@ -1303,6 +1351,7 @@ class WorkerLoop:
             task.payload.setdefault("ollama_blood", blood)
         base = {
             "task": task.to_dict(),
+            "architecture_contract": architecture_contract.to_dict(),
             "safety": safety.to_dict(),
             "dry_run": config.dry_run,
             "started_at": utc_now(),
@@ -1453,7 +1502,7 @@ class WorkerLoop:
                 }
                 # El plazo crece con el intento: un timeout dice "no le dio
                 # tiempo", no "el trabajo está mal". Ver `timeout_for_attempt`.
-                plazo = timeout_for_attempt(config.task_timeout, attempt)
+                plazo = _timeout_for_task(task, config.task_timeout, attempt)
                 outcome = self.task_executor.execute_callable(
                     handlers[task.task_type],
                     args=(task, run_ref, task_dir, config),
@@ -1519,6 +1568,8 @@ class WorkerLoop:
                     "unverifiable",
                 }:
                     persisted_status = "observed"
+                elif result_status == "deferred":
+                    persisted_status = "deferred"
                 elif result_status in {
                     "blocked",
                     "skipped",
@@ -1897,10 +1948,21 @@ class WorkerLoop:
                     "reason": "no hay registro de propuestas de mejora todavía",
                     "run_ref": run_ref,
                 }
-            row = conn.execute(
-                """SELECT proposal_id, payload_json FROM improvement_proposals
-                   WHERE status = 'approved' ORDER BY rowid ASC LIMIT 1"""
-            ).fetchone()
+            requested_proposal = str(payload.get("proposal_id") or "")
+            row = (
+                conn.execute(
+                    """SELECT proposal_id,payload_json,status
+                    FROM improvement_proposals WHERE proposal_id=?
+                    AND status IN ('approved','candidate_created')""",
+                    (requested_proposal,),
+                ).fetchone()
+                if requested_proposal
+                else conn.execute(
+                    """SELECT proposal_id,payload_json,status
+                    FROM improvement_proposals WHERE status IN
+                    ('approved','candidate_created') ORDER BY rowid ASC LIMIT 1"""
+                ).fetchone()
+            )
             pending = (
                 None
                 if row is not None
@@ -1911,6 +1973,13 @@ class WorkerLoop:
             )
 
         approver = "human"
+        if row is not None:
+            try:
+                approver = str(
+                    json.loads(row["payload_json"]).get("approved_by") or "human"
+                )
+            except (TypeError, ValueError):
+                pass
         if row is None and pending is not None and _auto_approval_enabled():
             # El listón lo pone `auto_approval`, y lo consulta también el
             # planificador: si cada uno decidiera por su cuenta, el planificador
@@ -2013,21 +2082,9 @@ class WorkerLoop:
                 }
             )
 
-        # Idempotencia: si ya existe una candidata viva para esta terna, no se
-        # crea una segunda. Dos candidatas para la misma (propuesta, neurona,
-        # versión) serían dos verdades incompatibles sobre el mismo cambio.
+        # Idempotencia: una candidata viva se reevalúa usando su artefacto; no se
+        # crea un gemelo para sustituir lo que quedó diferido por falta de runs.
         existing = self._existing_candidate(proposal_id, neuron_id, version)
-        if existing is not None:
-            return _stamp(
-                {
-                    "status": "observed",
-                    "reason": "ya existe una candidata equivalente en curso",
-                    "idempotent": True,
-                    "candidate_id": existing,
-                    "neuron_id": neuron_id,
-                    "version": version,
-                }
-            )
 
         # El provider sale de un registro cerrado. Permitir un nombre arbitrario
         # dejaría que la propuesta eligiera su propio examinador.
@@ -2053,21 +2110,34 @@ class WorkerLoop:
             {"proposal_id": proposal_id, "neuron_id": neuron_id, "version": version},
         )
         try:
-            result = SelfImprovementOrchestrator(self.db_path).run_once(
-                proposal_id,
-                neuron_id=neuron_id,
-                version=version,
-                configuration=dict(payload.get("configuration") or {"mode": "safe"}),
-                evaluation_provider=_provider,
-                canary_traffic_percent=int(payload.get("canary_traffic_percent") or 10),
-                canary_tolerance=float(payload.get("canary_tolerance") or 0.02),
-                canary_min_observations=int(
+            orchestrator = SelfImprovementOrchestrator(self.db_path)
+            common = {
+                "evaluation_provider": _provider,
+                "canary_traffic_percent": int(
+                    payload.get("canary_traffic_percent") or 10
+                ),
+                "canary_tolerance": float(payload.get("canary_tolerance") or 0.02),
+                "canary_min_observations": int(
                     payload.get("canary_min_observations") or 3
                 ),
-                canary_max_observations=int(
+                "canary_max_observations": int(
                     payload.get("canary_max_observations") or 10
                 ),
-            )
+            }
+            if existing is not None:
+                result = orchestrator.resume_once(
+                    proposal_id, candidate_id=existing, **common
+                )
+            else:
+                result = orchestrator.run_once(
+                    proposal_id,
+                    neuron_id=neuron_id,
+                    version=version,
+                    configuration=dict(
+                        payload.get("configuration") or {"mode": "safe"}
+                    ),
+                    **common,
+                )
         except (ValueError, KeyError) as exc:
             message = str(exc)
             # "Todavía no hay evidencia" no es lo mismo que "esto no sirve". Si
@@ -3132,11 +3202,19 @@ class WorkerLoop:
         generacion = PeftCanaryServer(self.db_path, adapters_root).generate(
             adapter_path,
             "Responde exactamente: canary-ok",
-            max_new_tokens=48,
+            max_new_tokens=8,
+            system=(
+                "Esta es una prueba de salud determinista. Responde únicamente "
+                "con canary-ok, sin explicación, puntuación ni texto adicional."
+            ),
+            options={"temperature": 0.0, "seed": 42},
         )
-        completada = generacion.get("status") == "completed" and bool(
-            generacion.get("response")
+        respuesta = str(generacion.get("response") or "").strip().casefold()
+        completada = (
+            generacion.get("status") == "completed" and respuesta == "canary-ok"
         )
+        generacion["expected_response"] = "canary-ok"
+        generacion["response_matches"] = completada
         serving = GovernedPeftServing(self.db_path, adapters_root)
         observacion = serving.observe(
             version_id,

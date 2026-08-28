@@ -5,8 +5,8 @@ sólo emitía dos relaciones —`contracts → tipo` y `tipo → worker_loop`—
 ningún módulo tenía jamás entrada ni salida: 11 de 13 salían aislados y en verde
 a la vez. Entre los aislados estaba el espinazo vivo del planificador
 (`worker_loop → scheduler → mission_planner → adaptive_scheduler → task_queue`),
-y en el mismo verde estaban `advanced_scheduler` y `worker_supervisor`, que no
-los alcanza ningún entrypoint que alguien arranque.
+y en el mismo verde estaban `advanced_scheduler` y `worker_supervisor`, dos
+gemelos que ya fueron retirados al demostrarse que ningún entrypoint los usaba.
 
 Un grafo que pinta igual las dos cosas no es observabilidad: es decoración.
 """
@@ -71,23 +71,20 @@ def test_ningun_modulo_vivo_queda_sin_entrada_ni_salida() -> None:
     assert sueltos == [], f"módulos vivos sin ninguna arista: {sueltos}"
 
 
-def test_lo_que_ningun_entrypoint_alcanza_no_se_pinta_de_verde() -> None:
-    """`advanced_scheduler` y `worker_supervisor` tienen importadores, pero muertos.
-
-    Es la distinción que la cuenta de importadores no puede hacer: los importa
-    código que a su vez no ejecuta nadie.
-    """
+def test_gemelos_muertos_retirados_y_contrato_canonico_conectado() -> None:
+    """La retirada no deja nodos fantasma y el contrato sí entra al worker vivo."""
     nodes, _edges = _grafo()
     alcanzables = reachable_modules(REPO_ROOT, build_module_index(REPO_ROOT))
 
     for nombre in ("advanced_scheduler", "worker_supervisor"):
-        node = nodes[f"worker_module:triade/workers/{nombre}.py"]
-        assert node.state == "disconnected"
-        assert node.metadata["reachable_from_entrypoint"] is False
-        # Tiene importadores: no es que nadie lo nombre, es que nadie lo ejecuta.
-        assert node.metadata["importers"] > 0
-        assert node.metadata["live_importers"] == []
+        assert f"worker_module:triade/workers/{nombre}.py" not in nodes
+        assert not (REPO_ROOT / f"triade/workers/{nombre}.py").exists()
         assert f"triade/workers/{nombre}.py" not in alcanzables
+
+    arquitectura = nodes["worker_module:triade/workers/architecture.py"]
+    assert arquitectura.state == "active"
+    assert arquitectura.metadata["reachable_from_entrypoint"] is True
+    assert "triade/workers/worker_loop.py" in arquitectura.metadata["live_importers"]
 
 
 def test_el_estado_sale_de_la_evidencia_y_no_de_que_el_fichero_exista() -> None:

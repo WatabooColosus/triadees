@@ -502,3 +502,30 @@ def test_el_simulacro_cuenta_el_saber_que_existe(tmp_path) -> None:
     resultado = EncryptedBackup._semantic_verification(db)
 
     assert resultado["semantic_memory_count"] == 2
+
+
+def test_el_simulacro_resuelve_recibos_sqlite_como_evidencia(tmp_path) -> None:
+    """Un recibo SQLite no es una ruta de fichero ausente."""
+    import sqlite3
+
+    from triade.memory.encrypted_backup import EncryptedBackup
+
+    db = tmp_path / "triade.db"
+    with sqlite3.connect(db) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE autonomous_tasks (result_ref TEXT, status TEXT);
+            CREATE TABLE neuron_education_events (
+                id INTEGER PRIMARY KEY, payload_json TEXT
+            );
+            INSERT INTO neuron_education_events VALUES (180, '{}');
+            INSERT INTO autonomous_tasks VALUES
+                ('sqlite:neuron_education_events:180', 'completed'),
+                ('sqlite:neuron_education_events:999', 'completed');
+            """
+        )
+
+    result = EncryptedBackup._semantic_verification(db)
+
+    assert result["artifact_refs_checked"] == 1
+    assert result["artifact_ref_failures"] == ["sqlite:neuron_education_events:999"]

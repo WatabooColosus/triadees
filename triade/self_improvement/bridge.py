@@ -91,6 +91,134 @@ class ImprovementNeuronFactoryBridge:
             )
         return {**payload, "status": "approved"}
 
+    def assign_target(
+        self,
+        proposal_id: str,
+        *,
+        neuron_id: str,
+        version: str,
+        assigned_by: str,
+    ) -> dict[str, Any]:
+        """Completa el destino de una propuesta abierta y deja historial."""
+        if not assigned_by.strip():
+            raise ValueError("assigned_by es obligatorio")
+        specification = self.specifications.get(neuron_id, version)
+        if specification is None:
+            raise KeyError(f"especificación no registrada: {neuron_id}@{version}")
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT payload_json,status FROM improvement_proposals "
+                "WHERE proposal_id=?",
+                (proposal_id,),
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"propuesta no registrada: {proposal_id}")
+            if row["status"] != "open":
+                raise ValueError("solo una propuesta abierta puede recibir destino")
+            payload = json.loads(row["payload_json"])
+            requested = str(payload.get("requested_capability") or "")
+            if requested not in specification.get("provides_capabilities", []):
+                raise ValueError(
+                    f"la especificación no aporta la capacidad solicitada: {requested}"
+                )
+            payload.update(
+                {
+                    "neuron_id": neuron_id,
+                    "version": version,
+                    "target_assigned_by": assigned_by.strip(),
+                }
+            )
+            conn.execute(
+                "UPDATE improvement_proposals SET payload_json=? WHERE proposal_id=?",
+                (json.dumps(payload, sort_keys=True), proposal_id),
+            )
+            conn.execute(
+                """INSERT INTO improvement_history
+                (entity_type,entity_id,action,payload_json,created_at)
+                VALUES ('proposal',?,'target_assigned',?,strftime('%s','now'))""",
+                (
+                    proposal_id,
+                    json.dumps(
+                        {
+                            "neuron_id": neuron_id,
+                            "version": version,
+                            "assigned_by": assigned_by.strip(),
+                        },
+                        sort_keys=True,
+                    ),
+                ),
+            )
+        return {**payload, "status": "open"}
+
+    def recover_deferred(
+        self,
+        proposal_id: str,
+        *,
+        candidate_id: str,
+        recovered_by: str,
+    ) -> dict[str, Any]:
+        """Repara el estado contradictorio creado por un defer antiguo."""
+        if not recovered_by.strip():
+            raise ValueError("recovered_by es obligatorio")
+        with self._connect() as conn:
+            proposal = conn.execute(
+                "SELECT status,payload_json FROM improvement_proposals "
+                "WHERE proposal_id=?",
+                (proposal_id,),
+            ).fetchone()
+            link = conn.execute(
+                "SELECT status,neuron_id,version FROM improvement_candidate_links "
+                "WHERE proposal_id=? AND candidate_id=?",
+                (proposal_id, candidate_id),
+            ).fetchone()
+            candidate = conn.execute(
+                "SELECT status FROM neuron_candidates WHERE candidate_id=?",
+                (candidate_id,),
+            ).fetchone()
+            if proposal is None or link is None or candidate is None:
+                raise KeyError("propuesta o candidata diferida no registrada")
+            if not (
+                proposal["status"] == "cancelled"
+                and link["status"] == "cancelled"
+                and candidate["status"] == "executed"
+            ):
+                raise ValueError("el ciclo no está en el estado diferido recuperable")
+            payload = json.loads(proposal["payload_json"])
+            payload["deferred_recovered_by"] = recovered_by.strip()
+            conn.execute(
+                "UPDATE improvement_proposals SET status='candidate_created',"
+                "payload_json=? WHERE proposal_id=?",
+                (json.dumps(payload, sort_keys=True), proposal_id),
+            )
+            conn.execute(
+                "UPDATE improvement_candidate_links SET status='active' "
+                "WHERE candidate_id=?",
+                (candidate_id,),
+            )
+            conn.execute(
+                """INSERT INTO improvement_history
+                (entity_type,entity_id,action,payload_json,created_at)
+                VALUES ('proposal',?,'deferred_recovered',?,strftime('%s','now'))""",
+                (
+                    proposal_id,
+                    json.dumps(
+                        {
+                            "candidate_id": candidate_id,
+                            "neuron_id": link["neuron_id"],
+                            "version": link["version"],
+                            "recovered_by": recovered_by.strip(),
+                        },
+                        sort_keys=True,
+                    ),
+                ),
+            )
+        return {
+            "status": "candidate_created",
+            "proposal_id": proposal_id,
+            "candidate_id": candidate_id,
+            "recovered_by": recovered_by.strip(),
+        }
+
     def create_candidate(
         self,
         proposal_id: str,

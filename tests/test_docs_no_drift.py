@@ -93,6 +93,23 @@ _RETIRADOS = (
     "triade/runtime/governed_plan_dispatcher.py",
     "tests/test_governed_plan_dispatcher.py",
     "tests/test_governed_text_artifact_e2e.py",
+    # Isla runtime alternativa retirada el 2026-08-28. La documentación puede
+    # nombrarla para explicar la retirada; no puede presentarla como viva.
+    "triade/core/system_monitor.py",
+    "triade/dashboard/routes.py",
+    "triade/evaluation/advanced_evaluation.py",
+    "triade/federation/federation_advanced.py",
+    "triade/integration/final_validator.py",
+    "triade/learning/causal_learning.py",
+    "triade/memory/replacement_tracker.py",
+    "triade/models/smart_router.py",
+    "triade/neuron_factory/design.py",
+    "triade/neuron_factory/training.py",
+    "triade/os/autonomous_routines.py",
+    "triade/os/triadeos_complete.py",
+    "triade/sandbox/enhanced_tool_registry.py",
+    "triade/workers/advanced_scheduler.py",
+    "triade/workers/worker_supervisor.py",
 )
 
 #: Un documento se declara histórico con esta marca en su propio texto. No se

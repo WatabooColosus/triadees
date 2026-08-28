@@ -430,8 +430,15 @@ def build_entrypoint_graph(
             if not _is_main_guard(ast_node.test):
                 continue
             node_id = f"entrypoint:{relative}"
-            administrative = _administrative_on_demand(tree, relative)
-            manual_diagnostic = _manual_diagnostic(tree, relative)
+            declared_kind = _declared_entrypoint_kind(tree, relative)
+            administrative = (
+                declared_kind == "administrative_on_demand"
+                or _administrative_on_demand(tree, relative)
+            )
+            manual_diagnostic = (
+                declared_kind == "manual_diagnostic"
+                or _manual_diagnostic(tree, relative)
+            )
             nodes[node_id] = GraphNode(
                 node_id,
                 "file",
@@ -451,7 +458,9 @@ def build_entrypoint_graph(
                         else "manual_diagnostic"
                     ),
                     "activation_evidence": (
-                        "argparse --apply gate + rollback option"
+                        f"declared:TRIADE_ENTRYPOINT_KIND={declared_kind}"
+                        if declared_kind
+                        else "argparse --apply gate + rollback option"
                         if administrative
                         else "bounded diagnostic CLI; explicit run count; Ollama disabled"
                         if manual_diagnostic
@@ -507,6 +516,36 @@ def build_entrypoint_graph(
         )
 
     return sorted(nodes.values(), key=lambda n: n.node_id), edges
+
+
+def _declared_entrypoint_kind(tree: ast.Module, relative: str) -> str | None:
+    """Lee la clase operativa explícita de un CLI bajo demanda.
+
+    Hay herramientas seguras que no encajan en una heurística única: rotar una
+    credencial no tiene un ``--rollback`` automático, y una validación causal
+    que escribe en producción exige ``--prod`` en vez de desactivar Ollama. La
+    declaración vive en el propio módulo y el vocabulario es cerrado; no se
+    infiere por el nombre del fichero.
+    """
+    if not relative.startswith("scripts/"):
+        return None
+    allowed = {"administrative_on_demand", "manual_diagnostic"}
+    for node in tree.body:
+        target: ast.expr | None = None
+        value: ast.expr | None = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target, value = node.targets[0], node.value
+        elif isinstance(node, ast.AnnAssign):
+            target, value = node.target, node.value
+        if (
+            isinstance(target, ast.Name)
+            and target.id == "TRIADE_ENTRYPOINT_KIND"
+            and isinstance(value, ast.Constant)
+            and isinstance(value.value, str)
+            and value.value in allowed
+        ):
+            return value.value
+    return None
 
 
 def _administrative_on_demand(tree: ast.Module, relative: str) -> bool:
