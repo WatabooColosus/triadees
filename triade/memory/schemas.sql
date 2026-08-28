@@ -190,7 +190,18 @@ CREATE TABLE IF NOT EXISTS learning_queue (
     status TEXT DEFAULT 'candidate',
     verification_notes TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    -- Estas tres columnas vivían sólo en `LearningPipeline._migrate_learning_queue`,
+    -- que corre al construir el pipeline. En una base ya migrada no se nota;
+    -- en una recién creada, cualquier consumidor que llegue antes que el
+    -- pipeline se estrella: `LearningDeduplicator.analyze()` falla con
+    -- `no such column: run_use_count` y mata la etapa entera del worker.
+    -- Una columna que sólo existe si alguien construyó cierta clase antes no
+    -- es un esquema, es una condición de carrera. La migración se conserva
+    -- para las bases vivas creadas antes de esto.
+    run_use_count INTEGER DEFAULT 0,
+    run_outcome_scores TEXT DEFAULT '[]',
+    avg_outcome_score REAL DEFAULT 0.0
 );
 
 CREATE TABLE IF NOT EXISTS knowledge_patterns (

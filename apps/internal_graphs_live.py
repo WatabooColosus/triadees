@@ -475,14 +475,27 @@ def build_signals() -> dict[str, Any]:
     # un tipo que no corre desde hace días late en verde igual que uno que acaba
     # de ejecutarse: el mismo estado que ya distinguen los eslabones de arriba.
     recent = task_type_recency(db_path)
+    # `ready_when_idle` sale del grafo de workers ya generado y **no** se
+    # recalcula aquí: verificar los contratos de activación cuesta una lectura
+    # completa del AST, que es justo lo que este latido evita.
+    #
+    # El precio es que depende de un artefacto que puede no existir —`artifacts/`
+    # está en `.gitignore`, así que en CI no está—. Cuando falta, esto ponía el
+    # conjunto vacío y seguía: un tipo humano-gateado como `goal_lora_train`
+    # salía `disconnected`, o sea «no está conectado», cuando la verdad es «no
+    # lo sé, no he podido mirarlo». Afirmar desconexión sin evidencia es
+    # exactamente lo que este grafo existe para no hacer, y encima hacía que la
+    # prueba fuera verde en local —donde el fichero sí está— y roja en CI.
     ready_when_idle: set[str] = set()
     worker_artifact = ARTIFACT_DIR / "worker_graph.json"
     try:
         worker_nodes = json.loads(worker_artifact.read_text(encoding="utf-8")).get(
             "nodes", []
         )
+        readiness_known = True
     except (OSError, ValueError, AttributeError):
         worker_nodes = []
+        readiness_known = False
     for node in worker_nodes:
         metadata = node.get("metadata") or {}
         if metadata.get("ready_when_idle"):
@@ -497,14 +510,17 @@ def build_signals() -> dict[str, Any]:
             "state": (
                 "unknown"
                 if not available
-                else "disconnected"
-                if executions.get(task_type, 0) <= 0
-                and task_type not in ready_when_idle
                 else "active"
                 if recent.get(task_type, False)
                 else "ready"
                 if task_type in ready_when_idle
                 else "legacy"
+                if executions.get(task_type, 0) > 0
+                # Sin ejecuciones y sin poder consultar el readiness, lo honesto
+                # es `unknown`, no `disconnected`.
+                else "disconnected"
+                if readiness_known
+                else "unknown"
             ),
         }
         for task_type in sorted(set(declared) | set(executions))
@@ -513,6 +529,9 @@ def build_signals() -> dict[str, Any]:
         "stages": stages,
         "task_types": task_types,
         "tables": rows_by_table,
+        # De dónde salió el readiness, para que quien lea el latido sepa si un
+        # `unknown` es ignorancia del sistema o falta del artefacto.
+        "readiness_source": "worker_graph_artifact" if readiness_known else "missing",
         "simulated": False,
     }
 
@@ -664,9 +683,7 @@ def decode_stream_cursor(value: str | None) -> FeedCursor | None:
         positions = {
             str(table): int(position)
             for table, position in raw.items()
-            if isinstance(table, str)
-            and isinstance(position, int)
-            and position >= 0
+            if isinstance(table, str) and isinstance(position, int) and position >= 0
         }
         if positions.keys() != raw.keys():
             return None

@@ -1184,6 +1184,14 @@ class TriadeRunner:
             message=input_packet.user_input,
             response=output.response,
             source=source,
+            # La intención ya la calculó el Hipotálamo en este mismo run. Sin
+            # ella, Central clasifica la experiencia a ciegas: la compuerta de
+            # neuronas responde `should_create_neuron=False` a
+            # «quiero que aprendas a hacer imágenes» cuando el intent llega como
+            # `conversation`, y `True` con el `build_or_update` real. Recalcularla
+            # después sería una segunda opinión sobre lo mismo; arrastrarla es
+            # gratis.
+            intent=str(signals.intent),
             model_id=output.model_name,
             outcome=output.status,
             timestamp=output.timestamp,
@@ -1753,6 +1761,34 @@ class TriadeRunner:
                 "existing_status": existing.get("status"),
                 "activation": "auto_promoted",
                 "note": "No se degrada una neurona ya promovida; propuesta omitida.",
+            }
+
+        # La comparación de arriba es por **nombre**, y el nombre es un slug del
+        # mensaje: dos maneras de pedir lo mismo dan dos nombres distintos y
+        # nunca coinciden. Por eso la base tenía seis neuronas para «hacer
+        # imágenes» y dos para bajarse un modelo. Antes de registrar una nueva se
+        # busca una equivalente por misión.
+        #
+        # Preferir mejorar la que existe sobre crear otra casi idéntica no es un
+        # ahorro: cada neurona gemela reparte entre dos las activaciones y la
+        # evidencia que ninguna de las dos llega a acumular, y ninguna gradúa.
+        from .learning_planner import find_equivalent_neuron
+
+        gemela, parecido = find_equivalent_neuron(self.db_path, input_packet.user_input)
+        if gemela is not None and str(gemela.get("name")) != name:
+            return {
+                "name": str(gemela["name"]),
+                "neuron_id": gemela.get("neuron_id"),
+                "source_run": input_packet.run_id,
+                "registered_as": "deduplicated_into_existing",
+                "existing_status": gemela.get("status"),
+                "activation": "reinforce_existing",
+                "similarity": parecido,
+                "requested_name": name,
+                "note": (
+                    "Ya existe una neurona para esta misma habilidad; se refuerza "
+                    "en vez de crear otra equivalente."
+                ),
             }
 
         proposal = build_primary_neuron_package(

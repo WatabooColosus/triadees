@@ -140,7 +140,9 @@ class SelfImprovementOrchestrator:
             artifact_ref=artifact["execution_id"],
         )
         if not evidence["promotable"]:
-            self.evaluation.quarantine(candidate_id, "evidencia insuficiente o regresión")
+            self.evaluation.quarantine(
+                candidate_id, "evidencia insuficiente o regresión"
+            )
             self.bridge.release_candidate(candidate_id, outcome="rejected")
             return self._result(
                 proposal_id,

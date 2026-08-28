@@ -1167,23 +1167,15 @@ CONTRACTS: tuple[Contract, ...] = (
             "rows_present=auto_identity",
         ),
     ),
-    _contract(
-        "table:goal_dependencies",
-        "ON_DEMAND",
-        decided_at="2026-08-24",
-        reason="""
-            Una fila representa una dependencia explícita entre dos objetivos,
-            no un latido obligatorio. El planificador lee la tabla para bloquear
-            únicamente los objetivos que declaren esa relación; los objetivos
-            independientes no deben recibir dependencias inventadas.
-        """,
-        evidence=(
-            "writer_reachable=triade/core/planning_graph.py",
-            "reader_exists=triade/core/planning_graph.py",
-            "proof_test=tests/test_goals_end_to_end_real.py",
-            "rows_absent=goal_dependencies",
-        ),
-    ),
+    # `table:goal_dependencies` estuvo aquí como `ON_DEMAND` con `rows_absent`
+    # por evidencia. Se retira del registro el 2026-08-28 porque ya no necesita
+    # excepción: `CentralLearningPlanner` escribe una dependencia por cada enlace
+    # entre etapas de un plan de aprendizaje y `worker_loop._unsatisfied_dependency`
+    # las hace cumplir. La declaración anterior describía bien la regla —«no
+    # inventar dependencias»— y escondía el hecho: `add_dependency`,
+    # `get_ready_goals` y `get_blocked_goals` estaban escritos y no los llamaba
+    # nadie, ni en producción ni en pruebas. Este registro es para vacíos
+    # legítimos; una tabla que ya se llena sola no pertenece a él.
     _contract(
         "table:governed_peft_active_slot",
         "HUMAN_GATED",

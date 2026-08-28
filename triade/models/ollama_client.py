@@ -92,9 +92,11 @@ class OllamaClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.event_callback = event_callback
-        self.db_path = Path(
-            db_path or os.getenv("TRIADE_DB_PATH", "triade/memory/triade.db")
-        )
+        # `os.getenv` con defecto devuelve `str`, pero `db_path` puede ser
+        # `None` y mypy no puede concluir que el `or` lo resuelve siempre. Se
+        # resuelve antes, que además deja explícito el orden de precedencia.
+        ruta = db_path or os.getenv("TRIADE_DB_PATH") or "triade/memory/triade.db"
+        self.db_path = Path(ruta)
 
     def _observe(self, payload: dict[str, Any]) -> None:
         """Notifica metadatos seguros; observar nunca puede romper la inferencia."""

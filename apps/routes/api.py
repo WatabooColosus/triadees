@@ -342,6 +342,20 @@ def goal_status(goal_id: str) -> dict[str, Any]:
     return GoalOrchestrator().status(goal_id)
 
 
+@router.get("/api/learning/chain/{run_id}")
+def learning_chain(run_id: str) -> dict[str, Any]:
+    """La cadena de aprendizaje de un run, con todos los ids enlazables.
+
+    RUN → OBSERVACIÓN → OBJETIVO DE APRENDIZAJE → PASOS → DEPENDENCIAS →
+    TAREAS → CANDIDATO → EVIDENCIA → RESULTADO. Sin esto había que unir a mano
+    `autonomous_tasks`, `planning_graph` y `learning_queue` y no había campo por
+    el que unirlas: las tareas de aprendizaje no llevaban `goal_id`.
+    """
+    from triade.core.learning_planner import CentralLearningPlanner
+
+    return CentralLearningPlanner().chain_for_run(run_id)
+
+
 @router.post("/api/goals/{goal_id}/approve-install")
 def approve_goal_install(
     goal_id: str,

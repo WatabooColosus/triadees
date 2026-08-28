@@ -170,9 +170,7 @@ def test_iso_errors_outside_the_window_do_not_degrade_health(tmp_path: Path) -> 
     con.commit()
     con.close()
 
-    health = ServiceHealth(db).inspect(
-        process_running=True, ollama_probe=_OLLAMA_OK
-    )
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
 
     assert health.metrics["recent_repeated_errors"] == 0
     assert "repeated_worker_errors" not in health.reasons

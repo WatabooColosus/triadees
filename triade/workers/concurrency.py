@@ -116,6 +116,13 @@ TASK_CONCURRENCY_POLICY: dict[str, TaskConcurrencyPolicy] = {
     # candidato, se los busca él. Lo que toca es que sea serial, igual que
     # `learning_candidate_deduplication`, que tiene la misma forma.
     "pending_learning_review": TaskConcurrencyPolicy("memory_write", 1, "light"),
+    # Planificar el aprendizaje escribe en `planning_graph` y
+    # `goal_dependencies`: serial, o dos obreros crearían dos planes para la
+    # misma experiencia. La exclusión por `source_run_id` evita además que un
+    # reintento duplique el objetivo del mismo run.
+    "central_learning_observation": TaskConcurrencyPolicy(
+        "memory_write", 1, "light", ("source_run_id",)
+    ),
     # Extraer una proposición de un run es barato y no escribe estado estable
     # más allá de la cola de candidatos.
     "learning_candidate_generation": TaskConcurrencyPolicy(

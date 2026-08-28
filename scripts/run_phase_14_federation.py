@@ -103,9 +103,7 @@ def verify_governed_dispatch(db_path: Path) -> dict[str, object]:
         ],
     }
 
-    def transport(
-        envelope: FederatedEnvelope, timeout: float
-    ) -> FederatedEnvelope:
+    def transport(envelope: FederatedEnvelope, timeout: float) -> FederatedEnvelope:
         now = int(time.time())
         return auth.sign(
             FederatedEnvelope(

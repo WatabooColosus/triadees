@@ -94,16 +94,18 @@ class RunLearningService:
         from triade.learning.post_run import post_run_learning_enabled
 
         if post_run_learning_enabled():
-            # El runner ya encoló ``learning_candidate_generation`` antes de
-            # llegar aquí. Mantener además este volcado inline produciría dos
-            # candidatos distintos por experiencia y volvería a poner trabajo
-            # de aprendizaje en el camino síncrono de la respuesta.
+            # El runner ya encoló la **observación** antes de llegar aquí, y
+            # quien decide qué hacer con ella es `CentralLearningPlanner`, en un
+            # worker. Mantener además este volcado inline produciría dos
+            # candidatos distintos por experiencia, volvería a poner trabajo de
+            # aprendizaje en el camino síncrono de la respuesta y —lo peor—
+            # crearía saber sin que Central lo hubiera decidido.
             return {
                 "enabled": True,
-                "mode": "delegated_to_governed_post_run_worker",
-                "status": "scheduled",
+                "mode": "delegated_to_central_learning_planner",
+                "status": "observed",
                 "source_ref": f"run:{input_packet.run_id}",
-                "policy": "single_canonical_learning_source",
+                "policy": "central_is_the_learning_authority",
             }
         if self._synthetic_source(input_packet.source):
             return {

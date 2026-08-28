@@ -13,7 +13,15 @@ from triade.db import sqlite3
 from triade.workers.task_queue import WorkerTaskQueue
 
 from .capability_resolver import CapabilityResolver
-from .planning_graph import GOAL_ACTIVE_STATES, PlanningGraph
+from .planning_graph import (
+    GOAL_ACTIVE_STATES,
+    GOAL_TERMINAL_STATES,
+    GoalNode,
+    PlanningGraph,
+)
+
+#: Objetivo vacío para leer `metadata` sin ramificar cuando el goal no existe.
+_SIN_META = GoalNode(goal_id="")
 
 
 class GoalOrchestrator:
@@ -186,6 +194,15 @@ class GoalOrchestrator:
         root_id = str(payload.get("goal_id") or "")
         if not step_id or not root_id:
             return
+        # Un plan de aprendizaje tiene varias etapas encadenadas; los objetivos
+        # de capacidad tienen una sola. Cerrar la raíz al completar el primer
+        # paso —que es lo que hace la rama de abajo— daría por aprendido lo que
+        # todavía no se ha medido ni evaluado. Central lleva su propio avance.
+        if str((self.graph.get_goal(root_id) or _SIN_META).metadata.get("kind")) == (
+            "learning"
+        ):
+            self._record_learning_step_result(root_id, step_id, payload, result)
+            return
         status = str(result.get("status") or "error")
         if status in {"ok", "completed"}:
             self.graph.transition(
@@ -319,6 +336,68 @@ class GoalOrchestrator:
             self._record_learning_observation(
                 root_id, payload, result, disposition="failure_signal"
             )
+
+    def _record_learning_step_result(
+        self,
+        root_id: str,
+        step_id: str,
+        payload: dict[str, Any],
+        result: dict[str, Any],
+    ) -> None:
+        """Cierra la etapa y devuelve el control a Central para que replanifique."""
+        from .learning_planner import CentralLearningPlanner
+
+        status = str(result.get("status") or "error")
+        terminal = "completed" if status in {"ok", "completed", "observed"} else None
+        motivo = str(result.get("reason") or result.get("error") or "")[:300]
+        if terminal is None:
+            attempt = int(payload.get("attempt") or 1)
+            max_attempts = max(1, min(int(payload.get("max_attempts") or 2), 3))
+            if status in {"skipped", "dry_run"} or attempt >= max_attempts:
+                terminal = "blocked"
+            else:
+                # Reintentar la MISMA etapa sólo se justifica cuando el fallo es
+                # del intento y no del trabajo: un timeout, un lease perdido. Lo
+                # decide el presupuesto del paso, no un contador global.
+                self.graph.transition(
+                    step_id,
+                    "replanning",
+                    actor="central_learning_planner",
+                    reason=f"retryable_stage_failure:{motivo or status}",
+                    event_type="replanned",
+                    evidence={"attempt": attempt, "max_attempts": max_attempts},
+                )
+                retry = {**payload, "attempt": attempt + 1}
+                tarea = self.queue.enqueue(
+                    str(payload.get("worker_task_type") or ""),
+                    payload=retry,
+                    priority=25,
+                )
+                self.graph.transition(
+                    step_id,
+                    "queued",
+                    actor="central_learning_planner",
+                    reason="stage_retry_enqueued",
+                    event_type="task_enqueued",
+                    evidence={"task_id": tarea.id},
+                )
+                return
+        current = self.graph.get_goal(step_id)
+        if current is not None and current.status not in GOAL_TERMINAL_STATES:
+            self.graph.transition(
+                step_id,
+                terminal,
+                actor="worker_result",
+                reason=f"{status}:{motivo}" if motivo else status,
+                event_type="task_result",
+                evidence={
+                    "result_status": status,
+                    "effect": result.get("effect"),
+                    "stage": payload.get("stage"),
+                    "candidate_id": result.get("candidate_id"),
+                },
+            )
+        CentralLearningPlanner(self.db_path).advance(root_id, last_result=result)
 
     def approve_install(
         self, goal_id: str, package: str, *, approved_by: str
