@@ -267,7 +267,10 @@ class GovernedPeftServing:
                 (version_id,),
             ).fetchone()
             if active:
-                return {"status": "blocked", "reason": "active_version_requires_rollback"}
+                return {
+                    "status": "blocked",
+                    "reason": "active_version_requires_rollback",
+                }
             base_model = str(row[1] or "").strip() or self._manifest_base_model(
                 str(row[2] or "")
             )

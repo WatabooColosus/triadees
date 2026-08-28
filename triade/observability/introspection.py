@@ -447,9 +447,7 @@ def _classify_with_contracts(
                 routes = manual_module_routes[nombre]
                 classifications = {route["classification"] for route in routes}
                 classification = (
-                    "ON_DEMAND"
-                    if classifications == {"ON_DEMAND"}
-                    else "MANUAL_TOOL"
+                    "ON_DEMAND" if classifications == {"ON_DEMAND"} else "MANUAL_TOOL"
                 )
                 clasificados[nombre] = {
                     "subject": f"module:{nombre}",
@@ -561,9 +559,7 @@ def _declared_manual_module_reachability(
             reached.add(current)
             pending.extend(adjacency.get(current, ()))
         classification = (
-            "ON_DEMAND"
-            if activation == "administrative_on_demand"
-            else "MANUAL_TOOL"
+            "ON_DEMAND" if activation == "administrative_on_demand" else "MANUAL_TOOL"
         )
         for module in reached:
             if not module.startswith("triade/"):

@@ -164,7 +164,9 @@ def test_una_propuesta_con_destino_sin_especificacion_explica_el_eslabon(
         if gate["kind"] == "improvement_proposal"
     )
     assert proposal["ready"] is False
-    assert any("/neurons/1/specification" in blocker for blocker in proposal["blockers"])
+    assert any(
+        "/neurons/1/specification" in blocker for blocker in proposal["blockers"]
+    )
 
 
 def test_sin_base_viva_no_revienta(tmp_path: Path) -> None:

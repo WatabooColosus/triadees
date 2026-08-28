@@ -683,9 +683,7 @@ def decode_stream_cursor(value: str | None) -> FeedCursor | None:
         positions = {
             str(table): int(position)
             for table, position in raw.items()
-            if isinstance(table, str)
-            and isinstance(position, int)
-            and position >= 0
+            if isinstance(table, str) and isinstance(position, int) and position >= 0
         }
         if positions.keys() != raw.keys():
             return None

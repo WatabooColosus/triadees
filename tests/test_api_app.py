@@ -108,7 +108,9 @@ def test_single_port_app_exposes_observability_and_ui() -> None:
     assert ui.status_code == 200
 
 
-def test_governance_registers_existing_neuron_specification(tmp_path, monkeypatch) -> None:
+def test_governance_registers_existing_neuron_specification(
+    tmp_path, monkeypatch
+) -> None:
     db = tmp_path / "triade.db"
     with sqlite3.connect(db) as conn:
         conn.execute(
@@ -141,7 +143,10 @@ def test_governance_registers_existing_neuron_specification(tmp_path, monkeypatc
     assert response.status_code == 200
     assert response.json()["specification"]["state"] == "specified"
     with sqlite3.connect(db) as conn:
-        assert conn.execute("SELECT COUNT(*) FROM neuron_specifications").fetchone()[0] == 1
+        assert (
+            conn.execute("SELECT COUNT(*) FROM neuron_specifications").fetchone()[0]
+            == 1
+        )
 
 
 def test_cabina_runtime_mutations_require_its_api_key(monkeypatch) -> None:

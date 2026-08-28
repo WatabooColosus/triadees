@@ -2151,7 +2151,10 @@ class WorkerLoop:
         )
         try:
             orchestrator = SelfImprovementOrchestrator(self.db_path)
-            common = {
+            # Anotado porque mezcla un invocable con enteros y flotantes: sin la
+            # anotación se infiere `dict[str, object]` y cada `**common` falla
+            # contra el tipo concreto de su parámetro.
+            common: dict[str, Any] = {
                 "evaluation_provider": _provider,
                 "canary_traffic_percent": int(
                     payload.get("canary_traffic_percent") or 10

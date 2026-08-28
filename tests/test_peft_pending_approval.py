@@ -129,6 +129,9 @@ def test_retired_canonical_adapter_keeps_evidence_but_is_not_pending(
 
     assert result["pending_count"] == 0
     with sqlite3.connect(server.db_path) as conn:
-        assert conn.execute(
-            "SELECT COUNT(*) FROM peft_canary_events WHERE adapter_path='/adapters/old'"
-        ).fetchone()[0] == 1
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM peft_canary_events WHERE adapter_path='/adapters/old'"
+            ).fetchone()[0]
+            == 1
+        )

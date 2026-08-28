@@ -119,6 +119,4 @@ def test_sin_base_el_estado_es_unknown_no_inventado() -> None:
     assert _task_type_state("handler", 10, fresh=None) == "unknown"
     assert _task_type_state("handler", 10, fresh=False) == "legacy"
     assert _task_type_state("handler", 10, fresh=True) == "active"
-    assert (
-        _task_type_state("handler", 0, fresh=False, ready_when_idle=True) == "ready"
-    )
+    assert _task_type_state("handler", 0, fresh=False, ready_when_idle=True) == "ready"
