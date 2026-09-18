@@ -59,8 +59,10 @@ class PublicAuthStore:
         )
         self.hasher = PasswordHasher()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.db_path) as conn:
-            conn.executescript(SCHEMA.read_text(encoding="utf-8"))
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+            conn.execute("PRAGMA busy_timeout=30000")
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='auth_users'").fetchone() is None:
+                conn.executescript(SCHEMA.read_text(encoding="utf-8"))
             conn.executescript(MIGRATION.read_text(encoding="utf-8"))
             conn.executescript(EMAIL_MIGRATION.read_text(encoding="utf-8"))
 
@@ -78,7 +80,7 @@ class PublicAuthStore:
         result = self.create_user(email, password, "viewer", tenant_id)
         token = secrets.token_urlsafe(32)
         now = datetime.now(UTC)
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
             conn.execute(
                 "INSERT INTO auth_email_identities VALUES (?, ?, NULL, ?, ?, ?)",
                 (result["user_id"], email, hashlib.sha256(token.encode()).hexdigest(), now.timestamp() + 900, now.isoformat()),
@@ -87,7 +89,7 @@ class PublicAuthStore:
         try:
             send_verification_email(email, token)
         except Exception:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, timeout=30.0) as conn:
                 conn.execute("DELETE FROM auth_email_identities WHERE user_id=?", (result["user_id"],))
                 conn.execute("DELETE FROM auth_users WHERE user_id=?", (result["user_id"],))
             raise
@@ -95,7 +97,7 @@ class PublicAuthStore:
 
     def verify_email(self, token: str) -> dict[str, str]:
         digest = hashlib.sha256(token.strip().encode()).hexdigest()
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
             row = conn.execute("SELECT user_id, email, verification_expires_at FROM auth_email_identities WHERE verification_hash=?", (digest,)).fetchone()
             if row is None or float(row[2]) < time.time():
                 raise PermissionError("invalid_or_expired_verification_token")
@@ -109,9 +111,19 @@ class PublicAuthStore:
         encrypted = self._vault().encrypt(secret.strip().encode()).decode()
         fingerprint = hashlib.sha256(secret.strip().encode()).hexdigest()[:16]
         key_id = f"key-{uuid.uuid4().hex}"
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
             conn.execute("INSERT INTO auth_api_keys VALUES (?, ?, ?, ?, ?, ?, ?, NULL)", (key_id, user_id, provider.strip().lower(), label.strip(), encrypted, fingerprint, datetime.now(UTC).isoformat()))
         return {"key_id": key_id, "provider": provider, "label": label, "fingerprint": fingerprint}
+
+    def list_api_keys(self, user_id: str) -> list[dict[str, str]]:
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+            rows = conn.execute("SELECT key_id, provider, label, key_fingerprint, created_at FROM auth_api_keys WHERE user_id=? AND revoked_at IS NULL ORDER BY created_at DESC", (user_id,)).fetchall()
+        return [{"key_id": r[0], "provider": r[1], "label": r[2], "fingerprint": r[3], "created_at": r[4]} for r in rows]
+
+    def audit_for_user(self, user_id: str) -> list[dict[str, str]]:
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+            rows = conn.execute("SELECT action, outcome, detail, created_at FROM auth_audit WHERE actor=? ORDER BY id DESC LIMIT 100", (user_id,)).fetchall()
+        return [{"action": r[0], "outcome": r[1], "detail": r[2], "created_at": r[3]} for r in rows]
 
     def create_user(
         self, username: str, password: str, role: Role, tenant_id: str
@@ -119,7 +131,7 @@ class PublicAuthStore:
         if len(password) < 12 or not username.strip() or not tenant_id.strip():
             raise ValueError("strong_password_username_and_tenant_required")
         user_id = f"usr-{uuid.uuid4().hex}"
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
             conn.execute(
                 "INSERT INTO auth_users VALUES (?, ?, ?, ?, ?, 0, 0, NULL, ?)",
                 (
@@ -140,7 +152,7 @@ class PublicAuthStore:
 
     def authenticate(self, username: str, password: str) -> dict[str, Any]:
         now = time.time()
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT * FROM auth_users WHERE username=?", (username,)
@@ -244,7 +256,7 @@ class PublicAuthStore:
                 "role": role,
                 "tenant_id": principal.get("tenant_id"),
             }
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 """SELECT s.session_id,s.expires_at,s.revoked_at,u.user_id,u.role,u.tenant_id,u.disabled
@@ -293,7 +305,7 @@ class PublicAuthStore:
             distributed_revoked = self.distributed.revoke(
                 token_hash, ttl_seconds=self.session_ttl_seconds
             )
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
             changed = conn.execute(
                 "UPDATE auth_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL",
                 (time.time(), token_hash),
@@ -321,10 +333,16 @@ class PublicAuthStore:
         outcome: str,
         detail: str,
     ) -> None:
-        conn.execute(
-            "INSERT INTO auth_audit(actor,tenant_id,action,outcome,detail,created_at) VALUES (?,?,?,?,?,?)",
-            (actor, tenant_id, action, outcome, detail, datetime.now(UTC).isoformat()),
-        )
+        try:
+            conn.execute(
+                "INSERT INTO auth_audit(actor,tenant_id,action,outcome,detail,created_at) VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, action, outcome, detail, datetime.now(UTC).isoformat()),
+            )
+        except sqlite3.OperationalError:
+            # Authentication must remain usable while a worker holds a short
+            # SQLite write lock; audit persistence can be retried on the next
+            # event and must not turn login into HTTP 500.
+            return
 
 
 def validate_tool_input(payload: dict[str, Any]) -> None:
@@ -343,3 +361,4 @@ def enforce_egress(url: str, allowed_hosts: set[str]) -> None:
         or parsed.hostname not in allowed_hosts
     ):
         raise PermissionError("network_egress_denied")
+

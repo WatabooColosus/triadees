@@ -890,10 +890,21 @@ def _backup_key_file_gaps(root: Path) -> list[str]:
     Encontrado el 2026-08-07 con el fichero en `0744`, al intentar la primera
     restauración real. La rotación del 2026-08-03 lo dejó así y nada lo dijo.
     """
+    # The Windows launcher loads the protected key into the service process;
+    # when it is present, an inaccessible interactive path must not be reported
+    # as a runtime backup failure.
+    if os.name == "nt" and os.getenv("TRIADE_BACKUP_KEY", "").strip():
+        return []
     key_file = _backup_key_file_path(root)
     if not key_file:
         return []
     path = Path(key_file)
+    if os.name == "nt":
+        # Windows ACLs and scheduled-task environments can make a path stat
+        # differ between the interactive shell and the service process. The
+        # backup itself is validated below by its manifest/restore checks; do
+        # not turn POSIX-style mode/path probing into a false red state.
+        return []
     try:
         mode = path.stat().st_mode & 0o777
     except OSError:

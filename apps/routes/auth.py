@@ -73,6 +73,20 @@ def put_api_key(payload: ApiKeyRequest, request: Request) -> dict[str, object]:
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+@router.get("/api-keys")
+def list_api_keys(request: Request) -> dict[str, object]:
+    value = request.headers.get("Authorization", "")
+    if not value.startswith("Bearer "): raise HTTPException(status_code=401, detail="bearer_required")
+    principal = store().authorize(value[7:])
+    return {"keys": store().list_api_keys(principal["user_id"])}
+
+@router.get("/audit")
+def audit(request: Request) -> dict[str, object]:
+    value = request.headers.get("Authorization", "")
+    if not value.startswith("Bearer "): raise HTTPException(status_code=401, detail="bearer_required")
+    principal = store().authorize(value[7:])
+    return {"events": store().audit_for_user(principal["user_id"])}
+
 
 @router.post("/logout")
 def logout(request: Request) -> dict[str, object]:
