@@ -158,6 +158,24 @@ class GoalOrchestrator:
             # dos gobiernos con contratos distintos sobre lo mismo.
             "autonomy_precleared": "capability_resolver",
         }
+        # La capacidad de redactar necesita un destino gobernado. Antes sólo
+        # se propagaba la intención y el worker recibía un payload incompleto,
+        # por lo que todas las peticiones reales terminaban en
+        # `target_and_authorized_root_required`. El destino por defecto queda
+        # dentro de `artifacts/governed`, nunca en el código ni fuera del repo;
+        # un consumidor que necesite otra raíz debe declararla explícitamente
+        # y pasar por su propia compuerta.
+        if resolution.worker_task_type == "write_governed_text_artifact":
+            from pathlib import Path
+
+            governed_root = Path.cwd() / "artifacts" / "governed"
+            payload.update(
+                {
+                    "target": str(governed_root / f"goal-{root.goal_id}.md"),
+                    "authorized_root": str(governed_root),
+                    "content": request.strip() + "\n",
+                }
+            )
         task = self.queue.enqueue(
             resolution.worker_task_type, payload=payload, priority=15
         )
