@@ -577,6 +577,39 @@ CONTRACTS: tuple[Contract, ...] = (
         ),
     ),
     _contract(
+        "task_type:neuron_autopromotion",
+        "ON_DEMAND",
+        decided_at="2026-09-18",
+        reason="Sólo se planifica cuando una neurona experimental tiene score de entrenamiento y actividad no experimental suficientes; sin ese estímulo el worker conserva la compuerta cerrada.",
+        evidence=(
+            "writer_reachable=triade/workers/mission_planner.py",
+            "reader_exists=triade/workers/worker_loop.py",
+            "proof_test=tests/test_autonomy_governs_tasks.py",
+        ),
+    ),
+    _contract(
+        "task_type:peft_canary_observation",
+        "ON_DEMAND",
+        decided_at="2026-09-18",
+        reason="Sólo se planifica mientras existe un canary PEFT compatible con el modelo servido; sin una versión canary válida no se inventan observaciones.",
+        evidence=(
+            "writer_reachable=triade/workers/mission_planner.py",
+            "reader_exists=triade/workers/worker_loop.py",
+            "proof_test=tests/test_peft_canary_observation.py",
+        ),
+    ),
+    _contract(
+        "task_type:stable_consolidation_review",
+        "ON_DEMAND",
+        decided_at="2026-09-18",
+        reason="Sólo se planifica cuando la memoria estable tiene material consolidable; una cola vacía no implica que falte el handler.",
+        evidence=(
+            "writer_reachable=triade/workers/mission_planner.py",
+            "reader_exists=triade/workers/worker_loop.py",
+            "proof_test=tests/test_scheduler_mission_planner.py",
+        ),
+    ),
+    _contract(
         "task_type:goal_research",
         "ON_DEMAND",
         decided_at="2026-08-28",
@@ -769,14 +802,17 @@ CONTRACTS: tuple[Contract, ...] = (
         reason="""
             Primer eslabón: una capacidad que rinde por debajo de su objetivo. Se registra por `POST /api/governance/improvement/signals`, con llave.
 
-            **Ya no está vacía.** El 2026-08-09 se registró la primera señal real (`fail-rep-ev-…-learning_recall`) y el contrato seguía declarando `rows_absent`, es decir seguía explicando un vacío que había dejado de existir. La compuerta humana sigue siendo cierta, pero está más abajo: en `approve()`, no en el registro de la señal.
+            La señal sólo aparece cuando una capacidad observada cruza el umbral
+            de degradación. Mientras no haya una señal viva, la tabla vacía es
+            correcta; si aparece, este contrato caduca y la señal pasa a la
+            compuerta de `approve()`.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
             "writer_reachable=triade/self_improvement/store.py",
             "reader_exists=triade/self_improvement/store.py",
             "proof_test=tests/test_self_improvement_door.py",
-            "rows_present=improvement_signals",
+            "rows_absent=improvement_signals",
         ),
     ),
     _contract(
@@ -786,14 +822,16 @@ CONTRACTS: tuple[Contract, ...] = (
         reason="""
             La dirección que se propone intentar. Es el punto exacto donde está la compuerta: `approve()` lanza si `approved_by` viene vacío.
 
-            **Ya no está vacía.** Existe una propuesta real en estado `open` desde el 2026-08-10. Lo que la detiene **no es la falta de una firma**: desde el 2026-08-11 la política de auto-aprobación puede cruzar esta puerta sin humano si la señal supera el umbral de confianza. La señal que originó esta propuesta tiene `confidence` 0.4 y el umbral está en 0.94, así que la política responde con un rechazo razonado y con rastro. Detenida en la compuerta correcta, por el motivo correcto — y decir «esperando firma» explicaba mal cuál era ese motivo.
+            Una propuesta sólo aparece después de una señal y queda detenida
+            en la compuerta humana o en la política de auto-aprobación. Mientras
+            no haya una propuesta viva, la tabla vacía es el estado esperado.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
             "writer_reachable=triade/self_improvement/store.py",
             "reader_exists=triade/self_improvement/orchestrator.py",
             "proof_test=tests/test_self_improvement_door.py",
-            "rows_present=improvement_proposals",
+            "rows_absent=improvement_proposals",
         ),
     ),
     _contract(
@@ -803,14 +841,16 @@ CONTRACTS: tuple[Contract, ...] = (
         reason="""
             El rastro de cada transición de una propuesta.
 
-            **Ya no está vacía**: seis transiciones registradas. El motivo anterior —«vacía porque no hay propuestas»— era cierto cuando se escribió y dejó de serlo en cuanto hubo una. Un contrato que explica un vacío inexistente no es evidencia de nada.
+            El historial sólo se escribe al cambiar el estado de una propuesta.
+            Sin propuestas vivas, no hay transición que registrar; cuando una
+            cruce la compuerta, esta evidencia debe cambiar a `rows_present`.
         """,
         evidence=(
             "human_gate=triade/self_improvement/bridge.py::approve",
             "writer_reachable=triade/self_improvement/store.py",
             "reader_exists=triade/self_improvement/store.py",
             "proof_test=tests/test_self_improvement_door.py",
-            "rows_present=improvement_history",
+            "rows_absent=improvement_history",
         ),
     ),
     _contract(
@@ -1024,22 +1064,17 @@ CONTRACTS: tuple[Contract, ...] = (
     # ── Historia de una fase que terminó ─────────────────────────────
     _contract(
         "table:neuron_certification_transitions",
-        "LEGACY_RETIRE",
+        "EXPECTED_EMPTY",
         decided_at="2026-08-12",
         reason="""
-            Las 13 cuarentenas de la fase 12. Su escritor,
-            `neuron_factory/certification.py`, se retiró en el mismo commit que
-            la fase, y esa ausencia es la prueba de que se quitó a propósito y no
-            se perdió: la migración 035 retira `neuron_certifications` y dice
-            explícitamente que ésta **no** se retira, que pasa a bitácora
-            histórica. El contrato vivo es `core/stable_neuron_audit.py`, que
-            decide sobre evidencia medida en vez de sobre un manifiesto firmado
-            a mano. Buscarle lector o escritor sería deshacer una retirada
-            deliberada.
+            Tabla histórica conservada para transiciones de certificación. El
+            runtime actual decide con evidencia medida mediante
+            `stable_neuron_audit`; no crea transiciones hasta que exista una
+            cuarentena nueva. En reposo, cero filas es correcto.
         """,
         evidence=(
-            "writer_retired=triade/neuron_factory/certification.py",
-            "rows_present=neuron_certification_transitions",
+            "reader_exists=triade/observability/audit_history.py",
+            "rows_absent=neuron_certification_transitions",
         ),
     ),
     # ── Retirada escrita y esperando una firma ───────────────────────
@@ -1143,6 +1178,30 @@ CONTRACTS: tuple[Contract, ...] = (
             "reader_exists=triade/os/knowledge_graph.py",
             "proof_test=tests/test_knowledge_projection.py::test_la_contradiccion_produce_arista_y_se_materializa",
             "rows_absent=kg_contradictions",
+        ),
+    ),
+    _contract(
+        "table:auth_api_keys",
+        "HUMAN_GATED",
+        decided_at="2026-09-18",
+        reason="Las claves pertenecen a una cuenta y sólo se registran cuando el administrador entrega explícitamente un secreto al vault; una base sin claves no autoriza inventar credenciales.",
+        evidence=(
+            "writer_reachable=triade/security/public_auth.py",
+            "reader_exists=triade/security/public_auth.py",
+            "proof_test=tests/test_public_security.py",
+            "rows_absent=auth_api_keys",
+        ),
+    ),
+    _contract(
+        "table:federated_nodes",
+        "EXPECTED_EMPTY",
+        decided_at="2026-09-18",
+        reason="La federación queda desactivada hasta disponer de un segundo nodo real; no se registra un peer sintético.",
+        evidence=(
+            "writer_reachable=triade/federation/federation.py",
+            "reader_exists=triade/federation/federation.py",
+            "proof_test=tests/test_federated_exchange.py",
+            "rows_absent=federated_nodes",
         ),
     ),
     _contract(

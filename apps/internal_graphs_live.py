@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+
 try:
     import resource
 except ImportError:  # pragma: no cover - Windows

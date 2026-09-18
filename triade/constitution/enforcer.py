@@ -1,7 +1,6 @@
 """T-017 — Constitución universal: enforcement automático de los 10
 artículos de la constitución de Tríade Ω sobre todos los componentes."""
 
-import hashlib
 import json
 from datetime import UTC, datetime
 from uuid import uuid4

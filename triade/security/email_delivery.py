@@ -1,8 +1,10 @@
 """SMTP delivery for account verification links."""
 from __future__ import annotations
+
 import os
 import smtplib
 from email.message import EmailMessage
+
 
 def send_verification_email(email: str, token: str) -> None:
     host = os.getenv("TRIADE_SMTP_HOST", "").strip()

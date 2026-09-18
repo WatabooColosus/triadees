@@ -40,6 +40,22 @@ def _log_sensor_error(sensor_name: str, exc: Exception, details: str = "") -> No
 
 
 def _read_proc_meminfo() -> dict[str, int]:
+    # Linux exposes `/proc/meminfo`; Windows does not.  psutil is already a
+    # runtime dependency of the database/resource layer, so use it as the
+    # portable source instead of logging a false sensor failure on Windows.
+    if os.name == "nt":
+        try:
+            import psutil
+
+            memory = psutil.virtual_memory()
+            return {
+                "MemTotal": int(memory.total // 1024),
+                "MemAvailable": int(memory.available // 1024),
+                "MemFree": int(memory.available // 1024),
+            }
+        except (ImportError, OSError, AttributeError, ValueError) as exc:
+            _log_sensor_error("proc_meminfo", exc, "windows psutil fallback")
+            return {}
     try:
         meminfo: dict[str, int] = {}
         with open("/proc/meminfo", "r") as f:
@@ -101,10 +117,14 @@ class SystemSenses:
 
     def cpu_load(self) -> float:
         try:
-            load1, _, _ = os.getloadavg()
             cpu_count = os.cpu_count() or 1
-            return round(min(1.0, load1 / cpu_count), 4)
-        except (OSError, AttributeError) as exc:
+            if hasattr(os, "getloadavg"):
+                load1, _, _ = os.getloadavg()
+                return round(min(1.0, load1 / cpu_count), 4)
+            import psutil
+
+            return round(min(1.0, psutil.cpu_percent(interval=None) / 100.0), 4)
+        except (OSError, ImportError, AttributeError, ValueError) as exc:
             _log_sensor_error("cpu_load", exc)
             return 0.0
 
@@ -145,12 +165,18 @@ class SystemSenses:
 
     def disk_usage(self) -> float:
         try:
-            vfs = os.statvfs("/")
-            total = vfs.f_blocks * vfs.f_frsize
-            free = vfs.f_bavail * vfs.f_frsize
+            if hasattr(os, "statvfs"):
+                vfs = os.statvfs("/")
+                total = vfs.f_blocks * vfs.f_frsize
+                free = vfs.f_bavail * vfs.f_frsize
+            else:
+                import shutil
+
+                usage = shutil.disk_usage(Path.cwd())
+                total, free = usage.total, usage.free
             used = total - free
             return round(min(1.0, used / max(total, 1)), 4)
-        except (OSError, AttributeError) as exc:
+        except (OSError, ImportError, AttributeError, ValueError) as exc:
             _log_sensor_error("disk_usage", exc)
             return 0.0
 

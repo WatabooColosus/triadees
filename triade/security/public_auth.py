@@ -7,8 +7,6 @@ import os
 import secrets
 import time
 import uuid
-import base64
-from cryptography.fernet import Fernet
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -16,6 +14,7 @@ from urllib.parse import urlparse
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+from cryptography.fernet import Fernet
 
 from triade.db import sqlite3
 from triade.security.distributed_auth import RedisPublicAuthBackend
