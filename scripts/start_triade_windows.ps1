@@ -15,4 +15,17 @@ if (Test-Path $env:TRIADE_BACKUP_KEY_FILE) {
     $env:TRIADE_AUTH_VAULT_KEY = $env:TRIADE_BACKUP_KEY
 }
 Set-Location $repo
-& $python -m uvicorn apps.single_port_app:app --host 0.0.0.0 --port 8010
+$logDir = Join-Path $repo "artifacts\service_logs"
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+$log = Join-Path $logDir "triade-uvicorn.log"
+try {
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & $python -m uvicorn apps.single_port_app:app --host 0.0.0.0 --port 8010 *>> $log
+    $exitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorAction
+} catch {
+    $_ | Out-File -FilePath $log -Append -Encoding utf8
+    $exitCode = 1
+}
+exit ([int]$exitCode)
