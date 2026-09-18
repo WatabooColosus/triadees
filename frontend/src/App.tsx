@@ -9,6 +9,13 @@ const BASE = ''
 
 async function api(path: string, opts?: RequestInit) {
   const token = sessionStorage.getItem('triade_auth_token')
+  const guarded = !path.startsWith('/api/auth/') && path !== '/health' && path !== '/api/health'
+  if (guarded && !token) {
+    const err: any = new Error('authenticated_session_required')
+    err.status = 401
+    err.detail = 'authenticated_session_required'
+    throw err
+  }
   const headers = new Headers({ 'Content-Type': 'application/json' })
   if (token) headers.set('Authorization', `Bearer ${token}`)
   new Headers(opts?.headers || {}).forEach((value, key) => headers.set(key, value))
@@ -17,7 +24,7 @@ async function api(path: string, opts?: RequestInit) {
     headers,
   })
   if (!res.ok) {
-    if (res.status === 428 || res.status === 403) {
+    if (res.status === 428 || res.status === 403 || res.status === 401) {
       const body = await res.json().catch(() => ({}))
       const err: any = new Error(
         typeof body.detail === 'string'
@@ -26,6 +33,10 @@ async function api(path: string, opts?: RequestInit) {
       )
       err.status = res.status
       err.detail = body.detail || body
+      if (err.detail === 'authenticated_session_required' || err.message === 'session_invalid_expired_or_revoked') {
+        sessionStorage.removeItem('triade_auth_token')
+        window.dispatchEvent(new Event('triade-auth-expired'))
+      }
       throw err
     }
     const text = await res.text().catch(() => res.statusText)
@@ -126,6 +137,11 @@ const linkStyle = { border: 0, background: 'transparent', color: 'var(--accent)'
 
 export default function App() {
   const [authToken, setAuthToken] = useState<string | null>(() => sessionStorage.getItem('triade_auth_token'))
+  useEffect(() => {
+    const expire = () => setAuthToken(null)
+    window.addEventListener('triade-auth-expired', expire)
+    return () => window.removeEventListener('triade-auth-expired', expire)
+  }, [])
   if (!authToken) return <AccessGate onEnter={token => { if (token) setAuthToken(token) }} />
   const [tab, setTab] = useState<Tab>(() => {
     const path = window.location.pathname.toLowerCase()
