@@ -95,7 +95,11 @@ def measure(db: Path) -> dict[str, Any]:
     out["learning_evidence"] = {
         "total": scalar("SELECT count(*) FROM learning_evidence"),
         "por_estado": rows(
-            "SELECT status, count(*) n FROM learning_evidence GROUP BY status"
+            # `learning_evidence` no tiene una columna status: su estado
+            # verificable es la decisión del comparador (improved, rejected,
+            # ...). Mantener esta auditoría ejecutable evita ocultar el estado
+            # real detrás de un error SQL.
+            "SELECT decision AS status, count(*) n FROM learning_evidence GROUP BY decision"
         ),
         "filas": rows("SELECT * FROM learning_evidence LIMIT 20"),
         "columnas": [
