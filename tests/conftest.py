@@ -1,10 +1,23 @@
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
 import pytest
 
 _ORIGINAL_CWD: str | None = None
+
+
+def _link_or_copy(destination: Path, source: Path) -> None:
+    try:
+        destination.symlink_to(source, target_is_directory=source.is_dir())
+    except OSError as exc:
+        if getattr(exc, "winerror", None) != 1314:
+            raise
+        if source.is_dir():
+            shutil.copytree(source, destination)
+        else:
+            shutil.copy2(source, destination)
 
 
 @pytest.fixture(autouse=True)
@@ -41,14 +54,14 @@ def pytest_configure(config):
     memory.mkdir(parents=True)
     (root / "runs").mkdir()
     (root / "artifacts").mkdir()
-    (memory / "schemas.sql").symlink_to(
+    _link_or_copy(memory / "schemas.sql",
         source_root / "triade" / "memory" / "schemas.sql"
     )
-    (memory / "migrations").symlink_to(
-        source_root / "triade" / "memory" / "migrations", target_is_directory=True
+    _link_or_copy(memory / "migrations",
+        source_root / "triade" / "memory" / "migrations"
     )
-    (root / "scripts").symlink_to(source_root / "scripts", target_is_directory=True)
-    (root / "docs").symlink_to(source_root / "docs", target_is_directory=True)
+    _link_or_copy(root / "scripts", source_root / "scripts")
+    _link_or_copy(root / "docs", source_root / "docs")
     for name in (
         "triade.yml",
         "triade_digimon.py",
@@ -58,7 +71,7 @@ def pytest_configure(config):
     ):
         source = source_root / name
         if source.exists():
-            (root / name).symlink_to(source)
+            _link_or_copy(root / name, source)
     os.environ["TRIADE_TEST_ROOT"] = str(root)
     os.environ["TRIADE_DISABLE_BACKGROUND"] = "1"
     os.chdir(root)

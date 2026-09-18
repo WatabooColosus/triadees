@@ -117,6 +117,8 @@ def resource_metrics(database: str | Path) -> dict[str, int | float]:
     return {
         **connection_metrics(),
         "db_file_descriptors": sqlite_descriptors,
-        "process_file_descriptors": process.num_fds(),
+        "process_file_descriptors": (
+            process.num_fds() if hasattr(process, "num_fds") else process.num_handles()
+        ),
         "rss_mb": round(process.memory_info().rss / (1024 * 1024), 2),
     }

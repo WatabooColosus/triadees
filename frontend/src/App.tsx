@@ -8,8 +8,9 @@ import { GrafosInternos } from './components/GrafosInternos'
 const BASE = ''
 
 async function api(path: string, opts?: RequestInit) {
+  const token = sessionStorage.getItem('triade_auth_token')
   const res = await fetch(BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     ...opts,
   })
   if (!res.ok) {
@@ -23,7 +24,7 @@ async function api(path: string, opts?: RequestInit) {
     const text = await res.text().catch(() => res.statusText)
     const err: any = new Error(
       res.status === 401
-        ? 'API Key inválida o ausente. Abre la barra lateral, pega la clave local de Tríade en “API Key” y vuelve a intentar.'
+        ? 'Sesión inválida o expirada. Vuelve a iniciar sesión.'
         : `${res.status}: ${text}`,
     )
     err.status = res.status
@@ -49,15 +50,18 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 
 /* ─── Safety pending badge hook ───────────────────── */
 
-function usePendingCount() {
+function usePendingCount(enabled: boolean) {
   const [count, setCount] = useState(0)
   useEffect(() => {
     let mounted = true
+    if (!enabled) { setCount(0); return () => {} }
     async function poll() {
       try {
         const res = await api('/api/safety/pending')
         if (mounted) setCount(res.count || 0)
-      } catch { /* ignore */ }
+      } catch (error: any) {
+        if (error?.status === 401) sessionStorage.removeItem('triade_auth_token')
+      }
     }
     poll()
     const id = setInterval(poll, 5000)
@@ -66,18 +70,64 @@ function usePendingCount() {
   return count
 }
 
+function AccessGate({ onEnter }: { onEnter: (token: string | null) => void }) {
+  const [mode, setMode] = useState<'login' | 'register' | 'verify'>('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [token, setToken] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    const incoming = new URLSearchParams(window.location.search).get('verify')
+    if (incoming) { setToken(incoming); setMode('verify'); window.history.replaceState({}, '', '/') }
+  }, [])
+  async function submit() {
+    setBusy(true); setMessage('')
+    try {
+      if (mode === 'register') {
+        const result = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password }) })
+        setMessage('Registro creado. Revisa tu correo y abre el enlace de verificación.')
+        setMode('login')
+      } else if (mode === 'verify') {
+        await api('/api/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) })
+        setMessage('Correo verificado. Ya puedes iniciar sesión.')
+        setMode('login')
+      } else {
+        const result = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: email, password }) })
+        sessionStorage.setItem('triade_auth_token', result.access_token)
+        onEnter(result.access_token)
+      }
+    } catch (error: any) { setMessage(error.message || 'No se pudo completar la operación.') }
+    finally { setBusy(false) }
+  }
+  return <main style={{ minHeight: '100%', display: 'grid', placeItems: 'center', padding: 24, background: 'var(--bg-base)' }}>
+    <section style={{ width: 'min(420px, 100%)', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 18, padding: 28, boxShadow: 'var(--shadow)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}><div style={{ width: 42, height: 42, borderRadius: 12, display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg,var(--accent),#a855f7)', fontWeight: 800 }}>Ω</div><div><h1 style={{ fontSize: 22 }}>Entrar a Tríade</h1><p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Motor local protegido</p></div></div>
+      {mode !== 'verify' && <><label style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 6 }}>Correo</label><input value={email} onChange={e => setEmail(e.target.value.trim())} type="email" autoComplete="email" style={fieldStyle} placeholder="tu@correo.com" /><label style={{ display: 'block', color: 'var(--text-secondary)', margin: '14px 0 6px' }}>Contraseña</label><input value={password} onChange={e => setPassword(e.target.value)} type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} style={fieldStyle} placeholder="Mínimo 12 caracteres" />{mode === 'register' && <small style={{ display: 'block', marginTop: 6, color: 'var(--text-muted)' }}>Usa al menos 12 caracteres.</small>}</>}
+      {mode === 'verify' && <><label style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 6 }}>Código de verificación</label><input value={token} onChange={e => setToken(e.target.value)} style={fieldStyle} placeholder="Pega el código recibido por correo" /></>}
+      {message && <p style={{ marginTop: 14, color: 'var(--yellow)', fontSize: 13 }}>{message}</p>}
+      <button disabled={busy} onClick={submit} style={{ width: '100%', marginTop: 20, padding: '11px 14px', border: 0, borderRadius: 9, background: 'var(--accent)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>{busy ? 'Procesando…' : mode === 'login' ? 'Iniciar sesión' : mode === 'register' ? 'Crear cuenta' : 'Verificar correo'}</button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, fontSize: 12 }}><button onClick={() => setMode(mode === 'register' ? 'login' : 'register')} style={linkStyle}>{mode === 'register' ? 'Ya tengo cuenta' : 'Registrarme'}</button></div>
+    </section>
+  </main>
+}
+
+const fieldStyle = { width: '100%', padding: '10px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-primary)', outline: 'none' }
+const linkStyle = { border: 0, background: 'transparent', color: 'var(--accent)', cursor: 'pointer', padding: 0 }
+
 /* ─── App ─────────────────────────────────────────── */
 
 export default function App() {
+  const [authToken, setAuthToken] = useState<string | null>(() => sessionStorage.getItem('triade_auth_token'))
+  if (!authToken) return <AccessGate onEnter={token => { if (token) setAuthToken(token) }} />
   const [tab, setTab] = useState<Tab>(() => {
     const path = window.location.pathname.toLowerCase()
     if (path.includes('observabilidad') || path.includes('observability')) return 'observability'
     return 'chat'
   })
   const [health, setHealth] = useState<any>(null)
-  const [apiKey, setApiKey] = useState(() => sessionStorage.getItem('triade_api_key') || '')
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const pendingCount = usePendingCount()
+  const pendingCount = usePendingCount(Boolean(authToken))
 
   useEffect(() => {
     api('/api/health').then(setHealth).catch(() => {})
@@ -146,22 +196,6 @@ export default function App() {
             }} />
             {sidebarOpen && (health ? `${health.mode || 'ok'}` : 'connecting...')}
           </div>
-          {sidebarOpen && (
-            <input
-              type="password" placeholder="API Key"
-              value={apiKey} onChange={e => {
-                const next = e.target.value
-                setApiKey(next)
-                if (next) sessionStorage.setItem('triade_api_key', next)
-                else sessionStorage.removeItem('triade_api_key')
-              }}
-              style={{
-                background: 'var(--bg-base)', border: '1px solid var(--border)',
-                color: 'var(--text-primary)', borderRadius: 6, padding: '6px 8px',
-                fontSize: 11, outline: 'none', width: '100%',
-              }}
-            />
-          )}
           <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{
             background: 'transparent', border: 'none', color: 'var(--text-muted)',
             cursor: 'pointer', fontSize: 16, padding: '4px',
@@ -172,16 +206,16 @@ export default function App() {
       </aside>
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {tab === 'cabin' && <ErrorBoundary><CabinaViva apiKey={apiKey} /></ErrorBoundary>}
-        {tab === 'chat' && <ChatTab apiKey={apiKey} />}
+        {tab === 'cabin' && <ErrorBoundary><CabinaViva apiKey="" /></ErrorBoundary>}
+        {tab === 'chat' && <ChatTab apiKey="" />}
         {tab === 'system' && <SystemTab />}
         {tab === 'observability' && <ObservabilityTab />}
         {tab === 'graphs' && <ErrorBoundary><GrafosInternos /></ErrorBoundary>}
         {tab === 'router' && <RouterTab />}
         {tab === 'models' && <ModelsTab />}
-        {tab === 'federation' && <FederationTab apiKey={apiKey} />}
-        {tab === 'memory' && <MemoryTab apiKey={apiKey} />}
-        {tab === 'neurons' && <NeuronsTab apiKey={apiKey} />}
+        {tab === 'federation' && <FederationTab apiKey="" />}
+        {tab === 'memory' && <MemoryTab apiKey="" />}
+        {tab === 'neurons' && <NeuronsTab apiKey="" />}
       </main>
     </div>
   )
@@ -1740,3 +1774,4 @@ const btnStyle: React.CSSProperties = {
   borderRadius: 6, padding: '7px 14px', cursor: 'pointer', fontWeight: 600,
   fontSize: 12, height: 32,
 }
+

@@ -144,7 +144,9 @@ def ensure_workers_alive(
                 max_iterations=1_000_000,
                 sleep_seconds=20.0,
                 dry_run=False,
-                task_timeout=30.0,
+                # Local Windows hosts may be memory throttled; allow model and
+                # verification tasks enough time to finish before lease expiry.
+                task_timeout=120.0,
             )
             with _WORKER_LOCK:
                 if _WORKER_STATE.get("status") != "stop_requested":

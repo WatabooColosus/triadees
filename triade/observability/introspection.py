@@ -903,7 +903,9 @@ def _backup_key_file_gaps(root: Path) -> list[str]:
                 "leer: no se crea ninguna copia y no se abre ninguna existente"
             )
         ]
-    if mode & 0o077:
+    # Windows enforces access through ACLs; POSIX mode bits are commonly
+    # reported as 0666/0777 there and are not evidence that the key is public.
+    if os.name != "nt" and mode & 0o077:
         return [
             (
                 f"la clave de backup tiene permisos {mode:04o} en vez de 0600: "

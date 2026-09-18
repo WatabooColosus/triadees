@@ -68,7 +68,11 @@ def _callable_child(
     stdout_path: str,
     stderr_path: str,
 ) -> None:
-    os.setsid()
+    # `setsid` crea una sesión POSIX para poder cancelar el árbol completo;
+    # Windows no expone esa llamada y el proceso hijo ya está aislado por
+    # `multiprocessing`, así que se omite allí.
+    if hasattr(os, "setsid"):
+        os.setsid()
     try:
         with (
             Path(stdout_path).open("a", encoding="utf-8") as stdout,
@@ -276,16 +280,22 @@ class GovernedTaskExecutor:
     def terminate(process: ProcessHandle, grace_seconds: float = 0.5) -> int:
         if process.pid is None:
             return signal.SIGTERM
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
+        if os.name == "nt":
             process.terminate()
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                process.terminate()
         process.join(grace_seconds)
         if process.is_alive():
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
+            if os.name == "nt":
                 process.kill()
+            else:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    process.kill()
             process.join(grace_seconds)
             return signal.SIGKILL
         return signal.SIGTERM
@@ -300,6 +310,17 @@ class GovernedTaskExecutor:
     def _terminate_subprocess(
         process: subprocess.Popen[str], grace_seconds: float = 0.5
     ) -> int:
+        if os.name == "nt":
+            try:
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except OSError:
+                process.kill()
+            return signal.SIGTERM
         try:
             os.killpg(process.pid, signal.SIGTERM)
         except ProcessLookupError:

@@ -328,7 +328,15 @@ async def public_guarded_mode(request: Request, call_next):
         "yes",
         "on",
     }
-    public_paths = {"/api/auth/login", "/health", "/healthz", "/api/health"}
+    public_paths = {
+        "/api/auth/login", "/api/auth/register", "/api/auth/verify-email",
+        "/health", "/healthz", "/api/health", "/", "/index.html",
+    }
+    # The login shell and its hashed static assets must load before a session
+    # exists; all application/API routes remain guarded.
+    path = request.url.path
+    if path.startswith("/assets/") or path == "/favicon.ico":
+        return await call_next(request)
     if guarded and request.method != "OPTIONS" and request.url.path not in public_paths:
         from triade.security.distributed_auth import DistributedAuthUnavailable
         from triade.security.public_auth import PublicAuthStore

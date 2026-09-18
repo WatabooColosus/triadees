@@ -4,8 +4,9 @@ const BASE = ''
 const POLL_INTERVAL = 5000
 
 export async function api(path: string, opts?: RequestInit) {
+  const token = sessionStorage.getItem('triade_auth_token')
   const res = await fetch(BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     ...opts,
   })
   if (!res.ok) {

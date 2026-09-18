@@ -17,6 +17,13 @@ class SignalBus:
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = db_path
         self._signals: list[MetabolicSignal] = []
+        # El gobernador de workers puede emitir señales antes de que el hilo
+        # del coordinador metabólico arranque. Garantizar aquí el esquema evita
+        # perder ese primer recibo en bases nuevas o parcialmente migradas.
+        migration = Path(__file__).resolve().parent.parent / "memory/migrations/032_metabolic_core.sql"
+        if migration.exists():
+            with sqlite3.connect(self.db_path, timeout=2) as conn:
+                conn.executescript(migration.read_text(encoding="utf-8"))
 
     def emit(
         self,

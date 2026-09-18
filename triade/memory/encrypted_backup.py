@@ -99,7 +99,9 @@ class EncryptedBackup:
         if not key_text and key_file:
             path = Path(key_file)
             mode = path.stat().st_mode & 0o777
-            if mode & 0o077:
+            # POSIX permission bits are not authoritative on Windows; ACLs
+            # are.  The launcher stores this file under the user's profile.
+            if os.name != "nt" and mode & 0o077:
                 raise PermissionError("backup_key_file_permissions_must_be_0600")
             key_text = path.read_text(encoding="utf-8").strip()
         key = key_text.encode()

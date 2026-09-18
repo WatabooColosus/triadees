@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import tempfile
 import threading
 import time
 from datetime import UTC, datetime
@@ -62,8 +63,10 @@ class MetabolicCoordinator:
         # distingue.
         _abs_db = os.path.abspath(str(self.db_path))
         _db_key = hashlib.sha256(_abs_db.encode("utf-8")).hexdigest()[:16]
-        self._process_lock_path = Path(
-            f"/tmp/.triade_metabolism_{self.db_path.name}_{_db_key}.lock"
+        # Use the platform temp directory; a literal POSIX /tmp becomes
+        # ``\\tmp`` on Windows and its parent usually does not exist.
+        self._process_lock_path = Path(tempfile.gettempdir()) / (
+            f".triade_metabolism_{self.db_path.name}_{_db_key}.lock"
         )
 
         self.health = HealthSensors(db_path)
@@ -118,8 +121,11 @@ class MetabolicCoordinator:
         except FileExistsError:
             try:
                 existing_pid = int(self._process_lock_path.read_text().strip())
-                os.kill(existing_pid, 0)
-                return "another_process_holds_lock"
+                from triade.runtime.process_lock import RuntimeProcessLock
+
+                if RuntimeProcessLock.pid_alive(existing_pid):
+                    return "another_process_holds_lock"
+                raise ProcessLookupError(existing_pid)
             except (ValueError, ProcessLookupError, OSError):
                 self._process_lock_path.unlink(missing_ok=True)
                 return self._acquire_process_lock()

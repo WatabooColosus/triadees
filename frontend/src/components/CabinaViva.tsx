@@ -17,7 +17,8 @@ export function CabinaViva({ apiKey }: { apiKey: string }) {
   const [actionMsg, setActionMsg] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [shellResult, setShellResult] = useState<{ key: string; stdout: string } | null>(null)
-  const authHeaders = apiKey ? { 'X-TRIADE-API-Key': apiKey } : {}
+  const token = sessionStorage.getItem('triade_auth_token')
+  const authHeaders = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(apiKey ? { 'X-TRIADE-API-Key': apiKey } : {}) }
 
   async function act(label: string, fn: () => Promise<any>) {
     if (busy) return

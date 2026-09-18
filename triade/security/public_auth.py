@@ -7,6 +7,8 @@ import os
 import secrets
 import time
 import uuid
+import base64
+from cryptography.fernet import Fernet
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -22,6 +24,7 @@ SCHEMA = Path(__file__).resolve().parent.parent / "memory/schemas.sql"
 MIGRATION = (
     Path(__file__).resolve().parent.parent / "memory/migrations/030_public_security.sql"
 )
+EMAIL_MIGRATION = Path(__file__).resolve().parent.parent / "memory/migrations/039_email_identity_vault.sql"
 Role = Literal["viewer", "operator", "admin"]
 ROLE_LEVEL = {"viewer": 1, "operator": 2, "admin": 3}
 INJECTION_MARKERS = (
@@ -59,6 +62,56 @@ class PublicAuthStore:
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(SCHEMA.read_text(encoding="utf-8"))
             conn.executescript(MIGRATION.read_text(encoding="utf-8"))
+            conn.executescript(EMAIL_MIGRATION.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def _vault() -> Fernet:
+        raw = os.getenv("TRIADE_AUTH_VAULT_KEY", "").strip() or os.getenv("TRIADE_BACKUP_KEY", "").strip()
+        if not raw:
+            raise RuntimeError("TRIADE_AUTH_VAULT_KEY requerida para guardar API keys")
+        return Fernet(raw.encode())
+
+    def register_email(self, email: str, password: str, *, tenant_id: str = "local") -> dict[str, str]:
+        email = email.strip().lower()
+        if "@" not in email or len(password) < 12:
+            raise ValueError("valid_email_and_strong_password_required")
+        result = self.create_user(email, password, "viewer", tenant_id)
+        token = secrets.token_urlsafe(32)
+        now = datetime.now(UTC)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO auth_email_identities VALUES (?, ?, NULL, ?, ?, ?)",
+                (result["user_id"], email, hashlib.sha256(token.encode()).hexdigest(), now.timestamp() + 900, now.isoformat()),
+            )
+        from triade.security.email_delivery import send_verification_email
+        try:
+            send_verification_email(email, token)
+        except Exception:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("DELETE FROM auth_email_identities WHERE user_id=?", (result["user_id"],))
+                conn.execute("DELETE FROM auth_users WHERE user_id=?", (result["user_id"],))
+            raise
+        return {"user_id": result["user_id"], "email": email, "status": "pending_verification", "delivery": "email"}
+
+    def verify_email(self, token: str) -> dict[str, str]:
+        digest = hashlib.sha256(token.strip().encode()).hexdigest()
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("SELECT user_id, email, verification_expires_at FROM auth_email_identities WHERE verification_hash=?", (digest,)).fetchone()
+            if row is None or float(row[2]) < time.time():
+                raise PermissionError("invalid_or_expired_verification_token")
+            now = datetime.now(UTC).isoformat()
+            conn.execute("UPDATE auth_email_identities SET verified_at=?, verification_hash=NULL, verification_expires_at=NULL WHERE user_id=?", (now, row[0]))
+        return {"user_id": row[0], "email": row[1], "status": "verified"}
+
+    def put_api_key(self, user_id: str, provider: str, label: str, secret: str) -> dict[str, str]:
+        if not secret.strip() or not provider.strip() or not label.strip():
+            raise ValueError("provider_label_and_secret_required")
+        encrypted = self._vault().encrypt(secret.strip().encode()).decode()
+        fingerprint = hashlib.sha256(secret.strip().encode()).hexdigest()[:16]
+        key_id = f"key-{uuid.uuid4().hex}"
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("INSERT INTO auth_api_keys VALUES (?, ?, ?, ?, ?, ?, ?, NULL)", (key_id, user_id, provider.strip().lower(), label.strip(), encrypted, fingerprint, datetime.now(UTC).isoformat()))
+        return {"key_id": key_id, "provider": provider, "label": label, "fingerprint": fingerprint}
 
     def create_user(
         self, username: str, password: str, role: Role, tenant_id: str
@@ -97,6 +150,12 @@ class PublicAuthStore:
                     conn, username, None, "login", "denied", "unknown_or_disabled"
                 )
                 raise PermissionError("invalid_credentials")
+            verified = conn.execute(
+                "SELECT verified_at FROM auth_email_identities WHERE user_id=?",
+                (row["user_id"],),
+            ).fetchone()
+            if verified is not None and not verified[0]:
+                raise PermissionError("email_not_verified")
             if row["locked_until"] and float(row["locked_until"]) > now:
                 self._audit(
                     conn, row["user_id"], row["tenant_id"], "login", "denied", "locked"

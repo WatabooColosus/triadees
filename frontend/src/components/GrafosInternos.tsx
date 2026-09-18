@@ -7,6 +7,11 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
 
+function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const token = sessionStorage.getItem('triade_auth_token')
+  return fetch(input, { ...init, headers: { ...(init.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
+}
+
 const GRAPHS = [
   { key: 'system', label: 'SYSTEM' },
   { key: 'organs', label: 'Órganos' },
@@ -78,25 +83,16 @@ export function GrafosInternos() {
   /* Pulso vivo: acciones ocurridas y señales de SQLite, nunca la estructura.
    * Las acciones llegan por cursor, así que ninguna se pierde entre pulsos. */
   useEffect(() => {
-    const source = new EventSource('/api/internal-graphs/stream')
-    source.addEventListener('pulse', (ev: any) => {
-      const p = JSON.parse(ev.data)
-      setLegend(p.legend || [])
-      const load = (p.resources?.load_average || [0])[0]
-      setStatus(`vivo ${new Date(p.generated_at * 1000).toLocaleTimeString()} · ` +
-        `${p.database?.tables ?? '—'} tablas · integridad ${p.database?.integrity ?? '—'} · ` +
-        `carga ${Number(load).toFixed(2)}`)
-      setGraph((prev) => prev ? applySignals(prev, p.signals, view) : prev)
-      const incoming: LiveEvent[] = p.events || []
-      if (incoming.length) {
-        setActions(prev => [...incoming].reverse().concat(prev).slice(0, 200))
-        /* Un nodo que acaba de actuar se marca; el destello dura un pulso. */
-        setHot(new Set(incoming.map(e => e.node_id).filter(Boolean) as string[]))
-        window.setTimeout(() => setHot(new Set()), 1600)
-      }
-    })
-    source.onerror = () => setStatus('stream desconectado · reintentando')
-    return () => source.close()
+    let active = true
+    const pulse = async () => {
+      try {
+        const p = await authFetch('/api/internal-graphs/health').then(r => r.json())
+        if (active) setStatus(`vivo ${new Date().toLocaleTimeString()} · estado ${p.state || '—'}`)
+      } catch { if (active) setStatus('sesión requerida · vuelve a iniciar sesión') }
+    }
+    pulse()
+    const timer = window.setInterval(pulse, 5000)
+    return () => { active = false; window.clearInterval(timer) }
   }, [view])
 
   const loadGraph = useCallback(async (name: string) => {
@@ -104,7 +100,7 @@ export function GrafosInternos() {
     if (name === 'debt') {
       setGraph(null)
       try {
-        const res = await fetch('/api/internal-graphs/debt')
+        const res = await authFetch('/api/internal-graphs/debt')
         setDebt(await res.json())
       } catch (e: any) { setError(e.message || 'no se pudo leer la deuda') }
       return
@@ -112,7 +108,7 @@ export function GrafosInternos() {
     if (name === 'health') {
       setGraph(null)
       try {
-        const res = await fetch('/api/internal-graphs/health')
+        const res = await authFetch('/api/internal-graphs/health')
         if (!res.ok) throw new Error(`${res.status}`)
         setHealth(await res.json())
       } catch (e: any) { setError(e.message || 'no se pudo medir salud') }
@@ -124,7 +120,7 @@ export function GrafosInternos() {
       const key = value.startsWith('task-') ? 'task_id' : 'run_id'
       const params = value ? `?${key}=${encodeURIComponent(value)}` : ''
       try {
-        const res = await fetch(`/api/internal-graphs/timeline${params}`)
+      const res = await authFetch(`/api/internal-graphs/timeline${params}`)
         if (!res.ok) throw new Error(`${res.status}`)
         const payload = await res.json()
         setActions(payload.events || [])
@@ -132,7 +128,7 @@ export function GrafosInternos() {
       return
     }
     try {
-      const res = await fetch(`/api/internal-graphs/graph/${name}`)
+      const res = await authFetch(`/api/internal-graphs/graph/${name}`)
       if (!res.ok) throw new Error(`${res.status}`)
       setGraph(await res.json())
     } catch (e: any) { setError(e.message || 'no se pudo leer el grafo') }
@@ -152,7 +148,7 @@ export function GrafosInternos() {
   async function openNode(nodeId: string) {
     setSelected(nodeId)
     try {
-      const res = await fetch(
+      const res = await authFetch(
         `/api/internal-graphs/node/${view}?node_id=${encodeURIComponent(nodeId)}`)
       setDetail(res.ok ? await res.json() : null)
     } catch { setDetail(null) }
@@ -161,7 +157,7 @@ export function GrafosInternos() {
   async function search() {
     if (!query.trim()) { setResults([]); return }
     try {
-      const res = await fetch(`/api/internal-graphs/search?q=${encodeURIComponent(query)}`)
+      const res = await authFetch(`/api/internal-graphs/search?q=${encodeURIComponent(query)}`)
       if (!res.ok) throw new Error(`${res.status}`)
       setResults((await res.json()).results || [])
     } catch (e: any) { setError(e.message || 'búsqueda fallida') }

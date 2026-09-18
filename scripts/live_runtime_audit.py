@@ -28,6 +28,11 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+try:
+    import psutil
+except ImportError:  # pragma: no cover - optional on minimal hosts
+    psutil = None
+
 REPO = Path(__file__).resolve().parents[1]
 DB = REPO / "triade/memory/triade.db"
 API = os.getenv("TRIADE_AUDIT_API", "http://127.0.0.1:8010")
@@ -363,10 +368,18 @@ def services() -> dict[str, Any]:
 
 
 def snapshot(deep: bool = False) -> dict[str, Any]:
+    try:
+        load_average = os.getloadavg()
+    except (AttributeError, OSError):
+        # Windows has no POSIX load average.  Keep a stable shape and expose
+        # the scheduler-visible CPU percentage instead.
+        load_average = (
+            round(psutil.cpu_percent(interval=0.0) / 100.0, 3),
+        ) if psutil is not None else None
     return {
         "timestamp": _iso(time.time()),
         "monotonic": round(time.monotonic(), 3),
-        "load_average": os.getloadavg(),
+        "load_average": load_average,
         "processes": processes(),
         "zombies": zombies(),
         "listening_ports": listening_ports(),

@@ -34,11 +34,14 @@ class AtomicArtifactWriter:
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
-        directory_fd = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        # POSIX permite sincronizar el directorio; Windows no permite abrirlo
+        # como descriptor, aunque os.replace ya sea atómico en el mismo volumen.
+        if os.name != "nt":
+            directory_fd = os.open(path.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
 
     @classmethod
     def write_json(cls, path: Path, value: Any) -> None:

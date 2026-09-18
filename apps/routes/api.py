@@ -145,6 +145,11 @@ SIGNED_NONCE_CACHE: dict[str, float] = {}
 
 
 def require_key(value: str | None) -> None:
+    # In guarded mode the session middleware has already authenticated the
+    # account.  Requiring a second global key made registered users unable to
+    # use the API and defeated per-user key ownership.
+    if os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower() in {"1", "true", "yes", "on"}:
+        return
     expected = os.getenv("TRIADE_API_KEY")
     if expected and value != expected:
         raise HTTPException(
@@ -1752,6 +1757,12 @@ def _dashboard_bootstrap_snapshot() -> dict[str, Any]:
         "ollama_blood": {
             "status": "refreshing",
             "cognitive_blood_active": False,
+        },
+        "governor": {
+            "status": "refreshing",
+            "work_mode": {"requested_mode": None, "allowed_mode": None, "effective_mode": None},
+            "capabilities": {},
+            "resource_probe": {},
         },
         "git_status": {"status": "refreshing", "branch": "cargando"},
         "technical_debt": {"score": 0, "debts": [], "warnings": []},

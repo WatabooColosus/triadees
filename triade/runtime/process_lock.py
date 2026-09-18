@@ -140,6 +140,20 @@ class RuntimeProcessLock:
 
     @staticmethod
     def pid_alive(pid: int) -> bool:
+        if os.name == "nt":
+            try:
+                import psutil
+
+                return bool(psutil.pid_exists(pid))
+            except (ImportError, OSError):
+                # Fallback for installations without psutil. Windows' kill(pid,
+                # 0) is not a portable existence probe and raises WinError 87.
+                try:
+                    handle = os.open(f"\\\\.\\pipe\\triade-pid-{pid}", os.O_RDONLY)
+                    os.close(handle)
+                    return True
+                except OSError:
+                    return False
         try:
             os.kill(pid, 0)
             return True

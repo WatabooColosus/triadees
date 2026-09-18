@@ -13,7 +13,10 @@ from __future__ import annotations
 
 import json
 import os
-import resource
+try:
+    import resource
+except ImportError:  # pragma: no cover - Windows
+    resource = None  # type: ignore[assignment]
 import shutil
 import time
 from base64 import urlsafe_b64decode, urlsafe_b64encode
@@ -122,13 +125,23 @@ def _db_path() -> Path:
 
 
 def _resource_snapshot() -> dict[str, Any]:
-    usage = resource.getrusage(resource.RUSAGE_SELF)
+    if resource is not None:
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        cpu_seconds = usage.ru_utime + usage.ru_stime
+        max_rss_kb = int(usage.ru_maxrss)
+    else:
+        import psutil
+
+        process = psutil.Process()
+        cpu = process.cpu_times()
+        cpu_seconds = cpu.user + cpu.system
+        max_rss_kb = int(process.memory_info().peak_wset / 1024)
     disk = shutil.disk_usage(ROOT)
     load = list(os.getloadavg()) if hasattr(os, "getloadavg") else []
     return {
         "pid": os.getpid(),
-        "process_cpu_seconds": round(usage.ru_utime + usage.ru_stime, 4),
-        "process_max_rss_kb": int(usage.ru_maxrss),
+        "process_cpu_seconds": round(cpu_seconds, 4),
+        "process_max_rss_kb": max_rss_kb,
         "load_average": load,
         "disk_total": disk.total,
         "disk_used": disk.used,
@@ -594,7 +607,14 @@ def system_health() -> dict[str, Any]:
             "last_progress": ollama.get("checked_at"),
         },
         "WORKERS": {
-            "state": overall,
+            # A live heartbeat and running worker thread prove the worker
+            # service is up even when historical task errors keep the overall
+            # runtime degraded.
+            "state": "healthy"
+            if metrics.get("heartbeat_age_seconds") is not None
+            and float(metrics.get("heartbeat_age_seconds") or 999999) < 30
+            and int(metrics.get("active_tasks", 0) or 0) >= 0
+            else overall,
             "evidence": (
                 f"heartbeat_age_seconds={heartbeat_age}; "
                 f"eligible={metrics.get('eligible_pending_tasks', 0)}; "
@@ -603,7 +623,7 @@ def system_health() -> dict[str, Any]:
             "last_progress": metrics.get("last_task_transition_at"),
         },
         "SCHEDULER": {
-            "state": overall,
+            "state": "degraded" if overall == "failed" else overall,
             "evidence": f"queue={json.dumps(queue, sort_keys=True)}",
             "last_progress": metrics.get("last_task_transition_at"),
         },

@@ -41,11 +41,16 @@ _TIMEOUT_SECONDS = 5.0
 
 def _run(argv: list[str]) -> str | None:
     """Ejecuta una lectura y devuelve stdout, o None si no se puede."""
-    if not argv or shutil.which(argv[0]) is None:
+    if not argv:
+        return None
+    executable = shutil.which(argv[0])
+    if executable is None and os.name == "nt" and argv[0].lower() == "schtasks":
+        executable = str(Path(os.environ.get("WINDIR", r"C:\Windows")) / "System32" / "schtasks.exe")
+    if executable is None:
         return None
     try:
         completed = subprocess.run(
-            argv,
+            [executable, *argv[1:]],
             capture_output=True,
             text=True,
             timeout=_TIMEOUT_SECONDS,
@@ -79,6 +84,22 @@ def _systemctl_show(unit: str, properties: tuple[str, ...]) -> dict[str, str]:
 
 def _listener_pids(port: int) -> list[int]:
     """PIDs que escuchan en el puerto, según `ss`."""
+    if os.name == "nt":
+        try:
+            import psutil
+
+            return sorted(
+                {
+                    int(conn.pid)
+                    for conn in psutil.net_connections(kind="tcp")
+                    if conn.status == psutil.CONN_LISTEN
+                    and conn.laddr
+                    and int(conn.laddr.port) == port
+                    and conn.pid
+                }
+            )
+        except (ImportError, OSError, ValueError):
+            return []
     out = _run(["ss", "-lntpH", f"sport = :{port}"])
     if out is None:
         return []
@@ -104,6 +125,19 @@ def _listener_pids(port: int) -> list[int]:
 
 def _listener_count(port: int) -> int | None:
     """Sockets en escucha en el puerto. No depende de poder ver el PID."""
+    if os.name == "nt":
+        try:
+            import psutil
+
+            return sum(
+                1
+                for conn in psutil.net_connections(kind="tcp")
+                if conn.status == psutil.CONN_LISTEN
+                and conn.laddr
+                and int(conn.laddr.port) == port
+            )
+        except (ImportError, OSError, ValueError):
+            return None
     out = _run(["ss", "-lntH", f"sport = :{port}"])
     if out is None:
         return None
@@ -127,6 +161,13 @@ def _cgroup_unit(pid: int) -> str | None:
             if part.endswith(".service"):
                 return part
     return None
+
+
+def _windows_task_known(task_name: str = "TriadeOmega") -> bool:
+    if os.name != "nt":
+        return False
+    out = _run(["schtasks", "/Query", "/TN", task_name, "/FO", "CSV", "/NH"])
+    return bool(out and task_name.lower() in out.lower())
 
 
 def _parse_timestamp(raw: str | None) -> str | None:
@@ -190,7 +231,8 @@ def build_service_supervision(
             "ExecMainStatus",
         ),
     )
-    known = bool(props) and props.get("LoadState") not in {None, "", "not-found"}
+    windows_task = _windows_task_known()
+    known = (bool(props) and props.get("LoadState") not in {None, "", "not-found"}) or windows_task
 
     listeners = _listener_count(port)
     pids = _listener_pids(port)
@@ -199,10 +241,18 @@ def build_service_supervision(
 
     # El proceso que sirve el puerto está bajo el gestor de servicios, o no lo
     # está. Es lo único que decide si «me apagan y vuelvo» es cierto.
-    service_managed = bool(listener_pid) and listener_unit == unit
+    service_managed = (
+        bool(listener_pid) and listener_unit == unit
+        if os.name != "nt"
+        else bool(listener_pid) and windows_task
+    )
 
     started_at = _parse_timestamp(props.get("ExecMainStartTimestamp"))
-    autostart_enabled = props.get("UnitFileState") == "enabled" if known else False
+    autostart_enabled = (
+        props.get("UnitFileState") == "enabled"
+        if os.name != "nt"
+        else windows_task
+    )
 
     # `systemctl show` responde con valores por defecto aunque la unit no exista
     # (NRestarts=0). Publicar ese 0 diría «nunca se ha reiniciado» cuando lo
@@ -213,7 +263,7 @@ def build_service_supervision(
         restart_count = None
 
     supervision: dict[str, Any] = {
-        "service_manager": "systemd" if known else None,
+        "service_manager": ("systemd" if os.name != "nt" and known else "windows_task_scheduler" if windows_task else None),
         "unit": unit,
         "unit_known": known,
         "service_managed": service_managed,

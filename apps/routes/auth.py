@@ -15,6 +15,18 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+class ApiKeyRequest(BaseModel):
+    provider: str
+    label: str = "default"
+    secret: str
+
 
 def store() -> PublicAuthStore:
     return PublicAuthStore(
@@ -31,6 +43,35 @@ def login(payload: LoginRequest) -> dict[str, object]:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except PermissionError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+@router.post("/register")
+def register(payload: RegisterRequest) -> dict[str, object]:
+    try:
+        return store().register_email(payload.email, payload.password)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@router.post("/verify-email")
+def verify_email(payload: VerifyEmailRequest) -> dict[str, object]:
+    try:
+        return store().verify_email(payload.token)
+    except PermissionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@router.post("/api-keys")
+def put_api_key(payload: ApiKeyRequest, request: Request) -> dict[str, object]:
+    value = request.headers.get("Authorization", "")
+    if not value.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="bearer_required")
+    try:
+        principal = store().authorize(value[7:])
+        return store().put_api_key(principal["user_id"], payload.provider, payload.label, payload.secret)
+    except (PermissionError, KeyError) as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.post("/logout")

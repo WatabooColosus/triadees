@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-import resource
+try:
+    import resource
+except ImportError:  # pragma: no cover - exercised on Windows
+    resource = None  # type: ignore[assignment]
 import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -132,7 +135,31 @@ class ResourceUsageReceipt:
 #: `RUSAGE_THREAD` es Linux y conserva el desglose user/system. Donde no exista
 #: se cae a `RUSAGE_SELF`, que es lo que había: sobreestimar es preferible a no
 #: medir, pero se registra en `cpu_scope` para que la cifra sea interpretable.
-_RUSAGE_THREAD = getattr(resource, "RUSAGE_THREAD", None)
+_RUSAGE_THREAD = getattr(resource, "RUSAGE_THREAD", None) if resource else None
+
+
+class _Usage:
+    """Compatibilidad mínima para plataformas sin el módulo POSIX resource."""
+
+    def __init__(self, user: float = 0.0, system: float = 0.0, rss: float = 0.0):
+        self.ru_utime = user
+        self.ru_stime = system
+        self.ru_maxrss = rss
+
+
+def _rusage(which: int | None = None) -> _Usage:
+    if resource is not None:
+        return resource.getrusage(which if which is not None else resource.RUSAGE_SELF)
+    # Windows no expone getrusage. thread_time cubre CPU por hilo y psutil aporta
+    # el RSS del proceso sin introducir una dependencia obligatoria.
+    rss = 0.0
+    try:
+        import psutil
+
+        rss = float(psutil.Process().memory_info().peak_wset) / 1024
+    except (ImportError, OSError):
+        pass
+    return _Usage(time.process_time(), 0.0, rss)
 
 
 def _cpu_propio() -> tuple[float, float, str]:
@@ -153,7 +180,7 @@ def _cpu_propio() -> tuple[float, float, str]:
         return time.thread_time(), 0.0, "thread_clock"
     except (AttributeError, OSError):
         pass
-    uso = resource.getrusage(resource.RUSAGE_SELF)
+    uso = _rusage()
     return uso.ru_utime, uso.ru_stime, "process"
 
 
@@ -165,16 +192,18 @@ class ResourceMeasurementCollector:
         # Los hijos siguen siendo del proceso: `RUSAGE_CHILDREN` no se desglosa
         # por hilo. Un subproceso lanzado por otra tarea a la vez sigue cayendo
         # aquí, pero son raros y acotados frente a la CPU propia.
-        self.children_before = resource.getrusage(resource.RUSAGE_CHILDREN)
+        self.children_before = (
+            _rusage(resource.RUSAGE_CHILDREN) if resource else _Usage()
+        )
 
     def finish(self) -> ResourceUsageReceipt:
         finished_at = datetime.now(UTC).isoformat()
         self_utime_after, self_stime_after, _ = _cpu_propio()
-        children_after = resource.getrusage(resource.RUSAGE_CHILDREN)
+        children_after = _rusage(resource.RUSAGE_CHILDREN) if resource else _Usage()
         # `ru_maxrss` es el pico de residente **del proceso** por definición: no
         # existe una versión por hilo, porque la memoria no se reparte por hilo.
         # Se lee aparte para que el cambio de ámbito de la CPU no lo arrastre.
-        self_after = resource.getrusage(resource.RUSAGE_SELF)
+        self_after = _rusage()
         measured = {
             "wall_time": (
                 time.monotonic() - self.started_wall,
@@ -187,7 +216,7 @@ class ResourceMeasurementCollector:
                 + children_after.ru_utime
                 - self.children_before.ru_utime,
                 "seconds",
-                f"resource.getrusage[{self.cpu_scope}]",
+                "time.thread_time (children excluded)" if not resource else f"resource.getrusage[{self.cpu_scope}]",
             ),
             "cpu_system": (
                 self_stime_after
@@ -195,12 +224,12 @@ class ResourceMeasurementCollector:
                 + children_after.ru_stime
                 - self.children_before.ru_stime,
                 "seconds",
-                f"resource.getrusage[{self.cpu_scope}]",
+                "included in cpu_user (thread clock)" if not resource else f"resource.getrusage[{self.cpu_scope}]",
             ),
             "peak_rss": (
                 float(max(self_after.ru_maxrss, children_after.ru_maxrss)) / 1024,
                 "MiB",
-                "resource.getrusage",
+                "psutil.memory_info.peak_wset" if not resource else "resource.getrusage",
             ),
         }
         items = [
