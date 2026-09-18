@@ -9,9 +9,12 @@ const BASE = ''
 
 async function api(path: string, opts?: RequestInit) {
   const token = sessionStorage.getItem('triade_auth_token')
+  const headers = new Headers({ 'Content-Type': 'application/json' })
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  new Headers(opts?.headers || {}).forEach((value, key) => headers.set(key, value))
   const res = await fetch(BASE + path, {
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     ...opts,
+    headers,
   })
   if (!res.ok) {
     if (res.status === 428) {

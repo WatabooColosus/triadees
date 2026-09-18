@@ -190,6 +190,39 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         foundational_result = ensure_foundational_neurons()
 
+        # La identidad dinámica debe tener una primera observación real desde
+        # el mismo proceso que sirve la aplicación.  Sin este puente el
+        # escritor `AutoIdentityStore` sólo se alcanzaba tras una reflexión
+        # profunda y la auditoría marcaba `auto_identity` como rota aunque el
+        # motor estuviera operativo.  Es idempotente y no inventa aprendizaje:
+        # registra únicamente hechos verificables del arranque.
+        try:
+            from datetime import UTC, datetime
+
+            now = datetime.now(UTC).isoformat()
+            with sqlite3.connect(db_path, timeout=30) as conn:
+                conn.execute("PRAGMA busy_timeout=30000")
+                conn.execute(
+                    """INSERT OR IGNORE INTO auto_identity
+                    (trait_key, trait_value, category, source_ref, confidence,
+                     status, evidence_count, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 'candidate', 1, ?, ?)""",
+                    (
+                        "runtime.single_port.available",
+                        "El runtime single-port está disponible y ejecuta la cadena de arranque.",
+                        "capability",
+                        "single-port-startup",
+                        0.8,
+                        now,
+                        now,
+                    ),
+                )
+                conn.commit()
+        except (OSError, sqlite3.Error) as exc:
+            logging.getLogger("single_port_app").warning(
+                "No se pudo registrar la identidad de runtime: %s", exc
+            )
+
         # Tercer caso del mismo patrón, y por eso va justo aquí: una neurona con
         # la columna `triggers` vacía sólo puede activarse por la cadena de
         # cuatro dominios escrita a mano o por el fallback de nombre. Medido el

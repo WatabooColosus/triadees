@@ -465,27 +465,6 @@ class ContractVerifier:
 # que la sostiene.
 
 CONTRACTS: tuple[Contract, ...] = (
-    _contract(
-        "table:auth_api_keys",
-        "ON_DEMAND",
-        decided_at="2026-09-18",
-        reason="Las claves de proveedor sólo aparecen cuando el usuario las vincula explícitamente; el registro por sí solo no debe inventar una credencial.",
-        evidence=(
-            "writer_reachable=triade/security/public_auth.py::put_api_key",
-            "reader_exists=triade/security/public_auth.py::list_api_keys",
-            "human_gate=authenticated_user_session",
-        ),
-    ),
-    _contract(
-        "table:auth_audit",
-        "ON_DEMAND",
-        decided_at="2026-09-18",
-        reason="La auditoría se llena con eventos de autenticación reales; una base recién creada puede estar vacía hasta el primer login o verificación.",
-        evidence=(
-            "writer_reachable=triade/security/public_auth.py::_audit",
-            "reader_exists=triade/security/public_auth.py::audit_for_user",
-        ),
-    ),
     # ── Bitácoras de sólo escritura ──────────────────────────────────
     #
     # Categoría `tables_written_never_read`. La pregunta no es «¿alguien las
