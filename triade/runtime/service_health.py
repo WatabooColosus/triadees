@@ -201,12 +201,17 @@ class ServiceHealth:
         if float(resources.get("disk", {}).get("free_gb") or 0) < self.disk_critical_gb:
             reasons.append("disk_critical")
             db_critical = True
-        if (
-            float(resources.get("memory", {}).get("available_gb") or 0)
-            < self.ram_critical_gb
-        ):
-            reasons.append("memory_critical")
-            db_critical = True
+        available_ram = float(resources.get("memory", {}).get("available_gb") or 0)
+        if available_ram < self.ram_critical_gb:
+            # RAM pressure is a governor signal, not proof that the service is
+            # dead. On the local 7.2 GB host the worker deliberately degrades
+            # to sequential/light mode and keeps heartbeats alive. Marking the
+            # whole runtime `critical` here made the live graph show `failed`
+            # while the process and SQLite were healthy. Reserve the critical
+            # state for a genuinely unsafe margin or a stale heartbeat.
+            reasons.append("memory_pressure")
+            if available_ram < 0.25:
+                db_critical = True
         thermal = resources.get("thermal", {}).get("thermal_status")
         if thermal in {"high", "critical"}:
             reasons.append(f"temperature_{thermal}")
