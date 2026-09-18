@@ -45,6 +45,24 @@ existe en `learning_evidence`. Ahora usa `decision`, que es el estado real de
 la evidencia comparativa. La auditoría vuelve a ser ejecutable y no oculta un
 fallo de SQL como si faltara el aprendizaje.
 
+## Prueba de capacidad por memoria
+
+Se ejecutaron los tests de `hardware_profile`, `resource_governor`,
+`compatibility_matrix` y `model_router`, además de una simulación de perfiles:
+
+- 7.2 GB totales y menos de 2 GB libres: `cooldown`; heartbeat y lectura siguen
+  permitidos, pero workers pesados, evaluación y consolidación se bloquean.
+- 16 GB con 8 GB libres: `balanced_background`; workers, investigación,
+  embeddings y evaluación pueden ejecutarse, con consolidación estable todavía
+  protegida.
+- 32 GB con 16 GB libres y Ollama sano: `full_local_guarded`; se habilitan
+  evaluación, consolidación, canary, tests y research gobernado.
+
+La PC actual entra en protección porque en los ciclos observados llegó a 0.08
+GB libres. El estado correcto es presión de recursos, no una rotura de SQLite;
+la interfaz debe mostrar degradación y la causa, no fingir que el motor está
+listo para full local.
+
 ## Criterio de finalización
 
 La deuda sólo baja cuando existe productor, evento, consumidor y evidencia
