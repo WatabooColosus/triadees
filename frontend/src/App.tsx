@@ -17,9 +17,13 @@ async function api(path: string, opts?: RequestInit) {
     headers,
   })
   if (!res.ok) {
-    if (res.status === 428) {
+    if (res.status === 428 || res.status === 403) {
       const body = await res.json().catch(() => ({}))
-      const err: any = new Error(body.detail?.error || res.statusText)
+      const err: any = new Error(
+        typeof body.detail === 'string'
+          ? body.detail
+          : body.detail?.error || res.statusText,
+      )
       err.status = res.status
       err.detail = body.detail || body
       throw err
@@ -333,9 +337,13 @@ function ChatTab({ apiKey }: { apiKey: string }) {
         }])
       } else if (e.status === 403) {
         const d = e.detail || {}
+        const reason = typeof d === 'string' ? d : d.reason || e.message
+        const roleDenied = reason === 'insufficient_role'
         setMessages(m => [...m, {
           role: 'bot',
-          content: `🚫 Acción bloqueada por Safety.\n\nRazón: ${d.reason || e.message}`,
+          content: roleDenied
+            ? '🔐 Tu cuenta no tiene el rol necesario para esta acción. El chat está disponible para cuentas verificadas; las aprobaciones y controles del sistema requieren un rol de operador.'
+            : `🚫 Acción bloqueada por Safety.\n\nRazón: ${reason}`,
           meta: { blocked: true },
         }])
       } else {

@@ -384,7 +384,18 @@ async def public_guarded_mode(request: Request, call_next):
                     "public_guarded": True,
                 },
             )
-        required = "operator" if request.method not in {"GET", "HEAD"} else "viewer"
+        # A verified account may use the conversational surface.  The chat
+        # endpoint is still protected by this session middleware and by the
+        # runner's safety gate, but it must not require operator privileges:
+        # operator/admin are reserved for mutations, approvals and runtime
+        # control.  Without this exception every ordinary viewer received
+        # `403 insufficient_role` before the request reached `/api/run`.
+        conversational_write = request.url.path in {"/api/run", "/triade/run"}
+        required = (
+            "viewer"
+            if request.method in {"GET", "HEAD"} or conversational_write
+            else "operator"
+        )
         try:
             auth = PublicAuthStore(
                 os.getenv("TRIADE_AUTH_DB_PATH", "triade/memory/triade.db"),
