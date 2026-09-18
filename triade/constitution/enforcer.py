@@ -4,6 +4,7 @@ artículos de la constitución de Tríade Ω sobre todos los componentes."""
 import hashlib
 import json
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from triade.core.contracts import utc_now
 from triade.db import sqlite3
@@ -12,7 +13,13 @@ DEFAULT_DB_PATH = "triade/memory/triade.db"
 
 
 def _gen_id(prefix: str) -> str:
-    return f"{prefix}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}-{hashlib.md5(str(datetime.now(UTC).timestamp()).encode()).hexdigest()[:6]}"
+    # La marca temporal sola colisiona cuando Runner ejecuta varios artículos
+    # en el mismo tick (especialmente en los tests y en el worker secuencial).
+    # El id de enforcement debe ser único aunque dos comprobaciones compartan
+    # microsegundo.
+    stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S%f")
+    entropy = uuid4().hex[:10]
+    return f"{prefix}-{stamp}-{entropy}"
 
 
 SCHEMA_SQL = """
