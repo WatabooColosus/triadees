@@ -5,6 +5,9 @@ $env:PYTHONPATH = $repo
 $env:TRIADE_RUNTIME_SCOPE = "local"
 $env:TRIADE_DISABLE_BACKGROUND = "0"
 $env:TRIADE_POST_RUN_LEARNING = "1"
+# Esta máquina tiene 7.2 GB de RAM; un drenaje secuencial mantiene vivo el
+# aprendizaje en segundo plano sin lanzar tres tareas pesadas a la vez.
+$env:TRIADE_WORKER_CONCURRENCY = "0"
 $env:TRIADE_PUBLIC_GUARDED = "true"
 $env:TRIADE_BACKUP_KEY_FILE = Join-Path $env:LOCALAPPDATA "Triade\backup.key"
 if (Test-Path $env:TRIADE_BACKUP_KEY_FILE) {

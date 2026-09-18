@@ -3525,6 +3525,12 @@ class WorkerLoop:
         report = build_debt_report(
             Path(__file__).resolve().parents[2],
             db_path=Path(self.db_path),
+            # El escaneo AST completo es una operación de mantenimiento y
+            # puede tardar más que el lease del worker en esta máquina. El
+            # planificador ya reconstruye los grafos cuando toca; aquí se lee
+            # el snapshot fresco y se mantiene el worker disponible para
+            # aprendizaje, investigación y educación.
+            allow_build=False,
         )
         content = summarise_for_humans(report)
 
