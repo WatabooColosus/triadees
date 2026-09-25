@@ -12,8 +12,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "timeout": 60,
         "fallback_enabled": True,
         "roles": {
-            "hypothalamus": "qwen2.5:3b-instruct",
-            "central": "qwen2.5:3b-instruct",
+            "hypothalamus": "qwen2.5:1.5b",
+            "central": "qwen2.5:1.5b",
         },
     }
 }

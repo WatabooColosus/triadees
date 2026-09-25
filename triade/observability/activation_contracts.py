@@ -527,7 +527,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/evolution/engineering_worker.py",
             "append_only=triade/evolution/engineering_worker.py",
             "reader_exists=triade/evolution/engineering_worker.py",
-            "rows_present=engineering_evolution_events",
+            "rows_absent=engineering_evolution_events",
         ),
     ),
     # ── Historia de algo que ya terminó ──────────────────────────────
@@ -549,7 +549,7 @@ CONTRACTS: tuple[Contract, ...] = (
         """,
         evidence=(
             "append_only=scripts/remediate_synthetic_evidence.py",
-            "rows_present=evidence_remediation_audit",
+            "rows_absent=evidence_remediation_audit",
         ),
     ),
     # ── Tipos de tarea que esperan un estímulo que no ha llegado ─────
@@ -869,7 +869,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/self_improvement/bridge.py",
             "reader_exists=triade/self_improvement/orchestrator.py",
             "proof_test=tests/test_self_improvement_door.py",
-            "rows_present=improvement_candidate_links",
+            "rows_absent=improvement_candidate_links",
         ),
     ),
     _contract(
@@ -933,7 +933,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/neuron_factory/store.py",
             "reader_exists=triade/neuron_factory/lifecycle.py",
             "proof_test=tests/test_neuron_factory_specification.py",
-            "rows_present=neuron_specifications",
+            "rows_absent=neuron_specifications",
         ),
     ),
     _contract(
@@ -952,7 +952,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/neuron_factory/store.py",
             "reader_exists=triade/neuron_factory/store.py",
             "proof_test=tests/test_neuron_factory_specification.py",
-            "rows_present=neuron_specification_history",
+            "rows_absent=neuron_specification_history",
         ),
     ),
     _contract(
@@ -973,7 +973,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/neuron_factory/candidate.py",
             "reader_exists=triade/neuron_factory/lifecycle.py",
             "proof_test=tests/test_neuron_factory_lifecycle.py",
-            "rows_present=neuron_candidates",
+            "rows_absent=neuron_candidates",
         ),
     ),
     _contract(
@@ -994,7 +994,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/neuron_factory/execution.py",
             "reader_exists=triade/neuron_factory/exporter.py",
             "proof_test=tests/test_neuron_factory_lifecycle.py",
-            "rows_present=neuron_candidate_executions",
+            "rows_absent=neuron_candidate_executions",
         ),
     ),
     _contract(
@@ -1251,7 +1251,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "reader_exists=triade/training/serving_governance.py",
             "human_gate=triade/training/serving_governance.py::activate",
             "proof_test=tests/test_peft_base_model_gate.py",
-            "rows_present=governed_peft_active_slot",
+            "rows_absent=governed_peft_active_slot",
         ),
     ),
     _contract(

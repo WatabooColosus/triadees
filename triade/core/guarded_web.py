@@ -6,10 +6,12 @@ import html
 import ipaddress
 import json
 import logging
+import os
 import re
 import socket
 import urllib.parse
 import urllib.request
+from html.parser import HTMLParser
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -89,21 +91,33 @@ TRUSTED_RESEARCH_HOSTS: frozenset[str] = frozenset(
 )
 
 
+_WEB_REQUEST = re.compile(
+    r"\b(?:busca(?:r|s)?|busques?|investiga(?:r|s)?|investigues?|"
+    r"consulta(?:r|s)?|consultes?|verifica(?:r|s)?|verifiques?)"
+    r"\s+(?:en\s+)?(?:la\s+)?(?:internet|web)\b",
+    re.IGNORECASE,
+)
+
+
 def requests_web_research(text: str) -> bool:
-    normalized = text.lower()
-    return any(
-        marker in normalized
-        for marker in (
-            "busca en internet",
-            "buscar en internet",
-            "investiga en internet",
-            "consulta internet",
-            "consulta la web",
-            "busca en la web",
-            "investiga en la web",
-            "verifica en internet",
+    for match in _WEB_REQUEST.finditer(text):
+        prefix = text[:match.start()]
+        if not re.search(r"\b(?:no|sin|evita)\s+(?:\w+\s+){0,2}$", prefix, re.IGNORECASE):
+            return True
+    return False
+
+
+def web_failure_response(user_input: str, research: Any) -> str | None:
+    """No sustituir una consulta explícita fallida por recuerdos del modelo."""
+    if requests_web_research(user_input) and not (
+        isinstance(research, dict) and research.get("sources")
+    ):
+        return (
+            "No pude obtener fuentes web verificables para esta consulta. "
+            "No puedo confirmar los datos actuales ni atribuirles una fuente. "
+            "La búsqueda necesita reintentarse o consultar una fuente oficial."
         )
-    )
+    return None
 
 
 def guarded_web_research(
@@ -114,6 +128,7 @@ def guarded_web_research(
     No ejecuta JavaScript, no usa cookies, no acepta URLs privadas y limita el
     volumen. La salida es evidencia temporal con URLs, no memoria estable.
     """
+    max_sources = max(1, min(int(max_sources), MAX_SOURCES))
     clean_query = _clean_query(query)
     if not clean_query:
         return {
@@ -125,14 +140,28 @@ def guarded_web_research(
     search_url = "https://html.duckduckgo.com/html/?" + urllib.parse.urlencode(
         {"q": clean_query}
     )
+    provider = os.environ.get("TRIADE_SEARCH_PROVIDER", "duckduckgo").lower()
     try:
-        search_html = _download(search_url, timeout=timeout).decode(
-            "utf-8", errors="replace"
-        )
-        urls = _result_urls(search_html)
+        if provider == "brave":
+            from .search_provider import brave_urls
+
+            urls = brave_urls(clean_query, timeout=timeout)
+        elif provider == "rapidapi":
+            from .search_provider import rapidapi_urls
+
+            urls = rapidapi_urls(clean_query, timeout=timeout)
+        elif provider == "duckduckgo":
+            search_html = _download(search_url, timeout=timeout).decode(
+                "utf-8", errors="replace"
+            )
+            if "anomaly.js" in search_html or "anomaly-modal" in search_html:
+                raise ValueError("search_provider_challenge")
+            urls = _result_urls(search_html)
+        else:
+            raise ValueError("search_provider_unknown")
     except (OSError, ValueError) as exc:
         urls = []
-        search_error = str(exc)
+        search_error = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
     else:
         search_error = ""
 
@@ -146,11 +175,12 @@ def guarded_web_research(
                 _wikipedia_sources(clean_query, timeout=timeout, max_sources=remaining)
             )
         return {
-            "status": "ok" if fallback_sources else "degraded",
+            "status": "degraded",
             "query": clean_query,
             "sources": fallback_sources,
             "source_count": len(fallback_sources),
-            "search_provider": "wikipedia_api_fallback",
+            "search_provider": "curated_and_wikipedia_fallback",
+            "requested_provider": provider,
             "search_warning": search_error or "primary_search_returned_no_results",
             "policy": "explicit_request_public_http_no_javascript_evidence_only",
             "stable_memory_written": False,
@@ -176,6 +206,7 @@ def guarded_web_research(
             logger.warning("primary research source failed url=%s error=%s", url, exc)
             continue
     if not sources:
+        provider = "curated_and_wikipedia_fallback"
         sources = _curated_sources(
             clean_query, timeout=timeout, max_sources=max_sources
         )
@@ -185,10 +216,11 @@ def guarded_web_research(
                 _wikipedia_sources(clean_query, timeout=timeout, max_sources=remaining)
             )
     return {
-        "status": "ok" if sources else "degraded",
+        "status": "ok" if sources and provider != "curated_and_wikipedia_fallback" else "degraded",
         "query": clean_query,
         "sources": sources,
         "source_count": len(sources),
+        "search_provider": provider if urls and sources else "curated_and_wikipedia_fallback",
         "policy": "explicit_request_public_http_no_javascript_evidence_only",
         "stable_memory_written": False,
     }
@@ -251,7 +283,13 @@ def _wikipedia_sources(
     for page in pages.values():
         excerpt = " ".join(str(page.get("extract") or "").split())[:1800]
         source_url = str(page.get("fullurl") or "")
-        if excerpt and source_url:
+        terms = set(re.findall(r"[a-záéíóúñ]{4,}", query.lower())) - {
+            "internet", "busca", "busques", "quiero", "fuente", "fuentes",
+            "donde", "dame", "actuales", "actual", "informacion", "información",
+        }
+        evidence_terms = set(re.findall(r"[a-záéíóúñ]{4,}", (str(page.get("title") or "") + " " + excerpt).lower()))
+        relevant = bool(terms) and len(terms & evidence_terms) / len(terms) > 0.5
+        if excerpt and source_url and relevant:
             result.append(
                 {
                     "url": source_url,
@@ -263,12 +301,22 @@ def _wikipedia_sources(
 
 
 def _clean_query(query: str) -> str:
-    query = re.sub(
-        r"(?i)\b(busca(?:r)?|investiga(?:r)?|consulta(?:r)?|verifica(?:r)?)\s+(?:en\s+)?(?:la\s+)?(?:internet|web)\b[:\s,-]*",
-        "",
-        query,
-    )
+    query = re.sub(r"(?i)^\s*(?:quiero|necesito)\s+que\s+", "", query)
+    query = _WEB_REQUEST.sub("", query).lstrip(": ,-\t\n")
     return " ".join(query.split())[:300]
+
+
+class _PublicRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # Validate before urllib contacts the redirect target, not afterwards.
+        _assert_public_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _open_public(request: urllib.request.Request, *, timeout: int):
+    return urllib.request.build_opener(_PublicRedirectHandler()).open(
+        request, timeout=timeout
+    )
 
 
 def _download(url: str, *, timeout: int) -> bytes:
@@ -277,7 +325,7 @@ def _download(url: str, *, timeout: int) -> bytes:
         url,
         headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with _open_public(request, timeout=timeout) as response:
         final_url = response.geturl()
         _assert_public_url(final_url)
         content_type = str(response.headers.get("Content-Type") or "").lower()
@@ -294,7 +342,7 @@ def _download_json(url: str, *, timeout: int) -> bytes:
     request = urllib.request.Request(
         url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"}
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with _open_public(request, timeout=timeout) as response:
         _assert_public_url(response.geturl())
         if "json" not in str(response.headers.get("Content-Type") or "").lower():
             raise ValueError("content_type_not_allowed")
@@ -303,7 +351,12 @@ def _download_json(url: str, *, timeout: int) -> bytes:
 
 def _assert_public_url(url: str) -> None:
     parsed = urllib.parse.urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+    ):
         raise ValueError("url_not_allowed")
     host = parsed.hostname.lower()
     if host in {"localhost", "localhost.localdomain"} or host.endswith(".local"):
@@ -319,11 +372,25 @@ def _assert_public_url(url: str) -> None:
 
 
 def _result_urls(page: str) -> list[str]:
+    class ResultParser(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.links = []
+
+        def handle_starttag(self, tag, attrs):
+            values = dict(attrs)
+            if tag == "a" and "result__a" in (values.get("class") or "").split():
+                self.links.append(values.get("href") or "")
+
+    parser = ResultParser()
+    parser.feed(page)
     found: list[str] = []
-    for href in re.findall(r'class="result__a"[^>]+href="([^"]+)"', page):
+    for href in parser.links:
         decoded = html.unescape(href)
         parsed = urllib.parse.urlparse(decoded)
-        if parsed.netloc.endswith("duckduckgo.com"):
+        if parsed.hostname == "duckduckgo.com" or (parsed.hostname or "").endswith(
+            ".duckduckgo.com"
+        ):
             decoded = urllib.parse.parse_qs(parsed.query).get("uddg", [""])[0]
         if decoded.startswith(("http://", "https://")) and decoded not in found:
             found.append(decoded)

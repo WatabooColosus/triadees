@@ -25,6 +25,38 @@ import triade.core.worker_autostart as autostart
 _CONFIG = {"workers_always_on": True, "workers_autostart": True}
 
 
+def test_worker_exit_preserves_lease_wait_reason(monkeypatch):
+    class Service:
+        def __init__(self, **kwargs):
+            pass
+
+        def start(self, **kwargs):
+            return {
+                "status": "locked",
+                "reason": "live_lease",
+                "message": "Reserva vigente",
+                "lease_expires_at": "2026-09-21T21:39:07Z",
+            }
+
+    monkeypatch.setattr(autostart, "WorkerBackgroundService", Service)
+    monkeypatch.setattr(autostart, "_WORKER_STATE", {})
+    monkeypatch.setattr(autostart, "_WORKER_THREAD", None)
+    monkeypatch.setattr(
+        autostart, "_decide_worker_mode", lambda *a: ("cooldown", True, "RAM baja")
+    )
+    monkeypatch.setattr(autostart, "_event", lambda *a, **k: None)
+    monkeypatch.setattr(
+        autostart,
+        "build_workers_always_on_status",
+        lambda **k: dict(autostart._WORKER_STATE),
+    )
+    autostart.ensure_workers_alive(_CONFIG)
+    autostart._WORKER_THREAD.join(timeout=2)
+    assert autostart._WORKER_STATE["status"] == "waiting_for_lease"
+    assert autostart._WORKER_STATE["waiting_reason"] == "Reserva vigente"
+    assert autostart._WORKER_STATE["active"] is False
+
+
 def _call_with_timeout(fn, seconds: float = 20.0) -> bool:
     """`True` si `fn` termina **sin excepción** a tiempo.
 

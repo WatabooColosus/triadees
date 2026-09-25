@@ -200,7 +200,8 @@ class GovernedAutonomousLearningCycle:
             },
         }
         evidence_bundle.write_text(
-            json.dumps(receipt, indent=2, ensure_ascii=False) + "\n"
+            json.dumps(receipt, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
         )
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(

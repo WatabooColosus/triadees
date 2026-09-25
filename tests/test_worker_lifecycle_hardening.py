@@ -48,6 +48,29 @@ def test_pid_reuse_identity_mismatch_recovers_lock(tmp_path: Path) -> None:
     assert not lock.exists()
 
 
+def test_creation_identity_preserves_owner_when_command_line_is_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lock = tmp_path / "worker.lock"
+    payload = json.loads(RuntimeProcessLock.payload(os.getpid()))
+    assert payload["start_time"] is not None
+    lock.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(RuntimeProcessLock, "command_line", lambda pid: "")
+    assert RuntimeProcessLock.inspect(lock).status == "live"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows legacy lock access")
+def test_windows_legacy_live_owner_is_not_stale_when_access_is_denied(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lock = tmp_path / "worker.lock"
+    lock.write_text(json.dumps({"pid": os.getpid()}), encoding="utf-8")
+    monkeypatch.setattr(RuntimeProcessLock, "command_line", lambda pid: "")
+    result = RuntimeProcessLock.inspect(lock)
+    assert result.status == "live"
+    assert result.reason == "process_identity_unavailable"
+
+
 def test_cancellation_token_checkpoint() -> None:
     token = CancellationToken()
     token.checkpoint()

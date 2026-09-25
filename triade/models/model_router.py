@@ -39,18 +39,19 @@ class ModelRouter:
         "evaluator": ["qwen3:4b", "qwen2.5:3b-instruct"],
         "vision": ["gemma3:4b"],
         "summarizer": ["qwen3:1.7b", "qwen2.5:3b-instruct"],
-        "hypothalamus": ["qwen2.5:3b-instruct", "qwen3:1.7b", "qwen3:4b"],
-        "central": ["qwen2.5:3b-instruct", "llama3:latest", "llama3.1:8b", "qwen3:4b"],
+        "hypothalamus": ["qwen2.5:1.5b", "qwen2.5:3b-instruct", "qwen3:1.7b", "qwen3:4b"],
+        "central": ["qwen2.5:1.5b", "qwen2.5:3b-instruct", "llama3:latest", "llama3.1:8b", "qwen3:4b"],
         "creator": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
         "trainer": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
         "coder": ["qwen2.5-coder:3b", "qwen2.5-coder:1.5b-base", "qwen2.5:3b-instruct"],
         "embedding": ["nomic-embed-text:latest", "qwen3-embedding:0.6b"],
-        "fast": ["qwen3:1.7b", "qwen2.5:3b-instruct", "qwen3:4b"],
+        "fast": ["qwen2.5:1.5b", "qwen3:1.7b", "qwen2.5:3b-instruct", "qwen3:4b"],
         "deep": ["llama3.1:8b", "llama3:latest", "qwen3:4b", "qwen2.5:3b-instruct"],
     }
 
     MODEL_RAM_GB: ClassVar = {
         "qwen3:1.7b": 2.5,
+        "qwen2.5:1.5b": 1.8,
         "qwen2.5-coder:1.5b-base": 2.5,
         "qwen2.5:3b-instruct": 4.0,
         "qwen2.5-coder:3b": 4.0,

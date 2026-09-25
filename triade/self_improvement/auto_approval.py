@@ -1,61 +1,23 @@
-"""Cuándo puede la política aprobar una propuesta sin firma humana.
+"""Aprobación de propuestas con confianza finita >= 0,96 (96%).
 
-Existe por dos motivos, y el primero es un fallo de circuito real.
-
-**El circuito estaba muerto.** `MissionPlanner._plan_self_improvement` sólo
-encolaba `self_improvement_evaluation` si ya había propuestas en `approved`, y
-lo único capaz de aprobar sin humano —la política de auto-aprobación— vive
-*dentro* de ese mismo handler. Una propuesta `open` no podía llegar a
-`approved` por sí sola: el código de auto-aprobación era inalcanzable salvo que
-una persona aprobara antes a mano, que es justo lo que la política venía a
-evitar. Medido el 2026-08-10: `improvement_proposals`, `improvement_canaries`,
-`improvement_candidate_links`, `neuron_candidates` y
-`improvement_canary_observations`, todas a cero. No era falta de código: era una
-cadena que no podía empezar.
-
-**Y no había umbral.** La política aprobaba la primera propuesta abierta que
-encontrara, sin mirar la calidad de la señal que la origina. El responsable
-autorizó el 2026-08-11 que Tríade apruebe sola **sólo por encima de 0.9**, así
-que el listón se pone aquí y en un único sitio: si planner y worker decidieran
-por su cuenta, se desincronizarían y volveríamos a tener una cadena que empieza
-y no puede seguir.
-
-Dos condiciones, y las dos tienen que darse:
-
-1. la política está encendida (`TRIADE_SELF_IMPROVEMENT_AUTO_APPROVE`);
-2. la confianza de la señal llega al umbral.
-
-Se mira la **confianza** y no el impacto a propósito. El impacto dice cuánto se
-ganaría si la hipótesis fuera cierta; la confianza dice cuánto sabemos que lo
-es. Aprobar sola una hipótesis de impacto alto y confianza baja es exactamente
-lo que un umbral debe impedir.
-
-**Por qué `requires_human_approval` no bloquea aquí.** Es tentador usarlo como
-tercer candado, y sería un error: ese campo lo exige el store al *crear* una
-propuesta de riesgo alto, no al aprobarla, y el gate duro se movió a
-`stable_promotion_gate` —el paso experimental → estable, que es el
-irreversible— precisamente porque exigir una firma para *proponer* dejaba el
-circuito inerte esperando a alguien y convertía la aprobación en un trámite que
-se firma sin mirar. Bloquear aquí devolvería el circuito a cero justo para el
-caso que existe en producción: la única señal viva es de riesgo alto.
-
-Aprobar abre la puerta a investigar, construir una candidata y medirla en
-sandbox. Nada de eso cambia el organismo. Lo que sí lo cambia sigue pidiendo
-permiso.
+Planner y worker comparten este gate. El entorno puede elevar el umbral,
+pero no reducir el mínimo autorizado el 2026-09-21. Aprobar una propuesta
+permite investigarla y evaluarla; no certifica estabilidad ni cambia el
+gate independiente de promoción estable.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 from dataclasses import dataclass
 from typing import Any
 
 from triade.db import sqlite3
 
-#: Umbral por defecto. El responsable lo autorizó en 0.9 el 2026-08-11 y lo
-#: subió a 0.94 el mismo día.
-DEFAULT_MIN_CONFIDENCE = 0.94
+#: Mínimo autorizado el 2026-09-21: 0,96 en escala 0–1 (96%).
+DEFAULT_MIN_CONFIDENCE = 0.96
 
 #: Quién figura como aprobador cuando decide la política.
 #:
@@ -114,7 +76,7 @@ def min_confidence() -> float:
         return DEFAULT_MIN_CONFIDENCE
     if not 0.0 <= value <= 1.0:
         return DEFAULT_MIN_CONFIDENCE
-    return value
+    return max(DEFAULT_MIN_CONFIDENCE, value)
 
 
 def _loads(raw: Any) -> dict[str, Any]:
@@ -144,6 +106,15 @@ def evaluate(
     except (TypeError, ValueError):
         return AutoApprovalDecision(
             False, "la señal no declara confianza medible", None, threshold
+        )
+
+    if (
+        isinstance(raw_confidence, bool)
+        or not math.isfinite(confidence)
+        or not 0 <= confidence <= 1
+    ):
+        return AutoApprovalDecision(
+            False, "la confianza debe ser finita y estar entre 0 y 1", None, threshold
         )
 
     if confidence < threshold:

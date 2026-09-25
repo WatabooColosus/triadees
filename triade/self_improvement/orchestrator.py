@@ -40,6 +40,7 @@ class SelfImprovementOrchestrator:
         version: str,
         configuration: dict[str, Any],
         evaluation_provider: EvaluationProvider,
+        code_source: str | None = None,
         canary_traffic_percent: int = 10,
         canary_tolerance: float = 0.02,
         canary_min_observations: int = 3,
@@ -52,7 +53,11 @@ class SelfImprovementOrchestrator:
         )
         candidate_id = linked["candidate"]["candidate_id"]
         try:
-            artifact = self.execution.execute_configuration(candidate_id, configuration)
+            artifact = (
+                self.execution.execute_code(candidate_id, code_source)
+                if code_source is not None
+                else self.execution.execute_configuration(candidate_id, configuration)
+            )
             return self._evaluate_candidate(
                 proposal_id,
                 candidate_id,

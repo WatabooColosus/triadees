@@ -17,9 +17,9 @@ from .store import NeuronSpecificationStore
 
 
 class SandboxExecutionEngine:
-    """Ejecuta políticas declarativas; no permite código arbitrario."""
+    """Ejecuta configuración o Python aislado, según la política especificada."""
 
-    SUPPORTED_POLICIES: ClassVar = {"configuration"}
+    SUPPORTED_POLICIES: ClassVar = {"configuration", "python_code"}
 
     def __init__(self, db_path: str | Path = "triade/memory/triade.db") -> None:
         self.db_path = Path(db_path)
@@ -55,7 +55,7 @@ class SandboxExecutionEngine:
         if candidate.get("status") != "created":
             raise ValueError("el candidato no está disponible para ejecución")
         policy = str(candidate.get("training_policy") or "")
-        if policy not in self.SUPPORTED_POLICIES:
+        if policy != "configuration":
             raise ValueError(f"política no soportada: {policy}")
         if not isinstance(configuration, dict) or not configuration:
             raise ValueError("la configuración debe ser un objeto no vacío")
@@ -90,6 +90,37 @@ class SandboxExecutionEngine:
             # campo que esperaba tenía este nombre exacto desde el principio.
             "started_at": utc_now(),
         }
+        return self._record_execution(candidate, artifact, started)
+
+    def execute_code(self, candidate_id: str, source: str) -> dict[str, Any]:
+        from triade.sandbox.code_execution import DockerCodeSandbox
+
+        candidate = self.candidates.get(candidate_id)
+        if candidate is None:
+            raise KeyError(f"candidato no registrado: {candidate_id}")
+        if candidate.get("status") != "created":
+            raise ValueError("el candidato no está disponible para ejecución")
+        if candidate.get("training_policy") != "python_code":
+            raise ValueError("la especificación no autoriza la política python_code")
+        started = time.perf_counter()
+        started_at = utc_now()
+        root = Path(__file__).resolve().parents[2] / "artifacts" / "neuron_sandboxes"
+        receipt = DockerCodeSandbox(root).execute(source, candidate["resource_budget"])
+        artifact = {
+            "execution_id": f"execution-{uuid.uuid4().hex}",
+            "candidate_id": candidate_id,
+            "sandbox_id": candidate["sandbox_id"],
+            "policy": "python_code",
+            "status": "completed",
+            "started_at": started_at,
+            "code_execution": receipt,
+        }
+        return self._record_execution(candidate, artifact, started)
+
+    def _record_execution(
+        self, candidate: dict[str, Any], artifact: dict[str, Any], started: float
+    ) -> dict[str, Any]:
+        candidate_id = candidate["candidate_id"]
         canonical = json.dumps(artifact, sort_keys=True, separators=(",", ":"))
         artifact["sha256"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
         duration_ms = max(0, int((time.perf_counter() - started) * 1000))

@@ -1126,6 +1126,12 @@ class TriadeRunner:
                     output.response.rstrip()
                     + f"\n\nObjetivo {goal_id} bloqueado de forma segura: {reason}"
                 )
+        from .guarded_web import web_failure_response
+
+        web_failure = web_failure_response(input_packet.user_input, web_research)
+        if web_failure and output.status not in {"blocked", "pending_approval", "sandbox"}:
+            output.response = web_failure
+            output.actions_taken.append("guarded_web_missing_evidence")
         output_gate["expression_cortex"] = {
             "expression_mode": expression_result["expression_mode"],
             "internal_context_used": expression_result["internal_context_used"],

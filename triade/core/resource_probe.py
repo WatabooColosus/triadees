@@ -8,6 +8,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from triade.core.accelerator_probe import probe_battery, probe_nvidia
+
 
 def _linux_load_avg() -> dict[str, Any]:
     try:
@@ -153,7 +155,20 @@ def build_resource_probe() -> dict[str, Any]:
 
     # GPU
     gpus_raw = hw_dict.get("gpus", [])
+    # En Windows el perfil puede no resolver WMIC aunque nvidia-smi sí tenga
+    # telemetría. Expón ese dispositivo observado sin inventar VRAM.
+    gpu_telemetry = probe_nvidia()
+    if not gpus_raw and gpu_telemetry.get("status") == "ok":
+        gpus_raw = [
+            {
+                "name": "NVIDIA GPU",
+                "vendor": "NVIDIA",
+                "vram_total_gb": float(device.get("total_mib") or 0) / 1024,
+            }
+            for device in gpu_telemetry.get("devices", [])
+        ]
     gpu_info = {
+        "telemetry": gpu_telemetry,
         "count": len(gpus_raw),
         "devices": [
             {
@@ -170,7 +185,7 @@ def build_resource_probe() -> dict[str, Any]:
     power = (
         _linux_power()
         if platform.system().lower() == "linux"
-        else {"ac_connected": None, "battery_percent": None, "power_source": "unknown"}
+        else probe_battery()
     )
 
     # Thermal

@@ -121,7 +121,7 @@ export function PulseCard({ data, onCycle, onStart, onStop }: {
         workers: data.workers_active ? 'activos' : 'inactivos',
         background: bgOn ? 'vivo' : 'inactivo',
         ultima_accion: data.latest_action?.slice(0, 60),
-        ultimo_error: data.latest_error?.slice(0, 60),
+        ultimo_error_registrado: data.latest_error?.slice(0, 60),
       }} />
       <Controls runtimeOn={runtimeOn} bgOn={bgOn} onCycle={onCycle} onStart={onStart} onStop={onStop} />
     </Card>
@@ -214,7 +214,7 @@ export function OllamaBloodCard({ data }: { data: any }) {
     <Card title="Sangre Cognitiva" color={active ? '#22c55e' : degraded ? '#eab308' : '#ef4444'}>
       {active ? (
         <div style={{ padding: '8px 10px', marginBottom: 8, borderRadius: 6, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', fontSize: 12, color: '#bbf7d0' }}>
-          Sangre cognitiva activa.
+          Proveedor de modelos disponible. El modo efectivo de recursos puede limitar su uso.
         </div>
       ) : degraded ? (
         <div style={{ padding: '8px 10px', marginBottom: 8, borderRadius: 6, background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)', fontSize: 12, color: '#fde047' }}>
@@ -328,7 +328,7 @@ export function ProcessStatusCard({ data }: { data: any }) {
         misiones_hora: data.missions_executed_last_hour,
         background: data.background_thread_alive ? 'vivo' : 'inactivo',
         ultima_accion: data.latest_action,
-        ultimo_error: data.latest_error,
+        ultimo_error_registrado: data.latest_error,
       }} />
     </Card>
   )
@@ -407,6 +407,9 @@ export function TechnicalDebtCard({ data }: { data: any }) {
   const color = score >= 70 ? '#22c55e' : score >= 40 ? '#eab308' : '#ef4444'
   return (
     <Card title={`Deuda Técnica · Score ${score}/100`} color={color}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+        Revisión del repositorio. Este score no certifica actividad de workers, aprendizaje ni estabilidad del runtime.
+      </div>
       <KVTable data={{
         deudas: data.debts_count,
         advertencias: data.warnings_count,
@@ -509,6 +512,8 @@ export function WorkersAlwaysOnCard({
         modo_efectivo: data.mode_effective,
         estado: data.status,
         reinicios: data.restart_attempts,
+        motivo_espera: data.waiting_reason || '—',
+        reserva_hasta: data.lease_expires_at || '—',
         ultimo_error: data.last_error || 'ninguno',
       }} />
       <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
@@ -529,6 +534,9 @@ export function ResourcesCard({ data }: { data: any }) {
   const cpu = rp.cpu || {}
   const power = rp.power || {}
   const thermal = rp.thermal || {}
+  const gpu = rp.gpu || {}
+  const gpuTelemetry = gpu.telemetry || {}
+  const gpuDevice = gpuTelemetry.devices?.[0] || {}
   const warnings = rp.warnings || []
 
   const diskFree = disk.free_gb ?? 0
@@ -542,6 +550,8 @@ export function ResourcesCard({ data }: { data: any }) {
         cpu: `${cpu.count} núcleos${cpu.load_1min != null ? ` · load ${cpu.load_1min}` : ''}`,
         ram_libre: `${memAvail} GB`,
         disco_libre: `${diskFree} GB`,
+        gpu: gpuDevice.name || gpu.devices?.[0]?.name || 'no detectada',
+        vram_libre: gpuDevice.free_mib != null ? `${(gpuDevice.free_mib / 1024).toFixed(2)} GB` : '—',
       }} />
       <div style={{ marginTop: 6, display: 'flex', gap: '0 16px', flexWrap: 'wrap' }}>
         <div style={{ fontSize: 11, color: memColor }}>● RAM {memAvail}GB libre</div>
@@ -555,6 +565,11 @@ export function ResourcesCard({ data }: { data: any }) {
       {thermal.temperature_celsius != null && (
         <div style={{ fontSize: 11, color: thermal.thermal_status === 'critical' ? '#ef4444' : thermal.thermal_status === 'high' ? '#eab308' : 'var(--text-muted)' }}>
           🌡 {thermal.temperature_celsius}°C {thermal.thermal_status !== 'ok' ? `(${thermal.thermal_status})` : ''}
+        </div>
+      )}
+      {gpuTelemetry.status === 'ok' && gpuDevice.free_mib != null && (
+        <div style={{ marginTop: 4, fontSize: 11, color: gpuDevice.temperature_celsius >= 85 ? '#ef4444' : gpuDevice.temperature_celsius >= 75 ? '#eab308' : 'var(--text-muted)' }}>
+          ◈ GPU {gpuDevice.utilization_percent ?? 0}% · VRAM {(gpuDevice.free_mib / 1024).toFixed(2)} GB libre · {gpuDevice.temperature_celsius ?? '—'}°C
         </div>
       )}
       {warnings.length > 0 && (
@@ -892,7 +907,7 @@ export function SupervisionCard({ data }: { data: any }) {
   } else if (alwaysOn === false) {
     color = '#ef4444'
     label = 'No garantizado'
-    msg = 'Responde ahora, pero no hay quien lo levante si muere'
+    msg = 'El arranque automático de esta API no está verificado; revisa los motivos.'
   }
 
   // 0 caído, 1 sano, más de 1 es instancia duplicada -- los tres casos tienen
@@ -942,8 +957,8 @@ export function SupervisionCard({ data }: { data: any }) {
           gestor: data.service_manager || 'ninguno',
           unit: data.unit,
           estado_unit: data.service_state || '—',
-          bajo_supervision: data.service_managed ? 'sí' : 'no',
-          autoarranque: data.autostart_enabled ? 'habilitado' : 'no',
+          bajo_supervision: data.service_managed == null ? 'sin verificar' : data.service_managed ? 'sí' : 'no',
+          autoarranque: data.autostart_enabled == null ? 'sin verificar' : data.autostart_enabled ? 'habilitado' : 'no',
           arranque_manual_necesario: data.manual_start_required ? 'sí' : 'no',
           pid: data.runtime_pid ?? '—',
           uptime: uptimeLabel,

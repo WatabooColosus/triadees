@@ -321,7 +321,13 @@ class WorkerLoop:
                 "status": "locked",
                 "lock_file": str(self.lock_file),
                 "pid": recovery.get("pid"),
-                "message": "Worker ya está en ejecución.",
+                "reason": recovery.get("reason", "live_owner"),
+                "lease_expires_at": recovery.get("lease_expires_at"),
+                "message": (
+                    "Reserva de ejecución vigente; esperando recuperación."
+                    if recovery.get("reason") == "live_lease"
+                    else "Worker ya está en ejecución."
+                ),
             }
         # Atomic lock: O_CREAT|O_EXCL evita carrera TOCTOU entre múltiples instancias.
         try:
@@ -2179,6 +2185,7 @@ class WorkerLoop:
                     configuration=dict(
                         payload.get("configuration") or {"mode": "safe"}
                     ),
+                    code_source=payload.get("code_source"),
                     **common,
                 )
         except (ValueError, KeyError) as exc:

@@ -137,8 +137,23 @@ class CanonicalTaskArtifacts:
         return self.path.parent / f".{self.task_id}.{uuid4().hex}.staging"
 
     def publish(self, staging_path: Path) -> None:
+        source = staging_path.resolve()
+        destination = self.path.resolve()
+        if source.parent != destination.parent:
+            raise ValueError("staging_must_share_canonical_parent")
         if self.path.exists():
             raise FileExistsError(f"canonical_artifact_path_exists:{self.path}")
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+
+            move = ctypes.WinDLL("kernel32", use_last_error=True).MoveFileExW
+            move.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
+            move.restype = wintypes.BOOL
+            # MOVEFILE_WRITE_THROUGH; sin reemplazar evidencia existente.
+            if not move(str(source), str(destination), 0x8):
+                raise ctypes.WinError(ctypes.get_last_error())
+            return
         os.replace(staging_path, self.path)
         directory_fd = os.open(self.path.parent, os.O_RDONLY)
         try:

@@ -130,7 +130,7 @@ def test_running_with_artifact_completes(tmp_path: Path):
     assert store.get(task["task_id"])["status"] == "completed"
 
 
-def test_running_without_artifact_goes_uncertain(tmp_path: Path):
+def test_running_without_artifact_is_quarantined_in_same_recovery(tmp_path: Path):
     store = AutonomousTaskStore(tmp_path / "tasks.db")
     task = store.enqueue(
         "experimental_neuron_activity", {}, idempotency_key="running-no-artifact"
@@ -141,7 +141,8 @@ def test_running_without_artifact_goes_uncertain(tmp_path: Path):
     _expire_lease(tmp_path / "tasks.db", task["task_id"])
     result = store.recover_orphaned_tasks()
     assert result["running_uncertain"] >= 1
-    assert store.get(task["task_id"])["status"] == "completion_uncertain"
+    assert store.get(task["task_id"])["status"] == "dead_letter"
+    assert result["uncertain_quarantined"] == 1
     assert "recovery:no_artifact_found" in (
         store.get(task["task_id"]).get("last_error") or ""
     )
@@ -443,7 +444,7 @@ def test_recovered_task_dedup_unblocks_enqueue(tmp_path: Path):
     )
     assert fresh is not None
     recovered = store.get(task["task_id"])
-    assert recovered["status"] in ("completed", "completion_uncertain")
+    assert recovered["status"] in ("completed", "dead_letter")
 
 
 # ── Test: retry_after respected by claim ────────────────────────────
@@ -549,7 +550,7 @@ def test_end_to_end_recovery_scenario(tmp_path: Path):
 
     # 4. Verificar tratamiento diferencial
     assert store.get(t_leased["task_id"])["status"] == "recovered"
-    assert store.get(t_running["task_id"])["status"] == "completion_uncertain"
+    assert store.get(t_running["task_id"])["status"] == "dead_letter"
     assert store.get(t_retry["task_id"])["status"] == "retry_wait"
     assert store.get(t_deferred["task_id"])["status"] == "deferred"
     assert store.get(t_completed["task_id"])["status"] == "completed"

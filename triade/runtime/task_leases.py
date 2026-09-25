@@ -836,7 +836,7 @@ class AutonomousTaskStore:
 
         Tratamiento por estado:
         - leased: → recovered si lock stale/inexistente o lease expirado
-        - running: clasifica → recovered (solo lectura) o completion_uncertain (efectos)
+        - running: completed con artefacto; dead_letter sin evidencia de finalización
         - retry_wait: preserva status, attempt, retry_after, last_error
         - deferred: preserva status, retry_after
         - completion_uncertain: reconcilia artifacts existentes; mantiene si ambiguo
@@ -909,7 +909,7 @@ class AutonomousTaskStore:
 
                 if not expired:
                     conn.commit()
-                    return {"status": "live_lease", **result}
+                    return {"status": "live_lease", "lease_expires_at": expires, **result}
 
                 # Mismo motivo que en `recover_expired`: sin intentos, `recovered`
                 # es una vía muerta que además bloquea el dedup de su tipo.
@@ -949,7 +949,7 @@ class AutonomousTaskStore:
 
                 if not expired:
                     conn.commit()
-                    return {"status": "live_lease", **result}
+                    return {"status": "live_lease", "lease_expires_at": expires, **result}
 
                 ref = str(row["result_ref"] or "")
                 has_artifact = ref and Path(ref).is_file()
@@ -972,9 +972,9 @@ class AutonomousTaskStore:
                     result["running_recovered"] += 1
                 else:
                     conn.execute(
-                        """UPDATE autonomous_tasks SET status='completion_uncertain',
+                        """UPDATE autonomous_tasks SET status='dead_letter',
                         last_error=COALESCE(last_error||'; ','')||'recovery:no_artifact_found',
-                        updated_at=?
+                        lease_expires_at=NULL,updated_at=?
                         WHERE task_id=? AND status='running'""",
                         (now_iso, tid),
                     )
@@ -983,10 +983,11 @@ class AutonomousTaskStore:
                         wid,
                         lgen,
                         "running",
-                        "completion_uncertain",
+                        "dead_letter",
                         "recovery_no_artifact",
                     )
                     result["running_uncertain"] += 1
+                    result["uncertain_quarantined"] += 1
                 result["fencing_invalidated"] += 1
 
             # ── 5. retry_wait: preservar, solo limpiar owner ───────

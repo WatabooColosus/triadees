@@ -94,6 +94,9 @@ def enrich_research(
             research = engine.ingest_result(
                 user_input, existing, trigger="explicit_request"
             )
+        elif isinstance(existing, dict):
+            # Explicit search already attempted; do not spend a second API credit.
+            research = existing
         else:
             should, trigger = engine.should_research(
                 user_input,

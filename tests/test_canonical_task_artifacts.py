@@ -98,3 +98,28 @@ def test_missing_artifact_prevents_completion(tmp_path: Path) -> None:
 def test_legacy_id_is_metadata_only(tmp_path: Path) -> None:
     artifacts = _finalize(tmp_path, "task-v2")
     assert artifacts.path == tmp_path / "run-1" / "tasks" / "task-v2"
+
+
+def test_publish_moves_staging_and_preserves_existing_evidence(tmp_path):
+    artifacts = CanonicalTaskArtifacts(tmp_path / "run", "task-publish")
+    staging = artifacts.staging_path()
+    staging.mkdir(parents=True)
+    (staging / "result.json").write_text("first", encoding="utf-8")
+    artifacts.publish(staging)
+    assert not staging.exists()
+    replacement = artifacts.staging_path()
+    replacement.mkdir()
+    (replacement / "result.json").write_text("second", encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        artifacts.publish(replacement)
+    assert (artifacts.path / "result.json").read_text(encoding="utf-8") == "first"
+    assert replacement.exists()
+
+
+def test_publish_rejects_unrelated_directory(tmp_path):
+    artifacts = CanonicalTaskArtifacts(tmp_path / "run", "task-publish")
+    outside = tmp_path / "unrelated"
+    outside.mkdir()
+    with pytest.raises(ValueError, match="canonical_parent"):
+        artifacts.publish(outside)
+    assert outside.exists()

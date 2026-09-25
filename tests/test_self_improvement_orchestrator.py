@@ -15,7 +15,7 @@ from triade.self_improvement.orchestrator import SelfImprovementOrchestrator
 from triade.self_improvement.store import ImprovementStore
 
 
-def prepare(db_path: Path) -> None:
+def prepare(db_path: Path, training_policy: str = "configuration") -> None:
     improvements = ImprovementStore(db_path)
     improvements.register_signal(
         ImprovementSignal(
@@ -56,6 +56,7 @@ def prepare(db_path: Path) -> None:
         provides_capabilities=("research_verified",),
         evaluation_suites=("quality-suite@1.0.0",),
         rollback_policy="automatic-canary",
+        training_policy=training_policy,
         resource_budget=ResourceBudget(256, 60, 16),
     )
     specifications.register(specification)
@@ -82,6 +83,38 @@ def run(candidate_id: str, score: float, evaluation_id: str) -> EvaluationRun:
         aggregate_score=score,
         created_at="2026-07-12T00:00:00Z",
     )
+
+
+def test_code_candidate_still_requires_independent_evaluation(tmp_path, monkeypatch):
+    from triade.sandbox.code_execution import DockerCodeSandbox
+
+    db = tmp_path / "triade.db"
+    prepare(db, training_policy="python_code")
+    monkeypatch.setattr(
+        DockerCodeSandbox,
+        "execute",
+        lambda *a, **k: {"exit_code": 0, "quality_verified": False},
+    )
+    orchestrator = SelfImprovementOrchestrator(db)
+
+    def evaluator(candidate_id, artifact):
+        assert artifact["policy"] == "python_code"
+        assert artifact["code_execution"]["quality_verified"] is False
+        return (
+            run(candidate_id, 0.9, "baseline"),
+            run(candidate_id, 0.5, "candidate"),
+            (MetricPolicy("quality", severity="high"),),
+        )
+
+    result = orchestrator.run_once(
+        "proposal-quality",
+        neuron_id="neuron.research.improved",
+        version="1.0.0",
+        configuration={},
+        code_source="print('success')",
+        evaluation_provider=evaluator,
+    )
+    assert result["status"] == "quarantined"
 
 
 def test_complete_cycle_reaches_canary(tmp_path: Path) -> None:

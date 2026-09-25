@@ -87,9 +87,13 @@ class NeuronRegistry:
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+        # Pulsos y workers comparten SQLite; espera brevemente en vez de
+        # convertir una colisión normal de ciclos en una excepción.
+        conn = sqlite3.connect(self.db_path, timeout=30)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA busy_timeout = 30000;")
+        conn.execute("PRAGMA journal_mode = WAL;")
         return conn
 
     def _init_db(self) -> None:

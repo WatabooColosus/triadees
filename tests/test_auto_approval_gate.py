@@ -1,24 +1,7 @@
-"""El circuito de automejora no podía empezar, y el umbral no existía.
+"""El planner y el worker comparten el mínimo autorizado de 0,96.
 
-Dos fallos encadenados, medidos el 2026-08-10 con todas estas tablas a cero:
-`improvement_proposals`, `improvement_candidate_links`, `improvement_canaries`,
-`improvement_canary_observations`, `neuron_candidates`.
-
-1. **La cadena no podía empezar.** `MissionPlanner._plan_self_improvement` sólo
-   encolaba `self_improvement_evaluation` cuando ya había propuestas
-   `approved`. Pero lo único que aprueba sin humano vive *dentro* de ese
-   handler, así que una propuesta `open` no podía llegar a `approved` por sí
-   sola. El código de auto-aprobación era inalcanzable salvo que una persona
-   aprobara antes a mano — justo lo que la política venía a evitar.
-
-2. **No había listón.** Cuando la tarea llegaba a ejecutarse, aprobaba la
-   primera propuesta abierta que encontrara sin mirar la calidad de la señal.
-
-El responsable autorizó el 2026-08-11 la aprobación autónoma **sólo por encima
-de 0.94**. Lo que se comprueba aquí es que ese listón se aplica, que no se puede
-rodear por la puerta de atrás, y que un rechazo gobernado deja rastro en vez de
-silencio: una propuesta que no pasa el umbral no es un fallo del circuito, es el
-circuito funcionando.
+No se aprueban señales ausentes, inválidas o inferiores al umbral, y una
+variable de entorno no puede rebajar el mínimo confirmado el 2026-09-21.
 """
 
 from __future__ import annotations
@@ -43,11 +26,11 @@ def test_confianza_alta_se_aprueba_sola() -> None:
     decision = auto_approval.evaluate(_ABIERTA, {"confidence": 0.96})
     assert decision.allowed is True
     assert decision.confidence == 0.96
-    assert decision.threshold == 0.94
+    assert decision.threshold == 0.96
 
 
 def test_justo_en_el_umbral_pasa() -> None:
-    assert auto_approval.evaluate(_ABIERTA, {"confidence": 0.94}).allowed is True
+    assert auto_approval.evaluate(_ABIERTA, {"confidence": 0.96}).allowed is True
 
 
 def test_confianza_baja_se_rechaza_y_lo_dice() -> None:
@@ -55,7 +38,7 @@ def test_confianza_baja_se_rechaza_y_lo_dice() -> None:
     decision = auto_approval.evaluate(_ABIERTA, {"confidence": 0.4})
     assert decision.allowed is False
     assert "0.40" in decision.reason
-    assert "0.94" in decision.reason
+    assert "0.96" in decision.reason
 
 
 def test_impacto_alto_no_compensa_confianza_baja() -> None:
@@ -122,7 +105,9 @@ def test_la_autorizacion_permanente_no_borra_el_prefijo_automatico(
 
 def test_umbral_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TRIADE_SELF_IMPROVEMENT_AUTO_APPROVE_MIN_CONFIDENCE", "0.5")
-    assert auto_approval.evaluate(_ABIERTA, {"confidence": 0.6}).allowed is True
+    assert auto_approval.evaluate(_ABIERTA, {"confidence": 0.6}).allowed is False
+    monkeypatch.setenv("TRIADE_SELF_IMPROVEMENT_AUTO_APPROVE_MIN_CONFIDENCE", "0.99")
+    assert auto_approval.evaluate(_ABIERTA, {"confidence": 0.98}).allowed is False
 
 
 @pytest.mark.parametrize("valor", ["", "no-es-un-numero", "1.5", "-0.2"])
@@ -131,9 +116,14 @@ def test_umbral_ilegible_no_baja_el_liston(
 ) -> None:
     """Un valor roto en el entorno no puede convertirse en «apruébalo todo»."""
     monkeypatch.setenv("TRIADE_SELF_IMPROVEMENT_AUTO_APPROVE_MIN_CONFIDENCE", valor)
-    assert auto_approval.min_confidence() == 0.94
+    assert auto_approval.min_confidence() == 0.96
     assert auto_approval.evaluate(_ABIERTA, {"confidence": 0.5}).allowed is False
 
 
 def test_el_aprobador_nunca_se_firma_como_humano() -> None:
     assert auto_approval.POLICY_APPROVER.startswith("auto:")
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -1, 1.1, True, False])
+def test_invalid_confidence_never_approves(value):
+    assert not auto_approval.evaluate(_ABIERTA, {"confidence": value}).allowed

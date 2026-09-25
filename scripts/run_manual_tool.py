@@ -16,6 +16,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# Este archivo es el lanzador explícito de las herramientas manuales. El grafo
+# debe distinguirlo de un __main__ abandonado: sólo se ejecuta bajo demanda.
+TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
 TOOLS: dict[str, str] = {
     "metacognition": "scripts/run_phase_07_metacognition.py",
     "memory_longitudinal": "scripts/run_phase_05_memory_longitudinal.py",

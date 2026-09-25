@@ -140,7 +140,7 @@ def ensure_workers_alive(
     def _run() -> None:
         try:
             service = WorkerBackgroundService(db_path=db_path, runs_dir=runs_dir)
-            service.start(
+            result = service.start(
                 max_iterations=1_000_000,
                 sleep_seconds=20.0,
                 dry_run=False,
@@ -150,7 +150,18 @@ def ensure_workers_alive(
             )
             with _WORKER_LOCK:
                 if _WORKER_STATE.get("status") != "stop_requested":
-                    _WORKER_STATE.update({"active": False, "status": "completed"})
+                    _WORKER_STATE.update(
+                        {
+                            "active": False,
+                            "status": "waiting_for_lease"
+                            if result.get("reason") == "live_lease"
+                            else result.get("status", "completed"),
+                            "last_result": result.get("status"),
+                            "waiting_reason": result.get("message")
+                            or result.get("reason"),
+                            "lease_expires_at": result.get("lease_expires_at"),
+                        }
+                    )
         except (
             OSError,
             ImportError,
@@ -180,8 +191,10 @@ def ensure_workers_alive(
             _WORKER_THREAD = thread
             _WORKER_STATE.update(
                 {
-                    "active": True,
-                    "status": "running",
+                    "active": thread.is_alive(),
+                    "status": "running"
+                    if thread.is_alive()
+                    else _WORKER_STATE.get("status", "inactive"),
                     "last_start_at": datetime.now(UTC).isoformat(),
                     "last_error": None,
                 }
@@ -244,7 +257,15 @@ def build_workers_always_on_status(
     elif (
         state.get("configured")
         and not active
-        and state.get("status") not in ("starting", "failed", "stop_requested")
+        and state.get("status")
+        not in (
+            "starting",
+            "failed",
+            "stop_requested",
+            "waiting_for_lease",
+            "blocked",
+            "locked",
+        )
     ):
         state["status"] = "inactive"
     state["thread_alive"] = thread_alive

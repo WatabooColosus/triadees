@@ -25,6 +25,63 @@ import pytest
 
 from triade.runtime import service_supervision as svc
 
+
+@pytest.fixture(autouse=True)
+def platform_is_explicit(monkeypatch):
+    monkeypatch.setattr(svc, "_WINDOWS", False)
+
+
+def test_windows_task_existence_does_not_certify_listener(monkeypatch):
+    monkeypatch.setattr(svc, "_run", lambda *a: None)
+    monkeypatch.setattr(svc, "_WINDOWS", True)
+    monkeypatch.setattr(svc, "_systemctl_show", lambda *a: {})
+    monkeypatch.setattr(
+        svc,
+        "_windows_task_snapshot",
+        lambda: {"known": True, "name": "TriadeOmegaSystem", "autostart_enabled": True},
+    )
+    monkeypatch.setattr(svc, "_listener_pids", lambda *a: [42])
+    monkeypatch.setattr(svc, "_listener_count", lambda *a: 1)
+    result = svc.build_service_supervision()
+    assert result["always_on"] is False
+    assert result["service_managed"] is None
+    assert result["unit"] == "TriadeOmegaSystem"
+
+
+@pytest.mark.parametrize("linked,event_age,expected", [(True, 0, True), (False, 0, False), (True, 60, False)])
+def test_windows_ownership_requires_matching_launch_event(monkeypatch, linked, event_age, expected):
+    import json
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    import psutil
+
+    script = str(svc.Path(svc.__file__).resolve().parents[2] / "scripts" / "triade_service_worker.ps1")
+    parent = SimpleNamespace(pid=10, create_time=lambda: 1000, cmdline=lambda: ["powershell.exe", "-File", script])
+    api = SimpleNamespace(parent=lambda: parent, create_time=lambda: 1001)
+    monkeypatch.setattr(psutil, "Process", lambda pid: api)
+    snapshot = {"state": 4, "engine_pids": [], "launch_events": [{"pid": 10 if linked else 99, "at": datetime.fromtimestamp(1000 + event_age, UTC).isoformat()}]}
+    monkeypatch.setattr(svc, "_run", lambda args: json.dumps(snapshot))
+    result = svc._windows_ownership({"known": True, "name": "TriadeOmegaSystem", "action_arguments": script}, 42)
+    assert result["managed"] is expected
+
+
+@pytest.mark.parametrize(
+    "enabled,trigger,expected",
+    [
+        ("false", "BootTrigger", False),
+        ("true", "LogonTrigger", True),
+        ("true", "BootTrigger", True),
+    ],
+)
+def test_windows_boot_requires_enabled_boot_trigger(
+    monkeypatch, enabled, trigger, expected
+):
+    xml = f'<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Settings><Enabled>{enabled}</Enabled></Settings><Triggers><{trigger}><Enabled>true</Enabled></{trigger}></Triggers></Task>'
+    monkeypatch.setattr(svc, "_run", lambda *a: xml)
+    assert svc._windows_task_snapshot()["autostart_enabled"] is expected
+
+
 _ACTIVE_UNIT = {
     "LoadState": "loaded",
     "ActiveState": "active",

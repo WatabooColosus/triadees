@@ -9,6 +9,10 @@ $env:TRIADE_POST_RUN_LEARNING = "1"
 # aprendizaje en segundo plano sin lanzar tres tareas pesadas a la vez.
 $env:TRIADE_WORKER_CONCURRENCY = "0"
 $env:TRIADE_PUBLIC_GUARDED = "true"
+# La cabina realiza sondeos autenticados de varias vistas. Este límite evita
+# que la reconexión de la interfaz produzca una tormenta 429, manteniendo el
+# guardado de sesión y los controles de autorización intactos.
+$env:TRIADE_RATE_LIMIT_PER_MINUTE = "300"
 $env:TRIADE_BACKUP_KEY_FILE = Join-Path $env:LOCALAPPDATA "Triade\backup.key"
 if (Test-Path $env:TRIADE_BACKUP_KEY_FILE) {
     $env:TRIADE_BACKUP_KEY = (Get-Content -Raw $env:TRIADE_BACKUP_KEY_FILE).Trim()
@@ -16,8 +20,8 @@ if (Test-Path $env:TRIADE_BACKUP_KEY_FILE) {
 }
 Set-Location $repo
 $worker = Join-Path $repo "scripts\triade_service_worker.ps1"
-Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @(
-    "-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass",
-    "-File", $worker
-) | Out-Null
-exit 0
+# Mantener esta tarea viva une el proceso de la tarea con el supervisor. Un
+# Start-Process desacoplado hacía que Windows registrara éxito aunque la API
+# quedara huérfana, impidiendo verificar Always-On.
+& powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $worker
+exit $LASTEXITCODE

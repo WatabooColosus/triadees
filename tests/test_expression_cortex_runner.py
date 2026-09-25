@@ -199,6 +199,19 @@ def test_factual_question_no_triade_dump(tmp_path: Path, monkeypatch) -> None:
     assert "sustentación" in result["response"].lower()
 
 
+def test_failed_web_query_does_not_publish_stale_model_answer(tmp_path, monkeypatch):
+    runner = _runner(tmp_path)
+    _wire(monkeypatch, runner, response="No tengo internet. El presidente actual es Antiguo.")
+    monkeypatch.setattr(
+        "triade.core.guarded_web.guarded_web_research",
+        lambda *args, **kwargs: {"status": "error", "sources": []},
+    )
+    result = runner.run("quiero que busques en internet los presidentes actuales")
+    assert "No puedo confirmar los datos actuales" in result["response"]
+    assert "Antiguo" not in result["response"]
+    assert "No tengo internet" not in result["response"]
+
+
 def test_diagnostic_question_allows_summary_not_raw_dump(
     tmp_path: Path, monkeypatch
 ) -> None:

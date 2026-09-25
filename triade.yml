@@ -4,8 +4,10 @@ models:
   timeout: 180
   fallback_enabled: true
   roles:
-    hypothalamus: qwen2.5:3b-instruct
-    central: qwen2.5:3b-instruct
+    # Modelo de continuidad: mantiene el organismo vivo con poca RAM.
+    # Los modelos 3B/4B siguen disponibles para trabajos profundos puntuales.
+    hypothalamus: qwen2.5:1.5b
+    central: qwen2.5:1.5b
 
 runtime:
   # `conversation_only` cortocircuitaba el lifespan (sin workers, sin runner

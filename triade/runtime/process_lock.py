@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+import psutil
+
 
 @dataclass(frozen=True, slots=True)
 class LockInspection:
@@ -47,6 +49,11 @@ class RuntimeProcessLock:
 
     @staticmethod
     def command_line(pid: int) -> str:
+        if os.name == "nt":
+            try:
+                return " ".join(psutil.Process(pid).cmdline())
+            except psutil.Error:
+                return ""
         try:
             return (
                 Path(f"/proc/{pid}/cmdline")
@@ -67,6 +74,12 @@ class RuntimeProcessLock:
         que usa `ps`), a diferencia de un token constante que nunca puede
         distinguir procesos reales entre sí.
         """
+        if os.name == "nt":
+            try:
+                # Stable process creation identity; Windows has no /proc.
+                return int(psutil.Process(pid).create_time() * 1_000_000)
+            except psutil.Error:
+                return None
         try:
             raw = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
             # El campo "comm" (2do campo) va entre paréntesis y puede
@@ -125,6 +138,10 @@ class RuntimeProcessLock:
                 return LockInspection(
                     "stale", pid, "process_identity_mismatch", owner_run
                 )
+            if recorded_start_int is not None and recorded_start_int == actual_start:
+                return LockInspection(
+                    "live", pid, "process_identity_verified", owner_run
+                )
 
         # Respaldo para locks legacy sin start_time: heurística de cmdline
         # (relajada a propósito — un token constante no puede ser estricto
@@ -133,6 +150,12 @@ class RuntimeProcessLock:
         expected = str(payload.get("expected_token") or "").strip()
         recorded = str(payload.get("command_line") or "").strip()
         if not actual:
+            if os.name == "nt":
+                # A live SYSTEM process may deny command-line access. Lack of
+                # permission is not evidence that its legacy lock is stale.
+                return LockInspection(
+                    "live", pid, "process_identity_unavailable", owner_run
+                )
             return LockInspection("stale", pid, "empty_cmdline", owner_run)
         if recorded and recorded != actual and (not expected or expected not in actual):
             return LockInspection("stale", pid, "process_identity_mismatch", owner_run)

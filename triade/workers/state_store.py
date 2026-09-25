@@ -539,6 +539,8 @@ class WorkerStateStore:
         if autonomous.get("status") in ("live_owner", "live_lease"):
             return {
                 "status": "live_owner",
+                "reason": autonomous.get("status"),
+                "lease_expires_at": autonomous.get("lease_expires_at"),
                 "pid": autonomous.get("pid"),
                 "deduplicated": 0,
             }

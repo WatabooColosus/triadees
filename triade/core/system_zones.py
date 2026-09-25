@@ -64,7 +64,9 @@ def classify_path(path: str) -> dict[str, Any]:
             "requires_human_approval": False,
         }
 
-    rel = str(norm.relative_to(REPO_ROOT))
+    # Use a stable separator so zone prefixes behave identically on Windows
+    # and POSIX hosts.
+    rel = str(norm.relative_to(REPO_ROOT)).replace("\\", "/")
 
     # Forbidden
     for fb in FORBIDDEN_PATHS:
