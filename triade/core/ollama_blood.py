@@ -14,6 +14,8 @@ from triade.models.model_client_factory import (
 )
 from triade.models.ollama_client import OllamaClient  # compatibilidad tests/patches
 
+OLLAMA_CLIENT_COMPAT = OllamaClient
+
 REASONING_PREFERENCES = [
     # Mantener el orden histórico; modelos pequeños adicionales actúan como
     # fallbacks válidos cuando son los instalados en un host limitado.
