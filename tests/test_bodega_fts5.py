@@ -23,26 +23,27 @@ def test_bodega_text_recall_survives_with_or_without_fts5(tmp_path) -> None:
     assert isinstance(bodega.fts5_enabled, bool)
 
 
-def test_fts5_index_tracks_semantic_updates_when_available(tmp_path) -> None:
+def test_fts5_index_tracks_new_episodic_rows_when_available(tmp_path) -> None:
     db_path = tmp_path / "triade.db"
     bodega = Bodega(db_path=db_path)
     if not bodega.fts5_enabled:
         return
 
-    store = SemanticMemoryStore(db_path=db_path)
-    document = store.upsert_document(
-        "Cristal inicial verificable.",
-        domain="crystal",
-        status="stable",
-    )
-    assert bodega._search_semantic("Cristal", limit=5)
+    with bodega._connect() as conn:
+        conn.execute(
+            """INSERT INTO episodic_memory
+               (run_id, title, content, summary, tags, confidence)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                None,
+                "Continuidad",
+                "La Bodega conserva un episodio ligero y recuperable.",
+                "episodio ligero",
+                "bodega,memoria",
+                0.8,
+            ),
+        )
 
-    store.upsert_document(
-        "Cristal evolucionado trazable.",
-        domain="crystal",
-        status="stable",
-        document_id=document.document_id,
-    )
-    matches = bodega._search_semantic("evolucionado", limit=5)
+    matches = bodega._search_episodic("episodio recuperable", limit=5)
     assert matches
-    assert matches[0]["document_id"] == document.document_id
+    assert matches[0]["title"] == "Continuidad"
