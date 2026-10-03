@@ -6,6 +6,8 @@ llama.cpp para que el modelo pueda vivir/morir fuera del núcleo Python.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import json
 import time
 import urllib.error
@@ -28,7 +30,7 @@ class LlamaCppClient(OllamaClient):
         self,
         base_url: str = "http://127.0.0.1:8080",
         timeout: int = 60,
-        event_callback=None,
+        event_callback: Callable[[dict[str, Any]], None] | None = None,
         db_path: str | Path | None = None,
     ) -> None:
         super().__init__(
