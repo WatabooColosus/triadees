@@ -12,6 +12,7 @@ from triade.models.model_client_factory import (
     default_model_base_url,
     normalize_model_provider,
 )
+from triade.models.ollama_client import OllamaClient  # compatibilidad tests/patches
 
 REASONING_PREFERENCES = [
     # Mantener el orden histórico; modelos pequeños adicionales actúan como
