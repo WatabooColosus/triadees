@@ -48,6 +48,54 @@ def test_work_mode_low_ram_degrades():
     assert "RAM disponible muy baja" in decision["reason"]
 
 
+def test_low_ram_host_with_discrete_gpu_can_run_balanced_background():
+    """8 GB-class host can nourish/evaluate without enabling full-local work."""
+    from triade.core.resource_governor import decide_work_mode
+
+    probe = {
+        "limits": {
+            "ram_available_gb": 3.5,
+            "disk_free_gb": 100,
+            "tier": "low",
+            "cpu_count": 12,
+        },
+        "gpu": {"total_vram_gb": 6.0},
+        "cpu": {"load_1min": 1.0},
+        "power": {"ac_connected": True, "battery_percent": 100},
+        "thermal": {"thermal_status": "ok"},
+        "warnings": [],
+    }
+    blood = {"status": "ok", "can_reason": True, "can_embed": True}
+    decision = decide_work_mode(probe, blood, "full_local_guarded")
+    assert decision["effective_mode"] == "balanced_background"
+    assert decision["can_nourish_neurons"] is True
+    assert decision["can_evaluate_learning"] is True
+    assert decision["can_consolidate_stable"] is False
+    assert decision["can_run_build"] is False
+
+
+def test_low_ram_host_without_memory_headroom_stays_light():
+    from triade.core.resource_governor import decide_work_mode
+
+    probe = {
+        "limits": {
+            "ram_available_gb": 2.5,
+            "disk_free_gb": 100,
+            "tier": "low",
+            "cpu_count": 12,
+        },
+        "gpu": {"total_vram_gb": 6.0},
+        "cpu": {"load_1min": 1.0},
+        "power": {"ac_connected": True, "battery_percent": 100},
+        "thermal": {"thermal_status": "ok"},
+        "warnings": [],
+    }
+    blood = {"status": "ok", "can_reason": True, "can_embed": True}
+    decision = decide_work_mode(probe, blood, "balanced_background")
+    assert decision["effective_mode"] == "light_background"
+    assert decision["can_nourish_neurons"] is False
+
+
 def test_work_mode_battery_low_observe_only():
     """Batería < 25% sin AC debe forzar observe_only."""
     from triade.core.resource_governor import decide_work_mode
