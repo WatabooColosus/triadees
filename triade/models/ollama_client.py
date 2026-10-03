@@ -88,10 +88,19 @@ class OllamaClient:
         timeout: int = 60,
         event_callback: Callable[[dict[str, Any]], None] | None = None,
         db_path: str | Path | None = None,
+        keep_alive: str | int | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.event_callback = event_callback
+        env_keep_alive = os.getenv("TRIADE_OLLAMA_KEEP_ALIVE")
+        self.keep_alive = (
+            keep_alive
+            if keep_alive is not None
+            else env_keep_alive.strip()
+            if env_keep_alive and env_keep_alive.strip()
+            else None
+        )
         # `os.getenv` con defecto devuelve `str`, pero `db_path` puede ser
         # `None` y mypy no puede concluir que el `or` lo resuelve siempre. Se
         # resuelve antes, que además deja explícito el orden de precedencia.
@@ -141,6 +150,7 @@ class OllamaClient:
         system: str | None = None,
         options: dict[str, Any] | None = None,
         *,
+        keep_alive: str | int | None = None,
         use_active_peft: bool = False,
     ) -> ModelResult:
         """Genera texto. `options` viaja tal cual al campo `options` de Ollama.
@@ -166,6 +176,9 @@ class OllamaClient:
             payload["system"] = system
         if options:
             payload["options"] = dict(options)
+        resolved_keep_alive = self.keep_alive if keep_alive is None else keep_alive
+        if resolved_keep_alive is not None:
+            payload["keep_alive"] = resolved_keep_alive
 
         data = json.dumps(payload).encode("utf-8")
         request = urllib.request.Request(
@@ -352,6 +365,8 @@ class OllamaClient:
         input_text: str | list[str],
         truncate: bool = True,
         dimensions: int | None = None,
+        *,
+        keep_alive: str | int | None = None,
     ) -> EmbeddingResult:
         """Genera embeddings mediante el endpoint local POST /api/embed."""
         if not model.strip():
@@ -381,6 +396,9 @@ class OllamaClient:
         }
         if dimensions is not None:
             payload["dimensions"] = dimensions
+        resolved_keep_alive = self.keep_alive if keep_alive is None else keep_alive
+        if resolved_keep_alive is not None:
+            payload["keep_alive"] = resolved_keep_alive
         request = urllib.request.Request(
             f"{self.base_url}/api/embed",
             data=json.dumps(payload).encode("utf-8"),
