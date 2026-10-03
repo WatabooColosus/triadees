@@ -8,4 +8,4 @@ cryptography>=42.0
 argon2-cffi>=23.1.0
 redis>=5.0.0
 sentence-transformers>=3.0.0
-types-psutil>=7.0.0.20250601
+psutil>=6.0.0\ntypes-psutil>=7.0.0.20250601
