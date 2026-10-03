@@ -67,10 +67,14 @@ keyword/FTS debe poder resolver primero sin encender un modelo.
 
 ### 6. Modos de trabajo
 
-En 8 GB el arranque recomendado es `light_background`. El Resource Governor
-puede subir/bajar capacidades según RAM disponible, carga, batería y Ollama Blood.
+En 8 GB el perfil solicita `balanced_background`, pero el Resource Governor sigue
+siendo la autoridad. Un host `low` sólo alcanza balanced cuando conserva al menos
+3 GB de RAM disponible, detecta al menos 4 GB de VRAM, está conectado a corriente
+y Ollama Blood puede razonar. Si cualquiera falla, baja a `light_background`.
 
-No se fuerza `full_local_guarded` sólo por estar conectado a corriente.
+Balanced permite nutrición y evaluación gobernadas, pero mantiene bloqueados
+`stable_consolidation`, tests/build pesados y full-local. Así el portátil puede
+aprender candidatos reales sin convertirse en una estación de entrenamiento.
 
 ## Variables
 
