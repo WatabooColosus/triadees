@@ -21,6 +21,10 @@ cada equipo.
 | ggml-org/whisper.cpp | MIT | STT local cuantizado | órgano opcional bajo demanda |
 | k2-fsa/sherpa-onnx | Apache-2.0 | VAD/STT/TTS/keyword spotting | opcional; no residente |
 | qdrant/fastembed | Apache-2.0 | embeddings ONNX ligeros | candidato de fallback, no default |
+| mozilla-ai/llamafile | Apache-2.0 | empaquetado portátil basado en llama.cpp | candidato de distribución, no otro cerebro |
+| microsoft/onnxruntime-genai | MIT | inferencia on-device/DirectML/WinML | backend futuro para Windows y GPUs no CUDA |
+| EricLBuehler/mistral.rs | MIT | runtime Rust cuantizado | benchmark futuro; solapa con llama.cpp |
+| mudler/LocalAI | MIT | servidor multi-backend | no base: duplica capa de serving |
 | asg017/sqlite-lembed | licencia no localizada en la raíz auditada | embeddings GGUF dentro de SQLite | no se copia ni integra hasta aclarar licencia |
 
 También se evaluaron servidores/frameworks más amplios. No se adoptan como base
@@ -43,8 +47,9 @@ si duplican orquestación, memoria o gobierno que Tríade ya posee.
              └── 1 modelo activo ┘
 
 Bodega SQLite
-  ├─ tablas y FTS/keyword: siempre disponibles
-  ├─ sqlite-vec: acelerador opcional
+  ├─ FTS5: primera recuperación textual, sin modelo
+  ├─ tablas/keyword LIKE: fallback universal
+  ├─ sqlite-vec: acelerador vectorial opcional (fase siguiente)
   └─ embeddings: sólo al ingerir/buscar cuando aporten valor
 
 Voz
