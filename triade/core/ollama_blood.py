@@ -9,6 +9,10 @@ from triade.core.contracts import utc_now
 from triade.models.ollama_client import OllamaClient
 
 REASONING_PREFERENCES = [
+    # Perfiles pequeños primero disponibles para hosts de 8-16 GB.
+    "qwen3.5:2b",
+    "qwen3.5:0.8b",
+    "qwen2.5:1.5b",
     "qwen2.5:3b-instruct",
     "qwen3:4b",
     "llama3:latest",
