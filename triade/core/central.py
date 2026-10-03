@@ -815,7 +815,11 @@ class Central:
                 run_id=input_packet.run_id,
                 response=f"Operé sin motor cognitivo local. {fallback}",
                 actions_taken=["template_fallback"],
-                memory_diff={"pending_persistence": True, "degraded_no_local_model": True},
+                memory_diff={
+                    "pending_persistence": True,
+                    "degraded_no_local_model": True,
+                    "degraded_no_ollama": True,
+                },
                 status="ok",
                 model_provider="template",
                 model_name="template-fallback",
