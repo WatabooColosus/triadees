@@ -201,7 +201,7 @@ def _build_semantic_search_engine(
             base_url=base_url or "http://127.0.0.1:11434", timeout=timeout
         )
         embedding = SemanticEmbeddingEngine(
-            store=store, client=client, use_local_fallback=True
+            store=store, client=client, use_local_fallback=None
         )
         engine = SemanticSearchEngine(
             store=store, client=client, embedding_engine=embedding
