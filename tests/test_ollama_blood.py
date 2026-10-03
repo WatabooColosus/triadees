@@ -83,6 +83,34 @@ def test_ollama_blood_degraded_when_ollama_unavailable(monkeypatch) -> None:
     assert blood["can_nourish_neurons"] is False
 
 
+def test_ollama_blood_recognizes_configured_15b_reasoner(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "triade.core.ollama_blood.OllamaClient.health",
+        lambda self: {
+            "ok": True,
+            "base_url": self.base_url,
+            "models": ["qwen2.5:1.5b"],
+        },
+    )
+    blood = check_ollama_blood()
+    assert blood["reasoning_model"] == "qwen2.5:1.5b"
+    assert blood["can_reason"] is True
+
+
+def test_ollama_blood_recognizes_qwen35_sub_1b_reasoner(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "triade.core.ollama_blood.OllamaClient.health",
+        lambda self: {
+            "ok": True,
+            "base_url": self.base_url,
+            "models": ["qwen3.5:0.8b"],
+        },
+    )
+    blood = check_ollama_blood()
+    assert blood["reasoning_model"] == "qwen3.5:0.8b"
+    assert blood["can_reason"] is True
+
+
 def test_ollama_blood_policy_blocks_neuron_nutrition_without_reasoning() -> None:
     policy = ollama_blood_policy("neuron_nutrition", OFFLINE_BLOOD)
     assert policy["allowed"] is False
