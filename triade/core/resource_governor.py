@@ -36,6 +36,7 @@ def decide_work_mode(
     ac = power.get("ac_connected")
     load_1min = resource_probe.get("cpu", {}).get("load_1min")
     thermal_status = resource_probe.get("thermal", {}).get("thermal_status")
+    gpu_vram_gb = float(resource_probe.get("gpu", {}).get("total_vram_gb") or 0.0)
     resource_probe.get("warnings", [])
 
     can_reason = bool(ollama_blood.get("can_reason"))
@@ -108,6 +109,19 @@ def decide_work_mode(
         if not can_embed:
             downgrades.append("semantic_embedding")
         downgrades.append("learning_evaluation")
+    # --- Balanced acotado para portátil low-RAM con GPU dedicada ---
+    elif (
+        tier == "low"
+        and ram_gb >= 3.0
+        and gpu_vram_gb >= 4.0
+        and (ac is not False)
+        and can_reason
+    ):
+        allowed_mode = "balanced_background"
+        reasons.append(
+            "Hardware tier low con GPU dedicada y margen de RAM suficiente. "
+            "Máximo balanced_background; full local permanece bloqueado."
+        )
     # --- Observación por hardware low ---
     elif tier == "low":
         allowed_mode = "light_background"
