@@ -843,7 +843,11 @@ class Central:
                     f"{str(result.provider).replace('.', '_')}_failed",
                     "template_fallback",
                 ],
-                memory_diff={"pending_persistence": True, "degraded_no_local_model": True},
+                memory_diff={
+                    "pending_persistence": True,
+                    "degraded_no_local_model": True,
+                    "degraded_no_ollama": True,
+                },
                 status="ok",
                 model_provider=result.provider,
                 model_name=self.central_model,
