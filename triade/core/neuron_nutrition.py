@@ -35,7 +35,16 @@ def run_neuron_nutrition_cycle(
     runs_dir.mkdir(parents=True, exist_ok=True)
     ollama_blood = check_ollama_blood()
     blood_policy = ollama_blood_policy("neuron_nutrition", ollama_blood)
-    ollama_health = check_ollama_cognitive_health()
+    ollama_health = (
+        check_ollama_cognitive_health()
+        if ollama_blood.get("provider", "ollama") == "ollama"
+        else {
+            "ok": bool(ollama_blood.get("engine_ok")),
+            "provider": ollama_blood.get("provider"),
+            "models": ollama_blood.get("models", []),
+            "mode": ollama_blood.get("mode"),
+        }
+    )
     model_policy = blood_policy
     degraded_mode = bool(
         blood_policy.get("degraded") or not blood_policy.get("allowed")
@@ -43,7 +52,11 @@ def run_neuron_nutrition_cycle(
     learning_allowed = bool(blood_policy.get("allowed"))
     stable_write_allowed = False
     model_used = {
-        "model_provider": "ollama" if blood_policy.get("model_used") else "fallback",
+        "model_provider": (
+            str(ollama_blood.get("provider") or "ollama")
+            if blood_policy.get("model_used")
+            else "fallback"
+        ),
         "model_name": blood_policy.get("model_used"),
         "model_required": False,
         "model_status": ollama_blood.get("status"),
