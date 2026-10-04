@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
 const BASE = ''
-const POLL_INTERVAL = 5000
+// La cabina comparte el pulso del backend; consultar cada 5 s duplicaba
+// payloads grandes y mantenía React activo aun sin cambios visibles.
+const POLL_INTERVAL = 15000
 
 export async function api(path: string, opts?: RequestInit) {
   const token = sessionStorage.getItem('triade_auth_token')
@@ -98,7 +100,7 @@ export function useLiveDashboard(): {
     mountedRef.current = true
     fetch()
     const id = setInterval(() => {
-      if (document.visibilityState === 'visible') fetch()
+      if (document.visibilityState === 'visible' && !document.hidden) fetch()
     }, POLL_INTERVAL)
     return () => { mountedRef.current = false; clearInterval(id) }
   }, [fetch])

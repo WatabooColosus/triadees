@@ -136,6 +136,27 @@ def internal_graphs_debt() -> dict[str, Any]:
     # interfaz dejaría de preguntar justo cuando iba a llegar lo nuevo.
     status = REFRESHER.status()
     report = build_debt_report(ROOT, _graphs_db_path(), allow_build=False)
+    backup_gap = report.get("items", {}).get("backup_protection_gaps", {})
+    # La auditoría y el ejecutor deben compartir la misma prueba de clave y de
+    # vigencia. El artefacto estructural puede conservar un hallazgo de una
+    # ejecución anterior, mientras que la clave local o una copia reciente ya
+    # lo han resuelto. La lectura canónica no escribe filas ni artefactos.
+    from triade.observability.introspection import _backup_protection_gaps
+
+    live_backup_gap = _backup_protection_gaps(ROOT)
+    if live_backup_gap != backup_gap:
+        observed = int(backup_gap.get("count", 0))
+        current = int(live_backup_gap.get("count", 0))
+        delta = current - observed
+        report["items"]["backup_protection_gaps"] = live_backup_gap
+        report["debt_items_total"] = max(
+            0, int(report["debt_items_total"]) + delta
+        )
+        report["debt_real_total"] = max(0, int(report["debt_real_total"]) + delta)
+        classifications = report.get("by_classification", {})
+        classifications["REAL_BROKEN"] = max(
+            0, int(classifications.get("REAL_BROKEN", 0)) + delta
+        )
     report["summary"] = summarise_for_humans(report)
     report["refresh"] = {**status, "trigger": trigger}
     LIFE_PULSE.record_action("internal_graphs_debt")

@@ -2,28 +2,16 @@
 
 from __future__ import annotations
 
-import os
 import time
+import os
 from typing import Any
 
 from triade.core.contracts import utc_now
-from triade.models.model_client_factory import (
-    build_model_client,
-    default_model_base_url,
-    normalize_model_provider,
-)
-from triade.models.ollama_client import OllamaClient  # compatibilidad tests/patches
-
-OLLAMA_CLIENT_COMPAT = OllamaClient
+from triade.models.ollama_client import OllamaClient
 
 REASONING_PREFERENCES = [
-    # Mantener el orden histórico; modelos pequeños adicionales actúan como
-    # fallbacks válidos cuando son los instalados en un host limitado.
     "qwen2.5:3b-instruct",
     "qwen3:4b",
-    "qwen2.5:1.5b",
-    "qwen3.5:2b",
-    "qwen3.5:0.8b",
     "llama3:latest",
     "qwen2.5-coder:7b",
     "qwen2.5-coder:3b",
@@ -47,52 +35,21 @@ def check_ollama_blood(
     preferred_embedding: str | None = None,
     preferred_coder: str | None = None,
 ) -> dict[str, Any]:
-    """Diagnostica la sangre cognitiva local.
+    """Diagnostica Ollama como sangre cognitiva local."""
 
-    El nombre se conserva por compatibilidad histórica. El motor efectivo puede
-    ser Ollama o llama.cpp mediante TRIADE_MODEL_PROVIDER.
-    """
-
-    provider = normalize_model_provider(
-        os.getenv("TRIADE_MODEL_PROVIDER") or "ollama"
-    )
-    resolved_url = (
-        base_url
-        or os.getenv("TRIADE_MODEL_BASE_URL")
-        or default_model_base_url(provider)
-    )
-    client = build_model_client(provider, base_url=resolved_url, timeout=60)
-    if client is None:
-        health: dict[str, Any] = {
-            "ok": False,
-            "base_url": resolved_url,
-            "models": [],
-            "error": f"unsupported_provider:{provider}",
-        }
-        latency_ms = 0.0
-    else:
-        started = time.perf_counter()
-        health = client.health()
-        latency_ms = round((time.perf_counter() - started) * 1000, 2)
-
+    client = OllamaClient(base_url=base_url or "http://127.0.0.1:11434")
+    started = time.perf_counter()
+    health = client.health()
+    latency_ms = round((time.perf_counter() - started) * 1000, 2)
     models = [str(model) for model in health.get("models", []) if model]
     ok = bool(health.get("ok"))
 
-    reasoning_model = _select_model(models, preferred_reasoning, REASONING_PREFERENCES)
+    lightweight_model = os.getenv("TRIADE_LOW_RESOURCE_MODEL", "qwen2.5:1.5b").strip()
+    reasoning_preferences = ([lightweight_model] if lightweight_model else []) + REASONING_PREFERENCES
+    reasoning_model = _select_model(models, preferred_reasoning, reasoning_preferences)
     embedding_model = _select_embedding(models, preferred_embedding)
-    coder_model = _select_model(models, preferred_coder, CODER_PREFERENCES)
-
-    # llama.cpp suele exponer exactamente el alias/modelo con el que arrancó el
-    # servidor. No exigir que ese nombre coincida con la nomenclatura de Ollama.
-    if provider == "llama.cpp" and not reasoning_model:
-        reasoning_model = next(
-            (
-                model
-                for model in models
-                if "embed" not in model.lower() and "embedding" not in model.lower()
-            ),
-            None,
-        )
+    coder_preferences = ([lightweight_model] if lightweight_model else []) + CODER_PREFERENCES
+    coder_model = _select_model(models, preferred_coder, coder_preferences)
 
     can_reason = ok and bool(reasoning_model)
     can_embed = ok and bool(embedding_model)
@@ -101,10 +58,7 @@ def check_ollama_blood(
     can_consolidate = can_reason
 
     degraded_components: list[str] = []
-    engine_label = "Ollama" if provider == "ollama" else "llama.cpp"
     if not ok:
-        # Estado legado para no romper consumidores antiguos. provider y
-        # engine_ok contienen la verdad provider-neutral.
         status = "degraded_no_ollama"
         mode = "fallback_breathing"
         degraded_components = [
@@ -116,9 +70,7 @@ def check_ollama_blood(
             "memory_contradiction_check",
             "worker_cycle",
         ]
-        recommended_action = (
-            f"Iniciar {engine_label} para activar sangre cognitiva local."
-        )
+        recommended_action = "Iniciar Ollama para activar sangre cognitiva local."
     else:
         if not can_reason:
             degraded_components.extend(
@@ -135,18 +87,11 @@ def check_ollama_blood(
         status = "ok" if not degraded_components else "degraded_missing_models"
         mode = "cognitive_blood_active" if status == "ok" else "partial_cognitive_blood"
         if not can_reason:
-            recommended_action = (
-                f"Exponer en {engine_label} un modelo razonador compatible."
-            )
+            recommended_action = "Instalar un modelo razonador compatible, por ejemplo qwen2.5:3b-instruct."
         elif not can_embed:
-            recommended_action = (
-                f"Exponer en {engine_label} un modelo de embeddings compatible."
-            )
+            recommended_action = "Instalar un modelo de embeddings compatible, por ejemplo nomic-embed-text."
         else:
-            recommended_action = (
-                f"Sangre cognitiva activa: {engine_label} alimenta razonamiento "
-                "y embeddings locales."
-            )
+            recommended_action = "Sangre cognitiva activa: Ollama alimenta razonamiento y embeddings locales."
 
     score = 0.0
     if ok:
@@ -163,14 +108,9 @@ def check_ollama_blood(
     return {
         "status": status,
         "ok": ok and status == "ok",
-        "provider": provider,
-        "engine_ok": ok,
-        # Alias histórico: consumidores previos usan esta clave como
-        # disponibilidad del motor cognitivo, no como prueba del binario Ollama.
         "ollama_ok": ok,
-        "legacy_ollama_ok_alias": True,
         "mode": mode,
-        "base_url": health.get("base_url", resolved_url),
+        "base_url": health.get("base_url", client.base_url),
         "models_available": models,
         "models": models,
         "reasoning_model": reasoning_model,
@@ -189,10 +129,7 @@ def check_ollama_blood(
         "errors": [str(health.get("error"))] if health.get("error") else [],
         "cognitive_blood_active": bool(ok and can_reason),
         "fallback_mode": not bool(ok and can_reason),
-        "truth": (
-            "Fallback mantiene respiración mínima; el motor cognitivo local "
-            "seleccionado alimenta razonamiento gobernado."
-        ),
+        "truth": "Fallback mantiene respiración mínima; Ollama Blood alimenta cognición local gobernada.",
     }
 
 

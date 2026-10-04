@@ -38,20 +38,18 @@ class ModelRouter:
         "critic": ["qwen3:4b", "qwen2.5:3b-instruct"],
         "evaluator": ["qwen3:4b", "qwen2.5:3b-instruct"],
         "vision": ["gemma3:4b"],
-        "summarizer": ["qwen3.5:0.8b", "qwen3:1.7b", "qwen2.5:3b-instruct"],
-        "hypothalamus": ["qwen3.5:0.8b", "qwen2.5:1.5b", "qwen3.5:2b", "qwen2.5:3b-instruct", "qwen3:1.7b", "qwen3:4b"],
-        "central": ["qwen2.5:1.5b", "qwen3.5:2b", "qwen3.5:0.8b", "qwen2.5:3b-instruct", "llama3:latest", "llama3.1:8b", "qwen3:4b"],
+        "summarizer": ["qwen3:1.7b", "qwen2.5:3b-instruct"],
+        "hypothalamus": ["qwen2.5:1.5b", "qwen2.5:3b-instruct", "qwen3:1.7b", "qwen3:4b"],
+        "central": ["qwen2.5:1.5b", "qwen2.5:3b-instruct", "llama3:latest", "llama3.1:8b", "qwen3:4b"],
         "creator": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
         "trainer": ["qwen2.5:3b-instruct", "qwen3:4b", "llama3:latest"],
         "coder": ["qwen2.5-coder:3b", "qwen2.5-coder:1.5b-base", "qwen2.5:3b-instruct"],
         "embedding": ["nomic-embed-text:latest", "qwen3-embedding:0.6b"],
-        "fast": ["qwen3.5:0.8b", "qwen2.5:1.5b", "qwen3.5:2b", "qwen3:1.7b", "qwen2.5:3b-instruct", "qwen3:4b"],
+        "fast": ["qwen2.5:1.5b", "qwen3:1.7b", "qwen2.5:3b-instruct", "qwen3:4b"],
         "deep": ["llama3.1:8b", "llama3:latest", "qwen3:4b", "qwen2.5:3b-instruct"],
     }
 
     MODEL_RAM_GB: ClassVar = {
-        "qwen3.5:0.8b": 1.2,
-        "qwen3.5:2b": 3.0,
         "qwen3:1.7b": 2.5,
         "qwen2.5:1.5b": 1.8,
         "qwen2.5-coder:1.5b-base": 2.5,
@@ -86,9 +84,11 @@ class ModelRouter:
         self,
         available_models: list[str] | None = None,
         hardware: HardwareProfile | None = None,
+        provider: str | None = None,
     ) -> None:
         self.available_models = available_models or []
         self.hardware = hardware
+        self.provider = (provider or os.getenv("TRIADE_MODEL_PROVIDER", "ollama")).strip()
 
     def route(
         self,
@@ -111,6 +111,7 @@ class ModelRouter:
             return ModelRouteDecision(
                 role=normalized_role,
                 selected_model=selected,
+                provider=self.provider,
                 reason=self._reason(
                     normalized_role,
                     selected,
@@ -125,20 +126,29 @@ class ModelRouter:
                 rejected_by_hardware=rejected,
             )
 
-        if self.available_models:
+        if self.available_models and normalized_role != "embedding":
             fallback = self.available_models[0]
             fallback_reason = (
                 f"Ningún candidato recomendado está disponible; se usó {fallback} "
                 f"como primer modelo instalado."
             )
-        else:
-            fallback = "qwen2.5:3b-instruct"
+        elif normalized_role == "embedding":
+            fallback = "disabled:embedding-on-demand"
             fallback_reason = (
-                "No hay modelos instalados en Ollama; se usó fallback por defecto."
+                "No hay un modelo de embeddings instalado; embeddings quedan bajo demanda."
+            )
+        else:
+            # Un hardware low no debe anunciar un 3B que puede forzar swap.
+            # El modelo es sólo una recomendación de proveedor; Tríade sigue
+            # funcionando en fallback determinista si aún no está instalado.
+            fallback = os.getenv("TRIADE_LOW_RESOURCE_MODEL", "qwen2.5:1.5b")
+            fallback_reason = (
+                f"No hay modelos instalados en Ollama; se usó fallback ligero {fallback}."
             )
         return ModelRouteDecision(
             role=normalized_role,
             selected_model=fallback,
+            provider=self.provider,
             reason=fallback_reason,
             fallback_used=True,
             candidates=hardware_candidates,
@@ -170,6 +180,7 @@ class ModelRouter:
         return ModelRouteDecision(
             role=role,
             selected_model=selected,
+            provider=self.provider,
             reason=f"measured_ab_route:{payload.get('benchmark_sha256', 'unknown')}",
             fallback_used=False,
             candidates=[selected],

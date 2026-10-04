@@ -91,7 +91,9 @@ export function GrafosInternos() {
       } catch { if (active) setStatus('sesión requerida · vuelve a iniciar sesión') }
     }
     pulse()
-    const timer = window.setInterval(pulse, 5000)
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') pulse()
+    }, 15000)
     return () => { active = false; window.clearInterval(timer) }
   }, [view])
 
@@ -136,14 +138,17 @@ export function GrafosInternos() {
 
   useEffect(() => { loadGraph(view) }, [view, loadGraph])
 
-  /* Mientras se reconstruyen los grafos se vuelve a preguntar. Sin esto la
-   * regeneración termina y el panel sigue enseñando la cifra vieja hasta que
-   * alguien cambia de pestaña: la acción se completaría sin verse. */
+  /* La deuda y la salud mezclan estructura cacheada con contadores vivos.
+   * Actualizamos ambos mientras la pestaña está visible para que el front no
+   * quede congelado en la primera lectura; los grafos estructurales siguen
+   * respetando el refresco de bajo consumo del backend. */
   useEffect(() => {
-    if (view !== 'debt' || !debt?.refresh?.running) return
-    const timer = window.setTimeout(() => loadGraph('debt'), 5000)
-    return () => window.clearTimeout(timer)
-  }, [view, debt, loadGraph])
+    if (view !== 'debt' && view !== 'health') return
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') loadGraph(view)
+    }, 15000)
+    return () => window.clearInterval(timer)
+  }, [view, loadGraph])
 
   async function openNode(nodeId: string) {
     setSelected(nodeId)

@@ -238,13 +238,13 @@ class Hypothalamus:
 
         if not result.ok or not result.text:
             self.last_model_result = {
-                "provider": result.provider,
+                "provider": "ollama",
                 "name": self.model_name,
                 "ok": False,
                 "error": result.error,
             }
             fallback.notes.append(
-                "Hipotálamo usó fallback por reglas porque el motor local no generó señales."
+                "Hipotálamo usó fallback por reglas porque Ollama no generó señales."
             )
             return self._save_and_return(
                 packet.run_id, fallback, current_mood, packet.user_input
@@ -253,7 +253,7 @@ class Hypothalamus:
         parsed = self._parse_model_json(result.text)
         if parsed is None:
             self.last_model_result = {
-                "provider": result.provider,
+                "provider": "ollama",
                 "name": self.model_name,
                 "ok": False,
                 "error": "Respuesta del modelo no fue JSON válido para señales.",
@@ -266,8 +266,8 @@ class Hypothalamus:
             )
 
         self.last_model_result = {
-            "provider": result.provider,
-            "name": result.model,
+            "provider": "ollama",
+            "name": self.model_name,
             "ok": True,
             "error": None,
         }
@@ -280,7 +280,7 @@ class Hypothalamus:
             risk=self._safe_risk(parsed.get("risk"), fallback.risk),
             pv7=self._safe_pv7(parsed.get("pv7"), fallback.pv7),
             notes=self._safe_notes(parsed.get("notes"))
-            + [f"Señales generadas por Hipotálamo con motor local {result.provider}."],
+            + ["Señales generadas por Hipotálamo con modelo local Ollama."],
         )
         return self._save_and_return(
             packet.run_id, signals, current_mood, packet.user_input

@@ -428,7 +428,23 @@ class InternalRuntimeSupervisor:
             while not self._stop.is_set():
                 if self.stop_file.exists():
                     break
-                self.run_once(mode=self.mode)
+                try:
+                    self.run_once(mode=self.mode)
+                except Exception as exc:
+                    # A transient SQLite/filesystem error during snapshot construction
+                    # must not kill the Always-On thread. Keep the loop alive so the
+                    # next cycle can recover after concurrent startup activity settles.
+                    self.counters["errors"] += 1
+                    try:
+                        record_internal_error(
+                            "internal_runtime.run_forever",
+                            exc,
+                            run_id=self.runtime_id,
+                            db_path=self.db_path,
+                        )
+                    except Exception:
+                        pass
+                    self._stop.wait(min(10, max(1, self.interval_seconds)))
                 cycle += 1
                 if self.max_cycles > 0 and cycle >= self.max_cycles:
                     break

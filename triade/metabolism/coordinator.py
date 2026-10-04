@@ -79,6 +79,8 @@ class MetabolicCoordinator:
         self.scheduler = MetabolicScheduler()
 
         self._mode = "observe_only"
+        self._effective_mode = "observe_only"
+        self._resource_governor: dict[str, Any] = {}
         self._dry_run = False
         self._enabled = False
         self._status: dict[str, Any] = self._default_status()
@@ -87,6 +89,8 @@ class MetabolicCoordinator:
         return {
             "enabled": False,
             "mode": "observe_only",
+            "effective_mode": "observe_only",
+            "resource_governor": {},
             "dry_run": False,
             "cycle_count": 0,
             "current_cycle_id": None,
@@ -238,6 +242,8 @@ class MetabolicCoordinator:
             base = dict(self._status)
             base["enabled"] = self._enabled
             base["mode"] = self._mode
+            base["effective_mode"] = self._effective_mode
+            base["resource_governor"] = dict(self._resource_governor)
             base["dry_run"] = self._dry_run
             base["cycle_count"] = self.scheduler.cycle_count
             base["current_cycle_id"] = self._current_cycle_id
@@ -288,6 +294,8 @@ class MetabolicCoordinator:
             base["current_cycle_id"] = self._current_cycle_id
             base["enabled"] = self._enabled
             base["mode"] = self._mode
+            base["effective_mode"] = self._effective_mode
+            base["resource_governor"] = dict(self._resource_governor)
             base["dry_run"] = self._dry_run
             base["policy"] = policy
             base["scheduler"] = self.scheduler.snapshot()
@@ -306,6 +314,13 @@ class MetabolicCoordinator:
         try:
             self.signals.emit(cycle_id, "observe", "started", "beginning_observation")
             sensors = self.health.inspect()
+            resource_state = sensors.get("resources") or self.health._check_resources()
+            governor = resource_state.get("governor") or {}
+            with self._lock:
+                self._effective_mode = str(
+                    governor.get("effective_mode") or self._mode
+                )
+                self._resource_governor = dict(governor)
             needs = self.needs_queue.detect(sensors, cycle_id)
             self.signals.emit(
                 cycle_id,
@@ -316,7 +331,6 @@ class MetabolicCoordinator:
                     duration_ms=(time.monotonic() - started) * 1000
                 ),
             )
-
             self.signals.emit(cycle_id, "evaluate", "started", "evaluating_needs")
             evaluated = self._evaluate(needs, cycle_id)
             self.signals.emit(
@@ -379,6 +393,8 @@ class MetabolicCoordinator:
             "status": "ok",
             "cycle_id": cycle_id,
             "mode": self._mode,
+            "effective_mode": self._effective_mode,
+            "resource_governor": dict(self._resource_governor),
             "dry_run": self._dry_run,
             "sensors_ok": sensors.get("healthy", False),
             "needs_detected": len(needs),

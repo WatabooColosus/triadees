@@ -6,11 +6,12 @@ import { SaberYAprendizajeCard } from './components/Cards'
 import { GrafosInternos } from './components/GrafosInternos'
 
 const BASE = ''
+const LOCAL_NO_AUTH = import.meta.env.VITE_TRIADE_LOCAL_NO_AUTH === '1'
 
 async function api(path: string, opts?: RequestInit) {
   const token = sessionStorage.getItem('triade_auth_token')
   const guarded = !path.startsWith('/api/auth/') && path !== '/health' && path !== '/api/health'
-  if (guarded && !token) {
+  if (guarded && !token && !LOCAL_NO_AUTH) {
     const err: any = new Error('authenticated_session_required')
     err.status = 401
     err.detail = 'authenticated_session_required'
@@ -51,12 +52,10 @@ async function api(path: string, opts?: RequestInit) {
   return res.json()
 }
 
-type Tab = 'chat' | 'system' | 'observability' | 'graphs' | 'router' | 'models' | 'federation' | 'memory' | 'neurons' | 'cabin'
+type Tab = 'chat' | 'graphs' | 'router' | 'models' | 'federation' | 'memory' | 'neurons' | 'cabin'
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'chat', label: 'Chat', icon: '💬' },
-  { key: 'system', label: 'Sistema', icon: '⚙' },
-  { key: 'observability', label: 'Observabilidad', icon: '⌁' },
   { key: 'graphs', label: 'Grafos internos', icon: '🕸' },
   { key: 'cabin', label: 'Cabina Viva', icon: '🖥' },
   { key: 'router', label: 'Router', icon: '🔀' },
@@ -82,7 +81,9 @@ function usePendingCount(enabled: boolean) {
       }
     }
     poll()
-    const id = setInterval(poll, 5000)
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') poll()
+    }, 15000)
     return () => { mounted = false; clearInterval(id) }
   }, [])
   return count
@@ -136,16 +137,16 @@ const linkStyle = { border: 0, background: 'transparent', color: 'var(--accent)'
 /* ─── App ─────────────────────────────────────────── */
 
 export default function App() {
-  const [authToken, setAuthToken] = useState<string | null>(() => sessionStorage.getItem('triade_auth_token'))
+  const [authToken, setAuthToken] = useState<string | null>(() => LOCAL_NO_AUTH ? 'local-testing-session' : sessionStorage.getItem('triade_auth_token'))
   useEffect(() => {
     const expire = () => setAuthToken(null)
     window.addEventListener('triade-auth-expired', expire)
     return () => window.removeEventListener('triade-auth-expired', expire)
   }, [])
-  if (!authToken) return <AccessGate onEnter={token => { if (token) setAuthToken(token) }} />
+  if (!authToken && !LOCAL_NO_AUTH) return <AccessGate onEnter={token => { if (token) setAuthToken(token) }} />
   const [tab, setTab] = useState<Tab>(() => {
     const path = window.location.pathname.toLowerCase()
-    if (path.includes('observabilidad') || path.includes('observability')) return 'observability'
+    if (path.includes('observabilidad') || path.includes('observability')) return 'cabin'
     return 'chat'
   })
   const [health, setHealth] = useState<any>(null)
@@ -231,8 +232,6 @@ export default function App() {
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {tab === 'cabin' && <ErrorBoundary><CabinaViva apiKey="" /></ErrorBoundary>}
         {tab === 'chat' && <ChatTab apiKey="" />}
-        {tab === 'system' && <SystemTab />}
-        {tab === 'observability' && <ObservabilityTab />}
         {tab === 'graphs' && <ErrorBoundary><GrafosInternos /></ErrorBoundary>}
         {tab === 'router' && <RouterTab />}
         {tab === 'models' && <ModelsTab />}
@@ -663,7 +662,11 @@ function ObservabilityTab() {
     })
   }, [])
 
-  useEffect(() => { fetch(); const id = setInterval(fetch, 10000); return () => clearInterval(id) }, [fetch])
+  useEffect(() => {
+    fetch()
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 20000)
+    return () => clearInterval(id)
+  }, [fetch])
 
   async function runDryPulse() {
     if (pulseBusy) return
@@ -903,7 +906,11 @@ function SystemTab() {
       .catch(e => setError(e.message))
   }, [])
 
-  useEffect(() => { fetch(); const id = setInterval(fetch, 10000); return () => clearInterval(id) }, [fetch])
+  useEffect(() => {
+    fetch()
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 20000)
+    return () => clearInterval(id)
+  }, [fetch])
 
   if (error) return <PageError error={error} />
   if (!data) return <PageLoading />
@@ -1088,7 +1095,11 @@ function ModelsTab() {
     ]).then(([c, q]) => { setCompat(c); setQueue(q) }).catch(e => setError(e.message))
   }, [])
 
-  useEffect(() => { fetch(); const id = setInterval(fetch, 15000); return () => clearInterval(id) }, [fetch])
+  useEffect(() => {
+    fetch()
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 30000)
+    return () => clearInterval(id)
+  }, [fetch])
 
   if (error) return <PageError error={error} />
   if (!compat) return <PageLoading />
@@ -1136,7 +1147,11 @@ function FederationTab({ apiKey }: { apiKey: string }) {
       .catch(e => setError(e.message))
   }, [])
 
-  useEffect(() => { fetch(); const id = setInterval(fetch, 15000); return () => clearInterval(id) }, [fetch])
+  useEffect(() => {
+    fetch()
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 30000)
+    return () => clearInterval(id)
+  }, [fetch])
 
   if (error) return <PageError error={error} />
   if (!data) return <PageLoading />
@@ -1305,7 +1320,11 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
     api(`/api/neurons/missions/relevant?${qs.toString()}`).then(setRelevantMissions).catch(() => {})
   }, [relevantDomain, relevantQuery])
 
-  useEffect(() => { fetch(); const id = setInterval(fetch, 8000); return () => clearInterval(id) }, [fetch])
+  useEffect(() => {
+    fetch()
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 20000)
+    return () => clearInterval(id)
+  }, [fetch])
 
   async function loadMissionDetail(missionId: number) {
     try {
@@ -1801,4 +1820,3 @@ const btnStyle: React.CSSProperties = {
   borderRadius: 6, padding: '7px 14px', cursor: 'pointer', fontWeight: 600,
   fontSize: 12, height: 32,
 }
-

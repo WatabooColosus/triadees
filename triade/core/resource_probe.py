@@ -5,6 +5,9 @@ from __future__ import annotations
 import os
 import platform
 import shutil
+import copy
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -120,7 +123,7 @@ def _linux_disk_free() -> tuple[float, float]:
         return 0.0, 0.0
 
 
-def build_resource_probe() -> dict[str, Any]:
+def _build_resource_probe_uncached() -> dict[str, Any]:
     """Lee de forma segura hardware, energía, carga y temperatura.
 
     Sin shell=True. Sin comandos del usuario. Fallback seguro.
@@ -257,3 +260,30 @@ def build_resource_probe() -> dict[str, Any]:
         "limits": limits,
         "warnings": warnings,
     }
+
+
+_PROBE_CACHE_LOCK = threading.Lock()
+_PROBE_CACHE: tuple[float, dict[str, Any]] | None = None
+
+
+def build_resource_probe() -> dict[str, Any]:
+    """Devuelve una muestra compartida breve para mantener coherencia sistémica.
+
+    Los órganos consultan este probe desde hilos distintos. Sin una ventana
+    corta, una variación normal de RAM hacía que el metabolismo, workers y UI
+    publicaran modos diferentes para el mismo instante. La caché expira rápido
+    para seguir adaptándose al hardware y nunca persiste datos.
+    """
+    global _PROBE_CACHE
+    try:
+        ttl = max(0.0, float(os.getenv("TRIADE_RESOURCE_PROBE_CACHE_SECONDS", "2")))
+    except ValueError:
+        ttl = 2.0
+    now = time.monotonic()
+    with _PROBE_CACHE_LOCK:
+        if _PROBE_CACHE is not None and now - _PROBE_CACHE[0] < ttl:
+            return copy.deepcopy(_PROBE_CACHE[1])
+    sample = _build_resource_probe_uncached()
+    with _PROBE_CACHE_LOCK:
+        _PROBE_CACHE = (time.monotonic(), sample)
+    return copy.deepcopy(sample)

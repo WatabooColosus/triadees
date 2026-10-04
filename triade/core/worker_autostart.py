@@ -245,6 +245,13 @@ def build_workers_always_on_status(
     with _WORKER_LOCK:
         state = dict(_WORKER_STATE)
         thread_alive = bool(_WORKER_THREAD and _WORKER_THREAD.is_alive())
+    if state.get("configured"):
+        live_mode, live_degraded, live_reason = _decide_worker_mode(
+            str(state.get("mode_configured") or "full_local_guarded")
+        )
+        state["mode_effective"] = live_mode
+        state["degraded_by_governor"] = live_degraded
+        state["degradation_reason"] = live_reason
     raw_active = bool(thread_alive or service_status.get("running"))
     stop_requested = (
         bool(service_status.get("stop_requested"))

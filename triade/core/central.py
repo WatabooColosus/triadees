@@ -813,13 +813,9 @@ class Central:
         if self.model_client is None:
             return OutputPacket(
                 run_id=input_packet.run_id,
-                response=f"Operé sin motor cognitivo local. {fallback}",
+                response=f"Operé sin Ollama. {fallback}",
                 actions_taken=["template_fallback"],
-                memory_diff={
-                    "pending_persistence": True,
-                    "degraded_no_local_model": True,
-                    "degraded_no_ollama": True,
-                },
+                memory_diff={"pending_persistence": True, "degraded_no_ollama": True},
                 status="ok",
                 model_provider="template",
                 model_name="template-fallback",
@@ -838,18 +834,11 @@ class Central:
         if not result.ok or not result.text:
             return OutputPacket(
                 run_id=input_packet.run_id,
-                response=f"El motor local falló. {fallback}",
-                actions_taken=[
-                    f"{str(result.provider).replace('.', '_')}_failed",
-                    "template_fallback",
-                ],
-                memory_diff={
-                    "pending_persistence": True,
-                    "degraded_no_local_model": True,
-                    "degraded_no_ollama": True,
-                },
+                response=f"Ollama falló. {fallback}",
+                actions_taken=["ollama_failed", "template_fallback"],
+                memory_diff={"pending_persistence": True, "degraded_no_ollama": True},
                 status="ok",
-                model_provider=result.provider,
+                model_provider="ollama",
                 model_name=self.central_model,
                 model_ok=False,
                 model_error=result.error,
@@ -860,7 +849,7 @@ class Central:
             actions_taken=[
                 "peft_response"
                 if result.provider == "peft-local"
-                else f"{str(result.provider).replace('.', '_')}_response"
+                else "ollama_response"
             ],
             memory_diff={"pending_persistence": True},
             status="ok",

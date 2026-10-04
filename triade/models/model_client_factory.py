@@ -1,50 +1,27 @@
-"""Fábrica de motores cognitivos locales reemplazables."""
+"""Construcción centralizada de proveedores de modelos."""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+from typing import Any
 
-from triade.models.ollama_client import OllamaClient
-
-
-def normalize_model_provider(provider: str | None) -> str:
-    clean = str(provider or "ollama").strip().lower()
-    aliases = {
-        "llamacpp": "llama.cpp",
-        "llama_cpp": "llama.cpp",
-        "llama-cpp": "llama.cpp",
-    }
-    return aliases.get(clean, clean)
+from .llamacpp_client import LlamaCppClient
+from .ollama_client import OllamaClient
+from .model_provider import ModelProvider
 
 
-def default_model_base_url(provider: str) -> str:
-    provider = normalize_model_provider(provider)
-    if provider == "llama.cpp":
-        return "http://127.0.0.1:8080"
-    return "http://127.0.0.1:11434"
-
-
-def build_model_client(
-    provider: str,
+def create_model_client(
+    provider: str | None = None,
     *,
     base_url: str | None = None,
     timeout: int = 60,
     db_path: str | Path | None = None,
-) -> OllamaClient | None:
-    normalized = normalize_model_provider(provider)
-    resolved_url = base_url or default_model_base_url(normalized)
-    if normalized == "ollama":
-        return OllamaClient(
-            base_url=resolved_url,
-            timeout=timeout,
-            db_path=db_path,
-        )
-    if normalized == "llama.cpp":
-        from triade.models.llamacpp_client import LlamaCppClient
-
-        return LlamaCppClient(
-            base_url=resolved_url,
-            timeout=timeout,
-            db_path=db_path,
-        )
-    return None
+    **kwargs: Any,
+) -> ModelProvider:
+    selected = (provider or os.getenv("TRIADE_MODEL_PROVIDER", "ollama")).strip().lower()
+    if selected in {"llama.cpp", "llamacpp", "llama_cpp"}:
+        return LlamaCppClient(base_url=base_url, timeout=timeout, **kwargs)
+    if selected != "ollama":
+        raise ValueError(f"Proveedor de modelo no soportado: {selected}")
+    return OllamaClient(base_url=base_url or "http://127.0.0.1:11434", timeout=timeout, db_path=db_path)

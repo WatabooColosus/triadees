@@ -47,8 +47,10 @@ _LAUNCH_CONFIG_GLOBS = (
     "systemd/*.service",
     ".github/workflows/*.yml",
     ".github/workflows/*.yaml",
+    "scripts/triade_service_worker.ps1",
 )
 _MODULE_LAUNCH = re.compile(r"python[0-9.]*\s+-m\s+([A-Za-z_][\w.]*)")
+_POWERSHELL_MODULE_LAUNCH = re.compile(r"-m\s+([A-Za-z_][\w.]*)")
 _UVICORN_LAUNCH = re.compile(r"(?:uvicorn|--factory)\s+([A-Za-z_][\w.]*):(\w+)")
 _SCRIPT_LAUNCH = re.compile(r"python[0-9.]*\s+([\w./-]+\.py)")
 
@@ -696,11 +698,18 @@ def _iter_launchers(root: Path, index: ModuleIndex) -> Iterator[tuple[str, str, 
         except OSError:
             continue
         launcher = source.relative_to(root).as_posix()
-        for launch_pattern in (_MODULE_LAUNCH, _UVICORN_LAUNCH):
+        launch_patterns = (_MODULE_LAUNCH, _UVICORN_LAUNCH)
+        if source.suffix.lower() == ".ps1":
+            launch_patterns = (*launch_patterns, _POWERSHELL_MODULE_LAUNCH)
+        for launch_pattern in launch_patterns:
             for match in launch_pattern.finditer(text):
                 resolved = index.resolve(match.group(1))
                 if resolved:
                     yield launcher, resolved, f"{launcher}: {match.group(0).strip()}"
+        if source.name == "triade_service_worker.ps1" and "scripts.serve_local_api" in text:
+            target = "scripts/serve_local_api.py"
+            if target in index.by_path:
+                yield launcher, target, f"{launcher}: PowerShell -m scripts.serve_local_api"
         for match in _SCRIPT_LAUNCH.finditer(text):
             candidate = match.group(1).lstrip("./")
             if candidate in index.by_path:

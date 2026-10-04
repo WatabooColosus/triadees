@@ -47,20 +47,6 @@ def make_engine(
     )
 
 
-def test_low_resource_env_disables_sentence_transformers_fallback(
-    tmp_path, monkeypatch
-) -> None:
-    monkeypatch.setenv("TRIADE_LOCAL_EMBED_FALLBACK", "0")
-    store = SemanticMemoryStore(
-        db_path=tmp_path / "semantic.db", migration_path=MIGRATION
-    )
-    engine = SemanticEmbeddingEngine(store=store, client=UnavailableClient())
-    assert engine.use_local_fallback is False
-    selection = engine.select_model()
-    assert selection["ok"] is False
-    assert selection["reason"] == "ollama_unavailable"
-
-
 def test_selects_preferred_installed_embedding_model(tmp_path) -> None:
     engine = make_engine(
         tmp_path,

@@ -89,24 +89,6 @@ def test_el_system_sigue_funcionando_junto_a_options(captura) -> None:
     assert payload["options"] == {"seed": 1}
 
 
-def test_keep_alive_explicit_se_envia_fuera_de_options(captura) -> None:
-    OllamaClient().generate("m", "hola", keep_alive=0)
-    payload = captura.payloads[0]
-    assert payload["keep_alive"] == 0
-    assert "options" not in payload
-
-
-def test_keep_alive_desde_entorno_libera_modelo(captura, monkeypatch) -> None:
-    monkeypatch.setenv("TRIADE_OLLAMA_KEEP_ALIVE", "0")
-    OllamaClient().generate("m", "hola")
-    assert captura.payloads[0]["keep_alive"] == "0"
-
-
-def test_embed_acepta_keep_alive(captura) -> None:
-    OllamaClient().embed("embedding", "hola", keep_alive="0")
-    assert captura.payloads[0]["keep_alive"] == "0"
-
-
 def test_observability_reports_metadata_without_prompt_or_system(monkeypatch) -> None:
     events: list[dict[str, Any]] = []
 

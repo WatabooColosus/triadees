@@ -47,6 +47,20 @@ runtime:
     scheduler_jitter_seconds: 1.0
 
 hardware_profiles:
+  target_8ram_2vram:
+    # Perfil base de Tríade full-lenta: serializa el trabajo y deja la GPU
+    # como acelerador preferente sin mantener varios modelos residentes.
+    max_parallel_cpu_workers: 1
+    max_parallel_io_workers: 1
+    max_parallel_model_workers: 1
+    max_parallel_embedding_workers: 1
+    reserved_system_ram_gb: 2
+    reserved_interactive_ram_gb: 1
+    reserved_vram_gb: 0.5
+    soft_vram_limit_percent: 80
+    hard_vram_limit_percent: 90
+    thermal_soft_limit_c: 78
+    thermal_hard_limit_c: 85
   target_32ram_24vram:
     max_parallel_cpu_workers: 4
     max_parallel_io_workers: 6

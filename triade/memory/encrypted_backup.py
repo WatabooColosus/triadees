@@ -36,6 +36,60 @@ class EncryptedBackup:
             conn.executescript(migration.read_text(encoding="utf-8"))
 
     @staticmethod
+    def _configured_key_file() -> str:
+        """Resuelve la clave desde el entorno o el ancla local declarada."""
+        configured = os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
+        # Un entorno heredado puede conservar una ruta antigua. Sólo debe
+        # ganar si apunta a un fichero real; de lo contrario seguimos con la
+        # ubicación canónica del repositorio para que el proceso no quede
+        # degradado por una variable obsoleta.
+        if configured and Path(configured).is_file():
+            return configured
+        roots = (Path.cwd(), Path(__file__).resolve().parents[2])
+        for root in roots:
+            location = root / "config" / "backup_key_location.json"
+            try:
+                value = json.loads(location.read_text(encoding="utf-8")).get("key_file", "")
+            except (OSError, ValueError, TypeError, AttributeError):
+                continue
+            if value:
+                return str(Path(value).expanduser())
+        return ""
+
+    @classmethod
+    def key_configured(cls) -> bool:
+        key_text = os.getenv("TRIADE_BACKUP_KEY", "").strip()
+        if key_text:
+            return True
+        key_file = cls._configured_key_file()
+        if not key_file:
+            return False
+        try:
+            return bool(Path(key_file).is_file() and Path(key_file).read_text(encoding="utf-8").strip())
+        except OSError:
+            return False
+
+    @classmethod
+    def key_status(cls) -> dict[str, Any]:
+        """Estado seguro de resolución; nunca devuelve el material secreto."""
+        key_file = cls._configured_key_file()
+        key_text = os.getenv("TRIADE_BACKUP_KEY", "").strip()
+        file_exists = bool(key_file and Path(key_file).is_file())
+        file_readable = False
+        if file_exists:
+            try:
+                file_readable = bool(Path(key_file).read_text(encoding="utf-8").strip())
+            except OSError:
+                file_readable = False
+        return {
+            "configured": bool(key_text or file_readable),
+            "source": "environment" if key_text else ("file" if key_file else "none"),
+            "path": str(key_file) if key_file else None,
+            "path_exists": file_exists,
+            "path_readable": file_readable,
+        }
+
+    @staticmethod
     def ensure_key_file_mode() -> dict[str, Any]:
         """Cierra los permisos de la clave antes de arrancar, y dice si tuvo que hacerlo.
 
@@ -50,7 +104,7 @@ class EncryptedBackup:
         el arranque lo diga en voz alta. Lo que evita es que una protección que ya
         está configurada deje de aplicarse por un permiso que nadie miró.
         """
-        key_file = os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
+        key_file = EncryptedBackup._configured_key_file()
         if not key_file:
             return {"status": "absent", "reason": "sin TRIADE_BACKUP_KEY_FILE"}
         path = Path(key_file)
@@ -95,7 +149,7 @@ class EncryptedBackup:
         from cryptography.fernet import Fernet
 
         key_text = os.getenv("TRIADE_BACKUP_KEY", "").strip()
-        key_file = os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
+        key_file = EncryptedBackup._configured_key_file()
         if not key_text and key_file:
             path = Path(key_file)
             mode = path.stat().st_mode & 0o777
@@ -125,7 +179,7 @@ class EncryptedBackup:
         claves, nunca para reconstruir una.
         """
         key_text = os.getenv("TRIADE_BACKUP_KEY", "").strip()
-        key_file = os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
+        key_file = EncryptedBackup._configured_key_file()
         if not key_text and key_file:
             try:
                 key_text = Path(key_file).read_text(encoding="utf-8").strip()

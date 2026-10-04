@@ -88,19 +88,10 @@ class OllamaClient:
         timeout: int = 60,
         event_callback: Callable[[dict[str, Any]], None] | None = None,
         db_path: str | Path | None = None,
-        keep_alive: str | int | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.event_callback = event_callback
-        env_keep_alive = os.getenv("TRIADE_OLLAMA_KEEP_ALIVE")
-        self.keep_alive = (
-            keep_alive
-            if keep_alive is not None
-            else env_keep_alive.strip()
-            if env_keep_alive and env_keep_alive.strip()
-            else None
-        )
         # `os.getenv` con defecto devuelve `str`, pero `db_path` puede ser
         # `None` y mypy no puede concluir que el `or` lo resuelve siempre. Se
         # resuelve antes, que además deja explícito el orden de precedencia.
@@ -150,7 +141,6 @@ class OllamaClient:
         system: str | None = None,
         options: dict[str, Any] | None = None,
         *,
-        keep_alive: str | int | None = None,
         use_active_peft: bool = False,
     ) -> ModelResult:
         """Genera texto. `options` viaja tal cual al campo `options` de Ollama.
@@ -172,13 +162,23 @@ class OllamaClient:
             "prompt": prompt,
             "stream": False,
         }
+        # En equipos de 8 GB el modelo residente compite con Windows y la
+        # interfaz. El modo explícito evita retenerlo cinco minutos entre
+        # llamadas y limita el contexto sin cambiar el comportamiento normal.
+        if os.getenv("TRIADE_LOW_RESOURCE_MODE", "0").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            payload["keep_alive"] = 0
+            low_resource_options = dict(options or {})
+            low_resource_options.setdefault("num_ctx", 2048)
+            payload["options"] = low_resource_options
+        elif options:
+            payload["options"] = dict(options)
         if system:
             payload["system"] = system
-        if options:
-            payload["options"] = dict(options)
-        resolved_keep_alive = self.keep_alive if keep_alive is None else keep_alive
-        if resolved_keep_alive is not None:
-            payload["keep_alive"] = resolved_keep_alive
 
         data = json.dumps(payload).encode("utf-8")
         request = urllib.request.Request(
@@ -365,8 +365,6 @@ class OllamaClient:
         input_text: str | list[str],
         truncate: bool = True,
         dimensions: int | None = None,
-        *,
-        keep_alive: str | int | None = None,
     ) -> EmbeddingResult:
         """Genera embeddings mediante el endpoint local POST /api/embed."""
         if not model.strip():
@@ -394,11 +392,18 @@ class OllamaClient:
             "input": input_text,
             "truncate": truncate,
         }
+        # Embeddings are bursty in the 8 GB profile.  Do not leave the
+        # embedding model resident in Ollama after each request; otherwise a
+        # single `nomic-embed-text` load can push the host into cooldown.
+        if os.getenv("TRIADE_LOW_RESOURCE_MODE", "0").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            payload["keep_alive"] = 0
         if dimensions is not None:
             payload["dimensions"] = dimensions
-        resolved_keep_alive = self.keep_alive if keep_alive is None else keep_alive
-        if resolved_keep_alive is not None:
-            payload["keep_alive"] = resolved_keep_alive
         request = urllib.request.Request(
             f"{self.base_url}/api/embed",
             data=json.dumps(payload).encode("utf-8"),
@@ -516,10 +521,13 @@ def check_ollama_cognitive_health(
     selected_embedding = embedding.selected_model
     selected_lightweight = lightweight.selected_model
     if not models:
-        selected_reasoning = "qwen2.5:3b-instruct"
-        selected_coding = "qwen2.5-coder:3b"
-        selected_embedding = "nomic-embed-text:latest"
-        selected_lightweight = "qwen3:4b"
+        lightweight = os.getenv("TRIADE_LOW_RESOURCE_MODEL", "qwen2.5:1.5b")
+        selected_reasoning = lightweight
+        selected_coding = lightweight
+        # Los embeddings siguen siendo opcionales y no se cuentan como el
+        # modelo generativo residente del runtime low-resource.
+        selected_embedding = "disabled:embedding-on-demand"
+        selected_lightweight = lightweight
 
     installed = set(models)
     reasoning_available = bool(health.get("ok")) and selected_reasoning in installed
@@ -566,10 +574,10 @@ def check_ollama_cognitive_health(
         recommended_action = "Iniciar Ollama y confirmar que /api/tags responda."
     elif not embedding_available:
         recommended_action = (
-            "Instalar un modelo de embeddings compatible, por ejemplo nomic-embed-text."
+            "Mantener embeddings bajo demanda; instalar un modelo sólo si la memoria disponible lo permite."
         )
     elif not reasoning_available:
-        recommended_action = "Instalar un modelo de razonamiento recomendado, por ejemplo qwen2.5:3b-instruct."
+        recommended_action = "Instalar el modelo ligero configurado en TRIADE_LOW_RESOURCE_MODEL."
     else:
         recommended_action = "Ollama listo como motor cognitivo local."
 

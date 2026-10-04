@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 WORK_MODES = [
@@ -36,12 +37,18 @@ def decide_work_mode(
     ac = power.get("ac_connected")
     load_1min = resource_probe.get("cpu", {}).get("load_1min")
     thermal_status = resource_probe.get("thermal", {}).get("thermal_status")
-    gpu_vram_gb = float(resource_probe.get("gpu", {}).get("total_vram_gb") or 0.0)
-    resource_probe.get("warnings", [])
-
     can_reason = bool(ollama_blood.get("can_reason"))
     can_embed = bool(ollama_blood.get("can_embed"))
     blood_ok = ollama_blood.get("status") in ("ok", "degraded_missing_models")
+    vram_gb = float(resource_probe.get("gpu", {}).get("total_vram_gb") or 0.0)
+    slow_full_requested = os.getenv("TRIADE_SLOW_FULL_LOCAL", "0").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+    # Conserva margen real para Windows, la API y el navegador. Con 1 GB libre
+    # el modelo puede ocupar el resto de la RAM mientras usa la GPU y provocar
+    # presión extrema; full local entra solo desde 1.5 GB disponibles.
+    slow_full_eligible = slow_full_requested and ram_gb >= 1.5 and vram_gb >= 2.0 and can_reason
+    resource_probe.get("warnings", [])
 
     reasons: list[str] = []
     downgrades: list[str] = []
@@ -61,8 +68,15 @@ def decide_work_mode(
             ollama_blood,
         )
 
+    # --- Full local serializado para el objetivo 8 GB + 2 GB VRAM ---
+    # Solo se habilita explícitamente y conserva 1 GB para el sistema.
+    if slow_full_eligible:
+        allowed_mode = "full_local_guarded"
+        reasons.append(
+            f"Perfil slow full local: {ram_gb} GB RAM libre y {vram_gb} GB VRAM; ejecución serializada."
+        )
     # --- Cooldown por RAM ---
-    if ram_gb < 2:
+    elif ram_gb < 2:
         allowed_mode = "cooldown"
         reasons.append(f"RAM disponible muy baja ({ram_gb} GB). Cooldown forzado.")
         return _build_decision(
@@ -75,7 +89,7 @@ def decide_work_mode(
         )
 
     # --- Cooldown por batería crítica ---
-    if battery_pct is not None and battery_pct < 15 and ac is not True:
+    if not slow_full_eligible and battery_pct is not None and battery_pct < 15 and ac is not True:
         allowed_mode = "cooldown"
         reasons.append(f"Batería crítica ({battery_pct}%) sin AC.")
         return _build_decision(
@@ -88,7 +102,7 @@ def decide_work_mode(
         )
 
     # --- Observe-only por batería baja ---
-    if battery_pct is not None and battery_pct < 25 and ac is not True:
+    if not slow_full_eligible and battery_pct is not None and battery_pct < 25 and ac is not True:
         allowed_mode = "observe_only"
         reasons.append(f"Batería baja ({battery_pct}%) sin AC.")
     # --- Cooldown por load average ---
@@ -109,21 +123,8 @@ def decide_work_mode(
         if not can_embed:
             downgrades.append("semantic_embedding")
         downgrades.append("learning_evaluation")
-    # --- Balanced acotado para portátil low-RAM con GPU dedicada ---
-    elif (
-        tier == "low"
-        and ram_gb >= 3.0
-        and gpu_vram_gb >= 4.0
-        and (ac is not False)
-        and can_reason
-    ):
-        allowed_mode = "balanced_background"
-        reasons.append(
-            "Hardware tier low con GPU dedicada y margen de RAM suficiente. "
-            "Máximo balanced_background; full local permanece bloqueado."
-        )
     # --- Observación por hardware low ---
-    elif tier == "low":
+    elif tier == "low" and not slow_full_eligible:
         allowed_mode = "light_background"
         reasons.append(f"Hardware tier {tier}. Máximo light_background.")
     # --- Balanced por hardware medium ---
@@ -138,7 +139,7 @@ def decide_work_mode(
         reasons.append(
             f"Hardware tier {tier} con AC y Ollama Blood activa. Full local guarded permitido."
         )
-    else:
+    elif not slow_full_eligible:
         allowed_mode = "balanced_background"
         reasons.append(f"Hardware tier {tier}, recursos suficientes. Modo balanced.")
 

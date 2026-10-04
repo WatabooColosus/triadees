@@ -409,7 +409,6 @@ class Bodega(BodegaStorage):
             "db_exists": self.db_path.exists(),
             "schema_path": str(self.schema_path),
             "schema_exists": self.schema_path.exists(),
-            "fts5_enabled": bool(self.fts5_enabled),
             "runs_dir": str(runs_path),
             "runs_dir_exists": runs_path.exists(),
             "tables": tables,
@@ -495,45 +494,20 @@ class Bodega(BodegaStorage):
     def _search_semantic(
         self, query: str, limit: int = 5, allow_experimental: bool = False
     ) -> list[dict[str, Any]]:
-        """Recuperación textual barata: FTS5 primero, LIKE como fallback."""
+        """Palabras clave sobre los documentos **vivos**, con la política 1.9E.
+
+        El estado se filtra en SQL, no después de recuperar: este canal es la
+        única puerta cerrada que tiene: `recall()` se llama también con el
+        recall vectorial apagado, y entonces el run nunca pasa por
+        `SemanticMemoryGovernance.govern_memory()`. Dejar entrar `experimental`
+        aquí «porque luego alguien gobierna» sería confiar en un paso opcional.
+        """
         terms = self._terms(query)
         if not terms:
             return []
         statuses = sorted(influence_allowed_statuses(allow_experimental))
-
-        if self.fts5_enabled:
-            expression = " OR ".join(f'"{term.replace(chr(34), "")}"' for term in terms)
-            status_marks = ", ".join("?" for _ in statuses)
-            try:
-                with self._connect() as conn:
-                    rows = conn.execute(
-                        f"""SELECT d.document_id, d.content, d.domain, d.source_ref,
-                                   d.status
-                            FROM semantic_documents_fts
-                            JOIN semantic_documents d
-                              ON d.id = semantic_documents_fts.rowid
-                            WHERE semantic_documents_fts MATCH ?
-                              AND d.status IN ({status_marks})
-                            ORDER BY semantic_documents_fts.rank
-                            LIMIT ?""",
-                        [expression, *statuses, int(limit)],
-                    ).fetchall()
-                return [
-                    {
-                        "document_id": row["document_id"],
-                        "value": row["content"],
-                        "domain": row["domain"],
-                        "source_ref": row["source_ref"],
-                        "status": row["status"],
-                    }
-                    for row in rows
-                ]
-            except sqlite3.OperationalError:
-                # Una compilación sin FTS5 o una consulta no soportada no rompe Bodega.
-                self.fts5_enabled = False
-
         like_clauses = " OR ".join(["content LIKE ? OR domain LIKE ?" for _ in terms])
-        params: list[str | int] = []
+        params: list[str] = []
         for term in terms:
             pattern = f"%{term}%"
             params.extend([pattern, pattern])
@@ -543,7 +517,7 @@ class Bodega(BodegaStorage):
             WHERE ({like_clauses})
               AND status IN ({", ".join("?" for _ in statuses)})
             ORDER BY updated_at DESC LIMIT ?"""
-        params.append(int(limit))
+        params.append(str(limit))
         with self._connect() as conn:
             rows = conn.execute(sql, params).fetchall()
         return [
@@ -561,39 +535,19 @@ class Bodega(BodegaStorage):
         terms = self._terms(query)
         if not terms:
             return []
-
-        if self.fts5_enabled:
-            expression = " OR ".join(f'"{term.replace(chr(34), "")}"' for term in terms)
-            try:
-                with self._connect() as conn:
-                    rows = conn.execute(
-                        """SELECT e.id, e.run_id, e.title, e.summary, e.tags,
-                                  e.confidence, e.created_at
-                           FROM episodic_memory_fts
-                           JOIN episodic_memory e
-                             ON e.id = episodic_memory_fts.rowid
-                           WHERE episodic_memory_fts MATCH ?
-                           ORDER BY episodic_memory_fts.rank
-                           LIMIT ?""",
-                        (expression, int(limit)),
-                    ).fetchall()
-                return [dict(row) for row in rows]
-            except sqlite3.OperationalError:
-                self.fts5_enabled = False
-
         like_clauses = " OR ".join(
             [
                 "content LIKE ? OR summary LIKE ? OR title LIKE ? OR tags LIKE ?"
                 for _ in terms
             ]
         )
-        params: list[str | int] = []
+        params: list[str] = []
         for term in terms:
             pattern = f"%{term}%"
             params.extend([pattern, pattern, pattern, pattern])
         sql = f"""SELECT id, run_id, title, summary, tags, confidence, created_at
             FROM episodic_memory WHERE {like_clauses} ORDER BY id DESC LIMIT ?"""
-        params.append(int(limit))
+        params.append(str(limit))
         with self._connect() as conn:
             rows = conn.execute(sql, params).fetchall()
         return [dict(row) for row in rows]

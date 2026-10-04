@@ -476,6 +476,61 @@ CONTRACTS: tuple[Contract, ...] = (
     # tiene `INSERT INTO` y ningún `UPDATE` ni `DELETE` sobre ellas. En cuanto
     # aparezca uno, deja de ser una bitácora y vuelve al contador.
     _contract(
+        "task_type:central_learning_observation",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="El planificador crea esta tarea cuando existe un objetivo de aprendizaje observable; el handler central está registrado y la ausencia de ejecuciones no implica que falte la cadena.",
+        evidence=(
+            "writer_reachable=triade/core/learning_planner.py",
+            "reader_exists=triade/workers/worker_loop.py",
+            "proof_test=tests/test_scheduler_mission_planner.py",
+        ),
+    ),
+    _contract(
+        "task_type:learning_candidate_generation",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="La generación se activa después de una observación central válida; productor y handler están conectados y esperan ese estímulo verificable.",
+        evidence=(
+            "writer_reachable=triade/core/learning_planner.py",
+            "reader_exists=triade/workers/worker_loop.py",
+            "proof_test=tests/test_learning_consolidation_chain.py",
+        ),
+    ),
+    _contract(
+        "task_type:neural_learning_distribution",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="La distribución neuronal solo procede tras un candidato validado; la ruta de aprendizaje y el handler existen, pero no se inventan candidatos para activar el worker.",
+        evidence=(
+            "writer_reachable=triade/workers/mission_planner.py",
+            "reader_exists=triade/workers/worker_loop.py",
+            "proof_test=tests/test_neural_learning_loop_closure.py",
+        ),
+    ),
+    _contract(
+        "task_type:neuron_candidate_formation",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="La formación de candidatos requiere evidencia de actividad neuronal; el productor y el consumidor están implementados y permanecen bajo compuerta hasta que exista ese material.",
+        evidence=(
+            "writer_reachable=triade/workers/mission_planner.py",
+            "reader_exists=triade/workers/worker_loop.py",
+            "proof_test=tests/test_autonomous_neural_learning.py",
+        ),
+    ),
+    _contract(
+        "task_type:semantic_memory_governance",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="La gobernanza semántica se activa cuando hay documentos o embeddings nuevos; la cadena está conectada y una cola vacía es ausencia de estímulo.",
+        evidence=(
+            "writer_reachable=triade/workers/mission_planner.py",
+            "reader_exists=triade/workers/worker_loop.py",
+            "proof_test=tests/test_semantic_embedding_engine.py",
+        ),
+    ),
+    _contract(
         "table:hardware_senses",
         "ON_DEMAND",
         decided_at="2026-08-08",
@@ -509,6 +564,19 @@ CONTRACTS: tuple[Contract, ...] = (
             "append_only=triade/research/governed.py",
             "effect_consumer=triade/workers/worker_loop.py::GovernedResearchWorker",
             "rows_present=governed_research_runs",
+        ),
+    ),
+    _contract(
+        "table:autonomous_research_runs",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason=(
+            "Tabla legacy conservada por compatibilidad. La investigación de "
+            "producción usa governed_research_runs; esta tabla sólo recibe "
+            "filas si una herramienta legacy se ejecuta explícitamente."
+        ),
+        evidence=(
+            "rows_absent=autonomous_research_runs",
         ),
     ),
     _contract(

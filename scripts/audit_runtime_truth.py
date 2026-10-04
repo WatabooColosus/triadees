@@ -54,10 +54,10 @@ def audit(db_path: str | Path) -> dict[str, Any]:
             },
             "research": {
                 "with_candidate": count(
-                    "SELECT COUNT(*) FROM autonomous_research_runs WHERE status='candidate_created'"
+                    "SELECT COUNT(*) FROM governed_research_runs WHERE status='candidate_created'"
                 ),
                 "without_evidence": count(
-                    "SELECT COUNT(*) FROM autonomous_research_runs WHERE status='no_evidence'"
+                    "SELECT COUNT(*) FROM governed_research_runs WHERE status='no_evidence'"
                 ),
             },
             "self_reference": {

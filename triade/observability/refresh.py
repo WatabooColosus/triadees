@@ -38,9 +38,11 @@ from pathlib import Path
 from typing import Any
 
 #: Cuándo se considera caducado el artefacto y merece la pena reconstruirlo.
-#: Quince minutos es la escala a la que cambia el repositorio mientras se
-#: trabaja: un commit no se ve al instante, pero tampoco se tarda una tarde.
-DEFAULT_STALE_SECONDS = 15 * 60
+#: La reconstrucción AST es costosa para el perfil de 8 GB. Los recuentos de
+#: SQLite siguen leyéndose en vivo; la estructura sólo se renueva cada seis
+#: horas o cuando se solicita explícitamente desde una herramienta de
+#: mantenimiento.
+DEFAULT_STALE_SECONDS = 6 * 60 * 60
 #: Tras un fallo se espera antes de volver a intentarlo. Sin esto, un repo que
 #: no compila provoca un escaneo continuo de 53 s por cada visita a la página.
 FAILURE_COOLDOWN_SECONDS = 5 * 60

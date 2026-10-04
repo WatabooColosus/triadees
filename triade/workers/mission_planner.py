@@ -18,6 +18,7 @@ from triade.core.neuron_missions import NeuronMissionStore
 from triade.db import sqlite3
 from triade.learning.knowledge_probe import extract_target
 from triade.learning.pipeline import LearningPipeline
+from triade.memory.encrypted_backup import EncryptedBackup
 from triade.neurons.education_resolver import MIN_APPLIED_RUNS
 from triade.self_improvement.auto_approval import auto_approvable_open_proposals
 
@@ -117,7 +118,21 @@ class MissionPlanner:
         # antes de media hora (`get_recommended_interval` = 3600 s, se salta si
         # `elapsed < interval * 0.5`) y el dedup por `(task_type, payload_hash)`
         # impide una segunda mientras haya una activa. Cuesta ~11 s medidos.
-        if os.getenv("TRIADE_BACKUP_KEY") or os.getenv("TRIADE_BACKUP_KEY_FILE"):
+        # El worker comparte proceso con la API, pero puede heredar una ruta
+        # antigua en `TRIADE_BACKUP_KEY_FILE`. Reconciliamos una sola vez con
+        # el ancla canónica del repositorio antes de decidir si se puede
+        # planificar la copia; no se imprime ni se almacena la clave.
+        canonical_location = Path(__file__).resolve().parents[2] / "config" / "backup_key_location.json"
+        try:
+            location = json.loads(canonical_location.read_text(encoding="utf-8"))
+            canonical_key = Path(str(location.get("key_file", ""))).expanduser()
+            if canonical_key.is_file():
+                os.environ["TRIADE_BACKUP_KEY_FILE"] = str(canonical_key)
+                os.environ.pop("TRIADE_BACKUP_KEY", None)
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
+        backup_key_status = EncryptedBackup.key_status()
+        if backup_key_status["configured"]:
             tasks.append(
                 PlannedTask(
                     task_type="encrypted_backup",
@@ -129,12 +144,16 @@ class MissionPlanner:
             )
         else:
             record_internal_error(
-                "mission_planner.backup_key_missing",
+                "mission_planner.backup_key_degraded",
                 RuntimeError(
-                    "sin TRIADE_BACKUP_KEY ni TRIADE_BACKUP_KEY_FILE: "
-                    "no se planifica ningún backup y la base queda sin copia"
+                    "backup degradado: falta TRIADE_BACKUP_KEY o "
+                    "TRIADE_BACKUP_KEY_FILE; no se planifica copia cifrada"
                 ),
-                payload={"module": __name__, "function": "plan_cycle"},
+                payload={
+                    "module": __name__,
+                    "function": "plan_cycle",
+                    "backup_key_status": backup_key_status,
+                },
                 db_path=self.db_path,
             )
 

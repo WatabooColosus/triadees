@@ -81,20 +81,3 @@ def test_runner_doctor_reports_double_model_selection(tmp_path) -> None:
         == "manual_model_provided_or_ollama_disabled"
     )
     assert doctor["models"]["ollama"]["disabled"] is True
-
-
-
-def test_runner_can_select_llamacpp_provider(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("TRIADE_MODEL_PROVIDER", "llama.cpp")
-    monkeypatch.setenv("TRIADE_MODEL_BASE_URL", "http://127.0.0.1:8080")
-    runner = TriadeRunner(
-        runs_dir=tmp_path / "runs",
-        db_path=tmp_path / "triade.db",
-        use_ollama=True,
-        auto_select_models=False,
-    )
-
-    assert runner.model_provider == "llama.cpp"
-    assert runner.model_base_url == "http://127.0.0.1:8080"
-    assert runner.model_client is not None
-    assert type(runner.model_client).__name__ == "LlamaCppClient"

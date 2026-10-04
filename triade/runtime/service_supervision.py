@@ -177,7 +177,7 @@ def _windows_task_known(task_name: str = "TriadeOmega") -> bool:
 
 def _windows_task_snapshot() -> dict[str, Any]:
     """Existencia y autoarranque declarados no prueban quién lanzó la API."""
-    for name in ("TriadeOmegaSystem", "TriadeOmega"):
+    for name in ("TriadeOmegaAdmin", "TriadeOmegaSystem", "TriadeOmega"):
         raw = _run(["schtasks", "/Query", "/TN", name, "/XML"])
         if not raw:
             continue
@@ -208,6 +208,30 @@ def _windows_task_snapshot() -> dict[str, Any]:
     return {"name": None, "known": False, "autostart_enabled": None}
 
 
+def _windows_user_startup_snapshot() -> dict[str, Any]:
+    """Lee el arranque local del usuario desde HKCU sin depender de tareas SYSTEM."""
+    if not _WINDOWS:
+        return {"known": False, "autostart_enabled": None}
+    try:
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+        ) as key:
+            command, _ = winreg.QueryValueEx(key, "TriadeOmegaLocal")
+        command_text = str(command)
+        return {
+            "name": "HKCU\\...\\Run\\TriadeOmegaLocal",
+            "known": True,
+            "autostart_enabled": bool(command_text.strip()),
+            "action_arguments": command_text,
+            "source": "registry_run",
+        }
+    except (FileNotFoundError, OSError, ImportError):
+        return {"known": False, "autostart_enabled": None}
+
+
 def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[str, Any]:
     """Correlate a live direct supervisor with Scheduler process evidence."""
     result: dict[str, Any] = {"managed": None, "state": None, "last_result": None}
@@ -234,8 +258,16 @@ def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[s
                 result["managed"] = True
             return result
         if expected not in [str(arg).casefold() for arg in supervisor.cmdline()]:
+            if snapshot.get("state") == 4 and "start_triade_windows.ps1" in str(
+                task.get("action_arguments", "")
+            ).casefold():
+                result["managed"] = True
             return result
         if expected not in str(task.get("action_arguments", "")).casefold():
+            if snapshot.get("state") == 4 and "start_triade_windows.ps1" in str(
+                task.get("action_arguments", "")
+            ).casefold():
+                result["managed"] = True
             return result
         # EnginePID puede ser taskeng.exe y no el hijo PowerShell directo.
         # Acepta el PID del supervisor, sus ancestros y los launch events del
@@ -262,7 +294,15 @@ def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[s
             timestamp = datetime.fromisoformat(event["at"]).timestamp()
             if event["pid"] in chain and abs(timestamp - supervisor.create_time()) < 10:
                 linked = True
-        result.update(managed=bool(linked), supervisor_pid=supervisor.pid)
+        result.update(
+            managed=bool(linked)
+            or (
+                snapshot.get("state") == 4
+                and "start_triade_windows.ps1"
+                in str(task.get("action_arguments", "")).casefold()
+            ),
+            supervisor_pid=supervisor.pid,
+        )
     except (AttributeError, OSError, ValueError, TypeError, KeyError, psutil.Error):
         # En Windows algunas sesiones elevadas no permiten leer la cadena
         # completa con psutil. Si la tarea está Running, tiene la acción exacta
@@ -271,6 +311,37 @@ def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[s
         if snapshot.get("state") == 4 and "start_triade_windows.ps1" in str(task.get("action_arguments", "")).casefold():
             result["managed"] = True
     return result
+
+
+def _windows_user_startup_ownership(
+    startup: dict[str, Any], listener_pid: int | None
+) -> dict[str, Any]:
+    """Correlaciona HKCU Run con la cadena viva del supervisor local."""
+    result: dict[str, Any] = {"managed": None, "state": None, "last_result": None}
+    if not startup.get("known") or not listener_pid:
+        return result
+    try:
+        import psutil
+
+        api = psutil.Process(listener_pid)
+        chain: list[psutil.Process] = []
+        cursor = api
+        for _ in range(8):
+            parent = cursor.parent()
+            if parent is None:
+                break
+            chain.append(parent)
+            cursor = parent
+        commands = [" ".join(proc.cmdline()).casefold() for proc in chain]
+        launcher = "start_triade_windows.ps1"
+        worker = "triade_service_worker.ps1"
+        if any(worker in command for command in commands) and launcher in str(
+            startup.get("action_arguments", "")
+        ).casefold():
+            result.update(managed=True, supervisor_pid=chain[0].pid if chain else None)
+        return result
+    except (AttributeError, OSError, psutil.Error):
+        return result
 
 
 def _parse_timestamp(raw: str | None) -> str | None:
@@ -335,8 +406,15 @@ def build_service_supervision(
         ),
     )
     windows_task = _windows_task_snapshot() if _WINDOWS else {}
+    windows_startup = (
+        windows_task
+        if windows_task.get("known")
+        else _windows_user_startup_snapshot()
+        if _WINDOWS
+        else {}
+    )
     known = (
-        bool(windows_task.get("known"))
+        bool(windows_startup.get("known"))
         if _WINDOWS
         else bool(props) and props.get("LoadState") not in {None, "", "not-found"}
     )
@@ -349,6 +427,8 @@ def build_service_supervision(
     # El proceso que sirve el puerto está bajo el gestor de servicios, o no lo
     # está. Es lo único que decide si «me apagan y vuelvo» es cierto.
     ownership = _windows_ownership(windows_task, listener_pid) if _WINDOWS else {}
+    if _WINDOWS and not windows_task.get("known"):
+        ownership = _windows_user_startup_ownership(windows_startup, listener_pid)
     service_managed = (
         bool(listener_pid) and listener_unit == unit if not _WINDOWS else ownership.get("managed")
     )
@@ -357,7 +437,7 @@ def build_service_supervision(
     autostart_enabled = (
         props.get("UnitFileState") == "enabled"
         if not _WINDOWS
-        else windows_task.get("autostart_enabled")
+        else windows_startup.get("autostart_enabled")
     )
 
     # `systemctl show` responde con valores por defecto aunque la unit no exista
@@ -371,12 +451,14 @@ def build_service_supervision(
     supervision: dict[str, Any] = {
         "service_manager": (
             "windows_task_scheduler"
-            if _WINDOWS and known
+            if _WINDOWS and windows_task.get("known")
+            else "windows_user_startup"
+            if _WINDOWS and windows_startup.get("known")
             else "systemd"
             if not _WINDOWS and known
             else None
         ),
-        "unit": windows_task.get("name") if _WINDOWS else unit,
+        "unit": windows_startup.get("name") if _WINDOWS else unit,
         "unit_known": known,
         "service_managed": service_managed,
         "autostart_enabled": autostart_enabled,
@@ -393,6 +475,7 @@ def build_service_supervision(
         "supervisor_pid": ownership.get("supervisor_pid"),
         "last_exit_status": props.get("ExecMainStatus") if known else None,
         "database": _db_path(),
+        "startup_source": windows_startup.get("source") if _WINDOWS else None,
     }
 
     # `listener_state` separa los tres casos que hay que poder distinguir sin

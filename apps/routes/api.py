@@ -540,6 +540,12 @@ def health() -> dict[str, Any]:
     LIFE_PULSE.record_action("health")
     runner = TriadeRunner(use_ollama=True)
     hardware, ollama = system_payload()
+    from triade.memory.encrypted_backup import EncryptedBackup
+
+    backup_key_status = EncryptedBackup.key_status()
+    local_no_auth = os.getenv("TRIADE_LOCAL_NO_AUTH", "0").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
     return {
         "status": "ok",
         "entity": "Tríade Ω",
@@ -549,6 +555,11 @@ def health() -> dict[str, Any]:
             "api_key_required": bool(os.getenv("TRIADE_API_KEY")),
             "public_guarded": os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower()
             in {"1", "true", "yes", "on"},
+            "local_no_auth": local_no_auth,
+            "data_anchor_email": os.getenv(
+                "TRIADE_DATA_ANCHOR_EMAIL", "agenciadigitalwataboo@gmail.com"
+            ),
+            "backup_key": backup_key_status,
         },
         "repo": repo_info(),
         "hardware": hardware.to_dict(),
@@ -2068,7 +2079,10 @@ def _build_react_dashboard(query: str = "", limit: int = 5) -> dict[str, Any]:
         "governor": _safe(
             lambda: _build_governor_block(
                 str(
-                    heartbeat.get("always_on_effective_mode")
+                    (heartbeat.get("always_on") or {}).get("configured_mode")
+                    or heartbeat.get("mode")
+                    or heartbeat.get("always_on_configured_mode")
+                    or heartbeat.get("always_on_effective_mode")
                     or heartbeat.get("effective_mode")
                     or "observe_only"
                 ),
@@ -2104,6 +2118,7 @@ def _build_governor_block(requested_mode: str, limit: int) -> dict[str, Any]:
             "cpu": probe.get("cpu", {}),
             "memory": probe.get("memory", {}),
             "disk": probe.get("disk", {}),
+            "gpu": probe.get("gpu", {}),
             "power": probe.get("power", {}),
             "thermal": probe.get("thermal", {}),
             "warnings": probe.get("warnings", []),

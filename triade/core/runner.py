@@ -18,12 +18,8 @@ from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.models.hardware_profile import HardwareProfiler
-from triade.models.model_client_factory import (
-    build_model_client,
-    default_model_base_url,
-    normalize_model_provider,
-)
 from triade.models.model_router import ModelRouter
+from triade.models.model_client_factory import create_model_client
 from triade.qualia.adapters import build_run_experiences, qualia_context_for_memory
 from triade.qualia.bus import QualiaBus
 from triade.qualia.store import QualiaStore
@@ -203,21 +199,8 @@ class TriadeRunner:
         self.config = load_config(config_path)
         model_cfg = self.config.get("models", {})
         roles = model_cfg.get("roles", {})
-        self.model_provider = normalize_model_provider(
-            os.getenv("TRIADE_MODEL_PROVIDER")
-            or str(model_cfg.get("provider", "ollama"))
-        )
-        configured_base_url = os.getenv("TRIADE_MODEL_BASE_URL")
-        if configured_base_url:
-            self.model_base_url = configured_base_url.strip()
-        elif self.model_provider == "ollama":
-            self.model_base_url = str(
-                model_cfg.get("base_url", default_model_base_url("ollama"))
-            )
-        else:
-            self.model_base_url = default_model_base_url(self.model_provider)
-        # Alias conservado mientras otros diagnósticos siguen nombrando Ollama.
-        self.ollama_base_url = self.model_base_url
+        self.model_provider = str(model_cfg.get("provider", "ollama"))
+        self.ollama_base_url = str(model_cfg.get("base_url", "http://127.0.0.1:11434"))
         self.ollama_timeout = int(model_cfg.get("timeout", 60))
         self.auto_select_models = auto_select_models
         self.model_selection: dict[str, Any] = {
@@ -226,9 +209,9 @@ class TriadeRunner:
         }
         self.model_client = None
         if use_ollama:
-            self.model_client = build_model_client(
+            self.model_client = create_model_client(
                 self.model_provider,
-                base_url=self.model_base_url,
+                base_url=self.ollama_base_url if self.model_provider == "ollama" else None,
                 timeout=self.ollama_timeout,
                 db_path=self.db_path,
             )
@@ -335,19 +318,13 @@ class TriadeRunner:
         if self.semantic_search_engine is not None:
             return self.semantic_search_engine
         store = SemanticMemoryStore(db_path=self.db_path)
-        client = self.model_client or build_model_client(
+        client = create_model_client(
             self.model_provider,
-            base_url=self.model_base_url,
+            base_url=self.ollama_base_url if self.model_provider == "ollama" else None,
             timeout=self.ollama_timeout,
-            db_path=self.db_path,
         )
-        if client is None:
-            raise RuntimeError(f"Proveedor local no soportado: {self.model_provider}")
-        local_fallback = os.getenv(
-            "TRIADE_LOCAL_EMBED_FALLBACK", "1"
-        ).strip().lower() in {"1", "true", "yes", "on"}
         embedding = SemanticEmbeddingEngine(
-            store=store, client=client, use_local_fallback=local_fallback
+            store=store, client=client, use_local_fallback=True
         )
         self.semantic_search_engine = SemanticSearchEngine(
             store=store, client=client, embedding_engine=embedding

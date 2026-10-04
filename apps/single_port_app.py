@@ -355,6 +355,16 @@ app.include_router(auth_router)
 @app.middleware("http")
 async def public_guarded_mode(request: Request, call_next):
     """Exige sesión real en modo público; una API key global no basta."""
+    local_no_auth = os.getenv("TRIADE_LOCAL_NO_AUTH", "0").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    # Este bypass es deliberadamente explícito y sólo está pensado para el
+    # runtime local de pruebas. La superficie pública debe seguir usando
+    # sesiones cuando TRIADE_LOCAL_NO_AUTH no esté activado.
+    if local_no_auth:
+        response = await call_next(request)
+        response.headers["X-Triade-Local-Auth"] = "disabled-for-local-testing"
+        return response
     guarded = os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower() in {
         "1",
         "true",

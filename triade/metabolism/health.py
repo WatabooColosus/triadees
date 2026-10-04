@@ -18,6 +18,12 @@ class HealthSensors:
             "db": self._check_db(),
             "disk": self._check_disk(),
             "memory": self._check_memory(),
+            # El metabolismo debe observar el mismo hardware que gobierna los
+            # workers. Antes sólo veía RAM/disco y podía declarar un ciclo
+            # sano sin saber que la GPU estaba disponible (o ausente). Este
+            # sensor reutiliza el probe canónico; no ejecuta acciones ni
+            # escribe actividad sintética.
+            "resources": self._check_resources(),
             "heartbeat": self._check_heartbeat(),
             "leases": self._check_leases(),
             "queue": self._check_queue(),
@@ -28,6 +34,70 @@ class HealthSensors:
         )
         sensors["healthy"] = healthy
         return sensors
+
+    def _check_resources(self) -> dict[str, Any]:
+        """Lee la configuración efectiva de hardware para el ciclo metabólico.
+
+        ``resource_governor`` y workers ya usan ``build_resource_probe``. La
+        ausencia de esa misma lectura aquí dejaba dos verdades: salud
+        metabólica sin GPU/CPU y decisión de workers con GPU/CPU. Se devuelve
+        el probe resumido para que el estado sea auditable sin copiar datos
+        sensibles ni tocar la base.
+        """
+        try:
+            from triade.core.resource_probe import build_resource_probe
+            from triade.core.ollama_blood import check_ollama_blood
+            from triade.core.resource_governor import decide_work_mode
+
+            probe = build_resource_probe()
+            # El metabolismo debe tomar la misma decisión efectiva que los
+            # workers. Antes sólo copiaba la telemetría y podía seguir
+            # proponiendo trabajo pesado mientras el gobernador ya había
+            # degradado el runtime por RAM/VRAM, dejando dos verdades de
+            # capacidad. La lectura es efímera y no crea actividad ni filas.
+            blood = check_ollama_blood()
+            configured_mode = str(
+                __import__("os").environ.get("TRIADE_WORK_MODE", "full_local_guarded")
+            )
+            decision = decide_work_mode(probe, blood, configured_mode)
+            limits = probe.get("limits") or {}
+            memory = probe.get("memory") or {}
+            cpu = probe.get("cpu") or {}
+            gpu = probe.get("gpu") or {}
+            return {
+                "ok": probe.get("status", "error") == "ok",
+                "source": "triade.core.resource_probe.build_resource_probe",
+                "os": (probe.get("hardware") or {}).get("os"),
+                "tier": (probe.get("hardware") or {}).get("tier"),
+                "cpu_count": limits.get("cpu_count", cpu.get("count")),
+                "physical_cores": cpu.get("physical_cores"),
+                "ram_total_gb": memory.get("total_gb"),
+                "ram_available_gb": limits.get(
+                    "ram_available_gb", memory.get("available_gb")
+                ),
+                "gpu_count": gpu.get("count", 0),
+                "gpu_vram_gb": gpu.get("total_vram_gb", 0.0),
+                "gpu_devices": gpu.get("devices", []),
+                "power": probe.get("power") or {},
+                "thermal": probe.get("thermal") or {},
+                "warnings": list(probe.get("warnings") or []),
+                "governor": {
+                    "requested_mode": decision.get("requested_mode"),
+                    "allowed_mode": decision.get("allowed_mode"),
+                    "effective_mode": decision.get("effective_mode"),
+                    "reason": decision.get("reason"),
+                    "can_run_workers": decision.get("can_run_workers"),
+                    "can_nourish_neurons": decision.get("can_nourish_neurons"),
+                    "can_evaluate_learning": decision.get("can_evaluate_learning"),
+                    "can_consolidate_stable": decision.get("can_consolidate_stable"),
+                },
+            }
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            return {
+                "ok": False,
+                "source": "triade.core.resource_probe.build_resource_probe",
+                "error": type(exc).__name__,
+            }
 
     def _check_db(self) -> dict[str, Any]:
         try:

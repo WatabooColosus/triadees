@@ -7,7 +7,6 @@ con sentence-transformers cuando Ollama no está disponible.
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import asdict, dataclass
 from typing import Any, ClassVar
 
@@ -95,17 +94,12 @@ class SemanticEmbeddingEngine:
         store: SemanticMemoryStore | None = None,
         client: OllamaClient | None = None,
         preferred_models: list[str] | None = None,
-        use_local_fallback: bool | None = None,
+        use_local_fallback: bool = True,
     ) -> None:
         self.store = store or SemanticMemoryStore()
         self.client = client or OllamaClient()
         self.preferred_models = preferred_models or list(self.PREFERRED_MODELS)
-        if use_local_fallback is None:
-            self.use_local_fallback = os.getenv(
-                "TRIADE_LOCAL_EMBED_FALLBACK", "1"
-            ).strip().lower() in {"1", "true", "yes", "on"}
-        else:
-            self.use_local_fallback = bool(use_local_fallback)
+        self.use_local_fallback = use_local_fallback
         self._local_provider: LocalEmbeddingProvider | None = None
 
     def _get_local_provider(self) -> LocalEmbeddingProvider | None:

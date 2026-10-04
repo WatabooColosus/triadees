@@ -489,6 +489,32 @@ def _classify_with_contracts(
                 }
                 recuento["MANUAL_TOOL"] = recuento.get("MANUAL_TOOL", 0) + 1
                 continue
+            if (
+                prefijo == "table"
+                and nombre in {
+                    "auth_audit",
+                    "auth_email_identities",
+                    "auth_rate_events",
+                    "auth_sessions",
+                    "auth_users",
+                }
+                and os.getenv("TRIADE_LOCAL_NO_AUTH", "0").strip().lower()
+                in {"1", "true", "yes", "on"}
+                and not rows_by_table.get(nombre)
+            ):
+                clasificados[nombre] = {
+                    "subject": f"table:{nombre}",
+                    "classification": "EXPECTED_EMPTY",
+                    "reason": (
+                        "La instancia local opera sin login; esta tabla sólo se "
+                        "llena al activar autenticación explícita."
+                    ),
+                    "contract_holds": True,
+                    "failed_evidence": [],
+                    "evidence": "TRIADE_LOCAL_NO_AUTH=1",
+                }
+                recuento["EXPECTED_EMPTY"] = recuento.get("EXPECTED_EMPTY", 0) + 1
+                continue
             contrato = contratos.get(f"{prefijo}:{nombre}")
             if contrato is None:
                 continue
@@ -773,12 +799,26 @@ def _backup_key_configured(root: Path) -> bool:
     2026-07-31 la clave desapareció de verdad y nadie se enteró en cuatro días;
     si además avisa cuando no pasa nada, deja de creerse cuando pasa.
     """
+    try:
+        from triade.memory.encrypted_backup import EncryptedBackup
+
+        if EncryptedBackup.key_configured():
+            return True
+    except (ImportError, OSError, ValueError, TypeError):
+        pass
     if (
         os.getenv("TRIADE_BACKUP_KEY", "").strip()
         or os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
     ):
         return True
-    return bool({"TRIADE_BACKUP_KEY", "TRIADE_BACKUP_KEY_FILE"} & _env_file_keys(root))
+    if bool({"TRIADE_BACKUP_KEY", "TRIADE_BACKUP_KEY_FILE"} & _env_file_keys(root)):
+        return True
+    location = root / "config" / "backup_key_location.json"
+    try:
+        configured_path = str(json.loads(location.read_text(encoding="utf-8")).get("key_file", ""))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+    return bool(configured_path and Path(configured_path).expanduser().is_file())
 
 
 def _backup_protection_gaps(root: Path) -> dict[str, Any]:
@@ -863,18 +903,22 @@ def _backup_key_file_path(root: Path) -> str:
     justamente en el sitio donde se mira todo lo demás.
     """
     desde_entorno = os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
-    if desde_entorno:
+    if desde_entorno and Path(desde_entorno).is_file():
         return desde_entorno
     env_file = root / ".env"
     try:
         contenido = env_file.read_text(encoding="utf-8")
     except OSError:
-        return ""
+        contenido = ""
     for linea in contenido.splitlines():
         limpia = linea.strip()
         if limpia.startswith("TRIADE_BACKUP_KEY_FILE="):
             return limpia.partition("=")[2].strip().strip("\"'")
-    return ""
+    location = root / "config" / "backup_key_location.json"
+    try:
+        return str(json.loads(location.read_text(encoding="utf-8")).get("key_file", ""))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return ""
 
 
 def _backup_key_file_gaps(root: Path) -> list[str]:
