@@ -43,6 +43,9 @@ from typing import Any
 #: horas o cuando se solicita explícitamente desde una herramienta de
 #: mantenimiento.
 DEFAULT_STALE_SECONDS = 6 * 60 * 60
+#: TTL específico para el informe de deuda (30 min). La deuda cambia más rápido
+#: que la estructura del repositorio, y el usuario espera verla actualizada.
+DEBT_STALE_SECONDS = 30 * 60
 #: Tras un fallo se espera antes de volver a intentarlo. Sin esto, un repo que
 #: no compila provoca un escaneo continuo de 53 s por cada visita a la página.
 FAILURE_COOLDOWN_SECONDS = 5 * 60
@@ -148,10 +151,16 @@ class GraphRefresher:
         generated = self.generated_at()
         return None if generated is None else time.time() - generated
 
-    def is_stale(self) -> bool:
-        """Sin artefacto también es caducado: hay que construirlo igual."""
+    def is_stale(self, stale_seconds: float | None = None) -> bool:
+        """Sin artefacto también es caducado: hay que construirlo igual.
+        
+        Si se pasa `stale_seconds`, usa ese umbral en lugar del configurado
+        en el refrescador. Útil para endpoints que quieren TTL más agresivo
+        (ej. deuda: 30 min vs estructura: 6h).
+        """
         age = self.age_seconds()
-        return age is None or age >= self.stale_seconds
+        threshold = stale_seconds if stale_seconds is not None else self.stale_seconds
+        return age is None or age >= threshold
 
     def is_running(self) -> bool:
         thread = self._thread
@@ -159,16 +168,20 @@ class GraphRefresher:
 
     # -- disparo ---------------------------------------------------------
 
-    def request(self, *, force: bool = False) -> str:
+    def request(self, *, force: bool = False, stale_seconds: float | None = None) -> str:
         """Pide una reconstrucción si hace falta. Nunca bloquea.
 
         Devuelve qué se decidió, y ese motivo viaja hasta la interfaz: quien
         mira la cifra tiene que poder distinguir «esto está al día» de «esto es
         viejo y ya se está recalculando».
+
+        Parámetro `stale_seconds`: umbral personalizado para considerar caducado.
+        Si se pasa, ignora el `stale_seconds` configurado en el refrescador.
+        Útil para endpoints con TTL más agresivo (ej. deuda: 30 min).
         """
         if self.is_running():
             return "running"
-        if not force and not self.is_stale():
+        if not force and not self.is_stale(stale_seconds):
             return "fresh"
         if not force and self._failed_at is not None:
             waited = time.time() - self._failed_at

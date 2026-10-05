@@ -278,7 +278,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             interval_seconds=int(cfg.get("continuous_runner_interval_seconds", 60)),
             max_cycles=int(cfg.get("continuous_runner_max_cycles", 0)),
         )
+        import sys
+        print(f"DEBUG: continuous_runner configured: {continuous_result}", file=sys.stderr, flush=True)
+        
+        print(f"DEBUG: LIFE_PULSE.continuous_run_enabled = {LIFE_PULSE.continuous_run_enabled}", file=sys.stderr, flush=True)
+        print(f"DEBUG: LIFE_PULSE.continuous_interval_seconds = {LIFE_PULSE.continuous_interval_seconds}", file=sys.stderr, flush=True)
+        
         LIFE_PULSE.start()
+        
+        print(f"DEBUG: LIFE_PULSE._continuous_thread = {LIFE_PULSE._continuous_thread}", file=sys.stderr, flush=True)
+        print(f"DEBUG: LIFE_PULSE.continuous_run_enabled = {LIFE_PULSE.continuous_run_enabled}", file=sys.stderr, flush=True)
+        
+        import time
+        time.sleep(2)
+        
+        snap = LIFE_PULSE.snapshot()
+        print(f"DEBUG: After start - continuous_runner: {snap.get('continuous_runner')}", file=sys.stderr, flush=True)
         record_internal_runtime_event(
             "always_on_startup_checked",
             "single_port_app",
@@ -343,8 +358,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     try:
         yield
+    except Exception as e:
+        import sys
+        print(f"LIFESPAN EXCEPTION: {e}", file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        raise
     finally:
+        import sys
+        print("LIFESPAN: finally block executing - stopping background", file=sys.stderr, flush=True)
         _stop_background(db_path)
+        print("LIFESPAN: finally block complete", file=sys.stderr, flush=True)
 
 
 app = FastAPI(title="Tríade Ω Single Port", version="0.9.0", lifespan=lifespan)

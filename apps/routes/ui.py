@@ -32,6 +32,7 @@ from apps.internal_graphs_live import (
 from apps.internal_graphs_live import _db_path as _graphs_db_path
 from triade.core.life_pulse import LIFE_PULSE
 from triade.core.ui_manifest import build_ui_manifest
+from triade.observability.refresh import DEBT_STALE_SECONDS
 
 router = APIRouter()
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -112,7 +113,7 @@ def internal_graph_node(name: str, node_id: str) -> dict[str, Any]:
 
 
 @router.get("/api/internal-graphs/debt")
-def internal_graphs_debt() -> dict[str, Any]:
+def internal_graphs_debt(force: bool = False) -> dict[str, Any]:
     """Dónde se rompe el sistema, en elementos concretos con su evidencia.
 
     Es el mismo informe que consume el worker de deuda: una sola medición para
@@ -123,13 +124,23 @@ def internal_graphs_debt() -> dict[str, Any]:
     se lee como medición de ahora cuando puede ser de hace horas: fue
     exactamente lo que ocurrió el 2026-08-03, cuando el panel siguió contando
     31 módulos huérfanos ya borrados.
+
+    Parámetro `force=true` fuerza reconstrucción inmediata y espera a que termine
+    (hasta 120s). Úsalo cuando el usuario pulse "Actualizar ahora" en la UI.
+
+    El endpoint usa TTL agresivo de 30 min (DEBT_STALE_SECONDS) en lugar de
+    6h para que la deuda se vea siempre actualizada.
     """
     from triade.observability.introspection import (
         build_debt_report,
         summarise_for_humans,
     )
+    from triade.observability.refresh import DEBT_STALE_SECONDS
 
-    trigger = refresh_artifacts()
+    trigger = refresh_artifacts(force=force, stale_seconds=DEBT_STALE_SECONDS)
+    # Si se pidió force, esperamos a que termine la reconstrucción (máx 120s)
+    if force:
+        REFRESHER.wait(timeout=120.0)
     # El estado se toma *antes* del informe, no después. Si se leyera al final,
     # una reconstrucción que termina en mitad de la petición devolvería
     # `running: false` junto a un informe medido con los ficheros de antes, y la

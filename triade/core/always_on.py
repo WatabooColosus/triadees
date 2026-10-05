@@ -38,7 +38,7 @@ ENV_KEYS = {
     "workers_watchdog": "TRIADE_WORKERS_WATCHDOG",
     "worker_mode": "TRIADE_WORKER_MODE",
     "continuous_runner_enabled": "TRIADE_CONTINUOUS_RUNNER",
-    "continuous_runner_autonomy_level": "TRIADE_AUTONOMY_LEVEL",
+    "continuous_runner_autonomy_level": "TRIADE_CONTINUOUS_AUTONOMY_LEVEL",
     "continuous_runner_interval_seconds": "TRIADE_CONTINUOUS_INTERVAL_SECONDS",
     "continuous_runner_max_cycles": "TRIADE_CONTINUOUS_MAX_CYCLES",
 }

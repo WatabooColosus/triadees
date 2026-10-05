@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+#: Módulo no alcanzable desde entrypoints productivos: registro deny-by-default
+#: de nodos federados. Sin peer real, no hay nodos que registrar.
+SUBSYSTEM_STATUS = "inactive"
+
 import hashlib
 import json
 from dataclasses import asdict, dataclass

@@ -28,6 +28,11 @@ from triade.metabolism.signals import SignalBus
 
 logger = logging.getLogger(__name__)
 
+#: Kinds que sobreviven a la protección de recursos del gobernador
+#: (`cooldown`/`blocked`): la telemetría que hace observable al
+#: organismo. El resto de necesidades se deniega mientras dure.
+_TELEMETRY_KINDS = frozenset({"health_check", "heartbeat"})
+
 
 class MetabolicCoordinator:
     def __init__(
@@ -344,7 +349,7 @@ class MetabolicCoordinator:
             )
 
             self.signals.emit(cycle_id, "authorize", "started", "authorizing_needs")
-            authorized = self._authorize(proposed)
+            authorized = self._authorize(proposed, cycle_id)
             self.signals.emit(
                 cycle_id,
                 "authorize",
@@ -456,15 +461,37 @@ class MetabolicCoordinator:
             self.needs_queue.persist_need(need, cycle_id)
         return needs
 
-    def _authorize(self, needs: list[MetabolicNeed]) -> list[MetabolicNeed]:
+    def _authorize(
+        self, needs: list[MetabolicNeed], cycle_id: int
+    ) -> list[MetabolicNeed]:
+        """Autoriza contra el modo **efectivo** del gobernador, no el configurado.
+
+        El gobernador puede decretar `cooldown` o `blocked` (RAM, batería,
+        carga); antes el ciclo autorizaba contra `self._mode` —la
+        configuración de `triade.yml`— y seguía ejecutando necesidades
+        con el organismo en protección de recursos. En protección sólo
+        se autoriza la telemetría que hace observable al organismo;
+        el resto se deniega con el motivo en el recibo del ciclo real.
+        """
         authorized: list[MetabolicNeed] = []
+        governor_mode = str(self._effective_mode or "")
+        protegido = governor_mode in {"blocked", "cooldown"}
         for need in needs:
+            if protegido and need.kind not in _TELEMETRY_KINDS:
+                self.receipts.record(
+                    cycle_id,
+                    need.need_id,
+                    "authorize",
+                    "denied",
+                    error=f"governor_{governor_mode}",
+                )
+                continue
             ok, reason = self.policy.authorize(need, self._mode)
             if ok:
                 authorized.append(need)
             else:
                 self.receipts.record(
-                    -1, need.need_id, "authorize", "denied", error=reason
+                    cycle_id, need.need_id, "authorize", "denied", error=reason
                 )
         return authorized
 

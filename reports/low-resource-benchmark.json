@@ -1,0 +1,60 @@
+{
+  "status": "degraded",
+  "timestamp_utc": "2026-10-04T02:35:05Z",
+  "provider": "ollama",
+  "model": "unknown",
+  "hardware": {
+    "cpu_count": 12,
+    "ram_total_gb": 7.21,
+    "ram_available_gb": 0.57,
+    "tier": "low",
+    "notes": [
+      "os=Windows",
+      "cpu_count=12",
+      "ram_total_gb=7.21",
+      "ram_available_gb=0.57",
+      "disk_free_gb=87.98",
+      "tier=low"
+    ],
+    "os_name": "Windows",
+    "os_version": "10.0.26200",
+    "architecture": "64bit",
+    "machine": "AMD64",
+    "processor": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+    "cpu_physical_cores": 6,
+    "disk_total_gb": 104.69,
+    "disk_free_gb": 87.98,
+    "python_version": "3.12.14",
+    "node_version": "v24.19.0",
+    "npm_version": "unknown",
+    "ollama_version": "not_found",
+    "gpus": [
+      {
+        "name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+        "vendor": "NVIDIA",
+        "vram_total_gb": 6.0,
+        "driver": "616.92",
+        "cuda_available": true,
+        "source": "nvidia-smi"
+      }
+    ],
+    "capability_status": "low",
+    "compatibility_notes": [
+      "Recomendado usar modelos pequeños o fallback.",
+      "RAM disponible baja; priorizar modo rápido o sin Ollama.",
+      "GPU NVIDIA/CUDA detectada; posible aceleración local."
+    ]
+  },
+  "health": {
+    "ok": true,
+    "base_url": "http://127.0.0.1:11434",
+    "models": []
+  },
+  "health_latency_ms": 27.17,
+  "generation_latency_ms": 11.46,
+  "rss_before_mb": 30.4,
+  "rss_after_mb": 30.41,
+  "rss_delta_mb": 0.01,
+  "tokens": null,
+  "error": "HTTP Error 404: Not Found"
+}

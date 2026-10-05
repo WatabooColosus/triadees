@@ -48,6 +48,90 @@ def test_work_mode_low_ram_degrades():
     assert "RAM disponible muy baja" in decision["reason"]
 
 
+def _probe(ram_gb: float, **limits) -> dict:
+    """Probe mínimo con la forma que consume `decide_work_mode`."""
+    base = {
+        "ram_available_gb": ram_gb,
+        "disk_free_gb": 100,
+        "tier": "high",
+        "cpu_count": 12,
+    }
+    base.update(limits)
+    return {
+        "limits": base,
+        "cpu": {"load_1min": 2.0},
+        "power": {"ac_connected": True, "battery_percent": None},
+        "thermal": {"thermal_status": "ok"},
+        "gpu": {"total_vram_gb": 6.0},
+        "warnings": [],
+    }
+
+
+def test_ram_degradation_is_a_ramp_not_a_cliff(monkeypatch) -> None:
+    """Por debajo de 1.5 GB el sistema degrada; no se detiene.
+
+    El defecto medido el 2026-10-04: el gobernador solo tenía dos desenlaces.
+    Con `ram_gb < 2` caía directo a `cooldown`, y el supervisor descarta el
+    ciclo entero cuando `effective_mode in ("cooldown", "blocked")`. Esta
+    máquina se movía entre 1.29 y 1.38 GB, así que 38 de 123 ciclos (30.9%)
+    se descartaron y no se produjo evidencia de aprendizaje nueva: la banda
+    que bloqueaba `run_workers` y `learning_evaluation` era la que más se
+    visitaba.
+
+    Ahora hay tres tramos: parada crítica hasta 1.0 GB, `light_background`
+    entre 1.0 y 1.5, y `full_local_guarded` desde 1.5.
+    """
+    monkeypatch.setenv("TRIADE_SLOW_FULL_LOCAL", "1")
+    from triade.core.resource_governor import (
+        RAM_CRITICAL_GB,
+        RAM_DEGRADED_GB,
+        decide_work_mode,
+    )
+
+    blood = {"status": "ok", "can_reason": True, "can_embed": True}
+
+    # Tramo crítico: por debajo del piso, el sistema se detiene.
+    stop = decide_work_mode(_probe(RAM_CRITICAL_GB), blood, "full_local_guarded")
+    assert stop["effective_mode"] == "cooldown"
+    assert stop["can_run_workers"] is False
+
+    # Tramo degradado: trabaja y mide, pero sin full local.
+    mid = decide_work_mode(
+        _probe((RAM_CRITICAL_GB + RAM_DEGRADED_GB) / 2), blood, "full_local_guarded"
+    )
+    assert mid["effective_mode"] == "light_background"
+    assert mid["can_run_workers"] is True, "debe poder trabajar con RAM limitada"
+    assert mid["can_evaluate_learning"] is True, "debe poder medir con RAM limitada"
+    # El margen de diseño se mantiene: nada de lo costoso.
+    assert mid["can_consolidate_stable"] is False
+    assert mid["can_nourish_neurons"] is False
+    assert mid["can_run_tests"] is False
+    assert mid["can_run_build"] is False
+    assert "write_repo" in mid["blocked_actions"]
+
+    # Tramo superior: sin cambios.
+    top = decide_work_mode(_probe(RAM_DEGRADED_GB), blood, "full_local_guarded")
+    assert top["effective_mode"] == "full_local_guarded"
+
+
+def test_ram_ceiling_cannot_be_overridden_by_hardware_tier(monkeypatch) -> None:
+    """`tier == "high"` no puede levantar el tope que impone la RAM.
+
+    Sin este tope, la rama de hardware de alto nivel reconcedía
+    `full_local_guarded` por debajo del margen de diseño y anulaba la
+    degradación.
+    """
+    monkeypatch.setenv("TRIADE_SLOW_FULL_LOCAL", "1")
+    from triade.core.resource_governor import decide_work_mode
+
+    blood = {"status": "ok", "can_reason": True, "can_embed": True}
+    decision = decide_work_mode(
+        _probe(1.2, tier="high", cpu_count=12), blood, "full_local_guarded"
+    )
+    assert decision["effective_mode"] == "light_background"
+    assert "Tope de RAM aplicado" in decision["reason"]
+
+
 def test_work_mode_battery_low_observe_only():
     """Batería < 25% sin AC debe forzar observe_only."""
     from triade.core.resource_governor import decide_work_mode

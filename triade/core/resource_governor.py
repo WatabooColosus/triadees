@@ -16,6 +16,14 @@ WORK_MODES = [
 ]
 WORK_MODE_RANK = {m: i for i, m in enumerate(WORK_MODES)}
 
+# Piso de RAM por debajo del cual el sistema se detiene. El comentario de
+# diseño original dice que con 1 GB libre "el modelo puede ocupar el resto de
+# la RAM mientras usa la GPU y provocar presión extrema"; ese piso se mantiene.
+RAM_CRITICAL_GB = 1.0
+# Sobre el piso y por debajo de `slow_full_eligible` el sistema no se detiene:
+# degrada a `light_background`. Ver `decide_work_mode`.
+RAM_DEGRADED_GB = 1.5
+
 
 def decide_work_mode(
     resource_probe: dict[str, Any],
@@ -47,11 +55,21 @@ def decide_work_mode(
     # Conserva margen real para Windows, la API y el navegador. Con 1 GB libre
     # el modelo puede ocupar el resto de la RAM mientras usa la GPU y provocar
     # presión extrema; full local entra solo desde 1.5 GB disponibles.
-    slow_full_eligible = slow_full_requested and ram_gb >= 1.5 and vram_gb >= 2.0 and can_reason
+    slow_full_eligible = (
+        slow_full_requested
+        and ram_gb >= RAM_DEGRADED_GB
+        and vram_gb >= 2.0
+        and can_reason
+    )
     resource_probe.get("warnings", [])
 
     reasons: list[str] = []
     downgrades: list[str] = []
+    # Techo impuesto por la RAM. Las ramas siguientes de este governor eligen
+    # el modo que quieren; este techo impide que lo eleven por encima de lo
+    # que la RAM permite. Sin el, `tier == "high"` reconcedía `full_local`
+    # por debajo del margen de diseño.
+    ram_ceiling: str | None = None
 
     # --- Bloqueo por disco ---
     if disk_gb < 2:
@@ -75,10 +93,12 @@ def decide_work_mode(
         reasons.append(
             f"Perfil slow full local: {ram_gb} GB RAM libre y {vram_gb} GB VRAM; ejecución serializada."
         )
-    # --- Cooldown por RAM ---
-    elif ram_gb < 2:
+    # --- Detención por RAM crítica ---
+    elif ram_gb <= RAM_CRITICAL_GB:
         allowed_mode = "cooldown"
-        reasons.append(f"RAM disponible muy baja ({ram_gb} GB). Cooldown forzado.")
+        reasons.append(
+            f"RAM disponible muy baja ({ram_gb} GB). Cooldown forzado."
+        )
         return _build_decision(
             allowed_mode,
             requested_mode,
@@ -86,6 +106,25 @@ def decide_work_mode(
             downgrades,
             resource_probe,
             ollama_blood,
+        )
+    # --- Degradación graduada por RAM ---
+    # Antes esta banda no existía: por debajo de 1.5 GB el sistema caía
+    # directo a `cooldown`, que bloquea `run_workers`, `neuron_nutrition`,
+    # `learning_evaluation` y `stable_consolidation`, y el supervisor
+    # descartaba el ciclo entero (`supervisor.py`: `effective_mode in
+    # ("cooldown", "blocked")`). Medido el 2026-10-04, esta máquina se
+    # movía entre 1.29 y 1.38 GB: 38 de 123 ciclos descartados (30.9%) sin
+    # evidencia de aprendizaje nueva, porque la banda que bloqueaba el
+    # trabajo pesado era justamente la que más se visitaba.
+    #
+    # El margen de diseño se conserva entero: por debajo de 1.5 GB nunca hay
+    # full local, ni consolidación, ni escritura en el repo, ni tests, ni
+    # build. Lo que se recupera es poder trabajar y medir.
+    elif ram_gb < RAM_DEGRADED_GB:
+        ram_ceiling = "light_background"
+        reasons.append(
+            f"RAM disponible limitada ({ram_gb} GB): máximo light_background; "
+            f"full local exige {RAM_DEGRADED_GB} GB."
         )
 
     # --- Cooldown por batería crítica ---
@@ -142,6 +181,17 @@ def decide_work_mode(
     elif not slow_full_eligible:
         allowed_mode = "balanced_background"
         reasons.append(f"Hardware tier {tier}, recursos suficientes. Modo balanced.")
+
+    # Aplica el techo de RAM. Va al final a propósito: cualquier rama anterior
+    # pudo haber negado un modo alto (tier, falta de AC, temperatura), pero
+    # ninguna debe levantar el techo que la RAM impone.
+    if ram_ceiling is not None and WORK_MODE_RANK.get(
+        allowed_mode, 0
+    ) > WORK_MODE_RANK.get(ram_ceiling, 0):
+        reasons.append(
+            f"Tope de RAM aplicado: {allowed_mode} -> {ram_ceiling}."
+        )
+        allowed_mode = ram_ceiling
 
     return _build_decision(
         allowed_mode, requested_mode, reasons, downgrades, resource_probe, ollama_blood

@@ -291,10 +291,19 @@ def _runtime_mode() -> dict[str, Any]:
     # Visto el 2026-08-08 persiguiendo una regresión que costó seis intentos y
     # cuatro diagnósticos equivocados, precisamente por no poder leer esto.
     metabolismo = startup.get("metabolism")
+    # Keep startup evidence separate from the coordinator's current state.
+    # The startup snapshot precedes the first tick and cannot describe progress.
+    try:
+        from triade.metabolism.coordinator import get_coordinator
+
+        metabolism_current = get_coordinator()._build_status_data()
+    except (ImportError, RuntimeError, OSError) as exc:
+        metabolism_current = {"status": "unknown", "error": type(exc).__name__}
     return {
         "status": startup.get("status"),
         "conversation_only": bool(startup.get("conversation_only", False)),
         "background_started": startup.get("background_started"),
         "metabolism_startup": metabolismo,
+        "metabolism_current": metabolism_current,
         "workers_startup": startup.get("workers_always_on"),
     }

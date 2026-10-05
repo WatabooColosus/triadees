@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+#: Módulo de benchmark/validación: no es código productivo. Se ejecuta explícitamente
+#: vía scripts de fase (run_long_validation.py). No se espera que sea alcanzable
+#: desde entrypoints productivos.
+SUBSYSTEM_STATUS = "benchmark"
+
 import json
 import subprocess
 import tempfile

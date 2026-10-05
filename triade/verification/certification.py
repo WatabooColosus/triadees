@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+#: Módulo de certificación/evidencia: herramienta de verificación, no código productivo.
+#: Se ejecuta explícitamente para generar manifiestos TRIADE-VERIFY. No se espera que
+#: sea alcanzable desde entrypoints productivos.
+SUBSYSTEM_STATUS = "benchmark"
+
 import hashlib
 import json
 import shutil

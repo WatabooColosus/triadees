@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+#: Módulo no alcanzable desde entrypoints productivos: capacidad de metacognición
+#: (CapabilityAwareness) con migración 023, esperando integración en ciclo de gobernanza.
+SUBSYSTEM_STATUS = "inactive"
+
 import json
 import math
 import uuid

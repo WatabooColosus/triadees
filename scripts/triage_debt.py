@@ -257,7 +257,9 @@ def triage(root: Path, db: Path, cache: Path) -> dict[str, Any]:
             perfil = perfiles.get(nombre, {})
 
             prefijo = (
-                "task_type" if categoria == "task_types_never_executed" else "table"
+                "task_type" if categoria == "task_types_never_executed" else
+                "module" if categoria == "modules_unreachable_from_entrypoint" else
+                "table"
             )
             veredicto = veredictos.get(f"{prefijo}:{nombre}")
 
@@ -324,21 +326,32 @@ def triage(root: Path, db: Path, cache: Path) -> dict[str, Any]:
                 ev = "guard __main__ sin lanzador: utilidad manual, no ruta viva"
                 fuente = nombre
             elif categoria == "modules_unreachable_from_entrypoint":
-                # No es «nadie lo importa» —eso es la categoría de abajo y da
-                # cero—: es que sus importadores tampoco los alcanza nada. Una
-                # isla de módulos que se importan entre sí pasa los dos filtros
-                # antiguos, y así se acumularon 35 sin aparecer en ningún
-                # contador. Se clasifica como subsistema sin terminar porque es
-                # exactamente eso: el código existe y el circuito nunca se
-                # cerró. Convertirlo en falso positivo exigiría demostrar un
-                # arranque que el grafo no ve, y esa prueba se aporta, no se
-                # presume.
-                clase, sev = "incomplete_subsystem", "medium"
-                ev = (
-                    "ningún entrypoint arrancado lo alcanza por imports: "
-                    "existe, pero el sistema no lo conecta"
-                )
-                fuente = nombre
+                # Verificar si hay contrato de módulo (module_inactive, etc.)
+                veredicto = veredictos.get(f"module:{nombre}")
+                if (
+                    veredicto is not None
+                    and veredicto.holds
+                    and veredicto.classification in CONTRACTED_NOT_PENDING
+                ):
+                    clase, sev = "contracted_by_design", "low"
+                    ev = f"contrato {veredicto.classification} vigente: {veredicto.reason}"
+                    fuente = ""
+                else:
+                    # No es «nadie lo importa» —eso es la categoría de abajo y da
+                    # cero—: es que sus importadores tampoco los alcanza nada. Una
+                    # isla de módulos que se importan entre sí pasa los dos filtros
+                    # antiguos, y así se acumularon 35 sin aparecer en ningún
+                    # contador. Se clasifica como subsistema sin terminar porque es
+                    # exactamente eso: el código existe y el circuito nunca se
+                    # cerró. Convertirlo en falso positivo exigiría demostrar un
+                    # arranque que el grafo no ve, y esa prueba se aporta, no se
+                    # presume.
+                    clase, sev = "incomplete_subsystem", "medium"
+                    ev = (
+                        "ningún entrypoint arrancado lo alcanza por imports: "
+                        "existe, pero el sistema no lo conecta"
+                    )
+                    fuente = nombre
             elif categoria == "modules_without_importer":
                 clase = (
                     "incomplete_subsystem"

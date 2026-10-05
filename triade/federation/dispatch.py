@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+#: Módulo no alcanzable desde entrypoints productivos: subsistema de federación
+#: que requiere un peer real (nodo federado). Sin peer, permanece inactivo.
+SUBSYSTEM_STATUS = "inactive"
+
 import hashlib
 import json
 import time

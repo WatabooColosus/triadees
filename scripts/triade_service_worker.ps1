@@ -37,6 +37,9 @@ $env:TRIADE_PUBLIC_GUARDED = "true"
 $env:TRIADE_LOW_RESOURCE_MODEL = "qwen2.5:1.5b"
 $env:TRIADE_LOW_RESOURCE_MODE = "1"
 $env:TRIADE_SLOW_FULL_LOCAL = "1"
+$env:OLLAMA_NUM_PARALLEL = "1"
+$env:OLLAMA_MAX_LOADED_MODELS = "1"
+$env:OLLAMA_KEEP_ALIVE = "0"
 $env:TRIADE_RATE_LIMIT_PER_MINUTE = "300"
 # Read only explicitly configured search settings; never log credential values.
 foreach ($searchSetting in @('TRIADE_SEARCH_PROVIDER', 'RAPIDAPI_KEY', 'BRAVE_SEARCH_API_KEY')) {
@@ -62,6 +65,8 @@ if ($env:TRIADE_BACKUP_KEY_FILE) {
     $env:TRIADE_BACKUP_KEY = (Get-Content -Raw $env:TRIADE_BACKUP_KEY_FILE).Trim()
     $env:TRIADE_AUTH_VAULT_KEY = $env:TRIADE_BACKUP_KEY
 }
+# Fallos consecutivos de arranque; controla el backoff del bucle.
+$script:triade_restart_failures = 0
 Set-Location $repo
 $logDir = Join-Path $repo "artifacts\service_logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -71,7 +76,22 @@ try { while ($true) {
     $proc = Start-Process -FilePath $python -ArgumentList @(
         "-m", "scripts.serve_local_api", "--host", "127.0.0.1", "--port", "8010"
     ) -WorkingDirectory $repo -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
-    try { $proc.PriorityClass = 'High' } catch { }
+    # `High` hacía que Tríade tenga prioridad sobre el servidor de Ollama y
+    # sobre el propio SO. Con 1.6 GB libres de 7.2 eso aggravate el
+    # starvación: 82 ciclos `runtime_cycle_skipped_resource_cooldown` en 24h
+    # por "RAM disponible muy baja". `Normal` devuelve la precedencia justa.
+    try { $proc.PriorityClass = 'Normal' } catch { }
     $proc.WaitForExit()
-    Start-Sleep -Seconds 5
+    # Sin freno, un fallo que se repite puede gastar la CPU reiniciando en
+    # bucle. El backoff crece hasta un minuto y se reinicia si el proceso
+    # llego a vivir un rato.
+    if ($proc.ExitCode -ne 0) {
+        $restartDelay = [Math]::Min(60, 5 * [Math]::Pow(2, [Math]::Min(3, $script:triade_restart_failures)))
+        $script:triade_restart_failures = [int]$script:triade_restart_failures + 1
+        Write-Error "Tríade terminó con código $($proc.ExitCode); reintentando en ${restartDelay}s."
+        Start-Sleep -Seconds $restartDelay
+    } else {
+        $script:triade_restart_failures = 0
+        Start-Sleep -Seconds 5
+    }
 } } finally { $supervisorGuard.Dispose() }

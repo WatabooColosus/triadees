@@ -23,6 +23,10 @@ def _quick_handler() -> dict:
     return {"status": "completed", "evidence": "real"}
 
 
+def _large_handler() -> dict:
+    return {"status": "completed", "payload": "x" * (256 * 1024)}
+
+
 def test_handler_is_terminated_after_timeout(tmp_path: Path) -> None:
     executor = GovernedTaskExecutor(tmp_path / "quarantine")
     artifact = tmp_path / "task"
@@ -159,6 +163,26 @@ def test_completed_callable_collects_real_result(tmp_path: Path) -> None:
     assert outcome.status == "completed"
     assert outcome.result["evidence"] == "real"
     assert outcome.exit_code == 0
+
+
+def test_large_result_completes_through_pipe(tmp_path: Path) -> None:
+    """Un resultado mayor que el búfer del pipe no puede colgar al hijo.
+
+    El padre sólo leía el pipe tras ver al hijo muerto: con un
+    resultado grande el feeder del hijo bloqueaba a mitad de
+    escritura, el hijo no salía y la tarea moría como `task_timeout`
+    aunque el handler hubiera terminado. `pulse_check` devuelve ~21 KB
+    y moría así en Windows; 256 KB supera cualquier búfer del pipe.
+    """
+    started = time.monotonic()
+    outcome = GovernedTaskExecutor(tmp_path / "quarantine").execute_callable(
+        _large_handler,
+        timeout_seconds=30.0,
+        artifact_dir=tmp_path / "task",
+    )
+    assert outcome.status == "completed"
+    assert time.monotonic() - started < 10.0
+    assert len(outcome.result["payload"]) == 256 * 1024
 
 
 def test_subprocess_children_are_terminated(tmp_path: Path) -> None:

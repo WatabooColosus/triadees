@@ -80,6 +80,11 @@ STRUCTURAL_EVIDENCE = (
     # un lanzador deja de ser una herramienta manual, el contrato cae y el sujeto
     # vuelve a la deuda para que se mire con datos delante.
     "manual_tool",
+    # Módulo declarado inactivo/benchmark/capacidad en espera: el fichero existe,
+    # tiene SUBSYSTEM_STATUS o comentario equivalente, y no se espera que sea
+    # alcanzable desde entrypoints productivos. Falsable: si alguien lo conecta
+    # a un entrypoint vivo, el contrato cae.
+    "module_inactive",
 )
 
 #: Evidencia que sólo tiene respuesta **sobre la base viva**. En CI no hay base
@@ -226,6 +231,8 @@ class ContractVerifier:
         return self._sources.get(relative)
 
     def _table_of(self, subject: str) -> str:
+        if subject.startswith("module:"):
+            return subject.split(":", 1)[1]
         return subject.split(":", 1)[1] if ":" in subject else subject
 
     def _rows(self, table: str) -> int | None:
@@ -411,6 +418,31 @@ class ContractVerifier:
             # «No ha pasado porque no hay con quién»: el estímulo externo se
             # mide, no se supone. Si aparece un peer, el contrato se cae solo.
             return self._sin_filas(valor)
+
+        if kind == "module_inactive":
+            # Módulo declarado inactivo/benchmark/capacidad en espera.
+            # El valor es la ruta relativa del módulo. Comprobamos:
+            # 1. El fichero existe
+            # 2. Contiene SUBSYSTEM_STATUS = "inactive" o comentario equivalente
+            # 3. NO es alcanzable desde entrypoints productivos (si lo fuera, el contrato cae)
+            modulo_path = valor
+            if modulo_path not in self.reachable:
+                # No alcanzable: verificar que tiene marca de inactivo
+                fuente = self._source(modulo_path)
+                if fuente is None:
+                    return False
+                # Buscar marca explícita de subsistema inactivo
+                inactive_markers = (
+                    'SUBSYSTEM_STATUS = "inactive"',
+                    "SUBSISTEMA INACTIVO",
+                    "INACTIVE SUBSYSTEM",
+                    "no activa una capacidad productiva",
+                    "benchmark",
+                    "evaluation",
+                )
+                return any(marker in fuente for marker in inactive_markers)
+            # Si es alcanzable, el contrato cae (ya no es inactivo)
+            return False
 
         return False
 
@@ -1261,6 +1293,66 @@ CONTRACTS: tuple[Contract, ...] = (
         ),
     ),
     _contract(
+        "table:auth_audit",
+        "HUMAN_GATED",
+        decided_at="2026-10-04",
+        reason="Auditoría de eventos de autenticación: login, registro, revocación, rate limit. Sólo se escribe cuando ocurre un evento de autenticación real (humano o cliente autenticado); una base sin auditoría no autoriza inventar eventos.",
+        evidence=(
+            "writer_reachable=triade/security/public_auth.py",
+            "reader_exists=triade/security/public_auth.py",
+            "proof_test=tests/test_public_security.py",
+            "rows_absent=auth_audit",
+        ),
+    ),
+    _contract(
+        "table:auth_email_identities",
+        "HUMAN_GATED",
+        decided_at="2026-10-04",
+        reason="Identidades de email pendientes de verificación. Sólo se crea cuando un humano se registra explícitamente con email y contraseña fuerte; una base sin identidades pendientes no autoriza inventar registros.",
+        evidence=(
+            "writer_reachable=triade/security/public_auth.py",
+            "reader_exists=triade/security/public_auth.py",
+            "proof_test=tests/test_public_security.py",
+            "rows_absent=auth_email_identities",
+        ),
+    ),
+    _contract(
+        "table:auth_rate_events",
+        "HUMAN_GATED",
+        decided_at="2026-10-04",
+        reason="Eventos de rate limiting por usuario y ventana. Sólo se escribe cuando un cliente autenticado hace una petición que consume cuota; una base sin eventos de rate limit no autoriza inventar tráfico.",
+        evidence=(
+            "writer_reachable=triade/security/public_auth.py",
+            "reader_exists=triade/security/public_auth.py",
+            "proof_test=tests/test_public_security.py",
+            "rows_absent=auth_rate_events",
+        ),
+    ),
+    _contract(
+        "table:auth_sessions",
+        "HUMAN_GATED",
+        decided_at="2026-10-04",
+        reason="Sesiones activas con token y expiración. Sólo se crea cuando un humano (o cliente con credenciales válidas) hace login exitoso; una base sin sesiones no autoriza inventar accesos.",
+        evidence=(
+            "writer_reachable=triade/security/public_auth.py",
+            "reader_exists=triade/security/public_auth.py",
+            "proof_test=tests/test_public_security.py",
+            "rows_absent=auth_sessions",
+        ),
+    ),
+    _contract(
+        "table:auth_users",
+        "HUMAN_GATED",
+        decided_at="2026-10-04",
+        reason="Cuentas de usuario con hash de contraseña y rol. Sólo se crea cuando un administrador o un humano se registra explícitamente; una base sin usuarios no autoriza inventar cuentas.",
+        evidence=(
+            "writer_reachable=triade/security/public_auth.py",
+            "reader_exists=triade/security/public_auth.py",
+            "proof_test=tests/test_public_security.py",
+            "rows_absent=auth_users",
+        ),
+    ),
+    _contract(
         "table:federated_nodes",
         "EXPECTED_EMPTY",
         decided_at="2026-09-18",
@@ -1371,6 +1463,410 @@ CONTRACTS: tuple[Contract, ...] = (
             "reader_exists=triade/runtime/legacy_compatibility.py",
             "proof_test=tests/test_worker_status_counts_the_living_path.py::test_worker_status_publica_el_switch_legacy_sin_cambiarlo",
             "rows_absent=runtime_queue_compatibility_events",
+        ),
+    ),
+    # ── Contratos para las 21 tablas de deuda real (21 tablas, 15 nuevos) ───
+    #
+    # Estas tablas tienen writer alcanzable y 0 filas. La diferencia clave:
+    # - ON_DEMAND: el writer existe y es alcanzable, pero el estímulo no ha llegado
+    # - HUMAN_GATED: requiere decisión humana explícita (aprobación, registro)
+    # - LEGACY_RETIRE: tabla retirada, la migración existe y espera firma
+    # - EXPECTED_EMPTY: vacío es el estado correcto en reposo (locks, vetos)
+    #
+    # Cada contrato declara evidencia falsable: si el gate desaparece, si el writer
+    # deja de ser alcanzable, o si aparecen filas donde no deberían, el contrato cae.
+    _contract(
+        "table:goal_dependencies",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Dependencias entre goals. CentralLearningPlanner escribe una dependencia por cada enlace entre etapas de un plan de aprendizaje; worker_loop._unsatisfied_dependency las hace cumplir. Sin goals activos no hay dependencias que registrar.",
+        evidence=(
+            "writer_reachable=triade/core/planning_graph.py",
+            "reader_exists=triade/core/planning_graph.py",
+            "proof_test=tests/test_goals_end_to_end_real.py",
+            "rows_absent=goal_dependencies",
+        ),
+    ),
+    _contract(
+        "table:goal_events",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Bitácora de eventos de goals (creación, transición, completión). Se escribe cuando GoalOrchestrator o PlanningGraph ejecutan un goal real. Cero filas significa que no hay goals en ejecución, no que falte el escritor.",
+        evidence=(
+            "writer_reachable=triade/core/planning_graph.py",
+            "reader_exists=triade/core/planning_graph.py",
+            "proof_test=tests/test_goals_end_to_end_real.py::test_valid_diagnostic_order_is_executed_by_real_worker",
+            "rows_absent=goal_events",
+        ),
+    ),
+    _contract(
+        "table:goal_learning_observations",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Observaciones de aprendizaje asociadas a goals de investigación. Se producen cuando una tarea goal_research o goal_safe_command genera evidencia medible. Sin goals de ese tipo ejecutándose, la tabla vacía es correcta.",
+        evidence=(
+            "writer_reachable=triade/core/goal_orchestrator.py",
+            "reader_exists=triade/core/learning_planner.py",
+            "proof_test=tests/test_goals_end_to_end_real.py",
+            "rows_absent=goal_learning_observations",
+        ),
+    ),
+    _contract(
+        "table:governed_datasets",
+        "HUMAN_GATED",
+        decided_at="2026-10-04",
+        reason="Datasets gobernados para entrenamiento LoRA. Sólo se registran tras aprobación humana explícita (dataset_path, approved_by, uso lora_training). Una base sin datasets gobernados no autoriza inventar datos de entrenamiento.",
+        evidence=(
+            "writer_reachable=triade/core/governed_datasets.py",
+            "reader_exists=triade/core/governed_datasets.py",
+            "human_gate=triade/core/governed_datasets.py::create_dataset",
+            "proof_test=tests/test_governed_lora_canary_pipeline.py",
+            "rows_absent=governed_datasets",
+        ),
+    ),
+    _contract(
+        "table:improvement_failure_lessons",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Lecciones extraídas de fallos de automejora. Se escriben cuando SelfImprovementFailureLearner procesa una propuesta degradada o revertida. Sin fallos de automejora observados, la tabla vacía es el estado esperado.",
+        evidence=(
+            "writer_reachable=triade/self_improvement/failure_learning.py",
+            "reader_exists=triade/self_improvement/failure_learning.py",
+            "proof_test=tests/test_failure_learning.py",
+            "rows_absent=improvement_failure_lessons",
+        ),
+    ),
+    _contract(
+        "table:learning_candidate_groups",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Grupos de candidatos deduplicados. LearningDeduplicator agrupa candidatos semánticamente equivalentes y elige un canónico. Sin candidatos nuevos en learning_queue, no hay grupos que formar.",
+        evidence=(
+            "writer_reachable=triade/learning/deduplication.py",
+            "reader_exists=triade/learning/pipeline.py",
+            "proof_test=tests/test_learning_consolidation_chain.py",
+            "rows_absent=learning_candidate_groups",
+        ),
+    ),
+    _contract(
+        "table:neuron_activity",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Actividad neuronal medida para scheduling. NeuronScheduler y NeuronActivityStore registran actividad cuando hay runs medibles con verification_reports. Las neuronas experimentales en cooldown de repetición espaciada no generan filas; eso es espera, no rotura.",
+        evidence=(
+            "writer_reachable=triade/core/neuron_activity_store.py",
+            "reader_exists=triade/os/neuron_scheduler.py",
+            "proof_test=tests/test_autonomous_neural_learning.py",
+            "rows_absent=neuron_activity",
+        ),
+    ),
+    _contract(
+        "table:neuron_education_applications",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Aplicación de lecciones a neuronas (P1-01 ABIERTO). El resolutor educa neuronas y produce lecciones (lesson_prepared), pero el tramo aplicación → runs de evaluación → medición antes/después → decisión improved/neutral/degraded → consolidación o rollback NO TIENE PRODUCTOR. El writer education_applications.py existe y es alcanzable, pero el resolutor que decidiría aplicar una lección (apply_lesson) no está implementado. Cero filas significa que el circuito está incompleto por diseño, a la espera de P1-01.",
+        evidence=(
+            "writer_reachable=triade/neurons/education_applications.py",
+            "reader_exists=triade/neurons/competency_store.py",
+            "proof_test=tests/test_neuron_education_applications.py",
+            "rows_absent=neuron_education_applications",
+        ),
+    ),
+    _contract(
+        "table:neuron_learning_assignments",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Asignaciones de tareas de aprendizaje a neuronas. LearningRouter asigna trabajo cuando hay material educable y neuronas disponibles. Sin sesiones lesson_prepared activas, no hay asignaciones que hacer.",
+        evidence=(
+            "writer_reachable=triade/neurons/education_resolver.py",
+            "reader_exists=triade/neurons/learning_router.py",
+            "proof_test=tests/test_education_priority.py",
+            "rows_absent=neuron_learning_assignments",
+        ),
+    ),
+    _contract(
+        "table:neuron_priority_log",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Log de priorización de neuronas para educación. NeuronScheduler prioriza neuronas measurables con revisiones pendientes. Sin neuronas evaluables en cooldown vencido, el log queda vacío correctamente.",
+        evidence=(
+            "writer_reachable=triade/os/neuron_scheduler.py",
+            "reader_exists=triade/os/neuron_scheduler.py",
+            "proof_test=tests/test_autonomy_governs_tasks.py",
+            "rows_absent=neuron_priority_log",
+        ),
+    ),
+    _contract(
+        "table:neuron_training",
+        "HUMAN_GATED",
+        decided_at="2026-10-04",
+        reason="Entrenamiento de neuronas (LoRA). Sólo se programa tras aprobación humana explícita vía GoalOrchestrator.schedule_lora (approved_by, dataset_path). Cero filas significa que nadie ha aprobado entrenar, no que falte capacidad.",
+        evidence=(
+            "writer_reachable=triade/core/neuron_registry.py",
+            "reader_exists=triade/core/neuron_registry.py",
+            "human_gate=triade/core/goal_orchestrator.py::schedule_lora",
+            "proof_test=tests/test_peft_base_model_gate.py",
+            "rows_absent=neuron_training",
+        ),
+    ),
+    _contract(
+        "table:peft_canary_events",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Eventos de canary PEFT (arranque, observación, graduación/reversión). Sólo ocurren cuando existe un canary compatible con el modelo servido y ha sido aprobado. Sin canary running, no hay eventos.",
+        evidence=(
+            "writer_reachable=triade/training/peft_canary.py",
+            "reader_exists=triade/training/peft_canary.py",
+            "proof_test=tests/test_peft_canary_observation.py",
+            "rows_absent=peft_canary_events",
+        ),
+    ),
+    _contract(
+        "table:peft_serving_state",
+        "EXPECTED_EMPTY",
+        decided_at="2026-10-04",
+        reason="Estado de serving PEFT legacy. La autoridad canónica es governed_peft_active_slot con gate humano (activate). Esta tabla y sus endpoints se mantienen solo como diagnóstico de compatibilidad; la activación real usa la vía gobernada. Cero filas es correcto porque nadie debe escribir en la tabla legacy.",
+        evidence=(
+            "writer_reachable=triade/training/peft_canary.py",
+            "reader_exists=triade/training/peft_canary.py",
+            "proof_test=tests/test_peft_base_model_gate.py",
+            "rows_absent=peft_serving_state",
+        ),
+    ),
+    _contract(
+        "table:planning_graph",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Grafo de planificación canónico (sustituye a goals). CentralLearningPlanner y MissionPlanner escriben planes cuando CapabilityResolver resuelve una capacidad concreta (web_research, test_suite, etc.). Una conversación normal resuelve conversation y no crea plan: cero filas es ausencia de estímulo.",
+        evidence=(
+            "writer_reachable=triade/core/planning_graph.py",
+            "reader_exists=triade/core/learning_planner.py",
+            "proof_test=tests/test_scheduler_mission_planner.py",
+            "rows_absent=planning_graph",
+        ),
+    ),
+    _contract(
+        "table:regression_quarantine",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Cuarentena por regresión detectada. RegressionGate pone en cuarentena capacidades que degradan métricas de safety/coherencia. Sin regresiones medidas, la tabla vacía es el estado sano.",
+        evidence=(
+            "writer_reachable=triade/regression/gate.py",
+            "reader_exists=triade/regression/gate.py",
+            "proof_test=tests/test_regression_rollback.py",
+            "rows_absent=regression_quarantine",
+        ),
+    ),
+    _contract(
+        "table:reinforcement_log",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Log de refuerzo de hipótesis (PV-7 modulation). Runner y HypothalamusStore escriben cuando hay señal de refuerzo medible en un run. En conversaciones normales sin señal de refuerzo, la tabla vacía es correcta.",
+        evidence=(
+            "writer_reachable=triade/core/runner.py",
+            "reader_exists=triade/memory/hypothalamus_store.py",
+            "proof_test=tests/test_hypothalamus_state.py",
+            "rows_absent=reinforcement_log",
+        ),
+    ),
+    _contract(
+        "table:trainable_adapters",
+        "HUMAN_GATED",
+        decided_at="2026-10-04",
+        reason="Adaptadores entrenables registrados desde datasets gobernados. GovernedDatasets.create_adapter crea la entrada cuando un dataset aprobado está listo para entrenamiento. Sin datasets gobernados aprobados, no hay adaptadores que registrar.",
+        evidence=(
+            "writer_reachable=triade/core/governed_datasets.py",
+            "reader_exists=triade/core/governed_datasets.py",
+            "human_gate=triade/core/governed_datasets.py::create_adapter",
+            "proof_test=tests/test_governed_lora_canary_pipeline.py",
+            "rows_absent=trainable_adapters",
+        ),
+    ),
+    _contract(
+        "table:worker_tasks",
+        "EXPECTED_EMPTY",
+        decided_at="2026-10-04",
+        reason="Cola legacy de workers (worker_tasks), bloqueada por migración 019_legacy_retirement.sql (trigger block_new_legacy_worker_tasks). El runtime v2 usa autonomous_tasks con lease/fencing. Cero filas claimed desde 2026-07-29. La tabla se mantiene legible para reconciliación (legacy_task_reconciler.py) pero no acepta escrituras nuevas. Cero filas es el estado correcto.",
+        evidence=(
+            "writer_reachable=triade/runtime/legacy_task_reconciler.py",
+            "reader_exists=triade/runtime/legacy_task_reconciler.py",
+            "proof_test=tests/test_legacy_v2_bridge.py",
+            "rows_absent=worker_tasks",
+        ),
+    ),
+    _contract(
+        "table:semantic_documents",
+        "EXPECTED_EMPTY",
+        decided_at="2026-10-04",
+        reason="Documentos semánticos para recall vectorial. El pipeline semántico (add_document → embed_pending → governance) NO está conectado al runtime de producción. Los writers semantic_store.py y semantic_governance.py existen y son alcanzables, pero ningún entrypoint productivo llama a add_document ni a embed_pending. Cero filas es el estado actual correcto hasta que se cablee el pipeline (ver A-3 en TRIADE_REMAINING_GAPS.md).",
+        evidence=(
+            "writer_reachable=triade/memory/semantic_store.py",
+            "reader_exists=triade/memory/semantic_governance.py",
+            "proof_test=tests/test_semantic_embedding_engine.py",
+            "rows_absent=semantic_documents",
+        ),
+    ),
+    _contract(
+        "table:semantic_embeddings",
+        "EXPECTED_EMPTY",
+        decided_at="2026-10-04",
+        reason="Embeddings vectoriales de documentos semánticos. SemanticStore.persiste embeddings generados por SemanticEmbeddingEngine, pero el pipeline (add_document → embed_pending) no está conectado al runtime. Sin documentos en semantic_documents y sin llamada a embed_pending, cero filas es correcto.",
+        evidence=(
+            "writer_reachable=triade/memory/semantic_store.py",
+            "reader_exists=triade/memory/semantic_store.py",
+            "proof_test=tests/test_semantic_embedding_engine.py",
+            "rows_absent=semantic_embeddings",
+        ),
+    ),
+    _contract(
+        "table:semantic_governance_events",
+        "EXPECTED_EMPTY",
+        decided_at="2026-10-04",
+        reason="Eventos de gobernanza semántica (autorización/rechazo de documentos). SemanticGovernance procesa documentos pendientes, pero el pipeline no está conectado al runtime. Sin documentos que gobernar, cero filas es correcto.",
+        evidence=(
+            "writer_reachable=triade/memory/semantic_governance.py",
+            "reader_exists=triade/memory/semantic_governance.py",
+            "proof_test=tests/test_semantic_governance.py",
+            "rows_absent=semantic_governance_events",
+        ),
+    ),
+    # ── Módulos inactivos/benchmarks/capacidades en espera ──────────────
+    #
+    # Estos 14 módulos no son alcanzables desde entrypoints productivos por diseño:
+    # - Federación (4): esperan un peer real
+    # - Evaluación/Benchmarks (2): no son código productivo
+    # - Aprendizaje (2): subsistema inactivo por diseño / benchmark
+    # - Memoria longitudinal (1): explícitamente inactivo
+    # - Modelos/Runtime/Validación/Verificación/Capabilities (5): capacidades no conectadas
+    #
+    # Cada contrato declara `module_inactive` con la ruta del módulo. El verificador
+    # comprueba que el fichero existe, contiene marca de inactivo (SUBSYSTEM_STATUS,
+    # comentario "benchmark", "evaluation", etc.) y NO es alcanzable. Si alguien
+    # conecta el módulo a un entrypoint vivo, el contrato cae solo.
+    _contract(
+        "module:triade/federation/dispatch.py",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Despacho federado con presupuesto y evidencia. Parte del subsistema de federación que requiere un peer real (nodo federado). Sin peer, el módulo permanece inactivo correctamente.",
+        evidence=(
+            "module_inactive=triade/federation/dispatch.py",
+        ),
+    ),
+    _contract(
+        "module:triade/federation/evidence_gate.py",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Validación local de evidencia federada y reputación. Requiere jobs federados completados, que sólo existen con un peer real.",
+        evidence=(
+            "module_inactive=triade/federation/evidence_gate.py",
+        ),
+    ),
+    _contract(
+        "module:triade/federation/exchange.py",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Sobres federados autenticados (HMAC, idempotencia, anti-replay). Infraestructura de transporte que sólo se usa con un peer real.",
+        evidence=(
+            "module_inactive=triade/federation/exchange.py",
+        ),
+    ),
+    _contract(
+        "module:triade/federation/registry.py",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Registro local deny-by-default de nodos federados. Sin peer real, no hay nodos que registrar.",
+        evidence=(
+            "module_inactive=triade/federation/registry.py",
+        ),
+    ),
+    _contract(
+        "module:triade/evaluation/memory_longitudinal.py",
+        "TEST_ONLY",
+        decided_at="2026-10-04",
+        reason="Benchmark reproducible de memoria longitudinal gobernada. Módulo de evaluación/benchmark, no código productivo. Se ejecuta explícitamente vía script de fase.",
+        evidence=(
+            "module_inactive=triade/evaluation/memory_longitudinal.py",
+        ),
+    ),
+    _contract(
+        "module:triade/evaluation/triadic_ablation.py",
+        "TEST_ONLY",
+        decided_at="2026-10-04",
+        reason="Benchmark ablativo determinista del ciclo triádico. Módulo de evaluación/benchmark, no código productivo.",
+        evidence=(
+            "module_inactive=triade/evaluation/triadic_ablation.py",
+        ),
+    ),
+    _contract(
+        "module:triade/learning/autonomous_cycle.py",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Ciclo autónomo gobernado con baseline, transfer, rollback y receipt. Declarado SUBSISTEMA INACTIVO en el propio módulo: requiere migración 025, productor real, consumidor productivo, entrypoint vivo y prueba e2e. Sin conectar por diseño.",
+        evidence=(
+            "module_inactive=triade/learning/autonomous_cycle.py",
+        ),
+    ),
+    _contract(
+        "module:triade/learning/context_selection_benchmark.py",
+        "TEST_ONLY",
+        decided_at="2026-10-04",
+        reason="Experimento reproducible de selección de contexto aprendido. El propio módulo declara: 'Este módulo no activa una capacidad productiva nueva'. Es un benchmark versionado.",
+        evidence=(
+            "module_inactive=triade/learning/context_selection_benchmark.py",
+        ),
+    ),
+    _contract(
+        "module:triade/memory/longitudinal.py",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Memoria longitudinal gobernada. Declarado SUBSYSTEM_STATUS = 'inactive' con evidencia detallada: migración 021 nunca aplicada, sin consumidor productivo, sin entrypoint vivo. Para activar: aplicar migración, escribir productor/consumidor, conectar entrypoint, prueba e2e.",
+        evidence=(
+            "module_inactive=triade/memory/longitudinal.py",
+        ),
+    ),
+    _contract(
+        "module:triade/models/measured_orchestration.py",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Orquestación multi-modelo con decisiones explicables y adopción medida. Capacidad de routing por rol con umbrales de calidad/recursos. No conectada al runtime productivo; espera decisión de integración.",
+        evidence=(
+            "module_inactive=triade/models/measured_orchestration.py",
+        ),
+    ),
+    _contract(
+        "module:triade/runtime/utility_ledger.py",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Ledger canónico que separa actividad, efecto, utilidad y aprendizaje. Parte del subsistema de verificación/certificación. No conectado al runtime productivo.",
+        evidence=(
+            "module_inactive=triade/runtime/utility_ledger.py",
+        ),
+    ),
+    _contract(
+        "module:triade/validation/runtime_long_run.py",
+        "TEST_ONLY",
+        decided_at="2026-10-04",
+        reason="Monitor de duración wall-clock real para web, Ollama y SQLite. Herramienta de validación/monitoreo, no código productivo. Se ejecuta explícitamente vía scripts de fase.",
+        evidence=(
+            "module_inactive=triade/validation/runtime_long_run.py",
+        ),
+    ),
+    _contract(
+        "module:triade/verification/certification.py",
+        "TEST_ONLY",
+        decided_at="2026-10-04",
+        reason="Generación de manifiesto TRIADE-VERIFY-v1 evidence-driven. Herramienta de certificación/evidencia, no código productivo. Se ejecuta explícitamente.",
+        evidence=(
+            "module_inactive=triade/verification/certification.py",
+        ),
+    ),
+    _contract(
+        "module:triade/capabilities/metacognition.py",
+        "ON_DEMAND",
+        decided_at="2026-10-04",
+        reason="Predicción y calibración verificable de capacidades (CapabilityAwareness). Migración 023 existe. No conectado a entrypoint productivo; espera integración en el ciclo de gobernanza.",
+        evidence=(
+            "module_inactive=triade/capabilities/metacognition.py",
         ),
     ),
     # ── Herramientas de operador: sin lanzador y así debe ser ────────

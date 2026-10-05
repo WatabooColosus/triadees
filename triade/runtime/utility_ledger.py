@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+#: Módulo no alcanzable desde entrypoints productivos: ledger de utilidad/aprendizaje
+#: (migración 026). Parte del subsistema de verificación/certificación, no conectado al runtime.
+SUBSYSTEM_STATUS = "inactive"
+
 import json
 import uuid
 from datetime import UTC, datetime

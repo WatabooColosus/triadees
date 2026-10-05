@@ -76,6 +76,9 @@ class LifePulseEngine:
     _continuous_thread: threading.Thread | None = field(
         default=None, init=False, repr=False
     )
+    _watchdog_thread: threading.Thread | None = field(
+        default=None, init=False, repr=False
+    )
     _started_at: float = field(default_factory=time.time, init=False)
     _last_tick_at: float | None = field(default=None, init=False)
     _last_error: str | None = field(default=None, init=False)
@@ -94,6 +97,11 @@ class LifePulseEngine:
     _last_promotion_at: float | None = None
     _last_promotion_name: str | None = None
     _continuous_backoff_seconds: float = 0.0
+    # Error del ciclo en curso. Vive fuera del `with self._lock` porque
+    # `_record_error` lo escribe desde los sub-pasos y el cierre del ciclo lo
+    # consulta para decidir si el ciclo fue limpio.
+    _cycle_had_error: bool = False
+    _cycle_error_text: str | None = None
 
     def _record_error(
         self,
@@ -113,6 +121,8 @@ class LifePulseEngine:
         }
         if payload:
             context.update(payload)
+        self._cycle_had_error = True
+        self._cycle_error_text = f"[{scope}] {error}"
         record_internal_error(scope, error, payload=context, db_path=self.db_path)
 
     @classmethod
@@ -148,6 +158,34 @@ class LifePulseEngine:
 
     def start(self) -> None:
         with self._lock:
+            # Always ensure continuous thread is running if enabled
+            if self.continuous_run_enabled:
+                c_alive = bool(
+                    self._continuous_thread and self._continuous_thread.is_alive()
+                )
+                if not c_alive:
+                    self._stop.clear()
+                    self._continuous_thread = threading.Thread(
+                        target=self._continuous_loop,
+                        name="triade-continuous-runner",
+                        daemon=True,
+                    )
+                    self._continuous_thread.start()
+
+            # Start watchdog for continuous runner
+            if self.continuous_run_enabled:
+                w_alive = bool(
+                    self._watchdog_thread and self._watchdog_thread.is_alive()
+                )
+                if not w_alive:
+                    self._watchdog_thread = threading.Thread(
+                        target=self._watchdog_loop,
+                        name="triade-continuous-watchdog",
+                        daemon=True,
+                    )
+                    self._watchdog_thread.start()
+
+            # Start main pulse thread if not running
             if self._thread and self._thread.is_alive():
                 return
             self._stop.clear()
@@ -155,17 +193,6 @@ class LifePulseEngine:
                 target=self._loop, name="triade-life-pulse", daemon=True
             )
             self._thread.start()
-            if self.continuous_run_enabled:
-                c_alive = bool(
-                    self._continuous_thread and self._continuous_thread.is_alive()
-                )
-                if not c_alive:
-                    self._continuous_thread = threading.Thread(
-                        target=self._continuous_loop,
-                        name="triade-continuous-runner",
-                        daemon=True,
-                    )
-                    self._continuous_thread.start()
 
     def stop(self) -> None:
         self._stop.set()
@@ -175,6 +202,34 @@ class LifePulseEngine:
         cthread = self._continuous_thread
         if cthread and cthread.is_alive():
             cthread.join(timeout=2)
+        wthread = self._watchdog_thread
+        if wthread and wthread.is_alive():
+            wthread.join(timeout=2)
+
+    def _watchdog_loop(self) -> None:
+        """Watchdog que reinicia el runner continuo si muere."""
+        while not self._stop.is_set():
+            time.sleep(10)
+            if not self.continuous_run_enabled:
+                continue
+            with self._lock:
+                c_alive = bool(
+                    self._continuous_thread and self._continuous_thread.is_alive()
+                )
+                if not c_alive:
+                    self._stop.clear()
+                    self._continuous_thread = threading.Thread(
+                        target=self._continuous_loop,
+                        name="triade-continuous-runner",
+                        daemon=True,
+                    )
+                    self._continuous_thread.start()
+                    self._continuous_cycle_count = 0
+                    self._last_continuous_at = None
+                    self._last_continuous_error = None
+                    self._continuous_elapsed_ms = []
+                    self._continuous_cycle_timestamps = []
+                    self._continuous_backoff_seconds = 0.0
 
     def configure_continuous_runner(
         self,
@@ -497,6 +552,8 @@ class LifePulseEngine:
 
         while not self._stop.is_set():
             cycle_start = time.time()
+            self._cycle_had_error = False
+            self._cycle_error_text = None
 
             # Respetar max ciclos
             if (
@@ -518,7 +575,15 @@ class LifePulseEngine:
                 # Coordination: if Worker is active, skip overlapping operations
                 # (candidate formation, training, promotion, experimental activation)
                 # to avoid race conditions on shared SQLite state.
-                worker_lock = Path(str(self.runs_dir)).parent / ".triade_workers.lock"
+                #
+                # El lock vive en el runs_dir del SERVICIO de workers
+                # (`runs/background`, default de `worker_autostart`), no en el
+                # padre del runs_dir del pulso: con el default "runs",
+                # `.parent` apuntaba a la raíz del repo y esta coordinación
+                # no veía nunca al worker real — candidatura, entrenamiento y
+                # promoción corrían en paralelo al worker sobre la misma base.
+                workers_runs_dir = Path(str(self.runs_dir)) / "background"
+                worker_lock = workers_runs_dir / ".triade_workers.lock"
                 worker_active = worker_lock.exists()
 
                 # 1. Generar candidatos desde deuda del sistema (requiere form_candidates+)
@@ -852,6 +917,15 @@ class LifePulseEngine:
                     if len(self._continuous_elapsed_ms) > 200:
                         self._continuous_elapsed_ms = self._continuous_elapsed_ms[-200:]
                     self._continuous_backoff_seconds = 0.0
+                    # Los sub-pasos registran su fallo con `_record_error` y
+                    # luego continúa el ciclo. Sin este guardia, el cierre
+                    # borraba el error recién registrado y `/api/system/life`
+                    # reportaba `last_error: null` mientras el ciclo profundo
+                    # llevaba horas fallando en silencio.
+                    if self._cycle_had_error:
+                        self._last_continuous_error = self._cycle_error_text
+                    else:
+                        self._last_continuous_error = None
 
             except (
                 OSError,

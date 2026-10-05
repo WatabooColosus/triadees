@@ -2404,7 +2404,7 @@ class WorkerLoop:
             steps=["safe_background_cycle"],
             tools=[],
         )
-        memory = MemoryPacket(run_id=run_ref, semantic_recall={"enabled": False})
+        memory = MemoryPacket(run_id=run_ref, semantic_recall={"enabled": True})
         # Regulación real de Cristal (pura, sin I/O) en vez de un CrystalPacket
         # estático "stable" fijo — los ciclos de fondo deben pasar por el
         # mismo regulador que los runs conversacionales, no por un stub.
@@ -2917,8 +2917,20 @@ class WorkerLoop:
             }
 
         def generate(prompt: str) -> str:
+            # El fallback anterior era el literal "qwen2.5:3b-instruct", que no
+            # está instalado: Ollama respondía 404 y esta tarea acumuló 100
+            # `ollama_call_completed` con status=error sin producir evidencia.
+            # Se resuelve contra el modelo ya instalado que reporta el cliente
+            # y, si no hay ninguno, se deja fallar la tarea de forma visible en
+            # vez de pedir un modelo inexistente.
+            model = getattr(config, "model", None) or self._installed_ollama_model()
+            if not model:
+                raise RuntimeError(
+                    "no_ollama_model_available: no hay un modelo instalado para "
+                    "learning_evidence_generation"
+                )
             r = client.generate(
-                config.model if hasattr(config, "model") else "qwen2.5:3b-instruct",
+                model,
                 prompt,
                 options={"temperature": 0, "seed": 7731},
             )
@@ -3973,6 +3985,22 @@ class WorkerLoop:
             # el pipeline lo promueva, así que revertirlo no es obligatorio.
             rollback_ref=f"learning_queue:{candidate_id}",
         )
+
+    def _installed_ollama_model(self) -> str | None:
+        """Devuelve un modelo de razonamiento realmente instalado, o `None`.
+
+        Se usa `check_ollama_blood` y no una lista fija porque esa función ya
+        resuelve contra `/api/tags` y respeta `TRIADE_LOW_RESOURCE_MODEL`. El
+        valor anterior era un literal que Ollama respondía con HTTP 404.
+        """
+        try:
+            from triade.core.ollama_blood import check_ollama_blood
+
+            blood = check_ollama_blood()
+        except Exception:  # noqa: BLE001
+            return None
+        model = str(blood.get("reasoning_model") or "").strip()
+        return model or None
 
     def _observable_ollama_client(
         self,

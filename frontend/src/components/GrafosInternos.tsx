@@ -392,11 +392,56 @@ function DebtPanel({ debt }: { debt: Debt | null }) {
   const observed = debt.debt_items_total ?? 0
   const real = debt.debt_real_total ?? observed
   const classified = Math.max(0, observed - real)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastRefresh, setLastRefresh] = useState<string | null>(null)
+
+  const handleForceRefresh = async () => {
+    setRefreshing(true)
+    try {
+      await authFetch('/api/internal-graphs/debt?force=true')
+      setLastRefresh(new Date().toLocaleTimeString())
+      window.dispatchEvent(new CustomEvent('debt-forced-refresh'))
+    } catch (e: any) {
+      console.error('Force refresh failed:', e)
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   return (
     <div style={{ fontSize: 12 }}>
-      <h3 style={{ fontSize: 13, margin: '0 0 8px' }}>
-        {real} elementos de deuda real · {observed} hallazgos observados
-      </h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <h3 style={{ fontSize: 13, margin: 0 }}>
+          {real} elementos de deuda real · {observed} hallazgos observados
+        </h3>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {refreshing ? (
+            <span style={{ fontSize: 10, color: 'var(--accent)' }}>⟳ Reconstruyendo grafos… (hasta 2 min)</span>
+          ) : (
+            <>
+              {lastRefresh && (
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>última actualización: {lastRefresh}</span>
+              )}
+              <button
+                onClick={handleForceRefresh}
+                disabled={refreshing}
+                style={{
+                  background: 'var(--accent-glow)',
+                  color: 'var(--accent)',
+                  border: '1px solid var(--accent)',
+                  borderRadius: 4,
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  cursor: refreshing ? 'not-allowed' : 'pointer',
+                  opacity: refreshing ? 0.6 : 1,
+                }}
+              >
+                ⟳ Actualizar ahora
+              </button>
+            </>
+          )}
+        </div>
+      </div>
       <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px' }}>
         {classified} hallazgos tienen contrato verificado (bajo demanda, compuerta o vacío esperado) y no se cuentan como rotura.
       </p>

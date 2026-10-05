@@ -16,7 +16,9 @@ runtime:
   # runtime arranca Always-On, workers, scheduler y metabolismo.
   conversation_only: false
   always_on: true
-  mode: full_local_guarded
+  # Perfil mínimo: todo el organismo sigue encendido, pero cada etapa cede
+  # memoria y CPU antes de iniciar la siguiente.
+  mode: light_background
   interval_seconds: 60
   start_delay_seconds: 3
   max_cycles: 0
@@ -27,7 +29,7 @@ runtime:
   workers_always_on: true
   workers_autostart: true
   workers_watchdog: true
-  worker_mode: full_local_guarded
+  worker_mode: light_background
   # Creadora -> Formadora -> Educadora -> evidencia -> promoción gobernada.
   continuous_runner_enabled: true
   continuous_runner_autonomy_level: promote_stable
@@ -35,11 +37,11 @@ runtime:
   continuous_runner_max_cycles: 0
   synthetic_canary_enabled: false
   live_runtime:
-    heartbeat_interval_seconds: 5
-    health_check_interval_seconds: 15
-    scheduler_interval_seconds: 20
-    light_background_interval_seconds: 60
-    neuron_learning_interval_seconds: 180
+    heartbeat_interval_seconds: 10
+    health_check_interval_seconds: 30
+    scheduler_interval_seconds: 60
+    light_background_interval_seconds: 120
+    neuron_learning_interval_seconds: 600
     deep_research_interval_seconds: 1200
     evaluation_interval_seconds: 1800
     consolidation_interval_seconds: 3600
@@ -126,7 +128,7 @@ metabolism:
   enabled: true
   dry_run: false
   mode: full
-  interval_seconds: 15
+  interval_seconds: 30
   max_cycles: 0
   jitter_seconds: 2.0
   policy:

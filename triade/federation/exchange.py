@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+#: Módulo no alcanzable desde entrypoints productivos: infraestructura de transporte
+#: federado (HMAC, idempotencia, anti-replay). Sólo se usa con un peer real.
+SUBSYSTEM_STATUS = "inactive"
+
 import hashlib
 import hmac
 import json

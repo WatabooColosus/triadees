@@ -9,12 +9,15 @@ import os
 import shutil
 import signal
 import subprocess
+import threading
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import uuid4
+
+import traceback
 
 CHILD_EXECUTION_ERRORS = (
     OSError,
@@ -24,6 +27,15 @@ CHILD_EXECUTION_ERRORS = (
     TypeError,
     KeyError,
     TimeoutError,
+    # Sin estos tipos, una excepción escapa de `_callable_child`, el pipe se
+    # cierra sin `send` y el padre sólo ve `child_closed_pipe_without_result`.
+    # El traceback real se escribía en el stderr del proceso API, nunca en el
+    # `stderr.log` de la tarea: un fallo quedaba con 0 bytes y sin diagnóstico.
+    AttributeError,
+    IndexError,
+    ArithmeticError,
+    AssertionError,
+    NameError,
 )
 
 
@@ -60,6 +72,18 @@ class GovernedExecutionOutcome:
         return asdict(self)
 
 
+def _append_stderr(stderr_path: str, text: str) -> None:
+    """Escribe el traceback en el log de la tarea sin interdependent del redirect.
+
+    El `redirect_stderr` de `contextlib` sólo cubre escrituras Python dentro del
+    `with`; un traceback de excepción se escribe en el fd 2 real del proceso.
+    """
+    try:
+        Path(stderr_path).open("a", encoding="utf-8").write(text)
+    except OSError:
+        pass
+
+
 def _callable_child(
     send: Any,
     function: Callable[..., dict[str, Any]],
@@ -83,11 +107,33 @@ def _callable_child(
             result = function(*args, **kwargs)
         send.send({"kind": "result", "value": result})
     except CHILD_EXECUTION_ERRORS as exc:
+        _append_stderr(
+            stderr_path,
+            "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+        )
         send.send(
             {
                 "kind": "error",
                 "error_type": type(exc).__name__,
                 "error": str(exc),
+            }
+        )
+    except BaseException as exc:  # noqa: BLE001
+        # Una excepción propia (sqlite3.OperationalError, cancelled, etc.) no
+        # estaba en la tupla y escapaba del hijo. El pipe se cerraba sin
+        # resultado y el traceback real terminaba en el stderr del proceso API,
+        # de modo que `stderr.log` quedaba vacío y el padre reportaba un
+        # `child_closed_pipe_without_result` sin causa. Ahora el traceback se
+        # escribe en el log de la tarea y el padre recibe el tipo real.
+        _append_stderr(
+            stderr_path,
+            "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+        )
+        send.send(
+            {
+                "kind": "error",
+                "error_type": type(exc).__name__,
+                "error": str(exc) or repr(exc),
             }
         )
     finally:
@@ -135,6 +181,33 @@ class GovernedTaskExecutor:
         started = time.monotonic()
         process.start()
         send.close()
+
+        # El resultado viaja por el pipe, pero el padre sólo lo leía
+        # DESPUÉS de ver al hijo muerto. Si el resultado serializado
+        # supera el búfer del pipe (~4-16 KB en Windows), el hilo
+        # feeder del hijo bloquea a mitad de escritura, el hijo nunca
+        # sale y el padre esperaba hasta el timeout: cualquier handler
+        # con resultado grande (pulse_check manda 21 KB) moría como
+        # `task_timeout` aunque terminara en 2 s. Se drena en un hilo
+        # daemon mientras el bucle sigue imponiendo plazo, lease y
+        # cancelación.
+        payload_box: dict[str, Any] = {}
+
+        def _drain_pipe() -> None:
+            try:
+                payload_box["payload"] = receive.recv()
+            except (EOFError, OSError):
+                payload_box["payload"] = {
+                    "kind": "error",
+                    "error_type": "ChildProcessError",
+                    "error": "child_closed_pipe_without_result",
+                }
+
+        reader = threading.Thread(
+            target=_drain_pipe, daemon=True, name="governed-pipe-drain"
+        )
+        reader.start()
+
         deadline = started + max(0.001, timeout_seconds)
         next_heartbeat = started + max(0.01, heartbeat_interval_seconds)
         lease_lost = False
@@ -179,15 +252,26 @@ class GovernedTaskExecutor:
                 elapsed_seconds=round(time.monotonic() - started, 6),
             )
 
-        payload = (
-            receive.recv()
-            if receive.poll()
-            else {
+        reader.join(timeout=5.0)
+        payload = payload_box.get("payload")
+        if payload is None:
+            # El hijo murió antes de poder enviar nada (spawn, unpickle o
+            # DuplicateHandle con WinError 5). Sin esta nota el `stderr.log`
+            # quedaba en 0 bytes y el dead_letter no tenía causa accionable.
+            _append_stderr(
+                str(stderr_path),
+                "child_exited_without_result: "
+                f"exit_code={process.exitcode}\n"
+                "El hijo no alcanzó a enviar un resultado por el pipe. "
+                "En Windows esto suele ser un fallo de `spawn` al importar el "
+                "módulo principal o al duplicar handles (WinError 5); el "
+                "traceback real quedó en el stderr del proceso API.\n",
+            )
+            payload = {
                 "kind": "error",
                 "error_type": "ChildProcessError",
                 "error": f"child_exited_without_result:{process.exitcode}",
             }
-        )
         receive.close()
         elapsed = round(time.monotonic() - started, 6)
         value = payload.get("value")

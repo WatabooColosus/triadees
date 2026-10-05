@@ -28,6 +28,15 @@ class RecoveryManager:
                     self._mark_cycle_interrupted(conn, cycle["cycle_id"])
                     self._recover_needs(conn, cycle["cycle_id"])
                     recovered.append(cycle)
+                reaped = self._reap_abandoned_pending(conn)
+                if reaped:
+                    recovered.append(
+                        {
+                            "cycle_id": None,
+                            "status": "abandoned_pending_reaped",
+                            "reaped_needs": reaped,
+                        }
+                    )
         except (sqlite3.Error, OSError) as exc:
             logger.warning("recover_interrupted_cycles_failed: %s", exc)
         return recovered
@@ -42,16 +51,42 @@ class RecoveryManager:
         )
 
     def _recover_needs(self, conn: sqlite3.Connection, cycle_id: int) -> None:
-        running = conn.execute(
+        # `pending` además de `running`: una necesidad propuesta y nunca
+        # autorizada en un ciclo interrumpido tenía el mismo destino de
+        # las que estaban en ejecución — jamás se atendería.
+        stale = conn.execute(
             """SELECT need_id FROM metabolic_needs
-            WHERE cycle_id=? AND status='running'""",
+            WHERE cycle_id=? AND status IN ('running','pending')""",
             (cycle_id,),
         ).fetchall()
-        for (need_id,) in running:
+        for (need_id,) in stale:
             conn.execute(
                 "UPDATE metabolic_needs SET status='recovered' WHERE need_id=?",
                 (need_id,),
             )
+
+    def _reap_abandoned_pending(self, conn: sqlite3.Connection) -> int:
+        """Cosecha needs pendientes cuyo ciclo ya cerró.
+
+        Una necesidad `pending` de un ciclo `completed`/`failed`/
+        `interrupted` jamás se ejecutará: su ciclo terminó sin
+        autorizarla. Sin esta cosecha vivía como `pending` para
+        siempre, fingiendo una cola de trabajo que nadie atiende —
+        eran 3 del ciclo 2907 el 2026-10-04, pendientes ~2 h.
+        """
+        stale = conn.execute(
+            """SELECT need_id FROM metabolic_needs
+            WHERE status='pending' AND cycle_id IN (
+                SELECT cycle_id FROM metabolic_cycle
+                WHERE status IN ('completed','failed','interrupted','shutdown')
+            )"""
+        ).fetchall()
+        for (need_id,) in stale:
+            conn.execute(
+                "UPDATE metabolic_needs SET status='recovered' WHERE need_id=?",
+                (need_id,),
+            )
+        return len(stale)
 
     def needs_after_recovery(self) -> list[dict[str, Any]]:
         try:

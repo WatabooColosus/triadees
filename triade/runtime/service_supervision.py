@@ -242,11 +242,30 @@ def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[s
     except ImportError:
         return result
     script = Path(__file__).resolve().parents[2] / "scripts" / "probe_windows_task.ps1"
-    raw = _run(["powershell.exe", "-NoProfile", "-File", str(script), "-TaskName", str(task["name"])])
+    # La política de ejecución del usuario puede bloquear scripts locales aun
+    # cuando la tarea productiva se lanzó explícitamente con Bypass. La sonda
+    # es de lectura y debe usar la misma política para que la supervisión no
+    # confunda "no pude leer la tarea" con "la API está huérfana".
+    raw = _run(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script),
+            "-TaskName",
+            str(task["name"]),
+        ]
+    )
     try:
         snapshot = json.loads(raw or "{}")
         result.update(state=snapshot.get("state"), last_result=snapshot.get("last_result"))
-        if snapshot.get("state") != 4:
+        # Task Scheduler puede volver a `Ready` después de entregar el
+        # supervisor a PowerShell; mientras la cadena viva conserve el script
+        # exacto y la tarea declarada apunte al lanzador, `Ready` no significa
+        # que la API esté huérfana. La cadena de procesos se valida abajo.
+        if snapshot.get("state") not in {3, 4}:
             if snapshot.get("state") is not None:
                 result["managed"] = False
             return result
@@ -254,11 +273,11 @@ def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[s
         supervisor = api.parent()
         expected = str(script.with_name("triade_service_worker.ps1")).casefold()
         if supervisor is None or supervisor.create_time() > api.create_time():
-            if snapshot.get("state") == 4 and "start_triade_windows.ps1" in str(task.get("action_arguments", "")).casefold():
+            if snapshot.get("state") in {3, 4} and "start_triade_windows.ps1" in str(task.get("action_arguments", "")).casefold():
                 result["managed"] = True
             return result
         if expected not in [str(arg).casefold() for arg in supervisor.cmdline()]:
-            if snapshot.get("state") == 4 and "start_triade_windows.ps1" in str(
+            if snapshot.get("state") in {3, 4} and "start_triade_windows.ps1" in str(
                 task.get("action_arguments", "")
             ).casefold():
                 result["managed"] = True
@@ -297,7 +316,7 @@ def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[s
         result.update(
             managed=bool(linked)
             or (
-                snapshot.get("state") == 4
+                snapshot.get("state") in {3, 4}
                 and "start_triade_windows.ps1"
                 in str(task.get("action_arguments", "")).casefold()
             ),
@@ -308,7 +327,7 @@ def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[s
         # completa con psutil. Si la tarea está Running, tiene la acción exacta
         # y existe un único listener, conservamos una conclusión verificable a
         # nivel de supervisor sin inventar un PID.
-        if snapshot.get("state") == 4 and "start_triade_windows.ps1" in str(task.get("action_arguments", "")).casefold():
+        if snapshot.get("state") in {3, 4} and "start_triade_windows.ps1" in str(task.get("action_arguments", "")).casefold():
             result["managed"] = True
     return result
 

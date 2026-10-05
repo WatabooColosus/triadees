@@ -213,13 +213,16 @@ _ARTIFACT_MAX_AGE_SECONDS = 6 * 60 * 60
 REFRESHER = GraphRefresher(ROOT, ARTIFACT_DIR, _db_path())
 
 
-def refresh_artifacts(*, force: bool = False) -> str:
+def refresh_artifacts(*, force: bool = False, stale_seconds: float | None = None) -> str:
     """Lanza la reconstrucción en segundo plano si el artefacto ha caducado.
 
     Se llama desde cada lectura y no espera: quien pregunta recibe lo que hay
     ahora, con su edad declarada, y la respuesta siguiente ya trae lo nuevo.
+
+    Parámetro `stale_seconds`: umbral personalizado para considerar caducado.
+    Si se pasa, ignora el TTL configurado en el refrescador.
     """
-    return REFRESHER.request(force=force)
+    return REFRESHER.request(force=force, stale_seconds=stale_seconds)
 
 
 def _from_artifact(name: str) -> dict[str, Any] | None:

@@ -283,7 +283,8 @@ class LearningEvidenceProducer:
         prefijo = f"{bloque}\n\n" if bloque else ""
         prompt = (
             f"{prefijo}Pregunta: {question}\n"
-            "Responde de forma breve y directa, sin explicaciones."
+            "Responde de forma breve y directa, sin explicaciones, "
+            "EXTRAYENDO LA RESPUESTA DEL BLOQUE ANTERIOR."
         )
         return prompt, decision
 

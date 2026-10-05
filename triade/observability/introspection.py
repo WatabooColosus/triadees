@@ -489,32 +489,6 @@ def _classify_with_contracts(
                 }
                 recuento["MANUAL_TOOL"] = recuento.get("MANUAL_TOOL", 0) + 1
                 continue
-            if (
-                prefijo == "table"
-                and nombre in {
-                    "auth_audit",
-                    "auth_email_identities",
-                    "auth_rate_events",
-                    "auth_sessions",
-                    "auth_users",
-                }
-                and os.getenv("TRIADE_LOCAL_NO_AUTH", "0").strip().lower()
-                in {"1", "true", "yes", "on"}
-                and not rows_by_table.get(nombre)
-            ):
-                clasificados[nombre] = {
-                    "subject": f"table:{nombre}",
-                    "classification": "EXPECTED_EMPTY",
-                    "reason": (
-                        "La instancia local opera sin login; esta tabla sólo se "
-                        "llena al activar autenticación explícita."
-                    ),
-                    "contract_holds": True,
-                    "failed_evidence": [],
-                    "evidence": "TRIADE_LOCAL_NO_AUTH=1",
-                }
-                recuento["EXPECTED_EMPTY"] = recuento.get("EXPECTED_EMPTY", 0) + 1
-                continue
             contrato = contratos.get(f"{prefijo}:{nombre}")
             if contrato is None:
                 continue

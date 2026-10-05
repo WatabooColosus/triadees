@@ -511,7 +511,9 @@ class TriadeRunner:
         propose_neurons: bool = True,
     ) -> dict[str, Any]:
         input_packet = InputPacket(
-            user_input=user_input, source=source, context=context or {}
+            user_input=user_input,
+            source=source,
+            context=context or {},
         )
         prepare_input(input_packet, user_input, source, self.db_path, self.runs_dir)
         self.bodega.create_run(input_packet)
