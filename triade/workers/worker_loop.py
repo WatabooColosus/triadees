@@ -1985,7 +1985,10 @@ class WorkerLoop:
                     from triade.core.runner import TriadeRunner
 
                     trial = TriadeRunner(
-                        runs_dir=self.runs_dir, db_path=self.db_path
+                        runs_dir=self.runs_dir,
+                        db_path=self.db_path,
+                        use_ollama=False,
+                        auto_select_models=False,
                     ).run(
                         user_input="Ejercicio interno: aplicar y verificar el aprendizaje seleccionado.",
                         source="neuron_education_background",
