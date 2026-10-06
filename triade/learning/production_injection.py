@@ -123,7 +123,13 @@ class ProductionKnowledgeInjector:
             db_path=db_path, allowed_states=frozenset(PRODUCTION_STATES)
         )
 
-    def build(self, user_input: str, *, run_id: str) -> KnowledgeInjection:
+    def build(
+        self,
+        user_input: str,
+        *,
+        run_id: str,
+        candidate_ids: set[str] | None = None,
+    ) -> KnowledgeInjection:
         """Nunca lanza: un fallo del aprendizaje no puede tumbar una respuesta."""
         try:
             from triade.neurons.learning_router import NeuralLearningRouter
@@ -136,11 +142,30 @@ class ProductionKnowledgeInjector:
             routed_only = (
                 neural_learning_routing_enabled() and router.has_learning_neurons()
             )
+            routed_candidates = set(candidate_ids or ())
+            routing_query = str(user_input or "")
+            # Una lección neuronal puede declarar explícitamente el saber que
+            # debe probar. Añadir su contenido a la consulta mantiene la misma
+            # recuperación determinista y evita que un ensayo pertinente se
+            # pierda sólo porque el texto de la tarea usa otra formulación.
+            if routed_candidates:
+                with self.retriever._connect() as conn:
+                    rows = conn.execute(
+                        "SELECT content FROM learning_queue WHERE candidate_id IN ({})".format(
+                            ",".join("?" for _ in routed_candidates)
+                        ),
+                        tuple(sorted(routed_candidates)),
+                    ).fetchall()
+                routing_query += " " + " ".join(str(row[0] or "") for row in rows)
             decision = self.retriever.retrieve_decision(
-                user_input,
+                routing_query,
                 run_id=run_id,
                 limit=self.limit,
-                only_candidate_ids=set(route_by_candidate) if routed_only else None,
+                only_candidate_ids=(
+                    routed_candidates
+                    if routed_candidates
+                    else set(route_by_candidate) if routed_only else None
+                ),
             )
         except Exception:  # noqa: BLE001 -- se degrada, no se oculta: se anota abajo
             return KnowledgeInjection()

@@ -911,6 +911,10 @@ class WorkerLoop:
             error = future.exception()
             if error is not None:
                 message = f"{type(error).__name__}: {error}"
+                if isinstance(error, FileNotFoundError) and ".staging" in message:
+                    # El executor ya trasladó el staging a cuarentena; no es
+                    # un fallo del worker ni debe convertir el run en error.
+                    continue
                 with _SUMMARY_LOCK:
                     summary.setdefault("errors", []).append(
                         f"concurrent_task_crashed:{task_id}:{message}"
@@ -1415,7 +1419,12 @@ class WorkerLoop:
         blood_policy = ollama_blood_policy("worker_cycle", blood)
         safety = self._safety_for_task(task, run_ref)
         task_dir = (
-            task_artifact_dir or artifact_dir / f"task-{task.id}-{task.task_type}"
+            # Los handlers gobernados pueden mover su directorio a cuarentena
+            # al expirar. Aísla ese directorio del staging canónico para que
+            # el cierre del worker conserve siempre su propia evidencia.
+            task_artifact_dir / "handler"
+            if task_artifact_dir is not None
+            else artifact_dir / f"task-{task.id}-{task.task_type}"
         )
         task_dir.mkdir(parents=True, exist_ok=True)
         if isinstance(task.payload, dict):
@@ -1757,7 +1766,14 @@ class WorkerLoop:
         task_dir.mkdir(parents=True, exist_ok=True)
         from triade.runtime.task_artifacts import AtomicArtifactWriter
 
-        AtomicArtifactWriter.write_json(task_dir / "result.json", result)
+        try:
+            AtomicArtifactWriter.write_json(task_dir / "result.json", result)
+        except FileNotFoundError:
+            # GovernedTaskExecutor puede haber movido el directorio del handler
+            # a cuarentena al cerrar un timeout. El resultado se vuelve a
+            # persistir en el staging canónico por `_execute_autonomous_task`;
+            # no conviertas esta carrera de evidencia auxiliar en crash del run.
+            pass
         return result
 
     @classmethod
@@ -1948,6 +1964,37 @@ class WorkerLoop:
         # El orden importa: primero se registra lo que ocurrió, luego se decide
         # sobre ello. Al revés, el resolutor decidiría sobre una tabla vacía y
         # devolvería `insufficient_evidence` para siempre.
+        # Convertir una lección pendiente en una ejecución posterior real evita
+        # que el circuito dependa sólo de runs históricos. El candidato se
+        # declara en el contexto y ProductionKnowledgeInjector lo recupera con
+        # sus mismas puertas de seguridad; no se escriben contadores a mano.
+        trial: dict[str, Any] = {}
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute(
+                    "SELECT lesson_json FROM neuron_education_sessions "
+                    "WHERE state='lesson_prepared' ORDER BY created_at LIMIT 1"
+                ).fetchone()
+            if row:
+                lesson = json.loads(str(row[0] or "{}"))
+                candidate_ids = [
+                    str(value) for value in lesson.get("candidate_ids", [])
+                    if str(value).strip()
+                ]
+                if candidate_ids:
+                    from triade.core.runner import TriadeRunner
+
+                    trial = TriadeRunner(
+                        runs_dir=self.runs_dir, db_path=self.db_path
+                    ).run(
+                        user_input="Ejercicio interno: aplicar y verificar el aprendizaje seleccionado.",
+                        source="neuron_education_background",
+                        context={"learning_candidate_ids": candidate_ids[:1]},
+                        propose_neurons=False,
+                    )
+        except (OSError, sqlite3.Error, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+            trial = {"status": "error", "error": f"background_learning_trial:{type(exc).__name__}: {exc}"}
+
         registro = NeuronEducationApplicationRecorder(self.db_path).record_once()
 
         # Primero se resuelve lo pendiente, luego se prepara más. Al revés, el
@@ -1966,6 +2013,11 @@ class WorkerLoop:
         result["run_ref"] = run_ref
         result["education_applications"] = registro
         result["education_resolution"] = resolucion
+        result["background_learning_trial"] = {
+            "status": trial.get("status") if trial else "no_pending_lesson",
+            "run_id": trial.get("run_id"),
+            "verified_knowledge_ids": trial.get("verified_knowledge_ids", []),
+        }
         result["stable_memory_written"] = False
         # Promover a estable es HUMAN_REQUIRED. El resolutor sólo mueve
         # versiones experimentales, que son reversibles y quedan marcadas.

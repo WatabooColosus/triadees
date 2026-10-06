@@ -253,12 +253,18 @@ class TriadeRunner:
         from triade.learning.production_injection import ProductionKnowledgeInjector
 
         injector = ProductionKnowledgeInjector(self.db_path)
+        contexto = getattr(input_packet, "context", None)
+        candidate_ids = {
+            str(value)
+            for value in (contexto or {}).get("learning_candidate_ids", [])
+            if str(value).strip()
+        } if isinstance(contexto, dict) else set()
         injection = injector.build(
             str(getattr(input_packet, "user_input", "") or ""),
             run_id=str(getattr(input_packet, "run_id", "") or "run"),
+            candidate_ids=candidate_ids or None,
         )
         if injection.block:
-            contexto = getattr(input_packet, "context", None)
             if isinstance(contexto, dict):
                 contexto["verified_knowledge_block"] = injection.block
                 contexto["verified_knowledge_ids"] = injection.injected_ids
