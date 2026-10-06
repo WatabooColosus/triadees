@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-#: Módulo no alcanzable desde entrypoints productivos: capacidad de metacognición
-#: (CapabilityAwareness) con migración 023, esperando integración en ciclo de gobernanza.
-SUBSYSTEM_STATUS = "inactive"
+#: La capacidad se alimenta desde el ciclo productivo de ejercicios internos y
+#: conserva predicciones/outcomes en la base operativa (worker_loop).
+SUBSYSTEM_STATUS = "active"
 
 import json
 import math

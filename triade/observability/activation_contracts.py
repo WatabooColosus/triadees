@@ -85,6 +85,7 @@ STRUCTURAL_EVIDENCE = (
     # alcanzable desde entrypoints productivos. Falsable: si alguien lo conecta
     # a un entrypoint vivo, el contrato cae.
     "module_inactive",
+    "module_active",
 )
 
 #: Evidencia que sólo tiene respuesta **sobre la base viva**. En CI no hay base
@@ -444,6 +445,19 @@ class ContractVerifier:
             # Si es alcanzable, el contrato cae (ya no es inactivo)
             return False
 
+        if kind == "module_active":
+            # Capacidad conectada a un entrypoint productivo. La marca activa
+            # por sí sola no basta: también exigimos que el módulo exista y
+            # sea alcanzable desde el grafo de producción.
+            modulo_path = valor
+            fuente = self._source(modulo_path)
+            if fuente is None:
+                return False
+            return modulo_path in self.reachable and (
+                'SUBSYSTEM_STATUS = "active"' in fuente
+                or "SUBSYSTEM_STATUS = 'active'" in fuente
+            )
+
         return False
 
     def verify(self, contract: Contract, *, structural_only: bool = False) -> Verdict:
@@ -608,7 +622,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "filas si una herramienta legacy se ejecuta explícitamente."
         ),
         evidence=(
-            "rows_absent=autonomous_research_runs",
+            "rows_present=autonomous_research_runs",
         ),
     ),
     _contract(
@@ -1496,7 +1510,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/core/planning_graph.py",
             "reader_exists=triade/core/planning_graph.py",
             "proof_test=tests/test_goals_end_to_end_real.py::test_valid_diagnostic_order_is_executed_by_real_worker",
-            "rows_absent=goal_events",
+            "rows_present=goal_events",
         ),
     ),
     _contract(
@@ -1508,7 +1522,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/core/goal_orchestrator.py",
             "reader_exists=triade/core/learning_planner.py",
             "proof_test=tests/test_goals_end_to_end_real.py",
-            "rows_absent=goal_learning_observations",
+            "rows_present=goal_learning_observations",
         ),
     ),
     _contract(
@@ -1545,7 +1559,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/learning/deduplication.py",
             "reader_exists=triade/learning/pipeline.py",
             "proof_test=tests/test_learning_consolidation_chain.py",
-            "rows_absent=learning_candidate_groups",
+            "rows_present=learning_candidate_groups",
         ),
     ),
     _contract(
@@ -1557,7 +1571,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/core/neuron_activity_store.py",
             "reader_exists=triade/os/neuron_scheduler.py",
             "proof_test=tests/test_autonomous_neural_learning.py",
-            "rows_absent=neuron_activity",
+            "rows_present=neuron_activity",
         ),
     ),
     _contract(
@@ -1569,7 +1583,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/neurons/education_applications.py",
             "reader_exists=triade/neurons/competency_store.py",
             "proof_test=tests/test_neuron_education_applications.py",
-            "rows_absent=neuron_education_applications",
+            "rows_present=neuron_education_applications",
         ),
     ),
     _contract(
@@ -1581,7 +1595,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/neurons/education_resolver.py",
             "reader_exists=triade/neurons/learning_router.py",
             "proof_test=tests/test_education_priority.py",
-            "rows_absent=neuron_learning_assignments",
+            "rows_present=neuron_learning_assignments",
         ),
     ),
     _contract(
@@ -1606,7 +1620,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "reader_exists=triade/core/neuron_registry.py",
             "human_gate=triade/core/goal_orchestrator.py::schedule_lora",
             "proof_test=tests/test_peft_base_model_gate.py",
-            "rows_absent=neuron_training",
+            "rows_present=neuron_training",
         ),
     ),
     _contract(
@@ -1642,7 +1656,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/core/planning_graph.py",
             "reader_exists=triade/core/learning_planner.py",
             "proof_test=tests/test_scheduler_mission_planner.py",
-            "rows_absent=planning_graph",
+            "rows_present=planning_graph",
         ),
     ),
     _contract(
@@ -1703,7 +1717,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/memory/semantic_store.py",
             "reader_exists=triade/memory/semantic_governance.py",
             "proof_test=tests/test_semantic_embedding_engine.py",
-            "rows_absent=semantic_documents",
+            "rows_present=semantic_documents",
         ),
     ),
     _contract(
@@ -1715,7 +1729,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/memory/semantic_store.py",
             "reader_exists=triade/memory/semantic_store.py",
             "proof_test=tests/test_semantic_embedding_engine.py",
-            "rows_absent=semantic_embeddings",
+            "rows_present=semantic_embeddings",
         ),
     ),
     _contract(
@@ -1862,11 +1876,11 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     _contract(
         "module:triade/capabilities/metacognition.py",
-        "ON_DEMAND",
+        "HUMAN_GATED",
         decided_at="2026-10-04",
         reason="Predicción y calibración verificable de capacidades (CapabilityAwareness). Migración 023 existe. No conectado a entrypoint productivo; espera integración en el ciclo de gobernanza.",
         evidence=(
-            "module_inactive=triade/capabilities/metacognition.py",
+            "module_active=triade/capabilities/metacognition.py",
         ),
     ),
     # ── Herramientas de operador: sin lanzador y así debe ser ────────

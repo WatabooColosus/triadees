@@ -1,0 +1,54 @@
+{
+  "generated_at": "2026-10-06T01:31:31.942534+00:00",
+  "sha": "46728d2a3dbb8e5221ee160dbad3ce3ab4c148e8",
+  "branch": "main",
+  "origin_main": "46728d2a3dbb8e5221ee160dbad3ce3ab4c148e8",
+  "git_status": "?? android/triade-node/java_pid2484.hprof\n?? reports/debt-current.json\n?? reports/level8_autonomy_snapshot.json\n?? reports/level8_edge_snapshot.json\n?? reports/level8_neuron_snapshot.json\n?? reports/level8_pip.txt\n?? reports/level8_runtime_snapshot.json\n?? reports/level8_stable_snapshot.json\n?? triade/memory/live_runtime.db",
+  "python": "3.12.10",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "db": {
+    "path": "triade\\memory\\triade.db",
+    "integrity": "ok",
+    "tables": 107,
+    "counts": {
+      "learning_queue": 34,
+      "neurons": 16,
+      "neuron_learning_assignments": 1,
+      "verification_reports": 80,
+      "worker_runs": 72,
+      "autonomous_tasks": 2711,
+      "qualia_experiences": 1565,
+      "neuron_education_applications": 40
+    },
+    "learning_status": {
+      "evidence_verified": 1,
+      "internally_checked": 33
+    }
+  },
+  "workflows": [
+    "android-node-apk.yml",
+    "ci.yml",
+    "cloud-foundation.yml",
+    "concurrency-matrix.yml",
+    "internal-graphs.yml",
+    "measurement-core.yml",
+    "python-tests.yml",
+    "regression-gate.yml",
+    "tests.yml",
+    "unit-01-cloud-audit.yml"
+  ],
+  "directories": {
+    "triade": true,
+    "apps": true,
+    "scripts": true,
+    "tests": true,
+    "docs": true,
+    "audit": true,
+    "reports": true,
+    "artifacts": true,
+    "android": true
+  },
+  "resources": {
+    "psutil_available": true
+  }
+}
