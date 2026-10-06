@@ -259,7 +259,14 @@ def distill_rules(
             if not _clave_valida(clave) or clave in vistas:
                 continue
             vistas.add(clave)
-            candidatos.append((relevancia, {"key": clave, "value": frase[:MAX_VALUE_CHARS], "extractor": RULE_EXTRACTOR}))
+            candidatos.append((relevancia, {
+                "key": clave,
+                "value": frase[:MAX_VALUE_CHARS],
+                "extractor": RULE_EXTRACTOR,
+                # La clave es una etiqueta temática, no un sujeto/predicado.
+                # Dos extractos de "testing" no son valores incompatibles.
+                "claim_type": "relevant_excerpt",
+            }))
         candidatos.sort(key=lambda item: item[0], reverse=True)
         return [claim for _, claim in candidatos[:limit]]
     return []

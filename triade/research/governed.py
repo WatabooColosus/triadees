@@ -174,6 +174,8 @@ class GovernedResearchWorker:
         ]
         values_by_key: dict[str, set[str]] = {}
         for claim in claims:
+            if claim.get("claim_type") == "relevant_excerpt":
+                continue
             key = str(claim.get("key") or claim.get("claim") or "").strip()
             value = str(claim.get("value") or "").strip()
             if key:
@@ -194,6 +196,8 @@ class GovernedResearchWorker:
             status = "candidate_created"
         confidence = min(0.95, independent / max(minimum_independent_sources, 1) * 0.7)
         candidate_id: str | None = None
+        candidate_created = False
+        candidate_deduplicated = False
         if status == "candidate_created":
             content = "\n\n".join(
                 f"Fuente: {source['url']}\n{source['content']}" for source in accepted
@@ -207,6 +211,10 @@ class GovernedResearchWorker:
                 risk_level="low",
             )
             candidate_id = str(candidate.get("candidate_id") or "") or None
+            candidate_deduplicated = bool(candidate.get("deduplicated"))
+            candidate_created = bool(candidate_id) and not candidate_deduplicated
+            if candidate_deduplicated:
+                status = "candidate_reused"
         research_id = f"gr-{uuid.uuid4().hex}"
         evidence_bundle = {
             "research_id": research_id,
@@ -231,6 +239,8 @@ class GovernedResearchWorker:
             "confidence": confidence,
             "evidence_bundle": evidence_bundle,
             "candidate_id": candidate_id,
+            "candidate_created": candidate_created,
+            "candidate_deduplicated": candidate_deduplicated,
             "learning_validated": False,
             "stable_memory_written": False,
             # Para que el fallo sea legible por quien decide el siguiente

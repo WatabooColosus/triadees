@@ -25,6 +25,19 @@ def run(worker: GovernedResearchWorker):
     )
 
 
+def test_topic_excerpts_do_not_claim_a_contradiction(tmp_path: Path) -> None:
+    sources = [source("one.test"), source("two.test")]
+    sources[0]["claims"] = [{"key": "testing", "value": "A test case checks one behavior.", "claim_type": "relevant_excerpt"}]
+    sources[1]["claims"] = [{"key": "testing", "value": "Continuous integration runs a suite.", "claim_type": "relevant_excerpt"}]
+    worker = GovernedResearchWorker(
+        tmp_path / "research.db", lambda question, minimum: {"sources": sources}
+    )
+    result = run(worker)
+    assert result["contradictions"] == []
+    assert result["learning_validated"] is False
+    assert result["candidate_id"]
+
+
 def test_one_source_is_insufficient_and_not_learning(tmp_path: Path) -> None:
     worker = GovernedResearchWorker(
         tmp_path / "research.db",
