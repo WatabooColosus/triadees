@@ -2034,6 +2034,7 @@ class WorkerLoop:
         result["background_learning_trial"] = {
             "status": trial.get("status") if trial else "no_pending_lesson",
             "run_id": trial.get("run_id"),
+            "candidate_ids": candidate_ids[:1],
             "verified_knowledge_ids": trial.get("verified_knowledge_ids", []),
         }
         result["stable_memory_written"] = False
