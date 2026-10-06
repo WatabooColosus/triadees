@@ -1969,6 +1969,7 @@ class WorkerLoop:
         # declara en el contexto y ProductionKnowledgeInjector lo recupera con
         # sus mismas puertas de seguridad; no se escriben contadores a mano.
         trial: dict[str, Any] = {}
+        candidate_ids: list[str] = []
         try:
             with sqlite3.connect(self.db_path) as conn:
                 row = conn.execute(
@@ -1981,7 +1982,21 @@ class WorkerLoop:
                     str(value) for value in lesson.get("candidate_ids", [])
                     if str(value).strip()
                 ]
-                if candidate_ids:
+            if not candidate_ids:
+                # Cuando la educación ya resolvió la sesión, el candidato
+                # puede seguir sin uso causal productivo. Seleccionar una ruta
+                # activa con `run_use_count=0` cierra ese último eslabón sin
+                # cambiar su estado ni fabricar una confirmación.
+                with sqlite3.connect(self.db_path) as conn:
+                    fallback = conn.execute(
+                        "SELECT a.candidate_id FROM neuron_learning_assignments a "
+                        "JOIN learning_queue q ON q.candidate_id=a.candidate_id "
+                        "WHERE a.status IN ('experimental','beneficial') "
+                        "AND COALESCE(q.run_use_count,0)=0 ORDER BY a.updated_at LIMIT 1"
+                    ).fetchone()
+                if fallback:
+                    candidate_ids = [str(fallback[0])]
+            if candidate_ids:
                     from triade.core.runner import TriadeRunner
 
                     trial = TriadeRunner(
