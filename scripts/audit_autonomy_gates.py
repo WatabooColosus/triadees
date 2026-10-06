@@ -39,6 +39,7 @@ def audit(db_path: Path, base_url: str) -> dict:
     add("database_integrity", "PASS" if integrity == "ok" else "BLOCKED", result=integrity)
     heartbeat = _http(base_url.rstrip("/") + "/api/runtime/heartbeat")
     body = heartbeat.get("body") or {}
+    permission_profile = _http(base_url.rstrip("/") + "/api/system/permissions?requested=full_local_guarded")
     live = heartbeat.get("status") == 200 and bool(body.get("workers_active", body.get("runtime_enabled", False)))
     add("runtime_live", "PASS" if live else "BLOCKED", http_status=heartbeat.get("status"), last_cycle_at=body.get("last_cycle_at"), workers_active=body.get("workers_active"), error=heartbeat.get("error"))
     add("workers_live", "PASS" if body.get("workers_active") else "PENDING", workers_active=body.get("workers_active"))
@@ -66,7 +67,9 @@ def audit(db_path: Path, base_url: str) -> dict:
     federation = _count(db, "federated_nodes", "WHERE status IN ('active','healthy')")
     add("federation", "PASS" if federation >= 2 else "PENDING", active_nodes=federation)
     add("resource_governor", "PASS" if body.get("resource_governor") or body.get("mode") else "PENDING", mode=body.get("mode"))
-    add("permission_governor", "PASS" if body.get("permission_governor") else "PENDING", permission_governor=body.get("permission_governor"))
+    profile = permission_profile.get("body") or {}
+    permissions = profile.get("permissions") or {}
+    add("permission_governor", "PASS" if permission_profile.get("status") == 200 and permissions else "PENDING", http_status=permission_profile.get("status"), permissions=permissions, can_modify_identity_core=permissions.get("can_modify_identity_core"))
     add("error_recovery", "PASS", dead_letter=_count(db, "autonomous_tasks", "WHERE status='dead_letter'"))
     add("longitudinal_runtime", "PENDING", reason="requiere checkpoint temporal >=5 minutos")
     db.close()
