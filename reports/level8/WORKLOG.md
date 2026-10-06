@@ -20,3 +20,10 @@
 - FALTA: aislar fallos restantes de la suite completa y ejecutar las fases D-K.
 - RIESGO: no se puede afirmar CI remoto verde sin logs de GitHub.
 - SIGUIENTE PASO: reparar la cadena learning?use?measurement sin insertar filas manuales.
+
+## Fase B ? reparaciones posteriores
+- HECHO: documentaci?n de autonom?a delegada, ejecuci?n dry-run serializada, cierre de staging tolerante a cuarentena y precedencia de `TRIADE_BACKUP_KEY_FILE`.
+- EVIDENCIA: pruebas focalizadas verdes: autonom?a delegada, background service, backup gap, activation contracts.
+- FALTA: suite completa y deuda de backups en Windows/ACL; el runner local reporta fallos de entorno por configuraci?n global de clave y chmod no fiable.
+- RIESGO: no declarar CI verde hasta separar esos fallos de infraestructura Windows de regresiones de c?digo.
+- SIGUIENTE PASO: aislar la configuraci?n de backup por ra?z/proceso y continuar con la suite.
