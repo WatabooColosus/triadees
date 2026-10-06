@@ -39,12 +39,29 @@ def audit(db_path: Path, base_url: str) -> dict:
     add("database_integrity", "PASS" if integrity == "ok" else "BLOCKED", result=integrity)
     heartbeat = _http(base_url.rstrip("/") + "/api/runtime/heartbeat")
     body = heartbeat.get("body") or {}
+    metabolism = _http(base_url.rstrip("/") + "/api/runtime/metabolism/status")
+    metabolism_body = metabolism.get("body") or {}
+    metabolism_state = metabolism_body.get("metabolism") or {}
     permission_profile = _http(base_url.rstrip("/") + "/api/system/permissions?requested=full_local_guarded")
     live = heartbeat.get("status") == 200 and bool(body.get("workers_active", body.get("runtime_enabled", False)))
     add("runtime_live", "PASS" if live else "BLOCKED", http_status=heartbeat.get("status"), last_cycle_at=body.get("last_cycle_at"), workers_active=body.get("workers_active"), error=heartbeat.get("error"))
     add("workers_live", "PASS" if body.get("workers_active") else "PENDING", workers_active=body.get("workers_active"))
     add("scheduler_live", "PASS" if body.get("scheduler_active", body.get("workers_active")) else "PENDING", scheduler_active=body.get("scheduler_active"))
-    add("metabolism_live", "PASS" if body.get("metabolism_active") else "PENDING", metabolism_active=body.get("metabolism_active"))
+    metabolism_live = (
+        metabolism.get("status") == 200
+        and metabolism_state.get("running") is True
+        and int(metabolism_state.get("cycle_count") or 0) > 0
+        and not metabolism_state.get("last_tick_error")
+    )
+    add(
+        "metabolism_live",
+        "PASS" if metabolism_live else "PENDING",
+        http_status=metabolism.get("status"),
+        running=metabolism_state.get("running"),
+        cycle_count=metabolism_state.get("cycle_count"),
+        last_tick_at=metabolism_state.get("last_tick_at"),
+        last_tick_error=metabolism_state.get("last_tick_error"),
+    )
     statuses = {r["status"]: int(r["n"]) for r in db.execute("SELECT status,COUNT(*) n FROM learning_queue GROUP BY status")}
     verified = sum(statuses.get(s, 0) for s in ("evidence_verified", "consolidated", "stable"))
     add("independent_learning_evidence", "PASS" if verified else "PENDING", verified_or_better=verified, by_status=statuses)
@@ -71,7 +88,25 @@ def audit(db_path: Path, base_url: str) -> dict:
     permissions = profile.get("permissions") or {}
     add("permission_governor", "PASS" if permission_profile.get("status") == 200 and permissions else "PENDING", http_status=permission_profile.get("status"), permissions=permissions, can_modify_identity_core=permissions.get("can_modify_identity_core"))
     add("error_recovery", "PASS", dead_letter=_count(db, "autonomous_tasks", "WHERE status='dead_letter'"))
-    add("longitudinal_runtime", "PENDING", reason="requiere checkpoint temporal >=5 minutos")
+    long_dir = Path("artifacts/long-run")
+    longitudinal = None
+    if long_dir.exists():
+        for report in sorted(long_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True):
+            try:
+                lines = [json.loads(line) for line in report.read_text(encoding="utf-8").splitlines() if line.strip()]
+                footer = lines[-1] if lines else {}
+                header = lines[0] if lines else {}
+                samples = [item for item in lines[1:-1] if item.get("at")]
+                if footer.get("verdict") == "COMPLETED" and len(samples) >= 2:
+                    longitudinal = {"file": str(report), "samples": len(samples), "sha": header.get("sha_at_start")}
+                    break
+            except (OSError, ValueError, TypeError):
+                continue
+    add(
+        "longitudinal_runtime",
+        "PASS" if longitudinal else "PENDING",
+        **(longitudinal or {"reason": "requiere checkpoint temporal >=5 minutos"}),
+    )
     db.close()
     summary = {s: sum(g["status"] == s for g in gates) for s in ("PASS", "PENDING", "BLOCKED", "NOT_APPLICABLE")}
     return {"generated_at": datetime.now(UTC).isoformat(), "db": str(db_path), "base_url": base_url, "gates": gates, "summary": summary}
