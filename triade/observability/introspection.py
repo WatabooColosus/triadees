@@ -773,13 +773,9 @@ def _backup_key_configured(root: Path) -> bool:
     2026-07-31 la clave desapareció de verdad y nadie se enteró en cuatro días;
     si además avisa cuando no pasa nada, deja de creerse cuando pasa.
     """
-    try:
-        from triade.memory.encrypted_backup import EncryptedBackup
-
-        if EncryptedBackup.key_configured():
-            return True
-    except (ImportError, OSError, ValueError, TypeError):
-        pass
+    # La auditoría recibe `root` explícito; no debe consultar el `.env` global
+    # del proceso porque eso hace que un repositorio temporal parezca tener una
+    # clave que solo existe en el checkout anfitrión.
     if (
         os.getenv("TRIADE_BACKUP_KEY", "").strip()
         or os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
@@ -877,7 +873,10 @@ def _backup_key_file_path(root: Path) -> str:
     justamente en el sitio donde se mira todo lo demás.
     """
     desde_entorno = os.getenv("TRIADE_BACKUP_KEY_FILE", "").strip()
-    if desde_entorno and Path(desde_entorno).is_file():
+    # La configuración explícita del proceso tiene precedencia aunque el
+    # fichero todavía no exista: así el diagnóstico señala la ruta efectiva
+    # que el runtime intentará usar, en vez de ocultarla con un valor de `.env`.
+    if desde_entorno:
         return desde_entorno
     env_file = root / ".env"
     try:
@@ -918,10 +917,8 @@ def _backup_key_file_gaps(root: Path) -> list[str]:
         return []
     path = Path(key_file)
     if os.name == "nt":
-        # Windows ACLs and scheduled-task environments can make a path stat
-        # differ between the interactive shell and the service process. The
-        # backup itself is validated below by its manifest/restore checks; do
-        # not turn POSIX-style mode/path probing into a false red state.
+        # ACLs son la autoridad en Windows; los bits POSIX que devuelve
+        # pathlib no distinguen 0600 de 0644 de forma fiable.
         return []
     try:
         mode = path.stat().st_mode & 0o777
@@ -932,9 +929,7 @@ def _backup_key_file_gaps(root: Path) -> list[str]:
                 "leer: no se crea ninguna copia y no se abre ninguna existente"
             )
         ]
-    # Windows enforces access through ACLs; POSIX mode bits are commonly
-    # reported as 0666/0777 there and are not evidence that the key is public.
-    if os.name != "nt" and mode & 0o077:
+    if mode & 0o077:
         return [
             (
                 f"la clave de backup tiene permisos {mode:04o} en vez de 0600: "

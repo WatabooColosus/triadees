@@ -27,13 +27,24 @@ REQUIRED_LOGS = ("stdout.log", "stderr.log")
 class AtomicArtifactWriter:
     @staticmethod
     def write_bytes(path: Path, content: bytes) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
-        with temporary.open("wb") as stream:
-            stream.write(content)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        # Un timeout gobernado puede mover el staging a cuarentena mientras el
+        # cierre canónico todavía está escribiendo. En Windows esa carrera se
+        # manifiesta como FileNotFoundError sobre el temporal; reabrir el
+        # directorio una vez conserva el cierre y deja la cuarentena intacta.
+        for intento in range(3):
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+                with temporary.open("wb") as stream:
+                    stream.write(content)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, path)
+                break
+            except FileNotFoundError:
+                if intento == 2:
+                    raise
+                continue
         # POSIX permite sincronizar el directorio; Windows no permite abrirlo
         # como descriptor, aunque os.replace ya sea atómico en el mismo volumen.
         if os.name != "nt":

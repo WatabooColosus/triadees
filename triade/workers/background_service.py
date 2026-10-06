@@ -49,7 +49,11 @@ class WorkerBackgroundService:
             # El servicio Always-On usa el pool gobernado; los límites por
             # carril mantienen serializadas memoria/educación y permiten
             # paralelizar lecturas sin depender del entorno del launcher.
-            concurrency_enabled=True,
+            # El modo dry-run es una comprobación determinista de persistencia;
+            # serializarlo evita que una tarea de prueba mueva su staging a
+            # cuarentena mientras otra escribe el mismo cierre. El servicio
+            # real mantiene el pool gobernado.
+            concurrency_enabled=not dry_run,
         )
         return loop.run(config)
 

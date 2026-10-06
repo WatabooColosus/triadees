@@ -1007,6 +1007,12 @@ class WorkerLoop:
             }
 
         final_result_ref = str(canonical_artifacts.path / "result.json")
+        # Un handler gobernado puede mover su directorio de trabajo a
+        # cuarentena al agotarse el timeout. El cierre canónico del worker aún
+        # debe poder escribir el resultado y la evidencia de ese fallo en el
+        # staging original; sin recrear el directorio, Windows dejaba una
+        # `FileNotFoundError` y el run terminaba como `completed_with_errors`.
+        staging_path.mkdir(parents=True, exist_ok=True)
         execution.artifacts = [final_result_ref]
         execution.evidence = [final_result_ref]
         if execution.effect_receipt is not None:

@@ -1,5 +1,12 @@
 # Estado vigente de Tríade Ω · corte 2026-07-30
 
+## Autonomía Delegada
+
+La delegación de tareas está gobernada por clasificación de autonomía,
+permisos y receipts; el runtime puede observar y ejecutar operaciones seguras,
+pero la promoción estable y las acciones de mayor impacto siguen sujetas a sus
+gates de evidencia.
+
 SHA documental base: `8f44814`. Esta es la fuente vigente después de
 `TECHNICAL_DEBT.md`; los reportes antiguos son históricos si la contradicen.
 
@@ -108,3 +115,5 @@ python scripts/run_triade_verify.py
 
 Operación y límites: `docs/operations/`. Deuda vigente:
 `TECHNICAL_DEBT.md`.
+
+Autonom�a Delegada
