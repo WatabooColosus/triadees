@@ -1970,18 +1970,31 @@ class WorkerLoop:
         # sus mismas puertas de seguridad; no se escriben contadores a mano.
         trial: dict[str, Any] = {}
         candidate_ids: list[str] = []
+        training: dict[str, Any] = {}
+        training_neuron_id: int | None = None
         try:
             with sqlite3.connect(self.db_path) as conn:
                 row = conn.execute(
-                    "SELECT lesson_json FROM neuron_education_sessions "
+                    "SELECT neuron_id, lesson_json FROM neuron_education_sessions "
                     "WHERE state='lesson_prepared' ORDER BY created_at LIMIT 1"
                 ).fetchone()
             if row:
-                lesson = json.loads(str(row[0] or "{}"))
-                candidate_ids = [
+                training_neuron_id = int(row[0]) if row[0] is not None else None
+                lesson = json.loads(str(row[1] or "{}"))
+                lesson_candidate_ids = [
                     str(value) for value in lesson.get("candidate_ids", [])
                     if str(value).strip()
                 ]
+                if lesson_candidate_ids:
+                    with sqlite3.connect(self.db_path) as conn:
+                        placeholders = ",".join("?" for _ in lesson_candidate_ids)
+                        verified = conn.execute(
+                            f"SELECT candidate_id FROM learning_queue "
+                            f"WHERE candidate_id IN ({placeholders}) "
+                            "AND status IN ('evidence_verified','consolidated')",
+                            lesson_candidate_ids,
+                        ).fetchall()
+                    candidate_ids = [str(item[0]) for item in verified]
             if not candidate_ids:
                 # Cuando la educación ya resolvió la sesión, el candidato
                 # puede seguir sin uso causal productivo. Seleccionar una ruta
@@ -2010,6 +2023,34 @@ class WorkerLoop:
                         context={"learning_candidate_ids": candidate_ids[:1]},
                         propose_neurons=False,
                     )
+            elif training_neuron_id is not None:
+                # Una lección puede tener material suficiente pero todavía no
+                # tener un candidato verificado enrutable. En ese caso el
+                # entrenamiento no se declara aplicado: se ejecuta un ejercicio
+                # real de la misión de esa neurona, con puntuación y reporte,
+                # para que el recorder pueda cerrar el A/B cuando haya muestras.
+                # Esto mantiene la sesión pendiente sin fabricar conocimiento.
+                with sqlite3.connect(self.db_path) as conn:
+                    mission = conn.execute(
+                        "SELECT id, title, domain FROM neuron_missions "
+                        "WHERE neuron_id=? AND status IN ('experimental','active') "
+                        "ORDER BY id LIMIT 1",
+                        (training_neuron_id,),
+                    ).fetchone()
+                if mission is not None:
+                    exercise = WorkerTask(
+                        task_type="experimental_neuron_activity",
+                        payload={
+                            "mission_id": int(mission[0]),
+                            "related_neuron_id": training_neuron_id,
+                            "query": str(mission[1] or "ejercicio de entrenamiento neuronal"),
+                            "domain": str(mission[2] or "general"),
+                            "education_training": True,
+                        },
+                    )
+                    training = self._experimental_neuron_activity(
+                        exercise, run_ref, task_dir, config
+                    )
         except (OSError, sqlite3.Error, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
             trial = {"status": "error", "error": f"background_learning_trial:{type(exc).__name__}: {exc}"}
 
@@ -2036,6 +2077,13 @@ class WorkerLoop:
             "run_id": trial.get("run_id"),
             "candidate_ids": candidate_ids[:1],
             "verified_knowledge_ids": trial.get("verified_knowledge_ids", []),
+            "training": {
+                "status": training.get("status") if training else "not_run",
+                "mission_id": training.get("mission_id") if training else None,
+                "neuron_id": training_neuron_id,
+                "decision": training.get("decision") if training else None,
+                "verification": training.get("verification_recorded") if training else None,
+            },
         }
         result["stable_memory_written"] = False
         # Promover a estable es HUMAN_REQUIRED. El resolutor sólo mueve
