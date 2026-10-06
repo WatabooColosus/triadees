@@ -664,7 +664,7 @@ function ObservabilityTab() {
 
   useEffect(() => {
     fetch()
-    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 20000)
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 60000)
     return () => clearInterval(id)
   }, [fetch])
 
@@ -908,7 +908,7 @@ function SystemTab() {
 
   useEffect(() => {
     fetch()
-    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 20000)
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 60000)
     return () => clearInterval(id)
   }, [fetch])
 
@@ -1097,7 +1097,7 @@ function ModelsTab() {
 
   useEffect(() => {
     fetch()
-    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 30000)
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 60000)
     return () => clearInterval(id)
   }, [fetch])
 
@@ -1149,7 +1149,7 @@ function FederationTab({ apiKey }: { apiKey: string }) {
 
   useEffect(() => {
     fetch()
-    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 30000)
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 60000)
     return () => clearInterval(id)
   }, [fetch])
 
@@ -1322,7 +1322,7 @@ function NeuronsTab({ apiKey }: { apiKey: string }) {
 
   useEffect(() => {
     fetch()
-    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 20000)
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetch() }, 60000)
     return () => clearInterval(id)
   }, [fetch])
 

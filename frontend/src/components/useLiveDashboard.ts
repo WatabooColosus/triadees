@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 const BASE = ''
 // La cabina comparte el pulso del backend; consultar cada 5 s duplicaba
 // payloads grandes y mantenía React activo aun sin cambios visibles.
-const POLL_INTERVAL = 15000
+const POLL_INTERVAL = 60000
 
 export async function api(path: string, opts?: RequestInit) {
   const token = sessionStorage.getItem('triade_auth_token')

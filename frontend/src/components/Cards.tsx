@@ -1005,7 +1005,7 @@ export function LoraApprovalCard({ apiKey }: { apiKey: string }) {
 
   useEffect(() => {
     load()
-    const id = setInterval(load, 20000)
+    const id = setInterval(load, 60000)
     return () => clearInterval(id)
   }, [])
 
@@ -1097,7 +1097,7 @@ export function NeuronEducationCard() {
 
   useEffect(() => {
     load()
-    const id = setInterval(load, 20000)
+    const id = setInterval(load, 60000)
     return () => clearInterval(id)
   }, [])
 
@@ -1251,7 +1251,7 @@ export function CompuertaHumanaCard({ apiKey }: { apiKey: string }) {
 
   useEffect(() => {
     load()
-    const id = setInterval(load, 20000)
+    const id = setInterval(load, 60000)
     return () => clearInterval(id)
   }, [])
 
