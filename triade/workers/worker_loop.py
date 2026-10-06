@@ -2085,6 +2085,16 @@ class WorkerLoop:
                 "verification": training.get("verification_recorded") if training else None,
             },
         }
+        # GovernedTaskExecutor exige una evidencia de artefacto para aceptar un
+        # resultado `completed`. El ejercicio puede haber producido mediciones
+        # válidas aunque no haya candidato promocionable; persistimos el
+        # resultado completo para que el ciclo no termine en dead_letter.
+        education_artifact = task_dir / "neuron-education-cycle.json"
+        education_artifact.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
+        result["artifact_ref"] = str(education_artifact)
         result["stable_memory_written"] = False
         # Promover a estable es HUMAN_REQUIRED. El resolutor sólo mueve
         # versiones experimentales, que son reversibles y quedan marcadas.
