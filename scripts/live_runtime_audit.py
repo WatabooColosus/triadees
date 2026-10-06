@@ -170,7 +170,12 @@ def locks() -> dict[str, Any]:
             match = re.search(r"\b(\d{2,7})\b", raw)
             pid = match.group(1) if match else ""
         if pid:
-            owner_alive = Path(f"/proc/{pid}").exists()
+            try:
+                from triade.runtime.process_lock import RuntimeProcessLock
+
+                owner_alive = RuntimeProcessLock.inspect(path).status == "live"
+            except (ImportError, OSError, ValueError):
+                owner_alive = bool(psutil and psutil.pid_exists(int(pid)))
         result[name] = {
             "present": True,
             "pid": pid,
