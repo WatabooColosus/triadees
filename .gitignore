@@ -61,3 +61,6 @@ logs/
 
 # Android runtime artifacts local only
 apps/static/android-runtime/
+
+# Local Python runtime for Windows SYSTEM task
+tools/python/

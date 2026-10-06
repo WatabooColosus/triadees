@@ -1,9 +1,12 @@
 $ErrorActionPreference = "Stop"
+$logPath = Join-Path (Split-Path -Parent $PSScriptRoot) "artifacts\system-start.log"
+try { "[$(Get-Date -Format o)] start" | Out-File -FilePath $logPath -Append -Encoding utf8 } catch {}
 $pythonPath = $null
 if ($args.Count -gt 1 -and $args[0] -eq '-PythonPath') { $pythonPath = $args[1] }
 $repo = Split-Path -Parent $PSScriptRoot
 $pythonCandidates = @(
     $pythonPath,
+    (Join-Path $repo 'tools\python\python.exe'),
     (Join-Path $repo '.venv\Scripts\python.exe'),
     'C:\Users\SantiWataboo\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe',
     (Get-Command python.exe -ErrorAction SilentlyContinue).Source,
@@ -44,5 +47,12 @@ $worker = Join-Path $repo "scripts\triade_service_worker.ps1"
 # Mantener esta tarea viva une el proceso de la tarea con el supervisor. Un
 # Start-Process desacoplado hacía que Windows registrara éxito aunque la API
 # quedara huérfana, impidiendo verificar Always-On.
-& powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $worker -PythonPath $python
-exit $LASTEXITCODE
+try {
+    & powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $worker -PythonPath $python *>> $logPath
+    $code = $LASTEXITCODE
+    "[$(Get-Date -Format o)] exit=$code python=$python" | Out-File -FilePath $logPath -Append -Encoding utf8
+    exit $code
+} catch {
+    "[$(Get-Date -Format o)] error=$($_.Exception.Message) python=$python" | Out-File -FilePath $logPath -Append -Encoding utf8
+    exit 1
+}
