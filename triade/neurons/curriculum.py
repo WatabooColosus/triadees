@@ -17,6 +17,7 @@ from triade.core.guarded_web import TRUSTED_RESEARCH_HOSTS
 #: Wataboo»—, así que lo investigado nunca resultaba relevante. Medido el
 #: 2026-08-09: las seis neuronas medibles pasan de 1 a 2 fuentes independientes.
 DOMAIN_QUERIES: dict[str, str] = {
+    "live_pulse": "software observability service monitoring health checks heartbeat incident detection",
     "vision_image_understanding": "visión artificial procesamiento de imágenes OpenCV Pillow",
     "code_repair": "ingeniería de software depuración pruebas reproducibles",
     "code_repair_build_tests": (

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 from triade.learning.evidence_bridge import LearningEvidenceBridge
@@ -18,8 +19,9 @@ class NeuronEducationCycle:
         self.store = CompetencyStore(db_path)
         self.evidence = LearningEvidenceBridge(db_path)
 
-    def run_once(self) -> dict[str, Any]:
-        target = self._target()
+    def run_once(self, *, force: bool = False, target_neuron_id: int | None = None) -> dict[str, Any]:
+        """Ejecuta una lección; ``force`` sólo se usa ante material nuevo."""
+        target = self._target(force=force, target_neuron_id=target_neuron_id)
         if target is None:
             return {"status": "no_target", "learned": False}
         neuron_id = int(target["id"])
@@ -36,12 +38,34 @@ class NeuronEducationCycle:
         # de una conversación busca material por la frase que la creó y nunca
         # encuentra lo que se investigó para su dominio.
         busqueda = f"{objective} {domain_query(domain)}"
-        materials = relevant_material(self._candidate_materials(), busqueda, domain)
-        independent = len(
-            {source_domain(str(item["source_ref"])) for item in materials}
-        )
-        refs = [str(item["source_ref"]) for item in materials]
-        if independent < 2:
+        candidates = self._candidate_materials()
+        materials = relevant_material(candidates, busqueda, domain)
+        # Un candidato del mismo dominio es material pertinente aunque su
+        # redacción no comparta todos los términos de la consulta. Si el
+        # ranking léxico deja el currículo con una sola procedencia, completa
+        # el conjunto con otras procedencias del dominio hasta poder evaluar
+        # el contraste A/B; nunca mezcla dominios ni inventa fuentes.
+        required_sources = self._required_sources()
+        if len(materials) < required_sources:
+            selected = {str(item.get("candidate_id")) for item in materials}
+            for item in candidates:
+                if str(item.get("domain") or "") != domain:
+                    continue
+                if str(item.get("candidate_id")) in selected:
+                    continue
+                materials.append(item)
+                selected.add(str(item.get("candidate_id")))
+                if len(materials) >= required_sources:
+                    break
+        material_sources = {
+            source
+            for item in materials
+            for source in self._material_source_refs(item)
+            if source
+        }
+        independent = len({source_domain(source) for source in material_sources})
+        refs = sorted(material_sources)
+        if independent < required_sources:
             result = "insufficient_material"
             session = self.store.record_session(
                 curriculum_id=str(curriculum["curriculum_id"]),
@@ -60,7 +84,10 @@ class NeuronEducationCycle:
                 exercise={},
                 evaluation={
                     "passed": False,
-                    "reason": "two_independent_relevant_sources_required",
+                    "reason": "independent_source_threshold_not_met",
+                    "required_independent_sources": required_sources,
+                    "observed_independent_sources": independent,
+                    "ab_contract": "baseline_before_lesson_and_post_after_application",
                 },
                 result=result,
             )
@@ -71,6 +98,7 @@ class NeuronEducationCycle:
                 "neuron": target["name"],
                 "domain": domain,
                 "independent_sources": independent,
+                "required_independent_sources": required_sources,
                 "material_refs": refs,
                 **session,
             }
@@ -99,6 +127,8 @@ class NeuronEducationCycle:
             evaluation={
                 "passed": False,
                 "reason": "independent_evaluation_and_run_application_pending",
+                "required_independent_sources": required_sources,
+                "ab_contract": "baseline_before_lesson_and_post_after_application",
             },
             result="uncertain",
         )
@@ -117,6 +147,7 @@ class NeuronEducationCycle:
             "neuron": target["name"],
             "domain": domain,
             "independent_sources": independent,
+            "required_independent_sources": required_sources,
             "material_refs": refs,
             "learning_evidence_id": evidence.get("id"),
             "learning_evidence_candidate_id": evidence_candidate_id,
@@ -161,7 +192,9 @@ class NeuronEducationCycle:
             "truth_policy": "learned_requires_independent_evaluation_run_application_and_measured_improvement",
         }
 
-    def _target(self) -> dict[str, Any] | None:
+    def _target(
+        self, *, force: bool = False, target_neuron_id: int | None = None
+    ) -> dict[str, Any] | None:
         """Elige a quién educar, prefiriendo a quien luego se puede medir.
 
         Ordenaba por `retention_score ASC, n.id ASC`, así que siempre ganaba la
@@ -195,17 +228,43 @@ class NeuronEducationCycle:
                     WHERE na.neuron_id = n.id AND na.activated = 1) > 0"""
             else:
                 medible = "0"
-            row = conn.execute(
+            material_priority = (
+                "CASE WHEN EXISTS ("
+                "SELECT 1 FROM learning_queue lq "
+                "WHERE lq.status IN ('internally_checked','validated_in_runs','consolidated') "
+                "AND lq.domain = n.domain) THEN 0 ELSE 1 END"
+                if "learning_queue" in tablas
+                else "CASE WHEN 1=1 THEN 0 ELSE 1 END"
+            )
+            rows = conn.execute(
                 f"""SELECT n.id,n.name,n.domain,n.mission,m.id mission_id,
                 COALESCE(c.retention_score,0) retention_score, c.next_review,
                 {medible} AS measurable
                 FROM neurons n LEFT JOIN neuron_missions m ON m.neuron_id=n.id
                 LEFT JOIN neuron_competencies c ON c.neuron_id=n.id AND c.domain=n.domain
-                WHERE n.status='experimental' AND (c.next_review IS NULL OR c.next_review<=?)
-                ORDER BY measurable DESC, retention_score ASC, n.id ASC LIMIT 1""",
-                (utc_now(),),
-            ).fetchone()
-        return dict(row) if row else None
+                WHERE n.status='experimental'
+                  AND (? IS NULL OR n.id=?)
+                  AND (? = 1 OR c.next_review IS NULL OR c.next_review<=?)
+                ORDER BY
+                  {material_priority},
+                  measurable DESC, retention_score ASC, n.id ASC LIMIT 1""",
+                (target_neuron_id, target_neuron_id, 1 if force else 0, utc_now()),
+            ).fetchall()
+        candidates = self._candidate_materials()
+        for row in rows:
+            target = dict(row)
+            objective = str(target.get("mission") or target.get("name") or "")
+            domain = str(target.get("domain") or "general")
+            matched = relevant_material(
+                candidates,
+                f"{objective} {domain_query(domain)}",
+                domain,
+            )
+            if matched:
+                return target
+        # Conserva el diagnóstico para neuronas que aún no tienen material;
+        # sólo se usa cuando no existe ningún dominio con material relevante.
+        return dict(rows[0]) if rows else None
 
     def _candidate_materials(self) -> list[dict[str, Any]]:
         # Estados reales del pipeline (triade/learning/pipeline.py):
@@ -218,13 +277,53 @@ class NeuronEducationCycle:
         # evidencia de la que el propio pipeline ya considera suficiente
         # para "internally_checked".
         with self.store.connect() as conn:
+            tables = {
+                str(r[0])
+                for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            }
+            if "learning_queue" not in tables:
+                return []
             rows = conn.execute(
                 """SELECT candidate_id,title,content,domain,source_type,source_ref,status
                 FROM learning_queue WHERE status IN ('internally_checked','validated_in_runs','consolidated')
-                AND source_type IN ('repo','document','web','node') AND source_ref IS NOT NULL
+                AND source_type IN ('repo','document','web','node','tool','conversation','qualia_bus')
+                AND source_ref IS NOT NULL
                 ORDER BY updated_at DESC LIMIT 300"""
             ).fetchall()
         return [dict(row) for row in rows]
+
+    @staticmethod
+    def _material_source_refs(item: dict[str, Any]) -> set[str]:
+        """Recupera la procedencia original de un candidato compuesto.
+
+        La investigación gobernada guarda varias fuentes en el contenido de
+        un único candidato (`Fuente: https://...`) y conserva el prefijo
+        `research:` como referencia del paquete. Antes sólo se contaba ese
+        prefijo, reduciendo cualquier paquete de dos fuentes a una sola.
+        """
+        refs = {str(item.get("source_ref") or "")}
+        content = str(item.get("content") or "")
+        refs.update(re.findall(r"https?://[^\s)]+", content))
+        return {ref.rstrip(".,;\"]'") for ref in refs if ref}
+
+    def _required_sources(self) -> int:
+        """Deriva N de necesidades metabólicas activas, con límites seguros.
+
+        Una necesidad aislada exige dos fuentes independientes; cuando el
+        metabolismo mantiene varias necesidades activas, el umbral crece hasta
+        cinco. Así el currículo se adapta al estado del organismo sin poder
+        exigir una cantidad infinita ni saltarse el contraste A-B.
+        """
+        try:
+            with self.store.connect() as conn:
+                row = conn.execute(
+                    """SELECT COUNT(*) AS n FROM metabolic_needs
+                       WHERE status IN ('pending','authorized','running','queued')"""
+                ).fetchone()
+                active = int(row["n"] or 0) if row else 0
+        except Exception:
+            active = 0
+        return max(2, min(5, active or 2))
 
     def _schedule(self, competency_id: str, result: str, *, success: bool) -> None:
         review = next_review_for(result, changing_knowledge=True)

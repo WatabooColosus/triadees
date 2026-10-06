@@ -84,6 +84,7 @@ class MissionPlanner:
         tasks.extend(self._plan_failed_recent())
         tasks.extend(self._plan_memory_consolidation())
         tasks.extend(self._plan_neural_learning_distribution())
+        tasks.extend(self._plan_internal_curriculum_exercises())
         tasks.extend(self._plan_active_missions())
         tasks.extend(self._plan_federation_inbox())
         tasks.extend(self._plan_system_debt())
@@ -178,6 +179,58 @@ class MissionPlanner:
 
         return tasks
 
+    def _plan_internal_curriculum_exercises(self) -> list[PlannedTask]:
+        """Ejercicios internos medibles para asignaciones experimentales.
+
+        No acredita uso por sí solo: genera un run neuronal gobernado; el
+        recorder sólo crea la aplicación si ese run tiene actividad y
+        verification_report válidos.
+        """
+        try:
+            with closing(self._connect()) as conn, conn:
+                row = conn.execute(
+                    """SELECT a.assignment_id,a.neuron_id,lq.domain,lq.candidate_id
+                    FROM neuron_learning_assignments a
+                    JOIN learning_queue lq ON lq.candidate_id=a.candidate_id
+                    WHERE a.status='experimental' AND COALESCE(a.use_count,0) < 5
+                    ORDER BY a.updated_at LIMIT 1"""
+                ).fetchone()
+                if row is None:
+                    return []
+                pending = conn.execute(
+                    """SELECT 1 FROM autonomous_tasks
+                    WHERE task_type='experimental_neuron_activity'
+                      AND status IN ('pending','queued','leased','running')
+                      AND json_extract(payload_json,'$.curriculum_assignment_id')=?
+                    LIMIT 1""",
+                    (str(row["assignment_id"]),),
+                ).fetchone()
+            if pending is not None:
+                return []
+            return [
+                PlannedTask(
+                    task_type="experimental_neuron_activity",
+                    priority=18,
+                    reason=f"ejercicio curricular interno para {row['assignment_id']}",
+                    source="governed_internal_curriculum",
+                    planner_score=0.9,
+                    related_neuron_id=int(row["neuron_id"]),
+                    payload={
+                        "curriculum_assignment_id": str(row["assignment_id"]),
+                        "candidate_id": str(row["candidate_id"]),
+                        "domain": str(row["domain"] or "general"),
+                        "query": f"ejercicio gobernado de {row['domain']}",
+                    },
+                )
+            ]
+        except MISSION_PLANNER_ERRORS as exc:
+            record_internal_error(
+                "mission_planner.internal_curriculum_exercises",
+                exc,
+                db_path=self.db_path,
+            )
+            return []
+
     def _plan_neural_learning_distribution(self) -> list[PlannedTask]:
         """Distribuye un consolidado todavía no asignado a ninguna neurona."""
         try:
@@ -262,6 +315,7 @@ class MissionPlanner:
                         reason=f"Currículo dirigido por {count} lagunas neuronales reales",
                         source="neural_gap_curriculum",
                         planner_score=0.65,
+                        payload={"curriculum": True},
                     )
                 ]
         except MISSION_PLANNER_ERRORS as exc:
@@ -563,6 +617,8 @@ class MissionPlanner:
                         # una ventana vacía. No toca ninguna puerta de gobierno —
                         # el ciclo sigue exigiendo dos fuentes independientes y
                         # cinco runs medidos para decidir algo.
+                        # En este scheduler la prioridad menor gana el hueco;
+                        # educación debe quedar delante de investigación.
                         priority=20,
                         reason="; ".join(reasons),
                         source="governed_neuron_education",

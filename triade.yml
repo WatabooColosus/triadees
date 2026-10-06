@@ -18,18 +18,20 @@ runtime:
   always_on: true
   # Perfil mínimo: todo el organismo sigue encendido, pero cada etapa cede
   # memoria y CPU antes de iniciar la siguiente.
-  mode: light_background
+  mode: full_local_guarded
   interval_seconds: 60
   start_delay_seconds: 3
   max_cycles: 0
-  require_ollama: false
+  # El aprendizaje profundo y la nutrición neuronal no deben avanzar en
+  # fallback: cada lección exige Ollama Blood verificable.
+  require_ollama: true
   safe_only: true
   self_test_on_start: true
   self_test_every_cycles: 5
   workers_always_on: true
   workers_autostart: true
   workers_watchdog: true
-  worker_mode: light_background
+  worker_mode: full_local_guarded
   # Creadora -> Formadora -> Educadora -> evidencia -> promoción gobernada.
   continuous_runner_enabled: true
   continuous_runner_autonomy_level: promote_stable
@@ -134,7 +136,7 @@ metabolism:
   policy:
     min_priority: 10
     max_concurrent_needs: 5
-    require_ollama: false
+    require_ollama: true
     require_redis: false
     allowed_modes:
       - observe_only

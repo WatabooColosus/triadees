@@ -35,6 +35,7 @@ triade/memory/local_node_tokens.json
 .env
 .env.*
 *.key
+*.jks
 *.pem
 mobile_node_state.json
 .triade-relay.tokens.local

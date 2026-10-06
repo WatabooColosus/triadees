@@ -12,7 +12,9 @@ from uuid import uuid4
 from triade.db import sqlite3
 from triade.neurons.competency_store import CompetencyStore, utc_now
 
-ROUTER_VERSION = "neural-learning-router-1.0.0"
+# Cambia cuando cambia el mapa de compatibilidad: un rechazo de una versión
+# anterior no puede impedir que el candidato se reevalúe con dominios corregidos.
+ROUTER_VERSION = "neural-learning-router-1.0.1"
 AUTHORIZED_TYPES = frozenset({"fact", "preference", "correction", "procedure"})
 ACTIVE_ASSIGNMENT_STATES = frozenset({"experimental", "beneficial"})
 
@@ -40,6 +42,16 @@ ACTIVE_ASSIGNMENT_STATES = frozenset({"experimental", "beneficial"})
 #: `LearningPipeline.CONSOLIDATABLE_STATES`, que también se había quedado sólo
 #: con la puerta antigua.
 ROUTABLE_STATES = frozenset({"evidence_verified", "consolidated"})
+
+# Dominios operativos producidos por workers/Qualia se enrutan a la neurona
+# de gobierno del sistema. Sin esta tabla, ``worker_failure`` quedaba sin
+# destino aunque la neurona de gobierno pudiera diagnosticarlo.
+DOMAIN_ALIASES: dict[str, tuple[str, ...]] = {
+    "worker_failure": ("system_governance",),
+    "worker_debt": ("system_governance",),
+    "safety_gate": ("system_governance",),
+    "background_candidate": ("system_governance",),
+}
 
 
 def _tokens(value: str) -> set[str]:
@@ -162,6 +174,7 @@ class NeuralLearningRouter:
         self, candidate: sqlite3.Row
     ) -> tuple[sqlite3.Row, NeuronLearningContract]:
         domain = str(candidate["domain"] or "general")
+        compatible_domains = {domain, *DOMAIN_ALIASES.get(domain, ())}
         content_tokens = _tokens(str(candidate["content"] or ""))
         candidate_type = self._candidate_type(candidate)
         with self._connect() as conn:
@@ -177,7 +190,7 @@ class NeuralLearningRouter:
             if candidate_type not in contract.authorized_knowledge_types:
                 continue
             domain_match = (
-                domain in contract.domains
+                bool(compatible_domains & set(contract.domains))
                 or "general" in contract.domains
                 or (
                     domain == "conversation"

@@ -46,6 +46,10 @@ class WorkerBackgroundService:
             runs_dir=str(self.runs_dir),
             lock_file=str(self.lock_file),
             stop_file=str(self.stop_file),
+            # El servicio Always-On usa el pool gobernado; los límites por
+            # carril mantienen serializadas memoria/educación y permiten
+            # paralelizar lecturas sin depender del entorno del launcher.
+            concurrency_enabled=True,
         )
         return loop.run(config)
 
@@ -74,6 +78,7 @@ class WorkerBackgroundService:
             runs_dir=str(self.runs_dir),
             lock_file=str(self.lock_file),
             stop_file=str(self.stop_file),
+            concurrency_enabled=True,
         )
         return loop.run(config)
 

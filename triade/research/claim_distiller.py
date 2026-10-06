@@ -241,7 +241,28 @@ def distill_rules(
             break
     # Lo más pertinente a la pregunta primero; el orden de la página no dice nada.
     encontradas.sort(key=lambda item: item[0], reverse=True)
-    return [claim for _, claim in encontradas[:limit]]
+    if encontradas:
+        return [claim for _, claim in encontradas[:limit]]
+    # La documentación técnica también usa listas y frases operativas, no
+    # sólo definiciones "X es Y". Aceptamos una frase literal únicamente si
+    # comparte términos con la pregunta; no se genera contenido nuevo.
+    if pregunta:
+        candidatos: list[tuple[int, dict[str, str]]] = []
+        for frase in _frases(texto):
+            if len(frase) < MIN_VALUE_CHARS or not _valor_valido(frase):
+                continue
+            relevancia = _relevancia(frase, pregunta)
+            terminos = sorted(pregunta & _terminos(frase))
+            if relevancia <= 0 or not terminos:
+                continue
+            clave = _normalizar_clave(" ".join(terminos[:2]))
+            if not _clave_valida(clave) or clave in vistas:
+                continue
+            vistas.add(clave)
+            candidatos.append((relevancia, {"key": clave, "value": frase[:MAX_VALUE_CHARS], "extractor": RULE_EXTRACTOR}))
+        candidatos.sort(key=lambda item: item[0], reverse=True)
+        return [claim for _, claim in candidatos[:limit]]
+    return []
 
 
 def _anclada(valor: str, texto: str) -> bool:

@@ -33,6 +33,7 @@ from triade.memory.trust_store import TrustLevelStore
 from .error_bus import record_internal_error
 from .runner import TriadeRunner
 from .self_reflection import SelfReflectionEngine
+from triade.observability.cycle_trace import CognitiveCycleTrace
 
 # ── Niveles de autonomía ─────────────────────────────────────────────────────
 # Cada nivel implica los anteriores. El continuous runner opera al nivel
@@ -552,6 +553,19 @@ class LifePulseEngine:
 
         while not self._stop.is_set():
             cycle_start = time.time()
+            # Contrato de trazabilidad vivo: cada ciclo continuo deja al menos
+            # la etapa de hardware observada, aunque el gobernador difiera el
+            # trabajo cognitivo pesado.
+            cycle_trace = CognitiveCycleTrace(
+                run_id=f"pulse-{int(cycle_start * 1000)}",
+                cycle_id=runner_pool_cycle,
+                mode_requested=self.autonomy_level,
+            )
+            cycle_trace.record_stage(
+                "hardware",
+                status="observed",
+                source="life_pulse.continuous",
+            )
             self._cycle_had_error = False
             self._cycle_error_text = None
 

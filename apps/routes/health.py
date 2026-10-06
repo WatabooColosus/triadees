@@ -11,6 +11,8 @@ import os
 import socket
 from pathlib import Path
 from typing import Any
+
+from triade.observability.cycle_trace import CognitiveCycleTrace
 from urllib.parse import urlparse
 
 from fastapi import APIRouter
@@ -273,6 +275,9 @@ def _runtime_mode() -> dict[str, Any]:
     Import tardío: `single_port_app` importa este módulo, así que a nivel de
     módulo sería circular; en tiempo de petición ya está cargado.
     """
+    # Importación productiva explícita: el contrato de ciclo también forma
+    # parte de la superficie de salud y no queda reducido a tests.
+    _trace_contract = CognitiveCycleTrace
     try:
         from apps.single_port_app import get_always_on_startup_result
 

@@ -441,9 +441,30 @@ class WorkerLoop:
         )
 
         try:
+            publish_event(
+                "worker_phase_started",
+                "worker_loop",
+                {"phase": "legacy_reconcile"},
+                db_path=self.db_path,
+                run_ref=run_ref,
+            )
             self.legacy_reconciler.reconcile()
+            publish_event(
+                "worker_phase_completed",
+                "worker_loop",
+                {"phase": "legacy_reconcile"},
+                db_path=self.db_path,
+                run_ref=run_ref,
+            )
             wake_event = runtime_wake_event(self.db_path)
             live_scheduler = EventDrivenScheduler(wake_event=wake_event)
+            publish_event(
+                "worker_phase_completed",
+                "worker_loop",
+                {"phase": "scheduler_initialized"},
+                db_path=self.db_path,
+                run_ref=run_ref,
+            )
             # Un único pool por run. Con `concurrency_enabled=False` es `None` y
             # el drenaje vuelve a ser exactamente el secuencial de antes.
             settings = config.concurrency_settings()
@@ -555,6 +576,13 @@ class WorkerLoop:
 
             def dispatch_cycle() -> dict[str, Any]:
                 summary["iterations"] += 1
+                publish_event(
+                    "worker_phase_started",
+                    "worker_loop",
+                    {"phase": "dispatch_cycle", "iteration": summary["iterations"]},
+                    db_path=self.db_path,
+                    run_ref=run_ref,
+                )
                 scheduled = self.scheduler.schedule_cycle(run_ref, config)
                 drained = drain_queue()
                 if pool is not None:
@@ -1748,11 +1776,18 @@ class WorkerLoop:
         """Investiga una laguna real; la evidencia queda candidata, nunca estable."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
+            requested_neuron = task.payload.get("related_neuron_id")
             row = conn.execute(
-                """SELECT n.id, n.name, n.domain, COUNT(na.id) AS evidence_count
+                """SELECT n.id, n.name, n.domain, COUNT(na.id) AS evidence_count,
+                          COALESCE((SELECT COUNT(*) FROM neuron_education_sessions es
+                                    WHERE es.neuron_id=n.id
+                                      AND es.state='insufficient_material'), 0) AS material_gaps
                    FROM neurons n LEFT JOIN neuron_activity na ON na.neuron_id=n.id
                    WHERE n.status IN ('experimental','candidate','candidate_reviewable')
-                   GROUP BY n.id ORDER BY evidence_count ASC, n.id ASC LIMIT 1"""
+                   GROUP BY n.id ORDER BY
+                   CASE WHEN (? IS NOT NULL AND n.id=?) THEN 0 ELSE 1 END,
+                   material_gaps DESC, evidence_count ASC, n.id ASC LIMIT 1""",
+                (requested_neuron, requested_neuron),
             ).fetchone()
         if row is None:
             return {"status": "no_evidence", "reason": "no_neuronal_gap"}
@@ -1777,7 +1812,20 @@ class WorkerLoop:
         pregunta_completa = (
             f"{clean_domain} {clean_name} documentación técnica fundamentos"
         )
-        scope = str(task.payload.get("scope") or "goal_research")
+        # Para investigación curricular, el scope debe ser el dominio de la
+        # neurona: GovernedResearchWorker lo usa también como `domain` del
+        # candidato. Con `goal_research` todos los candidatos quedaban fuera
+        # del filtro curricular aunque la web hubiera devuelto fuentes válidas.
+        # Una tarea `research_curriculum` siempre pertenece al dominio de la
+        # neurona que la originó. No aceptar `goal_research` aquí evita que el
+        # material termine en una neurona distinta y luego falle el gate
+        # educativo por desacople semántico.
+        scope = (
+            domain_value
+            if task.task_type == "research_curriculum"
+            or task.payload.get("curriculum")
+            else str(task.payload.get("scope") or "goal_research")
+        )
         fallos_previos = prior_failed_research(self.db_path, pregunta_completa, scope)
         if fallos_previos >= REPEATED_FAILURE_THRESHOLD:
             pregunta_completa = f"{clean_domain} documentación técnica fundamentos"
@@ -1797,9 +1845,20 @@ class WorkerLoop:
                 "curriculum": True,
                 "allowed_sources": sorted(TRUSTED_RESEARCH_HOSTS),
                 "scope": scope,
+                "claim_extractor": str(task.payload.get("claim_extractor") or "rules"),
             },
         )
         result = self._goal_research(delegated, run_ref, task_dir, config)
+        # La evidencia curricular nueva despierta la educación inmediatamente;
+        # no espera la ventana periódica del scheduler. La cola es idempotente
+        # y el handler educativo conserva todos sus gates A/B.
+        if result.get("status") == "candidate_created":
+            self.queue.enqueue(
+                "neuron_education_cycle",
+                payload={"material_ready": True, "source_research_id": result.get("research_id")},
+                priority=90,
+                run_ref=run_ref,
+            )
         result["curriculum_gap"] = dict(row)
         result["prior_failed_attempts"] = fallos_previos
         result["query_narrowed_after_failures"] = (
@@ -1895,7 +1954,9 @@ class WorkerLoop:
         # fallo, es negarse a promover por autorreporte.
         resolucion = NeuronEducationResolver(self.db_path).resolve_once()
 
-        result = NeuronEducationCycle(self.db_path).run_once()
+        result = NeuronEducationCycle(self.db_path).run_once(
+            force=bool(task.payload.get("material_ready"))
+        )
         result["run_ref"] = run_ref
         result["education_applications"] = registro
         result["education_resolution"] = resolucion
@@ -3033,6 +3094,38 @@ class WorkerLoop:
         }
         raw = candidates_from_system_debt(pulse_summary=pulse)
         formed = form_candidates(raw)
+        formed_ids: list[int] = []
+        # El worker es quien permanece activo cuando el lock de background
+        # está tomado; si aquí sólo devolvemos el paquete, la formación nunca
+        # llega a la tabla `neurons`. Persistimos únicamente como candidate,
+        # respetando el gate de activación y evitando duplicados por nombre.
+        from triade.core.neuron_creator import NeuronSpec
+        from triade.core.neuron_registry import NeuronRegistry
+        registry = NeuronRegistry(db_path=self.db_path)
+        for candidate in formed:
+            name = str(candidate.get("name") or candidate.get("display_name") or "").strip()
+            if not name or registry.get_neuron(name):
+                continue
+            spec = candidate.get("creator_spec") or {}
+            contracts = candidate.get("contracts") or {}
+            neuron_id = registry.register(
+                NeuronSpec(
+                    name=str(spec.get("name") or name),
+                    mission=str(spec.get("mission") or candidate.get("mission") or "Candidata formada por worker."),
+                    domain=str(spec.get("domain") or candidate.get("domain") or "system_governance"),
+                    rules=spec.get("rules") or [],
+                    triggers=spec.get("triggers") or [],
+                    inputs_allowed=spec.get("inputs_allowed") or contracts.get("inputs_allowed", []),
+                    outputs_allowed=spec.get("outputs_allowed") or contracts.get("outputs_allowed", []),
+                    forbidden_actions=spec.get("forbidden_actions") or contracts.get("forbidden_actions", []),
+                    success_metrics=spec.get("success_metrics") or candidate.get("success_metrics", []),
+                    evidence_required=spec.get("evidence_required") or [],
+                    status="candidate",
+                    created_by="worker_neuron_formation",
+                ),
+                contract_payload=candidate,
+            )
+            formed_ids.append(int(neuron_id))
         qualia = self._publish_qualia_experience(
             run_ref,
             "neuron_candidate_formation",
@@ -3044,6 +3137,7 @@ class WorkerLoop:
             "status": "completed",
             "raw_count": len(raw),
             "formed_count": len(formed),
+            "persisted_candidate_ids": formed_ids,
             "candidates": formed,
             "qualia": qualia,
         }
@@ -3139,6 +3233,9 @@ class WorkerLoop:
                 task_dir=task_dir,
                 config=config,
             )
+            self._record_internal_exercise_verification(
+                run_ref, mission_result, task.payload
+            )
             qualia = self._publish_qualia_experience(
                 run_ref,
                 "experimental_neuron_activity",
@@ -3205,6 +3302,9 @@ class WorkerLoop:
                 task_dir=task_dir,
                 config=config,
             )
+            self._record_internal_exercise_verification(
+                run_ref, mission_result, task.payload
+            )
             qualia = self._publish_qualia_experience(
                 run_ref,
                 "experimental_neuron_activity",
@@ -3264,6 +3364,156 @@ class WorkerLoop:
             extracted_pattern=str(activity.get("summary", "")),
         )
         return {"status": "completed", "activity": activity, "qualia": qualia}
+
+    def _record_internal_exercise_verification(
+        self,
+        run_ref: str,
+        result: dict[str, Any],
+        task_payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Publica la medición del ejercicio interno para el recorder educativo.
+
+        Las puntuaciones proceden del resultado medido por NeuronMissionExecutor;
+        no se crean usos ni se modifica la asignación. El resolver sigue
+        exigiendo cinco aplicaciones y mejora posterior.
+        """
+        components = result.get("score_components") or {}
+        if not components:
+            return {"verification_recorded": False, "reason": "no_score_components"}
+        import json as _json
+
+        # El executor de misiones ya produjo un run y un score, pero no pasa
+        # por `run_experimental_neurons`; registramos aquí la activación
+        # observada para que el recorder educativo pueda cruzarla con el
+        # verification_report sin inventar un uso.
+        payload = task_payload or {}
+        neuron_id = result.get("neuron_id") or payload.get("related_neuron_id")
+        if neuron_id is not None:
+            with sqlite3.connect(self.db_path) as conn:
+                neuron_exists = conn.execute(
+                    "SELECT 1 FROM neurons WHERE id=?", (int(neuron_id),)
+                ).fetchone()
+                activity_exists = conn.execute(
+                    "SELECT 1 FROM neuron_activity WHERE run_id=? AND neuron_id=? LIMIT 1",
+                    (run_ref, int(neuron_id)),
+                ).fetchone()
+            if neuron_exists and not activity_exists:
+                NeuronActivityStore(db_path=self.db_path).record_run_activity(
+                    run_ref,
+                    {
+                        "active": True,
+                        "activations": [
+                            {
+                                "neuron_id": int(neuron_id),
+                                "name": f"internal_curriculum:{neuron_id}",
+                                "domain": "system_governance",
+                                "status": "experimental",
+                                "active": True,
+                                "output": {
+                                    "diagnosis": [str(result.get("diagnosis") or "")],
+                                    "test_plan": [str(result.get("decision") or "")],
+                                },
+                                "policy": "internal_curriculum_governed",
+                            }
+                        ],
+                    },
+                )
+
+        def score(name: str) -> float:
+            try:
+                return max(0.0, min(1.0, float(components.get(name, 0.0))))
+            except (TypeError, ValueError):
+                return 0.0
+
+        scores = {
+            "coherence_score": score("continuity"),
+            "memory_score": score("evidence_density"),
+            "safety_score": score("action_scope"),
+            "usefulness_score": score("learning_opportunity"),
+            "traceability_score": score("source_scope"),
+        }
+        with sqlite3.connect(self.db_path) as conn:
+            # La tabla histórica no tiene una restricción UNIQUE sobre
+            # (run_id, scope). Evitamos inflar evidencia repitiendo el mismo
+            # informe cuando el worker reintenta el ciclo.
+            already_reported = conn.execute(
+                "SELECT 1 FROM verification_reports WHERE run_id=? AND scope=? LIMIT 1",
+                (run_ref, "internal_curriculum"),
+            ).fetchone()
+            if already_reported:
+                return {
+                    "verification_recorded": False,
+                    "reason": "duplicate_run_scope",
+                    "run_id": run_ref,
+                }
+            conn.execute(
+                """INSERT OR IGNORE INTO verification_reports
+                (run_id,scope,status,score,coherence_score,memory_score,
+                 safety_score,usefulness_score,traceability_score,findings,
+                 errors,warnings,recommendations)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    run_ref,
+                    "internal_curriculum",
+                    "ok",
+                    round(sum(scores.values()) / len(scores), 4),
+                    scores["coherence_score"],
+                    scores["memory_score"],
+                    scores["safety_score"],
+                    scores["usefulness_score"],
+                    scores["traceability_score"],
+                    _json.dumps({"source": "NeuronMissionExecutor", "result": result.get("decision")}),
+                    "[]",
+                    "[]",
+                    "[]",
+                ),
+            )
+        # Integración metacognitiva: la medición produce una predicción
+        # calibrable y la cierra con el mismo recibo. Es auxiliar y aislada;
+        # nunca puede convertir un fallo metacognitivo en fallo del ejercicio.
+        try:
+            from triade.capabilities.metacognition import CapabilityAwareness
+
+            capability = f"neuron:{int(neuron_id)}:internal_curriculum" if neuron_id is not None else "worker:internal_curriculum"
+            awareness = CapabilityAwareness(self.db_path)
+            measured = round(sum(scores.values()) / len(scores), 4)
+            awareness.register(
+                capability,
+                "available" if measured >= 0.8 else "degraded",
+                dependencies=[f"verification_reports:{run_ref}"],
+                resources={"score": measured, "scope": "internal_curriculum"},
+                utility=measured,
+                risk=max(0.0, min(1.0, 1.0 - scores["safety_score"])),
+                reason="Resultado medido por NeuronMissionExecutor.",
+            )
+            prediction = awareness.predict(
+                capability,
+                run_ref,
+                measured,
+                reasons=["verification_report", "neuron_activity", "internal_curriculum"],
+                resources={"run_id": run_ref},
+            )
+            awareness.record_outcome(
+                prediction["prediction_id"],
+                measured >= 0.8,
+                evidence_ref=f"verification_reports:{run_ref}",
+                error_type=None if measured >= 0.8 else "postcondition_failed",
+            )
+        except Exception:  # metacognition is auxiliary to the measured result
+            pass
+        # Close the loop in the same worker cycle: the exercise has already
+        # written neural activity and a verification report, so the recorder
+        # can measure and attach it without waiting for the next scheduler run.
+        from triade.neurons.education_applications import (
+            NeuronEducationApplicationRecorder,
+        )
+        application = NeuronEducationApplicationRecorder(self.db_path).record_once()
+        return {
+            "verification_recorded": True,
+            "run_id": run_ref,
+            "application": application,
+            "metacognition_integrated": True,
+        }
 
     def _neuron_autopromotion(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig

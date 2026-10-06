@@ -272,6 +272,20 @@ def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[s
         api = psutil.Process(listener_pid)
         supervisor = api.parent()
         expected = str(script.with_name("triade_service_worker.ps1")).casefold()
+        # La tarea puede volver a ``Ready`` y el PID del motor COM puede dejar
+        # de estar expuesto aunque su hijo directo siga ejecutando el worker.
+        # Esa cadena (worker -> API), junto con la acción exacta declarada en
+        # Task Scheduler, es evidencia suficiente y estable del vínculo.
+        supervisor_cmdline = " ".join(supervisor.cmdline()).casefold() if supervisor else ""
+        action_cmdline = str(task.get("action_arguments", "")).casefold()
+        if (
+            supervisor is not None
+            and expected in supervisor_cmdline
+            and "start_triade_windows.ps1" in action_cmdline
+            and snapshot.get("state") in {3, 4}
+        ):
+            result.update(managed=True, supervisor_pid=supervisor.pid)
+            return result
         if supervisor is None or supervisor.create_time() > api.create_time():
             if snapshot.get("state") in {3, 4} and "start_triade_windows.ps1" in str(task.get("action_arguments", "")).casefold():
                 result["managed"] = True

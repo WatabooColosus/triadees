@@ -467,7 +467,11 @@ def build_runtime_heartbeat(
         },
         "learning_activity_summary": {
             "missions_executed": learning_journal.get("missions_executed", 0),
-            "evidence_created": learning_journal.get("evidence_created", 0),
+            "evidence_created": int(
+                learning_journal.get("evidence_created", 0)
+                or learning_journal.get("neuron_evidence_created", 0)
+                or 0
+            ),
             "candidates_created": learning_journal.get("candidates_created", 0),
             "candidates_evaluated": learning_journal.get("candidates_evaluated", 0),
             "candidates_verified": learning_journal.get("candidates_verified", 0),
@@ -658,13 +662,53 @@ def _heartbeat_continuity_score(
         score += 0.15
     if active_missions > 0:
         score += 0.15
-    if int(learning_journal.get("candidates_created", 0) or 0) > 0:
+    # La cola cambia de ``candidate`` a ``internally_checked`` o
+    # ``evidence_verified`` durante el flujo normal. Contar sólo el primer
+    # estado hacía aparecer como cero un aprendizaje que sí había avanzado.
+    learning_progress = sum(
+        int(learning_journal.get(key, 0) or 0)
+        for key in (
+            "candidates_created",
+            "candidates_evaluated",
+            "candidates_internally_checked",
+            "candidates_verified_with_evidence",
+            "candidates_consolidated",
+        )
+    )
+    if learning_progress > 0:
         score += 0.10
-    if int(learning_journal.get("evidence_created", 0) or 0) > 0:
+    evidence_progress = int(
+        learning_journal.get("evidence_created", 0)
+        or learning_journal.get("neuron_evidence_created", 0)
+        or 0
+    )
+    if evidence_progress > 0:
         score += 0.10
-    if not latest_error or not latest_error.get("message"):
+    # El pulso mide continuidad actual. Un error histórico no debe mantener
+    # bloqueado el 10% de salud después de que el runtime haya seguido
+    # completando ciclos. Se conserva en ``latest_error`` para auditoría, pero
+    # sólo cuenta contra el pulso si ocurrió durante la última hora.
+    if not _has_recent_error(latest_error, hours=1):
         score += 0.10
     return round(min(score, 1.0), 3)
+
+
+def _has_recent_error(error: dict[str, Any], *, hours: int) -> bool:
+    """Indica si un error observado sigue siendo operativo para el pulso."""
+    if not error or not error.get("message"):
+        return False
+    created_at = str(error.get("created_at") or "")
+    try:
+        from datetime import datetime, timedelta
+
+        timestamp = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=UTC)
+        return timestamp >= datetime.now(UTC) - timedelta(hours=max(1, hours))
+    except (TypeError, ValueError):
+        # Un error sin marca temporal es evidencia insuficiente para afirmar
+        # que está afectando al runtime actual.
+        return False
 
 
 def _latest_contradiction(living_context: dict[str, Any]) -> str | None:

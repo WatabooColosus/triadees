@@ -164,6 +164,7 @@ class NeuronEducationApplicationRecorder:
                     session_id = str(sesion["session_id"])
                     neuron_id = sesion["neuron_id"]
                     leccion = str(sesion["created_at"])
+                    previos: list[float] = []
 
                     # Baseline: la misma neurona antes de la lección. Sólo una
                     # vez; recalcularlo invalidaría la comparación ya hecha.
@@ -193,6 +194,25 @@ class NeuronEducationApplicationRecorder:
                             (session_id,),
                         )
                     }
+                    # Si no hubo mediciones previas, la primera medición
+                    # posterior a la lección establece el baseline operativo;
+                    # no debe contarse también como aplicación post-lección.
+                    if sesion["baseline_score"] is None and not previos:
+                        posteriores = self._runs_de_la_neurona(
+                            conn, neuron_id, desde=leccion, hasta=None
+                        )
+                        medidos = [
+                            (str(f["run_id"]), self._score(f))
+                            for f in posteriores
+                            if self._score(f) is not None
+                        ]
+                        if medidos:
+                            baseline_run, baseline = medidos[0]
+                            conn.execute(
+                                "UPDATE neuron_education_sessions SET baseline_score = ? WHERE session_id = ?",
+                                (baseline, session_id),
+                            )
+                            ya.add(baseline_run)
                     nuevas = 0
                     regresiones = 0
                     for fila in self._runs_de_la_neurona(

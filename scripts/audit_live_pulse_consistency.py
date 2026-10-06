@@ -97,6 +97,14 @@ def add(
 
 
 def main() -> int:
+    # Windows PowerShell suele exponer cp1252; la auditoría usa símbolos UTF-8
+    # para distinguir OK/advertencia/error y no debe fallar después de medir.
+    try:
+        import sys
+
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, OSError):
+        pass
     parser = argparse.ArgumentParser(
         description="Audita consistencia entre Pulso Vivo actual y artefactos del run."
     )
