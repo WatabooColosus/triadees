@@ -213,7 +213,8 @@ class AdaptiveScheduler:
         if task_type in {"research_curriculum", "goal_research"}:
             return "research"
         if task_type == "neuron_education_cycle":
-            return "research"
+            # Aplicar y medir material local no realiza investigación web.
+            return "light"
         if task_type in {"goal_lora_train", "stable_consolidation_review"}:
             return "deep_evaluation"
         if task_type == "goal_install":

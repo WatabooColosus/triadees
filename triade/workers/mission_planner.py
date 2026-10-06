@@ -573,6 +573,7 @@ class MissionPlanner:
                     ).fetchone()
                 due_neurons = int(row["cnt"] or 0) if row else 0
                 resolvable_sessions = 0
+                pending_sessions = 0
                 if {
                     "neuron_education_sessions",
                     "neuron_education_applications",
@@ -588,7 +589,11 @@ class MissionPlanner:
                         (MIN_APPLIED_RUNS,),
                     ).fetchone()
                     resolvable_sessions = int(ready["cnt"] or 0) if ready else 0
-            if due_neurons or resolvable_sessions:
+                    pending = conn.execute(
+                        "SELECT COUNT(*) cnt FROM neuron_education_sessions WHERE state='lesson_prepared'"
+                    ).fetchone()
+                    pending_sessions = int(pending["cnt"] or 0) if pending else 0
+            if due_neurons or resolvable_sessions or pending_sessions:
                 reasons = []
                 if due_neurons:
                     reasons.append(
@@ -597,6 +602,10 @@ class MissionPlanner:
                 if resolvable_sessions:
                     reasons.append(
                         f"{resolvable_sessions} sesiones tienen {MIN_APPLIED_RUNS}+ runs medidos y requieren resolución"
+                    )
+                if pending_sessions:
+                    reasons.append(
+                        f"{pending_sessions} lecciones pendientes requieren entrenamiento continuo"
                     )
                 return [
                     PlannedTask(
@@ -626,7 +635,10 @@ class MissionPlanner:
                         # Resolver una lección que ya alcanzó el mínimo de usos es
                         # consecuencia de un evento, no mantenimiento periódico.
                         # No debe esperar el intervalo adaptativo del ciclo.
-                        payload={"resolution_ready": bool(resolvable_sessions)},
+                        payload={
+                            "resolution_ready": bool(resolvable_sessions or pending_sessions),
+                            "education_training": bool(pending_sessions),
+                        },
                     )
                 ]
         except MISSION_PLANNER_ERRORS as exc:

@@ -122,7 +122,7 @@ runtime_budget:
   gpu_minutes_daily: 360
   network_mb_daily: 1500
   new_storage_mb_daily: 500
-  research_tasks_daily: 40
+  research_tasks_daily: 96
   deep_evaluations_daily: 12
   model_installs_daily: 1
 

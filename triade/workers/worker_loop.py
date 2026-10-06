@@ -272,6 +272,17 @@ class WorkerLoop:
         )
         self.live_heartbeat = LiveHeartbeat(db_path=self.db_path)
         self.legacy_reconciler = LegacyTaskReconciler(self.db_path)
+        # Inicializa solo el esquema del canary; no crea candidatos ni
+        # observaciones. Así una propuesta real futura puede abrirse sin que el
+        # scheduler encuentre tablas ausentes.
+        try:
+            from triade.self_improvement.canary import CanaryMonitor
+
+            CanaryMonitor(self.db_path)
+        except (OSError, sqlite3.Error, RuntimeError):
+            # La preparación del esquema no debe impedir el arranque del worker;
+            # el planner seguirá cerrando en falso hasta que la DB sea reparable.
+            pass
         # Se activa solo si el run termina con tareas todavia vivas.
         self._retain_lock_for_active_tasks = False
 
@@ -1106,7 +1117,12 @@ class WorkerLoop:
         result: dict[str, Any], result_ref: str
     ) -> ExecutionResult:
         raw_status = str(result.get("status") or "").strip()
-        evidence = [result_ref] if Path(result_ref).exists() else []
+        # `result.json` se materializa después de esta validación, durante
+        # `CanonicalTaskArtifacts.finalize`. Usar sólo `Path.exists()` aquí
+        # hacía que handlers de observación legítimos llegaran sin evidencia,
+        # se les negara el recibo y acabaran en retry/dead_letter antes de
+        # publicar su artefacto final.
+        evidence = [result_ref]
         message = str(result.get("reason") or result.get("message") or "")
         resource_usage = dict(result.get("resource_usage") or {})
         if raw_status in {"blocked"}:
@@ -1131,6 +1147,7 @@ class WorkerLoop:
             "insufficient_sources",
             "conflicting_sources",
             "unverifiable",
+            "candidate_reused",
         }:
             return ExecutionResult(status="observed", executed=False, message=message)
         if raw_status == "deferred":
@@ -1808,6 +1825,8 @@ class WorkerLoop:
                    WHERE n.status IN ('experimental','candidate','candidate_reviewable')
                    GROUP BY n.id ORDER BY
                    CASE WHEN (? IS NOT NULL AND n.id=?) THEN 0 ELSE 1 END,
+                   COALESCE((SELECT MAX(gr.created_at) FROM governed_research_runs gr
+                             WHERE gr.scope=n.domain), '') ASC,
                    material_gaps DESC, evidence_count ASC, n.id ASC LIMIT 1""",
                 (requested_neuron, requested_neuron),
             ).fetchone()
@@ -1972,6 +1991,7 @@ class WorkerLoop:
         candidate_ids: list[str] = []
         training: dict[str, Any] = {}
         training_neuron_id: int | None = None
+        candidate_routed_to_neuron = False
         try:
             with sqlite3.connect(self.db_path) as conn:
                 row = conn.execute(
@@ -2009,16 +2029,35 @@ class WorkerLoop:
                     ).fetchone()
                 if fallback:
                     candidate_ids = [str(fallback[0])]
-            if candidate_ids:
+            if candidate_ids and training_neuron_id is not None:
+                with sqlite3.connect(self.db_path) as conn:
+                    candidate_routed_to_neuron = conn.execute(
+                        "SELECT 1 FROM neuron_learning_assignments "
+                        "WHERE neuron_id=? AND candidate_id=? "
+                        "AND status IN ('experimental','beneficial') LIMIT 1",
+                        (training_neuron_id, candidate_ids[0]),
+                    ).fetchone() is not None
+            if candidate_ids and (training_neuron_id is None or candidate_routed_to_neuron):
                     from triade.core.runner import TriadeRunner
+
+                    with sqlite3.connect(self.db_path) as conn:
+                        candidate_row = conn.execute(
+                            "SELECT content FROM learning_queue WHERE candidate_id=?",
+                            (candidate_ids[0],),
+                        ).fetchone()
+                    target_content = str(candidate_row[0] or "") if candidate_row else ""
 
                     trial = TriadeRunner(
                         runs_dir=self.runs_dir,
                         db_path=self.db_path,
-                        use_ollama=False,
+                        use_ollama=True,
                         auto_select_models=False,
                     ).run(
-                        user_input="Ejercicio interno: aplicar y verificar el aprendizaje seleccionado.",
+                        user_input=(
+                            "Ejercicio interno verificable: aplica el conocimiento inyectado y "
+                            "responde incluyendo explícitamente este dato, sin inventarlo: "
+                            f"{target_content[:1200]}"
+                        ),
                         source="neuron_education_background",
                         context={"learning_candidate_ids": candidate_ids[:1]},
                         propose_neurons=False,
@@ -2049,7 +2088,7 @@ class WorkerLoop:
                         },
                     )
                     training = self._experimental_neuron_activity(
-                        exercise, run_ref, task_dir, config
+                        exercise, f"{run_ref}:education:{task_dir.parent.name}", task_dir, config
                     )
         except (OSError, sqlite3.Error, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
             trial = {"status": "error", "error": f"background_learning_trial:{type(exc).__name__}: {exc}"}
@@ -2670,7 +2709,7 @@ class WorkerLoop:
         from apps.services import build_system_pulse
 
         pulse = build_system_pulse(sync_relay=False)
-        return {
+        result = {
             "status": "completed",
             "pulse": pulse,
             "policy": "local_only_no_external_relay_sync",
@@ -2679,6 +2718,10 @@ class WorkerLoop:
                 "reason": "heartbeat_is_telemetry_not_experience",
             },
         }
+        artifact = task_dir / "pulse-check.json"
+        artifact.write_text(json.dumps(result, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        result["artifact_ref"] = str(artifact)
+        return result
 
     def _pending_learning_review(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
@@ -2721,7 +2764,7 @@ class WorkerLoop:
             if processed
             else {"published": False, "reason": "no_state_transition"}
         )
-        return {
+        result = {
             "status": "completed",
             "processed_count": len(processed),
             "processed": processed,
@@ -2729,6 +2772,10 @@ class WorkerLoop:
             "stable_memory_written": False,
             "qualia": qualia,
         }
+        artifact = task_dir / "bodega-global-review.json"
+        artifact.write_text(json.dumps(result, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        result["artifact_ref"] = str(artifact)
+        return result
 
     # ── Aprendizaje productivo ───────────────────────────────────────────
     # Las tres etapas que antes sólo existían en `scripts/run_knowledge_zero_to_one.py`.
