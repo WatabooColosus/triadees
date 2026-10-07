@@ -37,9 +37,14 @@ def inspect_private_file(path: Path) -> dict:
         return {"private": not mode & 0o077, "authority": "posix", "mode": f"{mode:04o}"}
     return _windows_acl(
         "$current=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; "
-        "$allowed=@($current,'S-1-5-18','S-1-5-32-544'); "
         "$acl=Get-Acl -LiteralPath $env:TRIADE_PRIVACY_PATH; "
         "$owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; "
+        "$allowed=@($current,'S-1-5-18','S-1-5-32-544'); "
+        # A SYSTEM service may consume a key owned by its local operator.
+        # The owner already controls the DACL. Public well-known groups do
+        # not become trusted merely by appearing as the owner.
+        "$publicOwners=@('S-1-1-0','S-1-5-11','S-1-5-32-545','S-1-5-32-546'); "
+        "if($owner -notin $publicOwners){ $allowed += $owner }; "
         "$public=@($acl.Access | Where-Object { $_.AccessControlType -eq 'Allow' -and "
         "$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -notin $allowed }); "
         "@{private=($public.Count -eq 0 -and $owner -in $allowed); authority='windows_acl'; "
