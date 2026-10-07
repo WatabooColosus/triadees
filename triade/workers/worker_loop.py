@@ -3172,10 +3172,14 @@ class WorkerLoop:
                     "no_ollama_model_available: no hay un modelo instalado para "
                     "learning_evidence_generation"
                 )
+            kwargs = {}
+            if getattr(sonda, 'response_format', None) is not None:
+                kwargs = {'response_format':sonda.response_format,'system':getattr(sonda, 'system', None)}
             r = client.generate(
                 model,
                 prompt,
                 options={"temperature": 0, "seed": 7731},
+                **kwargs,
             )
             return str(getattr(r, "text", "") or "")
 
