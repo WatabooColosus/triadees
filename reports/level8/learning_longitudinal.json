@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-10-07T01:27:45.542192+00:00",
+  "git_sha": "c6fd27544e2ebecf3e4e9ea2f94b646f2c97d32d",
+  "before": null,
+  "after": null,
+  "truth": false,
+  "measurement_kind": "NOT_YET_PROVEN",
+  "reason": "No paired equivalent missions with a target-hidden control arm and independent outcome measure have been certified",
+  "observed_candidates": {
+    "evidence_verified": 4,
+    "internally_checked": 34
+  },
+  "stable_semantic_documents": 0,
+  "registered_uses": 4
+}

@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-10-07T00:26:33.451991+00:00",
+  "git_sha": "ee857992ea9e753c2dea23f8ca2c8f2d45a85730",
+  "classification": "PLATFORM_FAILURE",
+  "cause": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+  "evidence": [
+    "ci_annotations.json",
+    "ci_job_evidence.json",
+    "ci_runs.json"
+  ],
+  "repository_fix_possible": false,
+  "external_action_required": "Resolve GitHub account billing/spending limit; rerun workflows",
+  "main_protection": "HTTP 403; configuration not inspected or changed"
+}

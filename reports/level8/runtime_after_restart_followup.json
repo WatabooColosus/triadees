@@ -1,0 +1,160 @@
+{
+  "timestamp": "2026-10-07T00:59:19.596890+00:00",
+  "endpoints": {
+    "/api/runtime/heartbeat": {
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "api_server_alive": true,
+        "heartbeat_truth": "ALWAYS-ON activo \u00b7 Workers vivos \u00b7 Tr\u00edade en proceso continuo",
+        "runtime_enabled": true,
+        "background_thread_alive": true,
+        "workers_active": true,
+        "active_workers": true,
+        "mode": "full_local_guarded",
+        "last_cycle_at": "2026-10-07 00:59:17",
+        "heartbeat_cycle": 39,
+        "heartbeat_age_ms": 1835.2165222167969,
+        "runtime_pid": 13172,
+        "ollama_blood": {
+          "status": "ok",
+          "can_reason": true,
+          "fallback_mode": false
+        },
+        "can_reason": true,
+        "fallback_mode": false,
+        "detail_available": true
+      }
+    },
+    "/api/runtime/metabolism/status": {
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "metabolism": {
+          "enabled": true,
+          "mode": "full",
+          "effective_mode": "full_local_guarded",
+          "resource_governor": {
+            "requested_mode": "full_local_guarded",
+            "allowed_mode": "full_local_guarded",
+            "effective_mode": "full_local_guarded",
+            "reason": "Perfil slow full local: 1.52 GB RAM libre y 6.0 GB VRAM; ejecuci\u00f3n serializada.",
+            "can_run_workers": true,
+            "can_nourish_neurons": true,
+            "can_evaluate_learning": true,
+            "can_consolidate_stable": true
+          },
+          "dry_run": false,
+          "cycle_count": 5,
+          "current_cycle_id": null,
+          "running": true,
+          "last_tick_at": "2026-10-07T00:58:52.509193+00:00",
+          "last_tick_duration_ms": 1233.9999999967404,
+          "last_tick_error": null,
+          "status": "running",
+          "policy": {
+            "enabled_kinds": [
+              "budget_check",
+              "health_check",
+              "heartbeat",
+              "lease_supervision"
+            ],
+            "min_priority": 10,
+            "require_ollama": true,
+            "require_redis": false,
+            "max_concurrent_needs": 5,
+            "dry_run": false,
+            "allowed_modes": [
+              "observe_only",
+              "light",
+              "full"
+            ]
+          },
+          "scheduler": {
+            "interval_seconds": 30.0,
+            "jitter_seconds": 2.0,
+            "max_cycles": 0,
+            "cycle_count": 5,
+            "stop_requested": false
+          },
+          "budget": {
+            "per_cycle_limits": {
+              "cpu_seconds": 30.0,
+              "ram_mb": 512.0,
+              "disk_read_mb": 10.0,
+              "disk_write_mb": 5.0,
+              "duration_seconds": 60.0,
+              "needs_count": 10
+            },
+            "hourly_limits": {
+              "cpu_seconds": 300.0,
+              "disk_read_mb": 100.0,
+              "disk_write_mb": 50.0
+            },
+            "daily_limits": {
+              "cpu_seconds": 3600.0,
+              "disk_read_mb": 500.0,
+              "disk_write_mb": 250.0
+            }
+          },
+          "receipt_counts": {
+            "denied": 107,
+            "passed": 15205,
+            "skipped": 2246,
+            "success": 15205
+          },
+          "thread_alive": true
+        }
+      }
+    },
+    "/api/system/permissions?requested=full_local_guarded": {
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "mode": "full_local_guarded",
+        "api_key_present": false,
+        "human_approved": false,
+        "permissions": {
+          "can_read_project": true,
+          "can_write_runs": true,
+          "can_write_artifacts": true,
+          "can_write_reports": true,
+          "can_write_repo": false,
+          "can_create_files": true,
+          "can_run_shell": false,
+          "can_run_safe_shell": true,
+          "can_run_git_status": true,
+          "can_run_tests": true,
+          "can_run_build": true,
+          "can_research_web": true,
+          "can_call_ollama": true,
+          "can_consolidate_stable": true,
+          "can_promote_neuron_stable": true,
+          "can_modify_identity_core": false
+        },
+        "explanations": {
+          "can_read_project": "Lectura de proyecto permitida.",
+          "can_write_runs": "Escritura de runs permitida.",
+          "can_write_artifacts": "Escritura de artifacts permitida.",
+          "can_write_reports": "Escritura de informes permitida.",
+          "can_write_repo": "Repo write requiere aprobaci\u00f3n humana.",
+          "can_create_files": "Creaci\u00f3n de archivos en runs/artifacts.",
+          "can_run_shell": "Shell requiere aprobaci\u00f3n humana expl\u00edcita.",
+          "can_run_safe_shell": "Safe Shell aut\u00f3nomo permitido para diagn\u00f3stico, tests y build con whitelist y auditor\u00eda.",
+          "can_run_git_status": "Git status permitido.",
+          "can_run_tests": "Tests permitidos (whitelist).",
+          "can_run_build": "Build permitido (whitelist).",
+          "can_research_web": "Investigaci\u00f3n web expl\u00edcita permitida con fuentes, l\u00edmites y bloqueo SSRF.",
+          "can_call_ollama": "Llamadas a Ollama permitidas.",
+          "can_consolidate_stable": "Consolidaci\u00f3n estable permitida con gates.",
+          "can_promote_neuron_stable": "Promoci\u00f3n de neuronas estables permitida con gates.",
+          "can_modify_identity_core": "identity_core nunca se modifica."
+        },
+        "blocked": [
+          "can_write_repo",
+          "can_run_shell"
+        ]
+      }
+    }
+  }
+}

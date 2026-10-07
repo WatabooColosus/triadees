@@ -1,0 +1,43 @@
+{
+  "timestamp": "2026-10-07T01:32:29.478412+00:00",
+  "heartbeat": {
+    "status": "ok",
+    "api_server_alive": true,
+    "heartbeat_truth": "ALWAYS-ON activo \u00b7 Workers vivos \u00b7 Tr\u00edade en proceso continuo \u00b7 Autonom\u00eda full_local_guarded configurada \u00b7 degradada a cooldown por gobernador",
+    "workers_active": true,
+    "runtime_enabled": true,
+    "mode": "full_local_guarded",
+    "last_cycle_at": "2026-10-07T01:31:48.582669+00:00",
+    "background_thread_alive": true,
+    "effective_autonomy": "cooldown"
+  },
+  "metabolism": {
+    "status": "ok",
+    "metabolism": {
+      "enabled": true,
+      "mode": "full",
+      "effective_mode": "light_background",
+      "resource_governor": {
+        "requested_mode": "full_local_guarded",
+        "allowed_mode": "light_background",
+        "effective_mode": "light_background",
+        "reason": "RAM disponible limitada (1.37 GB): m\u00e1ximo light_background; full local exige 1.5 GB.; Hardware tier low. M\u00e1ximo light_background.; Modo solicitado 'full_local_guarded' excede permitido 'light_background'. Degradado.",
+        "can_run_workers": true,
+        "can_nourish_neurons": false,
+        "can_evaluate_learning": true,
+        "can_consolidate_stable": false
+      },
+      "cycle_count": 3,
+      "running": true,
+      "last_tick_at": "2026-10-07T01:32:28.974109+00:00",
+      "last_tick_error": null,
+      "scheduler": {
+        "interval_seconds": 30.0,
+        "jitter_seconds": 2.0,
+        "max_cycles": 0,
+        "cycle_count": 3,
+        "stop_requested": false
+      }
+    }
+  }
+}

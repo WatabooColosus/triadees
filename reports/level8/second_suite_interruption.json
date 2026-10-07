@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-10-07T00:42:22.028769+00:00",
+  "reason": "Reload actual fixes to backup ACLs, education baselines, portable tests and graph O(n^2) deduplication",
+  "pid": 5332,
+  "truth": false,
+  "result": "INCOMPLETE",
+  "evidence": [
+    "latest_suite_stack.log",
+    "graph_before.json",
+    "graph_after.json"
+  ]
+}

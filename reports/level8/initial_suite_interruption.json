@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-10-07T00:34:59.612155+00:00",
+  "pid": 22364,
+  "reason": "Restart full validation after demonstrated graph scan of bundled interpreter and Windows artifact path repair; old process retains old imported code",
+  "last_progress": "37%; incomplete; not a passing suite",
+  "stack": "reports/level8/full_suite_stack.log"
+}

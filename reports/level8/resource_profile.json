@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-10-07T00:45:55.104949+00:00",
+  "git_sha": "ee857992ea9e753c2dea23f8ca2c8f2d45a85730",
+  "classification": "OBSERVED",
+  "ram_total_bytes": 7740063744,
+  "ram_available_bytes": 1644109824,
+  "runtime_process": {
+    "alive": true,
+    "pid": 19400,
+    "rss_kb": 88808,
+    "handles": 360,
+    "threads": 15,
+    "cpu_times": {
+      "user": 475.75,
+      "system": 356.15625,
+      "children_user": 0.0,
+      "children_system": 0.0
+    },
+    "created_at": 1791329867.9366531,
+    "authority": "heartbeat_pid_and_process_command",
+    "cpu_percent_one_second": 3.1
+  },
+  "peak_ram_proven": false,
+  "low_ram_transitions_proven": false,
+  "truth": false,
+  "reason": "Read-only observation under host load; no controlled low-RAM/peak-load certification"
+}

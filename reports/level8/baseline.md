@@ -1,50 +1,27 @@
-# Tr?ade ? ? baseline nivel 8
+# Local baseline — 2026-10-07 UTC
 
-Generado: 2026-10-06T01:31:31.942534+00:00
-SHA: `46728d2a3dbb8e5221ee160dbad3ce3ab4c148e8`
-Rama: `main`
-origin/main: `46728d2a3dbb8e5221ee160dbad3ce3ab4c148e8`
+Revision: `ee857992ea9e753c2dea23f8ca2c8f2d45a85730`, main, equal to fetched origin/main before edits.
 
-## Estado Git
-```
-?? android/triade-node/java_pid2484.hprof
-?? reports/debt-current.json
-?? reports/level8_autonomy_snapshot.json
-?? reports/level8_edge_snapshot.json
-?? reports/level8_neuron_snapshot.json
-?? reports/level8_pip.txt
-?? reports/level8_runtime_snapshot.json
-?? reports/level8_stable_snapshot.json
-?? triade/memory/live_runtime.db
-```
+Reproduce: `python scripts/capture_level8_baseline.py`. Exact observations and timestamps: `baseline.json`, `runtime_followup.json`, `background_autonomy.json`, `resource_profile.json`.
 
-## SQLite
-- Base: `triade\memory\triade.db`
-- Integridad: **ok**
-- Tablas: 107
-- Learning queue: 34 ({'evidence_verified': 1, 'internally_checked': 33})
+| Capability | Classification | Observable evidence / limit |
+|---|---|---|
+| SQLite integrity | REAL | integrity_check=ok; WAL; 112 tables; zero foreign-key violations |
+| API liveness / deep health | REAL at observation | Four endpoints responded; HTTP 200 alone is not E2E proof |
+| Workers / metabolism | PARCIAL | Workers active; metabolism 98 to 113 cycles; full result-learning chain pending |
+| Scheduler | NO DEMOSTRADA | heartbeat scheduler_active absent; not inferred from worker status |
+| Independent learning | NO DEMOSTRADA | historical verified statuses not sufficient provenance certification |
+| Causal production learning | NO DEMOSTRADA | prior usage counter and answer-in-prompt cannot establish causality |
+| Education | PARCIAL | focused tests pass; runtime before/after chain remains pending |
+| Metacognition | PARCIAL | existing engine tested; post-hoc predictions removed; historical calibration not certified |
+| Recovery / restart | NO DEMOSTRADA in production | isolated lease contention proof; clean productive restart persistence pending |
+| Resources | PARCIAL | actual Windows API RSS/CPU sample; peak and low-RAM transitions unproven |
+| Federation / Android | NO DEMOSTRADA | two-node complete receipt chain not certified |
+| Security | PARCIAL | Windows backup ACL tests executed; whole-system security audit incomplete |
+| Frontend | REAL build | npm ci and npm build exit 0; no lint/typecheck/test scripts defined |
+| Hosted CI | BLOCKED externally | billing/spending limit prevents jobs from starting |
+| Longitudinal autonomy | NO DEMOSTRADA | no 24h/72h claim; collector available, certification pending |
 
-## Superficie inspeccionada
-- triade: presente
-- apps: presente
-- scripts: presente
-- tests: presente
-- docs: presente
-- audit: presente
-- reports: presente
-- artifacts: presente
-- android: presente
+Priority blockers: (1) external CI runner billing, (2) complete local suite, (3) contaminated educational/causal measurements, (4) production recovery/restart chain, (5) low-resource and longitudinal certification. Existing pre-existing operational databases and heap dump are preserved, excluded from staging.
 
-## Clasificaci?n inicial
-- **REAL/ejecutado:** API, heartbeat, workers y Ollama tienen observaciones HTTP/runtime recientes.
-- **PARCIAL:** aprendizaje: 1 `evidence_verified`, 1 ruta neuronal; uso productivo acumulado de cola a?n 0.
-- **NO DEMOSTRADO:** educaci?n E2E productiva, canary medido, rollback productivo, reinicio con continuidad, dos nodos federados, ventana longitudinal.
-- **ROTO/ bloqueado:** ninguno cr?tico observado en la auditor?a puntual.
-- **RUNTIME STATE:** `triade/memory/*.db` y heap dumps; excluidos de Git.
-
-## Bloqueos prioritarios
-1. Cerrar uso causal posterior y medici?n de `run_use_count`.
-2. Ejecutar educaci?n neuronal en runtime normal y registrar aplicaci?n.
-3. Probar restart continuity sin duplicar tareas ni perder receipts.
-4. Probar dos nodos federados independientes.
-5. Reparar/documentar CI rojo con evidencia de causa.
+Current baseline.json was recaptured read-only at source `c6fd27544e2ebecf3e4e9ea2f94b646f2c97d32d` after recovery; the table above records initial classifications, not a new certification. Final results and remaining limits: FINAL_AUDIT.md.

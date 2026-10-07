@@ -1,0 +1,58 @@
+[
+  {
+    "id": 37548587588,
+    "name": "Runtime Truth CI",
+    "head_sha": "ee857992ea9e753c2dea23f8ca2c8f2d45a85730",
+    "conclusion": "failure",
+    "html_url": "https://github.com/WatabooColosus/triadees/actions/runs/37548587588"
+  },
+  {
+    "id": 37548587473,
+    "name": "Measurement Core",
+    "head_sha": "ee857992ea9e753c2dea23f8ca2c8f2d45a85730",
+    "conclusion": "failure",
+    "html_url": "https://github.com/WatabooColosus/triadees/actions/runs/37548587473"
+  },
+  {
+    "id": 37548587472,
+    "name": "Tr\u00edade Tests",
+    "head_sha": "ee857992ea9e753c2dea23f8ca2c8f2d45a85730",
+    "conclusion": "failure",
+    "html_url": "https://github.com/WatabooColosus/triadees/actions/runs/37548587472"
+  },
+  {
+    "id": 37548587446,
+    "name": "Python Tests",
+    "head_sha": "ee857992ea9e753c2dea23f8ca2c8f2d45a85730",
+    "conclusion": "failure",
+    "html_url": "https://github.com/WatabooColosus/triadees/actions/runs/37548587446"
+  },
+  {
+    "id": 37548587445,
+    "name": "Concurrency Matrix",
+    "head_sha": "ee857992ea9e753c2dea23f8ca2c8f2d45a85730",
+    "conclusion": "failure",
+    "html_url": "https://github.com/WatabooColosus/triadees/actions/runs/37548587445"
+  },
+  {
+    "id": 37405845005,
+    "name": "Runtime Truth CI",
+    "head_sha": "362485c0fa66b850711959c67c73b3ff5d75206d",
+    "conclusion": "failure",
+    "html_url": "https://github.com/WatabooColosus/triadees/actions/runs/37405845005"
+  },
+  {
+    "id": 37405844982,
+    "name": "Measurement Core",
+    "head_sha": "362485c0fa66b850711959c67c73b3ff5d75206d",
+    "conclusion": "failure",
+    "html_url": "https://github.com/WatabooColosus/triadees/actions/runs/37405844982"
+  },
+  {
+    "id": 37405844977,
+    "name": "Concurrency Matrix",
+    "head_sha": "362485c0fa66b850711959c67c73b3ff5d75206d",
+    "conclusion": "failure",
+    "html_url": "https://github.com/WatabooColosus/triadees/actions/runs/37405844977"
+  }
+]

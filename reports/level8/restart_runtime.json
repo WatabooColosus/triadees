@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-10-07T00:55:24.201562+00:00",
+  "endpoints": {
+    "/api/health": {
+      "error": "<urlopen error [WinError 10061] No se puede establecer una conexi\u00f3n ya que el equipo de destino deneg\u00f3 expresamente dicha conexi\u00f3n>"
+    },
+    "/health/deep": {
+      "error": "<urlopen error [WinError 10061] No se puede establecer una conexi\u00f3n ya que el equipo de destino deneg\u00f3 expresamente dicha conexi\u00f3n>"
+    },
+    "/api/runtime/heartbeat": {
+      "error": "<urlopen error [WinError 10061] No se puede establecer una conexi\u00f3n ya que el equipo de destino deneg\u00f3 expresamente dicha conexi\u00f3n>"
+    },
+    "/api/runtime/metabolism/status": {
+      "error": "<urlopen error [WinError 10061] No se puede establecer una conexi\u00f3n ya que el equipo de destino deneg\u00f3 expresamente dicha conexi\u00f3n>"
+    }
+  }
+}

@@ -1,54 +1,832 @@
 {
-  "generated_at": "2026-10-06T01:31:31.942534+00:00",
-  "sha": "46728d2a3dbb8e5221ee160dbad3ce3ab4c148e8",
+  "timestamp": "2026-10-07T01:31:32.810671+00:00",
+  "git_sha": "c6fd27544e2ebecf3e4e9ea2f94b646f2c97d32d",
   "branch": "main",
-  "origin_main": "46728d2a3dbb8e5221ee160dbad3ce3ab4c148e8",
-  "git_status": "?? android/triade-node/java_pid2484.hprof\n?? reports/debt-current.json\n?? reports/level8_autonomy_snapshot.json\n?? reports/level8_edge_snapshot.json\n?? reports/level8_neuron_snapshot.json\n?? reports/level8_pip.txt\n?? reports/level8_runtime_snapshot.json\n?? reports/level8_stable_snapshot.json\n?? triade/memory/live_runtime.db",
-  "python": "3.12.10",
+  "git_status": "M reports/level8/WORKLOG.md\n M reports/level8/baseline.json\n M reports/level8/baseline.md\n M reports/level8/ci_truth.md\n?? reports/debt-current.json\n?? reports/level8/attempt4_full_suite.xml\n?? reports/level8/attempt4_test_evidence.json\n?? reports/level8/automatic_recovery_start.json\n?? reports/level8/autonomy_current.json\n?? reports/level8/background_autonomy.json\n?? reports/level8/backup_acl_repair.json\n?? reports/level8/ci_annotations.json\n?? reports/level8/ci_blocker.json\n?? reports/level8/ci_job_evidence.json\n?? reports/level8/ci_runs.json\n?? reports/level8/concurrency.json\n?? reports/level8/dead_code_truth.md\n?? reports/level8/final_focused.xml\n?? reports/level8/frontend_evidence.json\n?? reports/level8/full_suite.xml\n?? reports/level8/github_governance.md\n?? reports/level8/graph_after.json\n?? reports/level8/graph_before.json\n?? reports/level8/import_graph_after.json\n?? reports/level8/initial_suite_interruption.json\n?? reports/level8/last_focused.xml\n?? reports/level8/learning_circuit_audit.json\n?? reports/level8/learning_longitudinal.json\n?? reports/level8/main_protection_proposal.json\n?? reports/level8/real_e2e.xml\n?? reports/level8/resident_models.json\n?? reports/level8/resource_profile.json\n?? reports/level8/restart_before.json\n?? reports/level8/restart_continuity.json\n?? reports/level8/restart_runtime.json\n?? reports/level8/runtime_after_restart_followup.json\n?? reports/level8/runtime_current.json\n?? reports/level8/runtime_followup.json\n?? reports/level8/second_suite_interruption.json\n?? reports/level8/test_evidence.json\n?? reports/level8/test_evidence.md\n?? reports/level8/third_suite_interruption.json\n?? reports/level8/windows_recovery_applied.json\n?? reports/level8/windows_recovery_proposal.json\n?? reports/level8/workers_focused.xml\n?? reports/level8_autonomy_snapshot.json\n?? reports/level8_edge_snapshot.json\n?? reports/level8_neuron_snapshot.json\n?? reports/level8_pip.txt\n?? reports/level8_runtime_snapshot.json\n?? reports/level8_stable_snapshot.json",
+  "origin_main": "ee857992ea9e753c2dea23f8ca2c8f2d45a85730",
+  "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
   "platform": "Windows-11-10.0.26300-SP0",
-  "db": {
-    "path": "triade\\memory\\triade.db",
-    "integrity": "ok",
-    "tables": 107,
-    "counts": {
-      "learning_queue": 34,
-      "neurons": 16,
-      "neuron_learning_assignments": 1,
-      "verification_reports": 80,
-      "worker_runs": 72,
-      "autonomous_tasks": 2711,
-      "qualia_experiences": 1565,
-      "neuron_education_applications": 40
-    },
-    "learning_status": {
-      "evidence_verified": 1,
-      "internally_checked": 33
-    }
+  "ram": {
+    "total": 7740063744,
+    "available": 1321324544,
+    "percent": 82.9,
+    "used": 6418739200,
+    "free": 1321324544
   },
   "workflows": [
-    "android-node-apk.yml",
-    "ci.yml",
-    "cloud-foundation.yml",
-    "concurrency-matrix.yml",
-    "internal-graphs.yml",
-    "measurement-core.yml",
-    "python-tests.yml",
-    "regression-gate.yml",
-    "tests.yml",
-    "unit-01-cloud-audit.yml"
+    ".github\\workflows\\android-node-apk.yml",
+    ".github\\workflows\\ci.yml",
+    ".github\\workflows\\cloud-foundation.yml",
+    ".github\\workflows\\concurrency-matrix.yml",
+    ".github\\workflows\\internal-graphs.yml",
+    ".github\\workflows\\measurement-core.yml",
+    ".github\\workflows\\python-tests.yml",
+    ".github\\workflows\\regression-gate.yml",
+    ".github\\workflows\\tests.yml",
+    ".github\\workflows\\unit-01-cloud-audit.yml"
   ],
-  "directories": {
-    "triade": true,
-    "apps": true,
-    "scripts": true,
-    "tests": true,
-    "docs": true,
-    "audit": true,
-    "reports": true,
-    "artifacts": true,
-    "android": true
+  "tests_available": 369,
+  "dependencies": {
+    "pytest": "9.1.1",
+    "fastapi": "0.142.2",
+    "pydantic": "2.13.5",
+    "httpx": "0.28.1",
+    "psutil": "7.2.2",
+    "cryptography": "50.0.2"
   },
-  "resources": {
-    "psutil_available": true
+  "endpoints": {
+    "/api/health": {
+      "http_status": 200,
+      "body": {
+        "status": "ok",
+        "entity": "Tríade Ω",
+        "mode": "single-port",
+        "port": 8010,
+        "security": {
+          "api_key_required": false,
+          "public_guarded": true,
+          "local_no_auth": true,
+          "data_anchor_email": "agenciadigitalwataboo@gmail.com",
+          "backup_key": {
+            "configured": true,
+            "source": "file",
+            "path": "E:\\triade\\runs\\background\\backup.key",
+            "path_exists": true,
+            "path_readable": true
+          }
+        },
+        "repo": {
+          "status": "ok",
+          "root": "E:\\triade",
+          "origin": "https://github.com/WatabooColosus/triadees.git",
+          "branch": "main",
+          "commit": "c6fd275",
+          "upstream": "origin/main",
+          "dirty": true,
+          "changed_files": 51
+        },
+        "hardware": {
+          "cpu_count": 12,
+          "ram_total_gb": 7.21,
+          "ram_available_gb": 1.22,
+          "tier": "low",
+          "notes": [
+            "os=Windows",
+            "cpu_count=12",
+            "ram_total_gb=7.21",
+            "ram_available_gb=1.22",
+            "disk_free_gb=83.17",
+            "tier=low"
+          ],
+          "os_name": "Windows",
+          "os_version": "10.0.26300",
+          "architecture": "64bit",
+          "machine": "AMD64",
+          "processor": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+          "cpu_physical_cores": 6,
+          "disk_total_gb": 104.69,
+          "disk_free_gb": 83.17,
+          "python_version": "3.12.14",
+          "node_version": "v24.19.0",
+          "npm_version": "unknown",
+          "ollama_version": "ollama version is 0.35.1",
+          "gpus": [
+            {
+              "name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+              "vendor": "NVIDIA",
+              "vram_total_gb": 6.0,
+              "driver": "616.92",
+              "cuda_available": true,
+              "source": "nvidia-smi"
+            }
+          ],
+          "capability_status": "low",
+          "compatibility_notes": [
+            "Recomendado usar modelos pequeños o fallback.",
+            "RAM disponible baja; priorizar modo rápido o sin Ollama.",
+            "GPU NVIDIA/CUDA detectada; posible aceleración local."
+          ]
+        },
+        "ollama": {
+          "ok": true,
+          "base_url": "http://127.0.0.1:11434",
+          "models": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ]
+        },
+        "doctor": {
+          "status": "ok",
+          "db_path": "triade\\memory\\triade.db",
+          "db_exists": true,
+          "schema_path": "E:\\triade\\triade\\memory\\schemas.sql",
+          "schema_exists": true,
+          "runs_dir": "runs",
+          "runs_dir_exists": true,
+          "tables": [
+            "auth_api_keys",
+            "auth_audit",
+            "auth_email_identities",
+            "auth_rate_events",
+            "auth_sessions",
+            "auth_users",
+            "auto_identity",
+            "autonomous_lease_heartbeats",
+            "autonomous_research_runs",
+            "autonomous_task_transitions",
+            "autonomous_tasks",
+            "backup_restore_drills",
+            "capability_awareness",
+            "capability_history",
+            "capability_predictions",
+            "capability_registry",
+            "constitution_checks",
+            "constitution_enforcement_log",
+            "constitution_violations",
+            "crystal_states",
+            "episodic_memory",
+            "federated_exchange_log",
+            "federated_nodes",
+            "goal_dependencies",
+            "goal_events",
+            "goal_learning_observations",
+            "governed_datasets",
+            "governed_research_runs",
+            "hardware_senses",
+            "hypothalamus_patterns",
+            "hypothalamus_state",
+            "identity_continuity_log",
+            "identity_core",
+            "identity_manifest_anchor",
+            "improvement_canaries",
+            "improvement_canary_observations",
+            "improvement_failure_lessons",
+            "improvement_history",
+            "improvement_proposals",
+            "improvement_signals",
+            "kg_contradictions",
+            "kg_edges",
+            "kg_nodes",
+            "knowledge_patterns",
+            "learning_candidate_groups",
+            "learning_distillation_attempts",
+            "learning_evidence",
+            "learning_queue",
+            "learning_retrieval_decisions",
+            "live_runtime_heartbeat",
+            "metabolic_cycle",
+            "metabolic_needs",
+            "metabolic_receipts",
+            "metabolic_signals",
+            "model_acquisition_attempts",
+            "model_events",
+            "neuron_activity",
+            "neuron_candidates",
+            "neuron_certification_transitions",
+            "neuron_competencies",
+            "neuron_curricula",
+            "neuron_education_applications",
+            "neuron_education_events",
+            "neuron_education_sessions",
+            "neuron_evidence",
+            "neuron_learning_assignments",
+            "neuron_missions",
+            "neuron_priority_log",
+            "neuron_scores",
+            "neuron_specification_history",
+            "neuron_specifications",
+            "neuron_training",
+            "neuron_work_cycles",
+            "neurons",
+            "orchestrator_locks",
+            "peft_canary_events",
+            "peft_serving_state",
+            "planning_graph",
+            "qualia_central_packets",
+            "qualia_experiences",
+            "qualia_signals",
+            "qualia_states",
+            "qualia_storage_packets",
+            "regression_quarantine",
+            "regression_reports",
+            "reinforcement_log",
+            "relational_modulation_events",
+            "relational_modulation_states",
+            "resource_ledger",
+            "resource_measurements",
+            "runs",
+            "runtime_health_snapshots",
+            "runtime_queue_compatibility",
+            "runtime_queue_compatibility_events",
+            "runtime_recovery_events",
+            "scheduler_history",
+            "scheduler_metrics",
+            "semantic_documents",
+            "semantic_embeddings",
+            "semantic_governance_events",
+            "shell_audit",
+            "signal_states",
+            "sqlite_sequence",
+            "stable_capability_state",
+            "trainable_adapters",
+            "triadeos_event_state",
+            "trust_levels",
+            "verification_reports",
+            "worker_events",
+            "worker_runs",
+            "worker_state",
+            "worker_tasks"
+          ],
+          "counts": {
+            "runs": 250,
+            "episodes": 79,
+            "signals": 82,
+            "crystals": 82,
+            "safety_events": 80,
+            "verification_reports": 171,
+            "model_events": 158,
+            "qualia_experiences": 2814
+          },
+          "qualia_bus": {
+            "status": "ok",
+            "missing_tables": [],
+            "counts": {
+              "qualia_experiences": 2814,
+              "qualia_signals": 3234,
+              "qualia_central_packets": 3234,
+              "qualia_storage_packets": 3234,
+              "qualia_states": 3313
+            }
+          },
+          "crystal_quality": {
+            "avg_q_crystal": 0.6627804878048781,
+            "avg_stability": 0.8598780487804879,
+            "avg_intensity": 0.2775609756097561,
+            "avg_pv7_score": 0.7260975609756097,
+            "avg_q_delta": 3.658536585365823e-05,
+            "avg_stability_delta": 0.002926829268292683
+          },
+          "crystal_temporal_status": [
+            {
+              "temporal_status": "stable",
+              "c": 58
+            },
+            {
+              "temporal_status": "baseline",
+              "c": 14
+            },
+            {
+              "temporal_status": "degrading",
+              "c": 6
+            },
+            {
+              "temporal_status": "improving",
+              "c": 4
+            }
+          ],
+          "crystal_contexts": [
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=analyze|source=system_pulse_continuous",
+              "c": 36
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=analyze|source=neuron_education_background",
+              "c": 27
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=analyze|source=single-port-ui",
+              "c": 4
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=conversation|source=single-port-ui",
+              "c": 4
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=analyze|source=phase1-real-e2e",
+              "c": 2
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=analyze|source=causal_production_learning_trial",
+              "c": 1
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=analyze|source=causal_production_learning_trial_ollama",
+              "c": 1
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=analyze|source=manual_probe",
+              "c": 1
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=build_or_update|source=causal_production_learning_trial",
+              "c": 1
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=build_or_update|source=neuron_education_background",
+              "c": 1
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=build_or_update|source=system_pulse_continuous",
+              "c": 1
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=conversation|source=causal_production_learning_trial",
+              "c": 1
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=conversation|source=react-ui",
+              "c": 1
+            },
+            {
+              "context_scope": "source_intent",
+              "context_key": "source_intent|intent=conversation|source=system_pulse_continuous",
+              "c": 1
+            }
+          ],
+          "model_usage": [
+            {
+              "model_hypothalamus": "qwen2.5:1.5b",
+              "model_central": "qwen2.5:1.5b",
+              "c": 43
+            },
+            {
+              "model_hypothalamus": "qwen3:4b",
+              "model_central": "qwen3:4b",
+              "c": 20
+            },
+            {
+              "model_hypothalamus": "rules-fallback",
+              "model_central": "template-fallback",
+              "c": 16
+            }
+          ],
+          "model_events": [
+            {
+              "role": "central",
+              "provider": "ollama",
+              "model_name": "qwen2.5:1.5b",
+              "ok": 1,
+              "c": 43,
+              "avg_quality": 0.813953488372093
+            },
+            {
+              "role": "hypothalamus",
+              "provider": "ollama",
+              "model_name": "qwen2.5:1.5b",
+              "ok": 1,
+              "c": 43,
+              "avg_quality": 1.0
+            },
+            {
+              "role": "central",
+              "provider": "ollama",
+              "model_name": "qwen3:4b",
+              "ok": 1,
+              "c": 20,
+              "avg_quality": 0.8099999999999999
+            },
+            {
+              "role": "hypothalamus",
+              "provider": "ollama",
+              "model_name": "qwen3:4b",
+              "ok": 1,
+              "c": 20,
+              "avg_quality": 1.0
+            },
+            {
+              "role": "central",
+              "provider": "template",
+              "model_name": "template-fallback",
+              "ok": 0,
+              "c": 16,
+              "avg_quality": 0.7
+            },
+            {
+              "role": "hypothalamus",
+              "provider": "rules",
+              "model_name": "rules-fallback",
+              "ok": 0,
+              "c": 16,
+              "avg_quality": 0.8
+            }
+          ],
+          "models": {
+            "provider": "ollama",
+            "hypothalamus": "qwen3:4b",
+            "central": "qwen3:4b",
+            "selection": {
+              "enabled": true,
+              "reason": "auto_selected_by_hardware_router",
+              "hardware": {
+                "cpu_count": 12,
+                "ram_total_gb": 7.21,
+                "ram_available_gb": 1.22,
+                "tier": "low",
+                "notes": [
+                  "os=Windows",
+                  "cpu_count=12",
+                  "ram_total_gb=7.21",
+                  "ram_available_gb=1.22",
+                  "disk_free_gb=83.17",
+                  "tier=low"
+                ],
+                "os_name": "Windows",
+                "os_version": "10.0.26300",
+                "architecture": "64bit",
+                "machine": "AMD64",
+                "processor": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+                "cpu_physical_cores": 6,
+                "disk_total_gb": 104.69,
+                "disk_free_gb": 83.17,
+                "python_version": "3.12.14",
+                "node_version": "v24.19.0",
+                "npm_version": "unknown",
+                "ollama_version": "ollama version is 0.35.1",
+                "gpus": [
+                  {
+                    "name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+                    "vendor": "NVIDIA",
+                    "vram_total_gb": 6.0,
+                    "driver": "616.92",
+                    "cuda_available": true,
+                    "source": "nvidia-smi"
+                  }
+                ],
+                "capability_status": "low",
+                "compatibility_notes": [
+                  "Recomendado usar modelos pequeños o fallback.",
+                  "RAM disponible baja; priorizar modo rápido o sin Ollama.",
+                  "GPU NVIDIA/CUDA detectada; posible aceleración local."
+                ]
+              },
+              "ollama": {
+                "ok": true,
+                "base_url": "http://127.0.0.1:11434",
+                "models": [
+                  "gemma3:4b",
+                  "qwen2.5-coder:3b",
+                  "qwen3:4b",
+                  "nomic-embed-text:latest",
+                  "qwen2.5:1.5b"
+                ]
+              },
+              "hypothalamus": {
+                "role": "hypothalamus",
+                "selected_model": "qwen3:4b",
+                "provider": "ollama",
+                "reason": "Seleccionado qwen3:4b como mejor candidato disponible para rol hypothalamus. Perfil hardware=low.",
+                "fallback_used": false,
+                "candidates": [
+                  "qwen3:1.7b",
+                  "qwen3:4b"
+                ],
+                "hardware_tier": "low",
+                "rejected_by_hardware": [
+                  "qwen2.5:1.5b",
+                  "qwen2.5:3b-instruct",
+                  "qwen3:1.7b",
+                  "qwen3:4b"
+                ]
+              },
+              "central": {
+                "role": "central",
+                "selected_model": "qwen3:4b",
+                "provider": "ollama",
+                "reason": "Seleccionado qwen3:4b como mejor candidato disponible para rol central. Perfil hardware=low.",
+                "fallback_used": false,
+                "candidates": [
+                  "llama3.1:8b",
+                  "qwen3:4b"
+                ],
+                "hardware_tier": "low",
+                "rejected_by_hardware": [
+                  "qwen2.5:1.5b",
+                  "qwen2.5:3b-instruct",
+                  "llama3:latest",
+                  "llama3.1:8b",
+                  "qwen3:4b"
+                ]
+              }
+            },
+            "ollama": {
+              "ok": true,
+              "base_url": "http://127.0.0.1:11434",
+              "models": [
+                "gemma3:4b",
+                "qwen2.5-coder:3b",
+                "qwen3:4b",
+                "nomic-embed-text:latest",
+                "qwen2.5:1.5b"
+              ]
+            }
+          },
+          "runtime": {
+            "python_version": "3.12.14",
+            "python_executable": "C:\\Users\\SantiWataboo\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+            "platform": "Windows-11-10.0.26300-SP0",
+            "cwd": "E:\\triade",
+            "stdout_encoding": "cp1252",
+            "virtual_env": null,
+            "in_virtual_env": false
+          },
+          "learning": {
+            "post_run_learning_enabled": true
+          }
+        }
+      }
+    },
+    "/health/deep": {
+      "http_status": 200,
+      "body": {
+        "status": "healthy",
+        "ready": true,
+        "heartbeat_ok": true,
+        "identity": {
+          "integrity_ok": true,
+          "integrity": "verified",
+          "tamper_detected": false,
+          "mismatches": [],
+          "schema_version": "039",
+          "continuity_from_previous_run": true
+        },
+        "heartbeat": {
+          "status": "ok",
+          "checks": {
+            "live_heartbeat": true,
+            "always_on": true,
+            "workers": true,
+            "ollama_blood": true
+          },
+          "live_heartbeat": {
+            "singleton": 1,
+            "cycle": 9,
+            "wall_timestamp": 1791336692.0241547,
+            "monotonic_timestamp": 165348.828,
+            "duration_ms": 0.0,
+            "pid": 3936,
+            "ram_available_mb": 1346.09375,
+            "updated_at": "2026-10-07 01:31:32",
+            "heartbeat_age_ms": 1727.1950244903564,
+            "status": "healthy",
+            "llm_invocations": 0
+          },
+          "always_on": {
+            "configured_mode": "full_local_guarded",
+            "effective_mode": "light_background",
+            "status": "running",
+            "background_thread_alive": true,
+            "degraded": true
+          },
+          "workers": {
+            "status": "running",
+            "active": true,
+            "thread_alive": true,
+            "mode_effective": "light_background"
+          },
+          "ollama_blood": {
+            "status": "ok",
+            "can_reason": true,
+            "fallback_mode": false
+          }
+        },
+        "readiness_raw": "{\"status\":\"ready\",\"checks\":{\"memory\":{\"path\":\"E:\\\\triade\\\\memory\",\"ok\":true},\"runs\":{\"path\":\"E:\\\\triade\\\\runs\",\"ok\":true},\"postgres\":{\"configured\":false,\"ok\":true,\"reason\":\"not_configured\"},\"valkey\":{\"configured\":false,\"ok\":true,\"reason\":\"not_configured\"}}}",
+        "runtime_mode": {
+          "status": "started",
+          "conversation_only": false,
+          "background_started": null,
+          "metabolism_startup": {
+            "enabled": true,
+            "mode": "full",
+            "effective_mode": "observe_only",
+            "resource_governor": {},
+            "dry_run": false,
+            "cycle_count": 0,
+            "current_cycle_id": null,
+            "running": true,
+            "last_tick_at": null,
+            "last_tick_duration_ms": null,
+            "last_tick_error": null,
+            "status": "started",
+            "thread_alive": true
+          },
+          "metabolism_current": {
+            "enabled": true,
+            "mode": "full",
+            "effective_mode": "light_background",
+            "resource_governor": {
+              "requested_mode": "full_local_guarded",
+              "allowed_mode": "light_background",
+              "effective_mode": "light_background",
+              "reason": "RAM disponible limitada (1.35 GB): máximo light_background; full local exige 1.5 GB.; Hardware tier low. Máximo light_background.; Modo solicitado 'full_local_guarded' excede permitido 'light_background'. Degradado.",
+              "can_run_workers": true,
+              "can_nourish_neurons": false,
+              "can_evaluate_learning": true,
+              "can_consolidate_stable": false
+            },
+            "dry_run": false,
+            "cycle_count": 1,
+            "current_cycle_id": null,
+            "running": true,
+            "last_tick_at": "2026-10-07T01:31:25.656912+00:00",
+            "last_tick_duration_ms": 719.0000000118744,
+            "last_tick_error": null,
+            "status": "running",
+            "thread_alive": true
+          },
+          "workers_startup": {
+            "configured": true,
+            "autostart": true,
+            "watchdog": true,
+            "active": true,
+            "mode_configured": "full_local_guarded",
+            "mode_effective": "light_background",
+            "status": "running",
+            "last_start_at": "2026-10-07T01:30:51.605049+00:00",
+            "last_error": null,
+            "restart_attempts": 0,
+            "degraded_by_governor": true,
+            "degradation_reason": "RAM disponible limitada (1.02 GB): máximo light_background; full local exige 1.5 GB.; Hardware tier low. Máximo light_background.; Modo solicitado 'full_local_guarded' excede permitido 'light_background'. Degradado.",
+            "thread_alive": true,
+            "lock_file_active": true,
+            "service_status": "ok",
+            "stop_requested": false
+          }
+        },
+        "supervision": {
+          "service_manager": "windows_task_scheduler",
+          "unit": "TriadeOmegaAdmin",
+          "unit_known": true,
+          "service_managed": true,
+          "autostart_enabled": true,
+          "service_state": 3,
+          "service_substate": null,
+          "runtime_pid": 3936,
+          "listener_pid_unit": null,
+          "listener_count": 1,
+          "port": 8010,
+          "started_at": null,
+          "uptime_seconds": null,
+          "restart_count": null,
+          "last_result": 1,
+          "supervisor_pid": 23492,
+          "last_exit_status": null,
+          "database": {
+            "path": "E:\\triade\\triade\\memory\\triade.db",
+            "exists": true,
+            "size_bytes": 121393152
+          },
+          "startup_source": null,
+          "listener_state": "healthy",
+          "always_on": true,
+          "always_on_blockers": [],
+          "manual_start_required": false
+        },
+        "resources": {
+          "database_path": "E:\\triade\\triade\\memory\\triade.db",
+          "open_connections": 2,
+          "opened_total": 2956,
+          "closed_total": 2954,
+          "db_file_descriptors": 0,
+          "process_file_descriptors": 374,
+          "rss_mb": 99.34
+        }
+      }
+    },
+    "/api/runtime/heartbeat": {
+      "http_status": 200,
+      "body": {
+        "status": "ok",
+        "api_server_alive": true,
+        "heartbeat_truth": "ALWAYS-ON activo · Workers vivos · Tríade en proceso continuo",
+        "runtime_enabled": true,
+        "background_thread_alive": true,
+        "workers_active": true,
+        "active_workers": true,
+        "mode": "light_background",
+        "last_cycle_at": "2026-10-07 01:31:32",
+        "heartbeat_cycle": 9,
+        "heartbeat_age_ms": 2420.097827911377,
+        "runtime_pid": 3936,
+        "ollama_blood": {
+          "status": "ok",
+          "can_reason": true,
+          "fallback_mode": false
+        },
+        "can_reason": true,
+        "fallback_mode": false,
+        "detail_available": true
+      }
+    },
+    "/api/runtime/metabolism/status": {
+      "http_status": 200,
+      "body": {
+        "status": "ok",
+        "metabolism": {
+          "enabled": true,
+          "mode": "full",
+          "effective_mode": "light_background",
+          "resource_governor": {
+            "requested_mode": "full_local_guarded",
+            "allowed_mode": "light_background",
+            "effective_mode": "light_background",
+            "reason": "RAM disponible limitada (1.35 GB): máximo light_background; full local exige 1.5 GB.; Hardware tier low. Máximo light_background.; Modo solicitado 'full_local_guarded' excede permitido 'light_background'. Degradado.",
+            "can_run_workers": true,
+            "can_nourish_neurons": false,
+            "can_evaluate_learning": true,
+            "can_consolidate_stable": false
+          },
+          "dry_run": false,
+          "cycle_count": 1,
+          "current_cycle_id": null,
+          "running": true,
+          "last_tick_at": "2026-10-07T01:31:25.656912+00:00",
+          "last_tick_duration_ms": 719.0000000118744,
+          "last_tick_error": null,
+          "status": "running",
+          "policy": {
+            "enabled_kinds": [
+              "budget_check",
+              "health_check",
+              "heartbeat",
+              "lease_supervision"
+            ],
+            "min_priority": 10,
+            "require_ollama": true,
+            "require_redis": false,
+            "max_concurrent_needs": 5,
+            "dry_run": false,
+            "allowed_modes": [
+              "observe_only",
+              "light",
+              "full"
+            ]
+          },
+          "scheduler": {
+            "interval_seconds": 30.0,
+            "jitter_seconds": 2.0,
+            "max_cycles": 0,
+            "cycle_count": 1,
+            "stop_requested": false
+          },
+          "budget": {
+            "per_cycle_limits": {
+              "cpu_seconds": 30.0,
+              "ram_mb": 512.0,
+              "disk_read_mb": 10.0,
+              "disk_write_mb": 5.0,
+              "duration_seconds": 60.0,
+              "needs_count": 10
+            },
+            "hourly_limits": {
+              "cpu_seconds": 300.0,
+              "disk_read_mb": 100.0,
+              "disk_write_mb": 50.0
+            },
+            "daily_limits": {
+              "cpu_seconds": 3600.0,
+              "disk_read_mb": 500.0,
+              "disk_write_mb": 250.0
+            }
+          },
+          "receipt_counts": {
+            "denied": 112,
+            "passed": 15338,
+            "skipped": 2246,
+            "success": 15338
+          },
+          "thread_alive": true
+        }
+      }
+    }
+  },
+  "database": {
+    "path": "E:\\triade\\triade\\memory\\triade.db",
+    "bytes": 121393152,
+    "integrity": [
+      "ok"
+    ],
+    "journal_mode": "wal",
+    "tables": 112,
+    "foreign_key_violations": 0
+  },
+  "gpu": {
+    "exit_code": 0,
+    "measurement": "NVIDIA GeForce RTX 3050 6GB Laptop GPU, 6144, 3127, 46"
   }
 }

@@ -1,0 +1,49 @@
+{
+  "timestamp": "2026-10-07T01:31:58.410992+00:00",
+  "old_pid": 22244,
+  "new_pid": 3936,
+  "manual_restart": false,
+  "recovery_actor": "scripts/triade_service_worker.ps1 PID 23492",
+  "task_scheduler_restart_proven": false,
+  "classification": "AUTOMATIC_SUPERVISOR_RECOVERY",
+  "heartbeat": {
+    "status": "ok",
+    "api_server_alive": true,
+    "heartbeat_truth": "ALWAYS-ON activo \u00b7 Workers vivos \u00b7 Tr\u00edade en proceso continuo \u00b7 Autonom\u00eda full_local_guarded configurada \u00b7 degradada a cooldown por gobernador",
+    "workers_active": true,
+    "runtime_enabled": true,
+    "mode": "full_local_guarded",
+    "last_cycle_at": "2026-10-07T01:31:48.582669+00:00",
+    "background_thread_alive": true,
+    "effective_autonomy": "cooldown"
+  },
+  "metabolism": {
+    "status": "ok",
+    "metabolism": {
+      "enabled": true,
+      "mode": "full",
+      "effective_mode": "light_background",
+      "resource_governor": {
+        "requested_mode": "full_local_guarded",
+        "allowed_mode": "light_background",
+        "effective_mode": "light_background",
+        "reason": "RAM disponible limitada (1.42 GB): m\u00e1ximo light_background; full local exige 1.5 GB.; Hardware tier low. M\u00e1ximo light_background.; Modo solicitado 'full_local_guarded' excede permitido 'light_background'. Degradado.",
+        "can_run_workers": true,
+        "can_nourish_neurons": false,
+        "can_evaluate_learning": true,
+        "can_consolidate_stable": false
+      },
+      "cycle_count": 2,
+      "running": true,
+      "last_tick_at": "2026-10-07T01:31:57.119172+00:00",
+      "last_tick_error": null,
+      "scheduler": {
+        "interval_seconds": 30.0,
+        "jitter_seconds": 2.0,
+        "max_cycles": 0,
+        "cycle_count": 2,
+        "stop_requested": false
+      }
+    }
+  }
+}

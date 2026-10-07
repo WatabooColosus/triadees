@@ -1,6 +1,5 @@
 # CI truth
 
-- `tests/test_activation_contracts.py`: pasa tras reparar el contrato obsoleto de metacognici?n y actualizar tablas ahora pobladas.
-- La suite completa no se declara verde; mostr? fallos posteriores y fue detenida para aislarlos.
-- Runs remotos no consultables: `gh` no est? instalado en Windows.
-- No se us? `continue-on-error` ni se deshabilit? ning?n gate.
+Five latest workflows at `ee857992ea9e753c2dea23f8ca2c8f2d45a85730` failed before any job step ran. Authenticated check annotations explicitly state failed recent account payments or an insufficient spending limit. Classification: PLATFORM_FAILURE / RED-EXTERNAL.
+
+Evidence: `ci_runs.json`, `ci_job_evidence.json`, `ci_annotations.json`, `ci_blocker.json`. Local test failures are recorded separately and must still be repaired. No tests/gates were removed or given continue-on-error.

@@ -1,0 +1,111 @@
+{
+  "timestamp": "2026-10-07T01:33:16.601364+00:00",
+  "initial_sha": "ee857992ea9e753c2dea23f8ca2c8f2d45a85730",
+  "verified_source_sha": "c6fd27544e2ebecf3e4e9ea2f94b646f2c97d32d",
+  "final_delivery_sha": "Resolve git HEAD after the evidence-only commit; no source changes after verified_source_sha",
+  "commits": [
+    "c6fd27544e2ebecf3e4e9ea2f94b646f2c97d32d test(runtime): isolate healthy contracts and collect absolute JUnit evidence",
+    "8afd0e0a80a897258cb85faa07dae0a3cac1079c fix(audit): report unavailable runtime state and preserve Windows file locks",
+    "a50e9ec580f2c6ed8cee924c3168aab56bdbe359 fix(training): align the low-resource Qwen model with adapter governance",
+    "22d9020bcf449440c3fa1c03c8d9939f8ef4f5c1 fix(workers): verify handler artifacts and accept reused research",
+    "d8e241d906104ea3c9515d1b7134afd494ed0e4c fix(security): retain private operator-owned keys for SYSTEM services",
+    "0e5239ef14aa9dd117017ab4ca9cba13ce621049 feat(audit): derive conservative certification from local evidence",
+    "4dd640f751d48a75bb6694f55adcdce1156c9877 test(windows): isolate resource inputs and make runtime checks portable",
+    "0cce5b8aeb73e52aa41e11fa526409d33cbf1caf fix(frontend): preserve unmeasured debt reports during refresh",
+    "d94dfeb10bda1056b15492749f264e0c8f3cef40 fix(learning): reject circular education and post-hoc prediction evidence",
+    "6aca515e61ad08a19654b7db80f0cc10fe310718 fix(observability): bound graph scanning memory and deduplication cost",
+    "1fc633bbb5d13b695ee442f6c64bf2ea5885fe97 fix(security): verify private Windows backup ACLs and isolate test keys",
+    "5a620a7000e21c673e68ca53e2807e8d47423988 fix(runtime): preserve Windows task evidence on long paths"
+  ],
+  "tests": {
+    "timestamp": "2026-10-07T01:14:23.977891+00:00",
+    "git_sha": "c6fd27544e2ebecf3e4e9ea2f94b646f2c97d32d",
+    "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "tests_collected": 2686,
+    "passed": 2686,
+    "failed": 0,
+    "skipped": 0,
+    "duration_seconds": 847.25,
+    "commands": [
+      [
+        "C:\\Users\\SantiWataboo\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-m",
+        "pytest",
+        "-o",
+        "faulthandler_timeout=90",
+        "--junitxml=E:\\triade\\reports\\level8\\full_suite.xml"
+      ]
+    ],
+    "exit_codes": [
+      0
+    ],
+    "suite_hash": "ee5d59733a931a16142d9f1221077688beee9f890ea32c7e4dbca8b951cd7dbc",
+    "junit_sha256": "b4f4ba9780029b2d034bc6343cd1fa9b6c40bc7f6a45a615535933e64d1f16fc",
+    "skip_reasons": [],
+    "skips_justified": true,
+    "truth": true,
+    "failures": []
+  },
+  "frontend": "PASS",
+  "runtime_e2e": {
+    "status": "PASS",
+    "scope": "5 actual HTTP/model/runtime tests; not the complete autonomous learning circuit",
+    "evidence": "real_e2e.xml"
+  },
+  "memory_integrity": "PASS",
+  "recovery": {
+    "status": "PARTIAL",
+    "actual": "API crash recovered without manual start by triade_service_worker.ps1; metabolism progressed 2 to 3",
+    "limits": "Task Scheduler recovery attribution not proved; no production in-flight task recovery or clean shutdown certification"
+  },
+  "concurrency": {
+    "status": "PASS",
+    "scope": "isolated two-worker database with real effects, no duplicate effects, recovered lease; not production soak",
+    "evidence": "concurrency.json"
+  },
+  "learning_longitudinal": "NOT_YET_PROVEN",
+  "resource_governor": "PARTIAL",
+  "windows": "PASS for local suite, API and automatic supervisor recovery; Task Scheduler ownership remains partial",
+  "ci": "RED-EXTERNAL",
+  "security": "PARTIAL: actual backup ACL repaired and tests passed; whole-system security audit incomplete",
+  "autonomy_gates": {
+    "PASS": 5,
+    "PENDING": 15,
+    "BLOCKED": 0,
+    "NOT_APPLICABLE": 0
+  },
+  "certification_score": 1.2,
+  "score_scope": "Engineering certification coverage; not a consciousness or AGI measure",
+  "level8_candidate": false,
+  "previous_level": "6.8 was supplied as approximate reference, not independently certified",
+  "blockers": [
+    "GitHub billing/spending limit prevents hosted jobs from starting; branch protection inspection HTTP 403",
+    "No paired target-hidden independent BEFORE/AFTER demonstrating beneficial education and causal production use; stable semantic documents observed: 0",
+    "Metabolism currently light_background at about 1.42 GB free RAM; nourishment and stable consolidation denied while minimal workers and heartbeat remain active",
+    "Clean productive restart, in-flight task recovery, production rollback and runtime calibration remain unproved",
+    "Two-node federation and 24h/72h runtime evidence remain unproved",
+    "Scoring CLI imports only revision-bound test/frontend/DB evidence; other protocol adapters are incomplete, so its 1.2 coverage score is not a cognitive rating",
+    "Longitudinal collector emits COMPLETED, while autonomy gate requires CERTIFIED; collector completion cannot pass that gate until protocol integration is implemented"
+  ],
+  "evidence": [
+    "test_evidence.json",
+    "full_suite.xml",
+    "frontend_evidence.json",
+    "real_e2e.xml",
+    "baseline.json",
+    "autonomy_current.json",
+    "automatic_recovery_observed.json",
+    "automatic_recovery_followup.json",
+    "windows_recovery_applied.json",
+    "restart_continuity.json",
+    "learning_longitudinal.json",
+    "resource_profile.json",
+    "ci_blocker.json",
+    "ci_annotations.json",
+    "concurrency.json",
+    "final_score.json"
+  ],
+  "data_policy": "No artificial production records, no restored/reset database; local backup and heap dump excluded from Git",
+  "push": "Pending execution; check final delivery response and origin/main"
+}

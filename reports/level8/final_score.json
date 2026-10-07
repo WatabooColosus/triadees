@@ -1,0 +1,108 @@
+{
+  "timestamp": "2026-10-07T01:31:44.849635+00:00",
+  "git_sha": "c6fd27544e2ebecf3e4e9ea2f94b646f2c97d32d",
+  "gates": {
+    "cognitive_architecture": "PENDING",
+    "database_integrity": "PASS",
+    "restart_persistence": "PENDING",
+    "runtime_e2e": "PENDING",
+    "runtime_live": "PENDING",
+    "metabolism_live": "PENDING",
+    "background_autonomy": "PENDING",
+    "bounded_autonomy": "PENDING",
+    "learning_longitudinal": "PENDING",
+    "education_application": "PENDING",
+    "causal_production_use": "PENDING",
+    "error_recovery": "PENDING",
+    "rollback_verified": "PENDING",
+    "concurrency": "PENDING",
+    "resource_governor": "PENDING",
+    "low_ram": "PENDING",
+    "idle_efficiency": "PENDING",
+    "security_audit": "PENDING",
+    "workers_live": "PENDING",
+    "scheduler_live": "PENDING",
+    "tests": "PASS",
+    "frontend": "PASS",
+    "ci": "PENDING",
+    "longitudinal_runtime": "PENDING"
+  },
+  "evidence": [
+    {
+      "path": "E:\\triade\\reports\\level8\\test_evidence.json",
+      "sha256": "df3114a41c49824e255ef744172544a162ea2a6569748a2ae5e333e39cccc0d9",
+      "accepted": true
+    },
+    {
+      "path": "E:\\triade\\reports\\level8\\frontend_evidence.json",
+      "sha256": "efa3dce4af9ff0b38b00a236e3998a4d21c9b6aa7eb8e8b6f7154fbedbec2345",
+      "accepted": true
+    },
+    {
+      "path": "E:\\triade\\reports\\level8\\ci_blocker.json",
+      "sha256": "fede7c094f8259f7737ae77fc4678df925cb420da103309f9fca03f922dc4235",
+      "accepted": false,
+      "reason": "missing timestamp or revision mismatch"
+    },
+    {
+      "path": "E:\\triade\\reports\\level8\\baseline.json",
+      "sha256": "55c36301d5307cf6c9e77f81b3854c05c891aaec83ed4a75678168465abd4fd3",
+      "accepted": true
+    }
+  ],
+  "dimensions": {
+    "architecture": 0.0,
+    "memory": 5.0,
+    "runtime": 0.0,
+    "autonomy": 0.0,
+    "learning": 0.0,
+    "recovery": 0.0,
+    "concurrency": 0.0,
+    "resource_efficiency": 0.0,
+    "security": 0.0,
+    "observability": 0.0,
+    "testing": 10.0,
+    "ci": 0.0,
+    "longitudinal_evidence": 0.0
+  },
+  "score": 1.2,
+  "caps": [
+    {
+      "maximum": 7.5,
+      "reason": "recovery not demonstrated"
+    },
+    {
+      "maximum": 7.5,
+      "reason": "longitudinal learning not demonstrated"
+    },
+    {
+      "maximum": 6.5,
+      "reason": "runtime E2E not demonstrated"
+    }
+  ],
+  "LEVEL_8_CANDIDATE": false,
+  "unproven": [
+    "background_autonomy",
+    "bounded_autonomy",
+    "causal_production_use",
+    "ci",
+    "cognitive_architecture",
+    "concurrency",
+    "education_application",
+    "error_recovery",
+    "idle_efficiency",
+    "learning_longitudinal",
+    "longitudinal_runtime",
+    "low_ram",
+    "metabolism_live",
+    "resource_governor",
+    "restart_persistence",
+    "rollback_verified",
+    "runtime_e2e",
+    "runtime_live",
+    "scheduler_live",
+    "security_audit",
+    "workers_live"
+  ],
+  "scale": "Engineering certification coverage; not a consciousness or AGI measure"
+}
