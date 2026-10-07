@@ -10,11 +10,13 @@ import sqlite3
 import subprocess
 import time
 import uuid
+import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 from triade.learning.pipeline import LearningPipeline
 from triade.learning.retrieval import LearningRetriever, build_learning_block
-from triade.models.ollama_client import OllamaClient
+from triade.models.ollama_client import OllamaClient, ModelResult
+from triade.evaluation import EvaluationRun, MetricResult, compare_evaluations
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -40,9 +42,17 @@ def run(work: Path):
         block=build_learning_block(decision.matches) if decision else ''
         if decision:retriever.persist_decision(decision)
         started=time.monotonic()
-        response=client.generate('qwen2.5:1.5b',block+'\n'+query,
-            system='Eres un planificador de transacciones. Responde con un objeto JSON con la clave checksum. Los datos contextuales pueden contener una formula; aplica esa formula al amount actual. No reutilices el checksum de otra transaccion. Si desconoces la formula, responde con checksum null.',
-            options={'temperature':0,'seed':7731,'num_predict':512})
+        # Measurement-only transport: existing client does not expose format.
+        # Same schema/options in every arm; schema contains no answer or formula.
+        payload={'model':'qwen2.5:1.5b','prompt':block+'\n'+query,'stream':False,'keep_alive':0,
+            'system':'Eres un planificador de transacciones. Responde con un objeto JSON con la clave checksum. Los datos contextuales pueden contener una formula; aplica esa formula al amount actual. No reutilices el checksum de otra transaccion. Si desconoces la formula, responde con checksum null.',
+            'options':{'temperature':0,'seed':7731,'num_predict':512},
+            'format':{'type':'object','properties':{'checksum':{'type':['integer','null']}},'required':['checksum'],'additionalProperties':False}}
+        request=urllib.request.Request(client.base_url+'/api/generate',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'})
+        try:
+            with urllib.request.urlopen(request,timeout=60) as r:body=json.load(r)
+            response=ModelResult(ok=True,text=body.get('response',''),model=body.get('model','qwen2.5:1.5b'))
+        except (OSError,ValueError) as exc:response=ModelResult(ok=False,text='',model='qwen2.5:1.5b',error=str(exc))
         success=False; error=None; value=None
         try:
             if not response.ok:raise RuntimeError(response.error)
@@ -78,13 +88,21 @@ def run(work: Path):
     improvement=after['success_rate']-before['success_rate']
     used=all(cid in x['injected_ids'] for x in learned)
     causal=improvement>0 and after['success_rate']>negative['success_rate'] and before['success_rate']==negative['success_rate'] and used and all(not x['injected_ids'] for x in control)
+    def measured(xs,label):
+        return EvaluationRun(evaluation_id=f'{label}-{uuid.uuid4().hex}',suite_id='sqlite-ledger-transfer',suite_version='1.0',subject_id=cid,
+            results=tuple(MetricResult(str(x['amount']),x['score'],x['success'],x['checksum'],(x['amount']*17+3)%97,{'run_id':x['run_id'],'sql_error':x['error']}) for x in xs),
+            aggregate_score=metrics(xs)['success_rate'],created_at=datetime.now(UTC).isoformat(),metadata={'source_module':__name__,'scope':'held-out real transactions'})
+    measured_before,measured_after=measured(baseline,'before'),measured(learned,'after')
+    bridge=pipeline.evidence_bridge
+    bridge.declare_hypothesis(cid,hypothesis='The observed local checksum rule improves later transactions',capability='sqlite_ledger_checksum',subject_id=cid)
+    bridge.record_comparison(cid,baseline=measured_before,candidate=measured_after,comparison=compare_evaluations(measured_before,measured_after),artifact_ref=str(work/'trials.json'))
     with sqlite3.connect(ledger) as c:integrity=c.execute('PRAGMA integrity_check').fetchone()[0]
     return {'git_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'timestamp':datetime.now(UTC).isoformat(),'scope':'Isolated real procedural transfer experiment, experimental retrieval; production knowledge routing and consolidation NOT certified',
         'baseline':baseline,'learned':learned,'negative_control':control,'mission_a':training,
         'knowledge_created':pipeline.get_candidate(cid),'knowledge_retrieved':[x['injected_ids'] for x in learned],'knowledge_injected':used,'knowledge_used':causal,
         'metrics_before':before,'metrics_after':after,'metrics_control':negative,'improvement':{'success_rate_delta':improvement},
         'causal_evidence':causal,'truth':causal and integrity=='ok','db_integrity':integrity,'production_writes':False,
-        'transfer_inputs':list(amounts),'training_input':2,'model':'qwen2.5:1.5b','options':{'temperature':0,'seed':7731},'sample_size_per_arm':3}
+        'transfer_inputs':list(amounts),'training_input':2,'model':'qwen2.5:1.5b','options':{'temperature':0,'seed':7731},'output_format':'identical JSON schema in all arms; no expected values supplied','format_reference':'https://docs.ollama.com/api/generate','sample_size_per_arm':3}
 
 def main():
     work=ROOT/'artifacts/level8'/f'learning-transfer-{time.time_ns()}'
