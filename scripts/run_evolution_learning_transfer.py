@@ -5,6 +5,7 @@ import os
 import time
 from datetime import UTC, datetime
 from scripts.run_level8_learning_transfer import ROOT, run
+TRIADE_ENTRYPOINT_KIND = 'manual_diagnostic'
 
 
 def main():

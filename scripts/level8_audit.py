@@ -98,7 +98,7 @@ def load_protocol(path: Path, sha: str) -> tuple[dict, dict]:
 
 def closure_gates(report_dir: Path, sha: str):
     gates={};refs=[]
-    for filename,kind in [('learning_longitudinal_v2.json','learning'),('recovery_end_to_end.json','recovery'),('clean_restart_v2.json','clean'),('background_autonomy_v2.json','soak'),('resource_transition.json','resources')]:
+    for filename,kind in [('learning_longitudinal_v2.json','learning'),('../evolution/learning_transfer_latest.json','learning'),('recovery_end_to_end.json','recovery'),('clean_restart_v2.json','clean'),('background_autonomy_v2.json','soak'),('resource_transition.json','resources')]:
         body,ref=load_protocol(report_dir/filename,sha);refs.append(ref)
         if not body:continue
         if kind=='learning':

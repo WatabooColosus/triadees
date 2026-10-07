@@ -12,6 +12,7 @@ from pathlib import Path
 from scripts.run_level8_learning_transfer import ROOT
 from triade.workers.worker_loop import WorkerLoop
 from triade.workers.contracts import WorkerRunConfig
+TRIADE_ENTRYPOINT_KIND = 'manual_diagnostic'
 
 
 def main():
