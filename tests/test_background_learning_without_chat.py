@@ -47,7 +47,19 @@ def _seed_runtime_mission(db_path: Path) -> None:
     )
 
 
-def test_runtime_runs_without_chat_and_reports_live_thinking(tmp_path):
+def test_runtime_runs_without_chat_and_reports_live_thinking(tmp_path, monkeypatch):
+    from triade.core import resource_probe
+
+    original_probe = resource_probe.build_resource_probe
+
+    def permitted_resources():
+        probe = original_probe()
+        # This tests mission execution under sufficient resources. Host RAM
+        # contention belongs to the dedicated governor/low-resource tests.
+        probe["limits"]["ram_available_gb"] = 4.0
+        return probe
+
+    monkeypatch.setattr(resource_probe, "build_resource_probe", permitted_resources)
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
     _init_db(db_path)
@@ -67,7 +79,7 @@ def test_runtime_runs_without_chat_and_reports_live_thinking(tmp_path):
             ).fetchone()[0]
         )
 
-    assert result["status"] == "ok"
+    assert result["status"] == "ok", result
     assert report["is_thinking_without_chat"] is True
     assert report["runtime_enabled"] is False
     assert identity_rows >= 0

@@ -116,4 +116,4 @@ python scripts/run_triade_verify.py
 Operación y límites: `docs/operations/`. Deuda vigente:
 `TECHNICAL_DEBT.md`.
 
-Autonom�a Delegada
+Autonomía Delegada

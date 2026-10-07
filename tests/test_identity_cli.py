@@ -10,7 +10,7 @@ def test_identity_verify_cli(tmp_path: Path) -> None:
     result = subprocess.run(
         [
             sys.executable,
-            "triade_digimon.py",
+            str(Path(__file__).resolve().parents[1] / "triade_digimon.py"),
             "identity",
             "--db",
             str(tmp_path / "identity.db"),

@@ -7,6 +7,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 from triade.runtime.governed_task_executor import GovernedTaskExecutor
 from triade.runtime.task_leases import AutonomousTaskStore
 from triade.workers.contracts import WorkerRunConfig
@@ -199,17 +201,15 @@ def test_subprocess_children_are_terminated(tmp_path: Path) -> None:
     assert outcome.status == "timeout"
     stdout = Path(str(outcome.stdout_ref)).read_text(encoding="utf-8").strip()
     child_pid = int(stdout.splitlines()[0])
+    import psutil
+
     for _ in range(20):
         try:
-            os.kill(child_pid, 0)
-        except ProcessLookupError:
+            child = psutil.Process(child_pid)
+            if child.status() == psutil.STATUS_ZOMBIE:
+                break
+        except psutil.NoSuchProcess:
             break
         time.sleep(0.05)
     else:
-        status = subprocess.run(
-            ["ps", "-o", "stat=", "-p", str(child_pid)],
-            check=False,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-        assert not status or status.startswith("Z")
+        pytest.fail(f"descendant survived governed timeout: pid={child_pid}")

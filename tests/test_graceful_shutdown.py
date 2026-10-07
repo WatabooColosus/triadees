@@ -13,6 +13,7 @@ Tríade tras el apagado del servidor del 2026-08-11.
 from __future__ import annotations
 
 from typing import Any
+from pathlib import Path
 
 import apps.single_port_app as app_module
 
@@ -98,10 +99,7 @@ def test_si_uno_revienta_los_demas_se_paran_igual(monkeypatch):
 
 def test_el_presupuesto_cabe_holgado_en_el_plazo_de_systemd():
     """La unit remata a los 30 s; hay que terminar cómodamente antes."""
-    unit = (
-        app_module.__file__.rsplit("/apps/", 1)[0]
-        + "/deploy/systemd/triade-api.service"
-    )
+    unit = Path(app_module.__file__).resolve().parents[1] / "deploy/systemd/triade-api.service"
     with open(unit, encoding="utf-8") as fh:
         texto = fh.read()
     assert "TimeoutStopSec=30" in texto

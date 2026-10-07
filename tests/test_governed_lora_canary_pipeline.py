@@ -4,11 +4,23 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from triade.db import sqlite3
 from triade.training.governed_lora import GovernedLoraJobRunner
 from triade.training.serving_governance import GovernedPeftServing
 from triade.workers.contracts import WorkerTask
 from triade.workers.worker_loop import _timeout_for_task
+
+
+@pytest.fixture(autouse=True)
+def isolated_served_model_config(tmp_path):
+    # The contract tests train a 3B adapter. Do not borrow the operator's
+    # current 1.5B production configuration to decide model compatibility.
+    (tmp_path / "triade.yml").write_text(
+        "models:\n  roles:\n    central: qwen2.5:3b-instruct\n    hypothalamus: qwen2.5:3b-instruct\n",
+        encoding="utf-8",
+    )
 
 
 def _write_rows(path: Path, count: int = 5) -> None:
