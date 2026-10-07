@@ -102,7 +102,10 @@ def closure_gates(report_dir: Path, sha: str):
         elif kind=='clean':
             obs=body.get('observations',[])
             proven=len(obs)>=2 and all(x.get('exit_code')==0 and x.get('integrity')=='ok' and x.get('db_lock_reacquired') and x.get('final_background_state') and not any(x['final_background_state'].values()) for x in obs)
-            if proven and obs[0].get('identity') and obs[0]['identity']==obs[-1].get('identity'):gates['restart_persistence']='PASS'
+            # A clean process exit plus identity is not proof that learned,
+            # consolidated state survives a restart.
+            persisted=obs[0].get('consolidated_knowledge') if obs else None
+            if proven and persisted and persisted==obs[-1].get('consolidated_knowledge') and obs[0].get('identity') and obs[0]['identity']==obs[-1].get('identity'):gates['restart_persistence']='PASS'
         elif kind=='recovery':
             task=body.get('task',{});api=body.get('api',{})
             proven=task.get('final_task_status')=='completed' and task.get('duplicate_effects')==0 and task.get('effect_result')==[['sum-recovery-47',47]] and task.get('db_integrity')=='ok' and task.get('automatic_recovery') is True and task.get('lease_after',{}).get('lease_generation',0)>task.get('lease_before',{}).get('lease_generation',0) and api.get('automatic_recovery') is True and api.get('pid_before')!=api.get('pid_after') and api.get('deep_health_status')==200 and api.get('workers_active') is True and api.get('metabolism_progress') is True and api.get('db_integrity')=='ok'
