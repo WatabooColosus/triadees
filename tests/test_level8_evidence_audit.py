@@ -38,3 +38,16 @@ def test_external_ci_exception_does_not_mask_missing_learning():
     assert calculate(gates)['LEVEL_8_CANDIDATE']
     gates['learning_longitudinal']='FAIL'
     assert not calculate(gates)['LEVEL_8_CANDIDATE']
+
+def test_direct_audit_cli_loads_closure_modules(tmp_path):
+    import subprocess
+    import sys
+    from pathlib import Path
+    root=Path(__file__).resolve().parents[1]
+    sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
+    # Protocol intentionally proves nothing; it exercises the direct CLI import.
+    (tmp_path/'background_autonomy_v2.json').write_text(json.dumps({'git_sha':sha,'timestamp':'2026-10-07T00:00:00+00:00','observations':[]}))
+    result=subprocess.run([sys.executable,str(root/'scripts/level8_audit.py'),'--report-dir',str(tmp_path)],cwd=tmp_path,capture_output=True,text=True)
+    assert result.returncode==1
+    assert 'Traceback' not in result.stderr
+    assert json.loads((tmp_path/'final_score.json').read_text())['LEVEL_8_CANDIDATE'] is False

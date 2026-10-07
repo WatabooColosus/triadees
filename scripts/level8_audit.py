@@ -6,11 +6,13 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
 DIMENSIONS = {
     "architecture": ["cognitive_architecture"],
     "memory": ["database_integrity", "restart_persistence"],
