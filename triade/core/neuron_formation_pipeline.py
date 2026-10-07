@@ -8,6 +8,7 @@ Convierte candidatas crudas nacidas de pulso/deuda/eventos en paquetes formados:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .neuron_creator import NeuronCreator
@@ -62,6 +63,11 @@ def form_candidate(raw: dict[str, Any]) -> dict[str, Any]:
         mission=mission,
         domain=domain,
         rules=rules,
+        inputs_allowed=infer_inputs_allowed(raw),
+        outputs_allowed=DEFAULT_OUTPUTS,
+        forbidden_actions=FORBIDDEN_ACTIONS,
+        success_metrics=infer_success_metrics(raw),
+        evidence_required=["independent_held_out_evaluation", "measured_post_run_application", "regression_gate"],
     )
     training = trainer.evaluate(spec)
 
@@ -79,6 +85,8 @@ def form_candidate(raw: dict[str, Any]) -> dict[str, Any]:
     formed["formed_by"] = "neuron_trainer"
     formed["creator_spec"] = spec.to_dict()
     formed["training_result"] = training.to_dict()
+    formed["evaluation_kind"] = "specification_review"
+    formed["competence_certified"] = False
     formed["contracts"] = {
         "inputs_allowed": infer_inputs_allowed(raw),
         "outputs_allowed": DEFAULT_OUTPUTS,
@@ -124,6 +132,13 @@ def normalize_candidate_status(trainer_status: str) -> str:
 
 
 def infer_domain(raw: dict[str, Any]) -> str:
+    # Preserve an explicit contract; heuristics are only for unclassified needs.
+    # This declares a candidate's scope, never certifies its competence.
+    if raw.get("domain") is not None:
+        domain = str(raw["domain"]).strip()
+        if not re.fullmatch(r"[a-z][a-z0-9_]{0,95}", domain):
+            raise ValueError("invalid_neuron_domain")
+        return domain
     text = " ".join(
         [
             str(raw.get("name") or ""),

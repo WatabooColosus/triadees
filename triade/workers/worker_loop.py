@@ -3044,6 +3044,14 @@ class WorkerLoop:
         try:
             routed = router.route(candidate_id)
         except (KeyError, ValueError) as exc:
+            admission = None
+            if str(exc) == "no_compatible_neuron":
+                from triade.neurons.domain_admission import DomainAdmissionCoordinator
+
+                admission = DomainAdmissionCoordinator(self.db_path).request(
+                    candidate_id,
+                    correlation_id=str(payload.get("correlation_id") or task.id or candidate_id),
+                )
             rejected = router.record_rejection(candidate_id, str(exc))
             receipt = EffectReceipt(
                 action="reject_neural_learning",
@@ -3063,6 +3071,7 @@ class WorkerLoop:
                 "skipped_reason": str(exc),
                 "stable_memory_written": False,
                 "rejection": rejected,
+                "domain_admission": admission,
                 "effect_receipt": receipt.model_dump(mode="json"),
             }
         (task_dir / "neural-learning-route.json").write_text(
