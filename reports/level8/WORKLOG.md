@@ -62,3 +62,15 @@ FALTA: causal learning, independent educational before/after, clean production r
 RIESGO: actual metabolism light_background prevents nourishment below its RAM threshold despite heartbeat full_local_guarded. Neither historical counters nor successful test fixtures establish production improvement. Hosted CI blocked by billing.
 
 SIGUIENTE PASO: preserve evidence, push authorized commits; next engineering priority is align effective governors and implement independently scored educational baseline/control/use protocol, before federation. Do not claim level 8.
+
+## Final closure phase
+
+HECHO: real procedural transfer trial and negative control, physical in-flight worker termination and idempotent recovery, actual API supervisor recovery, clean sandbox lifespan restart, measured 30-minute maintenance soak, focused and complete validation.
+
+EVIDENCIA: FINAL_AUDIT.json/md, source a838ee2400e19a05a1d6aa1a2b0b6ca7f1f180db, linked measured artifacts.
+
+FALTA: beneficial learning (0/3), productive education/use, consolidated learned-state restart, rollback and 24h/72h proof.
+
+RIESGO: maintenance continuity is not cognitive-learning autonomy; isolated task recovery is not one production-task fault test; historical resource observations span restart.
+
+SIGUIENTE PASO: repair actual knowledge application, preserving neutral Measurement Core outcome and safety gates. No level 8 declaration.

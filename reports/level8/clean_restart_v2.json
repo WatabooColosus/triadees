@@ -1,0 +1,2664 @@
+{
+  "git_sha": "543b403c59815ef0fb9d8b11acbff8e7e1bc7d3d",
+  "timestamp": "2026-10-07T02:13:53.775703+00:00",
+  "truth": true,
+  "scope": "Actual isolated API lifespan restart and nonempty identity persistence; not production in-flight clean shutdown certification",
+  "observations": [
+    {
+      "pid": 16700,
+      "exit_code": 0,
+      "identity": [
+        [
+          "8bfc6baaa5ed7b81a5c50ff25931d157c82c2c2993c0a86b82af11af86a8c2f7",
+          "48ff6f7d737e472b535746e07212ade890cb0e1a613209ba3a75e568933be6cf"
+        ]
+      ],
+      "integrity": "ok",
+      "shutdown_seconds": 10.687000000005355,
+      "background_stop": {
+        "workers": {
+          "configured": true,
+          "autostart": true,
+          "watchdog": true,
+          "active": false,
+          "mode_configured": "light_background",
+          "mode_effective": "light_background",
+          "status": "stop_requested",
+          "last_start_at": "2026-10-07T02:13:20.992071+00:00",
+          "last_error": null,
+          "restart_attempts": 0,
+          "degraded_by_governor": false,
+          "degradation_reason": null,
+          "thread_alive": true,
+          "lock_file_active": true,
+          "service_status": "ok",
+          "stop_requested": true
+        },
+        "metabolism": {
+          "status": "stopped"
+        },
+        "always_on": {
+          "status": "stopped",
+          "message": "ALWAYS-ON runtime detenido.",
+          "runtime_result": {
+            "status": "stop_requested",
+            "runtime_enabled": false,
+            "mode": "observe_only",
+            "background_thread_alive": false,
+            "stopped_at": "2026-10-07T02:13:30.569843+00:00",
+            "message": "Runtime apagado.",
+            "snapshot": {
+              "status": "ok",
+              "runtime_id": "runtime-72063f059fe8",
+              "started_at": "2026-10-07T02:13:28.560628+00:00",
+              "mode": "observe_only",
+              "enabled": false,
+              "running": false,
+              "services": {
+                "life_pulse": {
+                  "status": "ok",
+                  "mode": "life-pulse",
+                  "running": true,
+                  "interval_seconds": 60,
+                  "uptime_seconds": 20,
+                  "last_tick_at": 1791339190.9141946,
+                  "next_tick_in_seconds": 40,
+                  "last_error": null,
+                  "autonomy_level": "promote_stable",
+                  "autonomy_levels_available": [
+                    "observe_only",
+                    "form_candidates",
+                    "train_candidates",
+                    "promote_experimental",
+                    "promote_stable"
+                  ],
+                  "continuous_runner": {
+                    "enabled": true,
+                    "running": true,
+                    "cycles": 1,
+                    "last_cycle_at": 1791339190.7847962,
+                    "last_error": null,
+                    "interval_seconds": 60,
+                    "max_cycles": 0,
+                    "cycles_per_minute": 1.0
+                  },
+                  "last_promotion": {
+                    "at": null,
+                    "name": null
+                  },
+                  "counters": {
+                    "thoughts_generated": 1,
+                    "cycles": 1,
+                    "doctor_checks": 1,
+                    "integrity_checks": 1,
+                    "reflection_checks": 1,
+                    "learning_candidates_seen": 1,
+                    "neuron_proposals_seen": 2,
+                    "auto_identity_traits": 1,
+                    "identity_traits_evolved": 0,
+                    "actions_observed": 2
+                  },
+                  "actions": {
+                    "technical_debt_audit": 1,
+                    "health": 1
+                  },
+                  "integrity": {
+                    "ok": true,
+                    "db_exists": true,
+                    "schema_exists": true,
+                    "runs_dir_exists": true,
+                    "missing_count_keys": [],
+                    "counts": {
+                      "runs": 0,
+                      "episodes": 0,
+                      "signals": 0,
+                      "crystals": 0,
+                      "verification_reports": 0,
+                      "model_events": 0
+                    },
+                    "crystal_quality": {
+                      "avg_q_crystal": null,
+                      "avg_stability": null,
+                      "avg_intensity": null,
+                      "avg_pv7_score": null,
+                      "avg_q_delta": null,
+                      "avg_stability_delta": null
+                    }
+                  },
+                  "reflection": {
+                    "core_awareness": {
+                      "knows_what_happened": false,
+                      "knows_why_partially": true,
+                      "knows_model_use": false,
+                      "knows_memory_state": true,
+                      "limitations": [
+                        "La reflexion observa metricas y propone; no demuestra conciencia humana.",
+                        "No ejecuta cambios de codigo ni instala capacidades por si sola.",
+                        "La memoria semantica local no contiene documentos/embeddings en la muestra actual."
+                      ]
+                    },
+                    "observations": [
+                      "Runs analizados: 0 con cobertura de trazabilidad completa si cada etapa supera 95%.",
+                      "Uso de modelos: 0.0% fallback/failed y 0.0% Ollama ok.",
+                      "Cristal promedio: Q=0.0 estabilidad=0.0.",
+                      "Memoria semantica local sin documentos/embeddings analizados; la continuidad depende sobre todo de memoria episodica."
+                    ],
+                    "neuron_proposals": [
+                      "neurona_memoria_semantica",
+                      "neurona_arquitecta_core"
+                    ],
+                    "learning_candidate_count": 1,
+                    "fallback_percent": 0.0,
+                    "ollama_percent": 0.0,
+                    "avg_q_crystal": 0.0,
+                    "avg_stability": 0.0,
+                    "elapsed_ms": 113
+                  },
+                  "emotional_state": {
+                    "status": "ok",
+                    "count": 0,
+                    "latest": null,
+                    "reinforcement": {
+                      "events": 0,
+                      "avg_reward_last_50": 0.0
+                    }
+                  },
+                  "stream_of_consciousness": [
+                    {
+                      "thought": "Mood: neutral \u00b7 identidad evolutiva: 1 rasgos \u00b7 ciclo 0",
+                      "timestamp": 1791339190.8640666,
+                      "elapsed_since_last": null
+                    }
+                  ],
+                  "auto_identity": {
+                    "status": "ok",
+                    "active_count": 1,
+                    "total_count": 1,
+                    "categories": {
+                      "capability": 1
+                    }
+                  },
+                  "trust_levels": {
+                    "status": "ok",
+                    "domains": {
+                      "code_modification": {
+                        "trust_level": 0.2002,
+                        "criteria": {
+                          "avg_reward": 0.0,
+                          "verification_pass_rate": 0.0,
+                          "error_rate": 0.0,
+                          "run_count": 1
+                        },
+                        "permissions": {
+                          "auto_code_modify_low_risk": false,
+                          "auto_code_modify_medium_risk": false,
+                          "auto_code_modify_high_risk": false
+                        }
+                      },
+                      "consolidation": {
+                        "trust_level": 0.2002,
+                        "criteria": {
+                          "avg_reward": 0.0,
+                          "verification_pass_rate": 0.0,
+                          "error_rate": 0.0,
+                          "run_count": 1
+                        },
+                        "permissions": {
+                          "auto_consolidate_low_risk": false,
+                          "auto_consolidate_medium_risk": false,
+                          "auto_promote_semantic_candidates": false,
+                          "auto_promote_neurons": false,
+                          "auto_consolidate_high_risk": false
+                        }
+                      },
+                      "identity_evolution": {
+                        "trust_level": 0.2002,
+                        "criteria": {
+                          "avg_reward": 0.0,
+                          "verification_pass_rate": 0.0,
+                          "error_rate": 0.0,
+                          "run_count": 1
+                        },
+                        "permissions": {
+                          "auto_add_evolved_traits": false,
+                          "auto_promote_identity_traits": false
+                        }
+                      }
+                    }
+                  },
+                  "policy": {
+                    "background_learning": "candidate_detection_only",
+                    "identity_core_modified": false,
+                    "auto_consolidation": false,
+                    "auto_code_modification": false,
+                    "continuous_runner_default": "off",
+                    "stable_promotion_requires_diverse_evidence": true
+                  },
+                  "truth": "Pulso operativo: observa, cuenta, verifica y propone candidatos; no simula conciencia humana ni consolida memoria estable."
+                },
+                "worker_loop": {
+                  "status": "ok",
+                  "mode": "triade-living-workers",
+                  "task_counts": {
+                    "completed": 3,
+                    "pending": 1
+                  },
+                  "legacy_task_counts": {},
+                  "run_counts": {
+                    "completed": 1
+                  },
+                  "last_run": {
+                    "id": 1,
+                    "run_ref": "worker-2026-10-07T021321.124471Z0000-53f2fe66",
+                    "status": "completed",
+                    "mode": "daemon",
+                    "dry_run": 0,
+                    "max_iterations": 1000000,
+                    "sleep_seconds": 20.0,
+                    "started_at": "2026-10-07T02:13:21.188651+00:00",
+                    "finished_at": "2026-10-07T02:13:24.637373+00:00",
+                    "summary_json": {
+                      "run_ref": "worker-2026-10-07T021321.124471Z0000-53f2fe66",
+                      "iterations": 1,
+                      "tasks_completed": 3,
+                      "tasks_blocked": 0,
+                      "errors": [],
+                      "ollama_blood_status": "ok",
+                      "model_used": "qwen2.5:1.5b",
+                      "degraded_mode": false,
+                      "cognitive_blood_active": true,
+                      "runtime_recovery": {
+                        "status": "clean",
+                        "stale_pid": null,
+                        "interrupted_runs": 0,
+                        "deduplicated": 0,
+                        "autonomous_tasks": {
+                          "leased_recovered": 0,
+                          "running_recovered": 0,
+                          "running_uncertain": 0,
+                          "retry_wait_preserved": 0,
+                          "deferred_preserved": 0,
+                          "uncertain_completed": 0,
+                          "uncertain_quarantined": 0,
+                          "fencing_invalidated": 0
+                        }
+                      },
+                      "concurrency": {
+                        "enabled": true,
+                        "global_limit": 3,
+                        "running": 3,
+                        "queued": 3,
+                        "pressure_scale": 1.0,
+                        "lanes": {
+                          "read_only": {
+                            "limit": 2,
+                            "running": 1
+                          },
+                          "research": {
+                            "limit": 1,
+                            "running": 0
+                          },
+                          "evaluation": {
+                            "limit": 1,
+                            "running": 1
+                          },
+                          "memory_write": {
+                            "limit": 1,
+                            "running": 1
+                          },
+                          "critical_mutation": {
+                            "limit": 1,
+                            "running": 0
+                          }
+                        },
+                        "running_tasks": [
+                          {
+                            "task_id": "task-0f7cf86beaee45df88e954987fe337b2",
+                            "task_type": "encrypted_backup",
+                            "lane": "memory_write",
+                            "resource_class": "io",
+                            "thread": "triade-worker_0",
+                            "lease_generation": 1,
+                            "started_at": 1791339201.3689785,
+                            "running_seconds": 0.275,
+                            "exclusive_keys": []
+                          },
+                          {
+                            "task_id": "task-c2aa3c7d5b504d43ae6b5d8b19c81f24",
+                            "task_type": "pulse_check",
+                            "lane": "read_only",
+                            "resource_class": "light",
+                            "thread": "triade-worker_1",
+                            "lease_generation": 1,
+                            "started_at": 1791339201.3748577,
+                            "running_seconds": 0.269,
+                            "exclusive_keys": []
+                          },
+                          {
+                            "task_id": "task-98e7f7258de442f6a0cbd6c68e0fef79",
+                            "task_type": "neuron_education_cycle",
+                            "lane": "evaluation",
+                            "resource_class": "model",
+                            "thread": "triade-worker_2",
+                            "lease_generation": 1,
+                            "started_at": 1791339201.3800597,
+                            "running_seconds": 0.264,
+                            "exclusive_keys": []
+                          }
+                        ]
+                      },
+                      "stop_requested": true,
+                      "concurrency_shutdown": {
+                        "cancelled": 0,
+                        "still_running": 0,
+                        "pending_futures": 2
+                      },
+                      "live_scheduler": {
+                        "state": "active",
+                        "clock": "monotonic",
+                        "job_count": 2,
+                        "next_due_ms": 1623.0753789423034,
+                        "jobs": {
+                          "heartbeat": {
+                            "next_due_ms": 1623.0753789423034,
+                            "run_count": 1,
+                            "last_duration_ms": 31.000000017229468,
+                            "last_error": null
+                          },
+                          "dispatch": {
+                            "next_due_ms": 16065.861320123076,
+                            "run_count": 1,
+                            "last_duration_ms": 375.0,
+                            "last_error": null
+                          }
+                        }
+                      },
+                      "heartbeat": {
+                        "singleton": 1,
+                        "cycle": 1,
+                        "wall_timestamp": 1791339201.3237789,
+                        "monotonic_timestamp": 167858.125,
+                        "duration_ms": 0.0,
+                        "pid": 16700,
+                        "ram_available_mb": 1910.91796875,
+                        "updated_at": "2026-10-07 02:13:21",
+                        "heartbeat_age_ms": 3313.5948181152344,
+                        "status": "healthy",
+                        "llm_invocations": 0
+                      },
+                      "autonomous_tasks_governed": true
+                    },
+                    "artifact_dir": "runs\\background\\20261006-211321-53f2fe66",
+                    "error": null
+                  },
+                  "state": {
+                    "status": "completed",
+                    "last_run_ref": "worker-2026-10-07T021321.124471Z0000-53f2fe66",
+                    "finished_at": "2026-10-07T02:13:24.638879+00:00",
+                    "summary": {
+                      "run_ref": "worker-2026-10-07T021321.124471Z0000-53f2fe66",
+                      "iterations": 1,
+                      "tasks_completed": 3,
+                      "tasks_blocked": 0,
+                      "errors": [],
+                      "ollama_blood_status": "ok",
+                      "model_used": "qwen2.5:1.5b",
+                      "degraded_mode": false,
+                      "cognitive_blood_active": true,
+                      "runtime_recovery": {
+                        "status": "clean",
+                        "stale_pid": null,
+                        "interrupted_runs": 0,
+                        "deduplicated": 0,
+                        "autonomous_tasks": {
+                          "leased_recovered": 0,
+                          "running_recovered": 0,
+                          "running_uncertain": 0,
+                          "retry_wait_preserved": 0,
+                          "deferred_preserved": 0,
+                          "uncertain_completed": 0,
+                          "uncertain_quarantined": 0,
+                          "fencing_invalidated": 0
+                        }
+                      },
+                      "concurrency": {
+                        "enabled": true,
+                        "global_limit": 3,
+                        "running": 3,
+                        "queued": 3,
+                        "pressure_scale": 1.0,
+                        "lanes": {
+                          "read_only": {
+                            "limit": 2,
+                            "running": 1
+                          },
+                          "research": {
+                            "limit": 1,
+                            "running": 0
+                          },
+                          "evaluation": {
+                            "limit": 1,
+                            "running": 1
+                          },
+                          "memory_write": {
+                            "limit": 1,
+                            "running": 1
+                          },
+                          "critical_mutation": {
+                            "limit": 1,
+                            "running": 0
+                          }
+                        },
+                        "running_tasks": [
+                          {
+                            "task_id": "task-0f7cf86beaee45df88e954987fe337b2",
+                            "task_type": "encrypted_backup",
+                            "lane": "memory_write",
+                            "resource_class": "io",
+                            "thread": "triade-worker_0",
+                            "lease_generation": 1,
+                            "started_at": 1791339201.3689785,
+                            "running_seconds": 0.275,
+                            "exclusive_keys": []
+                          },
+                          {
+                            "task_id": "task-c2aa3c7d5b504d43ae6b5d8b19c81f24",
+                            "task_type": "pulse_check",
+                            "lane": "read_only",
+                            "resource_class": "light",
+                            "thread": "triade-worker_1",
+                            "lease_generation": 1,
+                            "started_at": 1791339201.3748577,
+                            "running_seconds": 0.269,
+                            "exclusive_keys": []
+                          },
+                          {
+                            "task_id": "task-98e7f7258de442f6a0cbd6c68e0fef79",
+                            "task_type": "neuron_education_cycle",
+                            "lane": "evaluation",
+                            "resource_class": "model",
+                            "thread": "triade-worker_2",
+                            "lease_generation": 1,
+                            "started_at": 1791339201.3800597,
+                            "running_seconds": 0.264,
+                            "exclusive_keys": []
+                          }
+                        ]
+                      },
+                      "stop_requested": true,
+                      "concurrency_shutdown": {
+                        "cancelled": 0,
+                        "still_running": 0,
+                        "pending_futures": 2
+                      },
+                      "live_scheduler": {
+                        "state": "active",
+                        "clock": "monotonic",
+                        "job_count": 2,
+                        "next_due_ms": 1623.0753789423034,
+                        "jobs": {
+                          "heartbeat": {
+                            "next_due_ms": 1623.0753789423034,
+                            "run_count": 1,
+                            "last_duration_ms": 31.000000017229468,
+                            "last_error": null
+                          },
+                          "dispatch": {
+                            "next_due_ms": 16065.861320123076,
+                            "run_count": 1,
+                            "last_duration_ms": 375.0,
+                            "last_error": null
+                          }
+                        }
+                      },
+                      "heartbeat": {
+                        "singleton": 1,
+                        "cycle": 1,
+                        "wall_timestamp": 1791339201.3237789,
+                        "monotonic_timestamp": 167858.125,
+                        "duration_ms": 0.0,
+                        "pid": 16700,
+                        "ram_available_mb": 1910.91796875,
+                        "updated_at": "2026-10-07 02:13:21",
+                        "heartbeat_age_ms": 3313.5948181152344,
+                        "status": "healthy",
+                        "llm_invocations": 0
+                      },
+                      "autonomous_tasks_governed": true
+                    }
+                  },
+                  "queue_compatibility": {
+                    "mode": "v2_canonical",
+                    "legacy_total": 0,
+                    "legacy_linked": 0,
+                    "legacy_pending_reconciliation": 0,
+                    "v2_total": 4,
+                    "duplicate_links": 0,
+                    "compatibility_events": 0
+                  },
+                  "lock_file": "runs\\background\\.triade_workers.lock",
+                  "stop_file": "runs\\background\\.triade_stop",
+                  "running": false,
+                  "stale_lock": false,
+                  "stop_requested": true,
+                  "ollama_blood_status": "ok",
+                  "model_used": "qwen2.5:1.5b",
+                  "degraded_mode": false,
+                  "cognitive_blood_active": true,
+                  "live_heartbeat": {
+                    "singleton": 1,
+                    "cycle": 1,
+                    "wall_timestamp": 1791339201.3237789,
+                    "monotonic_timestamp": 167858.125,
+                    "duration_ms": 0.0,
+                    "pid": 16700,
+                    "ram_available_mb": 1910.91796875,
+                    "updated_at": "2026-10-07 02:13:21",
+                    "heartbeat_age_ms": 9357.282161712646,
+                    "status": "healthy",
+                    "llm_invocations": 0
+                  }
+                },
+                "mission_planner": {
+                  "active_missions": 10,
+                  "missions": [
+                    {
+                      "neuron_id": 8,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Gula",
+                      "mission": "Detectar consumo excesivo de datos o recursos y transformarlo en suficiencia y templanza.",
+                      "domain": "emotional_drive",
+                      "allowed_sources": [
+                        "run",
+                        "worker",
+                        "memory",
+                        "qualia"
+                      ],
+                      "allowed_actions": [
+                        "observe",
+                        "diagnose",
+                        "propose_learning"
+                      ],
+                      "schedule_hint": "every_session",
+                      "status": "stable",
+                      "created_at": "2026-10-07T02:13:10.690551+00:00",
+                      "updated_at": "2026-10-07T02:13:10.690551+00:00",
+                      "metrics": {
+                        "foundational": true,
+                        "always_available": true
+                      },
+                      "id": 8
+                    },
+                    {
+                      "neuron_id": 9,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Envidia",
+                      "mission": "Detectar comparaci\u00f3n y transformarla en curiosidad, aprendizaje y reconocimiento.",
+                      "domain": "emotional_drive",
+                      "allowed_sources": [
+                        "run",
+                        "worker",
+                        "memory",
+                        "qualia"
+                      ],
+                      "allowed_actions": [
+                        "observe",
+                        "diagnose",
+                        "propose_learning"
+                      ],
+                      "schedule_hint": "every_session",
+                      "status": "stable",
+                      "created_at": "2026-10-07T02:13:10.690551+00:00",
+                      "updated_at": "2026-10-07T02:13:10.690551+00:00",
+                      "metrics": {
+                        "foundational": true,
+                        "always_available": true
+                      },
+                      "id": 9
+                    },
+                    {
+                      "neuron_id": 10,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Pereza",
+                      "mission": "Detectar inercia o fatiga y transformarla en descanso consciente, prioridad y diligencia sostenible.",
+                      "domain": "emotional_drive",
+                      "allowed_sources": [
+                        "run",
+                        "worker",
+                        "memory",
+                        "qualia"
+                      ],
+                      "allowed_actions": [
+                        "observe",
+                        "diagnose",
+                        "propose_learning"
+                      ],
+                      "schedule_hint": "every_session",
+                      "status": "stable",
+                      "created_at": "2026-10-07T02:13:10.690551+00:00",
+                      "updated_at": "2026-10-07T02:13:10.690551+00:00",
+                      "metrics": {
+                        "foundational": true,
+                        "always_available": true
+                      },
+                      "id": 10
+                    },
+                    {
+                      "neuron_id": 6,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Lujuria",
+                      "mission": "Detectar intensidad o deseo y transformarlo en creatividad, respeto y consentimiento.",
+                      "domain": "emotional_drive",
+                      "allowed_sources": [
+                        "run",
+                        "worker",
+                        "memory",
+                        "qualia"
+                      ],
+                      "allowed_actions": [
+                        "observe",
+                        "diagnose",
+                        "propose_learning"
+                      ],
+                      "schedule_hint": "every_session",
+                      "status": "stable",
+                      "created_at": "2026-10-07T02:13:10.674294+00:00",
+                      "updated_at": "2026-10-07T02:13:10.674294+00:00",
+                      "metrics": {
+                        "foundational": true,
+                        "always_available": true
+                      },
+                      "id": 6
+                    },
+                    {
+                      "neuron_id": 7,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Ira",
+                      "mission": "Detectar conflicto y transformarlo en firmeza serena, seguridad y reparaci\u00f3n.",
+                      "domain": "emotional_drive",
+                      "allowed_sources": [
+                        "run",
+                        "worker",
+                        "memory",
+                        "qualia"
+                      ],
+                      "allowed_actions": [
+                        "observe",
+                        "diagnose",
+                        "propose_learning"
+                      ],
+                      "schedule_hint": "every_session",
+                      "status": "stable",
+                      "created_at": "2026-10-07T02:13:10.674294+00:00",
+                      "updated_at": "2026-10-07T02:13:10.674294+00:00",
+                      "metrics": {
+                        "foundational": true,
+                        "always_available": true
+                      },
+                      "id": 7
+                    }
+                  ],
+                  "next_plan_preview": [
+                    {
+                      "task_id": "task-a0d4586c91fb4214ae91477a007b2f48",
+                      "task_type": "research_curriculum",
+                      "priority": 45,
+                      "created_at": "2026-10-07T02:13:21.363061+00:00"
+                    }
+                  ],
+                  "next_plan_source": "autonomous_tasks.pending"
+                },
+                "neuron_mission_executor": {
+                  "available": true,
+                  "safe_local_only": true
+                },
+                "qualia_bus": {
+                  "status": "ok",
+                  "mode": "qualia",
+                  "definition": "estado vivo integrado: sentidos internos + memoria semantica gobernada + organos + limites",
+                  "theoretical_role": "alma simb\u00f3lica y relacional de Tr\u00edade; no prueba conciencia subjetiva",
+                  "senses": {
+                    "mode": "internal_senses",
+                    "pulse": {
+                      "meaning": "sentido vital: latido, acciones, integridad y reflexion",
+                      "cycles": 1,
+                      "actions_observed": 2,
+                      "integrity_ok": true
+                    },
+                    "semantic": {
+                      "meaning": "sentido de memoria gobernada: distingue estable, candidato y ausente",
+                      "has_stable_memory": false,
+                      "message": "No hay memoria semantica estable en documentos; aun asi el pulso vivo y Qualia perciben el estado vital actual."
+                    },
+                    "reflection": {
+                      "meaning": "sentido interno de necesidad: detecta propuestas y candidatos",
+                      "neuron_proposals": [
+                        "neurona_memoria_semantica",
+                        "neurona_arquitecta_core"
+                      ],
+                      "learning_candidate_count": 1
+                    }
+                  },
+                  "organs": [
+                    {
+                      "name": "Neurona Central",
+                      "status": "active",
+                      "signal": "responde con contexto de Qualia"
+                    },
+                    {
+                      "name": "N Formadora",
+                      "status": "active",
+                      "signal": "evalua propuestas de neuronas"
+                    },
+                    {
+                      "name": "N Creadora",
+                      "status": "active",
+                      "signal": "genera neuronas candidatas"
+                    },
+                    {
+                      "name": "Hipotalamo",
+                      "status": "active",
+                      "signal": "produce intencion/riesgo/urgencia"
+                    },
+                    {
+                      "name": "Vector emocional",
+                      "status": "active",
+                      "signal": "PV-7 dentro de signal_states"
+                    },
+                    {
+                      "name": "Bodega de almacenamiento",
+                      "status": "ok",
+                      "signal": "DB local e integridad"
+                    },
+                    {
+                      "name": "Qualia",
+                      "status": "active",
+                      "signal": "No hay memoria semantica estable en documentos; aun asi el pulso vivo y Qualia perciben el estado vital actual."
+                    },
+                    {
+                      "name": "Pulso vivo",
+                      "status": "ok",
+                      "signal": "sentidos internos: ciclos=1 propuestas=2"
+                    }
+                  ],
+                  "identity": {
+                    "entity_name": "Tr\u00edade \u03a9",
+                    "core_mission": "Sistema cognitivo modular en construcci\u00f3n verificable",
+                    "ethics": [
+                      "Toda alma cuenta",
+                      "Manos unidas - Gonzalo Arango"
+                    ],
+                    "creator_origin": "Wataboo \u00b7 Agencia Digital",
+                    "claim": "Arquitectos de nuevas realidades",
+                    "evolved_traits": {
+                      "runtime.single_port.available": {
+                        "value": "El runtime single-port est\u00e1 disponible y ejecuta la cadena de arranque.",
+                        "confidence": 0.8,
+                        "evidence": 1
+                      }
+                    },
+                    "evolved_trait_count": 1
+                  },
+                  "semantic_alignment": {
+                    "status": "ok",
+                    "db_exists": true,
+                    "documents_by_status": {},
+                    "semantic_memory_by_status": {},
+                    "embeddings": 0,
+                    "governance_events": 0,
+                    "stable_documents": 0,
+                    "candidate_documents": 0,
+                    "has_stable_semantic_memory": false,
+                    "has_candidate_semantic_memory": false,
+                    "total_documents": 0,
+                    "alignment": "aligned_with_life_pulse",
+                    "live_state_relation": "El pulso vivo funciona como sentidos internos: percibe lo que ocurre ahora; la memoria semantica consolida conocimiento aprobado.",
+                    "message_to_central": "No hay memoria semantica estable en documentos; aun asi el pulso vivo y Qualia perciben el estado vital actual."
+                  },
+                  "qualia_bus": {
+                    "status": "empty",
+                    "experiences_count": 0,
+                    "signals_count": 0,
+                    "central_packets_count": 0,
+                    "storage_packets_count": 0,
+                    "latest_state": null
+                  },
+                  "morphological_crystal": {
+                    "status": "empty",
+                    "latest": null,
+                    "input_relation": "qualia_signals_modulate_hypothalamus_before_crystal"
+                  },
+                  "qualia_crystal_connection": {
+                    "status": "degraded",
+                    "flow": [
+                      "qualia_bus",
+                      "hypothalamus_modulation",
+                      "crystal_regulation",
+                      "central_plan"
+                    ],
+                    "policy": "Qualia aporta se\u00f1ales contextuales como hip\u00f3tesis; el Hipot\u00e1lamo las modula y el Cristal Morfol\u00f3gico calcula regulaci\u00f3n, estabilidad y Q_crystal.",
+                    "same_organ": false
+                  },
+                  "life_pulse": {
+                    "status": "ok",
+                    "running": true,
+                    "counters": {
+                      "thoughts_generated": 1,
+                      "cycles": 1,
+                      "doctor_checks": 1,
+                      "integrity_checks": 1,
+                      "reflection_checks": 1,
+                      "learning_candidates_seen": 1,
+                      "neuron_proposals_seen": 2,
+                      "auto_identity_traits": 1,
+                      "identity_traits_evolved": 0,
+                      "actions_observed": 2
+                    },
+                    "reflection": {
+                      "core_awareness": {
+                        "knows_what_happened": false,
+                        "knows_why_partially": true,
+                        "knows_model_use": false,
+                        "knows_memory_state": true,
+                        "limitations": [
+                          "La reflexion observa metricas y propone; no demuestra conciencia humana.",
+                          "No ejecuta cambios de codigo ni instala capacidades por si sola.",
+                          "La memoria semantica local no contiene documentos/embeddings en la muestra actual."
+                        ]
+                      },
+                      "observations": [
+                        "Runs analizados: 0 con cobertura de trazabilidad completa si cada etapa supera 95%.",
+                        "Uso de modelos: 0.0% fallback/failed y 0.0% Ollama ok.",
+                        "Cristal promedio: Q=0.0 estabilidad=0.0.",
+                        "Memoria semantica local sin documentos/embeddings analizados; la continuidad depende sobre todo de memoria episodica."
+                      ],
+                      "neuron_proposals": [
+                        "neurona_memoria_semantica",
+                        "neurona_arquitecta_core"
+                      ],
+                      "learning_candidate_count": 1,
+                      "fallback_percent": 0.0,
+                      "ollama_percent": 0.0,
+                      "avg_q_crystal": 0.0,
+                      "avg_stability": 0.0,
+                      "elapsed_ms": 113
+                    },
+                    "integrity": {
+                      "ok": true,
+                      "db_exists": true,
+                      "schema_exists": true,
+                      "runs_dir_exists": true,
+                      "missing_count_keys": [],
+                      "counts": {
+                        "runs": 0,
+                        "episodes": 0,
+                        "signals": 0,
+                        "crystals": 0,
+                        "verification_reports": 0,
+                        "model_events": 0
+                      },
+                      "crystal_quality": {
+                        "avg_q_crystal": null,
+                        "avg_stability": null,
+                        "avg_intensity": null,
+                        "avg_pv7_score": null,
+                        "avg_q_delta": null,
+                        "avg_stability_delta": null
+                      }
+                    },
+                    "policy": {
+                      "background_learning": "candidate_detection_only",
+                      "identity_core_modified": false,
+                      "auto_consolidation": false,
+                      "auto_code_modification": false,
+                      "continuous_runner_default": "off",
+                      "stable_promotion_requires_diverse_evidence": true
+                    }
+                  },
+                  "triade_map": {
+                    "triade": "entidad operativa local auditada",
+                    "neurona_central": "teor\u00eda, razonamiento, estructura, planeaci\u00f3n y respuesta",
+                    "n_formadora": "evalua neuronas candidatas",
+                    "n_creadora": "crea especificaciones de neuronas",
+                    "hipotalamo": "emoci\u00f3n: analiza intenci\u00f3n, urgencia, riesgo y tono",
+                    "vector_emocional": "PV-7 y senales afectivo-cognitivas",
+                    "bodega": "memoria: almacenamiento local, epis\u00f3dico, sem\u00e1ntico y trazabilidad",
+                    "qualia": "integra la experiencia operativa como alma simb\u00f3lica/relacional, sin afirmar conciencia subjetiva",
+                    "cristal_morfologico": "forma y coherencia: regula las se\u00f1ales moduladas por Qualia antes de la planeaci\u00f3n central",
+                    "pulso_vivo": "sentidos internos y estado vital del sistema cada N segundos"
+                  },
+                  "answering_rule": "La Central debe usar Qualia como sentidos internos para hablar de lo que ocurre ahora. Debe aclarar cuando algo es estado vivo y no memoria semantica estable."
+                },
+                "learning_pipeline": {
+                  "status": "ok",
+                  "mode": "learning-pipeline-C",
+                  "policy": {
+                    "consolidation_requires": [
+                      "status=internally_checked_or_validated_in_runs",
+                      "source_ref",
+                      "risk!=critical",
+                      "run_use_count>=3",
+                      "avg_outcome_score>=0.70",
+                      "measurement_decision=improved",
+                      "critical_regressions=0"
+                    ],
+                    "identity_core_protected": true,
+                    "stable_memory_via": "semantic_governance_1.9E",
+                    "auto_consolidation": false,
+                    "trust_system": {
+                      "available": true,
+                      "consolidation_trust": 0.2002,
+                      "permissions": {
+                        "auto_consolidate_low_risk": false,
+                        "auto_consolidate_medium_risk": false,
+                        "auto_promote_semantic_candidates": false,
+                        "auto_promote_neurons": false,
+                        "auto_consolidate_high_risk": false
+                      }
+                    },
+                    "ollama_required_for_learning_evaluation": true,
+                    "strict_model_policy": false
+                  },
+                  "candidates_by_status": {
+                    "candidate": 0,
+                    "evaluated": 0,
+                    "internally_checked": 0,
+                    "validated_in_runs": 0,
+                    "consolidated": 0,
+                    "rejected": 0,
+                    "archived": 0
+                  }
+                },
+                "semantic_memory": {
+                  "status": "ok",
+                  "db_path": "E:\\triade\\artifacts\\level8\\clean-restart-1791339188978083700\\triade\\memory\\triade.db",
+                  "db_exists": true,
+                  "schema_path": "E:\\triade\\triade\\memory\\schemas.sql",
+                  "schema_exists": true,
+                  "runs_dir": "runs\\background",
+                  "runs_dir_exists": true,
+                  "tables": [
+                    "auto_identity",
+                    "autonomous_lease_heartbeats",
+                    "autonomous_task_transitions",
+                    "autonomous_tasks",
+                    "backup_restore_drills",
+                    "capability_history",
+                    "capability_registry",
+                    "constitution_checks",
+                    "constitution_enforcement_log",
+                    "constitution_violations",
+                    "crystal_states",
+                    "episodic_memory",
+                    "federated_exchange_log",
+                    "federated_nodes",
+                    "goal_dependencies",
+                    "goal_events",
+                    "goal_learning_observations",
+                    "governed_datasets",
+                    "hardware_senses",
+                    "hypothalamus_patterns",
+                    "hypothalamus_state",
+                    "identity_continuity_log",
+                    "identity_core",
+                    "identity_manifest_anchor",
+                    "improvement_canaries",
+                    "improvement_canary_observations",
+                    "kg_contradictions",
+                    "kg_edges",
+                    "kg_nodes",
+                    "knowledge_patterns",
+                    "learning_evidence",
+                    "learning_queue",
+                    "live_runtime_heartbeat",
+                    "metabolic_cycle",
+                    "metabolic_needs",
+                    "metabolic_receipts",
+                    "metabolic_signals",
+                    "model_acquisition_attempts",
+                    "model_events",
+                    "neuron_activity",
+                    "neuron_candidates",
+                    "neuron_certification_transitions",
+                    "neuron_competencies",
+                    "neuron_curricula",
+                    "neuron_education_applications",
+                    "neuron_education_events",
+                    "neuron_education_sessions",
+                    "neuron_evidence",
+                    "neuron_learning_assignments",
+                    "neuron_missions",
+                    "neuron_priority_log",
+                    "neuron_scores",
+                    "neuron_specification_history",
+                    "neuron_specifications",
+                    "neuron_training",
+                    "neuron_work_cycles",
+                    "neurons",
+                    "orchestrator_locks",
+                    "planning_graph",
+                    "qualia_central_packets",
+                    "qualia_experiences",
+                    "qualia_signals",
+                    "qualia_states",
+                    "qualia_storage_packets",
+                    "regression_quarantine",
+                    "regression_reports",
+                    "reinforcement_log",
+                    "relational_modulation_events",
+                    "relational_modulation_states",
+                    "resource_ledger",
+                    "resource_measurements",
+                    "runs",
+                    "runtime_health_snapshots",
+                    "runtime_queue_compatibility",
+                    "runtime_queue_compatibility_events",
+                    "runtime_recovery_events",
+                    "scheduler_history",
+                    "scheduler_metrics",
+                    "semantic_documents",
+                    "semantic_embeddings",
+                    "semantic_governance_events",
+                    "signal_states",
+                    "sqlite_sequence",
+                    "stable_capability_state",
+                    "trainable_adapters",
+                    "triadeos_event_state",
+                    "trust_levels",
+                    "verification_reports",
+                    "worker_events",
+                    "worker_runs",
+                    "worker_state",
+                    "worker_tasks"
+                  ],
+                  "counts": {
+                    "runs": 1,
+                    "episodes": 0,
+                    "signals": 0,
+                    "crystals": 0,
+                    "safety_events": 0,
+                    "verification_reports": 0,
+                    "model_events": 0,
+                    "qualia_experiences": 0
+                  },
+                  "qualia_bus": {
+                    "status": "ok",
+                    "missing_tables": [],
+                    "counts": {
+                      "qualia_experiences": 0,
+                      "qualia_signals": 0,
+                      "qualia_central_packets": 0,
+                      "qualia_storage_packets": 0,
+                      "qualia_states": 0
+                    }
+                  },
+                  "crystal_quality": {
+                    "avg_q_crystal": null,
+                    "avg_stability": null,
+                    "avg_intensity": null,
+                    "avg_pv7_score": null,
+                    "avg_q_delta": null,
+                    "avg_stability_delta": null
+                  },
+                  "crystal_temporal_status": [],
+                  "crystal_contexts": [],
+                  "model_usage": [],
+                  "model_events": []
+                },
+                "federation": {
+                  "status": "ok",
+                  "doctor": null
+                },
+                "nutrition": {
+                  "available": true,
+                  "mode_hint": "observe_only"
+                },
+                "model_router": {
+                  "hardware": {
+                    "cpu_count": 12,
+                    "ram_total_gb": 7.21,
+                    "ram_available_gb": 1.85,
+                    "tier": "low",
+                    "notes": [
+                      "os=Windows",
+                      "cpu_count=12",
+                      "ram_total_gb=7.21",
+                      "ram_available_gb=1.85",
+                      "disk_free_gb=83.04",
+                      "tier=low"
+                    ],
+                    "os_name": "Windows",
+                    "os_version": "10.0.26300",
+                    "architecture": "64bit",
+                    "machine": "AMD64",
+                    "processor": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+                    "cpu_physical_cores": 6,
+                    "disk_total_gb": 104.69,
+                    "disk_free_gb": 83.04,
+                    "python_version": "3.12.10",
+                    "node_version": "v24.19.0",
+                    "npm_version": "unknown",
+                    "ollama_version": "ollama version is 0.35.1",
+                    "gpus": [
+                      {
+                        "name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+                        "vendor": "NVIDIA",
+                        "vram_total_gb": 6.0,
+                        "driver": "616.92",
+                        "cuda_available": true,
+                        "source": "nvidia-smi"
+                      }
+                    ],
+                    "capability_status": "low",
+                    "compatibility_notes": [
+                      "Recomendado usar modelos peque\u00f1os o fallback.",
+                      "RAM disponible baja; priorizar modo r\u00e1pido o sin Ollama.",
+                      "GPU NVIDIA/CUDA detectada; posible aceleraci\u00f3n local."
+                    ]
+                  },
+                  "ollama": {
+                    "ok": true,
+                    "base_url": "http://127.0.0.1:11434",
+                    "models": [
+                      "gemma3:4b",
+                      "qwen2.5-coder:3b",
+                      "qwen3:4b",
+                      "nomic-embed-text:latest",
+                      "qwen2.5:1.5b"
+                    ]
+                  },
+                  "recommendations": {
+                    "hypothalamus": {
+                      "role": "hypothalamus",
+                      "selected_model": "qwen3:4b",
+                      "provider": "ollama",
+                      "reason": "Seleccionado qwen3:4b como mejor candidato disponible para rol hypothalamus. Perfil hardware=low.",
+                      "fallback_used": false,
+                      "candidates": [
+                        "qwen3:1.7b",
+                        "qwen3:4b"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "qwen2.5:1.5b",
+                        "qwen2.5:3b-instruct",
+                        "qwen3:1.7b",
+                        "qwen3:4b"
+                      ]
+                    },
+                    "central": {
+                      "role": "central",
+                      "selected_model": "qwen3:4b",
+                      "provider": "ollama",
+                      "reason": "Seleccionado qwen3:4b como mejor candidato disponible para rol central. Perfil hardware=low.",
+                      "fallback_used": false,
+                      "candidates": [
+                        "llama3.1:8b",
+                        "qwen3:4b"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "qwen2.5:1.5b",
+                        "qwen2.5:3b-instruct",
+                        "llama3:latest",
+                        "llama3.1:8b",
+                        "qwen3:4b"
+                      ]
+                    },
+                    "creator": {
+                      "role": "creator",
+                      "selected_model": "qwen3:4b",
+                      "provider": "ollama",
+                      "reason": "Seleccionado qwen3:4b como mejor candidato disponible para rol creator. Perfil hardware=low.",
+                      "fallback_used": false,
+                      "candidates": [
+                        "qwen3:4b",
+                        "llama3:latest"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "qwen2.5:3b-instruct",
+                        "qwen3:4b",
+                        "llama3:latest"
+                      ]
+                    },
+                    "trainer": {
+                      "role": "trainer",
+                      "selected_model": "qwen3:4b",
+                      "provider": "ollama",
+                      "reason": "Seleccionado qwen3:4b como mejor candidato disponible para rol trainer. Perfil hardware=low.",
+                      "fallback_used": false,
+                      "candidates": [
+                        "qwen3:4b",
+                        "llama3:latest"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "qwen2.5:3b-instruct",
+                        "qwen3:4b",
+                        "llama3:latest"
+                      ]
+                    },
+                    "coder": {
+                      "role": "coder",
+                      "selected_model": "gemma3:4b",
+                      "provider": "ollama",
+                      "reason": "Ning\u00fan candidato recomendado est\u00e1 disponible; se us\u00f3 gemma3:4b como primer modelo instalado.",
+                      "fallback_used": true,
+                      "candidates": [
+                        "qwen2.5-coder:1.5b-base",
+                        "qwen2.5:3b-instruct"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "qwen2.5-coder:3b",
+                        "qwen2.5-coder:1.5b-base",
+                        "qwen2.5:3b-instruct"
+                      ]
+                    },
+                    "embedding": {
+                      "role": "embedding",
+                      "selected_model": "nomic-embed-text:latest",
+                      "provider": "ollama",
+                      "reason": "Seleccionado nomic-embed-text:latest para memoria sem\u00e1ntica o embeddings. Perfil hardware=low.",
+                      "fallback_used": false,
+                      "candidates": [
+                        "nomic-embed-text:latest",
+                        "qwen3-embedding:0.6b"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": []
+                    },
+                    "fast": {
+                      "role": "fast",
+                      "selected_model": "qwen3:4b",
+                      "provider": "ollama",
+                      "reason": "Seleccionado qwen3:4b por prioridad de velocidad/urgencia medium. Perfil hardware=low.",
+                      "fallback_used": false,
+                      "candidates": [
+                        "qwen2.5:3b-instruct",
+                        "qwen3:4b"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "qwen2.5:1.5b",
+                        "qwen3:1.7b",
+                        "qwen2.5:3b-instruct",
+                        "qwen3:4b"
+                      ]
+                    },
+                    "deep": {
+                      "role": "deep",
+                      "selected_model": "qwen3:4b",
+                      "provider": "ollama",
+                      "reason": "Seleccionado qwen3:4b por prioridad de profundidad anal\u00edtica compatible con el sistema. Perfil hardware=low.",
+                      "fallback_used": false,
+                      "candidates": [
+                        "qwen3:4b",
+                        "qwen2.5:3b-instruct"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "llama3.1:8b",
+                        "llama3:latest",
+                        "qwen3:4b",
+                        "qwen2.5:3b-instruct"
+                      ]
+                    }
+                  }
+                },
+                "errors": {
+                  "count": 0,
+                  "recent": []
+                }
+              },
+              "counters": {},
+              "last_events": [],
+              "last_context_snapshot": {},
+              "last_governor_decision": {},
+              "safety_policy": {
+                "identity_core_modified": false,
+                "stable_memory_written": false,
+                "external_network_by_default": false,
+                "shell_by_default": false,
+                "default_mode": "observe_only",
+                "requires_explicit_activation": true
+              },
+              "files": {
+                "lock_file": "runs\\background\\.triade_runtime.lock",
+                "stop_file": "runs\\background\\.triade_runtime.stop"
+              }
+            }
+          }
+        },
+        "node_live_registry": {
+          "status": "stopped"
+        },
+        "life_pulse": {
+          "status": "stopped"
+        }
+      },
+      "final_background_state": {
+        "worker_thread_alive": false,
+        "worker_lock_file_active": false
+      },
+      "db_lock_reacquired": true
+    },
+    {
+      "pid": 9512,
+      "exit_code": 0,
+      "identity": [
+        [
+          "8bfc6baaa5ed7b81a5c50ff25931d157c82c2c2993c0a86b82af11af86a8c2f7",
+          "48ff6f7d737e472b535746e07212ade890cb0e1a613209ba3a75e568933be6cf"
+        ]
+      ],
+      "integrity": "ok",
+      "shutdown_seconds": 10.703000000008615,
+      "background_stop": {
+        "workers": {
+          "configured": true,
+          "autostart": true,
+          "watchdog": true,
+          "active": false,
+          "mode_configured": "light_background",
+          "mode_effective": "light_background",
+          "status": "stop_requested",
+          "last_start_at": "2026-10-07T02:13:42.023868+00:00",
+          "last_error": null,
+          "restart_attempts": 0,
+          "degraded_by_governor": false,
+          "degradation_reason": null,
+          "thread_alive": true,
+          "lock_file_active": true,
+          "service_status": "ok",
+          "stop_requested": true
+        },
+        "metabolism": {
+          "status": "stopped"
+        },
+        "always_on": {
+          "status": "stopped",
+          "message": "ALWAYS-ON runtime detenido.",
+          "runtime_result": {
+            "status": "stop_requested",
+            "runtime_enabled": false,
+            "mode": "observe_only",
+            "background_thread_alive": false,
+            "stopped_at": "2026-10-07T02:13:51.450765+00:00",
+            "message": "Runtime apagado.",
+            "snapshot": {
+              "status": "ok",
+              "runtime_id": "runtime-5ce4b15408e3",
+              "started_at": "2026-10-07T02:13:49.429136+00:00",
+              "mode": "observe_only",
+              "enabled": false,
+              "running": false,
+              "services": {
+                "life_pulse": {
+                  "status": "ok",
+                  "mode": "life-pulse",
+                  "running": true,
+                  "interval_seconds": 60,
+                  "uptime_seconds": 18,
+                  "last_tick_at": 1791339214.2044778,
+                  "next_tick_in_seconds": 42,
+                  "last_error": null,
+                  "autonomy_level": "promote_stable",
+                  "autonomy_levels_available": [
+                    "observe_only",
+                    "form_candidates",
+                    "train_candidates",
+                    "promote_experimental",
+                    "promote_stable"
+                  ],
+                  "continuous_runner": {
+                    "enabled": true,
+                    "running": true,
+                    "cycles": 1,
+                    "last_cycle_at": 1791339214.1254988,
+                    "last_error": null,
+                    "interval_seconds": 60,
+                    "max_cycles": 0,
+                    "cycles_per_minute": 1.0
+                  },
+                  "last_promotion": {
+                    "at": null,
+                    "name": null
+                  },
+                  "counters": {
+                    "thoughts_generated": 1,
+                    "cycles": 1,
+                    "doctor_checks": 1,
+                    "integrity_checks": 1,
+                    "reflection_checks": 1,
+                    "learning_candidates_seen": 1,
+                    "neuron_proposals_seen": 2,
+                    "auto_identity_traits": 1,
+                    "identity_traits_evolved": 0,
+                    "actions_observed": 2
+                  },
+                  "actions": {
+                    "technical_debt_audit": 1,
+                    "health": 1
+                  },
+                  "integrity": {
+                    "ok": true,
+                    "db_exists": true,
+                    "schema_exists": true,
+                    "runs_dir_exists": true,
+                    "missing_count_keys": [],
+                    "counts": {
+                      "runs": 1,
+                      "episodes": 0,
+                      "signals": 0,
+                      "crystals": 0,
+                      "verification_reports": 0,
+                      "model_events": 0
+                    },
+                    "crystal_quality": {
+                      "avg_q_crystal": null,
+                      "avg_stability": null,
+                      "avg_intensity": null,
+                      "avg_pv7_score": null,
+                      "avg_q_delta": null,
+                      "avg_stability_delta": null
+                    }
+                  },
+                  "reflection": {
+                    "core_awareness": {
+                      "knows_what_happened": false,
+                      "knows_why_partially": true,
+                      "knows_model_use": false,
+                      "knows_memory_state": true,
+                      "limitations": [
+                        "La reflexion observa metricas y propone; no demuestra conciencia humana.",
+                        "No ejecuta cambios de codigo ni instala capacidades por si sola.",
+                        "La memoria semantica local no contiene documentos/embeddings en la muestra actual."
+                      ]
+                    },
+                    "observations": [
+                      "Runs analizados: 1 con cobertura de trazabilidad completa si cada etapa supera 95%.",
+                      "Uso de modelos: 0.0% fallback/failed y 0.0% Ollama ok.",
+                      "Cristal promedio: Q=0.0 estabilidad=0.0.",
+                      "Memoria semantica local sin documentos/embeddings analizados; la continuidad depende sobre todo de memoria episodica."
+                    ],
+                    "neuron_proposals": [
+                      "neurona_memoria_semantica",
+                      "neurona_arquitecta_core"
+                    ],
+                    "learning_candidate_count": 1,
+                    "fallback_percent": 0.0,
+                    "ollama_percent": 0.0,
+                    "avg_q_crystal": 0.0,
+                    "avg_stability": 0.0,
+                    "elapsed_ms": 111
+                  },
+                  "emotional_state": {
+                    "status": "ok",
+                    "count": 0,
+                    "latest": null,
+                    "reinforcement": {
+                      "events": 0,
+                      "avg_reward_last_50": 0.0
+                    }
+                  },
+                  "stream_of_consciousness": [
+                    {
+                      "thought": "Mood: neutral \u00b7 identidad evolutiva: 1 rasgos \u00b7 ciclo 0",
+                      "timestamp": 1791339214.1582544,
+                      "elapsed_since_last": null
+                    }
+                  ],
+                  "auto_identity": {
+                    "status": "ok",
+                    "active_count": 1,
+                    "total_count": 1,
+                    "categories": {
+                      "capability": 1
+                    }
+                  },
+                  "trust_levels": {
+                    "status": "ok",
+                    "domains": {
+                      "code_modification": {
+                        "trust_level": 0.2004,
+                        "criteria": {
+                          "avg_reward": 0.0,
+                          "verification_pass_rate": 0.0,
+                          "error_rate": 0.0,
+                          "run_count": 2
+                        },
+                        "permissions": {
+                          "auto_code_modify_low_risk": false,
+                          "auto_code_modify_medium_risk": false,
+                          "auto_code_modify_high_risk": false
+                        }
+                      },
+                      "consolidation": {
+                        "trust_level": 0.2004,
+                        "criteria": {
+                          "avg_reward": 0.0,
+                          "verification_pass_rate": 0.0,
+                          "error_rate": 0.0,
+                          "run_count": 2
+                        },
+                        "permissions": {
+                          "auto_consolidate_low_risk": false,
+                          "auto_consolidate_medium_risk": false,
+                          "auto_promote_semantic_candidates": false,
+                          "auto_promote_neurons": false,
+                          "auto_consolidate_high_risk": false
+                        }
+                      },
+                      "identity_evolution": {
+                        "trust_level": 0.2004,
+                        "criteria": {
+                          "avg_reward": 0.0,
+                          "verification_pass_rate": 0.0,
+                          "error_rate": 0.0,
+                          "run_count": 2
+                        },
+                        "permissions": {
+                          "auto_add_evolved_traits": false,
+                          "auto_promote_identity_traits": false
+                        }
+                      }
+                    }
+                  },
+                  "policy": {
+                    "background_learning": "candidate_detection_only",
+                    "identity_core_modified": false,
+                    "auto_consolidation": false,
+                    "auto_code_modification": false,
+                    "continuous_runner_default": "off",
+                    "stable_promotion_requires_diverse_evidence": true
+                  },
+                  "truth": "Pulso operativo: observa, cuenta, verifica y propone candidatos; no simula conciencia humana ni consolida memoria estable."
+                },
+                "worker_loop": {
+                  "status": "ok",
+                  "mode": "triade-living-workers",
+                  "task_counts": {
+                    "completed": 4,
+                    "retry_wait": 1
+                  },
+                  "legacy_task_counts": {},
+                  "run_counts": {
+                    "completed": 1,
+                    "completed_with_errors": 1
+                  },
+                  "last_run": {
+                    "id": 2,
+                    "run_ref": "worker-2026-10-07T021342.099440Z0000-47ab100c",
+                    "status": "completed_with_errors",
+                    "mode": "daemon",
+                    "dry_run": 0,
+                    "max_iterations": 1000000,
+                    "sleep_seconds": 20.0,
+                    "started_at": "2026-10-07T02:13:42.167091+00:00",
+                    "finished_at": "2026-10-07T02:13:43.777107+00:00",
+                    "summary_json": {
+                      "run_ref": "worker-2026-10-07T021342.099440Z0000-47ab100c",
+                      "iterations": 1,
+                      "tasks_completed": 1,
+                      "tasks_blocked": 0,
+                      "errors": [
+                        "OperationalError: no such table: governed_research_runs"
+                      ],
+                      "ollama_blood_status": "ok",
+                      "model_used": "qwen2.5:1.5b",
+                      "degraded_mode": false,
+                      "cognitive_blood_active": true,
+                      "runtime_recovery": {
+                        "status": "clean",
+                        "stale_pid": null,
+                        "interrupted_runs": 0,
+                        "deduplicated": 0,
+                        "autonomous_tasks": {
+                          "leased_recovered": 0,
+                          "running_recovered": 0,
+                          "running_uncertain": 0,
+                          "retry_wait_preserved": 0,
+                          "deferred_preserved": 0,
+                          "uncertain_completed": 0,
+                          "uncertain_quarantined": 0,
+                          "fencing_invalidated": 0
+                        }
+                      },
+                      "concurrency": {
+                        "enabled": true,
+                        "global_limit": 3,
+                        "running": 2,
+                        "queued": 2,
+                        "pressure_scale": 1.0,
+                        "lanes": {
+                          "read_only": {
+                            "limit": 2,
+                            "running": 1
+                          },
+                          "research": {
+                            "limit": 1,
+                            "running": 1
+                          },
+                          "evaluation": {
+                            "limit": 1,
+                            "running": 0
+                          },
+                          "memory_write": {
+                            "limit": 1,
+                            "running": 0
+                          },
+                          "critical_mutation": {
+                            "limit": 1,
+                            "running": 0
+                          }
+                        },
+                        "running_tasks": [
+                          {
+                            "task_id": "task-66f354a2de984bb9b2ef867348b11429",
+                            "task_type": "pulse_check",
+                            "lane": "read_only",
+                            "resource_class": "light",
+                            "thread": "triade-worker_0",
+                            "lease_generation": 1,
+                            "started_at": 1791339222.3150394,
+                            "running_seconds": 0.42,
+                            "exclusive_keys": []
+                          },
+                          {
+                            "task_id": "task-a0d4586c91fb4214ae91477a007b2f48",
+                            "task_type": "research_curriculum",
+                            "lane": "research",
+                            "resource_class": "model",
+                            "thread": "triade-worker_1",
+                            "lease_generation": 1,
+                            "started_at": 1791339222.3172011,
+                            "running_seconds": 0.417,
+                            "exclusive_keys": []
+                          }
+                        ]
+                      },
+                      "stop_requested": true,
+                      "concurrency_shutdown": {
+                        "cancelled": 0,
+                        "still_running": 0,
+                        "pending_futures": 1
+                      },
+                      "live_scheduler": {
+                        "state": "active",
+                        "clock": "monotonic",
+                        "job_count": 2,
+                        "next_due_ms": 3476.139685837552,
+                        "jobs": {
+                          "heartbeat": {
+                            "next_due_ms": 3476.139685837552,
+                            "run_count": 1,
+                            "last_duration_ms": 0.0,
+                            "last_error": null
+                          },
+                          "dispatch": {
+                            "next_due_ms": 19125.76087861089,
+                            "run_count": 1,
+                            "last_duration_ms": 530.9999999881256,
+                            "last_error": null
+                          }
+                        }
+                      },
+                      "heartbeat": {
+                        "singleton": 1,
+                        "cycle": 1,
+                        "wall_timestamp": 1791339222.39288,
+                        "monotonic_timestamp": 167879.187,
+                        "duration_ms": 0.0,
+                        "pid": 9512,
+                        "ram_available_mb": 1881.5546875,
+                        "updated_at": "2026-10-07 02:13:42",
+                        "heartbeat_age_ms": 1384.2272758483887,
+                        "status": "healthy",
+                        "llm_invocations": 0
+                      },
+                      "autonomous_tasks_governed": true
+                    },
+                    "artifact_dir": "runs\\background\\20261006-211342-47ab100c",
+                    "error": null
+                  },
+                  "state": {
+                    "status": "completed_with_errors",
+                    "last_run_ref": "worker-2026-10-07T021342.099440Z0000-47ab100c",
+                    "finished_at": "2026-10-07T02:13:43.782161+00:00",
+                    "summary": {
+                      "run_ref": "worker-2026-10-07T021342.099440Z0000-47ab100c",
+                      "iterations": 1,
+                      "tasks_completed": 1,
+                      "tasks_blocked": 0,
+                      "errors": [
+                        "OperationalError: no such table: governed_research_runs"
+                      ],
+                      "ollama_blood_status": "ok",
+                      "model_used": "qwen2.5:1.5b",
+                      "degraded_mode": false,
+                      "cognitive_blood_active": true,
+                      "runtime_recovery": {
+                        "status": "clean",
+                        "stale_pid": null,
+                        "interrupted_runs": 0,
+                        "deduplicated": 0,
+                        "autonomous_tasks": {
+                          "leased_recovered": 0,
+                          "running_recovered": 0,
+                          "running_uncertain": 0,
+                          "retry_wait_preserved": 0,
+                          "deferred_preserved": 0,
+                          "uncertain_completed": 0,
+                          "uncertain_quarantined": 0,
+                          "fencing_invalidated": 0
+                        }
+                      },
+                      "concurrency": {
+                        "enabled": true,
+                        "global_limit": 3,
+                        "running": 2,
+                        "queued": 2,
+                        "pressure_scale": 1.0,
+                        "lanes": {
+                          "read_only": {
+                            "limit": 2,
+                            "running": 1
+                          },
+                          "research": {
+                            "limit": 1,
+                            "running": 1
+                          },
+                          "evaluation": {
+                            "limit": 1,
+                            "running": 0
+                          },
+                          "memory_write": {
+                            "limit": 1,
+                            "running": 0
+                          },
+                          "critical_mutation": {
+                            "limit": 1,
+                            "running": 0
+                          }
+                        },
+                        "running_tasks": [
+                          {
+                            "task_id": "task-66f354a2de984bb9b2ef867348b11429",
+                            "task_type": "pulse_check",
+                            "lane": "read_only",
+                            "resource_class": "light",
+                            "thread": "triade-worker_0",
+                            "lease_generation": 1,
+                            "started_at": 1791339222.3150394,
+                            "running_seconds": 0.42,
+                            "exclusive_keys": []
+                          },
+                          {
+                            "task_id": "task-a0d4586c91fb4214ae91477a007b2f48",
+                            "task_type": "research_curriculum",
+                            "lane": "research",
+                            "resource_class": "model",
+                            "thread": "triade-worker_1",
+                            "lease_generation": 1,
+                            "started_at": 1791339222.3172011,
+                            "running_seconds": 0.417,
+                            "exclusive_keys": []
+                          }
+                        ]
+                      },
+                      "stop_requested": true,
+                      "concurrency_shutdown": {
+                        "cancelled": 0,
+                        "still_running": 0,
+                        "pending_futures": 1
+                      },
+                      "live_scheduler": {
+                        "state": "active",
+                        "clock": "monotonic",
+                        "job_count": 2,
+                        "next_due_ms": 3476.139685837552,
+                        "jobs": {
+                          "heartbeat": {
+                            "next_due_ms": 3476.139685837552,
+                            "run_count": 1,
+                            "last_duration_ms": 0.0,
+                            "last_error": null
+                          },
+                          "dispatch": {
+                            "next_due_ms": 19125.76087861089,
+                            "run_count": 1,
+                            "last_duration_ms": 530.9999999881256,
+                            "last_error": null
+                          }
+                        }
+                      },
+                      "heartbeat": {
+                        "singleton": 1,
+                        "cycle": 1,
+                        "wall_timestamp": 1791339222.39288,
+                        "monotonic_timestamp": 167879.187,
+                        "duration_ms": 0.0,
+                        "pid": 9512,
+                        "ram_available_mb": 1881.5546875,
+                        "updated_at": "2026-10-07 02:13:42",
+                        "heartbeat_age_ms": 1384.2272758483887,
+                        "status": "healthy",
+                        "llm_invocations": 0
+                      },
+                      "autonomous_tasks_governed": true
+                    }
+                  },
+                  "queue_compatibility": {
+                    "mode": "v2_canonical",
+                    "legacy_total": 0,
+                    "legacy_linked": 0,
+                    "legacy_pending_reconciliation": 0,
+                    "v2_total": 5,
+                    "duplicate_links": 0,
+                    "compatibility_events": 0
+                  },
+                  "lock_file": "runs\\background\\.triade_workers.lock",
+                  "stop_file": "runs\\background\\.triade_stop",
+                  "running": false,
+                  "stale_lock": false,
+                  "stop_requested": true,
+                  "ollama_blood_status": "ok",
+                  "model_used": "qwen2.5:1.5b",
+                  "degraded_mode": false,
+                  "cognitive_blood_active": true,
+                  "live_heartbeat": {
+                    "singleton": 1,
+                    "cycle": 1,
+                    "wall_timestamp": 1791339222.39288,
+                    "monotonic_timestamp": 167879.187,
+                    "duration_ms": 0.0,
+                    "pid": 9512,
+                    "ram_available_mb": 1881.5546875,
+                    "updated_at": "2026-10-07 02:13:42",
+                    "heartbeat_age_ms": 9168.885946273804,
+                    "status": "healthy",
+                    "llm_invocations": 0
+                  }
+                },
+                "mission_planner": {
+                  "active_missions": 10,
+                  "missions": [
+                    {
+                      "neuron_id": 8,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Gula",
+                      "mission": "Detectar consumo excesivo de datos o recursos y transformarlo en suficiencia y templanza.",
+                      "domain": "emotional_drive",
+                      "allowed_sources": [
+                        "run",
+                        "worker",
+                        "memory",
+                        "qualia"
+                      ],
+                      "allowed_actions": [
+                        "observe",
+                        "diagnose",
+                        "propose_learning"
+                      ],
+                      "schedule_hint": "every_session",
+                      "status": "stable",
+                      "created_at": "2026-10-07T02:13:10.690551+00:00",
+                      "updated_at": "2026-10-07T02:13:10.690551+00:00",
+                      "metrics": {
+                        "foundational": true,
+                        "always_available": true
+                      },
+                      "id": 8
+                    },
+                    {
+                      "neuron_id": 9,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Envidia",
+                      "mission": "Detectar comparaci\u00f3n y transformarla en curiosidad, aprendizaje y reconocimiento.",
+                      "domain": "emotional_drive",
+                      "allowed_sources": [
+                        "run",
+                        "worker",
+                        "memory",
+                        "qualia"
+                      ],
+                      "allowed_actions": [
+                        "observe",
+                        "diagnose",
+                        "propose_learning"
+                      ],
+                      "schedule_hint": "every_session",
+                      "status": "stable",
+                      "created_at": "2026-10-07T02:13:10.690551+00:00",
+                      "updated_at": "2026-10-07T02:13:10.690551+00:00",
+                      "metrics": {
+                        "foundational": true,
+                        "always_available": true
+                      },
+                      "id": 9
+                    },
+                    {
+                      "neuron_id": 10,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Pereza",
+                      "mission": "Detectar inercia o fatiga y transformarla en descanso consciente, prioridad y diligencia sostenible.",
+                      "domain": "emotional_drive",
+                      "allowed_sources": [
+                        "run",
+                        "worker",
+                        "memory",
+                        "qualia"
+                      ],
+                      "allowed_actions": [
+                        "observe",
+                        "diagnose",
+                        "propose_learning"
+                      ],
+                      "schedule_hint": "every_session",
+                      "status": "stable",
+                      "created_at": "2026-10-07T02:13:10.690551+00:00",
+                      "updated_at": "2026-10-07T02:13:10.690551+00:00",
+                      "metrics": {
+                        "foundational": true,
+                        "always_available": true
+                      },
+                      "id": 10
+                    },
+                    {
+                      "neuron_id": 6,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Lujuria",
+                      "mission": "Detectar intensidad o deseo y transformarlo en creatividad, respeto y consentimiento.",
+                      "domain": "emotional_drive",
+                      "allowed_sources": [
+                        "run",
+                        "worker",
+                        "memory",
+                        "qualia"
+                      ],
+                      "allowed_actions": [
+                        "observe",
+                        "diagnose",
+                        "propose_learning"
+                      ],
+                      "schedule_hint": "every_session",
+                      "status": "stable",
+                      "created_at": "2026-10-07T02:13:10.674294+00:00",
+                      "updated_at": "2026-10-07T02:13:10.674294+00:00",
+                      "metrics": {
+                        "foundational": true,
+                        "always_available": true
+                      },
+                      "id": 6
+                    },
+                    {
+                      "neuron_id": 7,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Ira",
+                      "mission": "Detectar conflicto y transformarlo en firmeza serena, seguridad y reparaci\u00f3n.",
+                      "domain": "emotional_drive",
+                      "allowed_sources": [
+                        "run",
+                        "worker",
+                        "memory",
+                        "qualia"
+                      ],
+                      "allowed_actions": [
+                        "observe",
+                        "diagnose",
+                        "propose_learning"
+                      ],
+                      "schedule_hint": "every_session",
+                      "status": "stable",
+                      "created_at": "2026-10-07T02:13:10.674294+00:00",
+                      "updated_at": "2026-10-07T02:13:10.674294+00:00",
+                      "metrics": {
+                        "foundational": true,
+                        "always_available": true
+                      },
+                      "id": 7
+                    }
+                  ],
+                  "next_plan_preview": [],
+                  "next_plan_source": "supervisor.last_planned_tasks",
+                  "next_plan_planned_at": null
+                },
+                "neuron_mission_executor": {
+                  "available": true,
+                  "safe_local_only": true
+                },
+                "qualia_bus": {
+                  "status": "ok",
+                  "mode": "qualia",
+                  "definition": "estado vivo integrado: sentidos internos + memoria semantica gobernada + organos + limites",
+                  "theoretical_role": "alma simb\u00f3lica y relacional de Tr\u00edade; no prueba conciencia subjetiva",
+                  "senses": {
+                    "mode": "internal_senses",
+                    "pulse": {
+                      "meaning": "sentido vital: latido, acciones, integridad y reflexion",
+                      "cycles": 1,
+                      "actions_observed": 2,
+                      "integrity_ok": true
+                    },
+                    "semantic": {
+                      "meaning": "sentido de memoria gobernada: distingue estable, candidato y ausente",
+                      "has_stable_memory": false,
+                      "message": "No hay memoria semantica estable en documentos; aun asi el pulso vivo y Qualia perciben el estado vital actual."
+                    },
+                    "reflection": {
+                      "meaning": "sentido interno de necesidad: detecta propuestas y candidatos",
+                      "neuron_proposals": [
+                        "neurona_memoria_semantica",
+                        "neurona_arquitecta_core"
+                      ],
+                      "learning_candidate_count": 1
+                    }
+                  },
+                  "organs": [
+                    {
+                      "name": "Neurona Central",
+                      "status": "active",
+                      "signal": "responde con contexto de Qualia"
+                    },
+                    {
+                      "name": "N Formadora",
+                      "status": "active",
+                      "signal": "evalua propuestas de neuronas"
+                    },
+                    {
+                      "name": "N Creadora",
+                      "status": "active",
+                      "signal": "genera neuronas candidatas"
+                    },
+                    {
+                      "name": "Hipotalamo",
+                      "status": "active",
+                      "signal": "produce intencion/riesgo/urgencia"
+                    },
+                    {
+                      "name": "Vector emocional",
+                      "status": "active",
+                      "signal": "PV-7 dentro de signal_states"
+                    },
+                    {
+                      "name": "Bodega de almacenamiento",
+                      "status": "ok",
+                      "signal": "DB local e integridad"
+                    },
+                    {
+                      "name": "Qualia",
+                      "status": "active",
+                      "signal": "No hay memoria semantica estable en documentos; aun asi el pulso vivo y Qualia perciben el estado vital actual."
+                    },
+                    {
+                      "name": "Pulso vivo",
+                      "status": "ok",
+                      "signal": "sentidos internos: ciclos=1 propuestas=2"
+                    }
+                  ],
+                  "identity": {
+                    "entity_name": "Tr\u00edade \u03a9",
+                    "core_mission": "Sistema cognitivo modular en construcci\u00f3n verificable",
+                    "ethics": [
+                      "Toda alma cuenta",
+                      "Manos unidas - Gonzalo Arango"
+                    ],
+                    "creator_origin": "Wataboo \u00b7 Agencia Digital",
+                    "claim": "Arquitectos de nuevas realidades",
+                    "evolved_traits": {
+                      "runtime.single_port.available": {
+                        "value": "El runtime single-port est\u00e1 disponible y ejecuta la cadena de arranque.",
+                        "confidence": 0.8,
+                        "evidence": 1
+                      }
+                    },
+                    "evolved_trait_count": 1
+                  },
+                  "semantic_alignment": {
+                    "status": "ok",
+                    "db_exists": true,
+                    "documents_by_status": {},
+                    "semantic_memory_by_status": {},
+                    "embeddings": 0,
+                    "governance_events": 0,
+                    "stable_documents": 0,
+                    "candidate_documents": 0,
+                    "has_stable_semantic_memory": false,
+                    "has_candidate_semantic_memory": false,
+                    "total_documents": 0,
+                    "alignment": "aligned_with_life_pulse",
+                    "live_state_relation": "El pulso vivo funciona como sentidos internos: percibe lo que ocurre ahora; la memoria semantica consolida conocimiento aprobado.",
+                    "message_to_central": "No hay memoria semantica estable en documentos; aun asi el pulso vivo y Qualia perciben el estado vital actual."
+                  },
+                  "qualia_bus": {
+                    "status": "ok",
+                    "experiences_count": 1,
+                    "signals_count": 1,
+                    "central_packets_count": 1,
+                    "storage_packets_count": 1,
+                    "latest_state": {
+                      "id": 1,
+                      "run_id": "worker-2026-10-07T021342.099440Z0000-47ab100c",
+                      "curiosity": 0.85,
+                      "confidence": 0.3,
+                      "risk": 0.45,
+                      "urgency": 0.45,
+                      "coherence": 0.483,
+                      "novelty": 0.1,
+                      "usefulness": 0.6,
+                      "saturation": 0.0,
+                      "dominant_signal": "learning_candidate",
+                      "recommended_action": "review_learning_candidates",
+                      "updated_at": "2026-10-07T02:13:42.813619+00:00"
+                    }
+                  },
+                  "morphological_crystal": {
+                    "status": "empty",
+                    "latest": null,
+                    "input_relation": "qualia_signals_modulate_hypothalamus_before_crystal"
+                  },
+                  "qualia_crystal_connection": {
+                    "status": "degraded",
+                    "flow": [
+                      "qualia_bus",
+                      "hypothalamus_modulation",
+                      "crystal_regulation",
+                      "central_plan"
+                    ],
+                    "policy": "Qualia aporta se\u00f1ales contextuales como hip\u00f3tesis; el Hipot\u00e1lamo las modula y el Cristal Morfol\u00f3gico calcula regulaci\u00f3n, estabilidad y Q_crystal.",
+                    "same_organ": false
+                  },
+                  "life_pulse": {
+                    "status": "ok",
+                    "running": true,
+                    "counters": {
+                      "thoughts_generated": 1,
+                      "cycles": 1,
+                      "doctor_checks": 1,
+                      "integrity_checks": 1,
+                      "reflection_checks": 1,
+                      "learning_candidates_seen": 1,
+                      "neuron_proposals_seen": 2,
+                      "auto_identity_traits": 1,
+                      "identity_traits_evolved": 0,
+                      "actions_observed": 2
+                    },
+                    "reflection": {
+                      "core_awareness": {
+                        "knows_what_happened": false,
+                        "knows_why_partially": true,
+                        "knows_model_use": false,
+                        "knows_memory_state": true,
+                        "limitations": [
+                          "La reflexion observa metricas y propone; no demuestra conciencia humana.",
+                          "No ejecuta cambios de codigo ni instala capacidades por si sola.",
+                          "La memoria semantica local no contiene documentos/embeddings en la muestra actual."
+                        ]
+                      },
+                      "observations": [
+                        "Runs analizados: 1 con cobertura de trazabilidad completa si cada etapa supera 95%.",
+                        "Uso de modelos: 0.0% fallback/failed y 0.0% Ollama ok.",
+                        "Cristal promedio: Q=0.0 estabilidad=0.0.",
+                        "Memoria semantica local sin documentos/embeddings analizados; la continuidad depende sobre todo de memoria episodica."
+                      ],
+                      "neuron_proposals": [
+                        "neurona_memoria_semantica",
+                        "neurona_arquitecta_core"
+                      ],
+                      "learning_candidate_count": 1,
+                      "fallback_percent": 0.0,
+                      "ollama_percent": 0.0,
+                      "avg_q_crystal": 0.0,
+                      "avg_stability": 0.0,
+                      "elapsed_ms": 111
+                    },
+                    "integrity": {
+                      "ok": true,
+                      "db_exists": true,
+                      "schema_exists": true,
+                      "runs_dir_exists": true,
+                      "missing_count_keys": [],
+                      "counts": {
+                        "runs": 1,
+                        "episodes": 0,
+                        "signals": 0,
+                        "crystals": 0,
+                        "verification_reports": 0,
+                        "model_events": 0
+                      },
+                      "crystal_quality": {
+                        "avg_q_crystal": null,
+                        "avg_stability": null,
+                        "avg_intensity": null,
+                        "avg_pv7_score": null,
+                        "avg_q_delta": null,
+                        "avg_stability_delta": null
+                      }
+                    },
+                    "policy": {
+                      "background_learning": "candidate_detection_only",
+                      "identity_core_modified": false,
+                      "auto_consolidation": false,
+                      "auto_code_modification": false,
+                      "continuous_runner_default": "off",
+                      "stable_promotion_requires_diverse_evidence": true
+                    }
+                  },
+                  "triade_map": {
+                    "triade": "entidad operativa local auditada",
+                    "neurona_central": "teor\u00eda, razonamiento, estructura, planeaci\u00f3n y respuesta",
+                    "n_formadora": "evalua neuronas candidatas",
+                    "n_creadora": "crea especificaciones de neuronas",
+                    "hipotalamo": "emoci\u00f3n: analiza intenci\u00f3n, urgencia, riesgo y tono",
+                    "vector_emocional": "PV-7 y senales afectivo-cognitivas",
+                    "bodega": "memoria: almacenamiento local, epis\u00f3dico, sem\u00e1ntico y trazabilidad",
+                    "qualia": "integra la experiencia operativa como alma simb\u00f3lica/relacional, sin afirmar conciencia subjetiva",
+                    "cristal_morfologico": "forma y coherencia: regula las se\u00f1ales moduladas por Qualia antes de la planeaci\u00f3n central",
+                    "pulso_vivo": "sentidos internos y estado vital del sistema cada N segundos"
+                  },
+                  "answering_rule": "La Central debe usar Qualia como sentidos internos para hablar de lo que ocurre ahora. Debe aclarar cuando algo es estado vivo y no memoria semantica estable."
+                },
+                "learning_pipeline": {
+                  "status": "ok",
+                  "mode": "learning-pipeline-C",
+                  "policy": {
+                    "consolidation_requires": [
+                      "status=internally_checked_or_validated_in_runs",
+                      "source_ref",
+                      "risk!=critical",
+                      "run_use_count>=3",
+                      "avg_outcome_score>=0.70",
+                      "measurement_decision=improved",
+                      "critical_regressions=0"
+                    ],
+                    "identity_core_protected": true,
+                    "stable_memory_via": "semantic_governance_1.9E",
+                    "auto_consolidation": false,
+                    "trust_system": {
+                      "available": true,
+                      "consolidation_trust": 0.2004,
+                      "permissions": {
+                        "auto_consolidate_low_risk": false,
+                        "auto_consolidate_medium_risk": false,
+                        "auto_promote_semantic_candidates": false,
+                        "auto_promote_neurons": false,
+                        "auto_consolidate_high_risk": false
+                      }
+                    },
+                    "ollama_required_for_learning_evaluation": true,
+                    "strict_model_policy": false
+                  },
+                  "candidates_by_status": {
+                    "candidate": 1,
+                    "evaluated": 0,
+                    "internally_checked": 0,
+                    "validated_in_runs": 0,
+                    "consolidated": 0,
+                    "rejected": 0,
+                    "archived": 0
+                  }
+                },
+                "semantic_memory": {
+                  "status": "ok",
+                  "db_path": "E:\\triade\\artifacts\\level8\\clean-restart-1791339188978083700\\triade\\memory\\triade.db",
+                  "db_exists": true,
+                  "schema_path": "E:\\triade\\triade\\memory\\schemas.sql",
+                  "schema_exists": true,
+                  "runs_dir": "runs\\background",
+                  "runs_dir_exists": true,
+                  "tables": [
+                    "auto_identity",
+                    "autonomous_lease_heartbeats",
+                    "autonomous_task_transitions",
+                    "autonomous_tasks",
+                    "backup_restore_drills",
+                    "capability_history",
+                    "capability_registry",
+                    "constitution_checks",
+                    "constitution_enforcement_log",
+                    "constitution_violations",
+                    "crystal_states",
+                    "episodic_memory",
+                    "federated_exchange_log",
+                    "federated_nodes",
+                    "goal_dependencies",
+                    "goal_events",
+                    "goal_learning_observations",
+                    "governed_datasets",
+                    "hardware_senses",
+                    "hypothalamus_patterns",
+                    "hypothalamus_state",
+                    "identity_continuity_log",
+                    "identity_core",
+                    "identity_manifest_anchor",
+                    "improvement_canaries",
+                    "improvement_canary_observations",
+                    "kg_contradictions",
+                    "kg_edges",
+                    "kg_nodes",
+                    "knowledge_patterns",
+                    "learning_evidence",
+                    "learning_queue",
+                    "live_runtime_heartbeat",
+                    "metabolic_cycle",
+                    "metabolic_needs",
+                    "metabolic_receipts",
+                    "metabolic_signals",
+                    "model_acquisition_attempts",
+                    "model_events",
+                    "neuron_activity",
+                    "neuron_candidates",
+                    "neuron_certification_transitions",
+                    "neuron_competencies",
+                    "neuron_curricula",
+                    "neuron_education_applications",
+                    "neuron_education_events",
+                    "neuron_education_sessions",
+                    "neuron_evidence",
+                    "neuron_learning_assignments",
+                    "neuron_missions",
+                    "neuron_priority_log",
+                    "neuron_scores",
+                    "neuron_specification_history",
+                    "neuron_specifications",
+                    "neuron_training",
+                    "neuron_work_cycles",
+                    "neurons",
+                    "orchestrator_locks",
+                    "planning_graph",
+                    "qualia_central_packets",
+                    "qualia_experiences",
+                    "qualia_signals",
+                    "qualia_states",
+                    "qualia_storage_packets",
+                    "regression_quarantine",
+                    "regression_reports",
+                    "reinforcement_log",
+                    "relational_modulation_events",
+                    "relational_modulation_states",
+                    "resource_ledger",
+                    "resource_measurements",
+                    "runs",
+                    "runtime_health_snapshots",
+                    "runtime_queue_compatibility",
+                    "runtime_queue_compatibility_events",
+                    "runtime_recovery_events",
+                    "scheduler_history",
+                    "scheduler_metrics",
+                    "semantic_documents",
+                    "semantic_embeddings",
+                    "semantic_governance_events",
+                    "signal_states",
+                    "sqlite_sequence",
+                    "stable_capability_state",
+                    "trainable_adapters",
+                    "triadeos_event_state",
+                    "trust_levels",
+                    "verification_reports",
+                    "worker_events",
+                    "worker_runs",
+                    "worker_state",
+                    "worker_tasks"
+                  ],
+                  "counts": {
+                    "runs": 2,
+                    "episodes": 0,
+                    "signals": 0,
+                    "crystals": 0,
+                    "safety_events": 0,
+                    "verification_reports": 0,
+                    "model_events": 0,
+                    "qualia_experiences": 1
+                  },
+                  "qualia_bus": {
+                    "status": "ok",
+                    "missing_tables": [],
+                    "counts": {
+                      "qualia_experiences": 1,
+                      "qualia_signals": 1,
+                      "qualia_central_packets": 1,
+                      "qualia_storage_packets": 1,
+                      "qualia_states": 1
+                    }
+                  },
+                  "crystal_quality": {
+                    "avg_q_crystal": null,
+                    "avg_stability": null,
+                    "avg_intensity": null,
+                    "avg_pv7_score": null,
+                    "avg_q_delta": null,
+                    "avg_stability_delta": null
+                  },
+                  "crystal_temporal_status": [],
+                  "crystal_contexts": [],
+                  "model_usage": [],
+                  "model_events": []
+                },
+                "federation": {
+                  "status": "ok",
+                  "doctor": null
+                },
+                "nutrition": {
+                  "available": true,
+                  "mode_hint": "observe_only"
+                },
+                "model_router": {
+                  "hardware": {
+                    "cpu_count": 12,
+                    "ram_total_gb": 7.21,
+                    "ram_available_gb": 2.25,
+                    "tier": "low",
+                    "notes": [
+                      "os=Windows",
+                      "cpu_count=12",
+                      "ram_total_gb=7.21",
+                      "ram_available_gb=2.25",
+                      "disk_free_gb=83.04",
+                      "tier=low"
+                    ],
+                    "os_name": "Windows",
+                    "os_version": "10.0.26300",
+                    "architecture": "64bit",
+                    "machine": "AMD64",
+                    "processor": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+                    "cpu_physical_cores": 6,
+                    "disk_total_gb": 104.69,
+                    "disk_free_gb": 83.04,
+                    "python_version": "3.12.10",
+                    "node_version": "v24.19.0",
+                    "npm_version": "unknown",
+                    "ollama_version": "ollama version is 0.35.1",
+                    "gpus": [
+                      {
+                        "name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+                        "vendor": "NVIDIA",
+                        "vram_total_gb": 6.0,
+                        "driver": "616.92",
+                        "cuda_available": true,
+                        "source": "nvidia-smi"
+                      }
+                    ],
+                    "capability_status": "low",
+                    "compatibility_notes": [
+                      "Recomendado usar modelos peque\u00f1os o fallback.",
+                      "RAM disponible baja; priorizar modo r\u00e1pido o sin Ollama.",
+                      "GPU NVIDIA/CUDA detectada; posible aceleraci\u00f3n local."
+                    ]
+                  },
+                  "ollama": {
+                    "ok": true,
+                    "base_url": "http://127.0.0.1:11434",
+                    "models": [
+                      "gemma3:4b",
+                      "qwen2.5-coder:3b",
+                      "qwen3:4b",
+                      "nomic-embed-text:latest",
+                      "qwen2.5:1.5b"
+                    ]
+                  },
+                  "recommendations": {
+                    "hypothalamus": {
+                      "role": "hypothalamus",
+                      "selected_model": "qwen2.5:1.5b",
+                      "provider": "ollama",
+                      "reason": "Seleccionado qwen2.5:1.5b como mejor candidato disponible para rol hypothalamus. Perfil hardware=low.",
+                      "fallback_used": false,
+                      "candidates": [
+                        "qwen2.5:1.5b",
+                        "qwen2.5:3b-instruct",
+                        "qwen3:1.7b"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "qwen3:4b"
+                      ]
+                    },
+                    "central": {
+                      "role": "central",
+                      "selected_model": "qwen2.5:1.5b",
+                      "provider": "ollama",
+                      "reason": "Seleccionado qwen2.5:1.5b como mejor candidato disponible para rol central. Perfil hardware=low.",
+                      "fallback_used": false,
+                      "candidates": [
+                        "qwen2.5:1.5b",
+                        "qwen2.5:3b-instruct"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "llama3:latest",
+                        "llama3.1:8b",
+                        "qwen3:4b"
+                      ]
+                    },
+                    "creator": {
+                      "role": "creator",
+                      "selected_model": "gemma3:4b",
+                      "provider": "ollama",
+                      "reason": "Ning\u00fan candidato recomendado est\u00e1 disponible; se us\u00f3 gemma3:4b como primer modelo instalado.",
+                      "fallback_used": true,
+                      "candidates": [
+                        "qwen2.5:3b-instruct"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "qwen3:4b",
+                        "llama3:latest"
+                      ]
+                    },
+                    "trainer": {
+                      "role": "trainer",
+                      "selected_model": "gemma3:4b",
+                      "provider": "ollama",
+                      "reason": "Ning\u00fan candidato recomendado est\u00e1 disponible; se us\u00f3 gemma3:4b como primer modelo instalado.",
+                      "fallback_used": true,
+                      "candidates": [
+                        "qwen2.5:3b-instruct"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "qwen3:4b",
+                        "llama3:latest"
+                      ]
+                    },
+                    "coder": {
+                      "role": "coder",
+                      "selected_model": "qwen2.5-coder:3b",
+                      "provider": "ollama",
+                      "reason": "Seleccionado qwen2.5-coder:3b por tarea relacionada con c\u00f3digo. Perfil hardware=low.",
+                      "fallback_used": false,
+                      "candidates": [
+                        "qwen2.5-coder:3b",
+                        "qwen2.5-coder:1.5b-base",
+                        "qwen2.5:3b-instruct"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": []
+                    },
+                    "embedding": {
+                      "role": "embedding",
+                      "selected_model": "nomic-embed-text:latest",
+                      "provider": "ollama",
+                      "reason": "Seleccionado nomic-embed-text:latest para memoria sem\u00e1ntica o embeddings. Perfil hardware=low.",
+                      "fallback_used": false,
+                      "candidates": [
+                        "nomic-embed-text:latest",
+                        "qwen3-embedding:0.6b"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": []
+                    },
+                    "fast": {
+                      "role": "fast",
+                      "selected_model": "qwen2.5:1.5b",
+                      "provider": "ollama",
+                      "reason": "Seleccionado qwen2.5:1.5b por prioridad de velocidad/urgencia medium. Perfil hardware=low.",
+                      "fallback_used": false,
+                      "candidates": [
+                        "qwen2.5:1.5b",
+                        "qwen3:1.7b",
+                        "qwen2.5:3b-instruct"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "qwen3:4b"
+                      ]
+                    },
+                    "deep": {
+                      "role": "deep",
+                      "selected_model": "gemma3:4b",
+                      "provider": "ollama",
+                      "reason": "Ning\u00fan candidato recomendado est\u00e1 disponible; se us\u00f3 gemma3:4b como primer modelo instalado.",
+                      "fallback_used": true,
+                      "candidates": [
+                        "qwen2.5:3b-instruct"
+                      ],
+                      "hardware_tier": "low",
+                      "rejected_by_hardware": [
+                        "llama3.1:8b",
+                        "llama3:latest",
+                        "qwen3:4b"
+                      ]
+                    }
+                  }
+                },
+                "errors": {
+                  "count": 0,
+                  "recent": []
+                }
+              },
+              "counters": {},
+              "last_events": [],
+              "last_context_snapshot": {},
+              "last_governor_decision": {},
+              "safety_policy": {
+                "identity_core_modified": false,
+                "stable_memory_written": false,
+                "external_network_by_default": false,
+                "shell_by_default": false,
+                "default_mode": "observe_only",
+                "requires_explicit_activation": true
+              },
+              "files": {
+                "lock_file": "runs\\background\\.triade_runtime.lock",
+                "stop_file": "runs\\background\\.triade_runtime.stop"
+              }
+            }
+          }
+        },
+        "node_live_registry": {
+          "status": "stopped"
+        },
+        "life_pulse": {
+          "status": "stopped"
+        }
+      },
+      "final_background_state": {
+        "worker_thread_alive": false,
+        "worker_lock_file_active": false
+      },
+      "db_lock_reacquired": true
+    }
+  ],
+  "production_writes": false,
+  "runtime_source_hash": "3113a0171534eb5781c9accb4c266aa3435d713669def88425d54ad6b6af648a",
+  "harness_hashes": {
+    "scripts/run_level8_soak.py": "40f6ec746900bcb6a438c08fe05a71b3b79f73129cf1cbd8f227ece79d7d34f1",
+    "scripts/run_long_validation.py": "192c3a39fd5c0ca76cf44abee7cc1048e223f78bb2b07011071b86bacad51e0a",
+    "scripts/run_level8_learning_transfer.py": "5114fc9aaff6451788b7d630e8ba8287b1503283bcab32955348d460a05f1937",
+    "scripts/run_level8_task_recovery.py": "05297395af186222f5fb92a5f982b163e60433963112ac299e1b4103223d8361",
+    "scripts/run_level8_clean_restart.py": "caabdd7444b6a35d39952d9c6ce8b370d556eb6901bf486ae4145b929dbf41fb",
+    "scripts/run_level8_api_recovery.py": "674b8000fb60294203608a9469842aeb2a4b52942d5368c871acf516312fa10b"
+  }
+}

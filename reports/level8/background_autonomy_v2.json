@@ -1,0 +1,1801 @@
+{
+  "git_sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+  "timestamp": "2026-10-07T01:54:34.566845+00:00",
+  "runtime_source_hash": "3113a0171534eb5781c9accb4c266aa3435d713669def88425d54ad6b6af648a",
+  "duration_seconds": 1806.7809999999881,
+  "samples": 29,
+  "cycles": 56,
+  "tasks_completed": 138,
+  "tasks_failed": 0,
+  "learning_events": 0,
+  "memory_growth_bytes": 1212416,
+  "human_interventions": 0,
+  "rss_start_mb": 104.3125,
+  "rss_end_mb": 102.2890625,
+  "rss_peak_mb": 105.28125,
+  "growth_mb": -2.0234375,
+  "growth_percent": -1.9397843019772318,
+  "memory_classification": "STABLE",
+  "runtime_source_unchanged": true,
+  "healthy": true,
+  "truth": true,
+  "scope": "Continuous operational activity; no claim of autonomous educational improvement",
+  "24h": "NOT_YET_PROVEN",
+  "72h": "NOT_YET_PROVEN",
+  "observations": [
+    {
+      "at": "2026-10-07T01:54:38.182155+00:00",
+      "sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 106816,
+        "handles": 358,
+        "threads": 15,
+        "cpu_times": {
+          "user": 109.71875,
+          "system": 89.21875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 121790464,
+      "wal_bytes": 515032,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4502,
+        "dead_letter": 140,
+        "observed": 252,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5959,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T01:55:44.468052+00:00",
+      "sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 105048,
+        "handles": 363,
+        "threads": 18,
+        "cpu_times": {
+          "user": 115.09375,
+          "system": 93.6875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 121831424,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4507,
+        "dead_letter": 140,
+        "observed": 252,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5961,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T01:56:49.969417+00:00",
+      "sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 103320,
+        "handles": 354,
+        "threads": 15,
+        "cpu_times": {
+          "user": 120.453125,
+          "system": 98.203125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 121901056,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4514,
+        "dead_letter": 140,
+        "observed": 253,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5963,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T01:57:55.380081+00:00",
+      "sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 105200,
+        "handles": 357,
+        "threads": 16,
+        "cpu_times": {
+          "user": 126.5625,
+          "system": 102.703125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 121913344,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4518,
+        "dead_letter": 140,
+        "observed": 254,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5965,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T01:59:00.948245+00:00",
+      "sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 104372,
+        "handles": 361,
+        "threads": 17,
+        "cpu_times": {
+          "user": 131.84375,
+          "system": 106.3125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122007552,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4524,
+        "dead_letter": 140,
+        "observed": 254,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5967,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:00:06.280699+00:00",
+      "sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 104424,
+        "handles": 357,
+        "threads": 17,
+        "cpu_times": {
+          "user": 135.90625,
+          "system": 109.5,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122007552,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4527,
+        "dead_letter": 140,
+        "observed": 254,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5969,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:01:11.589734+00:00",
+      "sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 106060,
+        "handles": 348,
+        "threads": 15,
+        "cpu_times": {
+          "user": 142.125,
+          "system": 114.015625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122077184,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4532,
+        "dead_letter": 140,
+        "observed": 255,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5971,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:02:16.958830+00:00",
+      "sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 103928,
+        "handles": 349,
+        "threads": 15,
+        "cpu_times": {
+          "user": 148.625,
+          "system": 118.09375,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122130432,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4538,
+        "dead_letter": 140,
+        "observed": 255,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5973,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:03:22.383498+00:00",
+      "sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 106432,
+        "handles": 360,
+        "threads": 17,
+        "cpu_times": {
+          "user": 155.109375,
+          "system": 122.71875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122130432,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4542,
+        "dead_letter": 140,
+        "observed": 255,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5975,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:04:28.286787+00:00",
+      "sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 105316,
+        "handles": 357,
+        "threads": 17,
+        "cpu_times": {
+          "user": 159.734375,
+          "system": 126.171875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122159104,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4547,
+        "dead_letter": 140,
+        "observed": 255,
+        "running": 2,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5977,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:05:34.441549+00:00",
+      "sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 106820,
+        "handles": 347,
+        "threads": 15,
+        "cpu_times": {
+          "user": 165.90625,
+          "system": 130.203125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122187776,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4553,
+        "dead_letter": 140,
+        "observed": 256,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5979,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:06:40.922936+00:00",
+      "sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 105288,
+        "handles": 360,
+        "threads": 17,
+        "cpu_times": {
+          "user": 170.15625,
+          "system": 133.28125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122322944,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4558,
+        "dead_letter": 140,
+        "observed": 257,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5981,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:07:46.758019+00:00",
+      "sha": "a3510cd615853ee9424d8e63888e4e7356d80a0c",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 105376,
+        "handles": 372,
+        "threads": 20,
+        "cpu_times": {
+          "user": 176.4375,
+          "system": 137.953125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122372096,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4563,
+        "dead_letter": 140,
+        "observed": 257,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5983,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:08:53.183113+00:00",
+      "sha": "a3510cd615853ee9424d8e63888e4e7356d80a0c",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 104196,
+        "handles": 352,
+        "threads": 15,
+        "cpu_times": {
+          "user": 180.78125,
+          "system": 142.015625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122372096,
+      "wal_bytes": 436752,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4568,
+        "dead_letter": 140,
+        "observed": 257,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5985,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:10:00.250170+00:00",
+      "sha": "d8d32435bf3fb5ae8794a8b45e7d392bea58961c",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 104272,
+        "handles": 366,
+        "threads": 18,
+        "cpu_times": {
+          "user": 186.078125,
+          "system": 145.953125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122380288,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4572,
+        "dead_letter": 140,
+        "observed": 257,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5988,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:11:06.801440+00:00",
+      "sha": "d8d32435bf3fb5ae8794a8b45e7d392bea58961c",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 103768,
+        "handles": 376,
+        "threads": 19,
+        "cpu_times": {
+          "user": 190.375,
+          "system": 150.109375,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122417152,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4579,
+        "dead_letter": 140,
+        "observed": 257,
+        "running": 1,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5990,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:12:12.836385+00:00",
+      "sha": "543b403c59815ef0fb9d8b11acbff8e7e1bc7d3d",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 105832,
+        "handles": 352,
+        "threads": 16,
+        "cpu_times": {
+          "user": 194.453125,
+          "system": 153.765625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122535936,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4584,
+        "dead_letter": 140,
+        "observed": 258,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5992,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:13:18.918310+00:00",
+      "sha": "543b403c59815ef0fb9d8b11acbff8e7e1bc7d3d",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 107808,
+        "handles": 359,
+        "threads": 15,
+        "cpu_times": {
+          "user": 199.890625,
+          "system": 158.53125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122535936,
+      "wal_bytes": 494432,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4589,
+        "dead_letter": 140,
+        "observed": 258,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5994,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:14:24.984807+00:00",
+      "sha": "543b403c59815ef0fb9d8b11acbff8e7e1bc7d3d",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 107036,
+        "handles": 367,
+        "threads": 18,
+        "cpu_times": {
+          "user": 204.9375,
+          "system": 162.3125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122572800,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4595,
+        "dead_letter": 140,
+        "observed": 259,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5996,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:15:31.651357+00:00",
+      "sha": "8e7adce97c6de575e20567bc703ff354e5a72156",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 107700,
+        "handles": 361,
+        "threads": 15,
+        "cpu_times": {
+          "user": 210.0625,
+          "system": 166.484375,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122613760,
+      "wal_bytes": 613912,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4598,
+        "dead_letter": 140,
+        "observed": 259,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 5998,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:16:39.636674+00:00",
+      "sha": "8e7adce97c6de575e20567bc703ff354e5a72156",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 106164,
+        "handles": 371,
+        "threads": 19,
+        "cpu_times": {
+          "user": 214.625,
+          "system": 170.84375,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122654720,
+      "wal_bytes": 16512,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4604,
+        "dead_letter": 140,
+        "observed": 259,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 6000,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:17:46.280013+00:00",
+      "sha": "8e7adce97c6de575e20567bc703ff354e5a72156",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 103156,
+        "handles": 366,
+        "threads": 18,
+        "cpu_times": {
+          "user": 220.34375,
+          "system": 175.8125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122744832,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4609,
+        "dead_letter": 140,
+        "observed": 260,
+        "running": 1,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 6002,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:18:52.306414+00:00",
+      "sha": "8e7adce97c6de575e20567bc703ff354e5a72156",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 105236,
+        "handles": 347,
+        "threads": 15,
+        "cpu_times": {
+          "user": 225.53125,
+          "system": 179.96875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122757120,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4615,
+        "dead_letter": 140,
+        "observed": 260,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 6004,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:19:58.884423+00:00",
+      "sha": "c3ea3954130ddd55d5efc60a301b379c011e8fde",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 106532,
+        "handles": 348,
+        "threads": 15,
+        "cpu_times": {
+          "user": 230.953125,
+          "system": 185.1875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122798080,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4620,
+        "dead_letter": 140,
+        "observed": 260,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 6006,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:21:06.447595+00:00",
+      "sha": "c3ea3954130ddd55d5efc60a301b379c011e8fde",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 105108,
+        "handles": 357,
+        "threads": 18,
+        "cpu_times": {
+          "user": 234.78125,
+          "system": 188.546875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122847232,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4623,
+        "dead_letter": 140,
+        "observed": 260,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 6008,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:22:12.983783+00:00",
+      "sha": "c3ea3954130ddd55d5efc60a301b379c011e8fde",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 104244,
+        "handles": 361,
+        "threads": 18,
+        "cpu_times": {
+          "user": 240.25,
+          "system": 192.765625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122908672,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4629,
+        "dead_letter": 140,
+        "observed": 262,
+        "running": 1,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 6010,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:23:19.141020+00:00",
+      "sha": "c3ea3954130ddd55d5efc60a301b379c011e8fde",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 105240,
+        "handles": 349,
+        "threads": 15,
+        "cpu_times": {
+          "user": 245.03125,
+          "system": 196.5625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 122966016,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4635,
+        "dead_letter": 140,
+        "observed": 262,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 6012,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:24:25.226059+00:00",
+      "sha": "c3ea3954130ddd55d5efc60a301b379c011e8fde",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 106376,
+        "handles": 358,
+        "threads": 17,
+        "cpu_times": {
+          "user": 250.53125,
+          "system": 200.59375,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 123002880,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4640,
+        "dead_letter": 140,
+        "observed": 262,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 6014,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-07T02:24:37.985773+00:00",
+      "sha": "c3ea3954130ddd55d5efc60a301b379c011e8fde",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 3936,
+        "rss_kb": 104744,
+        "handles": 363,
+        "threads": 17,
+        "cpu_times": {
+          "user": 251.609375,
+          "system": 201.625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791336638.100094,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 123002880,
+      "wal_bytes": 0,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 8,
+        "completed": 4640,
+        "dead_letter": 140,
+        "observed": 262,
+        "running": 2,
+        "skipped": 455
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 140,
+      "candidates": 38,
+      "usable_knowledge": 4,
+      "stable_learning": 0,
+      "learning_events": 47,
+      "recorded_knowledge_uses": 4,
+      "goals_completed": 2,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 6,
+        "neutral": 40
+      },
+      "metabolic_cycles": 6015,
+      "lease_recoveries": 26,
+      "watchdog_recoveries": 2
+    }
+  ],
+  "evidence_ref": "artifacts\\level8\\closure-soak.jsonl",
+  "worker_events": {
+    "bodega_global_reviewed": 6,
+    "model_service_checked": 29,
+    "observability_snapshot": 29,
+    "ollama_blood_checked": 6,
+    "qualia_compacted": 29,
+    "runtime_cycle_complete": 29,
+    "runtime_cycle_start": 29,
+    "self_test_cycle_completed": 6,
+    "task_completed": 138,
+    "task_observed": 10,
+    "triadeos_cycle_complete": 29,
+    "work_mode_decided": 29,
+    "worker_phase_started": 86
+  },
+  "run_sources": {},
+  "tasks_started": 148,
+  "errors": 0,
+  "retries": 0,
+  "retry_attempts_cumulative_for_window_claimed_tasks": 0,
+  "harness_hashes": {
+    "scripts/run_level8_soak.py": "eb87d66982306b55738421bde4d959d96711581882768680cd233ee2b8ac4334",
+    "scripts/run_long_validation.py": "192c3a39fd5c0ca76cf44abee7cc1048e223f78bb2b07011071b86bacad51e0a",
+    "scripts/run_level8_learning_transfer.py": "8e5322d2c038d5b7f866edcdc0b4a10625b54cb6645d55b6ffd123ac6fbb1541",
+    "scripts/run_level8_task_recovery.py": "05297395af186222f5fb92a5f982b163e60433963112ac299e1b4103223d8361",
+    "scripts/run_level8_clean_restart.py": "caabdd7444b6a35d39952d9c6ce8b370d556eb6901bf486ae4145b929dbf41fb",
+    "scripts/run_level8_api_recovery.py": "674b8000fb60294203608a9469842aeb2a4b52942d5368c871acf516312fa10b"
+  }
+}

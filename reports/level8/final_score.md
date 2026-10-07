@@ -1,8 +1,8 @@
 # Evidence audit
 
-Revision: `c6fd27544e2ebecf3e4e9ea2f94b646f2c97d32d`
+Revision: `a838ee2400e19a05a1d6aa1a2b0b6ca7f1f180db`
 
-Score: 1.2/10
+Score: 5.3/10
 
 LEVEL_8_CANDIDATE: False
 
@@ -10,27 +10,27 @@ This is certification coverage, not a claim of cognitive capability. Missing evi
 
 | Gate | Result |
 |---|---|
-| background_autonomy | PENDING |
+| background_autonomy | PASS |
 | bounded_autonomy | PENDING |
 | causal_production_use | PENDING |
-| ci | PENDING |
+| ci | RED-EXTERNAL |
 | cognitive_architecture | PENDING |
-| concurrency | PENDING |
+| concurrency | PASS |
 | database_integrity | PASS |
 | education_application | PENDING |
-| error_recovery | PENDING |
+| error_recovery | PASS |
 | frontend | PASS |
 | idle_efficiency | PENDING |
-| learning_longitudinal | PENDING |
-| longitudinal_runtime | PENDING |
-| low_ram | PENDING |
-| metabolism_live | PENDING |
-| resource_governor | PENDING |
+| learning_longitudinal | FAIL |
+| longitudinal_runtime | PASS |
+| low_ram | PASS |
+| metabolism_live | PASS |
+| resource_governor | PASS |
 | restart_persistence | PENDING |
 | rollback_verified | PENDING |
-| runtime_e2e | PENDING |
-| runtime_live | PENDING |
+| runtime_e2e | PASS |
+| runtime_live | PASS |
 | scheduler_live | PENDING |
 | security_audit | PENDING |
 | tests | PASS |
-| workers_live | PENDING |
+| workers_live | PASS |

@@ -1,0 +1,384 @@
+{
+  "git_sha": "7a2a73b8c0b2d2d267f048f143f0d8d4a2aae65f",
+  "timestamp": "2026-10-07T01:57:03.461813+00:00",
+  "scope": "Isolated real procedural transfer experiment, experimental retrieval; production knowledge routing and consolidation NOT certified",
+  "baseline": [
+    {
+      "run_id": "baseline-84a580d7fefc499c9c676a56b91d3059",
+      "arm": "baseline",
+      "amount": 1,
+      "response": "```json\nnull\n```",
+      "checksum": null,
+      "success": false,
+      "score": 0.0,
+      "error": "ValueError: missing integer checksum",
+      "steps": 1,
+      "latency_seconds": 0.10899999999674037,
+      "injected_ids": []
+    },
+    {
+      "run_id": "baseline-2e16dc3d293842f8a78841d944b4acec",
+      "arm": "baseline",
+      "amount": 4,
+      "response": "```json\nnull\n```",
+      "checksum": null,
+      "success": false,
+      "score": 0.0,
+      "error": "ValueError: missing integer checksum",
+      "steps": 1,
+      "latency_seconds": 0.10999999998603016,
+      "injected_ids": []
+    },
+    {
+      "run_id": "baseline-b7084810d77f43cd80861eb8fc150a46",
+      "arm": "baseline",
+      "amount": 5,
+      "response": "```json\nnull\n```",
+      "checksum": null,
+      "success": false,
+      "score": 0.0,
+      "error": "ValueError: missing integer checksum",
+      "steps": 1,
+      "latency_seconds": 0.1090000000258442,
+      "injected_ids": []
+    }
+  ],
+  "learned": [
+    {
+      "run_id": "learned-ced9a2bb84af44868e223ae9c56399de",
+      "arm": "learned",
+      "amount": 1,
+      "response": "43",
+      "checksum": null,
+      "success": false,
+      "score": 0.0,
+      "error": "ValueError: missing integer checksum",
+      "steps": 1,
+      "latency_seconds": 0.09399999998277053,
+      "injected_ids": [
+        "learn-ac1326b447804f16"
+      ]
+    },
+    {
+      "run_id": "learned-685bf2452d0b43f4929ce066cf5a303b",
+      "arm": "learned",
+      "amount": 4,
+      "response": "43",
+      "checksum": null,
+      "success": false,
+      "score": 0.0,
+      "error": "ValueError: missing integer checksum",
+      "steps": 1,
+      "latency_seconds": 0.062000000005355105,
+      "injected_ids": [
+        "learn-ac1326b447804f16"
+      ]
+    },
+    {
+      "run_id": "learned-40506c84bec34979b3e0f19726cb3c8d",
+      "arm": "learned",
+      "amount": 5,
+      "response": "32",
+      "checksum": null,
+      "success": false,
+      "score": 0.0,
+      "error": "ValueError: missing integer checksum",
+      "steps": 1,
+      "latency_seconds": 0.07800000000861473,
+      "injected_ids": [
+        "learn-ac1326b447804f16"
+      ]
+    }
+  ],
+  "negative_control": [
+    {
+      "run_id": "negative_control-afea67d9b93f4c39bf536be1c68447a1",
+      "arm": "negative_control",
+      "amount": 1,
+      "response": "```json\nnull\n```",
+      "checksum": null,
+      "success": false,
+      "score": 0.0,
+      "error": "ValueError: missing integer checksum",
+      "steps": 1,
+      "latency_seconds": 0.10999999998603016,
+      "injected_ids": []
+    },
+    {
+      "run_id": "negative_control-888ee3af24934204aa5278d2ae78c6cc",
+      "arm": "negative_control",
+      "amount": 4,
+      "response": "```json\nnull\n```",
+      "checksum": null,
+      "success": false,
+      "score": 0.0,
+      "error": "ValueError: missing integer checksum",
+      "steps": 1,
+      "latency_seconds": 0.09399999998277053,
+      "injected_ids": []
+    },
+    {
+      "run_id": "negative_control-076d815bbec940178e97a32b08b63af3",
+      "arm": "negative_control",
+      "amount": 5,
+      "response": "```json\nnull\n```",
+      "checksum": null,
+      "success": false,
+      "score": 0.0,
+      "error": "ValueError: missing integer checksum",
+      "steps": 1,
+      "latency_seconds": 0.10899999999674037,
+      "injected_ids": []
+    }
+  ],
+  "mission_a": {
+    "run_id": "mission_a-95b30880103c4c158ed0b77db37f7c19",
+    "arm": "mission_a",
+    "amount": 2,
+    "response": "```json\nnull\n```",
+    "checksum": null,
+    "success": false,
+    "score": 0.0,
+    "error": "ValueError: missing integer checksum",
+    "steps": 1,
+    "latency_seconds": 0.34399999998277053,
+    "injected_ids": []
+  },
+  "knowledge_created": {
+    "id": 1,
+    "candidate_id": "learn-ac1326b447804f16",
+    "source_type": "repo",
+    "source_ref": "E:\\triade\\artifacts\\level8\\learning-transfer-1791338222033802600\\experience.json",
+    "title": "Observed SQLite ledger checksum rule",
+    "content": "SQLite ledger checksum rule observed in the local schema: checksum = (amount * 17 + 3) % 97. Apply this rule to each new transaction amount; do not reuse any previous checksum value.",
+    "normalized_summary": "SQLite ledger checksum rule observed in the local schema: checksum = (amount * 17 + 3) % 97. Apply this rule to each new transaction amount; do not reuse any previous checksum value.",
+    "domain": "sqlite_ledger_checksum",
+    "risk_level": "low",
+    "confidence": 0.75,
+    "utility": 0.9,
+    "status": "internally_checked",
+    "verification_notes": {
+      "history": [
+        {
+          "step": "ingested",
+          "at": "2026-10-07T01:57:02.445543+00:00"
+        },
+        {
+          "step": "evaluated",
+          "status": "evaluated",
+          "at": "2026-10-07T01:57:02.477812+00:00"
+        },
+        {
+          "step": "internally_checked",
+          "status": "internally_checked",
+          "at": "2026-10-07T01:57:02.507203+00:00"
+        }
+      ],
+      "evaluated": {
+        "utility": 0.9,
+        "confidence": 0.75,
+        "risk_level": "low",
+        "requires_human_approval": false,
+        "identity_violation": false,
+        "warnings": [],
+        "at": "2026-10-07T01:57:02.477812+00:00",
+        "model_provider": "ollama",
+        "model_name": "qwen2.5:1.5b",
+        "model_required": true,
+        "model_status": "ok",
+        "evaluation_mode": "ollama_blood",
+        "human_approval": null,
+        "ollama_blood_active": true,
+        "candidate_requires_model_review": false,
+        "ollama_blood": {
+          "status": "ok",
+          "ok": true,
+          "ollama_ok": true,
+          "mode": "cognitive_blood_active",
+          "base_url": "http://127.0.0.1:11434",
+          "models_available": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "models": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "reasoning_model": "qwen2.5:1.5b",
+          "embedding_model": "nomic-embed-text:latest",
+          "coder_model": "qwen2.5:1.5b",
+          "latency_ms": 24.47,
+          "can_reason": true,
+          "can_embed": true,
+          "can_nourish_neurons": true,
+          "can_evaluate_learning": true,
+          "can_consolidate_stable": true,
+          "degraded_components": [],
+          "recommended_action": "Sangre cognitiva activa: Ollama alimenta razonamiento y embeddings locales.",
+          "blood_pressure_score": 1.0,
+          "checked_at": "2026-10-07T01:57:02.477812+00:00",
+          "errors": [],
+          "cognitive_blood_active": true,
+          "fallback_mode": false,
+          "truth": "Fallback mantiene respiraci\u00f3n m\u00ednima; Ollama Blood alimenta cognici\u00f3n local gobernada."
+        },
+        "model_policy": {
+          "role": "learning_evaluation",
+          "allowed": true,
+          "degraded": false,
+          "model_required": true,
+          "model_used": "qwen2.5:1.5b",
+          "fallback_allowed": false,
+          "stable_write_allowed": false,
+          "allowed_actions": [
+            "diagnose",
+            "observe",
+            "propose_learning",
+            "record"
+          ],
+          "blocked_actions": [],
+          "reason": "Sangre cognitiva activa."
+        },
+        "decision": "advanced_to_evaluated"
+      },
+      "internally_checked": {
+        "gates": {
+          "has_source_ref": true,
+          "utility_ok": true,
+          "confidence_ok": true,
+          "risk_not_critical": true
+        },
+        "passed": true,
+        "coherence_score": 0.8,
+        "traceability_score": 0.9,
+        "at": "2026-10-07T01:57:02.507203+00:00",
+        "model_provider": "ollama",
+        "model_name": "qwen2.5:1.5b",
+        "model_required": true,
+        "model_status": "ok",
+        "evaluation_mode": "ollama_blood",
+        "human_approval": null,
+        "ollama_blood_active": true,
+        "candidate_requires_model_review": false,
+        "ollama_blood": {
+          "status": "ok",
+          "ok": true,
+          "ollama_ok": true,
+          "mode": "cognitive_blood_active",
+          "base_url": "http://127.0.0.1:11434",
+          "models_available": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "models": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "reasoning_model": "qwen2.5:1.5b",
+          "embedding_model": "nomic-embed-text:latest",
+          "coder_model": "qwen2.5:1.5b",
+          "latency_ms": 19.5,
+          "can_reason": true,
+          "can_embed": true,
+          "can_nourish_neurons": true,
+          "can_evaluate_learning": true,
+          "can_consolidate_stable": true,
+          "degraded_components": [],
+          "recommended_action": "Sangre cognitiva activa: Ollama alimenta razonamiento y embeddings locales.",
+          "blood_pressure_score": 1.0,
+          "checked_at": "2026-10-07T01:57:02.507203+00:00",
+          "errors": [],
+          "cognitive_blood_active": true,
+          "fallback_mode": false,
+          "truth": "Fallback mantiene respiraci\u00f3n m\u00ednima; Ollama Blood alimenta cognici\u00f3n local gobernada."
+        },
+        "model_policy": {
+          "role": "learning_evaluation",
+          "allowed": true,
+          "degraded": false,
+          "model_required": true,
+          "model_used": "qwen2.5:1.5b",
+          "fallback_allowed": false,
+          "stable_write_allowed": false,
+          "allowed_actions": [
+            "diagnose",
+            "observe",
+            "propose_learning",
+            "record"
+          ],
+          "blocked_actions": [],
+          "reason": "Sangre cognitiva activa."
+        },
+        "decision": "internally_checked",
+        "truth": "Gates internos aprobados; no constituye verificaci\u00f3n independiente."
+      }
+    },
+    "created_at": "2026-10-07T01:57:02.445543+00:00",
+    "updated_at": "2026-10-07T01:57:02.508762+00:00",
+    "run_use_count": 0,
+    "run_outcome_scores": "[]",
+    "avg_outcome_score": 0.0,
+    "measurement_evidence": null
+  },
+  "knowledge_retrieved": [
+    [
+      "learn-ac1326b447804f16"
+    ],
+    [
+      "learn-ac1326b447804f16"
+    ],
+    [
+      "learn-ac1326b447804f16"
+    ]
+  ],
+  "knowledge_used": true,
+  "metrics_before": {
+    "success_rate": 0.0,
+    "errors": 3,
+    "steps": 3,
+    "latency_seconds": 0.32800000000861473
+  },
+  "metrics_after": {
+    "success_rate": 0.0,
+    "errors": 3,
+    "steps": 3,
+    "latency_seconds": 0.23399999999674037
+  },
+  "metrics_control": {
+    "success_rate": 0.0,
+    "errors": 3,
+    "steps": 3,
+    "latency_seconds": 0.31299999996554106
+  },
+  "improvement": {
+    "success_rate_delta": 0.0
+  },
+  "causal_evidence": false,
+  "truth": false,
+  "db_integrity": "ok",
+  "production_writes": false,
+  "transfer_inputs": [
+    1,
+    4,
+    5
+  ],
+  "training_input": 2,
+  "model": "qwen2.5:1.5b",
+  "options": {
+    "temperature": 0,
+    "seed": 7731
+  },
+  "sample_size_per_arm": 3
+}

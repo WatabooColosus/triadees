@@ -1,0 +1,48 @@
+{
+  "timestamp": "2026-10-07T02:09:17.676756+00:00",
+  "git_sha": "d8d32435bf3fb5ae8794a8b45e7d392bea58961c",
+  "observations": [
+    {
+      "timestamp": "2026-10-07T01:23:44.319671+00:00",
+      "source": "runtime_current.json",
+      "running": true,
+      "effective_mode": "full_local_guarded",
+      "reason": "Perfil slow full local: 1.61 GB RAM libre y 6.0 GB VRAM; ejecuci\u00f3n serializada.",
+      "can_run_workers": true,
+      "can_nourish_neurons": true,
+      "can_consolidate_stable": true
+    },
+    {
+      "timestamp": "2026-10-07T01:31:58.410992+00:00",
+      "source": "automatic_recovery_observed.json",
+      "running": true,
+      "effective_mode": "light_background",
+      "reason": "RAM disponible limitada (1.42 GB): m\u00e1ximo light_background; full local exige 1.5 GB.; Hardware tier low. M\u00e1ximo light_background.; Modo solicitado 'full_local_guarded' excede permitido 'light_background'. Degradado.",
+      "can_run_workers": true,
+      "can_nourish_neurons": false,
+      "can_consolidate_stable": false
+    },
+    {
+      "timestamp": "2026-10-07T01:39:26.900887+00:00",
+      "source": "ram_recovery_observation.json",
+      "running": true,
+      "effective_mode": "full_local_guarded",
+      "reason": "Perfil slow full local: 2.61 GB RAM libre y 6.0 GB VRAM; ejecuci\u00f3n serializada.",
+      "can_run_workers": true,
+      "can_nourish_neurons": true,
+      "can_consolidate_stable": true
+    }
+  ],
+  "manual_state_assignment": false,
+  "scope": "Observed machine-level transitions; a supervisor restart occurred between the first and second samples, not a same-PID continuous pressure experiment",
+  "truth": true,
+  "runtime_source_hash": "3113a0171534eb5781c9accb4c266aa3435d713669def88425d54ad6b6af648a",
+  "harness_hashes": {
+    "scripts/run_level8_soak.py": "40f6ec746900bcb6a438c08fe05a71b3b79f73129cf1cbd8f227ece79d7d34f1",
+    "scripts/run_long_validation.py": "192c3a39fd5c0ca76cf44abee7cc1048e223f78bb2b07011071b86bacad51e0a",
+    "scripts/run_level8_learning_transfer.py": "5114fc9aaff6451788b7d630e8ba8287b1503283bcab32955348d460a05f1937",
+    "scripts/run_level8_task_recovery.py": "05297395af186222f5fb92a5f982b163e60433963112ac299e1b4103223d8361",
+    "scripts/run_level8_clean_restart.py": "6730530dd7a1076ca4e4f254a4875bc371c80ee7c9b8123279da4a7f5dd22761",
+    "scripts/run_level8_api_recovery.py": "674b8000fb60294203608a9469842aeb2a4b52942d5368c871acf516312fa10b"
+  }
+}
