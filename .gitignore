@@ -28,6 +28,9 @@ triade/memory/triade.db.*
 triade/memory/public_relay.db
 triade/memory/public_relay.db-*
 triade/memory/local_node_tokens.json
+triade/memory/live_runtime.db
+triade/memory/live_runtime.db-*
+*.hprof
 *.sqlite
 *.sqlite3
 

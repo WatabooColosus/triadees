@@ -72,6 +72,27 @@ def _scalar(sql: str, defecto: Any = 0) -> Any:
 
 def _proc_metrics() -> dict[str, Any]:
     """RSS y descriptores del proceso de la app, si está viva."""
+    if os.name == "nt":
+        try:
+            import psutil
+
+            with urllib.request.urlopen(HEARTBEAT, timeout=10) as response:
+                heartbeat = json.load(response)
+            pid = int(heartbeat.get("runtime_pid") or 0)
+            if pid <= 0:
+                return {"alive": False, "reason": "runtime_pid_missing"}
+            process = psutil.Process(pid)
+            if "scripts.serve_local_api" not in " ".join(process.cmdline()):
+                return {"alive": False, "reason": "runtime_pid_command_mismatch", "pid": pid}
+            return {
+                "alive": process.is_running(), "pid": pid,
+                "rss_kb": process.memory_info().rss // 1024,
+                "handles": process.num_handles(), "threads": process.num_threads(),
+                "cpu_times": process.cpu_times()._asdict(),
+                "created_at": process.create_time(), "authority": "heartbeat_pid_and_process_command",
+            }
+        except Exception as exc:
+            return {"alive": False, "reason": f"{type(exc).__name__}: {exc}"}
     try:
         out = subprocess.run(
             ["systemctl", "show", "-p", "MainPID", "--value", "triade-api.service"],
@@ -171,7 +192,7 @@ def muestra() -> dict[str, Any]:
             "SELECT COUNT(*) FROM semantic_documents WHERE status='stable'"
         ),
         "learning_events": _scalar("SELECT COUNT(*) FROM learning_evidence"),
-        "causal_uses": _scalar(
+        "recorded_knowledge_uses": _scalar(
             "SELECT COALESCE(SUM(run_use_count),0) FROM learning_queue"
         ),
         "goals_completed": _scalar(

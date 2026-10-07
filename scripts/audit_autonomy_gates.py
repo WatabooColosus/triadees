@@ -33,7 +33,8 @@ def audit(db_path: Path, base_url: str) -> dict:
     def add(name: str, status: str, **evidence: object) -> None:
         gates.append({"gate": name, "status": status, "evidence": evidence})
 
-    db = sqlite3.connect(db_path)
+    # Missing databases must not be created by an audit.
+    db = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True)
     db.row_factory = sqlite3.Row
     integrity = str(db.execute("PRAGMA integrity_check").fetchone()[0])
     add("database_integrity", "PASS" if integrity == "ok" else "BLOCKED", result=integrity)
@@ -46,7 +47,7 @@ def audit(db_path: Path, base_url: str) -> dict:
     live = heartbeat.get("status") == 200 and bool(body.get("workers_active", body.get("runtime_enabled", False)))
     add("runtime_live", "PASS" if live else "BLOCKED", http_status=heartbeat.get("status"), last_cycle_at=body.get("last_cycle_at"), workers_active=body.get("workers_active"), error=heartbeat.get("error"))
     add("workers_live", "PASS" if body.get("workers_active") else "PENDING", workers_active=body.get("workers_active"))
-    add("scheduler_live", "PASS" if body.get("scheduler_active", body.get("workers_active")) else "PENDING", scheduler_active=body.get("scheduler_active"))
+    add("scheduler_live", "PASS" if body.get("scheduler_active") is True else "PENDING", scheduler_active=body.get("scheduler_active"))
     metabolism_live = (
         metabolism.get("status") == 200
         and metabolism_state.get("running") is True
@@ -64,30 +65,30 @@ def audit(db_path: Path, base_url: str) -> dict:
     )
     statuses = {r["status"]: int(r["n"]) for r in db.execute("SELECT status,COUNT(*) n FROM learning_queue GROUP BY status")}
     verified = sum(statuses.get(s, 0) for s in ("evidence_verified", "consolidated", "stable"))
-    add("independent_learning_evidence", "PASS" if verified else "PENDING", verified_or_better=verified, by_status=statuses)
+    add("independent_learning_evidence", "PENDING", verified_or_better=verified, by_status=statuses, reason="Requires independent source provenance linked to runtime verification")
     uses = int(db.execute("SELECT COALESCE(SUM(run_use_count),0) FROM learning_queue").fetchone()[0])
-    add("causal_production_use", "PASS" if uses else "PENDING", run_use_count=uses)
+    add("causal_production_use", "PENDING", run_use_count=uses, reason="Usage counters do not establish causal improvement; a controlled comparison is required")
     routes = _count(db, "neuron_learning_assignments", "WHERE status IN ('experimental','beneficial')")
-    add("neural_routes", "PASS" if routes else "PENDING", active_routes=routes)
+    add("neural_routes", "PENDING", active_routes=routes, reason="Requires candidate-route-run evidence chain")
     applications = _count(db, "neuron_education_applications")
-    add("education_application", "PASS" if applications else "PENDING", applications=applications)
+    add("education_application", "PENDING", applications=applications, reason="Requires lesson baseline, subsequent use and measured resolution")
     measured = _count(db, "learning_evidence", "WHERE decision IN ('improved','neutral','degraded','regressed')")
-    add("improvement_measurement", "PASS" if measured else "PENDING", measured_evidence=measured)
-    canary_runs = _count(db, "improvement_canaries", "WHERE outcome IS NOT NULL")
-    add("improvement_canary", "PASS" if canary_runs else "PENDING", executed_with_outcome=canary_runs)
+    add("improvement_measurement", "PENDING", measured_evidence=measured, reason="Requires audited before/after evidence; historical decisions alone are insufficient")
+    canary_runs = _count(db, "improvement_canaries")
+    add("improvement_canary", "PENDING", registered=canary_runs, reason="Requires linked execution, measured outcome and verification receipt")
     rollbacks = _count(db, "rollback_receipts") + _count(db, "rollback_events")
-    add("rollback_verified", "PASS" if rollbacks else "PENDING", receipts_or_events=rollbacks)
+    add("rollback_verified", "PENDING", receipts_or_events=rollbacks, reason="Requires verified state change and subsequent behavior")
     predictions = _count(db, "capability_predictions", "WHERE outcome_success IS NOT NULL")
-    add("metacognition_runtime", "PASS" if predictions else "PENDING", predictions_with_outcome=predictions)
-    add("memory_persistence", "PASS" if verified else "PENDING", verified_knowledge=verified)
+    add("metacognition_runtime", "PENDING", predictions_with_outcome=predictions, reason="Requires production run references and calibration metrics")
+    add("memory_persistence", "PENDING", verified_knowledge=verified, reason="Requires observed write-read-restart-read continuity")
     add("restart_persistence", "PENDING", reason="requiere ensayo shutdown/restart observable")
     federation = _count(db, "federated_nodes", "WHERE status IN ('active','healthy')")
-    add("federation", "PASS" if federation >= 2 else "PENDING", active_nodes=federation)
-    add("resource_governor", "PASS" if body.get("resource_governor") or body.get("mode") else "PENDING", mode=body.get("mode"))
+    add("federation", "PENDING", active_nodes=federation, reason="Registry entries do not prove two independent nodes completed authenticated dispatch")
+    add("resource_governor", "PENDING", mode=body.get("mode"), reason="Requires observed low-resource transitions and essential-service continuity")
     profile = permission_profile.get("body") or {}
     permissions = profile.get("permissions") or {}
     add("permission_governor", "PASS" if permission_profile.get("status") == 200 and permissions else "PENDING", http_status=permission_profile.get("status"), permissions=permissions, can_modify_identity_core=permissions.get("can_modify_identity_core"))
-    add("error_recovery", "PASS", dead_letter=_count(db, "autonomous_tasks", "WHERE status='dead_letter'"))
+    add("error_recovery", "PENDING", dead_letter=_count(db, "autonomous_tasks", "WHERE status='dead_letter'"), reason="Requires observed failure, recovery and absence of duplicate effects")
     long_dir = Path("artifacts/long-run")
     longitudinal = None
     if long_dir.exists():
@@ -97,7 +98,9 @@ def audit(db_path: Path, base_url: str) -> dict:
                 footer = lines[-1] if lines else {}
                 header = lines[0] if lines else {}
                 samples = [item for item in lines[1:-1] if item.get("at")]
-                if footer.get("verdict") == "COMPLETED" and len(samples) >= 2:
+                # COMPLETED only records that the collector stopped. It does not
+                # certify health, progress, duration or source revision.
+                if footer.get("verdict") == "CERTIFIED" and footer.get("duration_seconds", 0) >= 300 and footer.get("healthy_progress") is True and header.get("source_hash") and len(samples) >= 2:
                     longitudinal = {"file": str(report), "samples": len(samples), "sha": header.get("sha_at_start")}
                     break
             except (OSError, ValueError, TypeError):
