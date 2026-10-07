@@ -17,6 +17,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from triade.security.file_privacy import protect_private_file
+
 DEFAULT_DB = Path("triade/memory/triade.db")
 DEFAULT_MANIFEST_DIR = Path("artifacts/migrations")
 MARKER = "metabolic_fk_parent_backfill_v1"
@@ -174,7 +176,7 @@ def apply(db_path: Path, manifest_dir: Path) -> dict[str, Any]:
         manifest_dir / f"metabolic-fk-backfill-{datetime.now(UTC):%Y%m%dT%H%M%SZ}.json"
     )
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    manifest_path.chmod(0o600)
+    protect_private_file(manifest_path)
     return {"status": "applied", "manifest": str(manifest_path), **manifest}
 
 

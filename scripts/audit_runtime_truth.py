@@ -7,14 +7,20 @@ import json
 import sqlite3
 from pathlib import Path
 from typing import Any
+from contextlib import closing
 
 
 def audit(db_path: str | Path) -> dict[str, Any]:
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)) as conn:
         conn.row_factory = sqlite3.Row
+        errors: list[dict[str, str]] = []
 
-        def count(sql: str, params: tuple[Any, ...] = ()) -> int:
-            return int(conn.execute(sql, params).fetchone()[0])
+        def count(sql: str, params: tuple[Any, ...] = ()) -> int | None:
+            try:
+                return int(conn.execute(sql, params).fetchone()[0])
+            except sqlite3.OperationalError as exc:
+                errors.append({"query": sql, "error": str(exc)})
+                return None  # unavailable is not zero observed activity
 
         return {
             "runs": {
@@ -77,6 +83,8 @@ def audit(db_path: str | Path) -> dict[str, Any]:
                 "internally_checked_is_independent_truth": False,
                 "worker_self_evidence_is_promotion_evidence": False,
             },
+            "audit_errors": errors,
+            "audit_complete": not errors,
         }
 
 

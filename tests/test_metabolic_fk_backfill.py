@@ -52,7 +52,9 @@ def test_backfill_es_reversible_y_no_borra_recibos(tmp_path: Path) -> None:
     applied = apply(db, tmp_path / "manifests")
     assert applied["after"]["total"] == 0
     manifest = Path(applied["manifest"])
-    assert manifest.stat().st_mode & 0o777 == 0o600
+    from file_permission_helpers import assert_private
+
+    assert_private(manifest)
     with sqlite3.connect(db) as connection:
         assert (
             connection.execute("SELECT COUNT(*) FROM metabolic_receipts").fetchone()[0]

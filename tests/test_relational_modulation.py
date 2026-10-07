@@ -42,6 +42,9 @@ def test_event_decay_limits_and_explanation(tmp_path: Path) -> None:
 
 def test_rollback_restart_restore_and_identity_invariance(tmp_path: Path) -> None:
     db_path = tmp_path / "state.db"
+    from triade.core.bodega import Bodega
+
+    Bodega(db_path=db_path)
     store = RelationalModulationStore(db_path)
     with sqlite3.connect(db_path) as conn:
         identity_before = conn.execute(

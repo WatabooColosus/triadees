@@ -76,11 +76,19 @@ def build_file_graph(root: Path) -> tuple[list[GraphNode], list[GraphEdge]]:
             metadata: dict[str, object] = {"protected": protected, "hidden": hidden}
             if path.is_file() and not protected:
                 metadata["size"] = path.stat().st_size
-                # Heap dumps and runtime databases can be hundreds of MB.
-                # Hash incrementally; an atlas refresh must not consume a
-                # second in-memory copy of every operational artifact.
-                with path.open("rb") as stream:
-                    metadata["sha256"] = hashlib.file_digest(stream, "sha256").hexdigest()
+                if path.name.endswith((".db", ".db-wal", ".db-shm", ".sqlite", ".sqlite3", ".hprof")):
+                    # Mutable database sidecars can be locked by SQLite on
+                    # Windows. Structural scans must neither read raw SHM nor
+                    # present a moving database/heap hash as a source hash.
+                    metadata["operational_artifact"] = True
+                    metadata["hash_status"] = "not_hashed_runtime_state"
+                else:
+                    try:
+                        with path.open("rb") as stream:
+                            metadata["sha256"] = hashlib.file_digest(stream, "sha256").hexdigest()
+                    except OSError as exc:
+                        metadata["hash_status"] = "unavailable"
+                        metadata["hash_error"] = type(exc).__name__
             if path.is_dir() and path.parent == root and path.name in DATA_DIRS:
                 # No se expande, pero se cuenta: el volumen de salida es
                 # evidencia de ejecución y no debe desaparecer del atlas.
