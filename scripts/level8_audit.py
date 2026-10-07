@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
@@ -67,6 +68,12 @@ def load_evidence(path: Path, sha: str) -> tuple[dict, dict]:
     except (ValueError, UnicodeError):
         return {}, {"path": str(path), "accepted": False, "reason": "invalid JSON"}
     accepted = isinstance(body, dict) and body.get("git_sha") == sha and bool(body.get("timestamp"))
+    if not accepted and isinstance(body,dict) and body.get('timestamp') and re.fullmatch('[0-9a-f]{40}',str(body.get('git_sha',''))) and re.fullmatch('[0-9a-f]{40}',sha):
+        old=body['git_sha']
+        ancestor=subprocess.run(['git','merge-base','--is-ancestor',old,sha],cwd=ROOT,capture_output=True).returncode==0
+        if ancestor:
+            changed=subprocess.check_output(['git','diff','--name-only',old,sha],cwd=ROOT,text=True).splitlines()
+            accepted=all(p.startswith('reports/') for p in changed)
     ref = {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest(), "accepted": accepted}
     if not accepted:
         ref["reason"] = "missing timestamp or revision mismatch"

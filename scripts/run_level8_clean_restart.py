@@ -21,6 +21,10 @@ def server(root,port,iteration):
     os.environ.pop('PYTEST_CURRENT_TEST',None)
     # Never inherit the operator's backup key or key-location configuration.
     for name in ('TRIADE_BACKUP_KEY','TRIADE_BACKUP_KEY_FILE','TRIADE_AUTH_VAULT_KEY'):os.environ.pop(name,None)
+    os.environ['TRIADE_BACKUP_KEY_FILE']=str(root/'sandbox-backup.key')
+    key=(root/'sandbox-backup.key').read_text(encoding='utf-8').strip()
+    os.environ['TRIADE_BACKUP_KEY']=key
+    os.environ['TRIADE_AUTH_VAULT_KEY']=key
     from triade.core.bodega import Bodega
     Bodega(db_path=root/'triade/memory/triade.db')
     import uvicorn
@@ -45,6 +49,11 @@ def server(root,port,iteration):
 
 def run(root):
     root=Path(root);root.mkdir(parents=True,exist_ok=True)
+    from cryptography.fernet import Fernet
+    from triade.security.file_privacy import protect_private_file
+    key_path=root/'sandbox-backup.key'
+    key_path.write_text(Fernet.generate_key().decode(),encoding='utf-8')
+    if not protect_private_file(key_path):raise RuntimeError('sandbox key permissions not private')
     shutil.copyfile(ROOT/'triade.yml',root/'triade.yml')
     memory=root/'triade/memory';memory.mkdir(parents=True,exist_ok=True)
     shutil.copyfile(ROOT/'triade/memory/schemas.sql',memory/'schemas.sql')
