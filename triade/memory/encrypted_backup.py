@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from triade.db import sqlite3
+from triade.security.file_privacy import inspect_private_file, protect_private_file
 
 
 class EncryptedBackup:
@@ -43,9 +44,11 @@ class EncryptedBackup:
         # ganar si apunta a un fichero real; de lo contrario seguimos con la
         # ubicación canónica del repositorio para que el proceso no quede
         # degradado por una variable obsoleta.
-        if configured and Path(configured).is_file():
+        if configured:
             return configured
-        roots = (Path.cwd(), Path(__file__).resolve().parents[2])
+        from triade.core.runtime_scope import is_test_runtime
+
+        roots = (Path.cwd(),) if is_test_runtime() else (Path.cwd(), Path(__file__).resolve().parents[2])
         for root in roots:
             location = root / "config" / "backup_key_location.json"
             try:
@@ -109,25 +112,26 @@ class EncryptedBackup:
             return {"status": "absent", "reason": "sin TRIADE_BACKUP_KEY_FILE"}
         path = Path(key_file)
         try:
-            before = path.stat().st_mode & 0o777
+            privacy = inspect_private_file(path)
         except OSError as exc:
             return {"status": "unreadable", "path": str(path), "reason": str(exc)}
-        if not before & 0o077:
-            return {"status": "ok", "path": str(path), "mode": f"{before:04o}"}
+        before = privacy["mode"]
+        if privacy["private"]:
+            return {"status": "ok", "path": str(path), "mode": before}
         try:
-            path.chmod(0o600)
+            after = protect_private_file(path)
         except OSError as exc:
             return {
                 "status": "failed",
                 "path": str(path),
-                "mode_before": f"{before:04o}",
+                "mode_before": before,
                 "reason": str(exc),
             }
         return {
             "status": "tightened",
             "path": str(path),
-            "mode_before": f"{before:04o}",
-            "mode_after": "0600",
+            "mode_before": before,
+            "mode_after": after["mode"],
         }
 
     @staticmethod
@@ -152,10 +156,7 @@ class EncryptedBackup:
         key_file = EncryptedBackup._configured_key_file()
         if not key_text and key_file:
             path = Path(key_file)
-            mode = path.stat().st_mode & 0o777
-            # POSIX permission bits are not authoritative on Windows; ACLs
-            # are.  The launcher stores this file under the user's profile.
-            if os.name != "nt" and mode & 0o077:
+            if not inspect_private_file(path)["private"]:
                 raise PermissionError("backup_key_file_permissions_must_be_0600")
             key_text = path.read_text(encoding="utf-8").strip()
         key = key_text.encode()
@@ -246,7 +247,7 @@ class EncryptedBackup:
             self.backup_dir / f"triade-{int(time.time())}-{digest[:12]}.db.gz.fernet"
         )
         output.write_bytes(encrypted)
-        output.chmod(0o600)
+        protect_private_file(output)
         manifest = {
             "file": output.name,
             "sha256": digest,
@@ -265,7 +266,7 @@ class EncryptedBackup:
         }
         manifest_path = output.with_suffix(output.suffix + ".json")
         manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-        manifest_path.chmod(0o600)
+        protect_private_file(manifest_path)
         return {"status": "completed", **manifest}
 
     def verify(self, backup: str | Path) -> dict[str, Any]:

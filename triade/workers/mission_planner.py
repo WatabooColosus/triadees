@@ -123,7 +123,9 @@ class MissionPlanner:
         # antigua en `TRIADE_BACKUP_KEY_FILE`. Reconciliamos una sola vez con
         # el ancla canónica del repositorio antes de decidir si se puede
         # planificar la copia; no se imprime ni se almacena la clave.
-        canonical_location = Path(__file__).resolve().parents[2] / "config" / "backup_key_location.json"
+        from triade.core.runtime_scope import is_test_runtime
+
+        canonical_location = (Path.cwd() if is_test_runtime() else Path(__file__).resolve().parents[2]) / "config" / "backup_key_location.json"
         try:
             location = json.loads(canonical_location.read_text(encoding="utf-8"))
             canonical_key = Path(str(location.get("key_file", ""))).expanduser()
@@ -145,7 +147,7 @@ class MissionPlanner:
             )
         else:
             record_internal_error(
-                "mission_planner.backup_key_degraded",
+                "mission_planner.backup_key_missing" if backup_key_status.get("source") == "none" else "mission_planner.backup_key_degraded",
                 RuntimeError(
                     "backup degradado: falta TRIADE_BACKUP_KEY o "
                     "TRIADE_BACKUP_KEY_FILE; no se planifica copia cifrada"

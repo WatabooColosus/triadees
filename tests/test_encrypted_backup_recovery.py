@@ -50,8 +50,10 @@ def test_backup_and_manifest_are_private(
     encrypted = tmp_path / "backups" / created["file"]
     manifest = encrypted.with_suffix(encrypted.suffix + ".json")
 
-    assert encrypted.stat().st_mode & 0o777 == 0o600
-    assert manifest.stat().st_mode & 0o777 == 0o600
+    from file_permission_helpers import assert_private
+
+    assert_private(encrypted)
+    assert_private(manifest)
 
 
 def test_wrong_key_and_truncated_backup_fail(
@@ -145,7 +147,9 @@ def test_backup_key_file_requires_restricted_permissions(
 ) -> None:
     key_file = tmp_path / "backup.key"
     key_file.write_text(Fernet.generate_key().decode(), encoding="utf-8")
-    key_file.chmod(0o644)
+    from file_permission_helpers import set_file_mode
+
+    set_file_mode(key_file, 0o644)
     monkeypatch.delenv("TRIADE_BACKUP_KEY", raising=False)
     monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(key_file))
     db = tmp_path / "db"
@@ -153,7 +157,7 @@ def test_backup_key_file_requires_restricted_permissions(
     backup = EncryptedBackup(db, tmp_path / "backups")
     with pytest.raises(PermissionError, match="permissions_must_be_0600"):
         backup.create()
-    key_file.chmod(0o600)
+    set_file_mode(key_file, 0o600)
     assert backup.create()["status"] == "completed"
 
 

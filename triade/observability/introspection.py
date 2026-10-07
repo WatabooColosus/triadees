@@ -917,9 +917,13 @@ def _backup_key_file_gaps(root: Path) -> list[str]:
         return []
     path = Path(key_file)
     if os.name == "nt":
-        # ACLs son la autoridad en Windows; los bits POSIX que devuelve
-        # pathlib no distinguen 0600 de 0644 de forma fiable.
-        return []
+        from triade.security.file_privacy import inspect_private_file
+
+        try:
+            privacy = inspect_private_file(path)
+        except (OSError, ValueError, TimeoutError):
+            return ["backup key ACL could not be verified; 0600/private ACL required"]
+        return [] if privacy["private"] else ["backup key requires 0600/private Windows ACL"]
     try:
         mode = path.stat().st_mode & 0o777
     except OSError:

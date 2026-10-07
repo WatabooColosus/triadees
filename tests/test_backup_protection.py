@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 
 import pytest
+from file_permission_helpers import set_file_mode, assert_private
 
 from triade.memory.encrypted_backup import EncryptedBackup
 from triade.observability.introspection import (
@@ -145,7 +146,7 @@ def test_clave_con_permisos_abiertos_es_deuda(
     """
     clave = tmp_path / "backup.key"
     clave.write_text(FERNET_A, encoding="utf-8")
-    clave.chmod(0o644)
+    set_file_mode(clave, 0o644)
     monkeypatch.delenv("TRIADE_BACKUP_KEY", raising=False)
     monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(clave))
     _backup(tmp_path, "buena", age_seconds=60, fingerprint="abc123")
@@ -162,7 +163,7 @@ def test_clave_con_permisos_correctos_no_es_deuda(
     """La categoria tiene que poder llegar a cero tambien por esta via."""
     clave = tmp_path / "backup.key"
     clave.write_text(FERNET_A, encoding="utf-8")
-    clave.chmod(0o600)
+    set_file_mode(clave, 0o600)
     monkeypatch.delenv("TRIADE_BACKUP_KEY", raising=False)
     monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(clave))
     _backup(tmp_path, "buena", age_seconds=60, fingerprint="abc123")
@@ -188,7 +189,7 @@ def test_el_arranque_cierra_una_clave_abierta(
 
     clave = tmp_path / "backup.key"
     clave.write_text(Fernet.generate_key().decode(), encoding="utf-8")
-    clave.chmod(0o744)
+    set_file_mode(clave, 0o744)
     monkeypatch.delenv("TRIADE_BACKUP_KEY", raising=False)
     monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(clave))
     _backup(tmp_path, "buena", age_seconds=60, fingerprint="abc123")
@@ -201,8 +202,8 @@ def test_el_arranque_cierra_una_clave_abierta(
     resultado = EncryptedBackup.ensure_key_file_mode()
 
     assert resultado["status"] == "tightened"
-    assert resultado["mode_before"] == "0744"
-    assert clave.stat().st_mode & 0o777 == 0o600
+    assert resultado["mode_before"] == ("public_acl" if os.name == "nt" else "0744")
+    assert_private(clave)
     # Y ahora la copia vuelve a ser posible, sin deuda que la bloquee.
     assert _backup_protection_gaps(tmp_path)["count"] == 0
     EncryptedBackup._fernet()
@@ -214,7 +215,7 @@ def test_una_clave_ya_cerrada_no_se_toca(
     """Si tocara siempre, el `tightened` del arranque dejaria de significar nada."""
     clave = tmp_path / "backup.key"
     clave.write_text(FERNET_A, encoding="utf-8")
-    clave.chmod(0o600)
+    set_file_mode(clave, 0o600)
     monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(clave))
 
     assert EncryptedBackup.ensure_key_file_mode()["status"] == "ok"
@@ -281,7 +282,10 @@ def test_la_clave_en_fichero_tambien_planifica_backup(
 ) -> None:
     """`encrypted_backup.py` acepta las dos formas; el planner miraba sólo una."""
     monkeypatch.delenv("TRIADE_BACKUP_KEY", raising=False)
-    monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(tmp_path / "clave"))
+    key_file = tmp_path / "clave"
+    key_file.write_text(FERNET_A, encoding="utf-8")
+    set_file_mode(key_file, 0o600)
+    monkeypatch.setenv("TRIADE_BACKUP_KEY_FILE", str(key_file))
 
     assert "encrypted_backup" in _planned_types(_fresh_db(tmp_path))
 
