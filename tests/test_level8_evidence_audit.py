@@ -31,3 +31,10 @@ def test_invalid_report_not_success(tmp_path):
     path = tmp_path / "report.json"
     path.write_text("not json")
     assert load_evidence(path, "current")[0] == {}
+
+def test_external_ci_exception_does_not_mask_missing_learning():
+    gates={g:'PASS' for values in DIMENSIONS.values() for g in values}
+    gates['ci']='RED-EXTERNAL'
+    assert calculate(gates)['LEVEL_8_CANDIDATE']
+    gates['learning_longitudinal']='FAIL'
+    assert not calculate(gates)['LEVEL_8_CANDIDATE']
