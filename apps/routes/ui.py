@@ -159,12 +159,14 @@ def internal_graphs_debt(force: bool = False) -> dict[str, Any]:
         observed = int(backup_gap.get("count", 0))
         current = int(live_backup_gap.get("count", 0))
         delta = current - observed
-        report["items"]["backup_protection_gaps"] = live_backup_gap
-        report["debt_items_total"] = max(
-            0, int(report["debt_items_total"]) + delta
-        )
-        report["debt_real_total"] = max(0, int(report["debt_real_total"]) + delta)
-        classifications = report.get("by_classification", {})
+        report.setdefault("items", {})["backup_protection_gaps"] = live_backup_gap
+        # Missing structural artifacts produce an unmeasured report without
+        # aggregate totals. Reconcile measured fields only; do not invent a
+        # zero aggregate or crash the endpoint while refresh is pending.
+        for field in ("debt_items_total", "debt_real_total"):
+            if field in report:
+                report[field] = max(0, int(report[field]) + delta)
+        classifications = report.setdefault("by_classification", {})
         classifications["REAL_BROKEN"] = max(
             0, int(classifications.get("REAL_BROKEN", 0)) + delta
         )
