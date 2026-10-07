@@ -88,7 +88,7 @@ def load_protocol(path: Path, sha: str) -> tuple[dict, dict]:
 
 def closure_gates(report_dir: Path, sha: str):
     gates={};refs=[]
-    for filename,kind in [('learning_longitudinal_v2.json','learning'),('recovery_end_to_end.json','recovery'),('clean_restart_v2.json','clean'),('background_autonomy_v2.json','soak')]:
+    for filename,kind in [('learning_longitudinal_v2.json','learning'),('recovery_end_to_end.json','recovery'),('clean_restart_v2.json','clean'),('background_autonomy_v2.json','soak'),('resource_transition.json','resources')]:
         body,ref=load_protocol(report_dir/filename,sha);refs.append(ref)
         if not body:continue
         if kind=='learning':
@@ -107,6 +107,13 @@ def closure_gates(report_dir: Path, sha: str):
             task=body.get('task',{});api=body.get('api',{})
             proven=task.get('final_task_status')=='completed' and task.get('duplicate_effects')==0 and task.get('effect_result')==[['sum-recovery-47',47]] and task.get('db_integrity')=='ok' and task.get('automatic_recovery') is True and task.get('lease_after',{}).get('lease_generation',0)>task.get('lease_before',{}).get('lease_generation',0) and api.get('automatic_recovery') is True and api.get('pid_before')!=api.get('pid_after') and api.get('deep_health_status')==200 and api.get('workers_active') is True and api.get('metabolism_progress') is True and api.get('db_integrity')=='ok'
             gates['error_recovery']='PASS' if proven else 'PENDING'
+        elif kind=='resources':
+            observations=body.get('observations',[])
+            modes=[x.get('effective_mode') for x in observations]
+            ordered=[x.get('timestamp','') for x in observations]==sorted(x.get('timestamp','') for x in observations)
+            if modes==['full_local_guarded','light_background','full_local_guarded'] and ordered and all(x.get('running') is True and x.get('can_run_workers') is True for x in observations) and observations[1].get('can_nourish_neurons') is False and observations[2].get('can_nourish_neurons') is True:
+                gates['resource_governor']='PASS'
+                gates['low_ram']='PASS'
         else:
             samples=body.get('observations',[])
             from scripts.run_level8_soak import summarize
