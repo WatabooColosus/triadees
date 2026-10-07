@@ -283,7 +283,7 @@ def test_react_dashboard_contains_technical_debt():
     assert "score" in data["technical_debt"]
 
 
-def test_runtime_once_records_cycle_event():
+def test_runtime_once_records_cycle_event(permitted_runtime_ram):
     """POST /api/runtime/once debe registrar runtime_cycle_start / complete."""
     resp = client.post("/api/runtime/once", json={"mode": "observe_only"})
     assert resp.status_code == 200

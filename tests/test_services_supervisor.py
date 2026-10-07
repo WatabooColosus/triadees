@@ -47,7 +47,7 @@ def _seed_runtime_mission(db_path: Path) -> int:
     )
 
 
-def test_supervisor_creates_internal_events(tmp_path):
+def test_supervisor_creates_internal_events(tmp_path, permitted_runtime_ram):
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
     _init_db(db_path)

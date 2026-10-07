@@ -24,12 +24,12 @@ def main():
     for path in sources:
         digest.update(path.relative_to(ROOT).as_posix().encode())
         digest.update(path.read_bytes())
-    command = [sys.executable, "-m", "pytest", "-o", "faulthandler_timeout=90", "--junitxml=reports/level8/full_suite.xml"]
+    xml_path = directory / "full_suite.xml"
+    command = [sys.executable, "-m", "pytest", "-o", "faulthandler_timeout=90", f"--junitxml={xml_path}"]
     start = time.monotonic()
     timestamp = datetime.now(UTC).isoformat()
     with (directory / "full_suite.log").open("w", encoding="utf-8") as log:
         result = subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, env={**os.environ, "PYTHONUTF8": "1"}, check=False)
-    xml_path = directory / "full_suite.xml"
     cases = ET.parse(xml_path).getroot().findall(".//testcase") if xml_path.exists() else []
     failed = [c for c in cases if c.find("failure") is not None or c.find("error") is not None]
     skipped = [{"test": c.get("classname", "") + "::" + c.get("name", ""), "reason": c.find("skipped").get("message", "")} for c in cases if c.find("skipped") is not None]

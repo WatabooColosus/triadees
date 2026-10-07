@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,7 +15,7 @@ CLI = ROOT / "triade_digimon.py"
 def run_cli(*args: str) -> dict:
     result = subprocess.run(
         [sys.executable, str(CLI), *args],
-        cwd=ROOT,
+        cwd=Path(os.environ["TRIADE_TEST_ROOT"]),
         capture_output=True,
         text=True,
         encoding="utf-8",

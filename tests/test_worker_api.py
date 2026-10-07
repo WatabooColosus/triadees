@@ -11,7 +11,7 @@ from triade.workers.background_service import WorkerBackgroundService
 client = TestClient(app)
 
 
-def test_workers_api_run_once_status_queue_events(tmp_path, monkeypatch) -> None:
+def test_workers_api_run_once_status_queue_events(tmp_path, monkeypatch, permitted_runtime_ram) -> None:
     monkeypatch.setattr(
         routes_api,
         "WorkerBackgroundService",

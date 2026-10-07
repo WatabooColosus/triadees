@@ -8,6 +8,28 @@ import pytest
 _ORIGINAL_CWD: str | None = None
 
 
+@pytest.fixture
+def permitted_runtime_ram(monkeypatch):
+    """Explicit healthy-resource input for non-resource contract tests.
+
+    Does not certify host capacity. Resource/low-RAM tests keep their own
+    probes and production is never patched.
+    """
+    from triade.core import resource_probe
+    from triade.runtime import service_health
+
+    original = resource_probe.build_resource_probe
+
+    def probe():
+        result = original()
+        result["limits"]["ram_available_gb"] = 4.0
+        result["memory"]["available_gb"] = 4.0
+        return result
+
+    monkeypatch.setattr(resource_probe, "build_resource_probe", probe)
+    monkeypatch.setattr(service_health, "build_resource_probe", probe)
+
+
 def _link_or_copy(destination: Path, source: Path) -> None:
     try:
         destination.symlink_to(source, target_is_directory=source.is_dir())

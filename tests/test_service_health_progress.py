@@ -21,11 +21,17 @@ tampoco es una cola sana si la cola de verdad está en otro sitio.
 from __future__ import annotations
 
 import sqlite3
+import pytest
 from pathlib import Path
 
 from triade.runtime.service_health import ServiceHealth
 
 _OLLAMA_OK = {"ollama_ok": True}
+
+
+@pytest.fixture(autouse=True)
+def healthy_ram_for_queue_progress_contract(permitted_runtime_ram):
+    pass
 
 
 def _db(tmp_path: Path) -> Path:

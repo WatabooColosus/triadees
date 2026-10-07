@@ -10,7 +10,7 @@ from pathlib import Path
 
 def run_cli(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "triade_digimon.py", *args],
+        [sys.executable, str(Path(__file__).resolve().parents[1] / "triade_digimon.py"), *args],
         check=False,
         capture_output=True,
         text=True,

@@ -134,7 +134,7 @@ def test_full_runtime_is_not_conversation_only() -> None:
 @full_cert
 def test_full_runtime_organs_are_active() -> None:
     """Workers, LIFE_PULSE, Ollama y Bodega, activos a la vez."""
-    heartbeat = _get_json("/api/runtime/heartbeat")
+    heartbeat = _get_json("/api/runtime/heartbeat?detail=true")
 
     assert heartbeat.get("workers_active") is True, "workers requeridos apagados"
     assert heartbeat.get("mode") == "full_local_guarded", (

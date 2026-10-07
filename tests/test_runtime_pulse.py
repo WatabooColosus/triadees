@@ -382,7 +382,17 @@ def test_runtime_neuron_nutrition_endpoint(monkeypatch, tmp_path: Path) -> None:
     assert body["identity_core_modified"] is False
 
 
-def test_full_local_does_not_consolidate_without_gates(tmp_path: Path) -> None:
+def test_full_local_does_not_consolidate_without_gates(tmp_path: Path, monkeypatch) -> None:
+    from triade.core import resource_probe
+
+    original = resource_probe.build_resource_probe
+
+    def sufficient_ram():
+        probe = original()
+        probe["limits"]["ram_available_gb"] = 4.0
+        return probe
+
+    monkeypatch.setattr(resource_probe, "build_resource_probe", sufficient_ram)
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
     _init_db(db_path)
