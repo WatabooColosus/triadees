@@ -63,6 +63,10 @@ def iter_python_files(root: Path) -> Iterator[Path]:
     """Recorre el repositorio en orden estable, saltando ruido y secretos."""
     found: list[Path] = []
     for directory, directories, files in os.walk(root, topdown=True):
+        # The bundled Windows interpreter is infrastructure, not Tríade code.
+        # Keep other operator tools visible; prune only this runtime subtree.
+        if Path(directory).relative_to(root).as_posix() == "tools":
+            directories[:] = [name for name in directories if name != "python"]
         # Podar aquí es esencial: filtrar después de `rglob` todavía obliga a
         # recorrer .git, node_modules y las cachés (más de 20.000 directorios
         # en la instalación productiva observada).
@@ -157,6 +161,7 @@ def build_import_graph(
     nodes: dict[str, GraphNode] = {}
     edges: list[GraphEdge] = []
     imported: set[str] = set()
+    import_edge_keys: set[tuple[str, str, str, str]] = set()
     #: Igual que `imported`, pero sin contar las importaciones que vienen de
     #: `tests/`. Un test que importa un módulo demuestra que el módulo *corre*,
     #: no que participe en ninguna cadena — y confundir las dos cosas es lo que
@@ -233,7 +238,9 @@ def build_import_graph(
                     relation,
                     f"{relative}:{getattr(item, 'lineno', 0)}",
                 )
-                if edge not in edges:
+                key = (edge.source, edge.target, edge.relation, edge.evidence)
+                if key not in import_edge_keys:
+                    import_edge_keys.add(key)
                     edges.append(edge)
 
     # Python ejecuta el `__init__.py` de un paquete al importar cualquier módulo
@@ -347,6 +354,7 @@ def build_call_graph(
 
     edges: list[GraphEdge] = []
     called: set[str] = set()
+    edge_keys: set[tuple[str, str, str, str]] = set()
     for relative in sorted(index.by_path):
         tree = _parse(root / relative)
         if tree is None:
@@ -372,7 +380,9 @@ def build_call_graph(
                 "calls",
                 f"{relative}:{getattr(ast_node, 'lineno', 0)}",
             )
-            if edge not in edges:
+            key = (edge.source, edge.target, edge.relation, edge.evidence)
+            if key not in edge_keys:
+                edge_keys.add(key)
                 edges.append(edge)
 
     for symbol_id, graph_node in nodes.items():

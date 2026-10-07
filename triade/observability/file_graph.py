@@ -48,6 +48,8 @@ def build_file_graph(root: Path) -> tuple[list[GraphNode], list[GraphEdge]]:
 
     for current, dirs, files in os.walk(root):
         current_path = Path(current)
+        if current_path.relative_to(root).as_posix() == "tools":
+            dirs[:] = [name for name in dirs if name != "python"]
         dirs[:] = sorted(d for d in dirs if d not in SKIP_PARTS)
         if (
             current_path != root
@@ -74,7 +76,11 @@ def build_file_graph(root: Path) -> tuple[list[GraphNode], list[GraphEdge]]:
             metadata: dict[str, object] = {"protected": protected, "hidden": hidden}
             if path.is_file() and not protected:
                 metadata["size"] = path.stat().st_size
-                metadata["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+                # Heap dumps and runtime databases can be hundreds of MB.
+                # Hash incrementally; an atlas refresh must not consume a
+                # second in-memory copy of every operational artifact.
+                with path.open("rb") as stream:
+                    metadata["sha256"] = hashlib.file_digest(stream, "sha256").hexdigest()
             if path.is_dir() and path.parent == root and path.name in DATA_DIRS:
                 # No se expande, pero se cuenta: el volumen de salida es
                 # evidencia de ejecución y no debe desaparecer del atlas.

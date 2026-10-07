@@ -1267,19 +1267,19 @@ CONTRACTS: tuple[Contract, ...] = (
             una arista no se inventa por proximidad textual: el productor sólo
             crea `contradicts` cuando una investigación gobernada entrega dos
             valores distintos para la misma clave. La base viva tiene claims y
-            ninguna contradicción de fuente; cero aristas conserva esa verdad.
+            contradicciones de fuente cuando se observan. La presencia o ausencia
+            de aristas depende de los claims, no de una cuota de actividad.
             Si se elimina el productor, lector o prueba causal, el contrato cae.
         """,
         evidence=(
             "writer_reachable=triade/research/knowledge_projection.py",
             "reader_exists=triade/os/knowledge_graph.py",
             "proof_test=tests/test_knowledge_projection.py::test_la_contradiccion_produce_arista_y_se_materializa",
-            "rows_absent=kg_edges",
         ),
     ),
     _contract(
         "table:kg_contradictions",
-        "EXPECTED_EMPTY",
+        "ON_DEMAND",
         decided_at="2026-08-24",
         reason="""
             Es la materialización auditable de aristas `contradicts`, no una
@@ -1291,7 +1291,6 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/os/knowledge_graph.py",
             "reader_exists=triade/os/knowledge_graph.py",
             "proof_test=tests/test_knowledge_projection.py::test_la_contradiccion_produce_arista_y_se_materializa",
-            "rows_absent=kg_contradictions",
         ),
     ),
     _contract(
@@ -1498,7 +1497,6 @@ CONTRACTS: tuple[Contract, ...] = (
             "writer_reachable=triade/core/planning_graph.py",
             "reader_exists=triade/core/planning_graph.py",
             "proof_test=tests/test_goals_end_to_end_real.py",
-            "rows_absent=goal_dependencies",
         ),
     ),
     _contract(
