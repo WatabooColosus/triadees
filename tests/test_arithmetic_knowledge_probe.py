@@ -13,5 +13,5 @@ def test_equation_probe_tests_application_and_preserves_negative_control():
 
 
 def test_unsupported_equations_are_not_certified():
-    for content in ('x=__import__("os")', 'x=a+b.', 'x=a**99999.', 'x=a//2.', 'x=1.5.', 'x=a*1.5.', 'x=a[0].'):
+    for content in ('x=__import__("os")', 'x=a+b.', 'x=a**99999.', 'x=a//2.', 'x=1.5.', 'x=a*1.5.', 'x=a[0].', 'status=ready.'):
         assert _arithmetic_probe('unit', content) is None

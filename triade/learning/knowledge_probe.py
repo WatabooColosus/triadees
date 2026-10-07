@@ -136,7 +136,8 @@ def _arithmetic_probe(candidate_id: str, content: str) -> KnowledgeProbe | None:
     try:
         tree = ast.parse(expression, mode='eval')
         names = sorted({node.id for node in ast.walk(tree) if isinstance(node, ast.Name)})
-        if len(names) != 1 or any(isinstance(node, ast.FloorDiv) for node in ast.walk(tree)):
+        if (len(names) != 1 or not any(isinstance(node, ast.BinOp) for node in ast.walk(tree))
+                or any(isinstance(node, ast.FloorDiv) for node in ast.walk(tree))):
             return None
         inputs = {names[0]: 27}
         evaluate_integer_expression(expression, inputs)  # safety and cost bounds
