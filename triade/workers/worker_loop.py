@@ -206,9 +206,11 @@ class WorkerSandbox:
         result["elapsed"] = round(time.monotonic() - started, 4)
         if result["elapsed"] > timeout:
             result = {"status": "timeout", "task": task, "timeout": timeout}
-        (
-            self.artifact_dir / f"sandbox-{task}-{int(time.time() * 1000)}.json"
-        ).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        from triade.runtime.task_artifacts import AtomicArtifactWriter
+
+        AtomicArtifactWriter.write_json(
+            self.artifact_dir / f"sandbox-{task}-{int(time.time() * 1000)}.json", result
+        )
         return result
 
 
@@ -994,7 +996,9 @@ class WorkerLoop:
                 task_artifact_dir=staging_path,
                 attempt=intento,
             )
-        provisional_ref = str(staging_path / "result.json")
+        # The governed handler owns a nested directory so quarantine cannot
+        # remove the canonical staging root. Verify the file it actually wrote.
+        provisional_ref = str(staging_path / "handler" / "result.json")
         result = self._remap_artifact_paths(
             result, str(staging_path), str(canonical_artifacts.path)
         )
@@ -1651,6 +1655,7 @@ class WorkerLoop:
                     persisted_status = "completed"
                 elif result_status in {
                     "observed",
+                    "candidate_reused",
                     "no_target",
                     "no_evidence",
                     "needs_research",
