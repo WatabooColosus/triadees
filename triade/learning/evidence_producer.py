@@ -410,6 +410,10 @@ class LearningEvidenceProducer:
         No toca `stable`: eso exige la vía gobernada con firma humana. Aquí sólo
         se reconoce que el efecto está medido y no hubo regresiones.
         """
+        from triade.learning.knowledge_probe import build_probe
+        probe = build_probe(self.db_path, candidate_id)
+        if probe is not None and not probe.production_eligible:
+            return {'promoted':False,'reason':'arithmetic_application_only_independent_schema_proof_missing'}
         try:
             evidencia = self.bridge.require_improvement(candidate_id)
         except ValueError as exc:

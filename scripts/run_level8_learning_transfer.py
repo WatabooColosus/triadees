@@ -103,7 +103,7 @@ def run(work: Path, *, use_expression: bool = False):
     training=trial(2,'mission_a')
     with sqlite3.connect(ledger) as c:
         observed_schema=c.execute("SELECT sql FROM sqlite_master WHERE name='ledger'").fetchone()[0]
-    observation={'mission_a':training,'schema_observation':observed_schema,'research_method':'read local sqlite_master after observed transaction outcome'}
+    observation={'mission_a':training,'schema_observation':observed_schema,'database_ref':str(ledger.absolute()),'table_name':'ledger','research_method':'read local sqlite_master after observed transaction outcome'}
     source=work/'experience.json';source.write_text(json.dumps(observation,indent=2),encoding='utf-8')
     content='SQLite ledger checksum: la restriccion CHECK observada en el esquema local es ' + observed_schema.split('CHECK(',1)[1].rsplit(')',2)[0] + '. Es una propiedad de los datos almacenados.'
     candidate=pipeline.ingest(content=content,source_type='repo',source_ref=str(source),title='Observed SQLite ledger checksum rule',domain='sqlite_ledger_checksum',risk_level='low')
