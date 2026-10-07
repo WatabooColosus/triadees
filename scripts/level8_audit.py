@@ -79,6 +79,7 @@ def load_protocol(path: Path, sha: str) -> tuple[dict, dict]:
     if body or not path.is_file():return body,ref
     try:raw=json.loads(path.read_bytes())
     except (ValueError,UnicodeError):return {},ref
+    if not isinstance(raw,dict):return {},ref
     from scripts.run_level8_soak import runtime_hash
     if raw.get('timestamp') and raw.get('runtime_source_hash') == runtime_hash():
         ref.update(accepted=True,reason='Measured runtime code matches; delivery commits may differ')
