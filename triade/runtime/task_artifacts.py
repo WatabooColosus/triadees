@@ -158,7 +158,9 @@ class CanonicalTaskArtifacts:
                 raise ValueError(f"artifact_hash_mismatch:{name}")
 
     def staging_path(self) -> Path:
-        return self.path.parent / f".{self.task_id}.{uuid4().hex}.staging"
+        # Task identity is retained in the manifest and canonical destination.
+        # Repeating it here consumes Windows path space before handler files.
+        return self.path.parent / f".{uuid4().hex}.staging"
 
     def publish(self, staging_path: Path) -> None:
         source = staging_path.resolve()

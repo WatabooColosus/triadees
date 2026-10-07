@@ -31,6 +31,23 @@ def test_v2_task_never_uses_none_directory(tmp_path: Path) -> None:
     assert "task-None" not in str(artifacts.path)
 
 
+def test_staging_keeps_unique_attempts_and_publishes_task_identity(tmp_path):
+    task_id = "task-" + "a" * 32
+    artifacts = CanonicalTaskArtifacts(tmp_path / "run", task_id)
+    stage = artifacts.staging_path()
+    assert stage != artifacts.staging_path()
+    assert len(stage.name) < len(task_id) + 10
+    artifacts.finalize(
+        task={"task_id": task_id, "task_type": "pending_learning_review"},
+        execution={"evidence": [], "resource_usage": {}, "postconditions": {}},
+        result={"status": "completed"}, worker_id="worker-1", lease_generation=1,
+        payload_hash="abc", status="completed", target_path=stage,
+    )
+    artifacts.publish(stage)
+    artifacts.verify()
+    assert json.loads((artifacts.path / "manifest.json").read_text())["task_id"] == task_id
+
+
 def test_retry_preserves_the_first_attempt_artifact(tmp_path: Path) -> None:
     first = CanonicalTaskArtifacts(tmp_path, "task-real", attempt=1)
     retry = CanonicalTaskArtifacts(tmp_path, "task-real", attempt=2)
