@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-10-07T22:17:49.332112+00:00",
+  "status": "healthy",
+  "pid": 11212,
+  "cycle": 5074,
+  "workers": true,
+  "mode": "full_local_guarded",
+  "rss_mb": 94.74,
+  "scope": "Live deployed API observation; no claim that all cached modules match current Git HEAD"
+}

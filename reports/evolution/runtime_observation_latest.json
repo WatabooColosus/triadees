@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-10-07T22:34:57.340547+00:00",
+  "status": "healthy",
+  "pid": 11212,
+  "cycle": 5277,
+  "workers": true,
+  "mode": "light_background",
+  "ram_available_mb": 1394.3671875,
+  "rss_mb": 95.41,
+  "scope": "Latest deployed observation; historical transient after-sample retained, not treated as uninterrupted continuity proof"
+}

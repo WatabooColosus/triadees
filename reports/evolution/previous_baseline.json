@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-10-07T02:45:10.036940+00:00",
+  "git_sha": "a838ee2400e19a05a1d6aa1a2b0b6ca7f1f180db",
+  "kind": "Focused read-only integrity observation; direct audit CLI fix does not alter runtime",
+  "database": {
+    "integrity": [
+      "ok"
+    ],
+    "foreign_key_violations": 0,
+    "journal_mode": "wal"
+  }
+}

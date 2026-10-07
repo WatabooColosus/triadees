@@ -82,3 +82,11 @@ EVIDENCIA: health/deep healthy, PID 11212, heartbeat 435->438; 10 tests focaliza
 FALTA: transferencia causal, uso productivo, recuperacion correlacionada, autonomia cognitiva, persistencia y rollback.
 RIESGO: confundir pruebas aisladas con circuitos productivos completos. Suite completa anterior no repetida.
 SIGUIENTE PASO: diagnosticar consumidor y contexto efectivo. Sin reinicios ni cambios en DB.
+
+
+## Evolution learning closure - 2026-10-07
+HECHO: bounded arithmetic tool, structured model transport, normal equation probes, real source schema validation at promotion/injection, and token limits.
+EVIDENCIA: frozen source 9eb6962; transfer baseline 1/6, learned 6/6, negative 1/6; real leased WorkerLoop control 0/5, treatment 5/5, evidence_verified and completed. Final suite 2716 passed, 0 failed, 0 skipped. SQLite integrity ok, WAL, FK violations 0.
+FALTA: full neuronal education/use chain (no_compatible_neuron), productive recovery, cognitive autonomy, learned restart, rollback, permanent supervisor/regression shield/dashboard. Task remains incomplete; no level 8 claim.
+RIESGO: coverage 2.4/10 is current-source certification coverage, not capability. Old operational/resource windows remain historical. Latest API healthy with live workers; resource mode light_background. Failed and development suite attempts are preserved.
+SIGUIENTE PASO: legitimate neuronal need/domain formation and correlated education/use before later phases. No new daemon or automatic source modification activated.

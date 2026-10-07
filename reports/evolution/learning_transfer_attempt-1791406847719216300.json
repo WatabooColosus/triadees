@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-10-07T20:59:55.846878+00:00",
+  "truth": false,
+  "decision": "ABORT",
+  "reason": "resource_governor_does_not_allow_experiment",
+  "artifact_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791406743756932400",
+  "budget": {
+    "max_runtime_seconds": 300,
+    "minimum_ram_available_mb": 1536,
+    "max_llm_task_calls": 19,
+    "max_tasks": 0,
+    "max_disk_write_mb": 10
+  }
+}

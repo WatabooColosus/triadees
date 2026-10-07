@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-10-07T21:24:32.276012+00:00",
+  "scope": "Read-only catalogue compatibility for experiment domain; not productive routing execution",
+  "domain": "sqlite_ledger_checksum",
+  "active_neurons": 16,
+  "compatible_neurons": 0
+}

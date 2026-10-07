@@ -1,0 +1,80 @@
+{
+  "timestamp": "2026-10-07T22:32:59.690284+00:00",
+  "tested_source_sha": "9eb69626e9f3fd44205d9d74fe17576f30432311",
+  "capability_score": null,
+  "capability_assessment": "UNASSESSED; no calibrated cognitive scoring method available",
+  "certification_coverage": 2.4,
+  "reason_for_change": "CERTIFICATION_REFINEMENT",
+  "reason_detail": "New learning demonstrated; older operational/resource protocols do not bind modified runtime source. No measured system regression is inferred from coverage decrease.",
+  "LEVEL_8_CANDIDATE": false,
+  "learning_causal": "PASS",
+  "learning_scope": "Isolated normal learning pipeline and model client plus bounded arithmetic tool; NOT productive Central/education certification",
+  "success_rates": {
+    "baseline": 0.16666666666666666,
+    "learned": 1.0,
+    "negative_control": 0.16666666666666666
+  },
+  "productive_evidence_handler": {
+    "status": "PASS",
+    "control": 0.0,
+    "treatment": 1.0,
+    "promotion": true,
+    "task_status": "completed",
+    "candidate_id": "learn-b125832abae046a4",
+    "task_id": "task-22efe056250f4fc49903fa86a4922440"
+  },
+  "productive_learning_chain": "NOT_DEMONSTRATED",
+  "productive_recovery": "NOT_DEMONSTRATED",
+  "cognitive_autonomy": "NOT_DEMONSTRATED",
+  "learned_persistence": "PARTIAL_NOT_CERTIFIED",
+  "rollback": "PARTIAL_NOT_CERTIFIED",
+  "continuous_evolution_supervisor": "STOPPED_NOT_IMPLEMENTED",
+  "resource_mode": "light_background",
+  "tests": {
+    "tests_collected": 2716,
+    "passed": 2716,
+    "failed": 0,
+    "skipped": 0,
+    "duration_seconds": 898.157
+  },
+  "ci": "RED-EXTERNAL",
+  "open_blockers": [
+    "Governed neuronal domain admission/formation and complete correlated education/use chain",
+    "Productive in-flight recovery with normal WorkerLoop",
+    "Cognitive autonomy without chat",
+    "Consolidated learned persistence after clean runtime restart",
+    "Self-improvement rollback",
+    "Continuous supervisor, regression shield, dashboard and control switches not implemented",
+    "Current-release continuity/resource recertification and minimum security certification",
+    "Low available RAM currently reduces runtime to light_background; no new heavy experiments admitted until recovery"
+  ],
+  "next_evolution_objective": "Governed neuronal domain admission/formation and complete correlated education/use chain",
+  "code_commits": [
+    "9eb6962 fix(resources): bound structured learning inference tokens",
+    "06df822 feat(audit): consume revision-bound transfer evidence without changing gates",
+    "7d40333 fix(learning): require live schema provenance for equation knowledge",
+    "b149f7f test(security): isolate shell scope from temporary directory location",
+    "bfab076 fix(learning): distinguish arithmetic rules from state labels",
+    "b22e9b3 test(learning): reproduce held-out transfer and productive evidence flow",
+    "616e5b4 fix(learning): measure equation application through normal workers",
+    "8b7b086 feat(runtime): add bounded integer tool and structured model output"
+  ],
+  "evidence_refs": [
+    "reports/evolution/learning_transfer_latest.json",
+    "reports/evolution/productive_learning_chain_latest.json",
+    "reports/evolution/schema_proof_latest.json",
+    "reports/level8/test_evidence.json",
+    "reports/level8/final_score.json"
+  ],
+  "runtime_latest": {
+    "timestamp": "2026-10-07T22:34:57.340547+00:00",
+    "status": "healthy",
+    "pid": 11212,
+    "cycle": 5277,
+    "workers": true,
+    "mode": "light_background",
+    "ram_available_mb": 1394.3671875,
+    "rss_mb": 95.41,
+    "scope": "Latest deployed observation; historical transient after-sample retained, not treated as uninterrupted continuity proof"
+  }
+}

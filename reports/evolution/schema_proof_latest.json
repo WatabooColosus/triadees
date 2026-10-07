@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-10-07T22:17:21.856552+00:00",
+  "git_sha": "9eb69626e9f3fd44205d9d74fe17576f30432311",
+  "candidate_id": "learn-b125832abae046a4",
+  "production_eligible": true,
+  "db_integrity": "ok",
+  "promotion": true,
+  "scope": "Observed experiment schema provenance and task promotion, not complete productive neural chain"
+}

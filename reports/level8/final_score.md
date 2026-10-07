@@ -1,8 +1,8 @@
 # Evidence audit
 
-Revision: `bd0aa91e6c922768f7e513f3e434381e64018497`
+Revision: `9eb69626e9f3fd44205d9d74fe17576f30432311`
 
-Score: 4.5/10
+Score: 2.4/10
 
 LEVEL_8_CANDIDATE: False
 
@@ -21,18 +21,16 @@ This is certification coverage, not a claim of cognitive capability. Missing evi
 | error_recovery | PENDING |
 | frontend | PASS |
 | idle_efficiency | PENDING |
-| isolated_task_and_api_recovery | PASS |
-| learning_longitudinal | FAIL |
-| longitudinal_runtime | PASS |
-| low_ram | PASS |
-| maintenance_autonomy | PASS |
-| metabolism_live | PASS |
-| resource_governor | PASS |
+| learning_longitudinal | PASS |
+| longitudinal_runtime | PENDING |
+| low_ram | PENDING |
+| metabolism_live | PENDING |
+| resource_governor | PENDING |
 | restart_persistence | PENDING |
 | rollback_verified | PENDING |
 | runtime_e2e | PASS |
-| runtime_live | PASS |
+| runtime_live | PENDING |
 | scheduler_live | PENDING |
 | security_audit | PENDING |
 | tests | PASS |
-| workers_live | PASS |
+| workers_live | PENDING |
