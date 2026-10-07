@@ -49,7 +49,7 @@ from triade.runtime.legacy_task_reconciler import LegacyTaskReconciler
 from triade.runtime.live_heartbeat import LiveHeartbeat
 from triade.runtime.process_lock import RuntimeProcessLock
 from triade.runtime.resource_ledger import ResourceLedger, ResourceMeasurementCollector
-from triade.runtime.task_artifacts import CanonicalTaskArtifacts
+from triade.runtime.task_artifacts import AtomicArtifactWriter, CanonicalTaskArtifacts
 from triade.runtime.task_leases import AutonomousTaskStore
 from triade.runtime.task_status import TERMINAL_FAILURE
 from triade.runtime.wake_bus import runtime_wake_event
@@ -2773,7 +2773,7 @@ class WorkerLoop:
             "qualia": qualia,
         }
         artifact = task_dir / "bodega-global-review.json"
-        artifact.write_text(json.dumps(result, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        AtomicArtifactWriter.write_json(artifact, result)
         result["artifact_ref"] = str(artifact)
         return result
 
