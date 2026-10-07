@@ -1113,12 +1113,11 @@ class WorkerLoop:
         result: dict[str, Any], result_ref: str
     ) -> ExecutionResult:
         raw_status = str(result.get("status") or "").strip()
-        # `result.json` se materializa después de esta validación, durante
-        # `CanonicalTaskArtifacts.finalize`. Usar sólo `Path.exists()` aquí
-        # hacía que handlers de observación legítimos llegaran sin evidencia,
-        # se les negara el recibo y acabaran en retry/dead_letter antes de
-        # publicar su artefacto final.
-        evidence = [result_ref]
+        from triade.runtime.task_artifacts import _io_path
+
+        # _execute_task writes the handler result before this validation.
+        # A planned destination is not evidence of a materialized artifact.
+        evidence = [result_ref] if _io_path(Path(result_ref)).is_file() else []
         message = str(result.get("reason") or result.get("message") or "")
         resource_usage = dict(result.get("resource_usage") or {})
         if raw_status in {"blocked"}:
@@ -2038,10 +2037,10 @@ class WorkerLoop:
 
                     with sqlite3.connect(self.db_path) as conn:
                         candidate_row = conn.execute(
-                            "SELECT content FROM learning_queue WHERE candidate_id=?",
+                            "SELECT domain FROM learning_queue WHERE candidate_id=?",
                             (candidate_ids[0],),
                         ).fetchone()
-                    target_content = str(candidate_row[0] or "") if candidate_row else ""
+                    target_domain = str(candidate_row[0] or "general") if candidate_row else "general"
 
                     trial = TriadeRunner(
                         runs_dir=self.runs_dir,
@@ -2050,9 +2049,9 @@ class WorkerLoop:
                         auto_select_models=False,
                     ).run(
                         user_input=(
-                            "Ejercicio interno verificable: aplica el conocimiento inyectado y "
-                            "responde incluyendo explícitamente este dato, sin inventarlo: "
-                            f"{target_content[:1200]}"
+                            "Ejercicio interno de recuperación: consulta la memoria verificada "
+                            f"del dominio {target_domain[:120]} y explica una aplicación pertinente "
+                            "con su procedencia. Si falta evidencia, declara la limitación."
                         ),
                         source="neuron_education_background",
                         context={"learning_candidate_ids": candidate_ids[:1]},
@@ -3664,19 +3663,10 @@ class WorkerLoop:
                 risk=max(0.0, min(1.0, 1.0 - scores["safety_score"])),
                 reason="Resultado medido por NeuronMissionExecutor.",
             )
-            prediction = awareness.predict(
-                capability,
-                run_ref,
-                measured,
-                reasons=["verification_report", "neuron_activity", "internal_curriculum"],
-                resources={"run_id": run_ref},
-            )
-            awareness.record_outcome(
-                prediction["prediction_id"],
-                measured >= 0.8,
-                evidence_ref=f"verification_reports:{run_ref}",
-                error_type=None if measured >= 0.8 else "postcondition_failed",
-            )
+            # This is a post-run observation, not a prediction. Creating a
+            # prediction from the already measured outcome contaminates Brier
+            # and ECE calibration. Only predictions made before execution may
+            # be closed with this result by their originating runtime path.
         except Exception:  # metacognition is auxiliary to the measured result
             pass
         # Close the loop in the same worker cycle: the exercise has already

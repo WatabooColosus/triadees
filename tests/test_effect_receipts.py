@@ -98,3 +98,12 @@ def test_research_completion_requires_sources(tmp_path: Path) -> None:
     )
     assert receipt.verified
     assert receipt.postcondition["consolidated"] is False
+
+
+def test_planned_artifact_path_cannot_verify_an_observation(tmp_path: Path) -> None:
+    path = tmp_path / "not-created.json"
+    result = WorkerLoop._canonical_execution_result({"status": "completed"}, str(path))
+    assert result.status == "failed"
+    assert result.effect_receipt is None
+    assert result.evidence == []
+    assert not path.exists()
