@@ -119,7 +119,10 @@ def closure_gates(report_dir: Path, sha: str):
         elif kind=='recovery':
             task=body.get('task',{});api=body.get('api',{})
             proven=task.get('final_task_status')=='completed' and task.get('duplicate_effects')==0 and task.get('effect_result')==[['sum-recovery-47',47]] and task.get('db_integrity')=='ok' and task.get('automatic_recovery') is True and task.get('lease_after',{}).get('lease_generation',0)>task.get('lease_before',{}).get('lease_generation',0) and api.get('automatic_recovery') is True and api.get('pid_before')!=api.get('pid_after') and api.get('deep_health_status')==200 and api.get('workers_active') is True and api.get('metabolism_progress') is True and api.get('db_integrity')=='ok'
-            gates['error_recovery']='PASS' if proven else 'PENDING'
+            # These independent experiments do not correlate an in-flight
+            # production task with the API crash and recovered effect.
+            gates['isolated_task_and_api_recovery']='PASS' if proven else 'PENDING'
+            gates['error_recovery']='PENDING'
         elif kind=='resources':
             observations=body.get('observations',[])
             modes=[x.get('effective_mode') for x in observations]
@@ -138,7 +141,10 @@ def closure_gates(report_dir: Path, sha: str):
             measured=min(float(body.get('duration_seconds',0)),(datetime.fromisoformat(samples[-1]['at'])-started).total_seconds()) if 0<=first_lag<=30 else 0
             result=summarize(samples,measured,body.get('runtime_source_unchanged') is True)
             if result['truth']:
-                for gate in ('background_autonomy','longitudinal_runtime','runtime_live','metabolism_live'):gates[gate]='PASS'
+                for gate in ('maintenance_autonomy','longitudinal_runtime','runtime_live','metabolism_live'):gates[gate]='PASS'
+                # Maintenance throughput alone is not the need -> planning ->
+                # learning circuit. Its correlated validator remains pending.
+                gates['background_autonomy']='PENDING'
                 if all(s.get('heartbeat',{}).get('workers_active') is True for s in samples):gates['workers_live']='PASS'
     return gates,refs
 

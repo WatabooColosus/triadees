@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-10-07T02:57:32.288150+00:00",
-  "git_sha": "a838ee2400e19a05a1d6aa1a2b0b6ca7f1f180db",
+  "timestamp": "2026-10-07T03:02:58.330027+00:00",
+  "git_sha": "bd0aa91e6c922768f7e513f3e434381e64018497",
   "gates": {
     "cognitive_architecture": "PENDING",
     "database_integrity": "PASS",
@@ -8,12 +8,12 @@
     "runtime_e2e": "PASS",
     "runtime_live": "PASS",
     "metabolism_live": "PASS",
-    "background_autonomy": "PASS",
+    "background_autonomy": "PENDING",
     "bounded_autonomy": "PENDING",
     "learning_longitudinal": "FAIL",
     "education_application": "PENDING",
     "causal_production_use": "PENDING",
-    "error_recovery": "PASS",
+    "error_recovery": "PENDING",
     "rollback_verified": "PENDING",
     "concurrency": "PASS",
     "resource_governor": "PASS",
@@ -25,7 +25,9 @@
     "tests": "PASS",
     "frontend": "PASS",
     "ci": "RED-EXTERNAL",
-    "longitudinal_runtime": "PASS"
+    "longitudinal_runtime": "PASS",
+    "isolated_task_and_api_recovery": "PASS",
+    "maintenance_autonomy": "PASS"
   },
   "evidence": [
     {
@@ -85,9 +87,9 @@
     "architecture": 0.0,
     "memory": 5.0,
     "runtime": 10.0,
-    "autonomy": 5.0,
+    "autonomy": 0.0,
     "learning": 0.0,
-    "recovery": 5.0,
+    "recovery": 0.0,
     "concurrency": 10.0,
     "resource_efficiency": 6.67,
     "security": 0.0,
@@ -96,8 +98,12 @@
     "ci": 0.0,
     "longitudinal_evidence": 10.0
   },
-  "score": 5.3,
+  "score": 4.5,
   "caps": [
+    {
+      "maximum": 7.5,
+      "reason": "recovery not demonstrated"
+    },
     {
       "maximum": 7.5,
       "reason": "longitudinal learning not demonstrated"
@@ -105,11 +111,13 @@
   ],
   "LEVEL_8_CANDIDATE": false,
   "unproven": [
+    "background_autonomy",
     "bounded_autonomy",
     "causal_production_use",
     "ci",
     "cognitive_architecture",
     "education_application",
+    "error_recovery",
     "idle_efficiency",
     "learning_longitudinal",
     "restart_persistence",

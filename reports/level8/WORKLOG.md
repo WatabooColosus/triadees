@@ -74,3 +74,11 @@ FALTA: beneficial learning (0/3), productive education/use, consolidated learned
 RIESGO: maintenance continuity is not cognitive-learning autonomy; isolated task recovery is not one production-task fault test; historical resource observations span restart.
 
 SIGUIENTE PASO: repair actual knowledge application, preserving neutral Measurement Core outcome and safety gates. No level 8 declaration.
+
+
+## Rectificacion de bloqueos - 2026-10-07T03:03Z
+HECHO: gates completos separados de mantenimiento y recuperacion aislada; BLOCKERS.md ordenado.
+EVIDENCIA: health/deep healthy, PID 11212, heartbeat 435->438; 10 tests focalizados aprobados; audit 4.5/10 de cobertura, candidato false.
+FALTA: transferencia causal, uso productivo, recuperacion correlacionada, autonomia cognitiva, persistencia y rollback.
+RIESGO: confundir pruebas aisladas con circuitos productivos completos. Suite completa anterior no repetida.
+SIGUIENTE PASO: diagnosticar consumidor y contexto efectivo. Sin reinicios ni cambios en DB.

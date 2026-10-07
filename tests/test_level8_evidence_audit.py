@@ -51,3 +51,16 @@ def test_direct_audit_cli_loads_closure_modules(tmp_path):
     assert result.returncode==1
     assert 'Traceback' not in result.stderr
     assert json.loads((tmp_path/'final_score.json').read_text())['LEVEL_8_CANDIDATE'] is False
+
+
+def test_real_partial_protocols_do_not_certify_complete_circuits():
+    import subprocess
+    from pathlib import Path
+    from scripts.level8_audit import closure_gates
+    root = Path(__file__).resolve().parents[1]
+    sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+    gates, _ = closure_gates(root / 'reports/level8', sha)
+    assert gates['isolated_task_and_api_recovery'] == 'PASS'
+    assert gates['error_recovery'] == 'PENDING'
+    assert gates['maintenance_autonomy'] == 'PASS'
+    assert gates['background_autonomy'] == 'PENDING'
