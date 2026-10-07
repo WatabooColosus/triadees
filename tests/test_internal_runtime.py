@@ -69,7 +69,7 @@ def test_runtime_default_is_observe_only(tmp_path):
     assert snapshot["enabled"] is False
 
 
-def test_runtime_observe_only_does_not_create_learning(tmp_path):
+def test_runtime_observe_only_does_not_create_learning(tmp_path, permitted_runtime_ram):
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
     _init_db(db_path)
@@ -83,7 +83,7 @@ def test_runtime_observe_only_does_not_create_learning(tmp_path):
     assert before == after == 0
 
 
-def test_runtime_execute_missions_creates_cycle_evidence_and_score(tmp_path):
+def test_runtime_execute_missions_creates_cycle_evidence_and_score(tmp_path, permitted_runtime_ram):
     db_path = tmp_path / "triade.db"
     runs_dir = tmp_path / "runs"
     _init_db(db_path)
