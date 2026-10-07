@@ -142,6 +142,7 @@ class OllamaClient:
         options: dict[str, Any] | None = None,
         *,
         use_active_peft: bool = False,
+        response_format: str | dict[str, Any] | None = None,
     ) -> ModelResult:
         """Genera texto. `options` viaja tal cual al campo `options` de Ollama.
 
@@ -150,6 +151,8 @@ class OllamaClient:
         se omite el campo y Ollama aplica sus propios valores por defecto, que
         es lo que hacían todas las llamadas existentes.
         """
+        if use_active_peft and response_format is not None:
+            raise ValueError('structured_output_not_supported_by_peft')
         if use_active_peft:
             peft_result = self._generate_with_active_peft(
                 model, prompt, system=system, options=options
@@ -179,6 +182,8 @@ class OllamaClient:
             payload["options"] = dict(options)
         if system:
             payload["system"] = system
+        if response_format is not None:
+            payload["format"] = response_format
 
         data = json.dumps(payload).encode("utf-8")
         request = urllib.request.Request(

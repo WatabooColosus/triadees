@@ -89,6 +89,17 @@ def test_el_system_sigue_funcionando_junto_a_options(captura) -> None:
     assert payload["options"] == {"seed": 1}
 
 
+def test_structured_format_reaches_normal_client(captura):
+    schema = {'type': 'object', 'properties': {'expression': {'type': 'string'}}}
+    OllamaClient().generate('m', 'query', response_format=schema)
+    assert captura.payloads[0]['format'] == schema
+
+
+def test_peft_cannot_silently_ignore_format():
+    with pytest.raises(ValueError, match='structured_output_not_supported'):
+        OllamaClient().generate('m', 'query', response_format='json', use_active_peft=True)
+
+
 def test_observability_reports_metadata_without_prompt_or_system(monkeypatch) -> None:
     events: list[dict[str, Any]] = []
 
