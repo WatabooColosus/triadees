@@ -129,7 +129,11 @@ def closure_gates(report_dir: Path, sha: str):
             samples=body.get('observations',[])
             from scripts.run_level8_soak import summarize
             if len(samples)<2:continue
-            measured=(datetime.fromisoformat(samples[-1]['at'])-datetime.fromisoformat(samples[0]['at'])).total_seconds()
+            # The collector's stopwatch includes the first/last real probe.
+            # A sample timestamp precedes its process/SQLite observations.
+            started=datetime.fromisoformat(body['timestamp'])
+            first_lag=(datetime.fromisoformat(samples[0]['at'])-started).total_seconds()
+            measured=min(float(body.get('duration_seconds',0)),(datetime.fromisoformat(samples[-1]['at'])-started).total_seconds()) if 0<=first_lag<=30 else 0
             result=summarize(samples,measured,body.get('runtime_source_unchanged') is True)
             if result['truth']:
                 for gate in ('background_autonomy','longitudinal_runtime','runtime_live','metabolism_live'):gates[gate]='PASS'
