@@ -81,7 +81,7 @@ def run(work: Path):
     with sqlite3.connect(ledger) as c:integrity=c.execute('PRAGMA integrity_check').fetchone()[0]
     return {'git_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'timestamp':datetime.now(UTC).isoformat(),'scope':'Isolated real procedural transfer experiment, experimental retrieval; production knowledge routing and consolidation NOT certified',
         'baseline':baseline,'learned':learned,'negative_control':control,'mission_a':training,
-        'knowledge_created':pipeline.get_candidate(cid),'knowledge_retrieved':[x['injected_ids'] for x in learned],'knowledge_used':used,
+        'knowledge_created':pipeline.get_candidate(cid),'knowledge_retrieved':[x['injected_ids'] for x in learned],'knowledge_injected':used,'knowledge_used':causal,
         'metrics_before':before,'metrics_after':after,'metrics_control':negative,'improvement':{'success_rate_delta':improvement},
         'causal_evidence':causal,'truth':causal and integrity=='ok','db_integrity':integrity,'production_writes':False,
         'transfer_inputs':list(amounts),'training_input':2,'model':'qwen2.5:1.5b','options':{'temperature':0,'seed':7731},'sample_size_per_arm':3}
