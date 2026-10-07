@@ -922,10 +922,6 @@ class WorkerLoop:
             error = future.exception()
             if error is not None:
                 message = f"{type(error).__name__}: {error}"
-                if isinstance(error, FileNotFoundError) and ".staging" in message:
-                    # El executor ya trasladó el staging a cuarentena; no es
-                    # un fallo del worker ni debe convertir el run en error.
-                    continue
                 with _SUMMARY_LOCK:
                     summary.setdefault("errors", []).append(
                         f"concurrent_task_crashed:{task_id}:{message}"

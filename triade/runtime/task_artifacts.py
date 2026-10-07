@@ -24,9 +24,22 @@ REQUIRED_JSON = (
 REQUIRED_LOGS = ("stdout.log", "stderr.log")
 
 
+def _io_path(path: Path) -> Path:
+    """Use Windows extended paths without changing persisted evidence refs."""
+    if os.name != "nt":
+        return path
+    absolute = str(path.absolute())
+    if absolute.startswith("\\\\?\\"):
+        return path
+    if absolute.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + absolute[2:])
+    return Path("\\\\?\\" + absolute)
+
+
 class AtomicArtifactWriter:
     @staticmethod
     def write_bytes(path: Path, content: bytes) -> None:
+        path = _io_path(path)
         # Un timeout gobernado puede mover el staging a cuarentena mientras el
         # cierre canónico todavía está escribiendo. En Windows esa carrera se
         # manifiesta como FileNotFoundError sobre el temporal; reabrir el
@@ -75,7 +88,7 @@ class CanonicalTaskArtifacts:
     @staticmethod
     def sha256(path: Path) -> str:
         digest = hashlib.sha256()
-        with path.open("rb") as stream:
+        with _io_path(path).open("rb") as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                 digest.update(chunk)
         return digest.hexdigest()
@@ -92,7 +105,7 @@ class CanonicalTaskArtifacts:
         status: str,
         target_path: Path | None = None,
     ) -> Path:
-        target = target_path or self.path
+        target = _io_path(target_path or self.path)
         target.mkdir(parents=True, exist_ok=True)
         values = {
             "input.json": task,
@@ -132,7 +145,7 @@ class CanonicalTaskArtifacts:
         return target / "result.json"
 
     def verify(self, target_path: Path | None = None) -> None:
-        target_root = target_path or self.path
+        target_root = _io_path(target_path or self.path)
         manifest_path = target_root / "manifest.json"
         if not manifest_path.is_file():
             raise FileNotFoundError("missing_manifest")
