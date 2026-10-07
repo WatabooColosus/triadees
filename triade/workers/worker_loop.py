@@ -3173,12 +3173,14 @@ class WorkerLoop:
                     "learning_evidence_generation"
                 )
             kwargs = {}
+            options = {"temperature": 0, "seed": 7731}
             if getattr(sonda, 'response_format', None) is not None:
                 kwargs = {'response_format':sonda.response_format,'system':getattr(sonda, 'system', None)}
+                options.update(num_predict=512, num_ctx=2048)
             r = client.generate(
                 model,
                 prompt,
-                options={"temperature": 0, "seed": 7731},
+                options=options,
                 **kwargs,
             )
             return str(getattr(r, "text", "") or "")
