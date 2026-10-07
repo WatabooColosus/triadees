@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import subprocess
+import sqlite3
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,6 +23,20 @@ def runtime_hash():
 def bind_report(report):
     report['runtime_source_hash']=runtime_hash()
     report['harness_hashes']={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in ('scripts/run_level8_soak.py','scripts/run_long_validation.py','scripts/run_level8_learning_transfer.py','scripts/run_level8_task_recovery.py','scripts/run_level8_clean_restart.py','scripts/run_level8_api_recovery.py')}
+    return report
+
+def measure_operational_window(report):
+    first,last=report['observations'][0]['at'],report['observations'][-1]['at']
+    with sqlite3.connect((ROOT/'triade/memory/triade.db').as_uri()+'?mode=ro',uri=True) as db:
+        where='julianday(created_at) BETWEEN julianday(?) AND julianday(?)'
+        events=dict(db.execute('SELECT event_type,count(*) FROM worker_events WHERE '+where+' GROUP BY event_type',(first,last)).fetchall())
+        sources=dict(db.execute('SELECT source,count(*) FROM runs WHERE '+where+' GROUP BY source',(first,last)).fetchall())
+        claimed=db.execute('SELECT count(*),COALESCE(sum(max(attempt-1,0)),0) FROM autonomous_tasks WHERE julianday(lease_acquired_at) BETWEEN julianday(?) AND julianday(?)',(first,last)).fetchone()
+    internal=('worker','background','system','scheduler','life_pulse','neuron_activity','autonomous','self_test','test')
+    report.update(worker_events=events,run_sources=sources,tasks_started=claimed[0],tasks_failed=events.get('task_failed',0),errors=events.get('internal_error',0),
+        retries=0 if claimed[1]==0 else None,retry_attempts_cumulative_for_window_claimed_tasks=claimed[1],
+        human_interventions=sum(count for source,count in sources.items() if not str(source or '').startswith(internal)))
+    report['truth']=report['truth'] and report['human_interventions']==0
     return report
 
 def summarize(samples, duration, unchanged):
@@ -69,6 +84,7 @@ def main():
         **summarize(samples,time.monotonic()-start,runtime_hash()==fingerprint),
         'observations':samples,'evidence_ref':str(evidence.relative_to(ROOT))}
     bind_report(report)
+    measure_operational_window(report)
     args.output.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
     print(json.dumps({k:v for k,v in report.items() if k!='observations'}))
     return 0 if report['truth'] else 1
