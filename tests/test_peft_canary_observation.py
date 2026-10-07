@@ -26,9 +26,13 @@ def _db_con_canary(
     tmp_path: Path,
     *,
     status: str,
-    base_model: str = "Qwen/Qwen2.5-3B-Instruct",
+    base_model: str | None = None,
 ) -> Path:
     tmp_path.mkdir(parents=True, exist_ok=True)
+    if base_model is None:
+        from triade.training.governed_lora import default_base_model
+
+        base_model = default_base_model(Path(__file__).resolve().parents[1] / "triade.yml")
     db = tmp_path / "triade.db"
     with sqlite3.connect(db) as conn:
         conn.execute(

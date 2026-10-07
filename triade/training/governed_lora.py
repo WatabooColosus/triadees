@@ -32,6 +32,8 @@ from .serving_governance import (
 #: la misma razón que lo estuvo el circuito de automejora: no podían empezar.
 _OLLAMA_A_HUGGINGFACE: dict[str, str] = {
     "qwen2.5:3b-instruct": "Qwen/Qwen2.5-3B-Instruct",
+    "qwen2.5:1.5b": "Qwen/Qwen2.5-1.5B-Instruct",
+    "qwen2.5:1.5b-instruct": "Qwen/Qwen2.5-1.5B-Instruct",
     "qwen2.5-coder:3b": "Qwen/Qwen2.5-Coder-3B",
     "qwen3:1.7b": "Qwen/Qwen3-1.7B",
     "qwen3:4b": "Qwen/Qwen3-4B",

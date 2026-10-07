@@ -14,6 +14,7 @@ el circuito de automejora: no podían empezar.
 from __future__ import annotations
 
 from pathlib import Path
+import pytest
 
 from triade.training.governed_lora import (
     GovernedLoraJobRunner,
@@ -39,9 +40,15 @@ def test_la_base_por_defecto_es_un_modelo_realmente_servido():
     )
 
 
-def test_la_base_sale_del_modelo_que_responde():
+@pytest.mark.parametrize("label,expected", [
+    ("qwen2.5:1.5b", "Qwen/Qwen2.5-1.5B-Instruct"),
+    ("qwen2.5:3b-instruct", "Qwen/Qwen2.5-3B-Instruct"),
+])
+def test_la_base_sale_del_modelo_que_responde(tmp_path, label, expected):
     """Se deriva de `models.roles.central`, no de una constante escrita a mano."""
-    assert default_base_model(YML) == "Qwen/Qwen2.5-3B-Instruct"
+    config = tmp_path / "triade.yml"
+    config.write_text(f"models:\n  roles:\n    central: {label}\n", encoding="utf-8")
+    assert default_base_model(config) == expected
 
 
 def test_una_base_no_servida_se_bloquea_antes_de_gastar_gpu(tmp_path):

@@ -47,6 +47,10 @@ def normalize_model_id(model: str) -> str:
     equivocarse hacia «no compatible» es el lado correcto.
     """
     texto = str(model or "").strip().lower()
+    # This exact Ollama default tag serves the Instruct checkpoint; do not
+    # strip instruction/base distinctions generically for unknown models.
+    if texto == "qwen2.5:1.5b":
+        texto = "qwen2.5:1.5b-instruct"
     if not texto:
         return ""
     texto = texto.rpartition("/")[2]
