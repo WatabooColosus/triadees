@@ -1489,17 +1489,20 @@ class MissionPlanner:
                     ORDER BY e.id DESC LIMIT 10"""
                 ).fetchall()
                 from triade.neurons.domain_admission import _reusable
+                formation_task = None
+                training_task = None
                 for admission in admissions:
                     payload = json.loads(admission["payload_json"])
                     if _reusable(payload, domain=payload["domain"],
                                  correlation_id=payload["correlation_id"],
                                  required_capability=payload["required_capability"]):
-                        return [PlannedTask(
+                        formation_task = PlannedTask(
                             task_type="neuron_candidate_formation", priority=28,
                             reason="Verified domain need requires governed candidate formation",
                             payload={"admission_event_id": int(admission["id"]),
                                      "correlation_id": payload["correlation_id"]},
-                        )]
+                        )
+                        break
                 formed = conn.execute(
                     """SELECT a.id,a.payload_json FROM neuron_education_events a
                     JOIN neuron_education_events f
@@ -1516,13 +1519,14 @@ class MissionPlanner:
                     if _reusable(payload, domain=payload["domain"],
                                  correlation_id=payload["correlation_id"],
                                  required_capability=payload["required_capability"]):
-                        return [PlannedTask(
+                        training_task = PlannedTask(
                             task_type="neuron_candidate_formation", priority=5,
                             reason="Formed domain candidate requires executable curriculum",
                             payload={"admission_event_id": int(admission["id"]),
                                      "admission_phase": "training",
                                      "correlation_id": payload["correlation_id"]},
-                        )]
+                        )
+                        break
                 trained = conn.execute(
                     """SELECT a.id,a.payload_json FROM neuron_education_events a
                     JOIN neuron_education_events t
@@ -1553,6 +1557,10 @@ class MissionPlanner:
                                      "certification_attempt": certification_attempt,
                                      "correlation_id": payload["correlation_id"]},
                         )]
+                if training_task is not None:
+                    return [training_task]
+                if formation_task is not None:
+                    return [formation_task]
                 row = conn.execute(
                     """SELECT COUNT(*) as cnt FROM neurons
                     WHERE status IN ('candidate', 'candidate_reviewable')"""

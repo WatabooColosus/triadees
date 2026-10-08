@@ -104,6 +104,25 @@ def test_certification_cannot_replace_missing_training_with_structural_review(tm
         assert conn.execute("SELECT status FROM neurons WHERE id=?", (formation["neuron_id"],)).fetchone()[0] == "candidate"
 
 
+def test_new_admissions_do_not_starve_already_trained_certification(tmp_path):
+    import json
+    from triade.workers.mission_planner import MissionPlanner
+    db, candidate_id, _ = _prepared_db(tmp_path, baseline_score=0.5)
+    NeuronRegistry(db).update_status("neurona-auditora", "quarantined")
+    coordinator = DomainAdmissionCoordinator(db)
+    old = coordinator.request(candidate_id, correlation_id="existing-curriculum")
+    coordinator.form(old["event_id"], correlation_id="existing-curriculum")
+    # Planner fixture only: this is not a competence or certification proof.
+    with coordinator.router._connect() as connection:
+        connection.execute("INSERT INTO neuron_education_events(event_type,payload_json,created_at) VALUES('domain_training_completed',?,CURRENT_TIMESTAMP)",
+            (json.dumps({"admission_event_id":old["event_id"],"status":"training_completed"}),))
+    fresh = coordinator.request(candidate_id, correlation_id="new-need")
+    assert fresh["event_id"] != old["event_id"]
+    task = MissionPlanner(db)._plan_neuron_formation()[0]
+    assert task.payload["admission_phase"] == "certification"
+    assert task.payload["admission_event_id"] == old["event_id"]
+
+
 def test_pre_admission_rejection_reopens_once_without_retry_storm(tmp_path, monkeypatch):
     import triade.neurons.learning_router as routing
     from triade.workers.mission_planner import MissionPlanner
