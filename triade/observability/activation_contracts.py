@@ -1732,14 +1732,14 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     _contract(
         "table:semantic_governance_events",
-        "EXPECTED_EMPTY",
-        decided_at="2026-10-04",
-        reason="Eventos de gobernanza semántica (autorización/rechazo de documentos). SemanticGovernance procesa documentos pendientes, pero el pipeline no está conectado al runtime. Sin documentos que gobernar, cero filas es correcto.",
+        "ON_DEMAND",
+        decided_at="2026-10-08",
+        reason="SemanticGovernance registra transiciones de documentos cuando se ejecuta la gobernanza. La base observada contiene transiciones candidate→experimental→stable fechadas el 2026-10-07; eso invalida EXPECTED_EMPTY, pero no demuestra gobernanza autónoma continua.",
         evidence=(
             "writer_reachable=triade/memory/semantic_governance.py",
             "reader_exists=triade/memory/semantic_governance.py",
             "proof_test=tests/test_semantic_governance.py",
-            "rows_absent=semantic_governance_events",
+            "rows_present=semantic_governance_events",
         ),
     ),
     # ── Módulos inactivos/benchmarks/capacidades en espera ──────────────

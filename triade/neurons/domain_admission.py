@@ -29,6 +29,24 @@ def require_complete_specification(spec: dict[str, Any]) -> None:
     missing = [field for field in REQUIRED_SPEC_FIELDS if not spec.get(field)]
     if missing:
         raise ValueError("SPEC_INCOMPLETE:" + ",".join(missing))
+    for field in ("triggers", "inputs_allowed", "outputs_allowed", "forbidden_actions",
+                  "success_metrics", "evidence_required"):
+        if not isinstance(spec[field], list) or not all(
+            isinstance(value, str) and value.strip() for value in spec[field]
+        ):
+            raise ValueError("SPEC_INCOMPLETE:" + field)
+    budget = spec["resource_profile"]
+    if not isinstance(budget, dict) or any(
+        not isinstance(budget.get(key), (int, float)) or budget[key] <= 0
+        for key in ("max_memory_mb", "max_runtime_seconds", "max_storage_mb")
+    ):
+        raise ValueError("SPEC_INCOMPLETE:resource_profile")
+    training = spec["training_requirements"]
+    certification = spec["certification_requirements"]
+    if not isinstance(training, dict) or training.get("separate_training_and_held_out") is not True:
+        raise ValueError("SPEC_INCOMPLETE:training_requirements")
+    if not isinstance(certification, dict) or certification.get("independent_evaluation") is not True:
+        raise ValueError("SPEC_INCOMPLETE:certification_requirements")
 
 
 def _reusable(result: dict[str, Any], *, domain: str, correlation_id: str,
@@ -94,6 +112,7 @@ class DomainAdmissionCoordinator:
                    "training_status": "pending_executable_curriculum",
                    "competence_certified": False, "activated": False}
         with self.router._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             existing = conn.execute(
                 "SELECT id FROM neuron_education_events WHERE event_type='domain_candidate_formed' AND json_extract(payload_json,'$.admission_event_id')=?",
                 (event_id,),

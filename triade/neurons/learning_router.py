@@ -16,7 +16,7 @@ from triade.neurons.competency_store import CompetencyStore, utc_now
 # anterior no puede impedir que el candidato se reevalúe con dominios corregidos.
 # Reconsider pre-admission rejections once: the normal worker can now persist
 # the missing-competence request. New rejections still suppress retry storms.
-ROUTER_VERSION = "neural-learning-router-1.0.2"
+ROUTER_VERSION = "neural-learning-router-1.0.3"
 AUTHORIZED_TYPES = frozenset({"fact", "preference", "correction", "procedure"})
 ACTIVE_ASSIGNMENT_STATES = frozenset({"experimental", "beneficial"})
 
