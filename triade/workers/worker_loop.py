@@ -1817,7 +1817,9 @@ class WorkerLoop:
     ) -> dict[str, Any]:
         """Investiga una laguna real; la evidencia queda candidata, nunca estable."""
         from triade.research.governed import GovernedResearchWorker
+        from triade.neurons.competency_store import CompetencyStore
         GovernedResearchWorker.ensure_storage(self.db_path)
+        CompetencyStore(self.db_path)
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             requested_neuron = task.payload.get("related_neuron_id")
