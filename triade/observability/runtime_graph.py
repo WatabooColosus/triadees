@@ -798,9 +798,9 @@ def build_vital_chain_graph(
     Eso vale para los **nodos**. Las **aristas** no se verifican igual y por eso
     lo dicen: el orden de la cadena sale de `VITAL_CHAIN`, una constante de este
     repositorio, y nada comprueba fila a fila que una etapa alimente a la
-    siguiente. Se marca `handoff_verified` sólo cuando ambos extremos tienen
-    actividad reciente, que sigue sin demostrar el traspaso —demuestra que los
-    dos extremos están vivos—, y se distingue en la propia evidencia.
+    siguiente. La actividad de ambos extremos se registra por separado como
+    `endpoints_recent`. Sin IDs correlacionados, `handoff_verified` permanece
+    falso: actividad reciente no demuestra el traspaso entre etapas.
 
     La arista citaba antes como evidencia un documento de instrucciones de una
     herramienta externa de desarrollo. Era la fuente equivocada: una herramienta
@@ -868,7 +868,9 @@ def build_vital_chain_graph(
                     ),
                     {
                         "order_source": "VITAL_CHAIN",
-                        "handoff_verified": ambos_vivos,
+                        "handoff_verified": False,
+                        "endpoints_recent": ambos_vivos,
+                        "handoff_status": "NOT_DEMONSTRATED",
                         "source_state": prev_state,
                         "target_state": state,
                     },

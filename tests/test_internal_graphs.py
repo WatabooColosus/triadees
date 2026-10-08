@@ -526,3 +526,21 @@ def test_un_importador_de_test_no_cuenta_como_conexion(tmp_path: Path) -> None:
     # Y uno que no importa nadie sigue siendo huérfano a secas.
     assert por_id["module:pkg/orphan.py"].state == "disconnected"
     assert por_id["module:pkg/orphan.py"].metadata.get("only_test_importers") is None
+
+
+def test_recent_stage_activity_does_not_prove_correlated_handoff(monkeypatch):
+    from triade.observability import runtime_graph as graphs
+
+    monkeypatch.setattr(graphs, "open_readonly", lambda _: None)
+    tables = {t for _, _, ts in graphs.VITAL_CHAIN for t in ts}
+    monkeypatch.setattr(graphs, "live_table_counts", lambda _: {t: 1 for t in tables})
+    monkeypatch.setattr(graphs, "recent_activity", lambda *_: {t: True for t in tables})
+    monkeypatch.setattr(
+        graphs, "_symbol_hits",
+        lambda *_: {stage: ["real_writer"] for stage, _, _ in graphs.VITAL_CHAIN},
+    )
+    nodes, edges = graphs.build_vital_chain_graph(REPO_ROOT)
+    assert all(node.state == "active" for node in nodes)
+    assert edges and all(edge.metadata["endpoints_recent"] for edge in edges)
+    assert all(edge.metadata["handoff_verified"] is False for edge in edges)
+    assert all(edge.metadata["handoff_status"] == "NOT_DEMONSTRATED" for edge in edges)
