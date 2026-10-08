@@ -77,7 +77,7 @@ def test_critical_mutation_never_overlaps() -> None:
 
 
 def test_same_candidate_is_refused_while_the_first_is_running() -> None:
-    pool = _pool(max_concurrent_tasks=4, evaluation_workers=2)
+    pool = _pool(max_concurrent_tasks=4, evaluation_workers=2, serialize_model_tasks=False)
     inside = threading.Event()
     release = threading.Event()
     payload = {"candidate_id": "cand-1", "neuron_id": "n-1"}

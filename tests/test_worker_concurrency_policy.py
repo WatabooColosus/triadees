@@ -166,9 +166,20 @@ def test_same_candidate_cannot_be_mutated_twice_at_once() -> None:
     assert denied.reason.startswith("exclusive_key_held:")
 
 
+def test_model_work_is_serial_across_lanes_but_light_work_remains_available() -> None:
+    registry = _registry(max_concurrent_tasks=4)
+    assert registry.try_admit("formation", "neuron_candidate_formation", {"neuron_id":"n1"}).admitted
+    denied = registry.try_admit("evaluation", "learning_evidence_generation", {"candidate_id":"c2"})
+    assert not denied.admitted
+    assert denied.reason == "exclusive_key_held:resource:model"
+    assert registry.try_admit("light", "bodega_global_review", {}).admitted
+    registry.release("formation")
+    assert registry.try_admit("evaluation", "learning_evidence_generation", {"candidate_id":"c2"}).admitted
+
+
 def test_different_neurons_evaluate_in_parallel() -> None:
     """El objetivo del trabajo: varias neuronas en etapas distintas a la vez."""
-    registry = _registry(max_concurrent_tasks=8, evaluation_workers=2)
+    registry = _registry(max_concurrent_tasks=8, evaluation_workers=2, serialize_model_tasks=False)
     assert registry.try_admit(
         "e1", "self_improvement_evaluation", {"candidate_id": "c1", "neuron_id": "n-1"}
     ).admitted

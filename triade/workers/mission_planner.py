@@ -1517,7 +1517,7 @@ class MissionPlanner:
                                  correlation_id=payload["correlation_id"],
                                  required_capability=payload["required_capability"]):
                         return [PlannedTask(
-                            task_type="neuron_candidate_formation", priority=28,
+                            task_type="neuron_candidate_formation", priority=5,
                             reason="Formed domain candidate requires executable curriculum",
                             payload={"admission_event_id": int(admission["id"]),
                                      "admission_phase": "training",
@@ -1541,7 +1541,7 @@ class MissionPlanner:
                                  correlation_id=payload["correlation_id"],
                                  required_capability=payload["required_capability"]):
                         return [PlannedTask(
-                            task_type="neuron_candidate_formation", priority=28,
+                            task_type="neuron_candidate_formation", priority=5,
                             reason="Trained domain candidate requires held-out certification",
                             payload={"admission_event_id": int(admission["id"]),
                                      "admission_phase": "certification",

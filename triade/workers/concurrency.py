@@ -254,6 +254,7 @@ class ConcurrencySettings:
     evaluation_workers: int = 2
     memory_write_workers: int = 1
     critical_mutation_workers: int = 1
+    serialize_model_tasks: bool = True
 
     @classmethod
     def conservative(cls) -> ConcurrencySettings:
@@ -349,6 +350,8 @@ class RunningTaskRegistry:
 
         policy = policy_for(task_type)
         keys = exclusion_keys(task_type, payload)
+        if policy.resource_class == "model" and self.settings.serialize_model_tasks:
+            keys = keys | frozenset({"resource:model"})
         with self._lock:
             if task_id in self._running:
                 return AdmissionDecision(

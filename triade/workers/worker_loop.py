@@ -894,6 +894,10 @@ class WorkerLoop:
         if pool is None:
             return set()
         snapshot = pool.snapshot()
+        model_saturated = (
+            pool.registry.settings.serialize_model_tasks
+            and any(entry.resource_class == "model" for entry in pool.registry.running_tasks())
+        )
         if int(snapshot["running"]) >= int(snapshot["global_limit"]):
             return set(WORKER_TASK_TYPES)
         full = {
@@ -902,11 +906,13 @@ class WorkerLoop:
             if int(state["running"]) >= int(state["limit"])
         }
         if not full:
-            return set()
+            return {task_type for task_type in WORKER_TASK_TYPES
+                    if model_saturated and policy_for(task_type).resource_class == "model"}
         return {
             task_type
             for task_type in WORKER_TASK_TYPES
             if policy_for(task_type).lane in full
+            or (model_saturated and policy_for(task_type).resource_class == "model")
         }
 
     def _reap_finished(
