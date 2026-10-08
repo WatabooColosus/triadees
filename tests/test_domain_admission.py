@@ -83,3 +83,65 @@ def test_pre_admission_rejection_reopens_once_without_retry_storm(tmp_path, monk
     assert [t.payload["candidate_id"] for t in planner._plan_neural_learning_distribution()] == [candidate_id]
     routing.NeuralLearningRouter(db).record_rejection(candidate_id, "no_compatible_neuron")
     assert planner._plan_neural_learning_distribution() == []
+
+
+@pytest.mark.parametrize("broken_field", ["inputs_allowed", "outputs_allowed", "success_metrics", "evidence_required", "training_requirements", "certification_requirements"])
+def test_incomplete_previous_admission_is_preserved_but_not_reused(tmp_path, broken_field):
+    import json
+    db, candidate_id, _ = _prepared_db(tmp_path, baseline_score=0.5)
+    NeuronRegistry(db).update_status("neurona-auditora", "quarantined")
+    coordinator = DomainAdmissionCoordinator(db)
+    first = coordinator.request(candidate_id, correlation_id="same-lineage")
+    # Corrupt only the isolated test's old proposal to reproduce legacy schema.
+    with sqlite3.connect(db) as conn:
+        old = json.loads(conn.execute("SELECT payload_json FROM neuron_education_events WHERE id=?", (first["event_id"],)).fetchone()[0])
+        old["creator_spec"][broken_field] = []
+        conn.execute("UPDATE neuron_education_events SET payload_json=? WHERE id=?", (json.dumps(old), first["event_id"]))
+    next_request = coordinator.request(candidate_id, correlation_id="same-lineage")
+    assert next_request["event_id"] != first["event_id"]
+    assert next_request["request_id"] != first["request_id"]
+    assert next_request["creator_spec"][broken_field]
+    assert first["event_id"] in next_request["supersedes_event_ids"]
+    assert next_request["activated"] is False
+
+
+def test_changed_lineage_and_capability_create_distinct_requests(tmp_path):
+    db, candidate_id, _ = _prepared_db(tmp_path, baseline_score=0.5)
+    NeuronRegistry(db).update_status("neurona-auditora", "quarantined")
+    coordinator = DomainAdmissionCoordinator(db)
+    first = coordinator.request(candidate_id, correlation_id="origin-1")
+    second = coordinator.request(candidate_id, correlation_id="origin-2")
+    third = coordinator.request(candidate_id, correlation_id="origin-2", required_capability="verified_procedure_execution")
+    assert len({x["event_id"] for x in (first, second, third)}) == 3
+    assert second["creator_spec"]["correlation_id"] == "origin-2"
+    assert coordinator.request(candidate_id, correlation_id="origin-1")["event_id"] == first["event_id"]
+
+
+def test_empty_specification_cannot_enter_training():
+    from triade.neurons.domain_admission import require_complete_specification
+    with pytest.raises(ValueError, match="SPEC_INCOMPLETE"):
+        require_complete_specification({"domain": "audit"})
+
+
+def test_planner_and_worker_form_only_governed_candidate(tmp_path):
+    from triade.workers.mission_planner import MissionPlanner
+    from triade.workers.worker_loop import WorkerLoop
+    from triade.workers.task_queue import WorkerTask
+    from triade.workers.contracts import WorkerRunConfig
+    import json
+    db, candidate_id, _ = _prepared_db(tmp_path, baseline_score=0.5)
+    NeuronRegistry(db).update_status("neurona-auditora", "quarantined")
+    request = DomainAdmissionCoordinator(db).request(candidate_id, correlation_id="formation-origin")
+    planned = MissionPlanner(db_path=db)._plan_neuron_formation()
+    assert planned[0].payload["admission_event_id"] == request["event_id"]
+    loop = WorkerLoop(db_path=db, runs_dir=tmp_path / "runs", lock_file=tmp_path / "worker.lock")
+    outcome = loop._neuron_candidate_formation(WorkerTask(task_type="neuron_candidate_formation", payload=planned[0].payload), "formation-run", tmp_path, WorkerRunConfig())
+    formation = outcome["formation"]
+    assert formation["status"] == "candidate"
+    assert formation["activated"] is False
+    with sqlite3.connect(db) as conn:
+        row = conn.execute("SELECT status,contract_json FROM neurons WHERE id=?", (formation["neuron_id"],)).fetchone()
+        assert row[0] == "candidate"
+        assert json.loads(row[1])["correlation_id"] == "formation-origin"
+    assert DomainAdmissionCoordinator(db).form(request["event_id"], correlation_id="formation-origin")["neuron_id"] == formation["neuron_id"]
+    assert not any(t.payload.get("admission_event_id") == request["event_id"] for t in MissionPlanner(db_path=db)._plan_neuron_formation())

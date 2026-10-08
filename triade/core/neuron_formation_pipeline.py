@@ -63,11 +63,20 @@ def form_candidate(raw: dict[str, Any]) -> dict[str, Any]:
         mission=mission,
         domain=domain,
         rules=rules,
-        inputs_allowed=infer_inputs_allowed(raw),
-        outputs_allowed=DEFAULT_OUTPUTS,
+        triggers=raw.get("triggers") or ["verified_domain_need", "compatible_task_available"],
+        inputs_allowed=raw.get("inputs_allowed") or infer_inputs_allowed(raw),
+        outputs_allowed=raw.get("outputs_allowed") or DEFAULT_OUTPUTS,
         forbidden_actions=FORBIDDEN_ACTIONS,
-        success_metrics=infer_success_metrics(raw),
+        success_metrics=raw.get("success_metrics") or infer_success_metrics(raw),
         evidence_required=["independent_held_out_evaluation", "measured_post_run_application", "regression_gate"],
+        risk_level=str(raw.get("risk_level") or "low"),
+        resource_profile={"max_memory_mb": 128, "max_runtime_seconds": 120,
+                          "max_storage_mb": 8, "max_concurrent_inferences": 1},
+        training_requirements={"separate_training_and_held_out": True,
+                               "required_artifacts": ["training_cases", "execution_results", "knowledge_refs"]},
+        certification_requirements={"success_rate_min": 0.9, "regressions_max": 0,
+                                    "independent_evaluation": True,
+                                    "required_artifacts": ["held_out_cases", "evaluation_results", "regression_report"]},
     )
     training = trainer.evaluate(spec)
 
@@ -88,8 +97,8 @@ def form_candidate(raw: dict[str, Any]) -> dict[str, Any]:
     formed["evaluation_kind"] = "specification_review"
     formed["competence_certified"] = False
     formed["contracts"] = {
-        "inputs_allowed": infer_inputs_allowed(raw),
-        "outputs_allowed": DEFAULT_OUTPUTS,
+        "inputs_allowed": spec.inputs_allowed,
+        "outputs_allowed": spec.outputs_allowed,
         "forbidden_actions": FORBIDDEN_ACTIONS,
     }
     formed["activation_policy"] = {
@@ -99,7 +108,7 @@ def form_candidate(raw: dict[str, Any]) -> dict[str, Any]:
         "auto_code_modification_allowed": False,
         "auto_memory_stable_write_allowed": False,
     }
-    formed["success_metrics"] = infer_success_metrics(raw)
+    formed["success_metrics"] = spec.success_metrics
     formed["policy"] = "creator_trainer_governed_candidate_auto_approve"
 
     return formed

@@ -3284,6 +3284,14 @@ class WorkerLoop:
     def _neuron_candidate_formation(
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
+        if task.payload.get("admission_event_id") is not None:
+            from triade.neurons.domain_admission import DomainAdmissionCoordinator
+            formation = DomainAdmissionCoordinator(self.db_path).form(
+                int(task.payload["admission_event_id"]),
+                correlation_id=str(task.payload.get("correlation_id") or ""),
+            )
+            return {"status": "completed", "formation": formation,
+                    "stable_memory_written": False, "activated": False}
         pulse = {
             "status": "unknown",
             "summary": "worker background scan",

@@ -1465,6 +1465,28 @@ class MissionPlanner:
         tasks: list[PlannedTask] = []
         try:
             with closing(self._connect()) as conn, conn:
+                admissions = conn.execute(
+                    """SELECT e.id,e.payload_json FROM neuron_education_events e
+                    WHERE e.event_type='domain_admission_requested'
+                      AND json_extract(e.payload_json,'$.schema_version')=2
+                      AND json_extract(e.payload_json,'$.decision')='CREATE_NEW_NEURON'
+                      AND NOT EXISTS (SELECT 1 FROM neuron_education_events f
+                        WHERE f.event_type='domain_candidate_formed'
+                        AND json_extract(f.payload_json,'$.admission_event_id')=e.id)
+                    ORDER BY e.id DESC LIMIT 10"""
+                ).fetchall()
+                from triade.neurons.domain_admission import _reusable
+                for admission in admissions:
+                    payload = json.loads(admission["payload_json"])
+                    if _reusable(payload, domain=payload["domain"],
+                                 correlation_id=payload["correlation_id"],
+                                 required_capability=payload["required_capability"]):
+                        return [PlannedTask(
+                            task_type="neuron_candidate_formation", priority=28,
+                            reason="Verified domain need requires governed candidate formation",
+                            payload={"admission_event_id": int(admission["id"]),
+                                     "correlation_id": payload["correlation_id"]},
+                        )]
                 row = conn.execute(
                     """SELECT COUNT(*) as cnt FROM neurons
                     WHERE status IN ('candidate', 'candidate_reviewable')"""

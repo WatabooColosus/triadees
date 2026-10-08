@@ -41,6 +41,24 @@ def main() -> int:
         WorkerRunConfig(task_timeout=60, concurrency_enabled=False), summary,
     )
     admission = outcome.get("domain_admission")
+    formation_outcome = None
+    formation_task = None
+    if admission and admission.get("decision") == "CREATE_NEW_NEURON":
+        from triade.workers.mission_planner import MissionPlanner
+        planned = MissionPlanner(db_path=work / "learning.db")._plan_neuron_formation()
+        matching = next((item for item in planned if item.payload.get("admission_event_id") == admission["event_id"]), None)
+        if matching is not None:
+            formation_task = loop.autonomous_tasks.enqueue(
+                matching.task_type, matching.payload,
+                idempotency_key=f"formation:{admission['request_id']}", max_attempts=1,
+            )
+            formation_lease = loop.autonomous_tasks.claim_task(formation_task["task_id"], correlation_id, lease_seconds=120)
+            if formation_lease is None:
+                raise RuntimeError("formation_task_not_claimable")
+            formation_outcome = loop._execute_autonomous_task(
+                formation_lease, correlation_id, work / "runs",
+                WorkerRunConfig(task_timeout=60, concurrency_enabled=False), summary,
+            )
     report = {
         "timestamp": datetime.now(UTC).isoformat(),
         "git_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
@@ -48,6 +66,13 @@ def main() -> int:
         "correlation_id": correlation_id, "candidate_id": candidate_id,
         "domain": admission.get("domain") if admission else None,
         "formation": admission, "education": {"status": "NOT_DEMONSTRATED"},
+        "candidate_formation": formation_outcome,
+        "formation_task": loop.autonomous_tasks.get(formation_task["task_id"]) if formation_task else None,
+        "admission_task_correlation_matches": bool(admission and admission.get("correlation_id") == correlation_id),
+        "correlation_complete": False,
+        "neuron_certified": False,
+        "route_status": "BLOCKED:no_compatible_neuron",
+        "training": {"status": "NOT_DEMONSTRATED", "reason": "Executable training and held-out curriculum are not connected"},
         "certification": {"status": "NOT_DEMONSTRATED"},
         "activation": {"activated": False},
         "task": loop.autonomous_tasks.get(task["task_id"]),
@@ -59,7 +84,7 @@ def main() -> int:
         "scope": "Normal leased admission handler in existing experiment DB; no neuron activation or productive education claim",
         "artifact_ref": str(work),
     }
-    out = ROOT / "reports/evolution/productive_learning_chain_v2.json"
+    out = ROOT / "reports/evolution/productive_learning_chain_v3.json"
     if out.exists():
         (out.parent / f"domain_admission_attempt-{uuid4().hex}.json").write_bytes(out.read_bytes())
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

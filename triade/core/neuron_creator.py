@@ -22,6 +22,10 @@ class NeuronSpec:
     forbidden_actions: list[str] = field(default_factory=list)
     success_metrics: list[str] = field(default_factory=list)
     evidence_required: list[str] = field(default_factory=list)
+    risk_level: str = ""
+    resource_profile: dict[str, Any] = field(default_factory=dict)
+    training_requirements: dict[str, Any] = field(default_factory=dict)
+    certification_requirements: dict[str, Any] = field(default_factory=dict)
     status: str = "candidate_detected"
     created_by: str = "neuron_creator"
     policy: str = "creator_only_no_activation_without_trainer_and_human_review"
@@ -45,6 +49,10 @@ class NeuronCreator:
         forbidden_actions: list[str] | None = None,
         success_metrics: list[str] | None = None,
         evidence_required: list[str] | None = None,
+        risk_level: str = "",
+        resource_profile: dict[str, Any] | None = None,
+        training_requirements: dict[str, Any] | None = None,
+        certification_requirements: dict[str, Any] | None = None,
     ) -> NeuronSpec:
         clean_name = self._clean(name) or "neurona_candidata"
         clean_mission = self._clean(mission) or "Misión pendiente de definición."
@@ -93,6 +101,10 @@ class NeuronCreator:
                 self._clean(x) for x in (evidence_required or []) if self._clean(x)
             ],
             status="candidate_detected",
+            risk_level=risk_level,
+            resource_profile=dict(resource_profile or {}),
+            training_requirements=dict(training_requirements or {}),
+            certification_requirements=dict(certification_requirements or {}),
         )
 
     @staticmethod
