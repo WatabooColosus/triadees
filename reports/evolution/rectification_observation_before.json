@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-10-08T00:45:32.863045+00:00",
+  "git_sha": "ef1e13d2266e67af866ca2f82765fcb42083c54c",
+  "source_changes_since_test": [],
+  "suite": {
+    "junit_hash_matches": true,
+    "collected": 2728,
+    "failed": 0,
+    "skipped": 0
+  },
+  "admission": {
+    "task_correlation_id": "admission-f6ec3c4a76b64d0982d5ab9239522931",
+    "request_correlation_id": "admission-fb2205e3a80a418d88ad6d51e3b0c5f5",
+    "task_status": "completed",
+    "state": "awaiting_held_out_certification",
+    "input_contract": [],
+    "output_contract": [],
+    "truth": false
+  },
+  "runtime": {
+    "status": "healthy",
+    "pid": 11212,
+    "cycle": 6811,
+    "updated_at": "2026-10-08 00:45:31",
+    "always_on_mode": "full_local_guarded",
+    "metabolism_mode": "full_local_guarded",
+    "workers_live": true,
+    "metabolic_cycles": 1042,
+    "ram_available_mb": 1683.7,
+    "governor": {
+      "requested_mode": "full_local_guarded",
+      "allowed_mode": "full_local_guarded",
+      "effective_mode": "full_local_guarded",
+      "reason": "Perfil slow full local: 2.16 GB RAM libre y 6.0 GB VRAM; ejecuci\u00f3n serializada.",
+      "can_run_workers": true,
+      "can_nourish_neurons": true,
+      "can_evaluate_learning": true,
+      "can_consolidate_stable": true
+    }
+  }
+}

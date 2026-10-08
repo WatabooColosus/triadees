@@ -104,3 +104,10 @@ EVIDENCIA: test_evidence.json and PRODUCTIVE_CLOSURE.md.
 FALTA: neuronal certification and productive chain; no Level 8 declared.
 RIESGO: unreloaded live API and incomplete downstream gates.
 SIGUIENTE PASO: executable governed held-out formation.
+
+## Rectification - 2026-10-08T00:47:38.359862+00:00
+HECHO: corrected overstatement about complete IO contracts in the reused runtime admission; no source or production data changed.
+EVIDENCIA: rectification_observation_before/after.json; unchanged tested source and matching JUnit hash; metabolic counter advanced without injected tasks; heartbeat timestamp advanced but counter decreased from 6811 to 1 with unchanged PID (undiagnosed anomaly).
+FALTA: complete correlated admission, held-out formation/certification, productive learning and downstream gates.
+RIESGO: permissions and heartbeat progress do not demonstrate learning; current source is not certified as reloaded in the API. CI remains a timestamped external-blocker observation.
+SIGUIENTE PASO: connect legitimate formation and certification while preserving original evidence.

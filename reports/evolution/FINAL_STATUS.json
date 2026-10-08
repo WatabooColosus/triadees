@@ -47,12 +47,14 @@
   "ci_observed_at": "2026-10-07T23:09:24.666424+00:00",
   "api_reloaded_current_source": false,
   "open_blockers": [
+    "Observed reused admission has empty IO contracts and a different correlation ID from the current task; full formation is not demonstrated",
     "Held-out curriculum execution and objective certification are not connected to admission proposals",
     "Factory capability promotion does not establish the certified integer-neuron contract consumed by routing",
     "Full correlated productive application, consolidation and reuse remain unproved",
     "Productive in-flight recovery, learned persistence, rollback and cognitive autonomy remain pending",
     "Continuous evolution supervisor and regression shield not implemented",
-    "Current API source deployment not certified; resource mode fluctuated between guarded/light/cooldown"
+    "Current API source deployment not certified; resource mode fluctuated between guarded/light/cooldown",
+    "Heartbeat counter decreased with unchanged PID; uninterrupted counter continuity is not demonstrated"
   ],
   "next_evolution_objective": "Connect admitted need to legitimate candidate training/certification and productive neuron contract, without structural scores standing in for competence",
   "operational_mistake": {
@@ -73,6 +75,25 @@
     "reports/level8/test_evidence.json",
     "reports/level8/frontend_evidence.json",
     "reports/level8/final_score.json",
-    "reports/evolution/productive_closure_code.patch"
-  ]
+    "reports/evolution/productive_closure_code.patch",
+    "reports/evolution/rectification_observation_before.json",
+    "reports/evolution/rectification_observation_after.json"
+  ],
+  "rectification_observed_at": "2026-10-08T00:47:38.359862+00:00",
+  "admission_runtime_contract": {
+    "complete_input_output_contract": false,
+    "end_to_end_correlation": false,
+    "task_correlation_id": "admission-f6ec3c4a76b64d0982d5ab9239522931",
+    "request_correlation_id": "admission-fb2205e3a80a418d88ad6d51e3b0c5f5",
+    "status": "PARTIAL_OLDER_REQUEST_REUSED"
+  },
+  "resource_permission_is_execution_evidence": false,
+  "latest_live_observation": "reports/evolution/rectification_observation_after.json",
+  "heartbeat_counter_anomaly": {
+    "before": 6811,
+    "after": 1,
+    "pid": 11212,
+    "cause": "NOT_DIAGNOSED",
+    "continuous_counter_progress_demonstrated": false
+  }
 }
