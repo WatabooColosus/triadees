@@ -40,7 +40,12 @@ def main() -> int:
     with sqlite3.connect(work / "learning.db") as conn:
         before = conn.execute("SELECT run_use_count FROM learning_queue WHERE candidate_id=?", (cid,)).fetchone()[0]
     attempt = uuid4().hex
-    application = execute("neuron_education_cycle", {"correlation_id":correlation}, "certified-application:"+attempt)
+    education = MissionPlanner(db_path=work / "learning.db")._plan_neuron_education()
+    if not education:
+        raise RuntimeError("no_planned_education_application")
+    application = execute(education[0].task_type,
+                          {**education[0].payload, "correlation_id":correlation},
+                          "certified-application:"+attempt)
     with sqlite3.connect(work / "learning.db") as conn:
         conn.row_factory = sqlite3.Row
         after = conn.execute("SELECT run_use_count FROM learning_queue WHERE candidate_id=?", (cid,)).fetchone()[0]
