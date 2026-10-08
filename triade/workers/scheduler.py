@@ -51,6 +51,11 @@ class WorkerScheduler:
             if (
                 not item.payload.get("goal_id")
                 and not item.payload.get("resolution_ready")
+                and not (
+                    item.task_type == "neuron_candidate_formation"
+                    and item.payload.get("admission_event_id")
+                    and item.payload.get("admission_phase") in {"training", "certification"}
+                )
                 and item.task_type not in EVENT_DRIVEN_TASK_TYPES
                 and self.adaptive.should_skip_task(item.task_type)
             ):

@@ -29,6 +29,26 @@ def make_db(tmp_path: Path) -> Path:
     return db_path
 
 
+def test_admission_state_transition_is_not_postponed_as_periodic_formation(tmp_path, monkeypatch):
+    scheduler = WorkerScheduler(db_path=make_db(tmp_path))
+    monkeypatch.setattr(scheduler.adaptive, "should_skip_task", lambda task_type: True)
+    for index, phase in enumerate(("training", "certification"), start=1):
+        tasks = scheduler._enqueue_planned([PlannedTask(
+            task_type="neuron_candidate_formation",
+            payload={"admission_event_id":index,"admission_phase":phase,"correlation_id":"need-lineage"},
+        )])
+        assert len(tasks) == 1
+        assert tasks[0]["payload"]["admission_phase"] == phase
+        assert tasks[0]["payload"]["correlation_id"] == "need-lineage"
+
+
+def test_periodic_or_incomplete_formation_still_obeys_adaptive_interval(tmp_path, monkeypatch):
+    scheduler = WorkerScheduler(db_path=make_db(tmp_path))
+    monkeypatch.setattr(scheduler.adaptive, "should_skip_task", lambda task_type: True)
+    for payload in ({}, {"admission_phase":"training"}, {"admission_event_id":1,"admission_phase":"unknown"}):
+        assert scheduler._enqueue_planned([PlannedTask(task_type="neuron_candidate_formation",payload=payload)]) == []
+
+
 def test_scheduler_returns_task_dicts(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
     scheduler = WorkerScheduler(db_path=db_path)
