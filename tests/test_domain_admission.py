@@ -88,6 +88,20 @@ def test_formed_candidate_is_planned_for_training_and_unmeasurable_stays_candida
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT status FROM neurons WHERE id=?", (formed["neuron_id"],)).fetchone()[0] == "candidate"
     assert not any(t.payload.get("admission_phase") == "training" for t in MissionPlanner(db_path=db)._plan_neuron_formation())
+    with pytest.raises(ValueError, match="successful_training_required"):
+        coordinator.certify(admission["event_id"], correlation_id="training-needed", generate=forbidden_generation)
+
+
+def test_certification_cannot_replace_missing_training_with_structural_review(tmp_path):
+    db, candidate_id, _ = _prepared_db(tmp_path, baseline_score=0.5)
+    NeuronRegistry(db).update_status("neurona-auditora", "quarantined")
+    coordinator = DomainAdmissionCoordinator(db)
+    admission = coordinator.request(candidate_id, correlation_id="no-competence-yet")
+    formation = coordinator.form(admission["event_id"], correlation_id="no-competence-yet")
+    with pytest.raises(ValueError, match="completed_training_required"):
+        coordinator.certify(admission["event_id"], correlation_id="no-competence-yet", generate=lambda *_: "")
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT status FROM neurons WHERE id=?", (formation["neuron_id"],)).fetchone()[0] == "candidate"
 
 
 def test_pre_admission_rejection_reopens_once_without_retry_storm(tmp_path, monkeypatch):

@@ -10,6 +10,7 @@ import hashlib
 import json
 import re
 import time
+from uuid import uuid4
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -161,6 +162,113 @@ class DomainAdmissionCoordinator:
         with self.router._connect() as conn:
             cursor = conn.execute("INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(NULL,?,'domain_training_completed',?,?)",
                                   (formation["neuron_id"], json.dumps(outcome), utc_now()))
+            outcome["event_id"] = int(cursor.lastrowid)
+        return outcome
+
+    def certify(self, event_id: int, *, correlation_id: str, generate: Any) -> dict[str, Any]:
+        """Certify reserved procedural cases with an independently computed oracle.
+
+        The measured capability is bounded rule application in this domain, not
+        general intelligence. Control arms never receive learned context.
+        """
+        from triade.learning.knowledge_probe import build_transfer_probe
+        from triade.learning.retrieval import LearningRetriever, build_learning_block
+        from triade.evaluation import EvaluationRun, MetricResult, compare_evaluations
+        from triade.learning.evidence_bridge import LearningEvidenceBridge
+        from triade.regression import RegressionGate, MetricPolicy
+        with self.router._connect() as conn:
+            rows = conn.execute("SELECT payload_json FROM neuron_education_events WHERE event_type='domain_training_completed' AND json_extract(payload_json,'$.admission_event_id')=? ORDER BY id DESC LIMIT 1", (event_id,)).fetchone()
+            old = conn.execute("SELECT payload_json FROM neuron_education_events WHERE event_type='domain_certification_completed' AND json_extract(payload_json,'$.admission_event_id')=? ORDER BY id DESC LIMIT 1", (event_id,)).fetchone()
+        if rows is None:
+            raise ValueError("completed_training_required")
+        training = json.loads(rows[0])
+        if training.get("correlation_id") != correlation_id:
+            raise ValueError("training_lineage_mismatch")
+        if training.get("status") != "training_completed":
+            raise ValueError("successful_training_required")
+        if old is not None:
+            return json.loads(old[0])
+        curriculum = training["curriculum"]
+        canonical = {k: v for k, v in curriculum.items() if k != "sha256"}
+        if hashlib.sha256(json.dumps(canonical, sort_keys=True).encode()).hexdigest() != curriculum["sha256"]:
+            raise ValueError("curriculum_manifest_changed")
+        train_inputs = {x["input_value"] for x in curriculum["cases"]["training"]}
+        held_out = curriculum["cases"]["held_out"]
+        if not held_out or train_inputs & {x["input_value"] for x in held_out}:
+            raise ValueError("held_out_contaminated")
+        candidate_id, neuron_id = training["candidate_id"], training["neuron_id"]
+        self.router._verified_candidate(candidate_id)
+        evaluation_id = "admission-evaluation-" + uuid4().hex
+        base = {"admission_event_id": event_id, "candidate_id": candidate_id, "neuron_id": neuron_id,
+                "correlation_id": correlation_id, "curriculum_hash": curriculum["sha256"],
+                "evaluation_id": evaluation_id, "threshold": curriculum["success_rate_min"]}
+        with self.router._connect() as conn:
+            conn.execute("INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(NULL,?,'domain_certification_started',?,?)", (neuron_id, json.dumps(base), utc_now()))
+        started = time.monotonic()
+        budget = float(curriculum["resource_profile"]["max_runtime_seconds"])
+        arms = {"baseline": [], "treatment": [], "negative_control": []}
+        rss_peak_mb, calls = 0.0, 0
+        import psutil
+        for arm, results in arms.items():
+            retriever = LearningRetriever(self.router.db_path, allowed_states=frozenset()) if arm != "treatment" else LearningRetriever(self.router.db_path)
+            for case in held_out:
+                remaining = budget - (time.monotonic() - started)
+                rss_peak_mb = max(rss_peak_mb, psutil.Process().memory_info().rss / 1024**2)
+                probe = build_transfer_probe(self.router.db_path, candidate_id, case["input_value"])
+                if probe is None or probe.expected != case["reference"]:
+                    raise ValueError("curriculum_source_changed")
+                run_id = f"{evaluation_id}:{arm}:{case['case_id']}"
+                decision = retriever.retrieve_decision(probe.question, run_id=run_id, only_candidate_ids={candidate_id})
+                retriever.persist_decision(decision)
+                response, error, passed = "", None, False
+                tick = time.monotonic()
+                try:
+                    if remaining <= 0 or rss_peak_mb > float(curriculum["resource_profile"]["max_memory_mb"]):
+                        raise RuntimeError("certification_resource_budget_exceeded")
+                    if (arm == "treatment") != (candidate_id in decision.injected_ids):
+                        raise RuntimeError("certification_context_isolation_failed")
+                    calls += 1
+                    response = generate(probe, build_learning_block(decision.matches) + "\n" + probe.question, remaining)
+                    passed = bool(probe.evaluator(response))
+                except (ValueError, RuntimeError, OSError) as exc:
+                    error = str(exc)
+                results.append({"case_id": case["case_id"], "run_id": run_id,
+                                "passed": passed, "response": response, "error": error,
+                                "reference": probe.expected, "injected_ids": decision.injected_ids,
+                                "latency_seconds": time.monotonic()-tick})
+        def measurement(arm):
+            results = tuple(MetricResult(case_id=x["case_id"], score=float(x["passed"]), passed=x["passed"], actual=x["response"], expected=x["reference"], details={"run_id":x["run_id"]}) for x in arms[arm])
+            return EvaluationRun(evaluation_id=f"{evaluation_id}:{arm}", suite_id="admission-held-out", suite_version="1", subject_id=str(neuron_id), results=results,
+                                 aggregate_score=sum(x.score for x in results)/len(results), created_at=utc_now(), metadata={"correlation_id":correlation_id,"curriculum_hash":curriculum["sha256"]})
+        baseline, treatment, negative = (measurement(arm) for arm in arms)
+        comparison = compare_evaluations(baseline, treatment)
+        evidence_id = "domain-certification:" + evaluation_id
+        bridge = LearningEvidenceBridge(self.router.db_path)
+        bridge.declare_hypothesis(evidence_id, hypothesis="Learned rule transfers to reserved domain tasks", capability="domain_rule_application", subject_id=str(neuron_id), require_regression=True)
+        bridge.record_comparison(evidence_id, baseline=baseline, candidate=treatment, comparison=comparison, artifact_ref=f"sqlite:neuron_education_events:{evaluation_id}")
+        regression = RegressionGate(self.router.db_path).evaluate(report_id="regression-"+evaluation_id, candidate_id=evidence_id, capability="domain_rule_application", baseline=baseline, candidate=treatment,
+            policies=tuple(MetricPolicy(case_id, severity="critical") for case_id in (x["case_id"] for x in held_out)), metadata={"correlation_id":correlation_id})
+        bridge.record_regression_report(evidence_id, regression)
+        success = (treatment.aggregate_score >= curriculum["success_rate_min"]
+                   and treatment.aggregate_score > max(baseline.aggregate_score, negative.aggregate_score)
+                   and comparison.decision == "improved" and regression.decision == "pass"
+                   and not any(x["error"] for xs in arms.values() for x in xs))
+        if success:
+            bridge.require_improvement(evidence_id)
+        outcome = {**base, "status": "certified" if success else "certification_failed",
+                   "arms": arms, "scores": {"baseline":baseline.aggregate_score,"treatment":treatment.aggregate_score,"negative_control":negative.aggregate_score},
+                   "evidence_id": evidence_id, "regression_report_id":regression.report_id,
+                   "duration_seconds":time.monotonic()-started,"rss_peak_mb":rss_peak_mb,"llm_calls":calls,
+                   "competence_certified":success,"activated":success,"stable_memory_written":False}
+        with self.router._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if success:
+                current = conn.execute("SELECT status FROM neurons WHERE id=?", (neuron_id,)).fetchone()
+                if current is None or current[0] != "candidate":
+                    raise ValueError("activation_requires_candidate_state")
+                conn.execute("UPDATE neurons SET status='active',updated_at=CURRENT_TIMESTAMP WHERE id=?", (neuron_id,))
+                conn.execute("INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(NULL,?,'domain_neuron_activated',?,?)", (neuron_id,json.dumps(base),utc_now()))
+            cursor = conn.execute("INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(NULL,?,'domain_certification_completed',?,?)", (neuron_id,json.dumps(outcome),utc_now()))
             outcome["event_id"] = int(cursor.lastrowid)
         return outcome
 

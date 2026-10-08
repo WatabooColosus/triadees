@@ -3286,7 +3286,7 @@ class WorkerLoop:
     ) -> dict[str, Any]:
         if task.payload.get("admission_event_id") is not None:
             from triade.neurons.domain_admission import DomainAdmissionCoordinator
-            if task.payload.get("admission_phase") == "training":
+            if task.payload.get("admission_phase") in {"training", "certification"}:
                 client = self._observable_ollama_client(
                     task, run_ref, cognitive_function="neuron_training",
                     artifact="domain_training", consumer="DomainAdmissionCoordinator",
@@ -3308,13 +3308,15 @@ class WorkerLoop:
                         raise RuntimeError(result.error or "training_generation_failed")
                     return result.text
 
-                training = DomainAdmissionCoordinator(self.db_path).train(
+                coordinator = DomainAdmissionCoordinator(self.db_path)
+                execute = coordinator.certify if task.payload["admission_phase"] == "certification" else coordinator.train
+                training = execute(
                     int(task.payload["admission_event_id"]),
                     correlation_id=str(task.payload.get("correlation_id") or ""),
                     generate=generate,
                 )
                 return {"status": "completed", "training": training,
-                        "stable_memory_written": False, "activated": False}
+                        "stable_memory_written": False, "activated": bool(training.get("activated"))}
             formation = DomainAdmissionCoordinator(self.db_path).form(
                 int(task.payload["admission_event_id"]),
                 correlation_id=str(task.payload.get("correlation_id") or ""),
