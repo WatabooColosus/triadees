@@ -6,6 +6,19 @@ from pathlib import Path
 from triade.research.governed import GovernedResearchWorker
 
 
+def test_first_curriculum_query_initializes_research_history_without_fake_runs(tmp_path):
+    from triade.workers.worker_loop import WorkerLoop
+    from triade.workers.contracts import WorkerTask, WorkerRunConfig
+    db = tmp_path / "first.db"
+    loop = WorkerLoop(db_path=db, runs_dir=tmp_path / "runs",
+        lock_file=tmp_path / "lock", stop_file=tmp_path / "stop")
+    result = loop._research_curriculum(WorkerTask(task_type="research_curriculum"),
+        "first-query", tmp_path / "runs", WorkerRunConfig())
+    assert result["reason"] == "no_neuronal_gap"
+    with sqlite3.connect(db) as connection:
+        assert connection.execute("SELECT count(*) FROM governed_research_runs").fetchone()[0] == 0
+
+
 def source(host: str, value: str = "yes", **extra):
     return {
         "url": f"https://{host}/evidence",

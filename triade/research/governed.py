@@ -80,7 +80,12 @@ class GovernedResearchWorker:
         self.db_path = Path(db_path)
         self.provider = provider
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as conn:
+        self.ensure_storage(self.db_path)
+
+    @staticmethod
+    def ensure_storage(db_path: str | Path) -> None:
+        """Initialize the existing research schema before historical queries."""
+        with sqlite3.connect(db_path) as conn:
             conn.executescript(SCHEMA.read_text(encoding="utf-8"))
             conn.executescript(MIGRATION.read_text(encoding="utf-8"))
 
