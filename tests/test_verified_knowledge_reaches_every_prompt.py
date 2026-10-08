@@ -28,6 +28,7 @@ aparecer en el prompt. Si no, la traza miente.
 from __future__ import annotations
 
 from typing import Any, ClassVar
+import pytest
 
 from triade.core.central import Central
 
@@ -36,6 +37,16 @@ BLOQUE = (
     "- [exp-test] Para los informes usa siempre la etiqueta AUDITORIA-OMEGA.\n"
     "</triade_verified_knowledge>"
 )
+
+
+def test_declared_output_schema_cannot_embed_the_expected_answer():
+    schema = {"type": "object", "properties": {"expression": {"type": ["string", "null"]}},
+              "required": ["expression"], "additionalProperties": False}
+    packet = _Packet("Return the requested object", {"declared_output_schema": schema})
+    assert Central._declared_output_schema(packet) == schema
+    schema["properties"]["expression"]["const"] = "hardcoded answer"
+    with pytest.raises(ValueError, match="invalid_declared_output_schema"):
+        Central._declared_output_schema(packet)
 
 
 def test_large_historical_context_keeps_verified_knowledge_next_to_current_task():

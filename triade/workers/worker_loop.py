@@ -2071,7 +2071,8 @@ class WorkerLoop:
                         user_input=query,
                         source="neuron_education_background",
                         context={"learning_candidate_ids": candidate_ids[:1],
-                                 "correlation_id": task.payload.get("correlation_id") or lesson.get("correlation_id")},
+                                 "correlation_id": task.payload.get("correlation_id") or lesson.get("correlation_id"),
+                                 **({"declared_output_schema": probe.response_format} if probe else {})},
                         propose_neurons=False,
                     )
             elif training_neuron_id is not None:

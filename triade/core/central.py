@@ -825,11 +825,14 @@ class Central:
             identity, input_packet, signals, memory, crystal, plan, wants_audit
         )
         system = self.system_prompt()
+        output_schema = self._declared_output_schema(input_packet)
+        structured = {"response_format": output_schema} if output_schema is not None else {}
         result = self.model_client.generate(
             self.central_model,
             prompt=prompt,
             system=system,
             use_active_peft=True,
+            **structured,
         )
         if not result.ok or not result.text:
             return OutputPacket(
@@ -857,6 +860,30 @@ class Central:
             model_name=result.model,
             model_ok=True,
         )
+
+    @staticmethod
+    def _declared_output_schema(input_packet: Any) -> dict[str, Any] | None:
+        """Accept shape-only contracts; no embedded answers or policy directives."""
+        context = getattr(input_packet, "context", None)
+        schema = context.get("declared_output_schema") if isinstance(context, dict) else None
+        if schema is None:
+            return None
+        if not isinstance(schema, dict) or set(schema) != {"type", "properties", "required", "additionalProperties"}:
+            raise ValueError("invalid_declared_output_schema")
+        properties, required = schema["properties"], schema["required"]
+        if (schema["type"] != "object" or schema["additionalProperties"] is not False
+                or not isinstance(properties, dict) or not 1 <= len(properties) <= 16
+                or not isinstance(required, list) or set(required) != set(properties)):
+            raise ValueError("invalid_declared_output_schema")
+        for name, contract in properties.items():
+            if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", name):
+                raise ValueError("invalid_declared_output_schema")
+            if not isinstance(contract, dict) or set(contract) != {"type"}:
+                raise ValueError("invalid_declared_output_schema")
+            types = contract["type"] if isinstance(contract["type"], list) else [contract["type"]]
+            if not types or any(t not in {"string", "integer", "number", "boolean", "null"} for t in types):
+                raise ValueError("invalid_declared_output_schema")
+        return schema
 
     @staticmethod
     def _fallback_response(
