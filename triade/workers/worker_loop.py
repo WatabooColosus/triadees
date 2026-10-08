@@ -1382,9 +1382,11 @@ class WorkerLoop:
         cancellation.checkpoint()
         goal_task = bool(task.payload.get("goal_id"))
         resolution_task = bool(task.payload.get("resolution_ready"))
+        from .contracts import admission_transition
         if (
             not goal_task
             and not resolution_task
+            and not admission_transition(task.task_type, task.payload)
             and task.task_type not in EVENT_DRIVEN_TASK_TYPES
             and self.adaptive_scheduler.should_skip_task(task.task_type)
         ):

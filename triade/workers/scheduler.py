@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .adaptive_scheduler import AdaptiveScheduler
-from .contracts import EVENT_DRIVEN_TASK_TYPES, WORKER_TASK_TYPES, WorkerRunConfig
+from .contracts import EVENT_DRIVEN_TASK_TYPES, WORKER_TASK_TYPES, WorkerRunConfig, admission_transition
 from .task_queue import WorkerTaskQueue
 
 
@@ -51,11 +51,7 @@ class WorkerScheduler:
             if (
                 not item.payload.get("goal_id")
                 and not item.payload.get("resolution_ready")
-                and not (
-                    item.task_type == "neuron_candidate_formation"
-                    and item.payload.get("admission_event_id")
-                    and item.payload.get("admission_phase") in {"training", "certification"}
-                )
+                and not admission_transition(item.task_type, item.payload)
                 and item.task_type not in EVENT_DRIVEN_TASK_TYPES
                 and self.adaptive.should_skip_task(item.task_type)
             ):

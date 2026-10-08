@@ -49,6 +49,24 @@ def test_periodic_or_incomplete_formation_still_obeys_adaptive_interval(tmp_path
         assert scheduler._enqueue_planned([PlannedTask(task_type="neuron_candidate_formation",payload=payload)]) == []
 
 
+def test_worker_consumer_preserves_pending_admission_transition(tmp_path, monkeypatch):
+    from triade.workers.worker_loop import WorkerLoop
+    from triade.workers.contracts import WorkerTask
+    loop = WorkerLoop(db_path=make_db(tmp_path), runs_dir=tmp_path / "runs",
+        lock_file=tmp_path / "lock", stop_file=tmp_path / "stop")
+    monkeypatch.setattr(loop.adaptive_scheduler, "should_skip_task", lambda task_type: True)
+    config = WorkerRunConfig(dry_run=True)
+    periodic = loop._execute_task(WorkerTask(task_type="neuron_candidate_formation"),
+        "periodic-test", tmp_path / "runs", config)
+    assert periodic["reason"] == "adaptive_interval_not_elapsed"
+    for phase in ("training", "certification"):
+        result = loop._execute_task(WorkerTask(task_type="neuron_candidate_formation",
+            payload={"admission_event_id":1,"admission_phase":phase,"correlation_id":"lineage"}),
+            "transition-test", tmp_path / "runs", config)
+        assert result.get("reason") != "adaptive_interval_not_elapsed"
+        assert result["status"] == "dry_run"
+
+
 def test_scheduler_returns_task_dicts(tmp_path: Path) -> None:
     db_path = make_db(tmp_path)
     scheduler = WorkerScheduler(db_path=db_path)
