@@ -831,7 +831,7 @@ class Central:
             self.central_model,
             prompt=prompt,
             system=system,
-            use_active_peft=True,
+            use_active_peft=output_schema is None,
             **structured,
         )
         if not result.ok or not result.text:
@@ -873,7 +873,8 @@ class Central:
         properties, required = schema["properties"], schema["required"]
         if (schema["type"] != "object" or schema["additionalProperties"] is not False
                 or not isinstance(properties, dict) or not 1 <= len(properties) <= 16
-                or not isinstance(required, list) or set(required) != set(properties)):
+                or not isinstance(required, list) or not all(isinstance(x, str) for x in required)
+                or set(required) != set(properties)):
             raise ValueError("invalid_declared_output_schema")
         for name, contract in properties.items():
             if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", name):
@@ -881,7 +882,7 @@ class Central:
             if not isinstance(contract, dict) or set(contract) != {"type"}:
                 raise ValueError("invalid_declared_output_schema")
             types = contract["type"] if isinstance(contract["type"], list) else [contract["type"]]
-            if not types or any(t not in {"string", "integer", "number", "boolean", "null"} for t in types):
+            if not types or any(not isinstance(t, str) or t not in {"string", "integer", "number", "boolean", "null"} for t in types):
                 raise ValueError("invalid_declared_output_schema")
         return schema
 
