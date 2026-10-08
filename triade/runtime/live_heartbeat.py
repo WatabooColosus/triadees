@@ -38,34 +38,36 @@ class LiveHeartbeat:
     def pulse(self) -> dict[str, Any]:
         started = time.monotonic()
         memory = psutil.virtual_memory()
-        self.cycle += 1
         wall = time.time()
         with closing(self._connect()) as conn, conn:
-            conn.execute(
+            row = conn.execute(
                 """INSERT INTO live_runtime_heartbeat
                 (singleton,cycle,wall_timestamp,monotonic_timestamp,duration_ms,pid,ram_available_mb)
                 VALUES(1,?,?,?,?,?,?) ON CONFLICT(singleton) DO UPDATE SET
-                cycle=excluded.cycle,wall_timestamp=excluded.wall_timestamp,
+                cycle=live_runtime_heartbeat.cycle+1,wall_timestamp=excluded.wall_timestamp,
                 monotonic_timestamp=excluded.monotonic_timestamp,duration_ms=excluded.duration_ms,
-                pid=excluded.pid,ram_available_mb=excluded.ram_available_mb,updated_at=CURRENT_TIMESTAMP""",
+                pid=excluded.pid,ram_available_mb=excluded.ram_available_mb,updated_at=CURRENT_TIMESTAMP
+                RETURNING cycle""",
                 (
-                    self.cycle,
+                    1,
                     wall,
                     started,
                     0.0,
                     os.getpid(),
                     memory.available / 1024 / 1024,
                 ),
-            )
+            ).fetchone()
+            cycle = int(row[0])
+            self.cycle = cycle
         duration_ms = (time.monotonic() - started) * 1000.0
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "UPDATE live_runtime_heartbeat SET duration_ms=? WHERE singleton=1",
-                (duration_ms,),
+                "UPDATE live_runtime_heartbeat SET duration_ms=? WHERE singleton=1 AND cycle=?",
+                (duration_ms, cycle),
             )
         return {
             "event": "heartbeat",
-            "cycle": self.cycle,
+            "cycle": cycle,
             "duration_ms": duration_ms,
             "uptime_seconds": time.monotonic() - self.started_monotonic,
             "ram_available_mb": memory.available / 1024 / 1024,

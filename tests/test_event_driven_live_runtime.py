@@ -104,3 +104,22 @@ def test_accelerated_day_has_bounded_scheduler_state() -> None:
     assert counts["heartbeat"] == 17_281
     assert counts["dispatch"] == 4_321
     assert snapshot["next_due_ms"] >= 0
+
+
+def test_recreated_heartbeat_does_not_reset_shared_counter(tmp_path):
+    db = tmp_path / "runtime.db"
+    worker = LiveHeartbeat(db)
+    assert worker.pulse()["cycle"] == 1
+    assert worker.pulse()["cycle"] == 2
+    assert LiveHeartbeat(db).pulse()["cycle"] == 3
+    assert worker.pulse()["cycle"] == 4
+
+
+def test_concurrent_heartbeat_instances_increment_atomically(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    db = tmp_path / "runtime.db"
+    instances = [LiveHeartbeat(db) for _ in range(4)]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda n: instances[n % 4].pulse(), range(40)))
+    assert LiveHeartbeat(db).snapshot()["cycle"] == 40
+    assert {r["cycle"] for r in results} == set(range(1, 41))
