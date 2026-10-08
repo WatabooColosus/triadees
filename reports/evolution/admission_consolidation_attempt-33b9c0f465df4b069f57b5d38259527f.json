@@ -1,0 +1,1014 @@
+{
+  "timestamp": "2026-10-08T03:07:44.896784+00:00",
+  "tested_source_sha": "51cfc6db3491514de3e7102ece766aa3c3aaddf7",
+  "candidate_id": "learn-b125832abae046a4",
+  "correlation_id": "admission-5ea65f7e4ce44154bc243e651aeff654",
+  "before": {
+    "id": 1,
+    "candidate_id": "learn-b125832abae046a4",
+    "source_type": "repo",
+    "source_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\experience.json",
+    "title": "Observed SQLite ledger checksum rule",
+    "content": "SQLite ledger checksum: la restriccion CHECK observada en el esquema local es checksum=(amount*17+3)%97. Es una propiedad de los datos almacenados.",
+    "normalized_summary": "SQLite ledger checksum: la restriccion CHECK observada en el esquema local es checksum=(amount*17+3)%97. Es una propiedad de los datos almacenados.",
+    "domain": "sqlite_ledger_checksum",
+    "risk_level": "low",
+    "confidence": 0.75,
+    "utility": 0.9,
+    "status": "evidence_verified",
+    "verification_notes": {
+      "history": [
+        {
+          "step": "ingested",
+          "at": "2026-10-07T22:13:16.315414+00:00"
+        },
+        {
+          "step": "evaluated",
+          "status": "evaluated",
+          "at": "2026-10-07T22:13:16.344893+00:00"
+        },
+        {
+          "step": "internally_checked",
+          "status": "internally_checked",
+          "at": "2026-10-07T22:13:16.394148+00:00"
+        },
+        {
+          "step": "validated_in_runs",
+          "status": "validated_in_runs",
+          "at": "2026-10-07T22:14:23.791875+00:00"
+        }
+      ],
+      "evaluated": {
+        "utility": 0.9,
+        "confidence": 0.75,
+        "risk_level": "low",
+        "requires_human_approval": false,
+        "identity_violation": false,
+        "warnings": [],
+        "at": "2026-10-07T22:13:16.344893+00:00",
+        "model_provider": "ollama",
+        "model_name": "qwen2.5:1.5b",
+        "model_required": true,
+        "model_status": "ok",
+        "evaluation_mode": "ollama_blood",
+        "human_approval": null,
+        "ollama_blood_active": true,
+        "candidate_requires_model_review": false,
+        "ollama_blood": {
+          "status": "ok",
+          "ok": true,
+          "ollama_ok": true,
+          "mode": "cognitive_blood_active",
+          "base_url": "http://127.0.0.1:11434",
+          "models_available": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "models": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "reasoning_model": "qwen2.5:1.5b",
+          "embedding_model": "nomic-embed-text:latest",
+          "coder_model": "qwen2.5:1.5b",
+          "latency_ms": 20.23,
+          "can_reason": true,
+          "can_embed": true,
+          "can_nourish_neurons": true,
+          "can_evaluate_learning": true,
+          "can_consolidate_stable": true,
+          "degraded_components": [],
+          "recommended_action": "Sangre cognitiva activa: Ollama alimenta razonamiento y embeddings locales.",
+          "blood_pressure_score": 1.0,
+          "checked_at": "2026-10-07T22:13:16.344893+00:00",
+          "errors": [],
+          "cognitive_blood_active": true,
+          "fallback_mode": false,
+          "truth": "Fallback mantiene respiraci\u00f3n m\u00ednima; Ollama Blood alimenta cognici\u00f3n local gobernada."
+        },
+        "model_policy": {
+          "role": "learning_evaluation",
+          "allowed": true,
+          "degraded": false,
+          "model_required": true,
+          "model_used": "qwen2.5:1.5b",
+          "fallback_allowed": false,
+          "stable_write_allowed": false,
+          "allowed_actions": [
+            "diagnose",
+            "observe",
+            "propose_learning",
+            "record"
+          ],
+          "blocked_actions": [],
+          "reason": "Sangre cognitiva activa."
+        },
+        "decision": "advanced_to_evaluated"
+      },
+      "internally_checked": {
+        "gates": {
+          "has_source_ref": true,
+          "utility_ok": true,
+          "confidence_ok": true,
+          "risk_not_critical": true
+        },
+        "passed": true,
+        "coherence_score": 0.8,
+        "traceability_score": 0.9,
+        "at": "2026-10-07T22:13:16.394148+00:00",
+        "model_provider": "ollama",
+        "model_name": "qwen2.5:1.5b",
+        "model_required": true,
+        "model_status": "ok",
+        "evaluation_mode": "ollama_blood",
+        "human_approval": null,
+        "ollama_blood_active": true,
+        "candidate_requires_model_review": false,
+        "ollama_blood": {
+          "status": "ok",
+          "ok": true,
+          "ollama_ok": true,
+          "mode": "cognitive_blood_active",
+          "base_url": "http://127.0.0.1:11434",
+          "models_available": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "models": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "reasoning_model": "qwen2.5:1.5b",
+          "embedding_model": "nomic-embed-text:latest",
+          "coder_model": "qwen2.5:1.5b",
+          "latency_ms": 35.29,
+          "can_reason": true,
+          "can_embed": true,
+          "can_nourish_neurons": true,
+          "can_evaluate_learning": true,
+          "can_consolidate_stable": true,
+          "degraded_components": [],
+          "recommended_action": "Sangre cognitiva activa: Ollama alimenta razonamiento y embeddings locales.",
+          "blood_pressure_score": 1.0,
+          "checked_at": "2026-10-07T22:13:16.394148+00:00",
+          "errors": [],
+          "cognitive_blood_active": true,
+          "fallback_mode": false,
+          "truth": "Fallback mantiene respiraci\u00f3n m\u00ednima; Ollama Blood alimenta cognici\u00f3n local gobernada."
+        },
+        "model_policy": {
+          "role": "learning_evaluation",
+          "allowed": true,
+          "degraded": false,
+          "model_required": true,
+          "model_used": "qwen2.5:1.5b",
+          "fallback_allowed": false,
+          "stable_write_allowed": false,
+          "allowed_actions": [
+            "diagnose",
+            "observe",
+            "propose_learning",
+            "record"
+          ],
+          "blocked_actions": [],
+          "reason": "Sangre cognitiva activa."
+        },
+        "decision": "internally_checked",
+        "truth": "Gates internos aprobados; no constituye verificaci\u00f3n independiente."
+      },
+      "validated_in_runs": {
+        "decision": "validated_in_runs",
+        "run_use_count": 3,
+        "avg_outcome_score": 1.0,
+        "measurement_decision": "improved",
+        "measurement_artifact_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\trials.json",
+        "at": "2026-10-07T22:14:23.791875+00:00"
+      }
+    },
+    "created_at": "2026-10-07T22:13:16.315950+00:00",
+    "updated_at": "2026-10-08T03:04:27.527303+00:00",
+    "run_use_count": 11,
+    "run_outcome_scores": "[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]",
+    "avg_outcome_score": 1.0,
+    "measurement_evidence": {
+      "id": 1,
+      "candidate_id": "learn-b125832abae046a4",
+      "hypothesis": "El candidato mejora la respuesta a: SQLite ledger checksum: la restriccion CHECK observada en el esquema local es: selecciona la expresion para checksum con",
+      "capability": "conversational_learning",
+      "subject_id": "learn-b125832abae046a4",
+      "decision": "improved",
+      "artifact_ref": "ev-a6b16be6c4674d47",
+      "regression_required": true,
+      "generalization_required": false,
+      "regression_report_id": "rep-ev-a6b16be6c4674d47",
+      "created_at": "2026-10-07T22:14:23.720175+00:00",
+      "updated_at": "2026-10-07T22:15:23.024636+00:00",
+      "baseline_evaluation": {
+        "evaluation_id": "ev-a6b16be6c4674d47-baseline",
+        "suite_id": "learning-causal-suite",
+        "suite_version": "1.0.0",
+        "subject_id": "learn-b125832abae046a4",
+        "results": [
+          {
+            "case_id": "learning_recall",
+            "score": 0.0,
+            "passed": false,
+            "actual": 0.0,
+            "expected": 1.0,
+            "details": {}
+          }
+        ],
+        "aggregate_score": 0.0,
+        "created_at": "2026-10-07T22:15:22.999463+00:00",
+        "metadata": {
+          "producer_version": "evidence-producer-1.0.0"
+        }
+      },
+      "candidate_evaluation": {
+        "evaluation_id": "ev-a6b16be6c4674d47-candidate",
+        "suite_id": "learning-causal-suite",
+        "suite_version": "1.0.0",
+        "subject_id": "learn-b125832abae046a4",
+        "results": [
+          {
+            "case_id": "learning_recall",
+            "score": 1.0,
+            "passed": true,
+            "actual": 1.0,
+            "expected": 1.0,
+            "details": {}
+          }
+        ],
+        "aggregate_score": 1.0,
+        "created_at": "2026-10-07T22:15:22.999463+00:00",
+        "metadata": {
+          "producer_version": "evidence-producer-1.0.0"
+        }
+      },
+      "comparison": {
+        "baseline_evaluation_id": "ev-a6b16be6c4674d47-baseline",
+        "candidate_evaluation_id": "ev-a6b16be6c4674d47-candidate",
+        "baseline_score": 0.0,
+        "candidate_score": 1.0,
+        "absolute_delta": 1.0,
+        "percent_delta": null,
+        "improved_cases": [
+          "learning_recall"
+        ],
+        "degraded_cases": [],
+        "critical_regressions": [],
+        "decision": "improved"
+      },
+      "critical_regressions": [],
+      "regression_report": {
+        "report_id": "rep-ev-a6b16be6c4674d47",
+        "candidate_id": "learn-b125832abae046a4",
+        "capability": "conversational_learning",
+        "suite_id": "learning-causal-suite",
+        "suite_version": "1.0.0",
+        "baseline_evaluation_id": "ev-a6b16be6c4674d47-baseline",
+        "candidate_evaluation_id": "ev-a6b16be6c4674d47-candidate",
+        "decision": "pass",
+        "findings": [
+          {
+            "metric_id": "learning_recall",
+            "severity": "high",
+            "baseline_score": 0.0,
+            "candidate_score": 1.0,
+            "absolute_delta": 1.0,
+            "relative_delta": null,
+            "status": "pass",
+            "reason": "m\u00e9trica dentro del umbral permitido"
+          }
+        ],
+        "created_at": "2026-10-07T22:15:23.024636+00:00",
+        "metadata": {
+          "producer_version": "evidence-producer-1.0.0",
+          "repetitions": 5,
+          "model_id": "qwen2.5:3b-instruct"
+        },
+        "blocking_findings": []
+      },
+      "regression_quarantined": false
+    }
+  },
+  "after": {
+    "id": 1,
+    "candidate_id": "learn-b125832abae046a4",
+    "source_type": "repo",
+    "source_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\experience.json",
+    "title": "Observed SQLite ledger checksum rule",
+    "content": "SQLite ledger checksum: la restriccion CHECK observada en el esquema local es checksum=(amount*17+3)%97. Es una propiedad de los datos almacenados.",
+    "normalized_summary": "SQLite ledger checksum: la restriccion CHECK observada en el esquema local es checksum=(amount*17+3)%97. Es una propiedad de los datos almacenados.",
+    "domain": "sqlite_ledger_checksum",
+    "risk_level": "low",
+    "confidence": 0.75,
+    "utility": 0.9,
+    "status": "consolidated",
+    "verification_notes": {
+      "history": [
+        {
+          "step": "ingested",
+          "at": "2026-10-07T22:13:16.315414+00:00"
+        },
+        {
+          "step": "evaluated",
+          "status": "evaluated",
+          "at": "2026-10-07T22:13:16.344893+00:00"
+        },
+        {
+          "step": "internally_checked",
+          "status": "internally_checked",
+          "at": "2026-10-07T22:13:16.394148+00:00"
+        },
+        {
+          "step": "validated_in_runs",
+          "status": "validated_in_runs",
+          "at": "2026-10-07T22:14:23.791875+00:00"
+        },
+        {
+          "step": "consolidated",
+          "status": "consolidated",
+          "at": "2026-10-08T03:07:44.754579+00:00"
+        }
+      ],
+      "evaluated": {
+        "utility": 0.9,
+        "confidence": 0.75,
+        "risk_level": "low",
+        "requires_human_approval": false,
+        "identity_violation": false,
+        "warnings": [],
+        "at": "2026-10-07T22:13:16.344893+00:00",
+        "model_provider": "ollama",
+        "model_name": "qwen2.5:1.5b",
+        "model_required": true,
+        "model_status": "ok",
+        "evaluation_mode": "ollama_blood",
+        "human_approval": null,
+        "ollama_blood_active": true,
+        "candidate_requires_model_review": false,
+        "ollama_blood": {
+          "status": "ok",
+          "ok": true,
+          "ollama_ok": true,
+          "mode": "cognitive_blood_active",
+          "base_url": "http://127.0.0.1:11434",
+          "models_available": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "models": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "reasoning_model": "qwen2.5:1.5b",
+          "embedding_model": "nomic-embed-text:latest",
+          "coder_model": "qwen2.5:1.5b",
+          "latency_ms": 20.23,
+          "can_reason": true,
+          "can_embed": true,
+          "can_nourish_neurons": true,
+          "can_evaluate_learning": true,
+          "can_consolidate_stable": true,
+          "degraded_components": [],
+          "recommended_action": "Sangre cognitiva activa: Ollama alimenta razonamiento y embeddings locales.",
+          "blood_pressure_score": 1.0,
+          "checked_at": "2026-10-07T22:13:16.344893+00:00",
+          "errors": [],
+          "cognitive_blood_active": true,
+          "fallback_mode": false,
+          "truth": "Fallback mantiene respiraci\u00f3n m\u00ednima; Ollama Blood alimenta cognici\u00f3n local gobernada."
+        },
+        "model_policy": {
+          "role": "learning_evaluation",
+          "allowed": true,
+          "degraded": false,
+          "model_required": true,
+          "model_used": "qwen2.5:1.5b",
+          "fallback_allowed": false,
+          "stable_write_allowed": false,
+          "allowed_actions": [
+            "diagnose",
+            "observe",
+            "propose_learning",
+            "record"
+          ],
+          "blocked_actions": [],
+          "reason": "Sangre cognitiva activa."
+        },
+        "decision": "advanced_to_evaluated"
+      },
+      "internally_checked": {
+        "gates": {
+          "has_source_ref": true,
+          "utility_ok": true,
+          "confidence_ok": true,
+          "risk_not_critical": true
+        },
+        "passed": true,
+        "coherence_score": 0.8,
+        "traceability_score": 0.9,
+        "at": "2026-10-07T22:13:16.394148+00:00",
+        "model_provider": "ollama",
+        "model_name": "qwen2.5:1.5b",
+        "model_required": true,
+        "model_status": "ok",
+        "evaluation_mode": "ollama_blood",
+        "human_approval": null,
+        "ollama_blood_active": true,
+        "candidate_requires_model_review": false,
+        "ollama_blood": {
+          "status": "ok",
+          "ok": true,
+          "ollama_ok": true,
+          "mode": "cognitive_blood_active",
+          "base_url": "http://127.0.0.1:11434",
+          "models_available": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "models": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "reasoning_model": "qwen2.5:1.5b",
+          "embedding_model": "nomic-embed-text:latest",
+          "coder_model": "qwen2.5:1.5b",
+          "latency_ms": 35.29,
+          "can_reason": true,
+          "can_embed": true,
+          "can_nourish_neurons": true,
+          "can_evaluate_learning": true,
+          "can_consolidate_stable": true,
+          "degraded_components": [],
+          "recommended_action": "Sangre cognitiva activa: Ollama alimenta razonamiento y embeddings locales.",
+          "blood_pressure_score": 1.0,
+          "checked_at": "2026-10-07T22:13:16.394148+00:00",
+          "errors": [],
+          "cognitive_blood_active": true,
+          "fallback_mode": false,
+          "truth": "Fallback mantiene respiraci\u00f3n m\u00ednima; Ollama Blood alimenta cognici\u00f3n local gobernada."
+        },
+        "model_policy": {
+          "role": "learning_evaluation",
+          "allowed": true,
+          "degraded": false,
+          "model_required": true,
+          "model_used": "qwen2.5:1.5b",
+          "fallback_allowed": false,
+          "stable_write_allowed": false,
+          "allowed_actions": [
+            "diagnose",
+            "observe",
+            "propose_learning",
+            "record"
+          ],
+          "blocked_actions": [],
+          "reason": "Sangre cognitiva activa."
+        },
+        "decision": "internally_checked",
+        "truth": "Gates internos aprobados; no constituye verificaci\u00f3n independiente."
+      },
+      "validated_in_runs": {
+        "decision": "validated_in_runs",
+        "run_use_count": 3,
+        "avg_outcome_score": 1.0,
+        "measurement_decision": "improved",
+        "measurement_artifact_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\trials.json",
+        "at": "2026-10-07T22:14:23.791875+00:00"
+      },
+      "consolidated": {
+        "decision": "consolidated",
+        "approved_by": "trust-system@low",
+        "auto_consolidated": true,
+        "risk": "low",
+        "semantic_document_id": "sem-b9d00d6f2a9c4544",
+        "supersedes": null,
+        "at": "2026-10-08T03:07:44.754579+00:00",
+        "model_provider": "ollama",
+        "model_name": "qwen2.5:1.5b",
+        "model_required": true,
+        "model_status": "ok",
+        "evaluation_mode": "ollama_blood",
+        "human_approval": null,
+        "ollama_blood_active": true,
+        "candidate_requires_model_review": false,
+        "ollama_blood": {
+          "status": "ok",
+          "ok": true,
+          "ollama_ok": true,
+          "mode": "cognitive_blood_active",
+          "base_url": "http://127.0.0.1:11434",
+          "models_available": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "models": [
+            "gemma3:4b",
+            "qwen2.5-coder:3b",
+            "qwen3:4b",
+            "nomic-embed-text:latest",
+            "qwen2.5:1.5b"
+          ],
+          "reasoning_model": "qwen2.5:1.5b",
+          "embedding_model": "nomic-embed-text:latest",
+          "coder_model": "qwen2.5:1.5b",
+          "latency_ms": 31.3,
+          "can_reason": true,
+          "can_embed": true,
+          "can_nourish_neurons": true,
+          "can_evaluate_learning": true,
+          "can_consolidate_stable": true,
+          "degraded_components": [],
+          "recommended_action": "Sangre cognitiva activa: Ollama alimenta razonamiento y embeddings locales.",
+          "blood_pressure_score": 1.0,
+          "checked_at": "2026-10-08T03:07:44.695324+00:00",
+          "errors": [],
+          "cognitive_blood_active": true,
+          "fallback_mode": false,
+          "truth": "Fallback mantiene respiraci\u00f3n m\u00ednima; Ollama Blood alimenta cognici\u00f3n local gobernada."
+        },
+        "model_policy": {
+          "role": "stable_consolidation",
+          "allowed": true,
+          "degraded": false,
+          "model_required": true,
+          "model_used": "qwen2.5:1.5b",
+          "fallback_allowed": false,
+          "stable_write_allowed": true,
+          "allowed_actions": [
+            "observe",
+            "record",
+            "review_gates",
+            "stable_consolidation_if_external_gates_pass"
+          ],
+          "blocked_actions": [],
+          "reason": "Sangre cognitiva activa."
+        }
+      }
+    },
+    "created_at": "2026-10-07T22:13:16.315950+00:00",
+    "updated_at": "2026-10-08T03:07:44.754579+00:00",
+    "run_use_count": 11,
+    "run_outcome_scores": "[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]",
+    "avg_outcome_score": 1.0,
+    "measurement_evidence": {
+      "id": 1,
+      "candidate_id": "learn-b125832abae046a4",
+      "hypothesis": "El candidato mejora la respuesta a: SQLite ledger checksum: la restriccion CHECK observada en el esquema local es: selecciona la expresion para checksum con",
+      "capability": "conversational_learning",
+      "subject_id": "learn-b125832abae046a4",
+      "decision": "improved",
+      "artifact_ref": "ev-a6b16be6c4674d47",
+      "regression_required": true,
+      "generalization_required": false,
+      "regression_report_id": "rep-ev-a6b16be6c4674d47",
+      "created_at": "2026-10-07T22:14:23.720175+00:00",
+      "updated_at": "2026-10-07T22:15:23.024636+00:00",
+      "baseline_evaluation": {
+        "evaluation_id": "ev-a6b16be6c4674d47-baseline",
+        "suite_id": "learning-causal-suite",
+        "suite_version": "1.0.0",
+        "subject_id": "learn-b125832abae046a4",
+        "results": [
+          {
+            "case_id": "learning_recall",
+            "score": 0.0,
+            "passed": false,
+            "actual": 0.0,
+            "expected": 1.0,
+            "details": {}
+          }
+        ],
+        "aggregate_score": 0.0,
+        "created_at": "2026-10-07T22:15:22.999463+00:00",
+        "metadata": {
+          "producer_version": "evidence-producer-1.0.0"
+        }
+      },
+      "candidate_evaluation": {
+        "evaluation_id": "ev-a6b16be6c4674d47-candidate",
+        "suite_id": "learning-causal-suite",
+        "suite_version": "1.0.0",
+        "subject_id": "learn-b125832abae046a4",
+        "results": [
+          {
+            "case_id": "learning_recall",
+            "score": 1.0,
+            "passed": true,
+            "actual": 1.0,
+            "expected": 1.0,
+            "details": {}
+          }
+        ],
+        "aggregate_score": 1.0,
+        "created_at": "2026-10-07T22:15:22.999463+00:00",
+        "metadata": {
+          "producer_version": "evidence-producer-1.0.0"
+        }
+      },
+      "comparison": {
+        "baseline_evaluation_id": "ev-a6b16be6c4674d47-baseline",
+        "candidate_evaluation_id": "ev-a6b16be6c4674d47-candidate",
+        "baseline_score": 0.0,
+        "candidate_score": 1.0,
+        "absolute_delta": 1.0,
+        "percent_delta": null,
+        "improved_cases": [
+          "learning_recall"
+        ],
+        "degraded_cases": [],
+        "critical_regressions": [],
+        "decision": "improved"
+      },
+      "critical_regressions": [],
+      "regression_report": {
+        "report_id": "rep-ev-a6b16be6c4674d47",
+        "candidate_id": "learn-b125832abae046a4",
+        "capability": "conversational_learning",
+        "suite_id": "learning-causal-suite",
+        "suite_version": "1.0.0",
+        "baseline_evaluation_id": "ev-a6b16be6c4674d47-baseline",
+        "candidate_evaluation_id": "ev-a6b16be6c4674d47-candidate",
+        "decision": "pass",
+        "findings": [
+          {
+            "metric_id": "learning_recall",
+            "severity": "high",
+            "baseline_score": 0.0,
+            "candidate_score": 1.0,
+            "absolute_delta": 1.0,
+            "relative_delta": null,
+            "status": "pass",
+            "reason": "m\u00e9trica dentro del umbral permitido"
+          }
+        ],
+        "created_at": "2026-10-07T22:15:23.024636+00:00",
+        "metadata": {
+          "producer_version": "evidence-producer-1.0.0",
+          "repetitions": 5,
+          "model_id": "qwen2.5:3b-instruct"
+        },
+        "blocking_findings": []
+      },
+      "regression_quarantined": false
+    }
+  },
+  "task": {
+    "task_id": "task-edc026aca4a047a980e53a12c3443722",
+    "task_type": "stable_consolidation_review",
+    "idempotency_key": "admission-consolidation:learn-b125832abae046a4:51cfc6db3491514de3e7102ece766aa3c3aaddf7",
+    "worker_id": "admission-5ea65f7e4ce44154bc243e651aeff654",
+    "status": "completed",
+    "priority": 50,
+    "created_at": "2026-10-08T03:07:44.247534+00:00",
+    "updated_at": "2026-10-08T03:07:44.891263+00:00",
+    "lease_acquired_at": "2026-10-08T03:07:44.254082+00:00",
+    "lease_expires_at": null,
+    "heartbeat_at": null,
+    "lease_generation": 1,
+    "attempt": 1,
+    "max_attempts": 1,
+    "retry_after": null,
+    "last_error": null,
+    "payload_hash": "7c3e4d4a5d04bfff4c02de6689e54eaf4bef1db6d74e3d7c13037898cd271f2d",
+    "result_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\runs\\tasks\\task-edc026aca4a047a980e53a12c3443722\\result.json",
+    "rollback_ref": null,
+    "payload": {
+      "correlation_id": "admission-5ea65f7e4ce44154bc243e651aeff654",
+      "pending_count": 1
+    }
+  },
+  "outcome": {
+    "status": "completed",
+    "consolidated": [
+      {
+        "candidate_id": "learn-b125832abae046a4",
+        "document_id": "sem-b9d00d6f2a9c4544",
+        "status": "consolidated"
+      }
+    ],
+    "rejected": [],
+    "stable_memory_written": true,
+    "qualia": {
+      "published": true,
+      "experience_id": "qexp-39cb2b2ad7aa4ec7",
+      "state": {
+        "run_id": "admission-5ea65f7e4ce44154bc243e651aeff654",
+        "curiosity": 0.675,
+        "confidence": 0.45,
+        "risk": 0.3,
+        "urgency": 0.3,
+        "coherence": 0.567,
+        "novelty": 0.2,
+        "usefulness": 0.55,
+        "saturation": 0.0,
+        "dominant_signal": "learning_candidate",
+        "recommended_action": "review_learning_candidates",
+        "updated_at": "2026-10-08T03:07:44.785584+00:00"
+      }
+    },
+    "ollama_blood_status": "ok",
+    "model_used": "qwen2.5:1.5b",
+    "degraded_mode": false,
+    "cognitive_blood_active": true,
+    "elapsed": 0.578,
+    "resource_usage": {
+      "measurements": [
+        {
+          "resource_name": "wall_time",
+          "value": 0.5939999999827705,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "time.monotonic",
+          "started_at": "2026-10-08T03:07:44.263357+00:00",
+          "finished_at": "2026-10-08T03:07:44.851469+00:00"
+        },
+        {
+          "resource_name": "cpu_user",
+          "value": 0.03125,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "time.thread_time (children excluded)",
+          "started_at": "2026-10-08T03:07:44.263357+00:00",
+          "finished_at": "2026-10-08T03:07:44.851469+00:00"
+        },
+        {
+          "resource_name": "cpu_system",
+          "value": 0.0,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "included in cpu_user (thread clock)",
+          "started_at": "2026-10-08T03:07:44.263357+00:00",
+          "finished_at": "2026-10-08T03:07:44.851469+00:00"
+        },
+        {
+          "resource_name": "peak_rss",
+          "value": 42.7734375,
+          "unit": "MiB",
+          "measurement_type": "measured",
+          "source": "psutil.memory_info.peak_wset",
+          "started_at": "2026-10-08T03:07:44.263357+00:00",
+          "finished_at": "2026-10-08T03:07:44.851469+00:00"
+        },
+        {
+          "resource_name": "disk_bytes_read",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:07:44.263357+00:00",
+          "finished_at": "2026-10-08T03:07:44.851469+00:00"
+        },
+        {
+          "resource_name": "disk_bytes_written",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:07:44.263357+00:00",
+          "finished_at": "2026-10-08T03:07:44.851469+00:00"
+        },
+        {
+          "resource_name": "network_sent",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:07:44.263357+00:00",
+          "finished_at": "2026-10-08T03:07:44.851469+00:00"
+        },
+        {
+          "resource_name": "network_received",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:07:44.263357+00:00",
+          "finished_at": "2026-10-08T03:07:44.851469+00:00"
+        },
+        {
+          "resource_name": "gpu_memory_peak",
+          "value": null,
+          "unit": "MiB",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:07:44.263357+00:00",
+          "finished_at": "2026-10-08T03:07:44.851469+00:00"
+        },
+        {
+          "resource_name": "gpu_utilization",
+          "value": null,
+          "unit": "percent",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:07:44.263357+00:00",
+          "finished_at": "2026-10-08T03:07:44.851469+00:00"
+        },
+        {
+          "resource_name": "input_tokens",
+          "value": null,
+          "unit": "tokens",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:07:44.263357+00:00",
+          "finished_at": "2026-10-08T03:07:44.851469+00:00"
+        },
+        {
+          "resource_name": "output_tokens",
+          "value": null,
+          "unit": "tokens",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:07:44.263357+00:00",
+          "finished_at": "2026-10-08T03:07:44.851469+00:00"
+        }
+      ]
+    },
+    "execution_result": {
+      "status": "completed",
+      "executed": true,
+      "effect_applied": false,
+      "retryable": false,
+      "error_code": null,
+      "message": "",
+      "artifacts": [
+        "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\runs\\tasks\\task-edc026aca4a047a980e53a12c3443722\\result.json"
+      ],
+      "evidence": [
+        "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\runs\\tasks\\task-edc026aca4a047a980e53a12c3443722\\result.json"
+      ],
+      "resource_usage": {
+        "measurements": [
+          {
+            "resource_name": "wall_time",
+            "value": 0.5939999999827705,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "time.monotonic",
+            "started_at": "2026-10-08T03:07:44.263357+00:00",
+            "finished_at": "2026-10-08T03:07:44.851469+00:00"
+          },
+          {
+            "resource_name": "cpu_user",
+            "value": 0.03125,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "time.thread_time (children excluded)",
+            "started_at": "2026-10-08T03:07:44.263357+00:00",
+            "finished_at": "2026-10-08T03:07:44.851469+00:00"
+          },
+          {
+            "resource_name": "cpu_system",
+            "value": 0.0,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "included in cpu_user (thread clock)",
+            "started_at": "2026-10-08T03:07:44.263357+00:00",
+            "finished_at": "2026-10-08T03:07:44.851469+00:00"
+          },
+          {
+            "resource_name": "peak_rss",
+            "value": 42.7734375,
+            "unit": "MiB",
+            "measurement_type": "measured",
+            "source": "psutil.memory_info.peak_wset",
+            "started_at": "2026-10-08T03:07:44.263357+00:00",
+            "finished_at": "2026-10-08T03:07:44.851469+00:00"
+          },
+          {
+            "resource_name": "disk_bytes_read",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:07:44.263357+00:00",
+            "finished_at": "2026-10-08T03:07:44.851469+00:00"
+          },
+          {
+            "resource_name": "disk_bytes_written",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:07:44.263357+00:00",
+            "finished_at": "2026-10-08T03:07:44.851469+00:00"
+          },
+          {
+            "resource_name": "network_sent",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:07:44.263357+00:00",
+            "finished_at": "2026-10-08T03:07:44.851469+00:00"
+          },
+          {
+            "resource_name": "network_received",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:07:44.263357+00:00",
+            "finished_at": "2026-10-08T03:07:44.851469+00:00"
+          },
+          {
+            "resource_name": "gpu_memory_peak",
+            "value": null,
+            "unit": "MiB",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:07:44.263357+00:00",
+            "finished_at": "2026-10-08T03:07:44.851469+00:00"
+          },
+          {
+            "resource_name": "gpu_utilization",
+            "value": null,
+            "unit": "percent",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:07:44.263357+00:00",
+            "finished_at": "2026-10-08T03:07:44.851469+00:00"
+          },
+          {
+            "resource_name": "input_tokens",
+            "value": null,
+            "unit": "tokens",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:07:44.263357+00:00",
+            "finished_at": "2026-10-08T03:07:44.851469+00:00"
+          },
+          {
+            "resource_name": "output_tokens",
+            "value": null,
+            "unit": "tokens",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:07:44.263357+00:00",
+            "finished_at": "2026-10-08T03:07:44.851469+00:00"
+          }
+        ]
+      },
+      "postconditions": {
+        "effect_expected": false,
+        "artifact_required": true
+      },
+      "rollback": {},
+      "effect_receipt": {
+        "action": "observe",
+        "target": "governed_handler",
+        "precondition": {},
+        "execution": {
+          "handler_status": "completed"
+        },
+        "postcondition": {
+          "passed": true,
+          "result_artifact_exists": true
+        },
+        "verified": true,
+        "verifier": "result_artifact_verifier",
+        "evidence_refs": [
+          "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\runs\\tasks\\task-edc026aca4a047a980e53a12c3443722\\result.json"
+        ],
+        "rollback_ref": null,
+        "rollback_required": false,
+        "irreversible": false,
+        "timestamp": "2026-10-08T03:07:44.851469+00:00"
+      },
+      "observation_justification": null,
+      "started_at": "2026-10-08T03:07:44.851469+00:00",
+      "finished_at": "2026-10-08T03:07:44.851469+00:00"
+    }
+  },
+  "scope": "Normal low-risk automatic consolidation in existing experiment DB; no named-human override",
+  "truth": false
+}

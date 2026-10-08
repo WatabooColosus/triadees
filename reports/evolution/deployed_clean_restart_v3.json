@@ -1,0 +1,176 @@
+{
+  "timestamp": "2026-10-08T04:27:37.330013+00:00",
+  "tested_source_sha": "a86a2f6445085a0e05e68d4f55ea41a196b4ca5e",
+  "pid_before": 25684,
+  "pid_after": 1936,
+  "old_supervisor_pid": 18720,
+  "new_supervisor_pid": 26060,
+  "exit_code": 0,
+  "shutdown_seconds": 70.905,
+  "identity_preserved": true,
+  "source": {
+    "captured_at": "2026-10-08T04:27:13.154051+00:00",
+    "status": "VERIFIED_AT_BOOTSTRAP",
+    "git_sha": "a86a2f6445085a0e05e68d4f55ea41a196b4ca5e",
+    "source_dirty": false,
+    "source_hash": "348e0766a230416387c104d12daf33985ab7e790adb791bd364cd5955fd79fac",
+    "bootstrap_before": {
+      "captured_at": "2026-10-08T04:27:11.923795+00:00",
+      "status": "CLEAN",
+      "git_sha": "a86a2f6445085a0e05e68d4f55ea41a196b4ca5e",
+      "source_dirty": false,
+      "source_hash": "348e0766a230416387c104d12daf33985ab7e790adb791bd364cd5955fd79fac"
+    },
+    "verified": true
+  },
+  "health_after": {
+    "status": "healthy",
+    "ready": true,
+    "heartbeat_ok": true,
+    "identity": {
+      "integrity_ok": true,
+      "integrity": "verified",
+      "tamper_detected": false,
+      "mismatches": [],
+      "schema_version": "039",
+      "continuity_from_previous_run": true
+    },
+    "heartbeat": {
+      "status": "ok",
+      "checks": {
+        "live_heartbeat": true,
+        "always_on": true,
+        "workers": true,
+        "ollama_blood": true
+      },
+      "live_heartbeat": {
+        "singleton": 1,
+        "cycle": 9190,
+        "wall_timestamp": 1791433655.9602437,
+        "monotonic_timestamp": 262316.843,
+        "duration_ms": 0.0,
+        "pid": 1936,
+        "ram_available_mb": 1975.01953125,
+        "updated_at": "2026-10-08 04:27:35",
+        "heartbeat_age_ms": 223.4170436859131,
+        "status": "healthy",
+        "llm_invocations": 0
+      },
+      "always_on": {
+        "configured_mode": "full_local_guarded",
+        "effective_mode": "full_local_guarded",
+        "status": "running",
+        "background_thread_alive": true,
+        "degraded": false
+      },
+      "workers": {
+        "status": "running",
+        "active": true,
+        "thread_alive": true,
+        "mode_effective": "full_local_guarded"
+      },
+      "ollama_blood": {
+        "status": "ok",
+        "can_reason": true,
+        "fallback_mode": false
+      }
+    },
+    "readiness_raw": "{\"status\":\"ready\",\"checks\":{\"memory\":{\"path\":\"E:\\\\triade\\\\memory\",\"ok\":true},\"runs\":{\"path\":\"E:\\\\triade\\\\runs\",\"ok\":true},\"postgres\":{\"configured\":false,\"ok\":true,\"reason\":\"not_configured\"},\"valkey\":{\"configured\":false,\"ok\":true,\"reason\":\"not_configured\"}}}",
+    "runtime_mode": {
+      "status": "started",
+      "conversation_only": false,
+      "background_started": null,
+      "metabolism_startup": {
+        "enabled": true,
+        "mode": "full",
+        "effective_mode": "observe_only",
+        "resource_governor": {},
+        "dry_run": false,
+        "cycle_count": 0,
+        "current_cycle_id": null,
+        "running": true,
+        "last_tick_at": null,
+        "last_tick_duration_ms": null,
+        "last_tick_error": null,
+        "status": "started",
+        "thread_alive": true
+      },
+      "metabolism_current": {
+        "enabled": true,
+        "mode": "full",
+        "effective_mode": "observe_only",
+        "resource_governor": {},
+        "dry_run": false,
+        "cycle_count": 0,
+        "current_cycle_id": 7339,
+        "running": true,
+        "last_tick_at": null,
+        "last_tick_duration_ms": null,
+        "last_tick_error": null,
+        "status": "running",
+        "thread_alive": true
+      },
+      "workers_startup": {
+        "configured": true,
+        "autostart": true,
+        "watchdog": true,
+        "active": false,
+        "mode_configured": "full_local_guarded",
+        "mode_effective": "full_local_guarded",
+        "status": "inactive",
+        "last_start_at": "2026-10-08T04:27:35.477219+00:00",
+        "last_error": null,
+        "restart_attempts": 0,
+        "degraded_by_governor": false,
+        "degradation_reason": null,
+        "thread_alive": true,
+        "lock_file_active": false,
+        "service_status": "ok",
+        "stop_requested": true
+      }
+    },
+    "supervision": {
+      "service_manager": "windows_task_scheduler",
+      "unit": "TriadeOmegaAdmin",
+      "unit_known": true,
+      "service_managed": true,
+      "autostart_enabled": true,
+      "service_state": 4,
+      "service_substate": null,
+      "runtime_pid": 1936,
+      "listener_pid_unit": null,
+      "listener_count": 1,
+      "port": 8010,
+      "started_at": null,
+      "uptime_seconds": null,
+      "restart_count": null,
+      "last_result": 267009,
+      "supervisor_pid": 26060,
+      "last_exit_status": null,
+      "database": {
+        "path": "E:\\triade\\triade\\memory\\triade.db",
+        "exists": true,
+        "size_bytes": 179527680
+      },
+      "startup_source": null,
+      "listener_state": "healthy",
+      "always_on": true,
+      "always_on_blockers": [],
+      "manual_start_required": false
+    },
+    "resources": {
+      "database_path": "E:\\triade\\triade\\memory\\triade.db",
+      "open_connections": 3,
+      "opened_total": 3220,
+      "closed_total": 3217,
+      "db_file_descriptors": 3,
+      "process_file_descriptors": 366,
+      "rss_mb": 104.36
+    }
+  },
+  "startup_method": "existing TriadeOmegaAdmin scheduled task",
+  "asgi_graceful_shutdown_proven": true,
+  "learned_knowledge_use_after_restart": "NOT_DEMONSTRATED",
+  "productive_inflight_recovery_proven": false,
+  "truth": true
+}

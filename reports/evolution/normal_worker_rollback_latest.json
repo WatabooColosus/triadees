@@ -1,0 +1,328 @@
+{
+  "timestamp": "2026-10-08T05:00:06.772245+00:00",
+  "tested_source_sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+  "correlation_id": "admission-4e26ca110f754c038e3790786178c860",
+  "baseline": {
+    "evaluation_id": "e32f6d0e533b4894927ef61306ae0dc0",
+    "suite_id": "bounded-config-transfer",
+    "suite_version": "1",
+    "subject_id": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\rc-d5ba48\\config.json",
+    "results": [
+      {
+        "case_id": "34",
+        "score": 1.0,
+        "passed": true,
+        "actual": "(amount*17+3)%97",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      },
+      {
+        "case_id": "41",
+        "score": 1.0,
+        "passed": true,
+        "actual": "(amount*17+3)%97",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      },
+      {
+        "case_id": "52",
+        "score": 1.0,
+        "passed": true,
+        "actual": "(amount*17+3)%97",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      },
+      {
+        "case_id": "63",
+        "score": 1.0,
+        "passed": true,
+        "actual": "(amount*17+3)%97",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      },
+      {
+        "case_id": "79",
+        "score": 1.0,
+        "passed": true,
+        "actual": "(amount*17+3)%97",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      }
+    ],
+    "aggregate_score": 1.0,
+    "created_at": "2026-10-08T05:00:06.712124+00:00",
+    "metadata": {}
+  },
+  "candidate": {
+    "evaluation_id": "a0178f89e4f34325a145178de706cf9e",
+    "suite_id": "bounded-config-transfer",
+    "suite_version": "1",
+    "subject_id": "inferior:fa42c0ee92134d838917ef962bd515bf",
+    "results": [
+      {
+        "case_id": "34",
+        "score": 0.0,
+        "passed": false,
+        "actual": "0",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      },
+      {
+        "case_id": "41",
+        "score": 0.0,
+        "passed": false,
+        "actual": "0",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      },
+      {
+        "case_id": "52",
+        "score": 0.0,
+        "passed": false,
+        "actual": "0",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      },
+      {
+        "case_id": "63",
+        "score": 0.0,
+        "passed": false,
+        "actual": "0",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      },
+      {
+        "case_id": "79",
+        "score": 0.0,
+        "passed": false,
+        "actual": "0",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      }
+    ],
+    "aggregate_score": 0.0,
+    "created_at": "2026-10-08T05:00:06.720302+00:00",
+    "metadata": {}
+  },
+  "regression": {
+    "report_id": "fa42c0ee92134d838917ef962bd515bf",
+    "candidate_id": "inferior:fa42c0ee92134d838917ef962bd515bf",
+    "capability": "bounded_configuration:rc-d5ba48",
+    "suite_id": "bounded-config-transfer",
+    "suite_version": "1",
+    "baseline_evaluation_id": "e32f6d0e533b4894927ef61306ae0dc0",
+    "candidate_evaluation_id": "a0178f89e4f34325a145178de706cf9e",
+    "decision": "fail",
+    "findings": [
+      {
+        "metric_id": "34",
+        "severity": "critical",
+        "baseline_score": 1.0,
+        "candidate_score": 0.0,
+        "absolute_delta": -1.0,
+        "relative_delta": -1.0,
+        "status": "fail",
+        "reason": "ca\u00edda supera el umbral de no-regresi\u00f3n"
+      },
+      {
+        "metric_id": "41",
+        "severity": "critical",
+        "baseline_score": 1.0,
+        "candidate_score": 0.0,
+        "absolute_delta": -1.0,
+        "relative_delta": -1.0,
+        "status": "fail",
+        "reason": "ca\u00edda supera el umbral de no-regresi\u00f3n"
+      },
+      {
+        "metric_id": "52",
+        "severity": "critical",
+        "baseline_score": 1.0,
+        "candidate_score": 0.0,
+        "absolute_delta": -1.0,
+        "relative_delta": -1.0,
+        "status": "fail",
+        "reason": "ca\u00edda supera el umbral de no-regresi\u00f3n"
+      },
+      {
+        "metric_id": "63",
+        "severity": "critical",
+        "baseline_score": 1.0,
+        "candidate_score": 0.0,
+        "absolute_delta": -1.0,
+        "relative_delta": -1.0,
+        "status": "fail",
+        "reason": "ca\u00edda supera el umbral de no-regresi\u00f3n"
+      },
+      {
+        "metric_id": "79",
+        "severity": "critical",
+        "baseline_score": 1.0,
+        "candidate_score": 0.0,
+        "absolute_delta": -1.0,
+        "relative_delta": -1.0,
+        "status": "fail",
+        "reason": "ca\u00edda supera el umbral de no-regresi\u00f3n"
+      }
+    ],
+    "created_at": "2026-10-08T05:00:06.738535+00:00",
+    "metadata": {
+      "correlation_id": "admission-4e26ca110f754c038e3790786178c860",
+      "scope": "paired measurement of preserved baseline and actual inferior configuration"
+    },
+    "blocking_findings": [
+      {
+        "metric_id": "34",
+        "severity": "critical",
+        "baseline_score": 1.0,
+        "candidate_score": 0.0,
+        "absolute_delta": -1.0,
+        "relative_delta": -1.0,
+        "status": "fail",
+        "reason": "ca\u00edda supera el umbral de no-regresi\u00f3n"
+      },
+      {
+        "metric_id": "41",
+        "severity": "critical",
+        "baseline_score": 1.0,
+        "candidate_score": 0.0,
+        "absolute_delta": -1.0,
+        "relative_delta": -1.0,
+        "status": "fail",
+        "reason": "ca\u00edda supera el umbral de no-regresi\u00f3n"
+      },
+      {
+        "metric_id": "52",
+        "severity": "critical",
+        "baseline_score": 1.0,
+        "candidate_score": 0.0,
+        "absolute_delta": -1.0,
+        "relative_delta": -1.0,
+        "status": "fail",
+        "reason": "ca\u00edda supera el umbral de no-regresi\u00f3n"
+      },
+      {
+        "metric_id": "63",
+        "severity": "critical",
+        "baseline_score": 1.0,
+        "candidate_score": 0.0,
+        "absolute_delta": -1.0,
+        "relative_delta": -1.0,
+        "status": "fail",
+        "reason": "ca\u00edda supera el umbral de no-regresi\u00f3n"
+      },
+      {
+        "metric_id": "79",
+        "severity": "critical",
+        "baseline_score": 1.0,
+        "candidate_score": 0.0,
+        "absolute_delta": -1.0,
+        "relative_delta": -1.0,
+        "status": "fail",
+        "reason": "ca\u00edda supera el umbral de no-regresi\u00f3n"
+      }
+    ]
+  },
+  "plan": {
+    "rollback_id": "fa42c0ee92134d838917ef962bd515bf",
+    "capability": "bounded_configuration:rc-d5ba48",
+    "candidate_id": "inferior:fa42c0ee92134d838917ef962bd515bf",
+    "report_id": "fa42c0ee92134d838917ef962bd515bf",
+    "target_subject_id": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\rc-d5ba48\\config.json",
+    "target_evaluation_id": "e32f6d0e533b4894927ef61306ae0dc0",
+    "suite_id": "bounded-config-transfer",
+    "suite_version": "1",
+    "reason": "objective reserved-task regression",
+    "requested_by": "bounded verification driver",
+    "created_at": "2026-10-08T05:00:06.738535+00:00"
+  },
+  "rollback": {
+    "rollback_id": "fa42c0ee92134d838917ef962bd515bf",
+    "capability": "bounded_configuration:rc-d5ba48",
+    "status": "applied",
+    "before_state": {
+      "subject_id": "inferior:fa42c0ee92134d838917ef962bd515bf"
+    },
+    "after_state": {
+      "subject_id": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\rc-d5ba48\\config.json",
+      "sha256": "f47e82839174e2cab9ebb5fbb5d79180658dd44c8ceed6b58d80ee1808ea96e0"
+    },
+    "error": null,
+    "applied_at": "2026-10-08T05:00:06.753665+00:00"
+  },
+  "receipts": [
+    {
+      "action": "rollback_file",
+      "target": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\rc-d5ba48\\config.json",
+      "precondition": {},
+      "execution": {},
+      "postcondition": {
+        "passed": true
+      },
+      "verified": true,
+      "verifier": "serialized_file_rollback_verifier",
+      "evidence_refs": [
+        "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\rc-d5ba48\\config.json",
+        "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\rc-d5ba48\\r\\effects\\7723a29bc854abda2f00c422f9739479\\backup-fe65c3498a0846e681f6b2b7a85bd8ba.bin"
+      ],
+      "rollback_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\rc-d5ba48\\r\\effects\\7723a29bc854abda2f00c422f9739479\\backup-fe65c3498a0846e681f6b2b7a85bd8ba.bin",
+      "rollback_required": false,
+      "irreversible": false,
+      "timestamp": "2026-10-08T05:00:06.753665+00:00"
+    }
+  ],
+  "restored": {
+    "evaluation_id": "66404070f82a4844a4022c9b0d66648d",
+    "suite_id": "bounded-config-transfer",
+    "suite_version": "1",
+    "subject_id": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\rc-d5ba48\\config.json",
+    "results": [
+      {
+        "case_id": "34",
+        "score": 1.0,
+        "passed": true,
+        "actual": "(amount*17+3)%97",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      },
+      {
+        "case_id": "41",
+        "score": 1.0,
+        "passed": true,
+        "actual": "(amount*17+3)%97",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      },
+      {
+        "case_id": "52",
+        "score": 1.0,
+        "passed": true,
+        "actual": "(amount*17+3)%97",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      },
+      {
+        "case_id": "63",
+        "score": 1.0,
+        "passed": true,
+        "actual": "(amount*17+3)%97",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      },
+      {
+        "case_id": "79",
+        "score": 1.0,
+        "passed": true,
+        "actual": "(amount*17+3)%97",
+        "expected": "independent SQLite constraint",
+        "details": {}
+      }
+    ],
+    "aggregate_score": 1.0,
+    "created_at": "2026-10-08T05:00:06.772245+00:00",
+    "metadata": {}
+  },
+  "baseline_restored": true,
+  "scope": "existing bounded experiment configuration; no identity, stable knowledge or source changes",
+  "truth": true
+}

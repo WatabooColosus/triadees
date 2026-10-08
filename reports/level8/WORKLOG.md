@@ -111,3 +111,47 @@ EVIDENCIA: rectification_observation_before/after.json; unchanged tested source 
 FALTA: complete correlated admission, held-out formation/certification, productive learning and downstream gates.
 RIESGO: permissions and heartbeat progress do not demonstrate learning; current source is not certified as reloaded in the API. CI remains a timestamped external-blocker observation.
 SIGUIENTE PASO: connect legitimate formation and certification while preserving original evidence.
+
+## Internal graph navigation ? 2026-10-08
+HECHO: reused existing layer/organ/worker/table/neural/vital graphs; corrected false handoff verification based only on endpoint recency. API reloaded source 621e2f2 with a process-scoped single-model/single-inference Ollama profile.
+EVIDENCIA: internal_graph_navigation.json/md; provider_profile_and_reload.json; heartbeat progressed 7749?7760 with PID21200; real frontend/API/Central/Ollama focused test PASS.
+FALTA: graph-focused suite finished 62 PASS; current complete suite remains 2741 PASS / 1 FAIL on 4b8684e, with the literal-output failure repaired and only focused runtime retest proven. No full-suite PASS for current source claimed. Executable held-out training, certification, activation, consolidation and productive recovery remain unproven.
+RIESGO: graph connectivity/imports do not prove causal transfers. The provider profile is session-only and is not persisted across Windows reboot.
+SIGUIENTE PASO: finish graph tests, reload final source and recertify before release; continue the missing training/certification bridge without manual activation.
+
+RECARGA: source 037b58e verified at bootstrap; the normal restart health check timed out before the previous worker lease expired. The API remained available; passive lease recovery observation is preserved separately in graph_navigation_reload.json. The live vital graph returned ten handoff_verified=false edges. No release/full-suite certification or push claimed.
+
+RESULTADO RECARGA: normal lease recovery completed without queue/lease edits; health healthy, workers active, PID11924, effective full_local_guarded, heartbeat7806 at 2026-10-08T02:24:09Z. Evidence: reports/evolution/graph_navigation_reload.json. Remaining causal formation/education/consolidation gates unchanged.
+
+## Sequential learning closure ? 2026-10-08
+HECHO: saved eight sequential phases with explicit exit gates; investigated phase 1 using existing graph links, actual planner/formation/trainer/evaluation code, and read-only existing experiment DB.
+EVIDENCIA: reports/evolution/learning_closure_phases.json/md; candidate neuron1 remains candidate, training rows0. DomainAdmissionCoordinator.form emits pending_executable_curriculum; structural training score is not competence.
+FALTA: phase2 executable curriculum and normal-worker execution, followed by independent certification and registry/router bridge.
+RIESGO: NeuronRegistry.store_training changes neuron status; it must not be used with a structural review score to fabricate competence. Stable education policy currently declares HUMAN_REQUIRED and must be resolved through governance, not bypassed.
+SIGUIENTE PASO: phase2 curriculum/execution contract, focal tests and normal-worker evidence before phase3 certification.
+
+## Sequential execution 2026-10-08
+
+HECHO: governed training 2/2; held-out treatment 5/5 vs both controls 0/5; certified neuron activation; five measured education applications; earned-trust consolidation; two independent runtime processes reuse the stable knowledge; real WorkerLoop crash recovery; measured regression rollback.
+
+EVIDENCIA: reports/evolution/admission_*_latest.json. Recovery 61.625 seconds, lost_tasks=0, duplicate_effects=0. Stable ID sem-b9d00d6f2a9c4544. Existing experiment DB only; runtime handlers and governors are normal production code. API clean restart PID 11924 -> 9284, source 794bee09c089dfe31286f799d54e85b9b0ddcf2f, identity preserved.
+
+FALTA: same-revision final suite, production cognitive autonomy with measured learned benefit, deployed supervisor in-flight recovery, continuous evolution supervisor. Source revisions for earlier stage executions differ; do not mark complete certification.
+
+RIESGO: certification traffic overlaps the current operational soak; no-chat autonomy cannot be inferred from this window. No historical evidence overwritten as a current PASS.
+
+SIGUIENTE PASO: finish final tests and operational observation, correlate real background tasks; retain pending gates honestly.
+
+## Automatic closure corrections and observation 2026-10-08T04:43:22.570398+00:00
+
+HECHO: fixed SQLite BUSY escaping event scheduler; isolated each full-suite JUnit; shared admission transition policy in scheduler and worker; initialized research/education storage through owning migrations; serialized model tasks across lanes; bounded infrastructure-only certification retries to 3; prioritized finishing trained admissions over new candidate creation.
+
+EVIDENCIA: source a4fdde65251d35791402bb6ded7c60cd5de97d3a. scripts/run_admission_autonomy.py started one normal WorkerLoop. reports/evolution/autonomous_admission_observation.json: 475.781 seconds, 23 cycles, 68 tasks completed, errors=[], no human prompts, five beneficial applications, candidate learn-8d88d82b4b4d49f7 consolidated normally as sem-cd3901dc11d943b6 by trust-system@low. Held-out certification 15 actual calls, 45.86 seconds, treatment5/5, baseline0/5, negative0/5.
+
+FALTA: final suite completion, current-release persistence/recovery, stable longitudinal window and deployment-wide certification. Origin experience/training belong to earlier source revisions; current autonomous continuation is not all-stage same-SHA evidence. Continuous Evolution Supervisor remains unimplemented per upstream gate order.
+
+RIESGO: original controlled experiment DB, not proof that main DB has absorbed this domain. Failed/aborted attempts preserved, including timeout and source-changing soak. No activation by insertion, wildcard routing, human impersonation or threshold changes.
+
+SIGUIENTE PASO: finish frozen-source checks; publish truthful closure matrix and remaining gates.
+
+FINAL CHECKPOINT: source a4fdde6; full suite 2763 passed/0 failed/0 skipped, frontend PASS. Passive soak 1812.891s/120 completed/0 failed. Natural resource recovery to full_local_guarded observed 2026-10-08T05:25Z. HECHO: experimental certification/application/consolidation/reuse, normal child crash recovery, controlled rollback. EVIDENCIA: FINAL_AUDIT.json. FALTA: same-SHA origin chain, main DB productive chain, deployed API productive crash recovery, continuous evolution supervisor. RIESGO: scoped evidence must not be represented as global certification. SIGUIENTE PASO: close origin correlation and deployed productive chain; LEVEL_8_CANDIDATE remains false.

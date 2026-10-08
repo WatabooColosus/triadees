@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-10-07T23:47:27.109151+00:00",
-  "git_sha": "8fdfe9c8a031365f4a80e73ddf9de25273646172",
+  "timestamp": "2026-10-08T04:35:54.652578+00:00",
+  "git_sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
   "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
   "platform": "Windows-11-10.0.26300-SP0",
-  "tests_collected": 2728,
-  "passed": 2728,
+  "tests_collected": 2763,
+  "passed": 2763,
   "failed": 0,
   "skipped": 0,
-  "duration_seconds": 944.484,
+  "duration_seconds": 2567.765,
   "commands": [
     [
       "C:\\Users\\SantiWataboo\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
@@ -15,14 +15,15 @@
       "pytest",
       "-o",
       "faulthandler_timeout=90",
-      "--junitxml=E:\\triade\\reports\\level8\\full_suite.xml"
+      "--junitxml=E:\\triade\\artifacts\\level8\\full-suite-1791434154652578800.xml"
     ]
   ],
   "exit_codes": [
     0
   ],
-  "suite_hash": "4e01491be2cc5d55520c077ffc703bb5503c9ca384848c7354e20f2698cebdb6",
-  "junit_sha256": "f2470c1820296f2deffefc35a8543f5ab006b95b08ffc0f84504cd811e64c0ab",
+  "suite_hash": "1e87da11b6914d3ed1d16e049a8e016281cded0312104c63847d43bdd1d729be",
+  "junit_path": "artifacts\\level8\\full-suite-1791434154652578800.xml",
+  "junit_sha256": "433f99a96401c038084289e48381f002694a02db8d10ac2bdae0e69fd77810c2",
   "skip_reasons": [],
   "skips_justified": true,
   "truth": true,

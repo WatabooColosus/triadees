@@ -1,0 +1,82 @@
+{
+  "timestamp": "2026-10-08T04:42:13.230721+00:00",
+  "scope": "read-only verification of automatic experiment consolidation receipt",
+  "candidate": {
+    "candidate_id": "learn-8d88d82b4b4d49f7",
+    "status": "consolidated",
+    "run_use_count": 11
+  },
+  "consolidation": {
+    "decision": "consolidated",
+    "approved_by": "trust-system@low",
+    "auto_consolidated": true,
+    "risk": "low",
+    "semantic_document_id": "sem-cd3901dc11d943b6",
+    "supersedes": null,
+    "at": "2026-10-08T04:36:41.085382+00:00",
+    "model_provider": "ollama",
+    "model_name": "qwen2.5:1.5b",
+    "model_required": true,
+    "model_status": "ok",
+    "evaluation_mode": "ollama_blood",
+    "human_approval": null,
+    "ollama_blood_active": true,
+    "candidate_requires_model_review": false,
+    "ollama_blood": {
+      "status": "ok",
+      "ok": true,
+      "ollama_ok": true,
+      "mode": "cognitive_blood_active",
+      "base_url": "http://127.0.0.1:11434",
+      "models_available": [
+        "gemma3:4b",
+        "qwen2.5-coder:3b",
+        "qwen3:4b",
+        "nomic-embed-text:latest",
+        "qwen2.5:1.5b"
+      ],
+      "models": [
+        "gemma3:4b",
+        "qwen2.5-coder:3b",
+        "qwen3:4b",
+        "nomic-embed-text:latest",
+        "qwen2.5:1.5b"
+      ],
+      "reasoning_model": "qwen2.5:1.5b",
+      "embedding_model": "nomic-embed-text:latest",
+      "coder_model": "qwen2.5:1.5b",
+      "latency_ms": 26.81,
+      "can_reason": true,
+      "can_embed": true,
+      "can_nourish_neurons": true,
+      "can_evaluate_learning": true,
+      "can_consolidate_stable": true,
+      "degraded_components": [],
+      "recommended_action": "Sangre cognitiva activa: Ollama alimenta razonamiento y embeddings locales.",
+      "blood_pressure_score": 1.0,
+      "checked_at": "2026-10-08T04:36:41.046503+00:00",
+      "errors": [],
+      "cognitive_blood_active": true,
+      "fallback_mode": false,
+      "truth": "Fallback mantiene respiraci\u00f3n m\u00ednima; Ollama Blood alimenta cognici\u00f3n local gobernada."
+    },
+    "model_policy": {
+      "role": "stable_consolidation",
+      "allowed": true,
+      "degraded": false,
+      "model_required": true,
+      "model_used": "qwen2.5:1.5b",
+      "fallback_allowed": false,
+      "stable_write_allowed": true,
+      "allowed_actions": [
+        "observe",
+        "record",
+        "review_gates",
+        "stable_consolidation_if_external_gates_pass"
+      ],
+      "blocked_actions": [],
+      "reason": "Sangre cognitiva activa."
+    }
+  },
+  "database": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\learning.db"
+}

@@ -1,0 +1,165 @@
+{
+  "timestamp": "2026-10-08T00:58:50.305417+00:00",
+  "tested_source_sha": "61364a0c42dae8e4e59d340aa151b80f4f15b2da",
+  "scope": "Read-only deployed runtime observation; loaded source revision unverified",
+  "database_integrity": "ok",
+  "foreign_key_violations": 0,
+  "journal_mode": "wal",
+  "health": {
+    "status": "healthy",
+    "ready": true,
+    "heartbeat_ok": true,
+    "identity": {
+      "integrity_ok": true,
+      "integrity": "verified",
+      "tamper_detected": false,
+      "mismatches": [],
+      "schema_version": "039",
+      "continuity_from_previous_run": true
+    },
+    "heartbeat": {
+      "status": "ok",
+      "checks": {
+        "live_heartbeat": true,
+        "always_on": true,
+        "workers": true,
+        "ollama_blood": true
+      },
+      "live_heartbeat": {
+        "singleton": 1,
+        "cycle": 6967,
+        "wall_timestamp": 1791421133.15796,
+        "monotonic_timestamp": 249794.031,
+        "duration_ms": 0.0,
+        "pid": 11212,
+        "ram_available_mb": 1379.9921875,
+        "updated_at": "2026-10-08 00:58:53",
+        "heartbeat_age_ms": 2023.8173007965088,
+        "status": "healthy",
+        "llm_invocations": 0
+      },
+      "always_on": {
+        "configured_mode": "full_local_guarded",
+        "effective_mode": "full_local_guarded",
+        "status": "running",
+        "background_thread_alive": true,
+        "degraded": false
+      },
+      "workers": {
+        "status": "running",
+        "active": true,
+        "thread_alive": true,
+        "mode_effective": "full_local_guarded"
+      },
+      "ollama_blood": {
+        "status": "ok",
+        "can_reason": true,
+        "fallback_mode": false
+      }
+    },
+    "readiness_raw": "{\"status\":\"ready\",\"checks\":{\"memory\":{\"path\":\"E:\\\\triade\\\\memory\",\"ok\":true},\"runs\":{\"path\":\"E:\\\\triade\\\\runs\",\"ok\":true},\"postgres\":{\"configured\":false,\"ok\":true,\"reason\":\"not_configured\"},\"valkey\":{\"configured\":false,\"ok\":true,\"reason\":\"not_configured\"}}}",
+    "runtime_mode": {
+      "status": "started",
+      "conversation_only": false,
+      "background_started": null,
+      "metabolism_startup": {
+        "enabled": true,
+        "mode": "full",
+        "effective_mode": "observe_only",
+        "resource_governor": {},
+        "dry_run": false,
+        "cycle_count": 0,
+        "current_cycle_id": null,
+        "running": true,
+        "last_tick_at": null,
+        "last_tick_duration_ms": null,
+        "last_tick_error": null,
+        "status": "started",
+        "thread_alive": true
+      },
+      "metabolism_current": {
+        "enabled": true,
+        "mode": "full",
+        "effective_mode": "light_background",
+        "resource_governor": {
+          "requested_mode": "full_local_guarded",
+          "allowed_mode": "light_background",
+          "effective_mode": "light_background",
+          "reason": "RAM disponible limitada (1.28 GB): m\u00e1ximo light_background; full local exige 1.5 GB.; Hardware tier low. M\u00e1ximo light_background.; Modo solicitado 'full_local_guarded' excede permitido 'light_background'. Degradado.",
+          "can_run_workers": true,
+          "can_nourish_neurons": false,
+          "can_evaluate_learning": true,
+          "can_consolidate_stable": false
+        },
+        "dry_run": false,
+        "cycle_count": 1065,
+        "current_cycle_id": null,
+        "running": true,
+        "last_tick_at": "2026-10-08T00:58:35.927949+00:00",
+        "last_tick_duration_ms": 11358.99999999674,
+        "last_tick_error": null,
+        "status": "running",
+        "thread_alive": true
+      },
+      "workers_startup": {
+        "configured": true,
+        "autostart": true,
+        "watchdog": true,
+        "active": true,
+        "mode_configured": "full_local_guarded",
+        "mode_effective": "full_local_guarded",
+        "status": "running",
+        "last_start_at": "2026-10-07T02:26:03.153697+00:00",
+        "last_error": null,
+        "restart_attempts": 0,
+        "degraded_by_governor": false,
+        "degradation_reason": null,
+        "thread_alive": true,
+        "lock_file_active": false,
+        "service_status": "ok",
+        "stop_requested": false
+      }
+    },
+    "supervision": {
+      "service_manager": "windows_task_scheduler",
+      "unit": "TriadeOmegaAdmin",
+      "unit_known": true,
+      "service_managed": true,
+      "autostart_enabled": true,
+      "service_state": 3,
+      "service_substate": null,
+      "runtime_pid": 11212,
+      "listener_pid_unit": null,
+      "listener_count": 1,
+      "port": 8010,
+      "started_at": null,
+      "uptime_seconds": null,
+      "restart_count": null,
+      "last_result": 1,
+      "supervisor_pid": 23492,
+      "last_exit_status": null,
+      "database": {
+        "path": "E:\\triade\\triade\\memory\\triade.db",
+        "exists": true,
+        "size_bytes": 158863360
+      },
+      "startup_source": null,
+      "listener_state": "healthy",
+      "always_on": true,
+      "always_on_blockers": [],
+      "manual_start_required": false
+    },
+    "resources": {
+      "database_path": "E:\\triade\\triade\\memory\\triade.db",
+      "open_connections": 686,
+      "opened_total": 947921,
+      "closed_total": 947235,
+      "db_file_descriptors": 3,
+      "process_file_descriptors": 361,
+      "rss_mb": 103.11
+    }
+  },
+  "current_source_loaded": false,
+  "resource_ram_available_mb": 1902.46875,
+  "production_writes": false
+}

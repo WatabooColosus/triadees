@@ -1,0 +1,976 @@
+{
+  "timestamp": "2026-10-08T03:52:45.006348+00:00",
+  "git_sha": "e4c2988fa81b1a05491b8ccc4daf69707a9666a3",
+  "worktree_dirty": true,
+  "correlation_id": "admission-4e26ca110f754c038e3790786178c860",
+  "candidate_id": "learn-8d88d82b4b4d49f7",
+  "domain": "sqlite_ledger_checksum",
+  "formation": {
+    "request_id": "admission-6a692ea2f3d20978bfa26c3d",
+    "schema_version": 2,
+    "supersedes_event_ids": [],
+    "candidate_id": "learn-8d88d82b4b4d49f7",
+    "correlation_id": "admission-4e26ca110f754c038e3790786178c860",
+    "domain": "sqlite_ledger_checksum",
+    "required_capability": "verified_knowledge_application",
+    "source_mission": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\experience.json",
+    "risk": "low",
+    "confidence": 0.75,
+    "evidence_refs": [
+      "sqlite:learning_evidence:1",
+      "ev-405b25d8c6e948a9"
+    ],
+    "decision": "CREATE_NEW_NEURON",
+    "parent_neuron_id": null,
+    "status": "awaiting_held_out_certification",
+    "creator_spec": {
+      "name": "admission-6a692ea2f3d20978bfa26c3d",
+      "mission": "Evaluar y aplicar conocimiento verificable del dominio sqlite_ledger_checksum en tareas posteriores distintas, midiendo errores y regresiones.",
+      "domain": "sqlite_ledger_checksum",
+      "rules": [
+        "Operar dentro del ciclo auditable de Tríade.",
+        "No modificar memoria estable sin validación humana.",
+        "Producir salidas verificables.",
+        "No ejecutar acciones externas sin autorización explícita.",
+        "No aprobarse a sí misma ni elevar su propio estado.",
+        "Operar como candidata hasta auto-promoción.",
+        "Usar evidencia del run y del pulso actual antes de proponer acciones.",
+        "No consolidar memoria estable sin revisión.",
+        "No modificar código ni archivos sin autorización explícita.",
+        "Producir diagnóstico, plan de prueba y criterio de éxito verificable."
+      ],
+      "triggers": [
+        "verified_domain_need",
+        "compatible_task_available"
+      ],
+      "inputs_allowed": [
+        "verified_knowledge",
+        "evidence_refs",
+        "task_context",
+        "verification_reports"
+      ],
+      "outputs_allowed": [
+        "knowledge_application",
+        "execution_result",
+        "verification_request"
+      ],
+      "forbidden_actions": [
+        "modify_repo_directly",
+        "write_stable_memory",
+        "self_approve",
+        "bypass_safety",
+        "execute_external_action_without_approval",
+        "modify_repo_directly",
+        "write_stable_memory",
+        "approve_itself",
+        "execute_shell_commands",
+        "change_credentials",
+        "bypass_safety",
+        "self_promote_to_stable"
+      ],
+      "success_metrics": [
+        "success_rate",
+        "error_rate",
+        "latency_ms",
+        "resource_usage",
+        "held_out_generalization"
+      ],
+      "evidence_required": [
+        "independent_held_out_evaluation",
+        "measured_post_run_application",
+        "regression_gate"
+      ],
+      "risk_level": "low",
+      "resource_profile": {
+        "max_memory_mb": 128,
+        "max_runtime_seconds": 120,
+        "max_storage_mb": 8,
+        "max_concurrent_inferences": 1
+      },
+      "training_requirements": {
+        "separate_training_and_held_out": true,
+        "required_artifacts": [
+          "training_cases",
+          "execution_results",
+          "knowledge_refs"
+        ]
+      },
+      "certification_requirements": {
+        "success_rate_min": 0.9,
+        "regressions_max": 0,
+        "independent_evaluation": true,
+        "required_artifacts": [
+          "held_out_cases",
+          "evaluation_results",
+          "regression_report"
+        ]
+      },
+      "status": "candidate_detected",
+      "created_by": "neuron_creator",
+      "policy": "creator_only_no_activation_without_trainer_and_human_review",
+      "correlation_id": "admission-4e26ca110f754c038e3790786178c860"
+    },
+    "specification_review": {
+      "name": "admission-6a692ea2f3d20978bfa26c3d",
+      "score": 1.0,
+      "status": "experimental_candidate",
+      "strengths": [
+        "Nombre identificable.",
+        "Misión descriptiva.",
+        "Dominio asignado.",
+        "Reglas operativas suficientes.",
+        "Triggers definidos.",
+        "Entradas y salidas permitidas definidas.",
+        "Acciones prohibidas críticas presentes.",
+        "Métricas de éxito definidas.",
+        "Evidencia requerida definida."
+      ],
+      "warnings": [],
+      "recommendations": [
+        "Puede pasar a revisión humana antes de operar como experimental.",
+        "No consolidar como estable sin pruebas y evidencia repetida."
+      ],
+      "required_human_review": false,
+      "policy": "trainer_auto_approves"
+    },
+    "competence_certified": false,
+    "allowed_actions": [
+      "observe",
+      "propose"
+    ],
+    "curriculum_requirements": {
+      "separate_training_and_held_out": true,
+      "metrics": [
+        "success_rate",
+        "errors",
+        "latency",
+        "resource_usage"
+      ],
+      "requires_independent_evaluation": true,
+      "requires_regression_gate": true
+    },
+    "activated": false,
+    "stable_memory_written": false,
+    "created_at": "2026-10-08T03:52:44.443771+00:00",
+    "event_id": 1
+  },
+  "education": {
+    "status": "NOT_DEMONSTRATED"
+  },
+  "candidate_formation": {
+    "status": "completed",
+    "formation": {
+      "status": "candidate",
+      "neuron_id": 1,
+      "correlation_id": "admission-4e26ca110f754c038e3790786178c860",
+      "admission_event_id": 1,
+      "training_status": "pending_executable_curriculum",
+      "competence_certified": false,
+      "activated": false,
+      "event_id": 3
+    },
+    "stable_memory_written": false,
+    "activated": false,
+    "ollama_blood_status": "ok",
+    "model_used": "qwen2.5:1.5b",
+    "degraded_mode": false,
+    "cognitive_blood_active": true,
+    "elapsed": 0.422,
+    "resource_usage": {
+      "measurements": [
+        {
+          "resource_name": "wall_time",
+          "value": 0.42199999999138527,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "time.monotonic",
+          "started_at": "2026-10-08T03:52:44.550374+00:00",
+          "finished_at": "2026-10-08T03:52:44.974908+00:00"
+        },
+        {
+          "resource_name": "cpu_user",
+          "value": 0.015625,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "time.thread_time (children excluded)",
+          "started_at": "2026-10-08T03:52:44.550374+00:00",
+          "finished_at": "2026-10-08T03:52:44.974908+00:00"
+        },
+        {
+          "resource_name": "cpu_system",
+          "value": 0.0,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "included in cpu_user (thread clock)",
+          "started_at": "2026-10-08T03:52:44.550374+00:00",
+          "finished_at": "2026-10-08T03:52:44.974908+00:00"
+        },
+        {
+          "resource_name": "peak_rss",
+          "value": 43.59375,
+          "unit": "MiB",
+          "measurement_type": "measured",
+          "source": "psutil.memory_info.peak_wset",
+          "started_at": "2026-10-08T03:52:44.550374+00:00",
+          "finished_at": "2026-10-08T03:52:44.974908+00:00"
+        },
+        {
+          "resource_name": "disk_bytes_read",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.550374+00:00",
+          "finished_at": "2026-10-08T03:52:44.974908+00:00"
+        },
+        {
+          "resource_name": "disk_bytes_written",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.550374+00:00",
+          "finished_at": "2026-10-08T03:52:44.974908+00:00"
+        },
+        {
+          "resource_name": "network_sent",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.550374+00:00",
+          "finished_at": "2026-10-08T03:52:44.974908+00:00"
+        },
+        {
+          "resource_name": "network_received",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.550374+00:00",
+          "finished_at": "2026-10-08T03:52:44.974908+00:00"
+        },
+        {
+          "resource_name": "gpu_memory_peak",
+          "value": null,
+          "unit": "MiB",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.550374+00:00",
+          "finished_at": "2026-10-08T03:52:44.974908+00:00"
+        },
+        {
+          "resource_name": "gpu_utilization",
+          "value": null,
+          "unit": "percent",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.550374+00:00",
+          "finished_at": "2026-10-08T03:52:44.974908+00:00"
+        },
+        {
+          "resource_name": "input_tokens",
+          "value": null,
+          "unit": "tokens",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.550374+00:00",
+          "finished_at": "2026-10-08T03:52:44.974908+00:00"
+        },
+        {
+          "resource_name": "output_tokens",
+          "value": null,
+          "unit": "tokens",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.550374+00:00",
+          "finished_at": "2026-10-08T03:52:44.974908+00:00"
+        }
+      ]
+    },
+    "execution_result": {
+      "status": "completed",
+      "executed": true,
+      "effect_applied": false,
+      "retryable": false,
+      "error_code": null,
+      "message": "",
+      "artifacts": [
+        "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\runs\\tasks\\task-98b46761c59548f084b33ba5340ae77d\\result.json"
+      ],
+      "evidence": [
+        "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\runs\\tasks\\task-98b46761c59548f084b33ba5340ae77d\\result.json"
+      ],
+      "resource_usage": {
+        "measurements": [
+          {
+            "resource_name": "wall_time",
+            "value": 0.42199999999138527,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "time.monotonic",
+            "started_at": "2026-10-08T03:52:44.550374+00:00",
+            "finished_at": "2026-10-08T03:52:44.974908+00:00"
+          },
+          {
+            "resource_name": "cpu_user",
+            "value": 0.015625,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "time.thread_time (children excluded)",
+            "started_at": "2026-10-08T03:52:44.550374+00:00",
+            "finished_at": "2026-10-08T03:52:44.974908+00:00"
+          },
+          {
+            "resource_name": "cpu_system",
+            "value": 0.0,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "included in cpu_user (thread clock)",
+            "started_at": "2026-10-08T03:52:44.550374+00:00",
+            "finished_at": "2026-10-08T03:52:44.974908+00:00"
+          },
+          {
+            "resource_name": "peak_rss",
+            "value": 43.59375,
+            "unit": "MiB",
+            "measurement_type": "measured",
+            "source": "psutil.memory_info.peak_wset",
+            "started_at": "2026-10-08T03:52:44.550374+00:00",
+            "finished_at": "2026-10-08T03:52:44.974908+00:00"
+          },
+          {
+            "resource_name": "disk_bytes_read",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.550374+00:00",
+            "finished_at": "2026-10-08T03:52:44.974908+00:00"
+          },
+          {
+            "resource_name": "disk_bytes_written",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.550374+00:00",
+            "finished_at": "2026-10-08T03:52:44.974908+00:00"
+          },
+          {
+            "resource_name": "network_sent",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.550374+00:00",
+            "finished_at": "2026-10-08T03:52:44.974908+00:00"
+          },
+          {
+            "resource_name": "network_received",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.550374+00:00",
+            "finished_at": "2026-10-08T03:52:44.974908+00:00"
+          },
+          {
+            "resource_name": "gpu_memory_peak",
+            "value": null,
+            "unit": "MiB",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.550374+00:00",
+            "finished_at": "2026-10-08T03:52:44.974908+00:00"
+          },
+          {
+            "resource_name": "gpu_utilization",
+            "value": null,
+            "unit": "percent",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.550374+00:00",
+            "finished_at": "2026-10-08T03:52:44.974908+00:00"
+          },
+          {
+            "resource_name": "input_tokens",
+            "value": null,
+            "unit": "tokens",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.550374+00:00",
+            "finished_at": "2026-10-08T03:52:44.974908+00:00"
+          },
+          {
+            "resource_name": "output_tokens",
+            "value": null,
+            "unit": "tokens",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.550374+00:00",
+            "finished_at": "2026-10-08T03:52:44.974908+00:00"
+          }
+        ]
+      },
+      "postconditions": {
+        "effect_expected": false,
+        "artifact_required": true
+      },
+      "rollback": {},
+      "effect_receipt": {
+        "action": "observe",
+        "target": "governed_handler",
+        "precondition": {},
+        "execution": {
+          "handler_status": "completed"
+        },
+        "postcondition": {
+          "passed": true,
+          "result_artifact_exists": true
+        },
+        "verified": true,
+        "verifier": "result_artifact_verifier",
+        "evidence_refs": [
+          "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\runs\\tasks\\task-98b46761c59548f084b33ba5340ae77d\\result.json"
+        ],
+        "rollback_ref": null,
+        "rollback_required": false,
+        "irreversible": false,
+        "timestamp": "2026-10-08T03:52:44.974908+00:00"
+      },
+      "observation_justification": null,
+      "started_at": "2026-10-08T03:52:44.974908+00:00",
+      "finished_at": "2026-10-08T03:52:44.974908+00:00"
+    }
+  },
+  "formation_task": {
+    "task_id": "task-98b46761c59548f084b33ba5340ae77d",
+    "task_type": "neuron_candidate_formation",
+    "idempotency_key": "formation:admission-6a692ea2f3d20978bfa26c3d",
+    "worker_id": "admission-4e26ca110f754c038e3790786178c860",
+    "status": "completed",
+    "priority": 50,
+    "created_at": "2026-10-08T03:52:44.535597+00:00",
+    "updated_at": "2026-10-08T03:52:45.006348+00:00",
+    "lease_acquired_at": "2026-10-08T03:52:44.544988+00:00",
+    "lease_expires_at": null,
+    "heartbeat_at": null,
+    "lease_generation": 1,
+    "attempt": 1,
+    "max_attempts": 1,
+    "retry_after": null,
+    "last_error": null,
+    "payload_hash": "8f3416d5b1563257882d810c72f334ef4b406c2630a3c08159b3c32c684d7a6a",
+    "result_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\runs\\tasks\\task-98b46761c59548f084b33ba5340ae77d\\result.json",
+    "rollback_ref": null,
+    "payload": {
+      "admission_event_id": 1,
+      "correlation_id": "admission-4e26ca110f754c038e3790786178c860"
+    }
+  },
+  "admission_task_correlation_matches": true,
+  "correlation_complete": false,
+  "neuron_certified": false,
+  "route_status": "BLOCKED:no_compatible_neuron",
+  "training": {
+    "status": "NOT_DEMONSTRATED",
+    "reason": "Executable training and held-out curriculum are not connected"
+  },
+  "certification": {
+    "status": "NOT_DEMONSTRATED"
+  },
+  "activation": {
+    "activated": false
+  },
+  "task": {
+    "task_id": "task-c137b45458a746a093ce10b7fe01ef3d",
+    "task_type": "neural_learning_distribution",
+    "idempotency_key": "admission-4e26ca110f754c038e3790786178c860",
+    "worker_id": "admission-4e26ca110f754c038e3790786178c860",
+    "status": "completed",
+    "priority": 50,
+    "created_at": "2026-10-08T03:52:44.089573+00:00",
+    "updated_at": "2026-10-08T03:52:44.525413+00:00",
+    "lease_acquired_at": "2026-10-08T03:52:44.095584+00:00",
+    "lease_expires_at": null,
+    "heartbeat_at": null,
+    "lease_generation": 1,
+    "attempt": 1,
+    "max_attempts": 1,
+    "retry_after": null,
+    "last_error": null,
+    "payload_hash": "283e3ac89d1ae56a50558dec264e37fe54f2d1d6b6abac3beb0ec344b9c2219a",
+    "result_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\runs\\tasks\\task-c137b45458a746a093ce10b7fe01ef3d\\result.json",
+    "rollback_ref": null,
+    "payload": {
+      "candidate_id": "learn-8d88d82b4b4d49f7",
+      "correlation_id": "admission-4e26ca110f754c038e3790786178c860"
+    }
+  },
+  "worker_outcome": {
+    "status": "completed",
+    "effect": "rejected",
+    "candidate_id": "learn-8d88d82b4b4d49f7",
+    "skipped_reason": "no_compatible_neuron",
+    "stable_memory_written": false,
+    "rejection": {
+      "event_id": 2,
+      "candidate_id": "learn-8d88d82b4b4d49f7",
+      "reason": "no_compatible_neuron",
+      "created_at": "2026-10-08T03:52:44.445774+00:00"
+    },
+    "domain_admission": {
+      "request_id": "admission-6a692ea2f3d20978bfa26c3d",
+      "schema_version": 2,
+      "supersedes_event_ids": [],
+      "candidate_id": "learn-8d88d82b4b4d49f7",
+      "correlation_id": "admission-4e26ca110f754c038e3790786178c860",
+      "domain": "sqlite_ledger_checksum",
+      "required_capability": "verified_knowledge_application",
+      "source_mission": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\experience.json",
+      "risk": "low",
+      "confidence": 0.75,
+      "evidence_refs": [
+        "sqlite:learning_evidence:1",
+        "ev-405b25d8c6e948a9"
+      ],
+      "decision": "CREATE_NEW_NEURON",
+      "parent_neuron_id": null,
+      "status": "awaiting_held_out_certification",
+      "creator_spec": {
+        "name": "admission-6a692ea2f3d20978bfa26c3d",
+        "mission": "Evaluar y aplicar conocimiento verificable del dominio sqlite_ledger_checksum en tareas posteriores distintas, midiendo errores y regresiones.",
+        "domain": "sqlite_ledger_checksum",
+        "rules": [
+          "Operar dentro del ciclo auditable de Tríade.",
+          "No modificar memoria estable sin validación humana.",
+          "Producir salidas verificables.",
+          "No ejecutar acciones externas sin autorización explícita.",
+          "No aprobarse a sí misma ni elevar su propio estado.",
+          "Operar como candidata hasta auto-promoción.",
+          "Usar evidencia del run y del pulso actual antes de proponer acciones.",
+          "No consolidar memoria estable sin revisión.",
+          "No modificar código ni archivos sin autorización explícita.",
+          "Producir diagnóstico, plan de prueba y criterio de éxito verificable."
+        ],
+        "triggers": [
+          "verified_domain_need",
+          "compatible_task_available"
+        ],
+        "inputs_allowed": [
+          "verified_knowledge",
+          "evidence_refs",
+          "task_context",
+          "verification_reports"
+        ],
+        "outputs_allowed": [
+          "knowledge_application",
+          "execution_result",
+          "verification_request"
+        ],
+        "forbidden_actions": [
+          "modify_repo_directly",
+          "write_stable_memory",
+          "self_approve",
+          "bypass_safety",
+          "execute_external_action_without_approval",
+          "modify_repo_directly",
+          "write_stable_memory",
+          "approve_itself",
+          "execute_shell_commands",
+          "change_credentials",
+          "bypass_safety",
+          "self_promote_to_stable"
+        ],
+        "success_metrics": [
+          "success_rate",
+          "error_rate",
+          "latency_ms",
+          "resource_usage",
+          "held_out_generalization"
+        ],
+        "evidence_required": [
+          "independent_held_out_evaluation",
+          "measured_post_run_application",
+          "regression_gate"
+        ],
+        "risk_level": "low",
+        "resource_profile": {
+          "max_memory_mb": 128,
+          "max_runtime_seconds": 120,
+          "max_storage_mb": 8,
+          "max_concurrent_inferences": 1
+        },
+        "training_requirements": {
+          "separate_training_and_held_out": true,
+          "required_artifacts": [
+            "training_cases",
+            "execution_results",
+            "knowledge_refs"
+          ]
+        },
+        "certification_requirements": {
+          "success_rate_min": 0.9,
+          "regressions_max": 0,
+          "independent_evaluation": true,
+          "required_artifacts": [
+            "held_out_cases",
+            "evaluation_results",
+            "regression_report"
+          ]
+        },
+        "status": "candidate_detected",
+        "created_by": "neuron_creator",
+        "policy": "creator_only_no_activation_without_trainer_and_human_review",
+        "correlation_id": "admission-4e26ca110f754c038e3790786178c860"
+      },
+      "specification_review": {
+        "name": "admission-6a692ea2f3d20978bfa26c3d",
+        "score": 1.0,
+        "status": "experimental_candidate",
+        "strengths": [
+          "Nombre identificable.",
+          "Misión descriptiva.",
+          "Dominio asignado.",
+          "Reglas operativas suficientes.",
+          "Triggers definidos.",
+          "Entradas y salidas permitidas definidas.",
+          "Acciones prohibidas críticas presentes.",
+          "Métricas de éxito definidas.",
+          "Evidencia requerida definida."
+        ],
+        "warnings": [],
+        "recommendations": [
+          "Puede pasar a revisión humana antes de operar como experimental.",
+          "No consolidar como estable sin pruebas y evidencia repetida."
+        ],
+        "required_human_review": false,
+        "policy": "trainer_auto_approves"
+      },
+      "competence_certified": false,
+      "allowed_actions": [
+        "observe",
+        "propose"
+      ],
+      "curriculum_requirements": {
+        "separate_training_and_held_out": true,
+        "metrics": [
+          "success_rate",
+          "errors",
+          "latency",
+          "resource_usage"
+        ],
+        "requires_independent_evaluation": true,
+        "requires_regression_gate": true
+      },
+      "activated": false,
+      "stable_memory_written": false,
+      "created_at": "2026-10-08T03:52:44.443771+00:00",
+      "event_id": 1
+    },
+    "effect_receipt": {
+      "action": "reject_neural_learning",
+      "target": "learn-8d88d82b4b4d49f7",
+      "precondition": {},
+      "execution": {
+        "reason": "no_compatible_neuron"
+      },
+      "postcondition": {
+        "passed": true,
+        "event_id": 2
+      },
+      "verified": true,
+      "verifier": "neuron_education_event_postcondition",
+      "evidence_refs": [
+        "sqlite:neuron_education_events:2"
+      ],
+      "rollback_ref": null,
+      "rollback_required": false,
+      "irreversible": false,
+      "timestamp": "2026-10-08T03:52:44.449783+00:00"
+    },
+    "ollama_blood_status": "ok",
+    "model_used": "qwen2.5:1.5b",
+    "degraded_mode": false,
+    "cognitive_blood_active": true,
+    "elapsed": 0.375,
+    "resource_usage": {
+      "measurements": [
+        {
+          "resource_name": "wall_time",
+          "value": 0.39100000000325963,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "time.monotonic",
+          "started_at": "2026-10-08T03:52:44.101592+00:00",
+          "finished_at": "2026-10-08T03:52:44.492652+00:00"
+        },
+        {
+          "resource_name": "cpu_user",
+          "value": 0.03125,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "time.thread_time (children excluded)",
+          "started_at": "2026-10-08T03:52:44.101592+00:00",
+          "finished_at": "2026-10-08T03:52:44.492652+00:00"
+        },
+        {
+          "resource_name": "cpu_system",
+          "value": 0.0,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "included in cpu_user (thread clock)",
+          "started_at": "2026-10-08T03:52:44.101592+00:00",
+          "finished_at": "2026-10-08T03:52:44.492652+00:00"
+        },
+        {
+          "resource_name": "peak_rss",
+          "value": 41.76953125,
+          "unit": "MiB",
+          "measurement_type": "measured",
+          "source": "psutil.memory_info.peak_wset",
+          "started_at": "2026-10-08T03:52:44.101592+00:00",
+          "finished_at": "2026-10-08T03:52:44.492652+00:00"
+        },
+        {
+          "resource_name": "disk_bytes_read",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.101592+00:00",
+          "finished_at": "2026-10-08T03:52:44.492652+00:00"
+        },
+        {
+          "resource_name": "disk_bytes_written",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.101592+00:00",
+          "finished_at": "2026-10-08T03:52:44.492652+00:00"
+        },
+        {
+          "resource_name": "network_sent",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.101592+00:00",
+          "finished_at": "2026-10-08T03:52:44.492652+00:00"
+        },
+        {
+          "resource_name": "network_received",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.101592+00:00",
+          "finished_at": "2026-10-08T03:52:44.492652+00:00"
+        },
+        {
+          "resource_name": "gpu_memory_peak",
+          "value": null,
+          "unit": "MiB",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.101592+00:00",
+          "finished_at": "2026-10-08T03:52:44.492652+00:00"
+        },
+        {
+          "resource_name": "gpu_utilization",
+          "value": null,
+          "unit": "percent",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.101592+00:00",
+          "finished_at": "2026-10-08T03:52:44.492652+00:00"
+        },
+        {
+          "resource_name": "input_tokens",
+          "value": null,
+          "unit": "tokens",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.101592+00:00",
+          "finished_at": "2026-10-08T03:52:44.492652+00:00"
+        },
+        {
+          "resource_name": "output_tokens",
+          "value": null,
+          "unit": "tokens",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T03:52:44.101592+00:00",
+          "finished_at": "2026-10-08T03:52:44.492652+00:00"
+        }
+      ]
+    },
+    "execution_result": {
+      "status": "completed",
+      "executed": true,
+      "effect_applied": true,
+      "retryable": false,
+      "error_code": null,
+      "message": "",
+      "artifacts": [
+        "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\runs\\tasks\\task-c137b45458a746a093ce10b7fe01ef3d\\result.json"
+      ],
+      "evidence": [
+        "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\runs\\tasks\\task-c137b45458a746a093ce10b7fe01ef3d\\result.json"
+      ],
+      "resource_usage": {
+        "measurements": [
+          {
+            "resource_name": "wall_time",
+            "value": 0.39100000000325963,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "time.monotonic",
+            "started_at": "2026-10-08T03:52:44.101592+00:00",
+            "finished_at": "2026-10-08T03:52:44.492652+00:00"
+          },
+          {
+            "resource_name": "cpu_user",
+            "value": 0.03125,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "time.thread_time (children excluded)",
+            "started_at": "2026-10-08T03:52:44.101592+00:00",
+            "finished_at": "2026-10-08T03:52:44.492652+00:00"
+          },
+          {
+            "resource_name": "cpu_system",
+            "value": 0.0,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "included in cpu_user (thread clock)",
+            "started_at": "2026-10-08T03:52:44.101592+00:00",
+            "finished_at": "2026-10-08T03:52:44.492652+00:00"
+          },
+          {
+            "resource_name": "peak_rss",
+            "value": 41.76953125,
+            "unit": "MiB",
+            "measurement_type": "measured",
+            "source": "psutil.memory_info.peak_wset",
+            "started_at": "2026-10-08T03:52:44.101592+00:00",
+            "finished_at": "2026-10-08T03:52:44.492652+00:00"
+          },
+          {
+            "resource_name": "disk_bytes_read",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.101592+00:00",
+            "finished_at": "2026-10-08T03:52:44.492652+00:00"
+          },
+          {
+            "resource_name": "disk_bytes_written",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.101592+00:00",
+            "finished_at": "2026-10-08T03:52:44.492652+00:00"
+          },
+          {
+            "resource_name": "network_sent",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.101592+00:00",
+            "finished_at": "2026-10-08T03:52:44.492652+00:00"
+          },
+          {
+            "resource_name": "network_received",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.101592+00:00",
+            "finished_at": "2026-10-08T03:52:44.492652+00:00"
+          },
+          {
+            "resource_name": "gpu_memory_peak",
+            "value": null,
+            "unit": "MiB",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.101592+00:00",
+            "finished_at": "2026-10-08T03:52:44.492652+00:00"
+          },
+          {
+            "resource_name": "gpu_utilization",
+            "value": null,
+            "unit": "percent",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.101592+00:00",
+            "finished_at": "2026-10-08T03:52:44.492652+00:00"
+          },
+          {
+            "resource_name": "input_tokens",
+            "value": null,
+            "unit": "tokens",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.101592+00:00",
+            "finished_at": "2026-10-08T03:52:44.492652+00:00"
+          },
+          {
+            "resource_name": "output_tokens",
+            "value": null,
+            "unit": "tokens",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T03:52:44.101592+00:00",
+            "finished_at": "2026-10-08T03:52:44.492652+00:00"
+          }
+        ]
+      },
+      "postconditions": {
+        "effect_expected": true,
+        "artifact_required": true
+      },
+      "rollback": {},
+      "effect_receipt": {
+        "action": "reject_neural_learning",
+        "target": "learn-8d88d82b4b4d49f7",
+        "precondition": {},
+        "execution": {
+          "reason": "no_compatible_neuron"
+        },
+        "postcondition": {
+          "passed": true,
+          "event_id": 2
+        },
+        "verified": true,
+        "verifier": "neuron_education_event_postcondition",
+        "evidence_refs": [
+          "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\runs\\tasks\\task-c137b45458a746a093ce10b7fe01ef3d\\result.json"
+        ],
+        "rollback_ref": null,
+        "rollback_required": false,
+        "irreversible": false,
+        "timestamp": "2026-10-08T03:52:44.449783+00:00"
+      },
+      "observation_justification": null,
+      "started_at": "2026-10-08T03:52:44.498675+00:00",
+      "finished_at": "2026-10-08T03:52:44.498675+00:00"
+    }
+  },
+  "knowledge_retrieved": false,
+  "knowledge_used": false,
+  "control_score": null,
+  "treatment_score": null,
+  "verification_report": null,
+  "consolidated": false,
+  "truth": false,
+  "production_writes": false,
+  "scope": "Normal leased admission handler in existing experiment DB; no neuron activation or productive education claim",
+  "artifact_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400"
+}

@@ -1,0 +1,1665 @@
+{
+  "timestamp": "2026-10-08T05:17:23.108016+00:00",
+  "tested_source_sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+  "duration_seconds": 1812.8910000000033,
+  "samples": 26,
+  "cycles": 39,
+  "tasks_completed": 120,
+  "tasks_failed": 0,
+  "learning_events": 12,
+  "memory_growth_bytes": 2240512,
+  "human_interventions": "NOT_DETERMINED_BY_THIS_OBSERVER",
+  "rss_start_mb": 60.95703125,
+  "rss_end_mb": 49.0078125,
+  "rss_peak_mb": 112.53515625,
+  "growth_mb": -11.94921875,
+  "growth_percent": -19.602691445049665,
+  "memory_classification": "STABLE",
+  "runtime_source_unchanged": true,
+  "healthy": true,
+  "truth": true,
+  "scope": "passive operational stability under ongoing validation load; not no-chat autonomy certification",
+  "24h": "NOT_YET_PROVEN",
+  "72h": "NOT_YET_PROVEN",
+  "observations": [
+    {
+      "at": "2026-10-08T04:47:13.753650+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "light_background"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 62420,
+        "handles": 377,
+        "threads": 18,
+        "cpu_times": {
+          "user": 141.921875,
+          "system": 133.421875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 179908608,
+      "wal_bytes": 6060552,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8594,
+        "dead_letter": 142,
+        "observed": 508,
+        "running": 1,
+        "skipped": 592
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 464,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 443,
+        "pending": 12
+      },
+      "metabolic_cycles": 7362,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T04:48:29.845799+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "degraded",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 48228,
+        "handles": 384,
+        "threads": 18,
+        "cpu_times": {
+          "user": 149.265625,
+          "system": 140.9375,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 179937280,
+      "wal_bytes": 2818112,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8598,
+        "dead_letter": 142,
+        "observed": 508,
+        "pending": 1,
+        "retry_wait": 1,
+        "running": 2,
+        "skipped": 592
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 464,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 443,
+        "pending": 12
+      },
+      "metabolic_cycles": 7364,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T04:49:46.518498+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "light_background"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 69548,
+        "handles": 397,
+        "threads": 20,
+        "cpu_times": {
+          "user": 155.53125,
+          "system": 148.0625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 179961856,
+      "wal_bytes": 4120032,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8602,
+        "dead_letter": 142,
+        "observed": 509,
+        "pending": 1,
+        "running": 1,
+        "skipped": 592
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 464,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 443,
+        "pending": 12
+      },
+      "metabolic_cycles": 7366,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T04:50:59.916155+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 115236,
+        "handles": 399,
+        "threads": 20,
+        "cpu_times": {
+          "user": 163.28125,
+          "system": 158.71875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 180056064,
+      "wal_bytes": 4342512,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8605,
+        "dead_letter": 142,
+        "observed": 509,
+        "pending": 2,
+        "running": 2,
+        "skipped": 592
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 464,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 443,
+        "pending": 12
+      },
+      "metabolic_cycles": 7367,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T04:52:14.429239+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 104904,
+        "handles": 390,
+        "threads": 18,
+        "cpu_times": {
+          "user": 178.09375,
+          "system": 169.5625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 180228096,
+      "wal_bytes": 1825192,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8614,
+        "dead_letter": 142,
+        "observed": 509,
+        "pending": 2,
+        "running": 1,
+        "skipped": 593
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 466,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 445,
+        "pending": 12
+      },
+      "metabolic_cycles": 7368,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T04:53:23.113188+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 102060,
+        "handles": 392,
+        "threads": 20,
+        "cpu_times": {
+          "user": 188.8125,
+          "system": 180.75,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 180367360,
+      "wal_bytes": 4120032,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8619,
+        "dead_letter": 142,
+        "observed": 509,
+        "pending": 2,
+        "running": 2,
+        "skipped": 594
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 467,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 446,
+        "pending": 12
+      },
+      "metabolic_cycles": 7370,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T04:54:34.027392+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 64316,
+        "handles": 390,
+        "threads": 19,
+        "cpu_times": {
+          "user": 194.578125,
+          "system": 190.75,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 180498432,
+      "wal_bytes": 4120032,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8623,
+        "dead_letter": 142,
+        "observed": 509,
+        "pending": 4,
+        "running": 3,
+        "skipped": 594
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 468,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 447,
+        "pending": 12
+      },
+      "metabolic_cycles": 7371,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T04:55:44.094684+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 66628,
+        "handles": 398,
+        "threads": 19,
+        "cpu_times": {
+          "user": 201.59375,
+          "system": 201.015625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 180527104,
+      "wal_bytes": 5199472,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8625,
+        "dead_letter": 142,
+        "observed": 510,
+        "pending": 5,
+        "retry_wait": 2,
+        "skipped": 594
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 468,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 447,
+        "pending": 12
+      },
+      "metabolic_cycles": 7373,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T04:56:56.771298+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 53480,
+        "handles": 384,
+        "threads": 19,
+        "cpu_times": {
+          "user": 211.03125,
+          "system": 207.75,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 180625408,
+      "wal_bytes": 4120032,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8631,
+        "dead_letter": 142,
+        "observed": 510,
+        "pending": 1,
+        "running": 1,
+        "skipped": 596
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 468,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 447,
+        "pending": 12
+      },
+      "metabolic_cycles": 7375,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T04:58:10.326447+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "light_background"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 95856,
+        "handles": 390,
+        "threads": 20,
+        "cpu_times": {
+          "user": 216.4375,
+          "system": 213.921875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 180625408,
+      "wal_bytes": 4342512,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8635,
+        "dead_letter": 142,
+        "observed": 510,
+        "pending": 1,
+        "running": 2,
+        "skipped": 596
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 468,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 447,
+        "pending": 12
+      },
+      "metabolic_cycles": 7377,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T04:59:21.632012+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "light_background"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 74076,
+        "handles": 380,
+        "threads": 18,
+        "cpu_times": {
+          "user": 225.65625,
+          "system": 222.671875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 180695040,
+      "wal_bytes": 4342512,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8639,
+        "dead_letter": 142,
+        "observed": 510,
+        "pending": 2,
+        "running": 1,
+        "skipped": 596
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 468,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 447,
+        "pending": 12
+      },
+      "metabolic_cycles": 7378,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:00:35.249398+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 76044,
+        "handles": 383,
+        "threads": 18,
+        "cpu_times": {
+          "user": 235.390625,
+          "system": 233.890625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 180830208,
+      "wal_bytes": 4120032,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8643,
+        "dead_letter": 142,
+        "observed": 511,
+        "pending": 2,
+        "running": 3,
+        "skipped": 596
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 469,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 448,
+        "pending": 12
+      },
+      "metabolic_cycles": 7379,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:01:45.886703+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 73216,
+        "handles": 401,
+        "threads": 21,
+        "cpu_times": {
+          "user": 244.859375,
+          "system": 245.4375,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 180924416,
+      "wal_bytes": 8425432,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8649,
+        "dead_letter": 142,
+        "observed": 511,
+        "pending": 2,
+        "running": 2,
+        "skipped": 596
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 470,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 449,
+        "pending": 12
+      },
+      "metabolic_cycles": 7380,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:02:57.368877+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 78492,
+        "handles": 380,
+        "threads": 20,
+        "cpu_times": {
+          "user": 252.875,
+          "system": 251.21875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 181002240,
+      "wal_bytes": 8425432,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8654,
+        "dead_letter": 142,
+        "observed": 511,
+        "pending": 2,
+        "running": 1,
+        "skipped": 596
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 470,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 449,
+        "pending": 12
+      },
+      "metabolic_cycles": 7382,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:04:11.292929+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "light_background"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 100088,
+        "handles": 387,
+        "threads": 19,
+        "cpu_times": {
+          "user": 261.78125,
+          "system": 258.296875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 181030912,
+      "wal_bytes": 4120032,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8659,
+        "dead_letter": 142,
+        "observed": 512,
+        "running": 2,
+        "skipped": 596
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 470,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 449,
+        "pending": 12
+      },
+      "metabolic_cycles": 7384,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:05:17.735749+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "light_background"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 96516,
+        "handles": 386,
+        "threads": 19,
+        "cpu_times": {
+          "user": 269.4375,
+          "system": 267.65625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 181030912,
+      "wal_bytes": 4593832,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8662,
+        "dead_letter": 142,
+        "observed": 512,
+        "pending": 1,
+        "running": 2,
+        "skipped": 596
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 470,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 449,
+        "pending": 12
+      },
+      "metabolic_cycles": 7385,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:06:29.478540+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 65072,
+        "handles": 387,
+        "threads": 19,
+        "cpu_times": {
+          "user": 276.671875,
+          "system": 275.28125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 181149696,
+      "wal_bytes": 5442552,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8667,
+        "dead_letter": 142,
+        "observed": 513,
+        "pending": 1,
+        "running": 1,
+        "skipped": 596
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 470,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 449,
+        "pending": 12
+      },
+      "metabolic_cycles": 7387,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:07:39.354853+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 76560,
+        "handles": 375,
+        "threads": 17,
+        "cpu_times": {
+          "user": 287.359375,
+          "system": 288.953125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 181313536,
+      "wal_bytes": 4931672,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8673,
+        "dead_letter": 142,
+        "observed": 513,
+        "pending": 1,
+        "running": 1,
+        "skipped": 596
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 471,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 450,
+        "pending": 12
+      },
+      "metabolic_cycles": 7388,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:08:50.379575+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 77736,
+        "handles": 376,
+        "threads": 18,
+        "cpu_times": {
+          "user": 297.421875,
+          "system": 298.796875,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 181514240,
+      "wal_bytes": 2871672,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8681,
+        "dead_letter": 142,
+        "observed": 513,
+        "running": 1,
+        "skipped": 597
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 473,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 452,
+        "pending": 12
+      },
+      "metabolic_cycles": 7389,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:10:03.397052+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 62640,
+        "handles": 393,
+        "threads": 18,
+        "cpu_times": {
+          "user": 307.828125,
+          "system": 309.84375,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 181571584,
+      "wal_bytes": 4173592,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8686,
+        "dead_letter": 142,
+        "observed": 513,
+        "pending": 1,
+        "running": 2,
+        "skipped": 597
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 474,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 453,
+        "pending": 12
+      },
+      "metabolic_cycles": 7391,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:11:15.829353+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "light_background"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 96552,
+        "handles": 389,
+        "threads": 19,
+        "cpu_times": {
+          "user": 313.9375,
+          "system": 315.25,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 181653504,
+      "wal_bytes": 4173592,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8691,
+        "dead_letter": 142,
+        "observed": 513,
+        "pending": 2,
+        "running": 2,
+        "skipped": 597
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 474,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 453,
+        "pending": 12
+      },
+      "metabolic_cycles": 7393,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:12:22.690742+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 109148,
+        "handles": 390,
+        "threads": 19,
+        "cpu_times": {
+          "user": 325.75,
+          "system": 325.828125,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 181702656,
+      "wal_bytes": 3514392,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8695,
+        "dead_letter": 142,
+        "observed": 513,
+        "pending": 1,
+        "running": 1,
+        "skipped": 597
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 474,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 453,
+        "pending": 12
+      },
+      "metabolic_cycles": 7394,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:13:37.378640+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 113692,
+        "handles": 385,
+        "threads": 18,
+        "cpu_times": {
+          "user": 335.21875,
+          "system": 331.90625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 181772288,
+      "wal_bytes": 4120032,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8699,
+        "dead_letter": 142,
+        "observed": 514,
+        "pending": 1,
+        "running": 2,
+        "skipped": 597
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 474,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 453,
+        "pending": 12
+      },
+      "metabolic_cycles": 7396,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:14:50.864954+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 64008,
+        "handles": 371,
+        "threads": 16,
+        "cpu_times": {
+          "user": 343.828125,
+          "system": 340.09375,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 181977088,
+      "wal_bytes": 535632,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8704,
+        "dead_letter": 142,
+        "leased": 1,
+        "observed": 514,
+        "pending": 4,
+        "skipped": 597
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 475,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 454,
+        "pending": 12
+      },
+      "metabolic_cycles": 7398,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:16:02.474792+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "ok",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 67184,
+        "handles": 390,
+        "threads": 19,
+        "cpu_times": {
+          "user": 351.890625,
+          "system": 349.375,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 182067200,
+      "wal_bytes": 4120032,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8709,
+        "dead_letter": 142,
+        "observed": 514,
+        "pending": 1,
+        "running": 2,
+        "skipped": 597
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 475,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 454,
+        "pending": 12
+      },
+      "metabolic_cycles": 7399,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    },
+    {
+      "at": "2026-10-08T05:17:12.350046+00:00",
+      "sha": "a4fdde65251d35791402bb6ded7c60cd5de97d3a",
+      "heartbeat": {
+        "ok": true,
+        "status": "degraded",
+        "workers_active": true,
+        "mode": "full_local_guarded"
+      },
+      "process": {
+        "alive": true,
+        "pid": 17588,
+        "rss_kb": 50184,
+        "handles": 379,
+        "threads": 17,
+        "cpu_times": {
+          "user": 359.25,
+          "system": 357.625,
+          "children_user": 0.0,
+          "children_system": 0.0
+        },
+        "created_at": 1791433926.2687497,
+        "authority": "heartbeat_pid_and_process_command"
+      },
+      "supervision": {
+        "url_available": true,
+        "listener_count": 1,
+        "service_managed": true,
+        "autostart_enabled": true,
+        "restart_count": null
+      },
+      "db_bytes": 182149120,
+      "wal_bytes": 5009952,
+      "integrity_check": "ok",
+      "foreign_key_violations": 0,
+      "tasks_by_status": {
+        "blocked": 17,
+        "cancelled": 15,
+        "completed": 8714,
+        "dead_letter": 142,
+        "observed": 514,
+        "pending": 1,
+        "running": 3,
+        "skipped": 597
+      },
+      "stuck_over_1h": 0,
+      "dead_letters": 142,
+      "candidates": 41,
+      "usable_knowledge": 5,
+      "stable_learning": 1,
+      "learning_events": 476,
+      "recorded_knowledge_uses": 52,
+      "goals_completed": 9,
+      "evidence_by_decision": {
+        "blocked": 1,
+        "improved": 8,
+        "neutral": 455,
+        "pending": 12
+      },
+      "metabolic_cycles": 7401,
+      "lease_recoveries": 28,
+      "watchdog_recoveries": 2
+    }
+  ],
+  "evidence_ref": "artifacts\\evolution\\soak-a4fdde6-1791434830328077500.jsonl",
+  "autonomy_certified": false,
+  "all_workers_active": true
+}

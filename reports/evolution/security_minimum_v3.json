@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-10-08T01:04:32.556498+00:00",
+  "tested_source_sha": "c6e61d0fedc5f0155e30996747a6ac3ad50153b0",
+  "status": "PARTIAL",
+  "scope": "Changed-source minimum review, not full history/host security certification",
+  "secret_pattern_matches_in_changed_source": 0,
+  "raw_shell_added": false,
+  "identity_modifications_added": false,
+  "automatic_activation_added": false,
+  "automatic_code_modification_added": false,
+  "query_values_parameterized": true,
+  "production_database_rewrites_performed": false,
+  "backup_acl": "NOT_RECERTIFIED",
+  "human_gates": "existing_controls_not_removed",
+  "evidence": [
+    "triade/neurons/domain_admission.py",
+    "triade/runtime/live_heartbeat.py",
+    "tests/test_domain_admission.py",
+    "reports/evolution/productive_learning_chain_v3.json"
+  ],
+  "truth": false,
+  "limitations": [
+    "Deployed API source is not reloaded/certified",
+    "Backup ACL and full security history not recertified"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-10-08T04:00:15.127575+00:00",
+  "correlation_id": "admission-4e26ca110f754c038e3790786178c860",
+  "candidate_id": "learn-8d88d82b4b4d49f7",
+  "artifact_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400",
+  "duration_seconds": 0.07899999999790452,
+  "observations": [],
+  "worker_summary": {
+    "status": "locked",
+    "lock_file": "E:\\triade\\artifacts\\evolution\\transfer-1791431269958324400\\automatic.lock",
+    "pid": null,
+    "reason": "live_lease",
+    "lease_expires_at": "2026-10-08T04:00:15.865240+00:00",
+    "message": "Reserva de ejecuci\u00f3n vigente; esperando recuperaci\u00f3n."
+  },
+  "human_prompts_during_window": 0,
+  "scope": "one normal WorkerLoop startup in existing independently observed experiment; no manual task dispatch during window"
+}

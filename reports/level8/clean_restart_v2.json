@@ -1,11 +1,11 @@
 {
-  "git_sha": "543b403c59815ef0fb9d8b11acbff8e7e1bc7d3d",
-  "timestamp": "2026-10-07T02:13:53.775703+00:00",
+  "git_sha": "61364a0c42dae8e4e59d340aa151b80f4f15b2da",
+  "timestamp": "2026-10-08T00:59:18.896922+00:00",
   "truth": true,
   "scope": "Actual isolated API lifespan restart and nonempty identity persistence; not production in-flight clean shutdown certification",
   "observations": [
     {
-      "pid": 16700,
+      "pid": 6956,
       "exit_code": 0,
       "identity": [
         [
@@ -14,7 +14,7 @@
         ]
       ],
       "integrity": "ok",
-      "shutdown_seconds": 10.687000000005355,
+      "shutdown_seconds": 10.953000000008615,
       "background_stop": {
         "workers": {
           "configured": true,
@@ -24,7 +24,7 @@
           "mode_configured": "light_background",
           "mode_effective": "light_background",
           "status": "stop_requested",
-          "last_start_at": "2026-10-07T02:13:20.992071+00:00",
+          "last_start_at": "2026-10-08T00:58:44.038479+00:00",
           "last_error": null,
           "restart_attempts": 0,
           "degraded_by_governor": false,
@@ -45,12 +45,12 @@
             "runtime_enabled": false,
             "mode": "observe_only",
             "background_thread_alive": false,
-            "stopped_at": "2026-10-07T02:13:30.569843+00:00",
+            "stopped_at": "2026-10-08T00:58:53.723017+00:00",
             "message": "Runtime apagado.",
             "snapshot": {
               "status": "ok",
-              "runtime_id": "runtime-72063f059fe8",
-              "started_at": "2026-10-07T02:13:28.560628+00:00",
+              "runtime_id": "runtime-69a0f44e29f5",
+              "started_at": "2026-10-08T00:58:51.713718+00:00",
               "mode": "observe_only",
               "enabled": false,
               "running": false,
@@ -60,9 +60,9 @@
                   "mode": "life-pulse",
                   "running": true,
                   "interval_seconds": 60,
-                  "uptime_seconds": 20,
-                  "last_tick_at": 1791339190.9141946,
-                  "next_tick_in_seconds": 40,
+                  "uptime_seconds": 22,
+                  "last_tick_at": 1791421113.0691652,
+                  "next_tick_in_seconds": 39,
                   "last_error": null,
                   "autonomy_level": "promote_stable",
                   "autonomy_levels_available": [
@@ -76,7 +76,7 @@
                     "enabled": true,
                     "running": true,
                     "cycles": 1,
-                    "last_cycle_at": 1791339190.7847962,
+                    "last_cycle_at": 1791421112.909124,
                     "last_error": null,
                     "interval_seconds": 60,
                     "max_cycles": 0,
@@ -152,7 +152,7 @@
                     "ollama_percent": 0.0,
                     "avg_q_crystal": 0.0,
                     "avg_stability": 0.0,
-                    "elapsed_ms": 113
+                    "elapsed_ms": 112
                   },
                   "emotional_state": {
                     "status": "ok",
@@ -166,7 +166,7 @@
                   "stream_of_consciousness": [
                     {
                       "thought": "Mood: neutral \u00b7 identidad evolutiva: 1 rasgos \u00b7 ciclo 0",
-                      "timestamp": 1791339190.8640666,
+                      "timestamp": 1791421113.0092206,
                       "elapsed_since_last": null
                     }
                   ],
@@ -249,16 +249,16 @@
                   },
                   "last_run": {
                     "id": 1,
-                    "run_ref": "worker-2026-10-07T021321.124471Z0000-53f2fe66",
+                    "run_ref": "worker-2026-10-08T005844.198866Z0000-8f63e956",
                     "status": "completed",
                     "mode": "daemon",
                     "dry_run": 0,
                     "max_iterations": 1000000,
                     "sleep_seconds": 20.0,
-                    "started_at": "2026-10-07T02:13:21.188651+00:00",
-                    "finished_at": "2026-10-07T02:13:24.637373+00:00",
+                    "started_at": "2026-10-08T00:58:44.279590+00:00",
+                    "finished_at": "2026-10-08T00:58:50.257805+00:00",
                     "summary_json": {
-                      "run_ref": "worker-2026-10-07T021321.124471Z0000-53f2fe66",
+                      "run_ref": "worker-2026-10-08T005844.198866Z0000-8f63e956",
                       "iterations": 1,
                       "tasks_completed": 3,
                       "tasks_blocked": 0,
@@ -313,36 +313,36 @@
                         },
                         "running_tasks": [
                           {
-                            "task_id": "task-0f7cf86beaee45df88e954987fe337b2",
+                            "task_id": "task-a066c17a1347487e93432be03605729e",
                             "task_type": "encrypted_backup",
                             "lane": "memory_write",
                             "resource_class": "io",
                             "thread": "triade-worker_0",
                             "lease_generation": 1,
-                            "started_at": 1791339201.3689785,
-                            "running_seconds": 0.275,
+                            "started_at": 1791421124.8690863,
+                            "running_seconds": 0.289,
                             "exclusive_keys": []
                           },
                           {
-                            "task_id": "task-c2aa3c7d5b504d43ae6b5d8b19c81f24",
+                            "task_id": "task-11f3fb0464e3459589f5fcee0bdb03cc",
                             "task_type": "pulse_check",
                             "lane": "read_only",
                             "resource_class": "light",
                             "thread": "triade-worker_1",
                             "lease_generation": 1,
-                            "started_at": 1791339201.3748577,
-                            "running_seconds": 0.269,
+                            "started_at": 1791421124.8773801,
+                            "running_seconds": 0.281,
                             "exclusive_keys": []
                           },
                           {
-                            "task_id": "task-98e7f7258de442f6a0cbd6c68e0fef79",
+                            "task_id": "task-b319bfc031c141358b0628cb98ff60f3",
                             "task_type": "neuron_education_cycle",
                             "lane": "evaluation",
                             "resource_class": "model",
                             "thread": "triade-worker_2",
                             "lease_generation": 1,
-                            "started_at": 1791339201.3800597,
-                            "running_seconds": 0.264,
+                            "started_at": 1791421124.8892956,
+                            "running_seconds": 0.269,
                             "exclusive_keys": []
                           }
                         ]
@@ -357,46 +357,46 @@
                         "state": "active",
                         "clock": "monotonic",
                         "job_count": 2,
-                        "next_due_ms": 1623.0753789423034,
+                        "next_due_ms": 0.0,
                         "jobs": {
                           "heartbeat": {
-                            "next_due_ms": 1623.0753789423034,
+                            "next_due_ms": 0.0,
                             "run_count": 1,
-                            "last_duration_ms": 31.000000017229468,
+                            "last_duration_ms": 16.00000000325963,
                             "last_error": null
                           },
                           "dispatch": {
-                            "next_due_ms": 16065.861320123076,
+                            "next_due_ms": 14575.589192652842,
                             "run_count": 1,
-                            "last_duration_ms": 375.0,
+                            "last_duration_ms": 796.9999999913853,
                             "last_error": null
                           }
                         }
                       },
                       "heartbeat": {
                         "singleton": 1,
-                        "cycle": 1,
-                        "wall_timestamp": 1791339201.3237789,
-                        "monotonic_timestamp": 167858.125,
-                        "duration_ms": 0.0,
-                        "pid": 16700,
-                        "ram_available_mb": 1910.91796875,
-                        "updated_at": "2026-10-07 02:13:21",
-                        "heartbeat_age_ms": 3313.5948181152344,
+                        "cycle": 2,
+                        "wall_timestamp": 1791421124.9403744,
+                        "monotonic_timestamp": 249785.812,
+                        "duration_ms": 16.00000000325963,
+                        "pid": 6956,
+                        "ram_available_mb": 1365.17578125,
+                        "updated_at": "2026-10-08 00:58:44",
+                        "heartbeat_age_ms": 5317.431449890137,
                         "status": "healthy",
                         "llm_invocations": 0
                       },
                       "autonomous_tasks_governed": true
                     },
-                    "artifact_dir": "runs\\background\\20261006-211321-53f2fe66",
+                    "artifact_dir": "runs\\background\\20261007-195844-8f63e956",
                     "error": null
                   },
                   "state": {
                     "status": "completed",
-                    "last_run_ref": "worker-2026-10-07T021321.124471Z0000-53f2fe66",
-                    "finished_at": "2026-10-07T02:13:24.638879+00:00",
+                    "last_run_ref": "worker-2026-10-08T005844.198866Z0000-8f63e956",
+                    "finished_at": "2026-10-08T00:58:50.261828+00:00",
                     "summary": {
-                      "run_ref": "worker-2026-10-07T021321.124471Z0000-53f2fe66",
+                      "run_ref": "worker-2026-10-08T005844.198866Z0000-8f63e956",
                       "iterations": 1,
                       "tasks_completed": 3,
                       "tasks_blocked": 0,
@@ -451,36 +451,36 @@
                         },
                         "running_tasks": [
                           {
-                            "task_id": "task-0f7cf86beaee45df88e954987fe337b2",
+                            "task_id": "task-a066c17a1347487e93432be03605729e",
                             "task_type": "encrypted_backup",
                             "lane": "memory_write",
                             "resource_class": "io",
                             "thread": "triade-worker_0",
                             "lease_generation": 1,
-                            "started_at": 1791339201.3689785,
-                            "running_seconds": 0.275,
+                            "started_at": 1791421124.8690863,
+                            "running_seconds": 0.289,
                             "exclusive_keys": []
                           },
                           {
-                            "task_id": "task-c2aa3c7d5b504d43ae6b5d8b19c81f24",
+                            "task_id": "task-11f3fb0464e3459589f5fcee0bdb03cc",
                             "task_type": "pulse_check",
                             "lane": "read_only",
                             "resource_class": "light",
                             "thread": "triade-worker_1",
                             "lease_generation": 1,
-                            "started_at": 1791339201.3748577,
-                            "running_seconds": 0.269,
+                            "started_at": 1791421124.8773801,
+                            "running_seconds": 0.281,
                             "exclusive_keys": []
                           },
                           {
-                            "task_id": "task-98e7f7258de442f6a0cbd6c68e0fef79",
+                            "task_id": "task-b319bfc031c141358b0628cb98ff60f3",
                             "task_type": "neuron_education_cycle",
                             "lane": "evaluation",
                             "resource_class": "model",
                             "thread": "triade-worker_2",
                             "lease_generation": 1,
-                            "started_at": 1791339201.3800597,
-                            "running_seconds": 0.264,
+                            "started_at": 1791421124.8892956,
+                            "running_seconds": 0.269,
                             "exclusive_keys": []
                           }
                         ]
@@ -495,32 +495,32 @@
                         "state": "active",
                         "clock": "monotonic",
                         "job_count": 2,
-                        "next_due_ms": 1623.0753789423034,
+                        "next_due_ms": 0.0,
                         "jobs": {
                           "heartbeat": {
-                            "next_due_ms": 1623.0753789423034,
+                            "next_due_ms": 0.0,
                             "run_count": 1,
-                            "last_duration_ms": 31.000000017229468,
+                            "last_duration_ms": 16.00000000325963,
                             "last_error": null
                           },
                           "dispatch": {
-                            "next_due_ms": 16065.861320123076,
+                            "next_due_ms": 14575.589192652842,
                             "run_count": 1,
-                            "last_duration_ms": 375.0,
+                            "last_duration_ms": 796.9999999913853,
                             "last_error": null
                           }
                         }
                       },
                       "heartbeat": {
                         "singleton": 1,
-                        "cycle": 1,
-                        "wall_timestamp": 1791339201.3237789,
-                        "monotonic_timestamp": 167858.125,
-                        "duration_ms": 0.0,
-                        "pid": 16700,
-                        "ram_available_mb": 1910.91796875,
-                        "updated_at": "2026-10-07 02:13:21",
-                        "heartbeat_age_ms": 3313.5948181152344,
+                        "cycle": 2,
+                        "wall_timestamp": 1791421124.9403744,
+                        "monotonic_timestamp": 249785.812,
+                        "duration_ms": 16.00000000325963,
+                        "pid": 6956,
+                        "ram_available_mb": 1365.17578125,
+                        "updated_at": "2026-10-08 00:58:44",
+                        "heartbeat_age_ms": 5317.431449890137,
                         "status": "healthy",
                         "llm_invocations": 0
                       },
@@ -547,14 +547,14 @@
                   "cognitive_blood_active": true,
                   "live_heartbeat": {
                     "singleton": 1,
-                    "cycle": 1,
-                    "wall_timestamp": 1791339201.3237789,
-                    "monotonic_timestamp": 167858.125,
-                    "duration_ms": 0.0,
-                    "pid": 16700,
-                    "ram_available_mb": 1910.91796875,
-                    "updated_at": "2026-10-07 02:13:21",
-                    "heartbeat_age_ms": 9357.282161712646,
+                    "cycle": 2,
+                    "wall_timestamp": 1791421124.9403744,
+                    "monotonic_timestamp": 249785.812,
+                    "duration_ms": 16.00000000325963,
+                    "pid": 6956,
+                    "ram_available_mb": 1365.17578125,
+                    "updated_at": "2026-10-08 00:58:44",
+                    "heartbeat_age_ms": 8932.457208633423,
                     "status": "healthy",
                     "llm_invocations": 0
                   }
@@ -563,9 +563,9 @@
                   "active_missions": 10,
                   "missions": [
                     {
-                      "neuron_id": 8,
-                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Gula",
-                      "mission": "Detectar consumo excesivo de datos o recursos y transformarlo en suficiencia y templanza.",
+                      "neuron_id": 10,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Pereza",
+                      "mission": "Detectar inercia o fatiga y transformarla en descanso consciente, prioridad y diligencia sostenible.",
                       "domain": "emotional_drive",
                       "allowed_sources": [
                         "run",
@@ -580,13 +580,13 @@
                       ],
                       "schedule_hint": "every_session",
                       "status": "stable",
-                      "created_at": "2026-10-07T02:13:10.690551+00:00",
-                      "updated_at": "2026-10-07T02:13:10.690551+00:00",
+                      "created_at": "2026-10-08T00:58:32.806500+00:00",
+                      "updated_at": "2026-10-08T00:58:32.806500+00:00",
                       "metrics": {
                         "foundational": true,
                         "always_available": true
                       },
-                      "id": 8
+                      "id": 10
                     },
                     {
                       "neuron_id": 9,
@@ -606,8 +606,8 @@
                       ],
                       "schedule_hint": "every_session",
                       "status": "stable",
-                      "created_at": "2026-10-07T02:13:10.690551+00:00",
-                      "updated_at": "2026-10-07T02:13:10.690551+00:00",
+                      "created_at": "2026-10-08T00:58:32.798563+00:00",
+                      "updated_at": "2026-10-08T00:58:32.798563+00:00",
                       "metrics": {
                         "foundational": true,
                         "always_available": true
@@ -615,9 +615,9 @@
                       "id": 9
                     },
                     {
-                      "neuron_id": 10,
-                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Pereza",
-                      "mission": "Detectar inercia o fatiga y transformarla en descanso consciente, prioridad y diligencia sostenible.",
+                      "neuron_id": 8,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Gula",
+                      "mission": "Detectar consumo excesivo de datos o recursos y transformarlo en suficiencia y templanza.",
                       "domain": "emotional_drive",
                       "allowed_sources": [
                         "run",
@@ -632,39 +632,13 @@
                       ],
                       "schedule_hint": "every_session",
                       "status": "stable",
-                      "created_at": "2026-10-07T02:13:10.690551+00:00",
-                      "updated_at": "2026-10-07T02:13:10.690551+00:00",
+                      "created_at": "2026-10-08T00:58:32.790428+00:00",
+                      "updated_at": "2026-10-08T00:58:32.790428+00:00",
                       "metrics": {
                         "foundational": true,
                         "always_available": true
                       },
-                      "id": 10
-                    },
-                    {
-                      "neuron_id": 6,
-                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Lujuria",
-                      "mission": "Detectar intensidad o deseo y transformarlo en creatividad, respeto y consentimiento.",
-                      "domain": "emotional_drive",
-                      "allowed_sources": [
-                        "run",
-                        "worker",
-                        "memory",
-                        "qualia"
-                      ],
-                      "allowed_actions": [
-                        "observe",
-                        "diagnose",
-                        "propose_learning"
-                      ],
-                      "schedule_hint": "every_session",
-                      "status": "stable",
-                      "created_at": "2026-10-07T02:13:10.674294+00:00",
-                      "updated_at": "2026-10-07T02:13:10.674294+00:00",
-                      "metrics": {
-                        "foundational": true,
-                        "always_available": true
-                      },
-                      "id": 6
+                      "id": 8
                     },
                     {
                       "neuron_id": 7,
@@ -684,21 +658,47 @@
                       ],
                       "schedule_hint": "every_session",
                       "status": "stable",
-                      "created_at": "2026-10-07T02:13:10.674294+00:00",
-                      "updated_at": "2026-10-07T02:13:10.674294+00:00",
+                      "created_at": "2026-10-08T00:58:32.782430+00:00",
+                      "updated_at": "2026-10-08T00:58:32.782430+00:00",
                       "metrics": {
                         "foundational": true,
                         "always_available": true
                       },
                       "id": 7
+                    },
+                    {
+                      "neuron_id": 6,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Lujuria",
+                      "mission": "Detectar intensidad o deseo y transformarlo en creatividad, respeto y consentimiento.",
+                      "domain": "emotional_drive",
+                      "allowed_sources": [
+                        "run",
+                        "worker",
+                        "memory",
+                        "qualia"
+                      ],
+                      "allowed_actions": [
+                        "observe",
+                        "diagnose",
+                        "propose_learning"
+                      ],
+                      "schedule_hint": "every_session",
+                      "status": "stable",
+                      "created_at": "2026-10-08T00:58:32.771702+00:00",
+                      "updated_at": "2026-10-08T00:58:32.771702+00:00",
+                      "metrics": {
+                        "foundational": true,
+                        "always_available": true
+                      },
+                      "id": 6
                     }
                   ],
                   "next_plan_preview": [
                     {
-                      "task_id": "task-a0d4586c91fb4214ae91477a007b2f48",
+                      "task_id": "task-389e87a3c3f84d1482fb197e44fe97bf",
                       "task_type": "research_curriculum",
                       "priority": 45,
-                      "created_at": "2026-10-07T02:13:21.363061+00:00"
+                      "created_at": "2026-10-08T00:58:44.856507+00:00"
                     }
                   ],
                   "next_plan_source": "autonomous_tasks.pending"
@@ -876,7 +876,7 @@
                       "ollama_percent": 0.0,
                       "avg_q_crystal": 0.0,
                       "avg_stability": 0.0,
-                      "elapsed_ms": 113
+                      "elapsed_ms": 112
                     },
                     "integrity": {
                       "ok": true,
@@ -966,7 +966,7 @@
                 },
                 "semantic_memory": {
                   "status": "ok",
-                  "db_path": "E:\\triade\\artifacts\\level8\\clean-restart-1791339188978083700\\triade\\memory\\triade.db",
+                  "db_path": "E:\\triade\\artifacts\\level8\\clean-restart-1791421109985238200\\triade\\memory\\triade.db",
                   "db_exists": true,
                   "schema_path": "E:\\triade\\triade\\memory\\schemas.sql",
                   "schema_exists": true,
@@ -1112,14 +1112,14 @@
                   "hardware": {
                     "cpu_count": 12,
                     "ram_total_gb": 7.21,
-                    "ram_available_gb": 1.85,
+                    "ram_available_gb": 1.82,
                     "tier": "low",
                     "notes": [
                       "os=Windows",
                       "cpu_count=12",
                       "ram_total_gb=7.21",
-                      "ram_available_gb=1.85",
-                      "disk_free_gb=83.04",
+                      "ram_available_gb=1.82",
+                      "disk_free_gb=66.15",
                       "tier=low"
                     ],
                     "os_name": "Windows",
@@ -1129,7 +1129,7 @@
                     "processor": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
                     "cpu_physical_cores": 6,
                     "disk_total_gb": 104.69,
-                    "disk_free_gb": 83.04,
+                    "disk_free_gb": 66.15,
                     "python_version": "3.12.10",
                     "node_version": "v24.19.0",
                     "npm_version": "unknown",
@@ -1340,7 +1340,7 @@
       "db_lock_reacquired": true
     },
     {
-      "pid": 9512,
+      "pid": 19828,
       "exit_code": 0,
       "identity": [
         [
@@ -1349,7 +1349,7 @@
         ]
       ],
       "integrity": "ok",
-      "shutdown_seconds": 10.703000000008615,
+      "shutdown_seconds": 10.85899999999674,
       "background_stop": {
         "workers": {
           "configured": true,
@@ -1359,7 +1359,7 @@
           "mode_configured": "light_background",
           "mode_effective": "light_background",
           "status": "stop_requested",
-          "last_start_at": "2026-10-07T02:13:42.023868+00:00",
+          "last_start_at": "2026-10-08T00:59:06.905358+00:00",
           "last_error": null,
           "restart_attempts": 0,
           "degraded_by_governor": false,
@@ -1380,12 +1380,12 @@
             "runtime_enabled": false,
             "mode": "observe_only",
             "background_thread_alive": false,
-            "stopped_at": "2026-10-07T02:13:51.450765+00:00",
+            "stopped_at": "2026-10-08T00:59:16.400775+00:00",
             "message": "Runtime apagado.",
             "snapshot": {
               "status": "ok",
-              "runtime_id": "runtime-5ce4b15408e3",
-              "started_at": "2026-10-07T02:13:49.429136+00:00",
+              "runtime_id": "runtime-9338fa1c23ea",
+              "started_at": "2026-10-08T00:59:14.394492+00:00",
               "mode": "observe_only",
               "enabled": false,
               "running": false,
@@ -1395,9 +1395,9 @@
                   "mode": "life-pulse",
                   "running": true,
                   "interval_seconds": 60,
-                  "uptime_seconds": 18,
-                  "last_tick_at": 1791339214.2044778,
-                  "next_tick_in_seconds": 42,
+                  "uptime_seconds": 19,
+                  "last_tick_at": 1791421137.6902387,
+                  "next_tick_in_seconds": 41,
                   "last_error": null,
                   "autonomy_level": "promote_stable",
                   "autonomy_levels_available": [
@@ -1411,7 +1411,7 @@
                     "enabled": true,
                     "running": true,
                     "cycles": 1,
-                    "last_cycle_at": 1791339214.1254988,
+                    "last_cycle_at": 1791421137.6161613,
                     "last_error": null,
                     "interval_seconds": 60,
                     "max_cycles": 0,
@@ -1487,7 +1487,7 @@
                     "ollama_percent": 0.0,
                     "avg_q_crystal": 0.0,
                     "avg_stability": 0.0,
-                    "elapsed_ms": 111
+                    "elapsed_ms": 99
                   },
                   "emotional_state": {
                     "status": "ok",
@@ -1501,7 +1501,7 @@
                   "stream_of_consciousness": [
                     {
                       "thought": "Mood: neutral \u00b7 identidad evolutiva: 1 rasgos \u00b7 ciclo 0",
-                      "timestamp": 1791339214.1582544,
+                      "timestamp": 1791421137.6291606,
                       "elapsed_since_last": null
                     }
                   ],
@@ -1585,16 +1585,16 @@
                   },
                   "last_run": {
                     "id": 2,
-                    "run_ref": "worker-2026-10-07T021342.099440Z0000-47ab100c",
+                    "run_ref": "worker-2026-10-08T005907.130682Z0000-bfa7657f",
                     "status": "completed_with_errors",
                     "mode": "daemon",
                     "dry_run": 0,
                     "max_iterations": 1000000,
                     "sleep_seconds": 20.0,
-                    "started_at": "2026-10-07T02:13:42.167091+00:00",
-                    "finished_at": "2026-10-07T02:13:43.777107+00:00",
+                    "started_at": "2026-10-08T00:59:07.175985+00:00",
+                    "finished_at": "2026-10-08T00:59:09.406477+00:00",
                     "summary_json": {
-                      "run_ref": "worker-2026-10-07T021342.099440Z0000-47ab100c",
+                      "run_ref": "worker-2026-10-08T005907.130682Z0000-bfa7657f",
                       "iterations": 1,
                       "tasks_completed": 1,
                       "tasks_blocked": 0,
@@ -1651,25 +1651,25 @@
                         },
                         "running_tasks": [
                           {
-                            "task_id": "task-66f354a2de984bb9b2ef867348b11429",
+                            "task_id": "task-53c89b6d1bf242a090c41002a45b88f2",
                             "task_type": "pulse_check",
                             "lane": "read_only",
                             "resource_class": "light",
                             "thread": "triade-worker_0",
                             "lease_generation": 1,
-                            "started_at": 1791339222.3150394,
-                            "running_seconds": 0.42,
+                            "started_at": 1791421147.6545289,
+                            "running_seconds": 0.275,
                             "exclusive_keys": []
                           },
                           {
-                            "task_id": "task-a0d4586c91fb4214ae91477a007b2f48",
+                            "task_id": "task-389e87a3c3f84d1482fb197e44fe97bf",
                             "task_type": "research_curriculum",
                             "lane": "research",
                             "resource_class": "model",
                             "thread": "triade-worker_1",
                             "lease_generation": 1,
-                            "started_at": 1791339222.3172011,
-                            "running_seconds": 0.417,
+                            "started_at": 1791421147.6677575,
+                            "running_seconds": 0.261,
                             "exclusive_keys": []
                           }
                         ]
@@ -1684,46 +1684,46 @@
                         "state": "active",
                         "clock": "monotonic",
                         "job_count": 2,
-                        "next_due_ms": 3476.139685837552,
+                        "next_due_ms": 2906.8461553251836,
                         "jobs": {
                           "heartbeat": {
-                            "next_due_ms": 3476.139685837552,
+                            "next_due_ms": 2906.8461553251836,
                             "run_count": 1,
-                            "last_duration_ms": 0.0,
+                            "last_duration_ms": 16.00000000325963,
                             "last_error": null
                           },
                           "dispatch": {
-                            "next_due_ms": 19125.76087861089,
+                            "next_due_ms": 19464.52118063462,
                             "run_count": 1,
-                            "last_duration_ms": 530.9999999881256,
+                            "last_duration_ms": 687.0000000053551,
                             "last_error": null
                           }
                         }
                       },
                       "heartbeat": {
                         "singleton": 1,
-                        "cycle": 1,
-                        "wall_timestamp": 1791339222.39288,
-                        "monotonic_timestamp": 167879.187,
+                        "cycle": 4,
+                        "wall_timestamp": 1791421147.6280823,
+                        "monotonic_timestamp": 249808.5,
                         "duration_ms": 0.0,
-                        "pid": 9512,
-                        "ram_available_mb": 1881.5546875,
-                        "updated_at": "2026-10-07 02:13:42",
-                        "heartbeat_age_ms": 1384.2272758483887,
+                        "pid": 19828,
+                        "ram_available_mb": 1683.66796875,
+                        "updated_at": "2026-10-08 00:59:07",
+                        "heartbeat_age_ms": 1778.3946990966797,
                         "status": "healthy",
                         "llm_invocations": 0
                       },
                       "autonomous_tasks_governed": true
                     },
-                    "artifact_dir": "runs\\background\\20261006-211342-47ab100c",
+                    "artifact_dir": "runs\\background\\20261007-195907-bfa7657f",
                     "error": null
                   },
                   "state": {
                     "status": "completed_with_errors",
-                    "last_run_ref": "worker-2026-10-07T021342.099440Z0000-47ab100c",
-                    "finished_at": "2026-10-07T02:13:43.782161+00:00",
+                    "last_run_ref": "worker-2026-10-08T005907.130682Z0000-bfa7657f",
+                    "finished_at": "2026-10-08T00:59:09.409513+00:00",
                     "summary": {
-                      "run_ref": "worker-2026-10-07T021342.099440Z0000-47ab100c",
+                      "run_ref": "worker-2026-10-08T005907.130682Z0000-bfa7657f",
                       "iterations": 1,
                       "tasks_completed": 1,
                       "tasks_blocked": 0,
@@ -1780,25 +1780,25 @@
                         },
                         "running_tasks": [
                           {
-                            "task_id": "task-66f354a2de984bb9b2ef867348b11429",
+                            "task_id": "task-53c89b6d1bf242a090c41002a45b88f2",
                             "task_type": "pulse_check",
                             "lane": "read_only",
                             "resource_class": "light",
                             "thread": "triade-worker_0",
                             "lease_generation": 1,
-                            "started_at": 1791339222.3150394,
-                            "running_seconds": 0.42,
+                            "started_at": 1791421147.6545289,
+                            "running_seconds": 0.275,
                             "exclusive_keys": []
                           },
                           {
-                            "task_id": "task-a0d4586c91fb4214ae91477a007b2f48",
+                            "task_id": "task-389e87a3c3f84d1482fb197e44fe97bf",
                             "task_type": "research_curriculum",
                             "lane": "research",
                             "resource_class": "model",
                             "thread": "triade-worker_1",
                             "lease_generation": 1,
-                            "started_at": 1791339222.3172011,
-                            "running_seconds": 0.417,
+                            "started_at": 1791421147.6677575,
+                            "running_seconds": 0.261,
                             "exclusive_keys": []
                           }
                         ]
@@ -1813,32 +1813,32 @@
                         "state": "active",
                         "clock": "monotonic",
                         "job_count": 2,
-                        "next_due_ms": 3476.139685837552,
+                        "next_due_ms": 2906.8461553251836,
                         "jobs": {
                           "heartbeat": {
-                            "next_due_ms": 3476.139685837552,
+                            "next_due_ms": 2906.8461553251836,
                             "run_count": 1,
-                            "last_duration_ms": 0.0,
+                            "last_duration_ms": 16.00000000325963,
                             "last_error": null
                           },
                           "dispatch": {
-                            "next_due_ms": 19125.76087861089,
+                            "next_due_ms": 19464.52118063462,
                             "run_count": 1,
-                            "last_duration_ms": 530.9999999881256,
+                            "last_duration_ms": 687.0000000053551,
                             "last_error": null
                           }
                         }
                       },
                       "heartbeat": {
                         "singleton": 1,
-                        "cycle": 1,
-                        "wall_timestamp": 1791339222.39288,
-                        "monotonic_timestamp": 167879.187,
+                        "cycle": 4,
+                        "wall_timestamp": 1791421147.6280823,
+                        "monotonic_timestamp": 249808.5,
                         "duration_ms": 0.0,
-                        "pid": 9512,
-                        "ram_available_mb": 1881.5546875,
-                        "updated_at": "2026-10-07 02:13:42",
-                        "heartbeat_age_ms": 1384.2272758483887,
+                        "pid": 19828,
+                        "ram_available_mb": 1683.66796875,
+                        "updated_at": "2026-10-08 00:59:07",
+                        "heartbeat_age_ms": 1778.3946990966797,
                         "status": "healthy",
                         "llm_invocations": 0
                       },
@@ -1865,14 +1865,14 @@
                   "cognitive_blood_active": true,
                   "live_heartbeat": {
                     "singleton": 1,
-                    "cycle": 1,
-                    "wall_timestamp": 1791339222.39288,
-                    "monotonic_timestamp": 167879.187,
+                    "cycle": 4,
+                    "wall_timestamp": 1791421147.6280823,
+                    "monotonic_timestamp": 249808.5,
                     "duration_ms": 0.0,
-                    "pid": 9512,
-                    "ram_available_mb": 1881.5546875,
-                    "updated_at": "2026-10-07 02:13:42",
-                    "heartbeat_age_ms": 9168.885946273804,
+                    "pid": 19828,
+                    "ram_available_mb": 1683.66796875,
+                    "updated_at": "2026-10-08 00:59:07",
+                    "heartbeat_age_ms": 8903.018951416016,
                     "status": "healthy",
                     "llm_invocations": 0
                   }
@@ -1881,9 +1881,9 @@
                   "active_missions": 10,
                   "missions": [
                     {
-                      "neuron_id": 8,
-                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Gula",
-                      "mission": "Detectar consumo excesivo de datos o recursos y transformarlo en suficiencia y templanza.",
+                      "neuron_id": 10,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Pereza",
+                      "mission": "Detectar inercia o fatiga y transformarla en descanso consciente, prioridad y diligencia sostenible.",
                       "domain": "emotional_drive",
                       "allowed_sources": [
                         "run",
@@ -1898,13 +1898,13 @@
                       ],
                       "schedule_hint": "every_session",
                       "status": "stable",
-                      "created_at": "2026-10-07T02:13:10.690551+00:00",
-                      "updated_at": "2026-10-07T02:13:10.690551+00:00",
+                      "created_at": "2026-10-08T00:58:32.806500+00:00",
+                      "updated_at": "2026-10-08T00:58:32.806500+00:00",
                       "metrics": {
                         "foundational": true,
                         "always_available": true
                       },
-                      "id": 8
+                      "id": 10
                     },
                     {
                       "neuron_id": 9,
@@ -1924,8 +1924,8 @@
                       ],
                       "schedule_hint": "every_session",
                       "status": "stable",
-                      "created_at": "2026-10-07T02:13:10.690551+00:00",
-                      "updated_at": "2026-10-07T02:13:10.690551+00:00",
+                      "created_at": "2026-10-08T00:58:32.798563+00:00",
+                      "updated_at": "2026-10-08T00:58:32.798563+00:00",
                       "metrics": {
                         "foundational": true,
                         "always_available": true
@@ -1933,9 +1933,9 @@
                       "id": 9
                     },
                     {
-                      "neuron_id": 10,
-                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Pereza",
-                      "mission": "Detectar inercia o fatiga y transformarla en descanso consciente, prioridad y diligencia sostenible.",
+                      "neuron_id": 8,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Gula",
+                      "mission": "Detectar consumo excesivo de datos o recursos y transformarlo en suficiencia y templanza.",
                       "domain": "emotional_drive",
                       "allowed_sources": [
                         "run",
@@ -1950,39 +1950,13 @@
                       ],
                       "schedule_hint": "every_session",
                       "status": "stable",
-                      "created_at": "2026-10-07T02:13:10.690551+00:00",
-                      "updated_at": "2026-10-07T02:13:10.690551+00:00",
+                      "created_at": "2026-10-08T00:58:32.790428+00:00",
+                      "updated_at": "2026-10-08T00:58:32.790428+00:00",
                       "metrics": {
                         "foundational": true,
                         "always_available": true
                       },
-                      "id": 10
-                    },
-                    {
-                      "neuron_id": 6,
-                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Lujuria",
-                      "mission": "Detectar intensidad o deseo y transformarlo en creatividad, respeto y consentimiento.",
-                      "domain": "emotional_drive",
-                      "allowed_sources": [
-                        "run",
-                        "worker",
-                        "memory",
-                        "qualia"
-                      ],
-                      "allowed_actions": [
-                        "observe",
-                        "diagnose",
-                        "propose_learning"
-                      ],
-                      "schedule_hint": "every_session",
-                      "status": "stable",
-                      "created_at": "2026-10-07T02:13:10.674294+00:00",
-                      "updated_at": "2026-10-07T02:13:10.674294+00:00",
-                      "metrics": {
-                        "foundational": true,
-                        "always_available": true
-                      },
-                      "id": 6
+                      "id": 8
                     },
                     {
                       "neuron_id": 7,
@@ -2002,13 +1976,39 @@
                       ],
                       "schedule_hint": "every_session",
                       "status": "stable",
-                      "created_at": "2026-10-07T02:13:10.674294+00:00",
-                      "updated_at": "2026-10-07T02:13:10.674294+00:00",
+                      "created_at": "2026-10-08T00:58:32.782430+00:00",
+                      "updated_at": "2026-10-08T00:58:32.782430+00:00",
                       "metrics": {
                         "foundational": true,
                         "always_available": true
                       },
                       "id": 7
+                    },
+                    {
+                      "neuron_id": 6,
+                      "title": "Misi\u00f3n fundacional \u00b7 Impulso Lujuria",
+                      "mission": "Detectar intensidad o deseo y transformarlo en creatividad, respeto y consentimiento.",
+                      "domain": "emotional_drive",
+                      "allowed_sources": [
+                        "run",
+                        "worker",
+                        "memory",
+                        "qualia"
+                      ],
+                      "allowed_actions": [
+                        "observe",
+                        "diagnose",
+                        "propose_learning"
+                      ],
+                      "schedule_hint": "every_session",
+                      "status": "stable",
+                      "created_at": "2026-10-08T00:58:32.771702+00:00",
+                      "updated_at": "2026-10-08T00:58:32.771702+00:00",
+                      "metrics": {
+                        "foundational": true,
+                        "always_available": true
+                      },
+                      "id": 6
                     }
                   ],
                   "next_plan_preview": [],
@@ -2130,7 +2130,7 @@
                     "storage_packets_count": 1,
                     "latest_state": {
                       "id": 1,
-                      "run_id": "worker-2026-10-07T021342.099440Z0000-47ab100c",
+                      "run_id": "worker-2026-10-08T005907.130682Z0000-bfa7657f",
                       "curiosity": 0.85,
                       "confidence": 0.3,
                       "risk": 0.45,
@@ -2141,7 +2141,7 @@
                       "saturation": 0.0,
                       "dominant_signal": "learning_candidate",
                       "recommended_action": "review_learning_candidates",
-                      "updated_at": "2026-10-07T02:13:42.813619+00:00"
+                      "updated_at": "2026-10-08T00:59:08.295978+00:00"
                     }
                   },
                   "morphological_crystal": {
@@ -2202,7 +2202,7 @@
                       "ollama_percent": 0.0,
                       "avg_q_crystal": 0.0,
                       "avg_stability": 0.0,
-                      "elapsed_ms": 111
+                      "elapsed_ms": 99
                     },
                     "integrity": {
                       "ok": true,
@@ -2292,7 +2292,7 @@
                 },
                 "semantic_memory": {
                   "status": "ok",
-                  "db_path": "E:\\triade\\artifacts\\level8\\clean-restart-1791339188978083700\\triade\\memory\\triade.db",
+                  "db_path": "E:\\triade\\artifacts\\level8\\clean-restart-1791421109985238200\\triade\\memory\\triade.db",
                   "db_exists": true,
                   "schema_path": "E:\\triade\\triade\\memory\\schemas.sql",
                   "schema_exists": true,
@@ -2438,14 +2438,14 @@
                   "hardware": {
                     "cpu_count": 12,
                     "ram_total_gb": 7.21,
-                    "ram_available_gb": 2.25,
+                    "ram_available_gb": 1.42,
                     "tier": "low",
                     "notes": [
                       "os=Windows",
                       "cpu_count=12",
                       "ram_total_gb=7.21",
-                      "ram_available_gb=2.25",
-                      "disk_free_gb=83.04",
+                      "ram_available_gb=1.42",
+                      "disk_free_gb=66.14",
                       "tier=low"
                     ],
                     "os_name": "Windows",
@@ -2455,7 +2455,7 @@
                     "processor": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
                     "cpu_physical_cores": 6,
                     "disk_total_gb": 104.69,
-                    "disk_free_gb": 83.04,
+                    "disk_free_gb": 66.14,
                     "python_version": "3.12.10",
                     "node_version": "v24.19.0",
                     "npm_version": "unknown",
@@ -2491,32 +2491,36 @@
                   "recommendations": {
                     "hypothalamus": {
                       "role": "hypothalamus",
-                      "selected_model": "qwen2.5:1.5b",
+                      "selected_model": "qwen3:4b",
                       "provider": "ollama",
-                      "reason": "Seleccionado qwen2.5:1.5b como mejor candidato disponible para rol hypothalamus. Perfil hardware=low.",
+                      "reason": "Seleccionado qwen3:4b como mejor candidato disponible para rol hypothalamus. Perfil hardware=low.",
                       "fallback_used": false,
                       "candidates": [
-                        "qwen2.5:1.5b",
-                        "qwen2.5:3b-instruct",
-                        "qwen3:1.7b"
+                        "qwen3:1.7b",
+                        "qwen3:4b"
                       ],
                       "hardware_tier": "low",
                       "rejected_by_hardware": [
+                        "qwen2.5:1.5b",
+                        "qwen2.5:3b-instruct",
+                        "qwen3:1.7b",
                         "qwen3:4b"
                       ]
                     },
                     "central": {
                       "role": "central",
-                      "selected_model": "qwen2.5:1.5b",
+                      "selected_model": "qwen3:4b",
                       "provider": "ollama",
-                      "reason": "Seleccionado qwen2.5:1.5b como mejor candidato disponible para rol central. Perfil hardware=low.",
+                      "reason": "Seleccionado qwen3:4b como mejor candidato disponible para rol central. Perfil hardware=low.",
                       "fallback_used": false,
                       "candidates": [
-                        "qwen2.5:1.5b",
-                        "qwen2.5:3b-instruct"
+                        "llama3.1:8b",
+                        "qwen3:4b"
                       ],
                       "hardware_tier": "low",
                       "rejected_by_hardware": [
+                        "qwen2.5:1.5b",
+                        "qwen2.5:3b-instruct",
                         "llama3:latest",
                         "llama3.1:8b",
                         "qwen3:4b"
@@ -2524,47 +2528,54 @@
                     },
                     "creator": {
                       "role": "creator",
-                      "selected_model": "gemma3:4b",
+                      "selected_model": "qwen3:4b",
                       "provider": "ollama",
-                      "reason": "Ning\u00fan candidato recomendado est\u00e1 disponible; se us\u00f3 gemma3:4b como primer modelo instalado.",
-                      "fallback_used": true,
+                      "reason": "Seleccionado qwen3:4b como mejor candidato disponible para rol creator. Perfil hardware=low.",
+                      "fallback_used": false,
                       "candidates": [
-                        "qwen2.5:3b-instruct"
+                        "qwen3:4b",
+                        "llama3:latest"
                       ],
                       "hardware_tier": "low",
                       "rejected_by_hardware": [
+                        "qwen2.5:3b-instruct",
                         "qwen3:4b",
                         "llama3:latest"
                       ]
                     },
                     "trainer": {
                       "role": "trainer",
-                      "selected_model": "gemma3:4b",
+                      "selected_model": "qwen3:4b",
                       "provider": "ollama",
-                      "reason": "Ning\u00fan candidato recomendado est\u00e1 disponible; se us\u00f3 gemma3:4b como primer modelo instalado.",
-                      "fallback_used": true,
+                      "reason": "Seleccionado qwen3:4b como mejor candidato disponible para rol trainer. Perfil hardware=low.",
+                      "fallback_used": false,
                       "candidates": [
-                        "qwen2.5:3b-instruct"
+                        "qwen3:4b",
+                        "llama3:latest"
                       ],
                       "hardware_tier": "low",
                       "rejected_by_hardware": [
+                        "qwen2.5:3b-instruct",
                         "qwen3:4b",
                         "llama3:latest"
                       ]
                     },
                     "coder": {
                       "role": "coder",
-                      "selected_model": "qwen2.5-coder:3b",
+                      "selected_model": "gemma3:4b",
                       "provider": "ollama",
-                      "reason": "Seleccionado qwen2.5-coder:3b por tarea relacionada con c\u00f3digo. Perfil hardware=low.",
-                      "fallback_used": false,
+                      "reason": "Ning\u00fan candidato recomendado est\u00e1 disponible; se us\u00f3 gemma3:4b como primer modelo instalado.",
+                      "fallback_used": true,
                       "candidates": [
-                        "qwen2.5-coder:3b",
                         "qwen2.5-coder:1.5b-base",
                         "qwen2.5:3b-instruct"
                       ],
                       "hardware_tier": "low",
-                      "rejected_by_hardware": []
+                      "rejected_by_hardware": [
+                        "qwen2.5-coder:3b",
+                        "qwen2.5-coder:1.5b-base",
+                        "qwen2.5:3b-instruct"
+                      ]
                     },
                     "embedding": {
                       "role": "embedding",
@@ -2581,34 +2592,38 @@
                     },
                     "fast": {
                       "role": "fast",
-                      "selected_model": "qwen2.5:1.5b",
+                      "selected_model": "qwen3:4b",
                       "provider": "ollama",
-                      "reason": "Seleccionado qwen2.5:1.5b por prioridad de velocidad/urgencia medium. Perfil hardware=low.",
+                      "reason": "Seleccionado qwen3:4b por prioridad de velocidad/urgencia medium. Perfil hardware=low.",
                       "fallback_used": false,
                       "candidates": [
-                        "qwen2.5:1.5b",
-                        "qwen3:1.7b",
-                        "qwen2.5:3b-instruct"
+                        "qwen2.5:3b-instruct",
+                        "qwen3:4b"
                       ],
                       "hardware_tier": "low",
                       "rejected_by_hardware": [
+                        "qwen2.5:1.5b",
+                        "qwen3:1.7b",
+                        "qwen2.5:3b-instruct",
                         "qwen3:4b"
                       ]
                     },
                     "deep": {
                       "role": "deep",
-                      "selected_model": "gemma3:4b",
+                      "selected_model": "qwen3:4b",
                       "provider": "ollama",
-                      "reason": "Ning\u00fan candidato recomendado est\u00e1 disponible; se us\u00f3 gemma3:4b como primer modelo instalado.",
-                      "fallback_used": true,
+                      "reason": "Seleccionado qwen3:4b por prioridad de profundidad anal\u00edtica compatible con el sistema. Perfil hardware=low.",
+                      "fallback_used": false,
                       "candidates": [
+                        "qwen3:4b",
                         "qwen2.5:3b-instruct"
                       ],
                       "hardware_tier": "low",
                       "rejected_by_hardware": [
                         "llama3.1:8b",
                         "llama3:latest",
-                        "qwen3:4b"
+                        "qwen3:4b",
+                        "qwen2.5:3b-instruct"
                       ]
                     }
                   }
@@ -2652,11 +2667,11 @@
     }
   ],
   "production_writes": false,
-  "runtime_source_hash": "3113a0171534eb5781c9accb4c266aa3435d713669def88425d54ad6b6af648a",
+  "runtime_source_hash": "5553137e289a09eebdf9fbf2c5879156cfaa7fa913cdbdb3fc40d0198cc75a7e",
   "harness_hashes": {
-    "scripts/run_level8_soak.py": "40f6ec746900bcb6a438c08fe05a71b3b79f73129cf1cbd8f227ece79d7d34f1",
+    "scripts/run_level8_soak.py": "eb87d66982306b55738421bde4d959d96711581882768680cd233ee2b8ac4334",
     "scripts/run_long_validation.py": "192c3a39fd5c0ca76cf44abee7cc1048e223f78bb2b07011071b86bacad51e0a",
-    "scripts/run_level8_learning_transfer.py": "5114fc9aaff6451788b7d630e8ba8287b1503283bcab32955348d460a05f1937",
+    "scripts/run_level8_learning_transfer.py": "e83f5ded2bf34d09039e3bbbfd72975c756673c60a0f9ee303d25481ffd8866b",
     "scripts/run_level8_task_recovery.py": "05297395af186222f5fb92a5f982b163e60433963112ac299e1b4103223d8361",
     "scripts/run_level8_clean_restart.py": "caabdd7444b6a35d39952d9c6ce8b370d556eb6901bf486ae4145b929dbf41fb",
     "scripts/run_level8_api_recovery.py": "674b8000fb60294203608a9469842aeb2a4b52942d5368c871acf516312fa10b"

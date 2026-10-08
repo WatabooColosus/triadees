@@ -1,0 +1,39 @@
+{
+  "timestamp": "2026-10-08T03:21:52.288139+00:00",
+  "tested_source_sha": "a1be60b9fcfaf5ddc7ec3ee2561b622e1f81cd0d",
+  "task_id": "task-259b8218d99b4fcb9389edf4b24e7fe3",
+  "correlation_id": "admission-5ea65f7e4ce44154bc243e651aeff654",
+  "crash": {
+    "timestamp": "2026-10-08T03:20:50.686873+00:00",
+    "pid": 26372,
+    "lease_generation": 1,
+    "worker_id": "recovery-worker:26372",
+    "lease_expires_at": "2026-10-08T03:21:50.178934+00:00",
+    "target_mtime_ns": 1791429650672484200,
+    "children": [
+      [
+        16680,
+        1791429650.338414
+      ]
+    ]
+  },
+  "pid_after": 20600,
+  "lease_generation_after": 2,
+  "recovery_seconds": 61.625,
+  "final_status": "completed",
+  "db_integrity": "ok",
+  "idempotent_replay": true,
+  "duplicate_effects": 0,
+  "lost_tasks": 0,
+  "artifact_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\recovery-dcd8fa2d756a",
+  "rollback_spec": {
+    "target": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\recovery-dcd8fa2d756a\\configuration.json",
+    "existed": true,
+    "backup_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\recovery-dcd8fa2d756a\\runs\\effects\\5ca97de0ddc5b3f54ca88a6f1cb48797\\backup-829074bbae1a420583453aeb8774b42e.bin",
+    "workspace": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\recovery-dcd8fa2d756a\\runs\\effects\\5ca97de0ddc5b3f54ca88a6f1cb48797",
+    "content_sha256": "baf17e0cc0ce8f7e8016c8736d6259b14d06d33f3a7a4acd5396bbc80abb4d59"
+  },
+  "baseline_sha256": "f47e82839174e2cab9ebb5fbb5d79180658dd44c8ceed6b58d80ee1808ea96e0",
+  "scope": "Real normal WorkerLoop task crash/replay in existing experiment DB; restart supervised by this verification driver, not deployed Windows supervisor",
+  "truth": true
+}

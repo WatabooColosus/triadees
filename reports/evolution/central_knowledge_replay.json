@@ -1,0 +1,10 @@
+{
+  "scope": "Diagnostic replay of saved consumer context; not a productive-use receipt",
+  "prompt_characters": 2976,
+  "audit": false,
+  "knowledge_start": 1850,
+  "request_start": 2616,
+  "model_ok": true,
+  "response": "```json\nnull\n```",
+  "objective_pass": false
+}

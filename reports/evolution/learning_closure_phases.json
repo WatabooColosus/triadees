@@ -1,0 +1,114 @@
+{
+  "timestamp": "2026-10-08T03:30:31.875088+00:00",
+  "source_sha": "037b58e6a616149645012bd72e6996062c82391f",
+  "origin_main_sha": "faae9c146bd625c011a76af7c69ca6be0a7597a2",
+  "goal": "Close the productive learning circuit with sequential evidence gates",
+  "rules": [
+    "Do not advance a capability as PASS without runtime evidence",
+    "Investigate and repair one dependency at a time",
+    "Preserve historical and failed evidence",
+    "No manual ACTIVE, fabricated data, wildcard routing or threshold changes",
+    "Use existing graph, scheduler, WorkerLoop, Bodega, measurement and governance"
+  ],
+  "current_blocker": "Final same-revision certification and useful no-chat learning are not yet proven; bounded experiment successes are not main-database learning proof",
+  "phase1_observation": {
+    "database": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\learning.db",
+    "scope": "existing experiment database, read-only; not production activity proof",
+    "neuron": {
+      "id": 1,
+      "name": "admission-fb8605eab19e8ed1d4c57842",
+      "status": "candidate",
+      "domain": "sqlite_ledger_checksum"
+    },
+    "formation_events": [
+      {
+        "id": 8,
+        "event_type": "domain_candidate_formed",
+        "neuron_id": 1,
+        "created_at": "2026-10-08T00:56:20.898921+00:00"
+      },
+      {
+        "id": 6,
+        "event_type": "domain_admission_requested",
+        "neuron_id": null,
+        "created_at": "2026-10-08T00:56:20.389527+00:00"
+      },
+      {
+        "id": 1,
+        "event_type": "domain_admission_requested",
+        "neuron_id": null,
+        "created_at": "2026-10-07T23:07:14.620544+00:00"
+      }
+    ],
+    "training_rows_for_neuron": 0
+  },
+  "phases": [
+    {
+      "id": "1",
+      "name": "Diagn\u00f3stico del corte",
+      "status": "EXECUTED_MEASURED_IN_EXISTING_EXPERIMENT",
+      "work": "Trazar admisi\u00f3n, candidato, planner, worker, Formativa y ambos registros.",
+      "exit_gate": "Mapa de productores/consumidores, contratos y estados; causa demostrada sin escritura operativa.",
+      "evidence": "Diagnosed structural-only training"
+    },
+    {
+      "id": "2",
+      "name": "Curr\u00edculo y entrenamiento ejecutable",
+      "status": "EXECUTED_MEASURED_IN_EXISTING_EXPERIMENT",
+      "work": "Conectar la necesidad al planner y WorkerLoop actuales; Formativa produce casos de entrenamiento y casos reservados distintos, evaluador objetivo y presupuesto.",
+      "exit_gate": "Tarea real completa; resultados por caso, errores, latencia, recursos y referencias al conocimiento. No usar puntuaci\u00f3n de estructura como competencia.",
+      "evidence": "admission_training_latest.json"
+    },
+    {
+      "id": "3",
+      "name": "Certificaci\u00f3n independiente y activaci\u00f3n",
+      "status": "EXECUTED_MEASURED_IN_EXISTING_EXPERIMENT",
+      "work": "Usar Measurement Core, Regression Gate y evaluaci\u00f3n existentes; resolver v\u00ednculo entre CapabilityRegistry y el registro le\u00eddo por el router.",
+      "exit_gate": "Held-out reservado antes de entrenar; umbral predefinido; regresiones ausentes; certificaci\u00f3n y activaci\u00f3n con receipts. El router encuentra la neurona sin comodines.",
+      "evidence": "admission_certification_latest.json"
+    },
+    {
+      "id": "4",
+      "name": "Educaci\u00f3n y aplicaci\u00f3n productiva",
+      "status": "EXECUTED_MEASURED_IN_EXISTING_EXPERIMENT",
+      "work": "Conectar NeuronEducationCycle, ApplicationRecorder y Resolver con la neurona certificada y tareas posteriores.",
+      "exit_gate": "Mismo correlation_id o parent_correlation_id expl\u00edcito desde experiencia hasta verification report; retrieval e inyecci\u00f3n observados; aplicaci\u00f3n real registrada.",
+      "evidence": "admission_productive_use_latest.json"
+    },
+    {
+      "id": "5",
+      "name": "Beneficio causal y consolidaci\u00f3n",
+      "status": "EXECUTED_MEASURED_IN_EXISTING_EXPERIMENT",
+      "work": "Comparar baseline, tratamiento y control negativo en tareas nuevas equivalentes; evaluar provenance, riesgo y pol\u00edtica efectiva de memoria.",
+      "exit_gate": "Tratamiento mejora una m\u00e9trica objetiva frente a ambos controles; no regresi\u00f3n; decisi\u00f3n del gate; stable_knowledge_id s\u00f3lo si la pol\u00edtica realmente autoriza. La ruta stable actual requiere revisi\u00f3n expl\u00edcita de gobernanza.",
+      "evidence": "admission_consolidation_latest.json"
+    },
+    {
+      "id": "6",
+      "name": "Reutilizaci\u00f3n y persistencia",
+      "status": "EXECUTED_MEASURED_IN_EXISTING_EXPERIMENT",
+      "work": "Ejecutar tareas relacionadas distintas antes y despu\u00e9s de shutdown/restart limpio.",
+      "exit_gate": "Mismo conocimiento y versi\u00f3n recuperados; neurona y aplicaci\u00f3n correlacionadas; resultado correcto despu\u00e9s del reinicio.",
+      "evidence": "admission_learned_persistence_latest.json"
+    },
+    {
+      "id": "7",
+      "name": "Fallo, regresi\u00f3n y recuperaci\u00f3n",
+      "status": "EXECUTED_MEASURED_IN_EXISTING_EXPERIMENT",
+      "work": "Probar crash de un WorkerLoop de prueba con tarea en vuelo y variante experimental inferior, usando infraestructura normal.",
+      "exit_gate": "Cero tareas perdidas y efectos duplicados; lease recuperado; integridad SQLite; regresi\u00f3n detectada y rollback restaura baseline con receipt.",
+      "evidence": "admission_recovery_latest.json + admission_rollback_latest.json"
+    },
+    {
+      "id": "8",
+      "name": "Aprendizaje aut\u00f3nomo y certificaci\u00f3n final",
+      "status": "IN_PROGRESS_NOT_CERTIFIED",
+      "work": "Observar necesidad -> plan -> ejecuci\u00f3n -> evaluaci\u00f3n -> aprendizaje?siguiente decisi\u00f3n sin chat; recertificar fuente congelada.",
+      "exit_gate": "Al menos un ciclo cognitivo \u00fatil sin intervenci\u00f3n; controles de recursos activos; pruebas focalizadas y suite final; evidencias de la misma revisi\u00f3n. Supervisor continuo despu\u00e9s de cerrar estos gates.",
+      "evidence": "deployed_clean_restart_v3.json; final suite and soak running"
+    }
+  ],
+  "overall_closed": false,
+  "current_source_sha": "794bee09c089dfe31286f799d54e85b9b0ddcf2f",
+  "goal_complete": false
+}

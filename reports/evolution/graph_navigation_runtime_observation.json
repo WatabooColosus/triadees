@@ -1,0 +1,129 @@
+{
+  "observed_at": "2026-10-08T02:15:16.240041+00:00",
+  "endpoints": {
+    "/health/source": {
+      "status": 200,
+      "body": {
+        "captured_at": "2026-10-08T02:09:14.318446+00:00",
+        "status": "VERIFIED_AT_BOOTSTRAP",
+        "git_sha": "621e2f2cef9889a509e6e9b420a7890a6193a77d",
+        "source_dirty": false,
+        "source_hash": "7012bf7b55d69635fcc2d7323cde0725ad436bef5ee1d724726ad33139d3b88c",
+        "bootstrap_before": {
+          "captured_at": "2026-10-08T02:09:12.590924+00:00",
+          "status": "CLEAN",
+          "git_sha": "621e2f2cef9889a509e6e9b420a7890a6193a77d",
+          "source_dirty": false,
+          "source_hash": "7012bf7b55d69635fcc2d7323cde0725ad436bef5ee1d724726ad33139d3b88c"
+        },
+        "verified": true
+      }
+    },
+    "/api/runtime/heartbeat": {
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "api_server_alive": true,
+        "heartbeat_truth": "ALWAYS-ON activo · Workers vivos · Tríade en proceso continuo",
+        "runtime_enabled": true,
+        "background_thread_alive": true,
+        "workers_active": true,
+        "active_workers": true,
+        "mode": "light_background",
+        "last_cycle_at": "2026-10-08 02:15:15",
+        "heartbeat_cycle": 7749,
+        "heartbeat_age_ms": 1103.734016418457,
+        "runtime_pid": 21200,
+        "ollama_blood": {
+          "status": "ok",
+          "can_reason": true,
+          "fallback_mode": false
+        },
+        "can_reason": true,
+        "fallback_mode": false,
+        "detail_available": true
+      }
+    },
+    "/api/runtime/metabolism/status": {
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "metabolism": {
+          "enabled": true,
+          "mode": "full",
+          "effective_mode": "light_background",
+          "resource_governor": {
+            "requested_mode": "full_local_guarded",
+            "allowed_mode": "light_background",
+            "effective_mode": "light_background",
+            "reason": "RAM disponible limitada (1.08 GB): máximo light_background; full local exige 1.5 GB.; Hardware tier low. Máximo light_background.; Modo solicitado 'full_local_guarded' excede permitido 'light_background'. Degradado.",
+            "can_run_workers": true,
+            "can_nourish_neurons": false,
+            "can_evaluate_learning": true,
+            "can_consolidate_stable": false
+          },
+          "dry_run": false,
+          "cycle_count": 5,
+          "current_cycle_id": 7179,
+          "running": true,
+          "last_tick_at": "2026-10-08T02:12:53.879534+00:00",
+          "last_tick_duration_ms": 6359.99999998603,
+          "last_tick_error": null,
+          "status": "running",
+          "policy": {
+            "enabled_kinds": [
+              "budget_check",
+              "health_check",
+              "heartbeat",
+              "lease_supervision"
+            ],
+            "min_priority": 10,
+            "require_ollama": true,
+            "require_redis": false,
+            "max_concurrent_needs": 5,
+            "dry_run": false,
+            "allowed_modes": [
+              "observe_only",
+              "light",
+              "full"
+            ]
+          },
+          "scheduler": {
+            "interval_seconds": 30.0,
+            "jitter_seconds": 2.0,
+            "max_cycles": 0,
+            "cycle_count": 5,
+            "stop_requested": false
+          },
+          "budget": {
+            "per_cycle_limits": {
+              "cpu_seconds": 30.0,
+              "ram_mb": 512.0,
+              "disk_read_mb": 10.0,
+              "disk_write_mb": 5.0,
+              "duration_seconds": 60.0,
+              "needs_count": 10
+            },
+            "hourly_limits": {
+              "cpu_seconds": 300.0,
+              "disk_read_mb": 100.0,
+              "disk_write_mb": 50.0
+            },
+            "daily_limits": {
+              "cpu_seconds": 3600.0,
+              "disk_read_mb": 500.0,
+              "disk_write_mb": 250.0
+            }
+          },
+          "receipt_counts": {
+            "denied": 276,
+            "passed": 18963,
+            "skipped": 2246,
+            "success": 18963
+          },
+          "thread_alive": true
+        }
+      }
+    }
+  }
+}

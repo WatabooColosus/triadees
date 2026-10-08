@@ -1,0 +1,1190 @@
+{
+  "timestamp": "2026-10-08T02:12:55.621014+00:00",
+  "source_sha": "621e2f2cef9889a509e6e9b420a7890a6193a77d",
+  "graph_generation": "621e2f2cef98-1791425315579955300",
+  "graphs": {
+    "entrypoint_graph": {
+      "path": "E:\\triade\\artifacts\\internal_graphs\\entrypoint_graph.json",
+      "nodes": 109,
+      "edges": 12,
+      "selected_connections": []
+    },
+    "organ_graph": {
+      "path": "E:\\triade\\artifacts\\internal_graphs\\organ_graph.json",
+      "nodes": 12,
+      "edges": 53,
+      "selected_connections": [
+        {
+          "evidence": "4 imports internos",
+          "metadata": {
+            "imports": 4
+          },
+          "relation": "connects_to",
+          "source": "organ:Bodega",
+          "target": "organ:Neurona Central"
+        },
+        {
+          "evidence": "2 imports internos",
+          "metadata": {
+            "imports": 2
+          },
+          "relation": "connects_to",
+          "source": "organ:Bodega",
+          "target": "organ:Ollama Blood"
+        },
+        {
+          "evidence": "5 imports internos",
+          "metadata": {
+            "imports": 5
+          },
+          "relation": "connects_to",
+          "source": "organ:Cristal",
+          "target": "organ:Neurona Central"
+        },
+        {
+          "evidence": "1 imports internos",
+          "metadata": {
+            "imports": 1
+          },
+          "relation": "connects_to",
+          "source": "organ:Federación",
+          "target": "organ:Learning"
+        },
+        {
+          "evidence": "3 imports internos",
+          "metadata": {
+            "imports": 3
+          },
+          "relation": "connects_to",
+          "source": "organ:Federación",
+          "target": "organ:Neurona Central"
+        },
+        {
+          "evidence": "3 imports internos",
+          "metadata": {
+            "imports": 3
+          },
+          "relation": "connects_to",
+          "source": "organ:Hipotálamo",
+          "target": "organ:Neurona Central"
+        },
+        {
+          "evidence": "5 imports internos",
+          "metadata": {
+            "imports": 5
+          },
+          "relation": "connects_to",
+          "source": "organ:Learning",
+          "target": "organ:Bodega"
+        },
+        {
+          "evidence": "12 imports internos",
+          "metadata": {
+            "imports": 12
+          },
+          "relation": "connects_to",
+          "source": "organ:Learning",
+          "target": "organ:Neurona Central"
+        },
+        {
+          "evidence": "3 imports internos",
+          "metadata": {
+            "imports": 3
+          },
+          "relation": "connects_to",
+          "source": "organ:Learning",
+          "target": "organ:Neurona Creadora"
+        },
+        {
+          "evidence": "5 imports internos",
+          "metadata": {
+            "imports": 5
+          },
+          "relation": "connects_to",
+          "source": "organ:Learning",
+          "target": "organ:Neurona Educadora"
+        },
+        {
+          "evidence": "2 imports internos",
+          "metadata": {
+            "imports": 2
+          },
+          "relation": "connects_to",
+          "source": "organ:Learning",
+          "target": "organ:Ollama Blood"
+        },
+        {
+          "evidence": "7 imports internos",
+          "metadata": {
+            "imports": 7
+          },
+          "relation": "connects_to",
+          "source": "organ:Learning",
+          "target": "organ:Unidad 01"
+        },
+        {
+          "evidence": "2 imports internos",
+          "metadata": {
+            "imports": 2
+          },
+          "relation": "connects_to",
+          "source": "organ:Learning",
+          "target": "organ:Workers"
+        },
+        {
+          "evidence": "26 imports internos",
+          "metadata": {
+            "imports": 26
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Central",
+          "target": "organ:Bodega"
+        },
+        {
+          "evidence": "2 imports internos",
+          "metadata": {
+            "imports": 2
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Central",
+          "target": "organ:Cristal"
+        },
+        {
+          "evidence": "3 imports internos",
+          "metadata": {
+            "imports": 3
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Central",
+          "target": "organ:Federación"
+        },
+        {
+          "evidence": "3 imports internos",
+          "metadata": {
+            "imports": 3
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Central",
+          "target": "organ:Hipotálamo"
+        },
+        {
+          "evidence": "16 imports internos",
+          "metadata": {
+            "imports": 16
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Central",
+          "target": "organ:Learning"
+        },
+        {
+          "evidence": "2 imports internos",
+          "metadata": {
+            "imports": 2
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Central",
+          "target": "organ:Neurona Educadora"
+        },
+        {
+          "evidence": "30 imports internos",
+          "metadata": {
+            "imports": 30
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Central",
+          "target": "organ:Ollama Blood"
+        },
+        {
+          "evidence": "8 imports internos",
+          "metadata": {
+            "imports": 8
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Central",
+          "target": "organ:Qualia"
+        },
+        {
+          "evidence": "1 imports internos",
+          "metadata": {
+            "imports": 1
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Central",
+          "target": "organ:Unidad 01"
+        },
+        {
+          "evidence": "9 imports internos",
+          "metadata": {
+            "imports": 9
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Central",
+          "target": "organ:Workers"
+        },
+        {
+          "evidence": "2 imports internos",
+          "metadata": {
+            "imports": 2
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Creadora",
+          "target": "organ:Learning"
+        },
+        {
+          "evidence": "2 imports internos",
+          "metadata": {
+            "imports": 2
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Creadora",
+          "target": "organ:Neurona Central"
+        },
+        {
+          "evidence": "2 imports internos",
+          "metadata": {
+            "imports": 2
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Educadora",
+          "target": "organ:Bodega"
+        },
+        {
+          "evidence": "1 imports internos",
+          "metadata": {
+            "imports": 1
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Educadora",
+          "target": "organ:Learning"
+        },
+        {
+          "evidence": "11 imports internos",
+          "metadata": {
+            "imports": 11
+          },
+          "relation": "connects_to",
+          "source": "organ:Neurona Educadora",
+          "target": "organ:Neurona Central"
+        },
+        {
+          "evidence": "1 imports internos",
+          "metadata": {
+            "imports": 1
+          },
+          "relation": "connects_to",
+          "source": "organ:Ollama Blood",
+          "target": "organ:Learning"
+        },
+        {
+          "evidence": "14 imports internos",
+          "metadata": {
+            "imports": 14
+          },
+          "relation": "connects_to",
+          "source": "organ:Ollama Blood",
+          "target": "organ:Neurona Central"
+        },
+        {
+          "evidence": "1 imports internos",
+          "metadata": {
+            "imports": 1
+          },
+          "relation": "connects_to",
+          "source": "organ:Qualia",
+          "target": "organ:Learning"
+        },
+        {
+          "evidence": "4 imports internos",
+          "metadata": {
+            "imports": 4
+          },
+          "relation": "connects_to",
+          "source": "organ:Qualia",
+          "target": "organ:Neurona Central"
+        },
+        {
+          "evidence": "4 imports internos",
+          "metadata": {
+            "imports": 4
+          },
+          "relation": "connects_to",
+          "source": "organ:Unidad 01",
+          "target": "organ:Neurona Central"
+        },
+        {
+          "evidence": "5 imports internos",
+          "metadata": {
+            "imports": 5
+          },
+          "relation": "connects_to",
+          "source": "organ:Workers",
+          "target": "organ:Bodega"
+        },
+        {
+          "evidence": "20 imports internos",
+          "metadata": {
+            "imports": 20
+          },
+          "relation": "connects_to",
+          "source": "organ:Workers",
+          "target": "organ:Learning"
+        },
+        {
+          "evidence": "64 imports internos",
+          "metadata": {
+            "imports": 64
+          },
+          "relation": "connects_to",
+          "source": "organ:Workers",
+          "target": "organ:Neurona Central"
+        }
+      ]
+    },
+    "worker_graph": {
+      "path": "E:\\triade\\artifacts\\internal_graphs\\worker_graph.json",
+      "nodes": 53,
+      "edges": 98,
+      "selected_connections": [
+        {
+          "evidence": "triade/core/learning_planner.py importa triade.workers.task_queue",
+          "metadata": {},
+          "relation": "imports",
+          "source": "module:triade/core/learning_planner.py",
+          "target": "worker_module:triade/workers/task_queue.py"
+        },
+        {
+          "evidence": "triade/workers/contracts.py:WorkerTaskType",
+          "metadata": {},
+          "relation": "declares_task_type",
+          "source": "worker_module:triade/workers/contracts.py",
+          "target": "task_type:bodega_global_review"
+        },
+        {
+          "evidence": "triade/workers/worker_loop.py:_bodega_global_review",
+          "metadata": {},
+          "relation": "handled_by",
+          "source": "task_type:bodega_global_review",
+          "target": "worker_module:triade/workers/worker_loop.py"
+        },
+        {
+          "evidence": "triade/workers/contracts.py:WorkerTaskType",
+          "metadata": {},
+          "relation": "declares_task_type",
+          "source": "worker_module:triade/workers/contracts.py",
+          "target": "task_type:central_learning_observation"
+        },
+        {
+          "evidence": "triade/workers/worker_loop.py:_central_learning_observation",
+          "metadata": {},
+          "relation": "handled_by",
+          "source": "task_type:central_learning_observation",
+          "target": "worker_module:triade/workers/worker_loop.py"
+        },
+        {
+          "evidence": "triade/workers/contracts.py:WorkerTaskType",
+          "metadata": {},
+          "relation": "declares_task_type",
+          "source": "worker_module:triade/workers/contracts.py",
+          "target": "task_type:learning_candidate_deduplication"
+        },
+        {
+          "evidence": "triade/workers/worker_loop.py:_learning_candidate_deduplication",
+          "metadata": {},
+          "relation": "handled_by",
+          "source": "task_type:learning_candidate_deduplication",
+          "target": "worker_module:triade/workers/worker_loop.py"
+        },
+        {
+          "evidence": "triade/workers/contracts.py:WorkerTaskType",
+          "metadata": {},
+          "relation": "declares_task_type",
+          "source": "worker_module:triade/workers/contracts.py",
+          "target": "task_type:learning_candidate_generation"
+        },
+        {
+          "evidence": "triade/workers/worker_loop.py:_learning_candidate_generation",
+          "metadata": {},
+          "relation": "handled_by",
+          "source": "task_type:learning_candidate_generation",
+          "target": "worker_module:triade/workers/worker_loop.py"
+        },
+        {
+          "evidence": "triade/workers/contracts.py:WorkerTaskType",
+          "metadata": {},
+          "relation": "declares_task_type",
+          "source": "worker_module:triade/workers/contracts.py",
+          "target": "task_type:learning_claim_distillation"
+        },
+        {
+          "evidence": "triade/workers/worker_loop.py:_learning_claim_distillation",
+          "metadata": {},
+          "relation": "handled_by",
+          "source": "task_type:learning_claim_distillation",
+          "target": "worker_module:triade/workers/worker_loop.py"
+        },
+        {
+          "evidence": "triade/workers/contracts.py:WorkerTaskType",
+          "metadata": {},
+          "relation": "declares_task_type",
+          "source": "worker_module:triade/workers/contracts.py",
+          "target": "task_type:learning_evidence_generation"
+        },
+        {
+          "evidence": "triade/workers/worker_loop.py:_learning_evidence_generation",
+          "metadata": {},
+          "relation": "handled_by",
+          "source": "task_type:learning_evidence_generation",
+          "target": "worker_module:triade/workers/worker_loop.py"
+        },
+        {
+          "evidence": "triade/workers/contracts.py:WorkerTaskType",
+          "metadata": {},
+          "relation": "declares_task_type",
+          "source": "worker_module:triade/workers/contracts.py",
+          "target": "task_type:neural_learning_distribution"
+        },
+        {
+          "evidence": "triade/workers/worker_loop.py:_neural_learning_distribution",
+          "metadata": {},
+          "relation": "handled_by",
+          "source": "task_type:neural_learning_distribution",
+          "target": "worker_module:triade/workers/worker_loop.py"
+        },
+        {
+          "evidence": "triade/workers/contracts.py:WorkerTaskType",
+          "metadata": {},
+          "relation": "declares_task_type",
+          "source": "worker_module:triade/workers/contracts.py",
+          "target": "task_type:neuron_candidate_formation"
+        },
+        {
+          "evidence": "triade/workers/worker_loop.py:_neuron_candidate_formation",
+          "metadata": {},
+          "relation": "handled_by",
+          "source": "task_type:neuron_candidate_formation",
+          "target": "worker_module:triade/workers/worker_loop.py"
+        },
+        {
+          "evidence": "triade/workers/contracts.py:WorkerTaskType",
+          "metadata": {},
+          "relation": "declares_task_type",
+          "source": "worker_module:triade/workers/contracts.py",
+          "target": "task_type:neuron_education_cycle"
+        },
+        {
+          "evidence": "triade/workers/worker_loop.py:_neuron_education_cycle",
+          "metadata": {},
+          "relation": "handled_by",
+          "source": "task_type:neuron_education_cycle",
+          "target": "worker_module:triade/workers/worker_loop.py"
+        },
+        {
+          "evidence": "triade/workers/contracts.py:WorkerTaskType",
+          "metadata": {},
+          "relation": "declares_task_type",
+          "source": "worker_module:triade/workers/contracts.py",
+          "target": "task_type:pending_learning_review"
+        },
+        {
+          "evidence": "triade/workers/worker_loop.py:_pending_learning_review",
+          "metadata": {},
+          "relation": "handled_by",
+          "source": "task_type:pending_learning_review",
+          "target": "worker_module:triade/workers/worker_loop.py"
+        }
+      ]
+    },
+    "table_graph": {
+      "path": "E:\\triade\\artifacts\\internal_graphs\\table_graph.json",
+      "nodes": 518,
+      "edges": 1109,
+      "selected_connections": [
+        {
+          "evidence": "triade/core/bodega.py:485",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/core/bodega.py",
+          "target": "table:auto_identity"
+        },
+        {
+          "evidence": "triade/learning/autonomous_cycle.py:38",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/learning/autonomous_cycle.py",
+          "target": "table:autonomous_learning_artifacts"
+        },
+        {
+          "evidence": "triade/learning/autonomous_cycle.py:122",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:triade/learning/autonomous_cycle.py",
+          "target": "table:autonomous_learning_artifacts"
+        },
+        {
+          "evidence": "tests/test_autonomous_learning_cycle.py:46",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_autonomous_learning_cycle.py",
+          "target": "table:autonomous_learning_receipts"
+        },
+        {
+          "evidence": "triade/learning/autonomous_cycle.py:208",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:triade/learning/autonomous_cycle.py",
+          "target": "table:autonomous_learning_receipts"
+        },
+        {
+          "evidence": "tests/test_central_learning_authority.py:56",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_central_learning_authority.py",
+          "target": "table:autonomous_tasks"
+        },
+        {
+          "evidence": "tests/test_learning_tasks_window_truth.py:1",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_learning_tasks_window_truth.py",
+          "target": "table:autonomous_tasks"
+        },
+        {
+          "evidence": "tests/test_post_run_learning_trigger.py:52",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_post_run_learning_trigger.py",
+          "target": "table:autonomous_tasks"
+        },
+        {
+          "evidence": "triade/core/learning_planner.py:829",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/core/learning_planner.py",
+          "target": "table:autonomous_tasks"
+        },
+        {
+          "evidence": "triade/learning/doctor.py:157",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/learning/doctor.py",
+          "target": "table:autonomous_tasks"
+        },
+        {
+          "evidence": "tests/test_continuous_learning_doctor.py:19",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:tests/test_continuous_learning_doctor.py",
+          "target": "table:autonomous_tasks"
+        },
+        {
+          "evidence": "tests/test_learning_tasks_window_truth.py:52",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:tests/test_learning_tasks_window_truth.py",
+          "target": "table:autonomous_tasks"
+        },
+        {
+          "evidence": "db_deep_dive2.py:41",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:db_deep_dive2.py",
+          "target": "table:bodega_global_context"
+        },
+        {
+          "evidence": "triade/core/bodega.py:391",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/core/bodega.py",
+          "target": "table:crystal_states"
+        },
+        {
+          "evidence": "triade/core/bodega.py:207",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:triade/core/bodega.py",
+          "target": "table:crystal_states"
+        },
+        {
+          "evidence": "triade/core/bodega.py:548",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/core/bodega.py",
+          "target": "table:episodic_memory"
+        },
+        {
+          "evidence": "triade/core/bodega.py:325",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:triade/core/bodega.py",
+          "target": "table:episodic_memory"
+        },
+        {
+          "evidence": "tests/test_central_learning_authority.py:162",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_central_learning_authority.py",
+          "target": "table:goal_dependencies"
+        },
+        {
+          "evidence": "triade/core/learning_planner.py:573",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/core/learning_planner.py",
+          "target": "table:goal_dependencies"
+        },
+        {
+          "evidence": "tests/test_central_learning_authority.py:312",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_central_learning_authority.py",
+          "target": "table:goal_events"
+        },
+        {
+          "evidence": "tests/test_central_learning_authority.py:211",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_central_learning_authority.py",
+          "target": "table:goal_learning_observations"
+        },
+        {
+          "evidence": "triade/core/goal_orchestrator.py:654",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/core/goal_orchestrator.py",
+          "target": "table:goal_learning_observations"
+        },
+        {
+          "evidence": "triade/core/learning_planner.py:899",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/core/learning_planner.py",
+          "target": "table:goal_learning_observations"
+        },
+        {
+          "evidence": "triade/core/goal_orchestrator.py:637",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:triade/core/goal_orchestrator.py",
+          "target": "table:goal_learning_observations"
+        },
+        {
+          "evidence": "triade/core/learning_planner.py:940",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:triade/core/learning_planner.py",
+          "target": "table:goal_learning_observations"
+        },
+        {
+          "evidence": "tests/test_background_learning_without_chat.py:74",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_background_learning_without_chat.py",
+          "target": "table:identity_core"
+        },
+        {
+          "evidence": "tests/test_bodega_global_context.py:117",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_bodega_global_context.py",
+          "target": "table:identity_core"
+        },
+        {
+          "evidence": "tests/test_learning_e2e_stable_consolidation.py:16",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_learning_e2e_stable_consolidation.py",
+          "target": "table:identity_core"
+        },
+        {
+          "evidence": "tests/test_learning_pipeline.py:169",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_learning_pipeline.py",
+          "target": "table:identity_core"
+        },
+        {
+          "evidence": "triade/core/bodega.py:482",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/core/bodega.py",
+          "target": "table:identity_core"
+        },
+        {
+          "evidence": "triade/self_improvement/failure_learning.py:196",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/self_improvement/failure_learning.py",
+          "target": "table:improvement_failure_lessons"
+        },
+        {
+          "evidence": "tests/test_failure_learning.py:408",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:tests/test_failure_learning.py",
+          "target": "table:improvement_failure_lessons"
+        },
+        {
+          "evidence": "triade/self_improvement/failure_learning.py:156",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:triade/self_improvement/failure_learning.py",
+          "target": "table:improvement_failure_lessons"
+        },
+        {
+          "evidence": "tests/test_failure_learning.py:378",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_failure_learning.py",
+          "target": "table:improvement_signals"
+        },
+        {
+          "evidence": "triade/self_improvement/failure_learning.py:333",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/self_improvement/failure_learning.py",
+          "target": "table:improvement_signals"
+        },
+        {
+          "evidence": "tests/test_failure_learning.py:383",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:tests/test_failure_learning.py",
+          "target": "table:improvement_signals"
+        },
+        {
+          "evidence": "triade/core/bodega.py:376",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/core/bodega.py",
+          "target": "table:knowledge_patterns"
+        },
+        {
+          "evidence": "triade/core/bodega.py:271",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:triade/core/bodega.py",
+          "target": "table:knowledge_patterns"
+        },
+        {
+          "evidence": "tests/test_scheduler_mission_planner.py:295",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:tests/test_scheduler_mission_planner.py",
+          "target": "table:learning_candidate_groups"
+        },
+        {
+          "evidence": "triade/knowledge/visibility.py:174",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/knowledge/visibility.py",
+          "target": "table:learning_candidate_groups"
+        },
+        {
+          "evidence": "triade/learning/deduplication.py:313",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/learning/deduplication.py",
+          "target": "table:learning_candidate_groups"
+        },
+        {
+          "evidence": "triade/learning/pipeline.py:842",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/learning/pipeline.py",
+          "target": "table:learning_candidate_groups"
+        },
+        {
+          "evidence": "triade/learning/retrieval.py:83",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/learning/retrieval.py",
+          "target": "table:learning_candidate_groups"
+        },
+        {
+          "evidence": "triade/workers/mission_planner.py:914",
+          "metadata": {},
+          "relation": "reads",
+          "source": "module:triade/workers/mission_planner.py",
+          "target": "table:learning_candidate_groups"
+        },
+        {
+          "evidence": "tests/test_knowledge_visibility.py:256",
+          "metadata": {},
+          "relation": "writes",
+          "source": "module:tests/test_knowledge_visibility.py",
+          "target": "table:learning_candidate_groups"
+        }
+      ]
+    },
+    "vital_chain_graph": {
+      "path": "E:\\triade\\artifacts\\internal_graphs\\vital_chain_graph.json",
+      "nodes": 11,
+      "edges": 10,
+      "selected_connections": [
+        {
+          "evidence": "orden en VITAL_CHAIN; ambos eslabones con actividad reciente (el traspaso no se sigue fila a fila)",
+          "metadata": {
+            "handoff_verified": true,
+            "order_source": "VITAL_CHAIN",
+            "source_state": "active",
+            "target_state": "active"
+          },
+          "relation": "feeds",
+          "source": "stage:aprendizaje",
+          "target": "stage:Bodega"
+        },
+        {
+          "evidence": "orden en VITAL_CHAIN; ambos eslabones con actividad reciente (el traspaso no se sigue fila a fila)",
+          "metadata": {
+            "handoff_verified": true,
+            "order_source": "VITAL_CHAIN",
+            "source_state": "active",
+            "target_state": "active"
+          },
+          "relation": "feeds",
+          "source": "stage:Bodega",
+          "target": "stage:efecto futuro"
+        }
+      ]
+    },
+    "neural_graph": {
+      "path": "E:\\triade\\artifacts\\internal_graphs\\neural_graph.json",
+      "nodes": 569,
+      "edges": 3205,
+      "selected_connections": [
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-e66c32dce65a4d8fab0187a2f18c930c.df2f3a1add87463e9d2aacdc67c88ada.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-8ffa541ee83642288935e5f2ae89a79a.65c487f42fc94ac486f22d933fdf3773.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-828f0fccd5b14cab982a3425a63299ba.eab7683b0fc042c0b772b7095057f6a2.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-95d5c4892a2641eeb3d81c68d15e7e01.09964e03591648e08d4f4a7fd2290bcc.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-c8f463d52c4f4d7db622ad5be988e60b.413fb59dba154911900d632043b679f4.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-aa8f590fd3964b21afdbb3fd96536366.5267490df55342a9be7e72e00bd1119a.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-94d31bfac271478198b51fe779220911.97b71c4bd59040b59e16152b21a61081.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-f9828785cedd49a2b6d2ec829d2dba22.7895ffbb82d24a08bd5ee24ec9830450.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-fde8f2d7a4f14314b678dd43066cf057.d44ab6d7ae8b4b95af591d8654fe1dfe.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-6e383571331a44b9aaaf1ea51e25c6c4.93fb63e25f18405eb71746e7876016d7.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-051b4a375db943d09f4ca1b6ea7c8237.b9b06bc1f152429c98000896b15824c0.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-b0429cb1ef284accbb0d993171214ec1.4fdb77d8cfe04fa69c46cea98f34f6a3.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-fc7320e438134093bbac060be0fc9ade.f3a8ea723ab94603ae649389e953450d.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-ed8439fb8bfc4d1ba2deb07bb3fff9db.53fa9c76724a4bc3821f34cac9d298ec.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-8066f3ba8bbc456bb2297197d04d81e2.f2db6d6014c144a79aa21dca2d2b68e7.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-893f7715dd394253ab099c89ff879bc8.c26cff9c42ec49bdb584a989ee863259.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-738b11621cb04dd2bc235f6fb508740a.f1316ed67f7f44ec8e0e90305a77a117.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-35f4397b8c0b45f796ac79f247cd4eab.9ec3b80de77b43daa9652df556514032.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-301e8ffff52543d7b0db50915b2470db.fe1021e8a6d945f48a48ae2928f3fcab.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-33ae24f15ecb4f368ffef1b09e9305b8.e16b4578424c4e72903a7242eb17d045.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-18feb8c1e0a34264bb4ed107a562883a.3f5ea407f9de4bd2a422056ba64041ab.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-73feb454ebd144d9a30bfa416535e5c6.c4886e33d53c4a5ba916fe0bff7e3d5a.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-b264e1f0330d4165a6ade441182f0ba2.ddd95778d47d4aa7b677aa9ca390b320.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-7251ca5276354ab09ba46bd069c33d4e.82531ff3cfd34203b93593c5aec4e719.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-1a56742e13be46fe826aa895976c62aa.a818fdc4f24249419cac3c89fe464717.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-30da1486c52a4f62bf835bb91a4b5461.228f9580e3994851a3c4bb0e9604665c.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-f5a0b6ae380046ea8257c5498ca86ec5.e0d7696a51cd4d399dad86539a7dacb1.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-35bed7c2a6da47c9b9806681998fccb9.cec10f2e9cfa4a20888568ae28535e66.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-3e09a4c0de7b4d0689e4a4ee69dcf6df.1494af16c7a84960b2ff07708fd77391.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-68879589c27a45689aa0277844a1cb94.db5aa6dd9467437b861fa867d0d5e840.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-c4e725b41813439b9ced11813e4e0758.21ae39e8c5f441e9b966424f365d002f.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-3ff7437a698d499fb323f47beee6f469.d61d4b21558f47a7b12dac7621b3ac09.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-a1b807b39f9c41b29e2e70670714feb7.b969876263a44038af66ec2155577b8b.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-085c76a895174a1bbfcbdf51ce7c5889.5f87f71c726540eb815274be030dadbc.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-eb11eb6db37f451999411af51549bb55.807d4e592f5544868bed2b902cd2f91e.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-dcad585531ed425ba69127b1d3f40f55.0a57d74108a9440795385655369b30e6.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-79da4fda181d4aec953b71a233fb72a0.354c1846865b41ba9effca74083e1a37.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-482e007323694050b14fc8a6627d717d.89b2efd36d6740fcb05ab92bb42b0e00.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-4eabac4f05a64a5e9edebef0acaa40fb.cb6a1c8fedc0429288f8442f1847a647.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-f190ecbf8c2540278ab1d3812fad1c62.4d7887ffbc914918bdfc83f0888f5d51.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-f654c279fe4e45a9a05e68df46880cf5.e9f1f39ae8a44a39a595059e68e23ae2.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-222159fc07e246f0b38047e0e12b7e5e.c06c6840c7f1401dbf8bc9feb2e2affd.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-aee40f60a6d141f5a3342f3ce7e5f549.e7fc93ea62814ed193bcdf4f265105d6.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-f81fb809f8714e1c98753c28c088c610.df7ec1a65e804a8196e90345f8a18b5a.staging"
+        },
+        {
+          "evidence": "sqlite:runs",
+          "metadata": {},
+          "relation": "contains_runtime_record",
+          "source": "table:runs",
+          "target": "run:worker-2026-10-07T022603.261176Z0000-af87bad9:education:.task-8888c14daab44c59a22e37a3fb8d7290.7df503b70f84407bb010f0be11bd8d1c.staging"
+        }
+      ]
+    }
+  },
+  "interpretation": "Imports and declared edges are structural evidence, not proof of runtime execution.",
+  "validation": {
+    "graph_related_tests": {
+      "command": "python -m pytest tests/test_internal_graphs.py tests/test_internal_graphs_live.py tests/test_graph_refresh.py -q --basetemp=E:/triade/artifacts/evolution/graphnav",
+      "collected": 62,
+      "exit_code": 0,
+      "result": "PASS"
+    },
+    "real_chat": {
+      "command": "TRIADE_REAL_E2E=1 TRIADE_FULL_CERT=1 python -m pytest tests/test_chat_end_to_end_real.py::test_real_chat_frontend_api_central_local_model -q",
+      "exit_code": 0,
+      "tested_source_sha": "621e2f2cef9889a509e6e9b420a7890a6193a77d",
+      "result": "PASS"
+    },
+    "graph_handoff_endpoint": "reports/evolution/graph_handoff_runtime_check.json",
+    "graph_fix_sha": "037b58e6a616149645012bd72e6996062c82391f"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "window_start": "2026-10-08T04:28:56.428409+00:00",
+  "window_end": "2026-10-08T04:36:51.337148+00:00",
+  "run_sources": {
+    "neuron_education_background": 5,
+    "worker": 1
+  },
+  "manual_or_unknown_input_runs": 0,
+  "scope": "Own experiment database; main API traffic is outside this window",
+  "truth": true
+}

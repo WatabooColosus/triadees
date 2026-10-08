@@ -1,12 +1,14 @@
 {
-  "timestamp": "2026-10-08T00:05:30.252672+00:00",
-  "git_sha": "8fdfe9c8a031365f4a80e73ddf9de25273646172",
+  "timestamp": "2026-10-08T01:39:28.837015+00:00",
+  "git_sha": "4b8684efeaa7406114d91288ac1fcac084ba9e4c",
+  "scope": "Current-source read-only SQLite recertification only; not repeated general baseline",
   "database": {
+    "path": "E:\\triade\\triade\\memory\\triade.db",
     "integrity": [
       "ok"
     ],
     "foreign_key_violations": 0,
     "journal_mode": "wal"
   },
-  "scope": "Read-only SQLite verification; no general re-audit"
+  "production_writes": false
 }

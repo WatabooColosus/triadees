@@ -1,0 +1,412 @@
+{
+  "timestamp": "2026-10-08T02:36:13.584999+00:00",
+  "tested_source_sha": "7c59e91c15206f687cbf632c5f72e41144d4c68a",
+  "source_dirty": false,
+  "correlation_id": "admission-5ea65f7e4ce44154bc243e651aeff654",
+  "task": {
+    "task_id": "task-c2cc438008c64ebfb83bff3c6f1dd43e",
+    "task_type": "neuron_candidate_formation",
+    "idempotency_key": "admission-training:6",
+    "worker_id": "admission-5ea65f7e4ce44154bc243e651aeff654",
+    "status": "completed",
+    "priority": 50,
+    "created_at": "2026-10-08T02:36:05.268118+00:00",
+    "updated_at": "2026-10-08T02:36:13.581901+00:00",
+    "lease_acquired_at": "2026-10-08T02:36:05.283148+00:00",
+    "lease_expires_at": null,
+    "heartbeat_at": null,
+    "lease_generation": 1,
+    "attempt": 1,
+    "max_attempts": 1,
+    "retry_after": null,
+    "last_error": null,
+    "payload_hash": "7281e251b45e7fd524b7b82b5bf076e5d3c290512e763ed2598495f0d03a793d",
+    "result_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\runs\\tasks\\task-c2cc438008c64ebfb83bff3c6f1dd43e\\result.json",
+    "rollback_ref": null,
+    "payload": {
+      "admission_event_id": 6,
+      "admission_phase": "training",
+      "correlation_id": "admission-5ea65f7e4ce44154bc243e651aeff654"
+    }
+  },
+  "outcome": {
+    "status": "completed",
+    "training": {
+      "admission_event_id": 6,
+      "neuron_id": 1,
+      "candidate_id": "learn-b125832abae046a4",
+      "correlation_id": "admission-5ea65f7e4ce44154bc243e651aeff654",
+      "curriculum": {
+        "version": 1,
+        "candidate_id": "learn-b125832abae046a4",
+        "cases": {
+          "training": [
+            {
+              "case_id": "training:3",
+              "input_value": 3,
+              "question": "SQLite ledger checksum: la restriccion CHECK observada en el esquema local es: selecciona la expresion para checksum con amount=3 desde los datos contextuales. Conserva exactamente parentesis, coeficientes y operadores de la expresion observada. No calcules el resultado. Devuelve JSON con expression string o null si desconoces la regla.",
+              "reference": "54"
+            },
+            {
+              "case_id": "training:7",
+              "input_value": 7,
+              "question": "SQLite ledger checksum: la restriccion CHECK observada en el esquema local es: selecciona la expresion para checksum con amount=7 desde los datos contextuales. Conserva exactamente parentesis, coeficientes y operadores de la expresion observada. No calcules el resultado. Devuelve JSON con expression string o null si desconoces la regla.",
+              "reference": "25"
+            }
+          ],
+          "held_out": [
+            {
+              "case_id": "held_out:34",
+              "input_value": 34,
+              "question": "SQLite ledger checksum: la restriccion CHECK observada en el esquema local es: selecciona la expresion para checksum con amount=34 desde los datos contextuales. Conserva exactamente parentesis, coeficientes y operadores de la expresion observada. No calcules el resultado. Devuelve JSON con expression string o null si desconoces la regla.",
+              "reference": "96"
+            },
+            {
+              "case_id": "held_out:41",
+              "input_value": 41,
+              "question": "SQLite ledger checksum: la restriccion CHECK observada en el esquema local es: selecciona la expresion para checksum con amount=41 desde los datos contextuales. Conserva exactamente parentesis, coeficientes y operadores de la expresion observada. No calcules el resultado. Devuelve JSON con expression string o null si desconoces la regla.",
+              "reference": "21"
+            },
+            {
+              "case_id": "held_out:52",
+              "input_value": 52,
+              "question": "SQLite ledger checksum: la restriccion CHECK observada en el esquema local es: selecciona la expresion para checksum con amount=52 desde los datos contextuales. Conserva exactamente parentesis, coeficientes y operadores de la expresion observada. No calcules el resultado. Devuelve JSON con expression string o null si desconoces la regla.",
+              "reference": "14"
+            },
+            {
+              "case_id": "held_out:63",
+              "input_value": 63,
+              "question": "SQLite ledger checksum: la restriccion CHECK observada en el esquema local es: selecciona la expresion para checksum con amount=63 desde los datos contextuales. Conserva exactamente parentesis, coeficientes y operadores de la expresion observada. No calcules el resultado. Devuelve JSON con expression string o null si desconoces la regla.",
+              "reference": "7"
+            },
+            {
+              "case_id": "held_out:79",
+              "input_value": 79,
+              "question": "SQLite ledger checksum: la restriccion CHECK observada en el esquema local es: selecciona la expresion para checksum con amount=79 desde los datos contextuales. Conserva exactamente parentesis, coeficientes y operadores de la expresion observada. No calcules el resultado. Devuelve JSON con expression string o null si desconoces la regla.",
+              "reference": "85"
+            }
+          ]
+        },
+        "success_rate_min": 0.9,
+        "negative_control_required": true,
+        "regressions_max": 0,
+        "resource_profile": {
+          "max_memory_mb": 128,
+          "max_runtime_seconds": 120,
+          "max_storage_mb": 8,
+          "max_concurrent_inferences": 1
+        },
+        "sha256": "ac5f7cffe5cbf0ea82a212ba7ff954b4454bada8fe5c3bddf9fa54eaf1fd372d"
+      },
+      "activated": false,
+      "competence_certified": false,
+      "status": "training_completed",
+      "results": [
+        {
+          "case_id": "training:3",
+          "run_id": "admission-fb8605eab19e8ed1d4c57842:training:3",
+          "response": "{\"expression\": \"(amount * 17 + 3) % 97\"}",
+          "passed": true,
+          "error": null,
+          "injected_ids": [
+            "learn-b125832abae046a4"
+          ],
+          "latency_seconds": 1.8599999999860302
+        },
+        {
+          "case_id": "training:7",
+          "run_id": "admission-fb8605eab19e8ed1d4c57842:training:7",
+          "response": "{\"expression\": \"(amount*17+3)%97\"}",
+          "passed": true,
+          "error": null,
+          "injected_ids": [
+            "learn-b125832abae046a4"
+          ],
+          "latency_seconds": 5.717999999993481
+        }
+      ],
+      "llm_calls": 2,
+      "rss_peak_mb": 46.00390625,
+      "duration_seconds": 7.577999999979511,
+      "held_out_executed": false,
+      "next_action": "held_out_evaluation",
+      "event_id": 10
+    },
+    "stable_memory_written": false,
+    "activated": false,
+    "ollama_blood_status": "ok",
+    "model_used": "qwen2.5:1.5b",
+    "degraded_mode": false,
+    "cognitive_blood_active": true,
+    "elapsed": 8.25,
+    "resource_usage": {
+      "measurements": [
+        {
+          "resource_name": "wall_time",
+          "value": 8.26500000001397,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "time.monotonic",
+          "started_at": "2026-10-08T02:36:05.283148+00:00",
+          "finished_at": "2026-10-08T02:36:13.537902+00:00"
+        },
+        {
+          "resource_name": "cpu_user",
+          "value": 0.046875,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "time.thread_time (children excluded)",
+          "started_at": "2026-10-08T02:36:05.283148+00:00",
+          "finished_at": "2026-10-08T02:36:13.537902+00:00"
+        },
+        {
+          "resource_name": "cpu_system",
+          "value": 0.0,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "included in cpu_user (thread clock)",
+          "started_at": "2026-10-08T02:36:05.283148+00:00",
+          "finished_at": "2026-10-08T02:36:13.537902+00:00"
+        },
+        {
+          "resource_name": "peak_rss",
+          "value": 42.69921875,
+          "unit": "MiB",
+          "measurement_type": "measured",
+          "source": "psutil.memory_info.peak_wset",
+          "started_at": "2026-10-08T02:36:05.283148+00:00",
+          "finished_at": "2026-10-08T02:36:13.537902+00:00"
+        },
+        {
+          "resource_name": "disk_bytes_read",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T02:36:05.283148+00:00",
+          "finished_at": "2026-10-08T02:36:13.537902+00:00"
+        },
+        {
+          "resource_name": "disk_bytes_written",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T02:36:05.283148+00:00",
+          "finished_at": "2026-10-08T02:36:13.537902+00:00"
+        },
+        {
+          "resource_name": "network_sent",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T02:36:05.283148+00:00",
+          "finished_at": "2026-10-08T02:36:13.537902+00:00"
+        },
+        {
+          "resource_name": "network_received",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T02:36:05.283148+00:00",
+          "finished_at": "2026-10-08T02:36:13.537902+00:00"
+        },
+        {
+          "resource_name": "gpu_memory_peak",
+          "value": null,
+          "unit": "MiB",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T02:36:05.283148+00:00",
+          "finished_at": "2026-10-08T02:36:13.537902+00:00"
+        },
+        {
+          "resource_name": "gpu_utilization",
+          "value": null,
+          "unit": "percent",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T02:36:05.283148+00:00",
+          "finished_at": "2026-10-08T02:36:13.537902+00:00"
+        },
+        {
+          "resource_name": "input_tokens",
+          "value": null,
+          "unit": "tokens",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T02:36:05.283148+00:00",
+          "finished_at": "2026-10-08T02:36:13.537902+00:00"
+        },
+        {
+          "resource_name": "output_tokens",
+          "value": null,
+          "unit": "tokens",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-08T02:36:05.283148+00:00",
+          "finished_at": "2026-10-08T02:36:13.537902+00:00"
+        }
+      ]
+    },
+    "execution_result": {
+      "status": "completed",
+      "executed": true,
+      "effect_applied": false,
+      "retryable": false,
+      "error_code": null,
+      "message": "",
+      "artifacts": [
+        "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\runs\\tasks\\task-c2cc438008c64ebfb83bff3c6f1dd43e\\result.json"
+      ],
+      "evidence": [
+        "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\runs\\tasks\\task-c2cc438008c64ebfb83bff3c6f1dd43e\\result.json"
+      ],
+      "resource_usage": {
+        "measurements": [
+          {
+            "resource_name": "wall_time",
+            "value": 8.26500000001397,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "time.monotonic",
+            "started_at": "2026-10-08T02:36:05.283148+00:00",
+            "finished_at": "2026-10-08T02:36:13.537902+00:00"
+          },
+          {
+            "resource_name": "cpu_user",
+            "value": 0.046875,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "time.thread_time (children excluded)",
+            "started_at": "2026-10-08T02:36:05.283148+00:00",
+            "finished_at": "2026-10-08T02:36:13.537902+00:00"
+          },
+          {
+            "resource_name": "cpu_system",
+            "value": 0.0,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "included in cpu_user (thread clock)",
+            "started_at": "2026-10-08T02:36:05.283148+00:00",
+            "finished_at": "2026-10-08T02:36:13.537902+00:00"
+          },
+          {
+            "resource_name": "peak_rss",
+            "value": 42.69921875,
+            "unit": "MiB",
+            "measurement_type": "measured",
+            "source": "psutil.memory_info.peak_wset",
+            "started_at": "2026-10-08T02:36:05.283148+00:00",
+            "finished_at": "2026-10-08T02:36:13.537902+00:00"
+          },
+          {
+            "resource_name": "disk_bytes_read",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T02:36:05.283148+00:00",
+            "finished_at": "2026-10-08T02:36:13.537902+00:00"
+          },
+          {
+            "resource_name": "disk_bytes_written",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T02:36:05.283148+00:00",
+            "finished_at": "2026-10-08T02:36:13.537902+00:00"
+          },
+          {
+            "resource_name": "network_sent",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T02:36:05.283148+00:00",
+            "finished_at": "2026-10-08T02:36:13.537902+00:00"
+          },
+          {
+            "resource_name": "network_received",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T02:36:05.283148+00:00",
+            "finished_at": "2026-10-08T02:36:13.537902+00:00"
+          },
+          {
+            "resource_name": "gpu_memory_peak",
+            "value": null,
+            "unit": "MiB",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T02:36:05.283148+00:00",
+            "finished_at": "2026-10-08T02:36:13.537902+00:00"
+          },
+          {
+            "resource_name": "gpu_utilization",
+            "value": null,
+            "unit": "percent",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T02:36:05.283148+00:00",
+            "finished_at": "2026-10-08T02:36:13.537902+00:00"
+          },
+          {
+            "resource_name": "input_tokens",
+            "value": null,
+            "unit": "tokens",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T02:36:05.283148+00:00",
+            "finished_at": "2026-10-08T02:36:13.537902+00:00"
+          },
+          {
+            "resource_name": "output_tokens",
+            "value": null,
+            "unit": "tokens",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-08T02:36:05.283148+00:00",
+            "finished_at": "2026-10-08T02:36:13.537902+00:00"
+          }
+        ]
+      },
+      "postconditions": {
+        "effect_expected": false,
+        "artifact_required": true
+      },
+      "rollback": {},
+      "effect_receipt": {
+        "action": "observe",
+        "target": "governed_handler",
+        "precondition": {},
+        "execution": {
+          "handler_status": "completed"
+        },
+        "postcondition": {
+          "passed": true,
+          "result_artifact_exists": true
+        },
+        "verified": true,
+        "verifier": "result_artifact_verifier",
+        "evidence_refs": [
+          "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\runs\\tasks\\task-c2cc438008c64ebfb83bff3c6f1dd43e\\result.json"
+        ],
+        "rollback_ref": null,
+        "rollback_required": false,
+        "irreversible": false,
+        "timestamp": "2026-10-08T02:36:13.551228+00:00"
+      },
+      "observation_justification": null,
+      "started_at": "2026-10-08T02:36:13.551228+00:00",
+      "finished_at": "2026-10-08T02:36:13.551228+00:00"
+    }
+  },
+  "scope": "Normal WorkerLoop and Ollama in existing experiment DB; not productive education certification",
+  "truth": true
+}

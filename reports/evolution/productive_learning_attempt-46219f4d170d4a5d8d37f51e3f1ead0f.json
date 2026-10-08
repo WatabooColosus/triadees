@@ -1,0 +1,331 @@
+{
+  "timestamp": "2026-10-07T22:15:23.188983+00:00",
+  "correlation_id": "evolution-6b8d09d3128845a29c667cead6bd3a5b",
+  "candidate_id": "learn-b125832abae046a4",
+  "task_id": "task-22efe056250f4fc49903fa86a4922440",
+  "task": {
+    "task_id": "task-22efe056250f4fc49903fa86a4922440",
+    "task_type": "learning_evidence_generation",
+    "idempotency_key": "evolution-evidence-evolution-6b8d09d3128845a29c667cead6bd3a5b",
+    "worker_id": "evolution-6b8d09d3128845a29c667cead6bd3a5b",
+    "status": "completed",
+    "priority": 50,
+    "created_at": "2026-10-07T22:14:55.377349+00:00",
+    "updated_at": "2026-10-07T22:15:23.151596+00:00",
+    "lease_acquired_at": "2026-10-07T22:14:55.381639+00:00",
+    "lease_expires_at": null,
+    "heartbeat_at": null,
+    "lease_generation": 1,
+    "attempt": 1,
+    "max_attempts": 1,
+    "retry_after": null,
+    "last_error": null,
+    "payload_hash": "760781f57ae062e14ce2df1f0d3af8f1bfbe30ef13e38e34630c80facfd36f90",
+    "result_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\runs\\tasks\\task-22efe056250f4fc49903fa86a4922440\\result.json",
+    "rollback_ref": null,
+    "payload": {
+      "candidate_id": "learn-b125832abae046a4",
+      "correlation_id": "evolution-6b8d09d3128845a29c667cead6bd3a5b",
+      "repetitions": 5
+    }
+  },
+  "worker_outcome": {
+    "status": "completed",
+    "effect": "evidence_improved",
+    "candidate_id": "learn-b125832abae046a4",
+    "decision": "improved",
+    "control_mean": 0.0,
+    "treatment_mean": 1.0,
+    "absolute_delta": 1.0,
+    "regression_report_id": "rep-ev-a6b16be6c4674d47",
+    "promoted": true,
+    "promotion_reason": null,
+    "failure_learning": null,
+    "stable_memory_written": false,
+    "ollama_blood_status": "ok",
+    "model_used": "qwen2.5:1.5b",
+    "degraded_mode": false,
+    "cognitive_blood_active": true,
+    "elapsed": 27.719,
+    "resource_usage": {
+      "measurements": [
+        {
+          "resource_name": "wall_time",
+          "value": 27.71899999998277,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "time.monotonic",
+          "started_at": "2026-10-07T22:14:55.393335+00:00",
+          "finished_at": "2026-10-07T22:15:23.104044+00:00"
+        },
+        {
+          "resource_name": "cpu_user",
+          "value": 0.03125,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "time.thread_time (children excluded)",
+          "started_at": "2026-10-07T22:14:55.393335+00:00",
+          "finished_at": "2026-10-07T22:15:23.104044+00:00"
+        },
+        {
+          "resource_name": "cpu_system",
+          "value": 0.0,
+          "unit": "seconds",
+          "measurement_type": "measured",
+          "source": "included in cpu_user (thread clock)",
+          "started_at": "2026-10-07T22:14:55.393335+00:00",
+          "finished_at": "2026-10-07T22:15:23.104044+00:00"
+        },
+        {
+          "resource_name": "peak_rss",
+          "value": 42.40234375,
+          "unit": "MiB",
+          "measurement_type": "measured",
+          "source": "psutil.memory_info.peak_wset",
+          "started_at": "2026-10-07T22:14:55.393335+00:00",
+          "finished_at": "2026-10-07T22:15:23.104044+00:00"
+        },
+        {
+          "resource_name": "disk_bytes_read",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-07T22:14:55.393335+00:00",
+          "finished_at": "2026-10-07T22:15:23.104044+00:00"
+        },
+        {
+          "resource_name": "disk_bytes_written",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-07T22:14:55.393335+00:00",
+          "finished_at": "2026-10-07T22:15:23.104044+00:00"
+        },
+        {
+          "resource_name": "network_sent",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-07T22:14:55.393335+00:00",
+          "finished_at": "2026-10-07T22:15:23.104044+00:00"
+        },
+        {
+          "resource_name": "network_received",
+          "value": null,
+          "unit": "bytes",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-07T22:14:55.393335+00:00",
+          "finished_at": "2026-10-07T22:15:23.104044+00:00"
+        },
+        {
+          "resource_name": "gpu_memory_peak",
+          "value": null,
+          "unit": "MiB",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-07T22:14:55.393335+00:00",
+          "finished_at": "2026-10-07T22:15:23.104044+00:00"
+        },
+        {
+          "resource_name": "gpu_utilization",
+          "value": null,
+          "unit": "percent",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-07T22:14:55.393335+00:00",
+          "finished_at": "2026-10-07T22:15:23.104044+00:00"
+        },
+        {
+          "resource_name": "input_tokens",
+          "value": null,
+          "unit": "tokens",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-07T22:14:55.393335+00:00",
+          "finished_at": "2026-10-07T22:15:23.104044+00:00"
+        },
+        {
+          "resource_name": "output_tokens",
+          "value": null,
+          "unit": "tokens",
+          "measurement_type": "unavailable",
+          "source": "not_instrumented",
+          "started_at": "2026-10-07T22:14:55.393335+00:00",
+          "finished_at": "2026-10-07T22:15:23.104044+00:00"
+        }
+      ]
+    },
+    "execution_result": {
+      "status": "completed",
+      "executed": true,
+      "effect_applied": false,
+      "retryable": false,
+      "error_code": null,
+      "message": "",
+      "artifacts": [
+        "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\runs\\tasks\\task-22efe056250f4fc49903fa86a4922440\\result.json"
+      ],
+      "evidence": [
+        "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\runs\\tasks\\task-22efe056250f4fc49903fa86a4922440\\result.json"
+      ],
+      "resource_usage": {
+        "measurements": [
+          {
+            "resource_name": "wall_time",
+            "value": 27.71899999998277,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "time.monotonic",
+            "started_at": "2026-10-07T22:14:55.393335+00:00",
+            "finished_at": "2026-10-07T22:15:23.104044+00:00"
+          },
+          {
+            "resource_name": "cpu_user",
+            "value": 0.03125,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "time.thread_time (children excluded)",
+            "started_at": "2026-10-07T22:14:55.393335+00:00",
+            "finished_at": "2026-10-07T22:15:23.104044+00:00"
+          },
+          {
+            "resource_name": "cpu_system",
+            "value": 0.0,
+            "unit": "seconds",
+            "measurement_type": "measured",
+            "source": "included in cpu_user (thread clock)",
+            "started_at": "2026-10-07T22:14:55.393335+00:00",
+            "finished_at": "2026-10-07T22:15:23.104044+00:00"
+          },
+          {
+            "resource_name": "peak_rss",
+            "value": 42.40234375,
+            "unit": "MiB",
+            "measurement_type": "measured",
+            "source": "psutil.memory_info.peak_wset",
+            "started_at": "2026-10-07T22:14:55.393335+00:00",
+            "finished_at": "2026-10-07T22:15:23.104044+00:00"
+          },
+          {
+            "resource_name": "disk_bytes_read",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-07T22:14:55.393335+00:00",
+            "finished_at": "2026-10-07T22:15:23.104044+00:00"
+          },
+          {
+            "resource_name": "disk_bytes_written",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-07T22:14:55.393335+00:00",
+            "finished_at": "2026-10-07T22:15:23.104044+00:00"
+          },
+          {
+            "resource_name": "network_sent",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-07T22:14:55.393335+00:00",
+            "finished_at": "2026-10-07T22:15:23.104044+00:00"
+          },
+          {
+            "resource_name": "network_received",
+            "value": null,
+            "unit": "bytes",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-07T22:14:55.393335+00:00",
+            "finished_at": "2026-10-07T22:15:23.104044+00:00"
+          },
+          {
+            "resource_name": "gpu_memory_peak",
+            "value": null,
+            "unit": "MiB",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-07T22:14:55.393335+00:00",
+            "finished_at": "2026-10-07T22:15:23.104044+00:00"
+          },
+          {
+            "resource_name": "gpu_utilization",
+            "value": null,
+            "unit": "percent",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-07T22:14:55.393335+00:00",
+            "finished_at": "2026-10-07T22:15:23.104044+00:00"
+          },
+          {
+            "resource_name": "input_tokens",
+            "value": null,
+            "unit": "tokens",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-07T22:14:55.393335+00:00",
+            "finished_at": "2026-10-07T22:15:23.104044+00:00"
+          },
+          {
+            "resource_name": "output_tokens",
+            "value": null,
+            "unit": "tokens",
+            "measurement_type": "unavailable",
+            "source": "not_instrumented",
+            "started_at": "2026-10-07T22:14:55.393335+00:00",
+            "finished_at": "2026-10-07T22:15:23.104044+00:00"
+          }
+        ]
+      },
+      "postconditions": {
+        "effect_expected": false,
+        "artifact_required": true
+      },
+      "rollback": {},
+      "effect_receipt": {
+        "action": "observe",
+        "target": "governed_handler",
+        "precondition": {},
+        "execution": {
+          "handler_status": "completed"
+        },
+        "postcondition": {
+          "passed": true,
+          "result_artifact_exists": true
+        },
+        "verified": true,
+        "verifier": "result_artifact_verifier",
+        "evidence_refs": [
+          "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600\\runs\\tasks\\task-22efe056250f4fc49903fa86a4922440\\result.json"
+        ],
+        "rollback_ref": null,
+        "rollback_required": false,
+        "irreversible": false,
+        "timestamp": "2026-10-07T22:15:23.124770+00:00"
+      },
+      "observation_justification": null,
+      "started_at": "2026-10-07T22:15:23.124770+00:00",
+      "finished_at": "2026-10-07T22:15:23.124770+00:00"
+    }
+  },
+  "route": {
+    "status": "BLOCKED",
+    "reason": "no_compatible_neuron"
+  },
+  "summary": {
+    "tasks_completed": 1,
+    "tasks_blocked": 0,
+    "errors": []
+  },
+  "artifact_ref": "E:\\triade\\artifacts\\evolution\\transfer-1791411191488741600",
+  "scope": "Normal leased WorkerLoop + subprocess handler in isolated experiment; complete education/use chain NOT certified",
+  "truth": false,
+  "production_writes": false
+}
