@@ -3286,6 +3286,35 @@ class WorkerLoop:
     ) -> dict[str, Any]:
         if task.payload.get("admission_event_id") is not None:
             from triade.neurons.domain_admission import DomainAdmissionCoordinator
+            if task.payload.get("admission_phase") == "training":
+                client = self._observable_ollama_client(
+                    task, run_ref, cognitive_function="neuron_training",
+                    artifact="domain_training", consumer="DomainAdmissionCoordinator",
+                )
+                if not client.health().get("ok"):
+                    return {"status": "deferred", "effect": "deferred",
+                            "skipped_reason": "ollama_no_disponible", "activated": False}
+                model = getattr(config, "model", None) or self._installed_ollama_model()
+                if not model:
+                    raise RuntimeError("no_ollama_model_available")
+
+                def generate(probe, prompt, remaining):
+                    client.timeout = min(float(config.task_timeout), remaining)
+                    result = client.generate(model, prompt, system=probe.system,
+                                             response_format=probe.response_format,
+                                             options={"temperature": 0, "seed": 7731,
+                                                      "num_predict": 256, "num_ctx": 2048})
+                    if not result.ok:
+                        raise RuntimeError(result.error or "training_generation_failed")
+                    return result.text
+
+                training = DomainAdmissionCoordinator(self.db_path).train(
+                    int(task.payload["admission_event_id"]),
+                    correlation_id=str(task.payload.get("correlation_id") or ""),
+                    generate=generate,
+                )
+                return {"status": "completed", "training": training,
+                        "stable_memory_written": False, "activated": False}
             formation = DomainAdmissionCoordinator(self.db_path).form(
                 int(task.payload["admission_event_id"]),
                 correlation_id=str(task.payload.get("correlation_id") or ""),

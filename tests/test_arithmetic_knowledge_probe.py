@@ -18,6 +18,18 @@ def test_unsupported_equations_are_not_certified():
         assert _arithmetic_probe('unit', content) is None
 
 
+def test_transfer_inputs_are_distinct_and_keep_rule_out_of_request():
+    content = 'records: total=(units*9+2)%41. Observed constraint.'
+    probes = [_arithmetic_probe('unit', content, input_value=x) for x in (3, 7, 34, 41)]
+    assert len({p.question for p in probes}) == 4
+    for probe in probes:
+        assert '(units*9+2)%41' not in probe.question
+        assert probe.evaluator('{"expression":"(units*9+2)%41"}')
+    # Different formulas can coincide at one input; held-out diversity must
+    # expose the regression rather than asserting impossible uniqueness.
+    assert not all(p.evaluator('{"expression":"units*9+2%41"}') for p in probes)
+
+
 def test_schema_proof_requires_actual_colocated_constraint(tmp_path):
     import json
     import sqlite3

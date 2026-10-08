@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -73,6 +74,95 @@ def _reusable(result: dict[str, Any], *, domain: str, correlation_id: str,
 class DomainAdmissionCoordinator:
     def __init__(self, db_path: str | Path) -> None:
         self.router = NeuralLearningRouter(db_path)
+
+    def train(self, event_id: int, *, correlation_id: str, generate: Any) -> dict[str, Any]:
+        """Execute Formativa's reserved curriculum, without certifying or activating.
+
+        Receipts use the current education store and the caller is a normal
+        leased worker. A successful training result is not held-out evidence.
+        """
+        from triade.neurons.curriculum import admission_curriculum
+        from triade.learning.knowledge_probe import build_transfer_probe
+        from triade.learning.retrieval import LearningRetriever, build_learning_block
+        with self.router._connect() as conn:
+            row = conn.execute("SELECT payload_json FROM neuron_education_events WHERE id=? AND event_type='domain_admission_requested'", (event_id,)).fetchone()
+            formed = conn.execute("SELECT payload_json FROM neuron_education_events WHERE event_type='domain_candidate_formed' AND json_extract(payload_json,'$.admission_event_id')=?", (event_id,)).fetchone()
+            prior = conn.execute("SELECT payload_json FROM neuron_education_events WHERE event_type='domain_training_completed' AND json_extract(payload_json,'$.admission_event_id')=? ORDER BY id DESC LIMIT 1", (event_id,)).fetchone()
+        if row is None or formed is None:
+            raise ValueError("formed_admission_required")
+        admission, formation = json.loads(row[0]), json.loads(formed[0])
+        if not _reusable(admission, domain=admission["domain"], correlation_id=correlation_id,
+                         required_capability=admission["required_capability"]):
+            raise ValueError("SPEC_INCOMPLETE_OR_INVALID_LINEAGE")
+        if formation.get("correlation_id") != correlation_id:
+            raise ValueError("formation_lineage_mismatch")
+        if prior is not None:
+            return json.loads(prior[0])
+        candidate_id = admission["candidate_id"]
+        self.router._verified_candidate(candidate_id)
+        try:
+            curriculum = admission_curriculum(self.router.db_path, candidate_id, admission["creator_spec"])
+        except ValueError as exc:
+            blocked = {"admission_event_id": event_id, "neuron_id": formation["neuron_id"],
+                       "candidate_id": candidate_id, "correlation_id": correlation_id,
+                       "status": "training_blocked", "reason": str(exc),
+                       "activated": False, "competence_certified": False}
+            with self.router._connect() as conn:
+                conn.execute("INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(NULL,?,'domain_training_completed',?,?)",
+                             (formation["neuron_id"], json.dumps(blocked), utc_now()))
+            return blocked
+        base = {"admission_event_id": event_id, "neuron_id": formation["neuron_id"],
+                "candidate_id": candidate_id, "correlation_id": correlation_id,
+                "curriculum": curriculum, "activated": False, "competence_certified": False}
+        with self.router._connect() as conn:
+            conn.execute("INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(NULL,?,'domain_training_started',?,?)",
+                         (formation["neuron_id"], json.dumps(base), utc_now()))
+        started = time.monotonic()
+        budget = float(curriculum["resource_profile"]["max_runtime_seconds"])
+        results = []
+        llm_calls = 0
+        rss_peak_mb = 0.0
+        retriever = LearningRetriever(self.router.db_path)
+        for case in curriculum["cases"]["training"]:
+            import psutil
+            rss_peak_mb = max(rss_peak_mb, psutil.Process().memory_info().rss / 1024**2)
+            if rss_peak_mb > float(curriculum["resource_profile"]["max_memory_mb"]):
+                results.append({"case_id": case["case_id"], "passed": False, "error": "memory_budget_exceeded"})
+                break
+            remaining = budget - (time.monotonic() - started)
+            if remaining <= 0:
+                results.append({"case_id": case["case_id"], "passed": False, "error": "runtime_budget_exceeded"})
+                break
+            run_id = f"{admission['request_id']}:{case['case_id']}"
+            decision = retriever.retrieve_decision(case["question"], run_id=run_id, only_candidate_ids={candidate_id})
+            retriever.persist_decision(decision)
+            probe = build_transfer_probe(self.router.db_path, candidate_id, case["input_value"])
+            if probe is None or probe.expected != case["reference"]:
+                raise ValueError("curriculum_source_changed")
+            prompt = build_learning_block(decision.matches) + "\n" + probe.question
+            tick = time.monotonic()
+            try:
+                if candidate_id not in decision.injected_ids:
+                    raise ValueError("training_knowledge_not_injected")
+                llm_calls += 1
+                response = generate(probe, prompt, remaining)
+                passed = bool(probe.evaluator(response))
+                error = None
+            except (ValueError, RuntimeError, OSError) as exc:
+                response, passed, error = "", False, str(exc)
+            results.append({"case_id": case["case_id"], "run_id": run_id, "response": response,
+                            "passed": passed, "error": error, "injected_ids": decision.injected_ids,
+                            "latency_seconds": time.monotonic() - tick})
+        success = len(results) == len(curriculum["cases"]["training"]) and all(x["passed"] for x in results)
+        outcome = {**base, "status": "training_completed" if success else "training_failed",
+                   "results": results, "llm_calls": llm_calls, "rss_peak_mb": rss_peak_mb,
+                   "duration_seconds": time.monotonic()-started,
+                   "held_out_executed": False, "next_action": "held_out_evaluation" if success else "diagnose_training_failure"}
+        with self.router._connect() as conn:
+            cursor = conn.execute("INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(NULL,?,'domain_training_completed',?,?)",
+                                  (formation["neuron_id"], json.dumps(outcome), utc_now()))
+            outcome["event_id"] = int(cursor.lastrowid)
+        return outcome
 
     def form(self, event_id: int, *, correlation_id: str) -> dict[str, Any]:
         """Persist a valid Creadora proposal as CANDIDATE, never as competence."""

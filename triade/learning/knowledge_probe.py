@@ -156,7 +156,7 @@ def _schema_provenance(db_path: str | Path, source_ref: str, content: str) -> bo
         return False
 
 
-def _arithmetic_probe(candidate_id: str, content: str) -> KnowledgeProbe | None:
+def _arithmetic_probe(candidate_id: str, content: str, *, input_value: int = 27) -> KnowledgeProbe | None:
     """A held-out application of an observed equation, not literal recall.
 
     The reference is computed by SQLite independently of the bounded Python
@@ -178,7 +178,7 @@ def _arithmetic_probe(candidate_id: str, content: str) -> KnowledgeProbe | None:
                 or not any(isinstance(node, ast.BinOp) for node in ast.walk(tree))
                 or any(isinstance(node, ast.FloorDiv) for node in ast.walk(tree))):
             return None
-        inputs = {names[0]: 27}
+        inputs = {names[0]: input_value}
         evaluate_integer_expression(expression, inputs)  # safety and cost bounds
 
         class BindInputs(ast.NodeTransformer):
@@ -193,7 +193,7 @@ def _arithmetic_probe(candidate_id: str, content: str) -> KnowledgeProbe | None:
         return None
     topic = content[:match.start()].strip().rstrip(':')
     question = (
-        f'{topic}: selecciona la expresion para {field} con {names[0]}=27 desde los datos contextuales. '
+        f'{topic}: selecciona la expresion para {field} con {names[0]}={input_value} desde los datos contextuales. '
         'Conserva exactamente parentesis, coeficientes y operadores de la expresion observada. '
         'No calcules el resultado. Devuelve JSON con expression string o null si desconoces la regla.'
     )
@@ -315,3 +315,23 @@ def build_probe(db_path: str | Path, candidate_id: str) -> KnowledgeProbe | None
         expected=objetivo,
         evaluator=evaluator,
     )
+
+
+def build_transfer_probe(db_path: str | Path, candidate_id: str, input_value: int) -> KnowledgeProbe | None:
+    """A distinct task whose rule is attested by the existing local source gate.
+
+    Literal recall probes cannot certify procedural transfer. Unknown sources
+    and unsupported expressions remain unmeasurable instead of being approved.
+    """
+    if type(input_value) is not int or abs(input_value) > 10000:
+        raise ValueError("invalid_transfer_input")
+    with sqlite3.connect(f"file:{Path(db_path)}?mode=ro", uri=True) as conn:
+        row = conn.execute(
+            "SELECT content,source_ref FROM learning_queue WHERE candidate_id=?", (candidate_id,)
+        ).fetchone()
+    if row is None or not _schema_provenance(db_path, str(row[1] or ''), str(row[0])):
+        return None
+    probe = _arithmetic_probe(candidate_id, str(row[0]), input_value=input_value)
+    if probe is not None:
+        probe.production_eligible = True
+    return probe

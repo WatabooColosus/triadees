@@ -70,6 +70,26 @@ def test_existing_competence_does_not_create_admission(tmp_path):
         assert conn.execute("SELECT COUNT(*) FROM neuron_education_events WHERE event_type='domain_admission_requested'").fetchone()[0] == 0
 
 
+def test_formed_candidate_is_planned_for_training_and_unmeasurable_stays_candidate(tmp_path):
+    from triade.workers.mission_planner import MissionPlanner
+    db, candidate_id, _ = _prepared_db(tmp_path, baseline_score=0.5)
+    NeuronRegistry(db).update_status("neurona-auditora", "quarantined")
+    coordinator = DomainAdmissionCoordinator(db)
+    admission = coordinator.request(candidate_id, correlation_id="training-needed")
+    formed = coordinator.form(admission["event_id"], correlation_id="training-needed")
+    planned = MissionPlanner(db_path=db)._plan_neuron_formation()
+    assert planned[0].payload["admission_phase"] == "training"
+    assert planned[0].payload["correlation_id"] == "training-needed"
+    def forbidden_generation(*args):
+        raise AssertionError("unsupported source must not invoke the motor")
+    outcome = coordinator.train(admission["event_id"], correlation_id="training-needed", generate=forbidden_generation)
+    assert outcome["status"] == "training_blocked"
+    assert outcome["activated"] is False
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT status FROM neurons WHERE id=?", (formed["neuron_id"],)).fetchone()[0] == "candidate"
+    assert not any(t.payload.get("admission_phase") == "training" for t in MissionPlanner(db_path=db)._plan_neuron_formation())
+
+
 def test_pre_admission_rejection_reopens_once_without_retry_storm(tmp_path, monkeypatch):
     import triade.neurons.learning_router as routing
     from triade.workers.mission_planner import MissionPlanner
@@ -144,4 +164,7 @@ def test_planner_and_worker_form_only_governed_candidate(tmp_path):
         assert row[0] == "candidate"
         assert json.loads(row[1])["correlation_id"] == "formation-origin"
     assert DomainAdmissionCoordinator(db).form(request["event_id"], correlation_id="formation-origin")["neuron_id"] == formation["neuron_id"]
-    assert not any(t.payload.get("admission_event_id") == request["event_id"] for t in MissionPlanner(db_path=db)._plan_neuron_formation())
+    next_tasks = MissionPlanner(db_path=db)._plan_neuron_formation()
+    assert not any(t.payload.get("admission_event_id") == request["event_id"]
+                   and t.payload.get("admission_phase") != "training" for t in next_tasks)
+    assert next_tasks[0].payload["admission_phase"] == "training"

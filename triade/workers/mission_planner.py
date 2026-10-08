@@ -1487,6 +1487,29 @@ class MissionPlanner:
                             payload={"admission_event_id": int(admission["id"]),
                                      "correlation_id": payload["correlation_id"]},
                         )]
+                formed = conn.execute(
+                    """SELECT a.id,a.payload_json FROM neuron_education_events a
+                    JOIN neuron_education_events f
+                      ON f.event_type='domain_candidate_formed'
+                     AND json_extract(f.payload_json,'$.admission_event_id')=a.id
+                    WHERE a.event_type='domain_admission_requested'
+                      AND NOT EXISTS (SELECT 1 FROM neuron_education_events t
+                        WHERE t.event_type='domain_training_completed'
+                          AND json_extract(t.payload_json,'$.admission_event_id')=a.id)
+                    ORDER BY a.id LIMIT 10"""
+                ).fetchall()
+                for admission in formed:
+                    payload = json.loads(admission["payload_json"])
+                    if _reusable(payload, domain=payload["domain"],
+                                 correlation_id=payload["correlation_id"],
+                                 required_capability=payload["required_capability"]):
+                        return [PlannedTask(
+                            task_type="neuron_candidate_formation", priority=28,
+                            reason="Formed domain candidate requires executable curriculum",
+                            payload={"admission_event_id": int(admission["id"]),
+                                     "admission_phase": "training",
+                                     "correlation_id": payload["correlation_id"]},
+                        )]
                 row = conn.execute(
                     """SELECT COUNT(*) as cnt FROM neurons
                     WHERE status IN ('candidate', 'candidate_reviewable')"""
