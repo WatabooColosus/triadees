@@ -10,6 +10,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, TypeAlias
 
+from triade.db import sqlite3
+
 Clock: TypeAlias = Callable[[], float]
 
 
@@ -93,6 +95,14 @@ class EventDrivenScheduler:
                 value = job.callback()
                 job.last_error = None
                 results.append({"name": job.name, "status": "ok", "result": value})
+            except sqlite3.OperationalError as exc:
+                # A brief writer collision is a deferred pulse, not death of
+                # the entire worker. Other database faults remain fatal.
+                code = getattr(exc, "sqlite_errorcode", None)
+                if code is None or code & 0xFF not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+                    raise
+                job.last_error = str(exc)
+                results.append({"name": job.name, "status": "retry_pending", "error": str(exc)})
             except (
                 OSError,
                 ImportError,

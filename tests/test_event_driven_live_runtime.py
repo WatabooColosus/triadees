@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import threading
 import time
+import sqlite3
+import pytest
 
 from triade.runtime.event_scheduler import EventDrivenScheduler
 from triade.runtime.live_heartbeat import LiveHeartbeat
@@ -15,6 +17,47 @@ class FakeClock:
 
     def __call__(self) -> float:
         return self.now
+
+
+def test_real_sqlite_contention_defers_job_without_losing_other_due_work(tmp_path):
+    path = tmp_path / "contended.db"
+    owner = sqlite3.connect(path)
+    owner.execute("CREATE TABLE pulses(value INTEGER)")
+    owner.commit()
+    owner.execute("BEGIN IMMEDIATE")
+    clock = FakeClock()
+    scheduler = EventDrivenScheduler(clock=clock)
+    calls = []
+    def write():
+        connection = sqlite3.connect(path, timeout=0)
+        try:
+            connection.execute("INSERT INTO pulses VALUES (1)")
+            connection.commit()
+        finally:
+            connection.close()
+    scheduler.add_job("pulse", write, interval_seconds=5, priority=0, run_immediately=True)
+    scheduler.add_job("other", lambda: calls.append("ran"), interval_seconds=5, run_immediately=True)
+    try:
+        results = scheduler.execute_due()
+        assert results[0]["status"] == "retry_pending"
+        assert calls == ["ran"]
+        assert scheduler.snapshot()["jobs"]["pulse"]["last_error"]
+        owner.rollback()
+        clock.now += 5
+        assert scheduler.execute_due()[0]["status"] == "ok"
+        assert owner.execute("SELECT count(*) FROM pulses").fetchone()[0] == 1
+    finally:
+        owner.close()
+
+
+def test_scheduler_does_not_hide_non_contention_database_faults(tmp_path):
+    scheduler = EventDrivenScheduler()
+    def invalid_query():
+        with sqlite3.connect(tmp_path / "invalid.db") as connection:
+            connection.execute("SELECT * FROM absent_table")
+    scheduler.add_job("invalid", invalid_query, interval_seconds=5, run_immediately=True)
+    with pytest.raises(sqlite3.OperationalError, match="no such table"):
+        scheduler.execute_due()
 
 
 def test_scheduler_uses_monotonic_due_times_without_drift() -> None:
