@@ -182,3 +182,24 @@ def test_planner_and_worker_form_only_governed_candidate(tmp_path):
     assert not any(t.payload.get("admission_event_id") == request["event_id"]
                    and t.payload.get("admission_phase") != "training" for t in next_tasks)
     assert next_tasks[0].payload["admission_phase"] == "training"
+def test_resource_only_certification_retry_is_bounded_and_not_a_competence_override(tmp_path):
+    import json
+    from triade.neurons.domain_admission import DomainAdmissionCoordinator
+    coordinator = DomainAdmissionCoordinator(tmp_path / "retry.db")
+    assert coordinator.certification_attempt(42) == 1
+    payload = {"admission_event_id":42,"status":"certification_failed",
+        "arms":{"treatment":[{"passed":True,"error":None}],
+                "negative_control":[{"passed":False,"error":"certification_resource_budget_exceeded"}]}}
+    def receipt(value):
+        with coordinator.router._connect() as connection:
+            connection.execute("INSERT INTO neuron_education_events(event_type,payload_json,created_at) VALUES('domain_certification_completed',?,CURRENT_TIMESTAMP)", (json.dumps(value),))
+    receipt(payload)
+    assert coordinator.certification_attempt(42) == 2
+    receipt(payload)
+    assert coordinator.certification_attempt(42) == 3
+    receipt(payload)
+    assert coordinator.certification_attempt(42) is None
+    payload["admission_event_id"] = 43
+    payload["arms"]["treatment"] = [{"passed":False,"error":None}]
+    receipt(payload)
+    assert coordinator.certification_attempt(43) is None

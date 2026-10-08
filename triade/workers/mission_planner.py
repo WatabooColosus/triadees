@@ -1532,11 +1532,16 @@ class MissionPlanner:
                     WHERE a.event_type='domain_admission_requested'
                       AND NOT EXISTS (SELECT 1 FROM neuron_education_events c
                         WHERE c.event_type='domain_certification_completed'
+                          AND json_extract(c.payload_json,'$.status')='certified'
                           AND json_extract(c.payload_json,'$.admission_event_id')=a.id)
                     ORDER BY a.id LIMIT 10"""
                 ).fetchall()
                 for admission in trained:
                     payload = json.loads(admission["payload_json"])
+                    from triade.neurons.domain_admission import DomainAdmissionCoordinator
+                    certification_attempt = DomainAdmissionCoordinator(self.db_path).certification_attempt(int(admission["id"]))
+                    if certification_attempt is None:
+                        continue
                     if _reusable(payload, domain=payload["domain"],
                                  correlation_id=payload["correlation_id"],
                                  required_capability=payload["required_capability"]):
@@ -1545,6 +1550,7 @@ class MissionPlanner:
                             reason="Trained domain candidate requires held-out certification",
                             payload={"admission_event_id": int(admission["id"]),
                                      "admission_phase": "certification",
+                                     "certification_attempt": certification_attempt,
                                      "correlation_id": payload["correlation_id"]},
                         )]
                 row = conn.execute(

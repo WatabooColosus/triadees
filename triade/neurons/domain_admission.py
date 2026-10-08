@@ -76,6 +76,24 @@ class DomainAdmissionCoordinator:
     def __init__(self, db_path: str | Path) -> None:
         self.router = NeuralLearningRouter(db_path)
 
+    def certification_attempt(self, event_id: int) -> int | None:
+        """Retry infrastructure-limited evaluation, never a failed competence gate."""
+        with self.router._connect() as conn:
+            rows = conn.execute("SELECT payload_json FROM neuron_education_events WHERE event_type='domain_certification_completed' AND json_extract(payload_json,'$.admission_event_id')=? ORDER BY id DESC", (event_id,)).fetchall()
+        if not rows:
+            return 1
+        latest = json.loads(rows[0][0])
+        if len(rows) >= 3 or latest.get("status") != "certification_failed":
+            return None
+        cases = [case for arm in latest.get("arms", {}).values() for case in arm]
+        errors = [str(case["error"]) for case in cases if case.get("error")]
+        if not errors or any(error not in {"timed out", "certification_resource_budget_exceeded"} for error in errors):
+            return None
+        # Any measured, non-resource treatment failure is a competence failure.
+        if any(not case.get("passed") and not case.get("error") for case in latest.get("arms", {}).get("treatment", [])):
+            return None
+        return len(rows) + 1
+
     def train(self, event_id: int, *, correlation_id: str, generate: Any) -> dict[str, Any]:
         """Execute Formativa's reserved curriculum, without certifying or activating.
 
@@ -186,7 +204,8 @@ class DomainAdmissionCoordinator:
             raise ValueError("training_lineage_mismatch")
         if training.get("status") != "training_completed":
             raise ValueError("successful_training_required")
-        if old is not None:
+        certification_attempt = self.certification_attempt(event_id)
+        if old is not None and certification_attempt is None:
             return json.loads(old[0])
         curriculum = training["curriculum"]
         canonical = {k: v for k, v in curriculum.items() if k != "sha256"}
@@ -200,6 +219,7 @@ class DomainAdmissionCoordinator:
         self.router._verified_candidate(candidate_id)
         evaluation_id = "admission-evaluation-" + uuid4().hex
         base = {"admission_event_id": event_id, "candidate_id": candidate_id, "neuron_id": neuron_id,
+                "certification_attempt": certification_attempt,
                 "correlation_id": correlation_id, "curriculum_hash": curriculum["sha256"],
                 "evaluation_id": evaluation_id, "threshold": curriculum["success_rate_min"]}
         with self.router._connect() as conn:
