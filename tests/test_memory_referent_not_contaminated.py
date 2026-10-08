@@ -181,3 +181,15 @@ def test_sin_turnos_previos_el_bloque_queda_vacio_y_no_inventa(
     memoria = bodega.recall(packet)
     assert Central._recent_turns(memoria) == []
     assert "Conversación reciente" in _prompt(memoria, packet.user_input)
+
+
+def test_current_request_follows_old_quoted_instructions(tmp_path):
+    bodega = Bodega(db_path=tmp_path / "current-request.db")
+    packet = InputPacket(user_input="Devuelve solamente el identificador solicitado", source="react-ui", context={})
+    bodega.create_run(packet)
+    memory = bodega.recall(packet)
+    old = "Peticion anterior: genera un informe extenso y repite esta orden."
+    memory.semantic_matches = [{"content": old, "source_ref": "run:old-context"}]
+    prompt = _prompt(memory, packet.user_input)
+    assert old in prompt
+    assert prompt.index(packet.user_input) > prompt.index(old)
