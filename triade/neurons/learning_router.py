@@ -255,7 +255,9 @@ class NeuralLearningRouter:
             "scores": scores,
         }
 
-    def route(self, candidate_id: str) -> dict[str, Any]:
+    def route(self, candidate_id: str, *, correlation_id: str | None = None) -> dict[str, Any]:
+        if correlation_id is not None and not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", correlation_id):
+            raise ValueError("invalid_route_correlation_id")
         candidate = self._verified_candidate(candidate_id)
         neuron, contract = self._select_neuron(candidate)
         neuron_id = int(neuron["id"])
@@ -280,6 +282,7 @@ class NeuralLearningRouter:
             neuron_id, None, str(candidate["domain"] or "general"), contract.mission
         )
         baseline, pre_behavior = self._baseline(neuron_id, candidate_id)
+        pre_behavior["correlation_id"] = correlation_id
         evidence_ref = f"learning_evidence:candidate:{candidate_id}:decision:improved"
         session = self.store.record_session(
             curriculum_id=str(curriculum["curriculum_id"]),
@@ -294,6 +297,7 @@ class NeuralLearningRouter:
                 "knowledge_type": self._candidate_type(candidate),
                 "contract": contract.to_dict(),
                 "router_version": ROUTER_VERSION,
+                "correlation_id": correlation_id,
             },
             exercise={
                 "type": "causal_retrieval_and_application",
@@ -340,6 +344,7 @@ class NeuralLearningRouter:
                             "candidate_id": candidate_id,
                             "knowledge_version": contract.current_knowledge_version + 1,
                             "evidence_ref": evidence_ref,
+                            "correlation_id": correlation_id,
                         },
                         ensure_ascii=False,
                     ),
@@ -351,6 +356,7 @@ class NeuralLearningRouter:
             event_id = int(event.lastrowid)
         return {
             "status": "routed",
+            "correlation_id": correlation_id,
             "assignment_id": assignment_id,
             "candidate_id": candidate_id,
             "neuron_id": neuron_id,

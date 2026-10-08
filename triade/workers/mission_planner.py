@@ -250,7 +250,13 @@ class MissionPlanner:
                     # `ROUTABLE_STATES` en `learning_router.py`. Sin esto el
                     # planner no encolaba destino para nada aprendido después
                     # del 2026-08-11 y la inyección se quedaba a cero.
-                    """SELECT q.candidate_id FROM learning_queue q
+                    """SELECT q.candidate_id,
+                      (SELECT json_extract(ac.payload_json,'$.correlation_id')
+                       FROM neuron_education_events ac
+                       WHERE ac.event_type='domain_neuron_activated'
+                         AND json_extract(ac.payload_json,'$.candidate_id')=q.candidate_id
+                       ORDER BY ac.id DESC LIMIT 1) correlation_id
+                    FROM learning_queue q
                     WHERE q.status IN ('evidence_verified','consolidated')
                       AND COALESCE(q.risk_level,'low') IN ('none','low','medium')
                       AND EXISTS (
@@ -277,6 +283,12 @@ class MissionPlanner:
                               = q.candidate_id
                           AND json_extract(ev.payload_json,'$.router_version')
                               = ?
+                          AND NOT EXISTS (
+                            SELECT 1 FROM neuron_education_events ac
+                            WHERE ac.event_type='domain_neuron_activated'
+                              AND json_extract(ac.payload_json,'$.candidate_id')=q.candidate_id
+                              AND ac.id > ev.id
+                          )
                       )
                     ORDER BY q.updated_at LIMIT 1""",
                     (ROUTER_VERSION,),
@@ -291,7 +303,8 @@ class MissionPlanner:
                     reason=f"conocimiento consolidado {candidate_id} sin destino neuronal",
                     source="governed_neural_learning",
                     planner_score=0.85,
-                    payload={"candidate_id": candidate_id},
+                    payload={"candidate_id": candidate_id,
+                             **({"correlation_id": str(row["correlation_id"])} if row["correlation_id"] else {})},
                 )
             ]
         except MISSION_PLANNER_ERRORS as exc:

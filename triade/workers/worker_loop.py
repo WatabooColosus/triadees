@@ -1992,6 +1992,7 @@ class WorkerLoop:
         training: dict[str, Any] = {}
         training_neuron_id: int | None = None
         candidate_routed_to_neuron = False
+        lesson: dict[str, Any] = {}
         try:
             with sqlite3.connect(self.db_path) as conn:
                 row = conn.execute(
@@ -2046,20 +2047,31 @@ class WorkerLoop:
                             (candidate_ids[0],),
                         ).fetchone()
                     target_domain = str(candidate_row[0] or "general") if candidate_row else "general"
-
+                    query = (
+                        "Ejercicio interno de recuperación: consulta la memoria verificada "
+                        f"del dominio {target_domain[:120]} y explica una aplicación pertinente "
+                        "con su procedencia. Si falta evidencia, declara la limitación."
+                    )
+                    from triade.learning.knowledge_probe import build_transfer_probe
+                    with sqlite3.connect(self.db_path) as conn:
+                        usage = conn.execute("SELECT run_use_count FROM learning_queue WHERE candidate_id=?", (candidate_ids[0],)).fetchone()
+                    input_value = int(task.payload.get("application_input", 101 + 11 * int(usage[0] or 0)))
+                    probe = build_transfer_probe(self.db_path, candidate_ids[0], input_value)
+                    if probe is not None:
+                        query = probe.question
+                    selected_model = self._installed_ollama_model()
                     trial = TriadeRunner(
                         runs_dir=self.runs_dir,
                         db_path=self.db_path,
                         use_ollama=True,
                         auto_select_models=False,
+                        central_model=selected_model,
+                        hypothalamus_model=selected_model,
                     ).run(
-                        user_input=(
-                            "Ejercicio interno de recuperación: consulta la memoria verificada "
-                            f"del dominio {target_domain[:120]} y explica una aplicación pertinente "
-                            "con su procedencia. Si falta evidencia, declara la limitación."
-                        ),
+                        user_input=query,
                         source="neuron_education_background",
-                        context={"learning_candidate_ids": candidate_ids[:1]},
+                        context={"learning_candidate_ids": candidate_ids[:1],
+                                 "correlation_id": task.payload.get("correlation_id") or lesson.get("correlation_id")},
                         propose_neurons=False,
                     )
             elif training_neuron_id is not None:
@@ -3042,7 +3054,7 @@ class WorkerLoop:
             }
         router = NeuralLearningRouter(self.db_path)
         try:
-            routed = router.route(candidate_id)
+            routed = router.route(candidate_id, correlation_id=payload.get("correlation_id"))
         except (KeyError, ValueError) as exc:
             admission = None
             if str(exc) == "no_compatible_neuron":

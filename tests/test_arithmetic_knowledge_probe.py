@@ -47,3 +47,25 @@ def test_schema_proof_requires_actual_colocated_constraint(tmp_path):
     with sqlite3.connect(database) as conn:
         conn.execute('ALTER TABLE records ADD COLUMN extra INTEGER')
     assert not _schema_provenance(tmp_path/'learning.db',str(source),content)
+
+
+def test_application_probe_binds_current_input_and_fails_closed_on_ambiguity(tmp_path):
+    import json
+    import sqlite3
+    from triade.learning.knowledge_probe import build_application_probe
+    database = tmp_path / 'source.db'
+    with sqlite3.connect(database) as conn:
+        conn.execute('CREATE TABLE records(units INTEGER,total INTEGER CHECK(total=(units*9+2)%41))')
+        ddl = conn.execute("SELECT sql FROM sqlite_master WHERE name='records'").fetchone()[0]
+    source = tmp_path / 'observation.json'
+    source.write_text(json.dumps({'database_ref': str(database), 'table_name': 'records', 'schema_observation': ddl}))
+    db = tmp_path / 'learning.db'
+    with sqlite3.connect(db) as conn:
+        conn.execute('CREATE TABLE learning_queue(candidate_id TEXT,content TEXT,source_ref TEXT,verification_notes TEXT)')
+        conn.execute('INSERT INTO learning_queue VALUES(?,?,?,?)', ('unit', 'quantity: total=(units*9+2)%41. Observed constraint.', str(source), '{}'))
+    probe = build_application_probe(db, 'unit', 'Apply the rule with units=34')
+    assert probe.expected == '21'
+    assert probe.evaluator('{"expression":"(units*9+2)%41"}')
+    assert not probe.evaluator('{"expression":"units*9+2%41"}')
+    assert build_application_probe(db, 'unit', 'units=34 and units=27') is None
+    assert build_application_probe(db, 'unit', 'Explain the rule without applying it') is None

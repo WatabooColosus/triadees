@@ -288,6 +288,19 @@ class ProductionKnowledgeInjector:
                 fila = pipeline.get_candidate(candidate_id) or {}
                 objetivo = extract_target(str(fila.get("content") or ""))
                 aplicado = bool(objetivo) and _plano(str(objetivo)) in respuesta
+                # Procedural application is not token repetition. Bind the
+                # source-attested probe to this task and evaluate the actual
+                # response with the bounded executor and independent SQL oracle.
+                from triade.learning.knowledge_probe import build_probe, build_application_probe
+                template = build_probe(self.db_path, candidate_id)
+                application_score = outcome_score
+                measurement = "distinctive_token_presence"
+                if template is not None and template.response_format is not None:
+                    probe = build_application_probe(self.db_path, candidate_id, injection.decision.query)
+                    aplicado = bool(probe and probe.evaluator(str(response)))
+                    objetivo = probe.expected if probe else None
+                    application_score = float(aplicado)
+                    measurement = "objective_rule_application"
                 causal = self.retriever.confirm_causal_use(
                     injection.decision, candidate_id, evaluator_confirmed=aplicado
                 )
@@ -305,7 +318,7 @@ class ProductionKnowledgeInjector:
                 pipeline.mark_used_in_run(
                     candidate_id=candidate_id,
                     run_id=run_id,
-                    outcome_score=outcome_score,
+                    outcome_score=application_score,
                     evidence_ref=(
                         f"retrieval_decision:{injection.decision.routing_decision_id}"
                         f"#target={objetivo}"
@@ -321,7 +334,7 @@ class ProductionKnowledgeInjector:
                     ).record_application(
                         str(route["assignment_id"]),
                         run_id=run_id,
-                        outcome_score=outcome_score,
+                        outcome_score=application_score,
                         evidence_ref=outcome_evidence_ref,
                         routing_decision_id=injection.decision.routing_decision_id,
                     )
@@ -329,6 +342,7 @@ class ProductionKnowledgeInjector:
                     {
                         "candidate_id": candidate_id,
                         "target": objetivo,
+                        "measurement": measurement,
                         "neuron_id": route.get("neuron_id") if route else None,
                         "learning_event_id": route.get("assignment_id")
                         if route

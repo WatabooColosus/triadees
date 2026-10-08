@@ -335,3 +335,20 @@ def build_transfer_probe(db_path: str | Path, candidate_id: str, input_value: in
     if probe is not None:
         probe.production_eligible = True
     return probe
+
+
+def build_application_probe(db_path: str | Path, candidate_id: str, query: str) -> KnowledgeProbe | None:
+    """Bind the independent oracle to the actual task input, never a fixed probe.
+
+    Ambiguous or missing assignments cannot confirm application of a rule.
+    """
+    template = build_probe(db_path, candidate_id)
+    if template is None or not template.production_eligible or template.response_format is None:
+        return None
+    variable = re.search(r"\bcon ([a-zA-Z_]\w*)=27\b", template.question)
+    if variable is None:
+        return None
+    values = set(re.findall(r"\b" + re.escape(variable[1]) + r"\s*=\s*(-?\d+)\b", query))
+    if len(values) != 1:
+        return None
+    return build_transfer_probe(db_path, candidate_id, int(values.pop()))
