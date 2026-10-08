@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-10-07T23:50:37.428430+00:00",
+  "git_sha": "8fdfe9c8a031365f4a80e73ddf9de25273646172",
+  "environment": {
+    "TRIADE_REAL_E2E": "1",
+    "TRIADE_FULL_CERT": "1",
+    "PYTEST_ADDOPTS": "--basetemp=E:/triade/artifacts/evolution/p-22fb5a33"
+  }
+}

@@ -1,8 +1,8 @@
 # Evidence audit
 
-Revision: `9eb69626e9f3fd44205d9d74fe17576f30432311`
+Revision: `8fdfe9c8a031365f4a80e73ddf9de25273646172`
 
-Score: 2.4/10
+Score: 2.2/10
 
 LEVEL_8_CANDIDATE: False
 
@@ -21,7 +21,7 @@ This is certification coverage, not a claim of cognitive capability. Missing evi
 | error_recovery | PENDING |
 | frontend | PASS |
 | idle_efficiency | PENDING |
-| learning_longitudinal | PASS |
+| learning_longitudinal | PENDING |
 | longitudinal_runtime | PENDING |
 | low_ram | PENDING |
 | metabolism_live | PENDING |

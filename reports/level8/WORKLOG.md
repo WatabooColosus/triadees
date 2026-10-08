@@ -90,3 +90,17 @@ EVIDENCIA: frozen source 9eb6962; transfer baseline 1/6, learned 6/6, negative 1
 FALTA: full neuronal education/use chain (no_compatible_neuron), productive recovery, cognitive autonomy, learned restart, rollback, permanent supervisor/regression shield/dashboard. Task remains incomplete; no level 8 claim.
 RIESGO: coverage 2.4/10 is current-source certification coverage, not capability. Old operational/resource windows remain historical. Latest API healthy with live workers; resource mode light_background. Failed and development suite attempts are preserved.
 SIGUIENTE PASO: legitimate neuronal need/domain formation and correlated education/use before later phases. No new daemon or automatic source modification activated.
+
+## Productive closure ? source 8fdfe9c8a031365f4a80e73ddf9de25273646172
+
+HECHO: explicit domains are preserved and validated; Creadora receives real IO/evidence contracts; normal distribution workers persist governed admission proposals without activating neurons. Windows learning receipts use the existing atomic writer; staging names avoid repeated task IDs.
+EVIDENCIA: domain_admission_tests / staging_review_tests; normal leased admission task in productive_learning_chain_v2.json; actual long-path failure versus atomic write in windows_learning_receipt_io.json. Full-suite failed attempts remain archived; final suite is running on frozen source.
+FALTA: executable held-out curriculum, evidence-to-neuron activation bridge, correlated productive application/consolidation/reuse, productive crash recovery, persistence and cognitive autonomy; evolution supervisor not implemented.
+RIESGO: live API has not reloaded this source; RAM/resource restrictions remain active. First pytest invocation incorrectly escaped a temporary path outside the repository; that directory was left untouched. A stopped intermediate test harness is marked ABORTED_NOT_CERTIFIED, not passed.
+SIGUIENTE PASO: finish current source validation, publish exact evidence and continue legitimate held-out formation.
+
+HECHO FINAL: suite 2728/2728 PASS, frontend PASS, SQLite ok; source 8fdfe9c8a031365f4a80e73ddf9de25273646172.
+EVIDENCIA: test_evidence.json and PRODUCTIVE_CLOSURE.md.
+FALTA: neuronal certification and productive chain; no Level 8 declared.
+RIESGO: unreloaded live API and incomplete downstream gates.
+SIGUIENTE PASO: executable governed held-out formation.

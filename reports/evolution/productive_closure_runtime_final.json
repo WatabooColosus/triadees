@@ -1,0 +1,159 @@
+{
+  "timestamp": "2026-10-08T00:08:45.642427+00:00",
+  "git_sha": "8fdfe9c8a031365f4a80e73ddf9de25273646172",
+  "health": {
+    "status": "healthy",
+    "ready": true,
+    "heartbeat_ok": true,
+    "identity": {
+      "integrity_ok": true,
+      "integrity": "verified",
+      "tamper_detected": false,
+      "mismatches": [],
+      "schema_version": "039",
+      "continuity_from_previous_run": true
+    },
+    "heartbeat": {
+      "status": "ok",
+      "checks": {
+        "live_heartbeat": true,
+        "always_on": true,
+        "workers": true,
+        "ollama_blood": true
+      },
+      "live_heartbeat": {
+        "singleton": 1,
+        "cycle": 6380,
+        "wall_timestamp": 1791418122.1886487,
+        "monotonic_timestamp": 246783.062,
+        "duration_ms": 0.0,
+        "pid": 11212,
+        "ram_available_mb": 2355.5546875,
+        "updated_at": "2026-10-08 00:08:42",
+        "heartbeat_age_ms": 1950.807809829712,
+        "status": "healthy",
+        "llm_invocations": 0
+      },
+      "always_on": {
+        "configured_mode": "full_local_guarded",
+        "effective_mode": "full_local_guarded",
+        "status": "running",
+        "background_thread_alive": true,
+        "degraded": false
+      },
+      "workers": {
+        "status": "running",
+        "active": true,
+        "thread_alive": true,
+        "mode_effective": "full_local_guarded"
+      },
+      "ollama_blood": {
+        "status": "ok",
+        "can_reason": true,
+        "fallback_mode": false
+      }
+    },
+    "readiness_raw": "{\"status\":\"ready\",\"checks\":{\"memory\":{\"path\":\"E:\\\\triade\\\\memory\",\"ok\":true},\"runs\":{\"path\":\"E:\\\\triade\\\\runs\",\"ok\":true},\"postgres\":{\"configured\":false,\"ok\":true,\"reason\":\"not_configured\"},\"valkey\":{\"configured\":false,\"ok\":true,\"reason\":\"not_configured\"}}}",
+    "runtime_mode": {
+      "status": "started",
+      "conversation_only": false,
+      "background_started": null,
+      "metabolism_startup": {
+        "enabled": true,
+        "mode": "full",
+        "effective_mode": "observe_only",
+        "resource_governor": {},
+        "dry_run": false,
+        "cycle_count": 0,
+        "current_cycle_id": null,
+        "running": true,
+        "last_tick_at": null,
+        "last_tick_duration_ms": null,
+        "last_tick_error": null,
+        "status": "started",
+        "thread_alive": true
+      },
+      "metabolism_current": {
+        "enabled": true,
+        "mode": "full",
+        "effective_mode": "full_local_guarded",
+        "resource_governor": {
+          "requested_mode": "full_local_guarded",
+          "allowed_mode": "full_local_guarded",
+          "effective_mode": "full_local_guarded",
+          "reason": "Perfil slow full local: 2.32 GB RAM libre y 6.0 GB VRAM; ejecuci\u00f3n serializada.",
+          "can_run_workers": true,
+          "can_nourish_neurons": true,
+          "can_evaluate_learning": true,
+          "can_consolidate_stable": true
+        },
+        "dry_run": false,
+        "cycle_count": 977,
+        "current_cycle_id": null,
+        "running": true,
+        "last_tick_at": "2026-10-08T00:08:16.723895+00:00",
+        "last_tick_duration_ms": 1483.9999999967404,
+        "last_tick_error": null,
+        "status": "running",
+        "thread_alive": true
+      },
+      "workers_startup": {
+        "configured": true,
+        "autostart": true,
+        "watchdog": true,
+        "active": true,
+        "mode_configured": "full_local_guarded",
+        "mode_effective": "full_local_guarded",
+        "status": "running",
+        "last_start_at": "2026-10-07T02:26:03.153697+00:00",
+        "last_error": null,
+        "restart_attempts": 0,
+        "degraded_by_governor": false,
+        "degradation_reason": null,
+        "thread_alive": true,
+        "lock_file_active": false,
+        "service_status": "ok",
+        "stop_requested": false
+      }
+    },
+    "supervision": {
+      "service_manager": "windows_task_scheduler",
+      "unit": "TriadeOmegaAdmin",
+      "unit_known": true,
+      "service_managed": true,
+      "autostart_enabled": true,
+      "service_state": 3,
+      "service_substate": null,
+      "runtime_pid": 11212,
+      "listener_pid_unit": null,
+      "listener_count": 1,
+      "port": 8010,
+      "started_at": null,
+      "uptime_seconds": null,
+      "restart_count": null,
+      "last_result": 1,
+      "supervisor_pid": 23492,
+      "last_exit_status": null,
+      "database": {
+        "path": "E:\\triade\\triade\\memory\\triade.db",
+        "exists": true,
+        "size_bytes": 151306240
+      },
+      "startup_source": null,
+      "listener_state": "healthy",
+      "always_on": true,
+      "always_on_blockers": [],
+      "manual_start_required": false
+    },
+    "resources": {
+      "database_path": "E:\\triade\\triade\\memory\\triade.db",
+      "open_connections": 634,
+      "opened_total": 860776,
+      "closed_total": 860142,
+      "db_file_descriptors": 0,
+      "process_file_descriptors": 373,
+      "rss_mb": 95.11
+    }
+  },
+  "scope": "Read-only maintenance observation; API process not reloaded; suite sent deliberate chat requests. No cognitive autonomy certification."
+}
