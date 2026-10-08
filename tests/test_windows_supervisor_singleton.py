@@ -15,7 +15,17 @@ def test_second_supervisor_cannot_acquire_repository_lock(tmp_path):
     scripts.mkdir()
     probe = scripts / "guard.ps1"
     probe.write_text(guard + '\nWrite-Output "LOCKED"\n[Console]::ReadLine() | Out-Null\n$supervisorGuard.Dispose()\n', encoding="utf-8")
-    command = ["powershell.exe", "-NoProfile", "-File", str(probe)]
+    wrapper = scripts / "invoke-guard.ps1"
+    wrapper.write_text(
+        "& (Join-Path $PSScriptRoot 'guard.ps1')\n"
+        "$guardExit = $LASTEXITCODE\n"
+        "if ($Error.Count) { [Console]::Error.WriteLine($Error[0].Exception.Message) }\n"
+        "exit $guardExit\n",
+        encoding="utf-8",
+    )
+    # Keep the original guard and exit status. Read the actual ErrorRecord:
+    # PowerShell's display formatting truncates long-path error messages.
+    command = ["powershell.exe", "-NoProfile", "-File", str(wrapper)]
     first = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         assert first.stdout.readline().strip() == "LOCKED"

@@ -66,17 +66,20 @@ def test_concurrent_wal_connections_return_to_baseline(tmp_path: Path) -> None:
         setup.execute("PRAGMA journal_mode=WAL")
         setup.execute("CREATE TABLE events (worker INTEGER NOT NULL)")
 
-    before = sqlite3.connection_metrics()["open_connections"]
-
-    def write(worker: int) -> None:
-        with sqlite3.connect(database, timeout=10) as connection:
+    def write(worker: int):
+        # Verify the connections belonging to this experiment. Process-global
+        # counters also include unrelated runtime threads closing older handles.
+        with sqlite3.connect(database, timeout=10, check_same_thread=False) as connection:
             connection.execute("PRAGMA busy_timeout=10000")
             connection.execute("INSERT INTO events VALUES (?)", (worker,))
+        return connection
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        list(executor.map(write, range(50)))
+        connections = list(executor.map(write, range(50)))
 
-    assert sqlite3.connection_metrics()["open_connections"] == before
+    for connection in connections:
+        with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+            connection.execute("SELECT 1")
     with sqlite3.connect(database) as reader:
         assert reader.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 50
 
