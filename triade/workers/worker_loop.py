@@ -1,6 +1,7 @@
 """Loop controlado de Triade Living Workers."""
 
 from __future__ import annotations
+import hashlib
 
 import json
 import os
@@ -962,7 +963,7 @@ class WorkerLoop:
         staging_path = canonical_artifacts.staging_path()
         task = WorkerTask(
             # v2 is the only execution identity; legacy_id is mirror metadata.
-            id=None,
+            id=autonomous_task_id,
             task_type=str(leased["task_type"]),
             payload=payload,
             priority=int(leased.get("priority") or 50),
@@ -2614,7 +2615,10 @@ class WorkerLoop:
                 "reason": "target_and_authorized_root_required",
             }
         capability = GovernedFileWriteCapability(
-            target, content, task_dir / "rollback", authorized_root=authorized_root
+            target, content,
+            (self.runs_dir / "effects" / hashlib.sha256(str(task.id).encode()).hexdigest()[:32]
+             if isinstance(task.id, str) else task_dir / "rollback"),
+            authorized_root=authorized_root
         )
         prepared = capability.prepare()
         execution = capability.execute()

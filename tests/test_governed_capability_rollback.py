@@ -52,6 +52,34 @@ def test_file_action_can_rollback(tmp_path: Path) -> None:
     assert target.read_text(encoding="utf-8") == "before"
 
 
+def test_resumed_file_effect_does_not_write_twice_or_replace_original_rollback(tmp_path):
+    target, evidence = tmp_path / "value.txt", tmp_path / "evidence"
+    target.write_text("baseline", encoding="utf-8")
+    first = GovernedFileWriteCapability(target, "candidate", evidence, authorized_root=tmp_path)
+    first.prepare()
+    assert first.execute()["write_performed"] is True
+    committed = target.stat().st_mtime_ns
+    resumed = GovernedFileWriteCapability(target, "candidate", evidence, authorized_root=tmp_path)
+    assert resumed.prepare()["resumed_preparation"] is True
+    assert resumed.execute()["write_performed"] is False
+    assert resumed.verify().verified
+    assert target.stat().st_mtime_ns == committed
+    resumed.rollback()
+    assert resumed.verify_rollback().verified
+    assert target.read_text(encoding="utf-8") == "baseline"
+
+
+def test_prepared_effect_cannot_silently_change_intent(tmp_path):
+    target, evidence = tmp_path / "value.txt", tmp_path / "evidence"
+    first = GovernedFileWriteCapability(target, "first", evidence, authorized_root=tmp_path)
+    first.prepare()
+    first.execute()
+    changed = GovernedFileWriteCapability(target, "second", evidence, authorized_root=tmp_path)
+    with pytest.raises(ValueError, match="prepared_file_intent_changed"):
+        changed.prepare()
+    assert target.read_text(encoding="utf-8") == "first"
+
+
 def test_db_action_can_rollback(tmp_path: Path) -> None:
     capability = GovernedSQLiteValueCapability(
         tmp_path / "db.sqlite", "mode", "active", tmp_path / "evidence"
