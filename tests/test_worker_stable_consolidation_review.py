@@ -7,7 +7,7 @@ from triade.learning.pipeline import LearningPipeline
 from triade.workers.worker_loop import WorkerLoop
 
 
-def _setup_verified_candidates(tmp_path: Path, count: int = 3) -> list[str]:
+def _setup_verified_candidates(tmp_path: Path, count: int = 3, *, runtime_verified: bool = True) -> list[str]:
     pipe = LearningPipeline(db_path=tmp_path / "triade.db")
     cids = []
     for i in range(count):
@@ -25,7 +25,24 @@ def _setup_verified_candidates(tmp_path: Path, count: int = 3) -> list[str]:
         for j in range(3):
             pipe.mark_used_in_run(cid, f"run-{i}-{j}", outcome_score=0.85)
         cids.append(cid)
+    if runtime_verified:
+        from triade.core.runner import TriadeRunner
+        TriadeRunner(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runtime", use_ollama=False).run(
+            "Revisa el estado operativo con evidencia registrada", source="pytest", propose_neurons=False,
+        )
     return cids
+
+
+def test_worker_does_not_impersonate_human_approval_without_earned_trust(tmp_path):
+    _setup_verified_candidates(tmp_path, 1, runtime_verified=False)
+    loop = WorkerLoop(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs")
+    result = loop._stable_consolidation_review(
+        type("Task", (), {"id": 1, "task_type": "stable_consolidation_review", "to_dict": dict})(),
+        "no-human-approval", tmp_path / "review", type("Config", (), {"task_timeout":30.0, "dry_run":False})(),
+    )
+    assert result["consolidated"] == []
+    assert result["stable_memory_written"] is False
+    assert any("Trust" in row["reason"] for row in result["rejected"])
 
 
 def test_stable_consolidation_review_consolidates_eligible(tmp_path: Path) -> None:

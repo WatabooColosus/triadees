@@ -3920,8 +3920,16 @@ class WorkerLoop:
         # misma condición con la que el planner decidió que había trabajo —los
         # umbrales siguen siendo de `LearningPipeline`, y quien decide sigue
         # siendo `consolidate()`— y se procesan cinco de entre los que califican.
+        # A worker is not a named human approver. Recompute earned trust from
+        # actual runtime outcomes and retain the normal automatic-policy gate.
+        from triade.memory.trust_store import TrustLevelStore
+        TrustLevelStore(self.db_path).recompute_all()
         elegibles = pipe.list_consolidatable(limit=5)
         for candidate in elegibles:
+            if str(candidate.get("risk_level") or "low") not in {"none", "low"}:
+                rejected.append({"candidate_id": candidate.get("candidate_id"),
+                                 "reason": "risk_requires_separate_authorization"})
+                continue
             sb = sandbox.run(
                 "analyze_memory_candidate", candidate, timeout=config.task_timeout
             )
@@ -3936,7 +3944,7 @@ class WorkerLoop:
             try:
                 result = pipe.consolidate(
                     candidate["candidate_id"],
-                    approved_by=f"worker-stable-review:{run_ref}",
+                    auto_consolidate=True,
                 )
                 consolidated.append(
                     {
