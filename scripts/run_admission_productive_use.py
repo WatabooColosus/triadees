@@ -1,6 +1,7 @@
 """Verify normal distribution and education workers after certified admission."""
 from __future__ import annotations
 import json
+import argparse
 import os
 import subprocess
 from datetime import UTC, datetime
@@ -17,6 +18,9 @@ TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--applications", type=int, choices=range(1, 6), default=1)
+    count = parser.parse_args().applications
     os.environ.setdefault("TRIADE_NEURAL_LEARNING_ROUTING", "1")
     previous = json.loads((ROOT / "reports/evolution/productive_learning_chain_v3.json").read_text(encoding="utf-8"))
     certification = json.loads((ROOT / "reports/evolution/admission_certification_latest.json").read_text(encoding="utf-8"))
@@ -40,27 +44,30 @@ def main() -> int:
     with sqlite3.connect(work / "learning.db") as conn:
         before = conn.execute("SELECT run_use_count FROM learning_queue WHERE candidate_id=?", (cid,)).fetchone()[0]
     attempt = uuid4().hex
-    education = MissionPlanner(db_path=work / "learning.db")._plan_neuron_education()
-    if not education:
-        raise RuntimeError("no_planned_education_application")
-    application = execute(education[0].task_type,
+    executions = []
+    for index in range(count):
+        education = MissionPlanner(db_path=work / "learning.db")._plan_neuron_education()
+        if not education:
+            break
+        executions.append(execute(education[0].task_type,
                           {**education[0].payload, "correlation_id":correlation},
-                          "certified-application:"+attempt)
+                          f"certified-application:{attempt}:{index}"))
     with sqlite3.connect(work / "learning.db") as conn:
         conn.row_factory = sqlite3.Row
         after = conn.execute("SELECT run_use_count FROM learning_queue WHERE candidate_id=?", (cid,)).fetchone()[0]
         assignments = [dict(x) for x in conn.execute("SELECT assignment_id,neuron_id,session_id,status,use_count,outcome_score FROM neuron_learning_assignments WHERE candidate_id=?", (cid,))]
         applications = [dict(x) for x in conn.execute("SELECT a.* FROM neuron_education_applications a JOIN neuron_learning_assignments n ON n.session_id=a.session_id WHERE n.candidate_id=? ORDER BY a.created_at", (cid,))]
     result = {"timestamp":datetime.now(UTC).isoformat(),"tested_source_sha":subprocess.check_output(["git","rev-parse","HEAD"],cwd=ROOT,text=True).strip(),
-              "correlation_id":correlation,"candidate_id":cid,"distribution":distribution,"application":application,
+              "correlation_id":correlation,"candidate_id":cid,"distribution":distribution,
+              "application":executions[-1] if executions else None,"application_executions":executions,
               "run_use_count_before":before,"run_use_count_after":after,"assignments":assignments,"applications":applications,
               "scope":"Normal WorkerLoop, TriadeRunner and productive injector in existing experiment DB; no production state writes or full-chain certification",
-              "truth":after>before and bool(applications),"full_learning_circuit_closed":False}
+              "truth":after-before>=count and len(applications)>=count,"full_learning_circuit_closed":False}
     out = ROOT / "reports/evolution/admission_productive_use_latest.json"
     if out.exists():
         out.with_name(f"admission_productive_use_attempt-{attempt}.json").write_bytes(out.read_bytes())
     out.write_text(json.dumps(result,indent=2,ensure_ascii=True)+"\n",encoding="utf-8")
-    print(json.dumps({"truth":result["truth"],"uses_before":before,"uses_after":after,"application_status":application["task"]["status"]}))
+    print(json.dumps({"truth":result["truth"],"uses_before":before,"uses_after":after,"applications_executed":len(executions)}))
     return 0 if result["truth"] else 1
 
 
