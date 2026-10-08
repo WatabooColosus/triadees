@@ -38,6 +38,22 @@ BLOQUE = (
 )
 
 
+def test_large_historical_context_keeps_verified_knowledge_next_to_current_task():
+    class LargePlan:
+        def to_dict(self):
+            return {"history": "old context " * 4000}
+    packet = _Packet("Apply the current rule to the new input", {
+        "verified_knowledge_block": BLOQUE,
+        "memory_truth": {"history": "old context " * 4000},
+    })
+    for audit in (False, True):
+        prompt = Central._build_prompt("Triade", packet, _Signals(), _Memory(), _Vacio(), LargePlan(), audit)
+        assert len(prompt) > 40000
+        assert BLOQUE in prompt[-4096:]
+        assert prompt.rindex(packet.user_input) > prompt.index(BLOQUE)
+        assert prompt.endswith("Respuesta:")
+
+
 class _Packet:
     def __init__(self, user_input: str, context: dict[str, Any]) -> None:
         self.user_input = user_input
