@@ -3,7 +3,7 @@
   "latest_version": "5.8.0",
   "channel": "stable-candidate",
   "branch": "codex/triade-5.8.0-runtime-recovery",
-  "commit": "c7b5517254555603fbd4cc4be46cc8ff1e20cb1c",
+  "commit": "c269bdf06599d183e89b712f203d68f4fa2f9673",
   "release_path": "releases/5.8.0/README.md",
   "updated_at": "2026-10-22T02:24:23Z",
   "requires_review": true
