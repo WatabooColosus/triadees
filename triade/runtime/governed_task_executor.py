@@ -11,13 +11,12 @@ import signal
 import subprocess
 import threading
 import time
+import traceback
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import uuid4
-
-import traceback
 
 CHILD_EXECUTION_ERRORS = (
     OSError,

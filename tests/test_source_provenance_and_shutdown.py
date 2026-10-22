@@ -1,12 +1,11 @@
-from pathlib import Path
 import subprocess
 import threading
 
 import pytest
 import uvicorn
 
-from triade.runtime.source_provenance import capture_source, bind_loaded_source
 from scripts.serve_local_api import serve, watch_shutdown
+from triade.runtime.source_provenance import bind_loaded_source, capture_source
 
 
 def test_bootstrap_binding_rejects_dirty_or_changed_source(tmp_path):

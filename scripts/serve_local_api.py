@@ -52,7 +52,7 @@ def serve(host: str = "0.0.0.0", port: int = 8010, shutdown_file: Path | None = 
     else:
         listener = config.bind_socket()
     try:
-        from triade.runtime.source_provenance import capture_source, bind_loaded_source
+        from triade.runtime.source_provenance import bind_loaded_source, capture_source
         before = capture_source(ROOT)
         config.load()
         from apps.single_port_app import app

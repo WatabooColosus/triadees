@@ -1,6 +1,7 @@
-from triade.observability.activation_contracts import load_contracts, ContractVerifier
-from triade.observability.code_graph import build_module_index, reachable_modules
 from pathlib import Path
+
+from triade.observability.activation_contracts import ContractVerifier, load_contracts
+from triade.observability.code_graph import build_module_index, reachable_modules
 
 root = Path('.').resolve()
 index = build_module_index(root)

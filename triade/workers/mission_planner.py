@@ -1542,7 +1542,9 @@ class MissionPlanner:
                 ).fetchall()
                 for admission in trained:
                     payload = json.loads(admission["payload_json"])
-                    from triade.neurons.domain_admission import DomainAdmissionCoordinator
+                    from triade.neurons.domain_admission import (
+                        DomainAdmissionCoordinator,
+                    )
                     certification_attempt = DomainAdmissionCoordinator(self.db_path).certification_attempt(int(admission["id"]))
                     if certification_attempt is None:
                         continue

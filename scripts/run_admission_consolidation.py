@@ -1,11 +1,13 @@
 """Verify consolidation through the existing planner and governed worker."""
 from __future__ import annotations
-import json
+
 import argparse
+import json
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
+
 from triade.learning.pipeline import LearningPipeline
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.workers.contracts import WorkerRunConfig

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import sqlite3
 import threading
 import time
-import sqlite3
+
 import pytest
 
 from triade.runtime.event_scheduler import EventDrivenScheduler

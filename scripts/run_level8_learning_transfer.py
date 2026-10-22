@@ -4,19 +4,21 @@ The learned object is a rule, never a saved answer. Independent CHECK constraint
 score different later transactions. This does not certify production routing.
 """
 from __future__ import annotations
+
 import json
 import re
 import sqlite3
 import subprocess
 import time
-import uuid
 import urllib.request
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+
+from triade.evaluation import EvaluationRun, MetricResult, compare_evaluations
 from triade.learning.pipeline import LearningPipeline
 from triade.learning.retrieval import LearningRetriever, build_learning_block
-from triade.models.ollama_client import OllamaClient, ModelResult
-from triade.evaluation import EvaluationRun, MetricResult, compare_evaluations
+from triade.models.ollama_client import ModelResult, OllamaClient
 
 ROOT=Path(__file__).resolve().parents[1]
 

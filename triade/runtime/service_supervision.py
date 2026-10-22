@@ -386,7 +386,7 @@ def _parse_timestamp(raw: str | None) -> str | None:
             # systemd emite la marca ya en UTC, pero el nombre de zona que
             # imprime no sirve para %z. Se parsea sin zona y se fija UTC en la
             # línea siguiente, que es de dónde viene el silencio de DTZ007.
-            parsed = datetime.strptime(raw.strip(), fmt)  # noqa: DTZ007
+            parsed = datetime.strptime(raw.strip(), fmt)
         except ValueError:
             continue
         return parsed.replace(tzinfo=UTC).isoformat()

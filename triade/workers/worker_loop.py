@@ -1,8 +1,8 @@
 """Loop controlado de Triade Living Workers."""
 
 from __future__ import annotations
-import hashlib
 
+import hashlib
 import json
 import os
 import shutil
@@ -1822,8 +1822,8 @@ class WorkerLoop:
         self, task: WorkerTask, run_ref: str, task_dir: Path, config: WorkerRunConfig
     ) -> dict[str, Any]:
         """Investiga una laguna real; la evidencia queda candidata, nunca estable."""
-        from triade.research.governed import GovernedResearchWorker
         from triade.neurons.competency_store import CompetencyStore
+        from triade.research.governed import GovernedResearchWorker
         GovernedResearchWorker.ensure_storage(self.db_path)
         CompetencyStore(self.db_path)
         with sqlite3.connect(self.db_path) as conn:

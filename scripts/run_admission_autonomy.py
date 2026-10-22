@@ -1,12 +1,19 @@
+import json
+import sqlite3
+import subprocess
+import sys
+import threading
+import time
 from pathlib import Path
-import json,sys,time,threading,sqlite3,subprocess
+
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 TRIADE_ENTRYPOINT_KIND='manual_diagnostic'
-from triade.workers.worker_loop import WorkerLoop
-from triade.workers.contracts import WorkerRunConfig
-from triade.core.contracts import utc_now
 from scripts.run_level8_soak import runtime_hash
+from triade.core.contracts import utc_now
+from triade.workers.contracts import WorkerRunConfig
+from triade.workers.worker_loop import WorkerLoop
+
 
 def main():
  prior=json.loads((ROOT/'reports/evolution/productive_learning_chain_v3.json').read_text(encoding='utf-8'))

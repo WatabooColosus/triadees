@@ -1,5 +1,6 @@
 """Actual ASGI lifespan shutdown/restart in a repository-owned sandbox."""
 from __future__ import annotations
+
 import json
 import multiprocessing as mp
 import os
@@ -28,6 +29,7 @@ def server(root,port,iteration):
     from triade.core.bodega import Bodega
     Bodega(db_path=root/'triade/memory/triade.db')
     import uvicorn
+
     import apps.single_port_app as app
     original=app._stop_background
     def observe_stop(db_path):
@@ -50,6 +52,7 @@ def server(root,port,iteration):
 def run(root):
     root=Path(root);root.mkdir(parents=True,exist_ok=True)
     from cryptography.fernet import Fernet
+
     from triade.security.file_privacy import protect_private_file
     key_path=root/'sandbox-backup.key'
     key_path.write_text(Fernet.generate_key().decode(),encoding='utf-8')

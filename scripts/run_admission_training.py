@@ -5,8 +5,8 @@ manual activation, or mock model output is used by this verification command.
 """
 from __future__ import annotations
 
-import json
 import argparse
+import json
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path

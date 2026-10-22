@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import re
 import hashlib
 import json
+import re
 import urllib.parse
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 from triade.core.guarded_web import TRUSTED_RESEARCH_HOSTS
 

@@ -1,5 +1,6 @@
-import requests
 import time
+
+import requests
 
 for i in range(6):
     r = requests.get('http://127.0.0.1:8010/api/runtime/heartbeat', timeout=10)

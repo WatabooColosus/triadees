@@ -1,5 +1,6 @@
 import asyncio
 
+
 async def test_lifespan():
     import os
     os.environ['TRIADE_DB_PATH'] = 'triade/memory/triade.db'
@@ -7,11 +8,9 @@ async def test_lifespan():
     
     from triade.core.identity_continuity import IdentityContinuity
     from triade.core.runtime_scope import is_test_runtime
-    from triade.memory.db_pragmas import ensure_durability_pragmas
     
     db_path = os.getenv('TRIADE_DB_PATH', 'triade/memory/triade.db')
     
-    from triade.core.identity_continuity import IdentityContinuity
     identity = IdentityContinuity(db_path).verify(run_id='single-port-startup')
     print('Identity:', identity)
     
@@ -29,7 +28,6 @@ async def test_lifespan():
     cfg = load_cfg()
     print('Config loaded, continuous_runner_enabled:', cfg.get('continuous_runner_enabled'))
     
-    from triade.core.life_pulse import LIFE_PULSE
     continuous_result = LIFE_PULSE.configure_continuous_runner(
         enabled=bool(cfg.get('continuous_runner_enabled', False)),
         autonomy_level=str(

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Busca actualizaciones de Tríade comparando el historial Git, no texto de commits."""
 from __future__ import annotations
+
 import argparse
 import json
 import subprocess

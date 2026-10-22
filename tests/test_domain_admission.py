@@ -1,13 +1,13 @@
-from concurrent.futures import ThreadPoolExecutor
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+from test_autonomous_neural_learning import _prepared_db
 
-from triade.core.neuron_formation_pipeline import form_candidate
 from triade.core.neuron_creator import NeuronCreator
+from triade.core.neuron_formation_pipeline import form_candidate
 from triade.core.neuron_registry import NeuronRegistry
 from triade.neurons.domain_admission import DomainAdmissionCoordinator
-from test_autonomous_neural_learning import _prepared_db
 
 
 def test_explicit_domain_survives_creator_and_formative_design():
@@ -106,6 +106,7 @@ def test_certification_cannot_replace_missing_training_with_structural_review(tm
 
 def test_new_admissions_do_not_starve_already_trained_certification(tmp_path):
     import json
+
     from triade.workers.mission_planner import MissionPlanner
     db, candidate_id, _ = _prepared_db(tmp_path, baseline_score=0.5)
     NeuronRegistry(db).update_status("neurona-auditora", "quarantined")
@@ -177,11 +178,12 @@ def test_empty_specification_cannot_enter_training():
 
 
 def test_planner_and_worker_form_only_governed_candidate(tmp_path):
-    from triade.workers.mission_planner import MissionPlanner
-    from triade.workers.worker_loop import WorkerLoop
-    from triade.workers.task_queue import WorkerTask
-    from triade.workers.contracts import WorkerRunConfig
     import json
+
+    from triade.workers.contracts import WorkerRunConfig
+    from triade.workers.mission_planner import MissionPlanner
+    from triade.workers.task_queue import WorkerTask
+    from triade.workers.worker_loop import WorkerLoop
     db, candidate_id, _ = _prepared_db(tmp_path, baseline_score=0.5)
     NeuronRegistry(db).update_status("neurona-auditora", "quarantined")
     request = DomainAdmissionCoordinator(db).request(candidate_id, correlation_id="formation-origin")
@@ -203,6 +205,7 @@ def test_planner_and_worker_form_only_governed_candidate(tmp_path):
     assert next_tasks[0].payload["admission_phase"] == "training"
 def test_resource_only_certification_retry_is_bounded_and_not_a_competence_override(tmp_path):
     import json
+
     from triade.neurons.domain_admission import DomainAdmissionCoordinator
     coordinator = DomainAdmissionCoordinator(tmp_path / "retry.db")
     assert coordinator.certification_attempt(42) == 1

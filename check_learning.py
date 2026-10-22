@@ -1,4 +1,5 @@
 import sqlite3
+
 conn = sqlite3.connect('triade/memory/triade.db')
 conn.row_factory = sqlite3.Row
 
@@ -26,6 +27,6 @@ print('NEUTRAL count:', len(rows))
 # Check all evidence decisions
 rows = conn.execute('SELECT decision, COUNT(*) FROM learning_evidence GROUP BY 1').fetchall()
 for r in rows:
-    print('  {}: {}'.format(r[0], r[1]))
+    print(f'  {r[0]}: {r[1]}')
 
 conn.close()

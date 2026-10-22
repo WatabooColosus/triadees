@@ -10,10 +10,10 @@ import hashlib
 import json
 import re
 import time
-from uuid import uuid4
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from triade.core.neuron_formation_pipeline import form_candidate
 from triade.neurons.competency_store import utc_now
@@ -56,7 +56,7 @@ def _reusable(result: dict[str, Any], *, domain: str, correlation_id: str,
     try:
         require_complete_specification(result.get("creator_spec") or {})
         created = datetime.fromisoformat(result["created_at"].replace("Z", "+00:00"))
-        age = datetime.now(timezone.utc) - created
+        age = datetime.now(UTC) - created
     except (ValueError, TypeError, KeyError, AttributeError):
         return False
     return (
@@ -100,9 +100,9 @@ class DomainAdmissionCoordinator:
         Receipts use the current education store and the caller is a normal
         leased worker. A successful training result is not held-out evidence.
         """
-        from triade.neurons.curriculum import admission_curriculum
         from triade.learning.knowledge_probe import build_transfer_probe
         from triade.learning.retrieval import LearningRetriever, build_learning_block
+        from triade.neurons.curriculum import admission_curriculum
         with self.router._connect() as conn:
             row = conn.execute("SELECT payload_json FROM neuron_education_events WHERE id=? AND event_type='domain_admission_requested'", (event_id,)).fetchone()
             formed = conn.execute("SELECT payload_json FROM neuron_education_events WHERE event_type='domain_candidate_formed' AND json_extract(payload_json,'$.admission_event_id')=?", (event_id,)).fetchone()
@@ -189,11 +189,11 @@ class DomainAdmissionCoordinator:
         The measured capability is bounded rule application in this domain, not
         general intelligence. Control arms never receive learned context.
         """
-        from triade.learning.knowledge_probe import build_transfer_probe
-        from triade.learning.retrieval import LearningRetriever, build_learning_block
         from triade.evaluation import EvaluationRun, MetricResult, compare_evaluations
         from triade.learning.evidence_bridge import LearningEvidenceBridge
-        from triade.regression import RegressionGate, MetricPolicy
+        from triade.learning.knowledge_probe import build_transfer_probe
+        from triade.learning.retrieval import LearningRetriever, build_learning_block
+        from triade.regression import MetricPolicy, RegressionGate
         with self.router._connect() as conn:
             rows = conn.execute("SELECT payload_json FROM neuron_education_events WHERE event_type='domain_training_completed' AND json_extract(payload_json,'$.admission_event_id')=? ORDER BY id DESC LIMIT 1", (event_id,)).fetchone()
             old = conn.execute("SELECT payload_json FROM neuron_education_events WHERE event_type='domain_certification_completed' AND json_extract(payload_json,'$.admission_event_id')=? ORDER BY id DESC LIMIT 1", (event_id,)).fetchone()

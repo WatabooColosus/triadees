@@ -1,13 +1,16 @@
 """Authorized real API crash; observe its existing supervisor, never restart it."""
 from __future__ import annotations
+
 import json
 import sqlite3
 import time
 import urllib.request
 from datetime import UTC, datetime
-from pathlib import Path
+
 import psutil
+
 from scripts.run_level8_soak import ROOT, bind_report
+
 
 def get(path):
     with urllib.request.urlopen('http://127.0.0.1:8010'+path,timeout=5) as r:return r.status,json.load(r)

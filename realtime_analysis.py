@@ -1,7 +1,7 @@
-import requests
 import json
-import time
 from datetime import datetime
+
+import requests
 
 print('=' * 80)
 print('TRIADE OMEGA - ANALISIS EN TIEMPO REAL -', datetime.now().isoformat())

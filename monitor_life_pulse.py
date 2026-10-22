@@ -1,6 +1,7 @@
 import time
-from triade.core.life_pulse import LIFE_PULSE
+
 from triade.core.always_on import load_always_on_config
+from triade.core.life_pulse import LIFE_PULSE
 
 # Check initial state
 print('Initial state:')

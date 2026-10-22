@@ -1,11 +1,12 @@
 import sqlite3
+
 conn = sqlite3.connect('triade/memory/triade.db')
 conn.row_factory = sqlite3.Row
 
 print('=== LEARNING QUEUE STATUS ===')
 rows = conn.execute('SELECT status, COUNT(*) FROM learning_queue GROUP BY 1 ORDER BY 2 DESC').fetchall()
 for r in rows:
-    print('  {}: {}'.format(r[0], r[1]))
+    print(f'  {r[0]}: {r[1]}')
 
 print()
 print('=== RECENT CANDIDATES ===')
@@ -17,7 +18,7 @@ print()
 print('=== EVIDENCE DECISIONS ===')
 rows = conn.execute('SELECT decision, COUNT(*) FROM learning_evidence GROUP BY 1 ORDER BY 2 DESC').fetchall()
 for r in rows:
-    print('  {}: {}'.format(r[0], r[1]))
+    print(f'  {r[0]}: {r[1]}')
 
 print()
 print('=== METABOLIC CYCLES (last 5) ===')

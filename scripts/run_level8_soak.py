@@ -1,13 +1,15 @@
 """Read-only, wall-clock observation of the normal localhost runtime."""
 from __future__ import annotations
+
 import argparse
 import hashlib
 import json
-import subprocess
 import sqlite3
+import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+
 from scripts.run_long_validation import muestra
 
 ROOT = Path(__file__).resolve().parents[1]

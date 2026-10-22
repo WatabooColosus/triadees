@@ -5,6 +5,7 @@ driver. The handlers, leases, fencing, receipts and rollback are normal runtime
 components. Only this experiment's processes and files are targeted.
 """
 from __future__ import annotations
+
 import argparse
 import hashlib
 import json
@@ -17,8 +18,8 @@ from pathlib import Path
 from uuid import uuid4
 
 import psutil
+
 from triade.db import sqlite3
-from triade.runtime.governed_capability import GovernedFileWriteCapability
 from triade.workers.contracts import WorkerRunConfig
 from triade.workers.worker_loop import WorkerLoop
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import time
 import os
+import time
 from typing import Any
 
 from triade.core.contracts import utc_now

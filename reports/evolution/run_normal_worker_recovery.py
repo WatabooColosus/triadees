@@ -1,13 +1,21 @@
 """Fault injection into one owned handler of the unmodified normal WorkerLoop."""
+import hashlib
+import json
+import multiprocessing as mp
+import subprocess
+import sys
+import threading
+import time
 from pathlib import Path
-import sys, json, time, threading, multiprocessing as mp, hashlib, subprocess
 from uuid import uuid4
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from triade.db import sqlite3
-from triade.workers.worker_loop import WorkerLoop
-from triade.workers.contracts import WorkerRunConfig
 from triade.core.contracts import utc_now
+from triade.db import sqlite3
+from triade.workers.contracts import WorkerRunConfig
+from triade.workers.worker_loop import WorkerLoop
+
 TRIADE_ENTRYPOINT_KIND = "manual_diagnostic"
 
 def main():

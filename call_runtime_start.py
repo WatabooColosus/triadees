@@ -1,5 +1,6 @@
-import requests
 import json
+
+import requests
 
 r = requests.post('http://127.0.0.1:8010/api/runtime/start', json={
     'mode': 'full_local_guarded',

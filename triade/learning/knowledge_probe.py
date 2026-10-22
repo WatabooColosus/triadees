@@ -12,9 +12,9 @@ experimento posible y se declara así, en vez de inventar una métrica.
 
 from __future__ import annotations
 
-import re
 import ast
 import json
+import re
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass

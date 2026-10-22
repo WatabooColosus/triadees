@@ -1,4 +1,5 @@
 import sqlite3
+
 conn = sqlite3.connect('triade/memory/triade.db')
 conn.row_factory = sqlite3.Row
 
@@ -20,7 +21,7 @@ for r in rows:
 print('\n=== AUTONOMOUS TASKS STATUS COUNTS ===')
 rows = conn.execute('SELECT status, COUNT(*) FROM autonomous_tasks GROUP BY 1 ORDER BY 2 DESC').fetchall()
 for r in rows:
-    print('  {}: {}'.format(r[0], r[1]))
+    print(f'  {r[0]}: {r[1]}')
 
 print('\n=== METABOLIC RECEIPTS (lease_supervision) ===')
 rows = conn.execute("SELECT need_id, status, started_at, finished_at FROM metabolic_receipts WHERE need_id LIKE 'lease_supervision%' ORDER BY started_at DESC LIMIT 10").fetchall()
@@ -45,16 +46,16 @@ for r in rows:
 print('\n=== SEMANTIC DOCUMENTS COUNTS ===')
 rows = conn.execute('SELECT status, COUNT(*) FROM semantic_documents GROUP BY 1').fetchall()
 for r in rows:
-    print('  {}: {}'.format(r[0], r[1]))
+    print(f'  {r[0]}: {r[1]}')
 
 print('\n=== LEARNING QUEUE COUNTS ===')
 rows = conn.execute('SELECT status, COUNT(*) FROM learning_queue GROUP BY 1').fetchall()
 for r in rows:
-    print('  {}: {}'.format(r[0], r[1]))
+    print(f'  {r[0]}: {r[1]}')
 
 print('\n=== LEARNING EVIDENCE COUNTS ===')
 rows = conn.execute('SELECT decision, COUNT(*) FROM learning_evidence GROUP BY 1').fetchall()
 for r in rows:
-    print('  {}: {}'.format(r[0], r[1]))
+    print(f'  {r[0]}: {r[1]}')
 
 conn.close()

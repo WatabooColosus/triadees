@@ -4,6 +4,7 @@ No names other than supplied integer inputs, calls, attributes, powers, strings,
 containers or floating point. Explicit bounds prevent resource exhaustion.
 """
 from __future__ import annotations
+
 import ast
 import operator
 

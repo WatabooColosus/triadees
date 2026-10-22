@@ -1,7 +1,8 @@
 """Bounded transport diagnosis of the existing failed experiment, not certification."""
 from __future__ import annotations
-import hashlib
+
 import argparse
+import hashlib
 import json
 import subprocess
 import time
@@ -9,8 +10,8 @@ import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
-from triade.learning.retrieval import LearningRetriever, build_learning_block
 from scripts.run_level8_learning_transfer import checksum_from_response
+from triade.learning.retrieval import LearningRetriever, build_learning_block
 
 ROOT = Path(__file__).resolve().parents[1]
 TRIADE_ENTRYPOINT_KIND = 'manual_diagnostic'

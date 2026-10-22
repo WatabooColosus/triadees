@@ -1,7 +1,8 @@
 """Verify normal distribution and education workers after certified admission."""
 from __future__ import annotations
-import json
+
 import argparse
+import json
 import os
 import subprocess
 from datetime import UTC, datetime

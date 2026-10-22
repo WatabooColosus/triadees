@@ -3,6 +3,7 @@
 Uses the actual queue, fencing and artifact writer. No production DB writes.
 """
 from __future__ import annotations
+
 import json
 import multiprocessing as mp
 import os
@@ -11,9 +12,11 @@ import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+
 import psutil
-from triade.runtime.task_leases import AutonomousTaskStore
+
 from triade.runtime.task_artifacts import AtomicArtifactWriter
+from triade.runtime.task_leases import AutonomousTaskStore
 
 ROOT=Path(__file__).resolve().parents[1]
 

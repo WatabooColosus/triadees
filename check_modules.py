@@ -1,4 +1,5 @@
 import json
+
 with open('artifacts/debt/debt-triage-latest.json') as f:
     data = json.load(f)
 

@@ -28,6 +28,7 @@ aparecer en el prompt. Si no, la traza miente.
 from __future__ import annotations
 
 from typing import Any, ClassVar
+
 import pytest
 
 from triade.core.central import Central
@@ -51,6 +52,7 @@ def test_declared_output_schema_cannot_embed_the_expected_answer():
 
 def test_structured_consumer_selects_provider_route_without_unsupported_peft():
     from types import SimpleNamespace
+
     from triade.models.ollama_client import ModelResult
     calls = []
     class Client:

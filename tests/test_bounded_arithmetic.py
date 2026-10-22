@@ -1,4 +1,5 @@
 import pytest
+
 from triade.core.bounded_arithmetic import evaluate_integer_expression
 
 

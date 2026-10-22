@@ -7,8 +7,8 @@ from triade.research.governed import GovernedResearchWorker
 
 
 def test_first_curriculum_query_initializes_research_history_without_fake_runs(tmp_path):
+    from triade.workers.contracts import WorkerRunConfig, WorkerTask
     from triade.workers.worker_loop import WorkerLoop
-    from triade.workers.contracts import WorkerTask, WorkerRunConfig
     db = tmp_path / "first.db"
     loop = WorkerLoop(db_path=db, runs_dir=tmp_path / "runs",
         lock_file=tmp_path / "lock", stop_file=tmp_path / "stop")

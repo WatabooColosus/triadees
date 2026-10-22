@@ -50,8 +50,8 @@ def test_periodic_or_incomplete_formation_still_obeys_adaptive_interval(tmp_path
 
 
 def test_worker_consumer_preserves_pending_admission_transition(tmp_path, monkeypatch):
-    from triade.workers.worker_loop import WorkerLoop
     from triade.workers.contracts import WorkerTask
+    from triade.workers.worker_loop import WorkerLoop
     loop = WorkerLoop(db_path=make_db(tmp_path), runs_dir=tmp_path / "runs",
         lock_file=tmp_path / "lock", stop_file=tmp_path / "stop")
     monkeypatch.setattr(loop.adaptive_scheduler, "should_skip_task", lambda task_type: True)

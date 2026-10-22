@@ -11,12 +11,12 @@ import os
 import socket
 from pathlib import Path
 from typing import Any
-
-from triade.observability.cycle_trace import CognitiveCycleTrace
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+
+from triade.observability.cycle_trace import CognitiveCycleTrace
 
 router = APIRouter(prefix="/health", tags=["health"])
 

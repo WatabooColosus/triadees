@@ -18,8 +18,8 @@ from triade.memory.semantic_governance import SemanticMemoryGovernance
 from triade.memory.semantic_search import SemanticSearchEngine
 from triade.memory.semantic_store import SemanticMemoryStore
 from triade.models.hardware_profile import HardwareProfiler
-from triade.models.model_router import ModelRouter
 from triade.models.model_client_factory import create_model_client
+from triade.models.model_router import ModelRouter
 from triade.qualia.adapters import build_run_experiences, qualia_context_for_memory
 from triade.qualia.bus import QualiaBus
 from triade.qualia.store import QualiaStore

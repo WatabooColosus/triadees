@@ -33,6 +33,7 @@ def test_transfer_inputs_are_distinct_and_keep_rule_out_of_request():
 def test_schema_proof_requires_actual_colocated_constraint(tmp_path):
     import json
     import sqlite3
+
     from triade.learning.knowledge_probe import _schema_provenance
     database=tmp_path/'source.db'
     with sqlite3.connect(database) as conn:
@@ -52,6 +53,7 @@ def test_schema_proof_requires_actual_colocated_constraint(tmp_path):
 def test_application_probe_binds_current_input_and_fails_closed_on_ambiguity(tmp_path):
     import json
     import sqlite3
+
     from triade.learning.knowledge_probe import build_application_probe
     database = tmp_path / 'source.db'
     with sqlite3.connect(database) as conn:

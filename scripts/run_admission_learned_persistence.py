@@ -1,5 +1,6 @@
 """Use consolidated learning in two independent, cleanly exiting runtime processes."""
 from __future__ import annotations
+
 import argparse
 import hashlib
 import json
@@ -8,6 +9,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+
 from triade.db import sqlite3
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,9 +32,9 @@ def main() -> int:
     if candidate["status"] != "consolidated" or not document or document["status"] != "stable":
         raise RuntimeError("consolidated_learning_required")
     if args.child_input is not None:
-        from triade.learning.knowledge_probe import build_transfer_probe
         from triade.core.ollama_blood import check_ollama_blood
         from triade.core.runner import TriadeRunner
+        from triade.learning.knowledge_probe import build_transfer_probe
         os.environ.setdefault("TRIADE_NEURAL_LEARNING_ROUTING", "1")
         probe = build_transfer_probe(work / "learning.db", prior["candidate_id"], args.child_input)
         if probe is None:

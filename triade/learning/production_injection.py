@@ -13,8 +13,8 @@ Dos diferencias con el retrieval de evaluación, y las dos importan:
 
 from __future__ import annotations
 
-import os
 import hashlib
+import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -291,7 +291,10 @@ class ProductionKnowledgeInjector:
                 # Procedural application is not token repetition. Bind the
                 # source-attested probe to this task and evaluate the actual
                 # response with the bounded executor and independent SQL oracle.
-                from triade.learning.knowledge_probe import build_probe, build_application_probe
+                from triade.learning.knowledge_probe import (
+                    build_application_probe,
+                    build_probe,
+                )
                 template = build_probe(self.db_path, candidate_id)
                 application_score = outcome_score
                 measurement = "distinctive_token_presence"

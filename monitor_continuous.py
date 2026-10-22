@@ -1,4 +1,5 @@
 import time
+
 from triade.core.life_pulse import LIFE_PULSE
 
 for i in range(6):

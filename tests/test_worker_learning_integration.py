@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import json
+from pathlib import Path
 
 from triade.learning.pipeline import LearningPipeline
-from triade.workers.contracts import WorkerRunConfig
-from triade.workers.worker_loop import WorkerLoop
-from triade.workers.contracts import WorkerTask
 from triade.runtime.task_artifacts import _io_path
+from triade.workers.contracts import WorkerRunConfig, WorkerTask
+from triade.workers.worker_loop import WorkerLoop
 
 
 def test_worker_reviews_learning_and_marks_verified_as_used_in_run(

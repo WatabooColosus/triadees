@@ -1,6 +1,10 @@
 import json
 
-from triade.runtime.task_artifacts import AtomicArtifactWriter, CanonicalTaskArtifacts, _io_path
+from triade.runtime.task_artifacts import (
+    AtomicArtifactWriter,
+    CanonicalTaskArtifacts,
+    _io_path,
+)
 
 
 def test_atomic_evidence_writer_supports_long_paths(tmp_path):

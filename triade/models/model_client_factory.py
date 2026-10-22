@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from .llamacpp_client import LlamaCppClient
-from .ollama_client import OllamaClient
 from .model_provider import ModelProvider
+from .ollama_client import OllamaClient
 
 
 def create_model_client(

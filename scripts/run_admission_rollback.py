@@ -1,14 +1,16 @@
 """Measure and reject the bounded recovery experiment's inferior configuration."""
 from __future__ import annotations
+
 import hashlib
 import json
 import subprocess
 from pathlib import Path
 from uuid import uuid4
+
 from triade.core.contracts import utc_now
 from triade.evaluation import EvaluationRun, MetricResult
 from triade.learning.knowledge_probe import build_transfer_probe
-from triade.regression.gate import RegressionGate, MetricPolicy
+from triade.regression.gate import MetricPolicy, RegressionGate
 from triade.regression.rollback import RollbackExecutor
 from triade.runtime.governed_capability import GovernedFileWriteCapability
 

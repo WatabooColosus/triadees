@@ -4,14 +4,17 @@ No production state writes, no fabricated neuron or education rows. This is an
 integration experiment, not a claim that the complete cognitive chain passes.
 """
 from __future__ import annotations
+
 import json
 import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+
 from scripts.run_level8_learning_transfer import ROOT
-from triade.workers.worker_loop import WorkerLoop
 from triade.workers.contracts import WorkerRunConfig
+from triade.workers.worker_loop import WorkerLoop
+
 TRIADE_ENTRYPOINT_KIND = 'manual_diagnostic'
 
 

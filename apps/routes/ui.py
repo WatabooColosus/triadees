@@ -135,7 +135,6 @@ def internal_graphs_debt(force: bool = False) -> dict[str, Any]:
         build_debt_report,
         summarise_for_humans,
     )
-    from triade.observability.refresh import DEBT_STALE_SECONDS
 
     trigger = refresh_artifacts(force=force, stale_seconds=DEBT_STALE_SECONDS)
     # Si se pidió force, esperamos a que termine la reconstrucción (máx 120s)

@@ -12,8 +12,8 @@ Tríade tras el apagado del servidor del 2026-08-11.
 
 from __future__ import annotations
 
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 import apps.single_port_app as app_module
 

@@ -8,9 +8,8 @@ ciclo y comprobar qué etapas realmente dejaron estado observable.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-
 
 STAGES = ("hardware", "metabolism", "hypothalamus", "central", "qualia", "crystal", "learning")
 
@@ -19,7 +18,7 @@ STAGES = ("hardware", "metabolism", "hypothalamus", "central", "qualia", "crysta
 class CognitiveCycleTrace:
     run_id: str
     cycle_id: str | int | None = None
-    started_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    started_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     completed_at: str | None = None
     mode_requested: str | None = None
     mode_effective: str | None = None
@@ -38,7 +37,7 @@ class CognitiveCycleTrace:
         self.stages[stage] = entry
 
     def finish(self, *, status: str = "completed", error: str | None = None) -> None:
-        self.completed_at = datetime.now(timezone.utc).isoformat()
+        self.completed_at = datetime.now(UTC).isoformat()
         if error:
             self.errors.append(error)
         self.stages.setdefault("learning", {"status": status})

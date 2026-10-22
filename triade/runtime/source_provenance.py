@@ -3,14 +3,14 @@ from __future__ import annotations
 
 import hashlib
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 SOURCE_PATHS = ("triade", "apps", "scripts", "frontend", "tests", "triade.yml", "pyproject.toml", "requirements.txt")
 
 
 def capture_source(root: Path) -> dict:
-    result = {"captured_at": datetime.now(timezone.utc).isoformat(), "status": "UNVERIFIED"}
+    result = {"captured_at": datetime.now(UTC).isoformat(), "status": "UNVERIFIED"}
     try:
         def git(*args: str) -> str:
             return subprocess.check_output(["git", *args], cwd=root, text=True,

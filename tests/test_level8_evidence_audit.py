@@ -55,6 +55,7 @@ def test_direct_audit_cli_loads_closure_modules(tmp_path):
 
 def test_partial_protocols_do_not_certify_complete_circuits(tmp_path):
     from pathlib import Path
+
     from scripts.level8_audit import closure_gates
     root = Path(__file__).resolve().parents[1]
     # Unit-test historical protocol scope independent of changing source hashes.
