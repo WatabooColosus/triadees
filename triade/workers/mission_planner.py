@@ -80,6 +80,7 @@ class MissionPlanner:
         tasks: list[PlannedTask] = []
 
         tasks.extend(self._plan_baseline())
+        tasks.extend(self._plan_unharvested_regressions())
         tasks.extend(self._plan_pending_learning())
         tasks.extend(self._plan_failed_recent())
         tasks.extend(self._plan_memory_consolidation())
@@ -1038,6 +1039,65 @@ class MissionPlanner:
             )
 
         return tasks
+
+    def _plan_unharvested_regressions(self) -> list[PlannedTask]:
+        """Despierta la cosecha de regresiones sin depender de learning_queue.
+
+        Antes, pending_learning_review sólo se planificaba si había candidatos
+        en candidate/evaluated. Una regresión real podía permanecer sin cosechar
+        eternamente cuando esos estados estaban vacíos. Este productor consulta
+        informes reales todavía sin lección, pero nunca escribe filas.
+        """
+        try:
+            with closing(self._connect()) as conn:
+                tables = {
+                    str(row[0])
+                    for row in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                }
+                if "regression_reports" not in tables:
+                    return []
+                where_unharvested = (
+                    """ AND NOT EXISTS (
+                          SELECT 1 FROM improvement_failure_lessons lesson
+                          WHERE lesson.report_id=report.report_id
+                            AND lesson.metric_id=json_extract(finding.value,'$.metric_id')
+                        )"""
+                    if "improvement_failure_lessons" in tables else ""
+                )
+                sql = (
+                    """SELECT report.report_id FROM regression_reports report,
+                         json_each(CASE WHEN json_valid(report.findings_json)
+                             THEN report.findings_json ELSE '[]' END) finding
+                       WHERE report.decision='fail'
+                         AND COALESCE(report.capability,'') != ''
+                         AND json_extract(finding.value,'$.status')='fail'
+                         AND COALESCE(json_extract(finding.value,'$.metric_id'),'') != ''
+                    """
+                    + where_unharvested
+                    + " LIMIT 1"
+                )
+                row = conn.execute(sql).fetchone()
+                if row is None:
+                    return []
+                return [
+                    PlannedTask(
+                        task_type="pending_learning_review",
+                        priority=5,
+                        reason="regresión verificada aún sin cosechar",
+                        source="measured_regression_backlog",
+                        planner_score=0.95,
+                        payload={"regression_report_id": str(row["report_id"])},
+                    )
+                ]
+        except MISSION_PLANNER_ERRORS as exc:
+            record_internal_error(
+                "mission_planner.unharvested_regressions",
+                exc,
+                db_path=self.db_path,
+            )
+            return []
 
     def _plan_pending_learning(self) -> list[PlannedTask]:
         """Encola revisión de candidatos de aprendizaje pendientes."""
