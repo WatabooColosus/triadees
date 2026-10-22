@@ -47,7 +47,7 @@ def test_direct_audit_cli_loads_closure_modules(tmp_path):
     sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
     # Protocol intentionally proves nothing; it exercises the direct CLI import.
     (tmp_path/'background_autonomy_v2.json').write_text(json.dumps({'git_sha':sha,'timestamp':'2026-10-07T00:00:00+00:00','observations':[]}))
-    result=subprocess.run([sys.executable,str(root/'scripts/level8_audit.py'),'--report-dir',str(tmp_path)],cwd=tmp_path,capture_output=True,text=True)
+    result=subprocess.run([sys.executable,str(root/'scripts/level8_audit.py'),'--report-dir',str(tmp_path)],cwd=tmp_path,capture_output=True,text=True,check=False)
     assert result.returncode==1
     assert 'Traceback' not in result.stderr
     assert json.loads((tmp_path/'final_score.json').read_text())['LEVEL_8_CANDIDATE'] is False
