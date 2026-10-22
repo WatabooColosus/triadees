@@ -101,9 +101,11 @@ def copy_production_db(target_dir: Path) -> tuple[Path, Path, str]:
             )
         provenance = "ci_empty_schema_only"
     # No se abre en modo escritura el origen; SQLite backup es coherente con WAL.
-    with sqlite3.connect(f"file:{source_path}?mode=ro", uri=True) as source:
-        with sqlite3.connect(target) as destination:
-            source.backup(destination)
+    with (
+        sqlite3.connect(f"file:{source_path}?mode=ro", uri=True) as source,
+        sqlite3.connect(target) as destination,
+    ):
+        source.backup(destination)
     return target, source_path, provenance
 
 
