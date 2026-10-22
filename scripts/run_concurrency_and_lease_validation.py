@@ -31,6 +31,7 @@ Uso:
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import sys
 import threading
@@ -81,20 +82,29 @@ class Report:
         return all(item["passed"] for item in self.checks)
 
 
-def copy_production_db(target_dir: Path) -> Path:
-    """Copia consistente incluyendo los sidecars de WAL."""
+def copy_production_db(target_dir: Path) -> tuple[Path, Path, str]:
+    """Copia SQLite consistente desde producción o un esquema vacío explícito.
+
+    En GitHub Actions no existe la base privada del usuario. Allí comprobamos
+    el contrato con un esquema real sin fabricar datos de producción.
+    """
     target = target_dir / "triade.db"
-    if not PRODUCTION_DB.exists():
-        raise SystemExit(f"no existe la base de produccion: {PRODUCTION_DB}")
-    # `backup()` toma una copia consistente aunque haya escritores activos; copiar
-    # el fichero a pelo con WAL abierto puede dar una base truncada.
-    source = sqlite3.connect(f"file:{PRODUCTION_DB}?mode=ro", uri=True)
-    destination = sqlite3.connect(target)
-    with destination:
-        source.backup(destination)
-    source.close()
-    destination.close()
-    return target
+    source_path = PRODUCTION_DB
+    provenance = "production_snapshot"
+    if not source_path.exists():
+        if os.environ.get("GITHUB_ACTIONS") != "true":
+            raise SystemExit(f"no existe la base de produccion: {source_path}")
+        source_path = target_dir / "ci_empty_source.db"
+        with sqlite3.connect(source_path) as empty:
+            empty.executescript(
+                (REPO / "triade/memory/schemas.sql").read_text(encoding="utf-8")
+            )
+        provenance = "ci_empty_schema_only"
+    # No se abre en modo escritura el origen; SQLite backup es coherente con WAL.
+    with sqlite3.connect(f"file:{source_path}?mode=ro", uri=True) as source:
+        with sqlite3.connect(target) as destination:
+            source.backup(destination)
+    return target, source_path, provenance
 
 
 # ── 1. concurrencia ─────────────────────────────────────────────────────
@@ -309,14 +319,14 @@ def validate_sqlite(report: Report, db_path: Path) -> None:
 # ── 4. automejora con datos reales ──────────────────────────────────────
 
 
-def validate_self_improvement(report: Report, db_path: Path) -> None:
+def validate_self_improvement(report: Report, db_path: Path, source_db: Path) -> None:
     print("\n== Ciclo de automejora sobre datos reales ==")
     conn = sqlite3.connect(db_path)
     reports = int(
         conn.execute("SELECT COUNT(*) FROM verification_reports").fetchone()[0]
     )
     conn.close()
-    source = sqlite3.connect(f"file:{PRODUCTION_DB}?mode=ro", uri=True)
+    source = sqlite3.connect(f"file:{source_db}?mode=ro", uri=True)
     origin = int(
         source.execute("SELECT COUNT(*) FROM verification_reports").fetchone()[0]
     )
@@ -381,19 +391,21 @@ def main() -> int:
     workdir = REPO / "runs" / f"concurrency-lease-validation-{stamp}"
     workdir.mkdir(parents=True, exist_ok=True)
     print(f"Directorio de trabajo: {workdir}")
-    db_path = copy_production_db(workdir)
+    db_path, source_db, provenance = copy_production_db(workdir)
     print(f"Copia de la base: {db_path} ({db_path.stat().st_size // 1024} KB)")
+    print(f"Procedencia: {provenance}")
     print("PRODUCCION NO SE TOCA.")
 
     report = Report()
     validate_concurrency(report)
     validate_leases(report, db_path)
     validate_sqlite(report, db_path)
-    validate_self_improvement(report, db_path)
+    validate_self_improvement(report, db_path, source_db)
 
     summary = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "database_copy": str(db_path),
+        "source_provenance": provenance,
         "production_untouched": True,
         "checks": report.checks,
         "passed": sum(1 for c in report.checks if c["passed"] and not c["skipped"]),
