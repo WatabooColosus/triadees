@@ -1,0 +1,59 @@
+name: Triade 5.8.0 remediation proposal
+
+# Read-only, branch-scoped proposal. Produces a patch artifact but NEVER commits.
+on:
+  push:
+    branches:
+      - fix/triade-580-audit-safe-20261022
+    paths:
+      - .github/workflows/triade-580-remediation-proposal.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proposal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Read candidate revision
+        uses: actions/checkout@v4
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Ruff
+        run: python -m pip install ruff
+      - name: Apply SAFE auto-fix suggestions in disposable runner only
+        run: |
+          mkdir -p artifacts/triade580
+          ruff check --fix . > artifacts/triade580/ruff-autofix.txt 2>&1 || true
+          ruff check . --output-format=json > artifacts/triade580/ruff-remaining.json || true
+      - name: Prepare frontend fixes in disposable runner only
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Attempt nonbreaking npm vulnerability repairs
+        run: |
+          cd frontend
+          npm ci --no-fund
+          npm audit fix --no-fund > ../artifacts/triade580/npm-audit-fix.txt 2>&1 || true
+          npm audit --json > ../artifacts/triade580/npm-audit-after.json || true
+          npm run build > ../artifacts/triade580/frontend-build.txt 2>&1
+      - name: Record suggested changes without publishing
+        if: always()
+        run: |
+          git diff --binary > artifacts/triade580/proposed.patch
+          git status --short > artifacts/triade580/proposed-files.txt
+          git diff --stat > artifacts/triade580/proposed-stat.txt
+          git rev-parse HEAD > artifacts/triade580/base-commit.txt
+          git diff --check
+      - name: Attach reviewable proposal
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: triade-580-remediation-proposal-${{ github.sha }}
+          path: artifacts/triade580/
+          retention-days: 7
+          if-no-files-found: error
