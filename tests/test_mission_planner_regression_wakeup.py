@@ -64,3 +64,24 @@ def test_empty_database_without_regressions_remains_idle(tmp_path: Path) -> None
     db = tmp_path / "triade.db"
     WorkerStateStore(db)
     assert MissionPlanner(db)._plan_unharvested_regressions() == []
+
+
+
+def test_malformed_findings_do_not_crash_or_trigger_harvest(tmp_path: Path) -> None:
+    db = tmp_path / "triade.db"
+    WorkerStateStore(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            """CREATE TABLE regression_reports (
+                report_id TEXT, candidate_id TEXT, capability TEXT,
+                decision TEXT, findings_json TEXT
+            )"""
+        )
+        conn.executemany(
+            "INSERT INTO regression_reports VALUES (?,?,?,?,?)",
+            [
+                ("malformed", "c1", "triade_vitality", "fail", "{broken"),
+                ("scalar", "c2", "triade_vitality", "fail", '["not-an-object"]'),
+            ],
+        )
+    assert MissionPlanner(db)._plan_unharvested_regressions() == []
