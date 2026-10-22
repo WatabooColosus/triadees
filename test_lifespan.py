@@ -41,8 +41,7 @@ async def test_lifespan():
     LIFE_PULSE.start()
     print('LIFE_PULSE started')
     
-    import time
-    time.sleep(2)
+    await asyncio.sleep(2)
     
     snap = LIFE_PULSE.snapshot()
     print('Snapshot continuous_runner:', snap.get('continuous_runner'))
