@@ -6,8 +6,12 @@ on:
       - fix/triade-580-audit-safe-20261022
     paths:
       - triade/workers/worker_loop.py
+      - triade/self_improvement/failure_learning.py
+      - triade/self_improvement/measured_proposals.py
       - tools/check_triade_updates.py
       - tests/test_worker_no_ollama_learning.py
+      - tests/test_measured_improvement_proposals.py
+      - tests/test_failure_learning.py
       - tests/test_check_triade_updates_release_gate.py
       - .github/workflows/triade-580-focused-learning.yml
   workflow_dispatch:
@@ -41,6 +45,8 @@ jobs:
         run: |
           pytest -q \
             tests/test_worker_no_ollama_learning.py \
+            tests/test_measured_improvement_proposals.py \
+            tests/test_failure_learning.py \
             tests/test_check_triade_updates_release_gate.py \
             tests/test_central_learning_authority.py \
             tests/test_scheduler_mission_planner.py
