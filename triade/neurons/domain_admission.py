@@ -55,7 +55,7 @@ def _reusable(result: dict[str, Any], *, domain: str, correlation_id: str,
               required_capability: str) -> bool:
     try:
         require_complete_specification(result.get("creator_spec") or {})
-        created = datetime.fromisoformat(result["created_at"].replace("Z", "+00:00"))
+        created = datetime.fromisoformat(result["created_at"])
         age = datetime.now(UTC) - created
     except (ValueError, TypeError, KeyError, AttributeError):
         return False
