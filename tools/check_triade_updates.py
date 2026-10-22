@@ -38,7 +38,7 @@ def decision(
     manifest: dict[str, Any],
     *,
     head: str | None,
-    remote_tip: str | None = None,
+    release_tree_verified: bool = False,
     remote_is_ancestor: bool | None = None,
     local_is_ancestor: bool | None = None,
 ) -> dict[str, Any]:
@@ -57,14 +57,14 @@ def decision(
             "relation": "candidate_not_released",
             "update_available": False,
         }
-    if head == commit:
-        return {"status": "ok", "relation": "same", "update_available": False}
-    if remote_tip != commit:
+    if not release_tree_verified:
         return {
             "status": "manifest_mismatch",
-            "relation": "remote_branch_does_not_match_release",
+            "relation": "release_commit_not_verified_on_branch",
             "update_available": False,
         }
+    if head == commit:
+        return {"status": "ok", "relation": "same", "update_available": False}
     if remote_is_ancestor is True:
         return {
             "status": "ok",
@@ -92,29 +92,37 @@ def main() -> None:
     head = git(root, "rev-parse", "HEAD")
     branch = str(remote.get("branch") or "")
     commit = str(remote.get("commit") or "")
-    tip: str | None = None
+    release_tree_verified = False
     older: bool | None = None
     newer: bool | None = None
     # La comprobación externa sólo se necesita cuando el canal está aprobado.
     # git fetch actualiza objetos Git, jamás el working tree ni la DB de Colab.
     if (
-        head != commit
-        and SHA.fullmatch(commit)
+        SHA.fullmatch(commit)
         and BRANCH.fullmatch(branch)
         and remote.get("channel") == "stable"
         and remote.get("requires_review") is False
     ):
         ls = git(root, "ls-remote", "origin", f"refs/heads/{branch}")
-        if ls:
-            tip = ls.split()[0]
-        if tip == commit and git(root, "fetch", "--no-tags", "origin", branch) is not None:
-            older = git(root, "merge-base", "--is-ancestor", commit, head) is not None
-            newer = git(root, "merge-base", "--is-ancestor", head, commit) is not None
+        tip = ls.split()[0] if ls else None
+        if (
+            tip
+            and git(root, "fetch", "--no-tags", "origin", branch) is not None
+            and git(root, "merge-base", "--is-ancestor", commit, tip) is not None
+        ):
+            # El manifiesto está en la MISMA rama, por eso su commit siempre
+            # va después del commit de código que anuncia. Desde el release
+            # únicamente se permiten cambios del propio manifiesto.
+            changed = git(root, "diff", "--name-only", commit, tip)
+            if changed is not None and set(changed.splitlines()) <= {"releases/manifest.json"}:
+                release_tree_verified = True
+                older = git(root, "merge-base", "--is-ancestor", commit, head) is not None
+                newer = git(root, "merge-base", "--is-ancestor", head, commit) is not None
     result = {
         **decision(
             remote,
             head=head,
-            remote_tip=tip,
+            release_tree_verified=release_tree_verified,
             remote_is_ancestor=older,
             local_is_ancestor=newer,
         ),
