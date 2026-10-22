@@ -12,6 +12,12 @@ on:
       - .github/workflows/triade-580-focused-learning.yml
   workflow_dispatch:
 
+concurrency:
+  # Only the newest run for this workflow, event type and ref is useful.
+  # Separate push and PR contexts, and preserve all validation steps.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
