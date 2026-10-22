@@ -72,7 +72,7 @@ def load_evidence(path: Path, sha: str) -> tuple[dict, dict]:
     accepted = isinstance(body, dict) and body.get("git_sha") == sha and bool(body.get("timestamp"))
     if not accepted and isinstance(body,dict) and body.get('timestamp') and re.fullmatch('[0-9a-f]{40}',str(body.get('git_sha',''))) and re.fullmatch('[0-9a-f]{40}',sha):
         old=body['git_sha']
-        ancestor=subprocess.run(['git','merge-base','--is-ancestor',old,sha],cwd=ROOT,capture_output=True).returncode==0
+        ancestor=subprocess.run(['git','merge-base','--is-ancestor',old,sha],cwd=ROOT,capture_output=True,check=False).returncode==0
         if ancestor:
             changed=subprocess.check_output(['git','diff','--name-only',old,sha],cwd=ROOT,text=True).splitlines()
             accepted=all(p.startswith('reports/') for p in changed)
@@ -163,7 +163,7 @@ def main() -> int:
                 prior=json.loads((args.report_dir/filename).read_bytes())
                 scope='frontend' if name=='frontend' else '.github/workflows'
                 old=prior.get('git_sha','')
-                ancestor=subprocess.run(['git','merge-base','--is-ancestor',old,sha],cwd=ROOT,capture_output=True).returncode==0
+                ancestor=subprocess.run(['git','merge-base','--is-ancestor',old,sha],cwd=ROOT,capture_output=True,check=False).returncode==0
                 unchanged=ancestor and not subprocess.check_output(['git','diff','--name-only',old,sha,'--',scope],cwd=ROOT,text=True).strip()
                 if unchanged:
                     body=prior;ref.update(accepted=True,reason='Source scope unchanged from measured ancestor revision')
