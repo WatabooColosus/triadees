@@ -16,7 +16,7 @@ from tools.upgrade_triade_580 import repair_leases, report
 
 
 def utc_now() -> str:
-    return dt.datetime.now(dt.timezone.utc).isoformat()
+    return dt.datetime.now(dt.UTC).isoformat()
 
 
 def make_db(root: Path, *, fresh_heartbeat: bool = True) -> Path:
