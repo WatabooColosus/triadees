@@ -1,0 +1,40 @@
+name: Triade 5.8.0 learning recovery gate
+
+on:
+  push:
+    branches:
+      - fix/triade-580-audit-safe-20261022
+    paths:
+      - triade/workers/worker_loop.py
+      - tools/check_triade_updates.py
+      - tests/test_worker_no_ollama_learning.py
+      - tests/test_check_triade_updates_release_gate.py
+      - .github/workflows/triade-580-focused-learning.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-learning-without-ollama:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install runtime and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+      - name: Certify deterministic learning, not simulated inference
+        env:
+          TRIADE_DISABLE_BACKGROUND: "1"
+          TRIADE_PUBLIC_GUARDED: "0"
+        run: |
+          pytest -q \
+            tests/test_worker_no_ollama_learning.py \
+            tests/test_check_triade_updates_release_gate.py \
+            tests/test_central_learning_authority.py \
+            tests/test_scheduler_mission_planner.py
