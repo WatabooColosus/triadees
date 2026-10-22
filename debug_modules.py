@@ -3,7 +3,7 @@ from pathlib import Path
 from triade.observability.activation_contracts import ContractVerifier, load_contracts
 from triade.observability.code_graph import build_module_index, reachable_modules
 
-root = Path('.').resolve()
+root = Path.cwd()
 index = build_module_index(root)
 alcanzables = reachable_modules(root, index)
 
