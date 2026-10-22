@@ -624,6 +624,15 @@ class WorkerLoop:
                         }
                         for entry in pool.registry.running_tasks()
                     ]
+                # El resumen final sólo se escribe al detener el daemon.
+                # Publicar contadores acotados evita el falso `iterations=0`
+                # mientras hay trabajo real en la cola.
+                self.store.update_worker_progress(
+                    run_ref,
+                    iterations=summary["iterations"],
+                    tasks_completed=summary["tasks_completed"],
+                    tasks_blocked=summary["tasks_blocked"],
+                )
                 return {"scheduled": len(scheduled), "drained": drained}
 
             dispatch_interval = max(0.001, float(config.sleep_seconds))
