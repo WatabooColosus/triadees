@@ -1062,7 +1062,10 @@ class MissionPlanner:
                     """ AND NOT EXISTS (
                           SELECT 1 FROM improvement_failure_lessons lesson
                           WHERE lesson.report_id=report.report_id
-                            AND lesson.metric_id=json_extract(finding.value,'$.metric_id')
+                            AND lesson.metric_id=(CASE
+                              WHEN json_valid(finding.value)
+                                THEN json_extract(finding.value,'$.metric_id')
+                              ELSE NULL END)
                         )"""
                     if "improvement_failure_lessons" in tables else ""
                 )
@@ -1072,8 +1075,13 @@ class MissionPlanner:
                              THEN report.findings_json ELSE '[]' END) finding
                        WHERE report.decision='fail'
                          AND COALESCE(report.capability,'') != ''
-                         AND json_extract(finding.value,'$.status')='fail'
-                         AND COALESCE(json_extract(finding.value,'$.metric_id'),'') != ''
+                         AND (CASE WHEN json_valid(finding.value)
+                                THEN json_extract(finding.value,'$.status')
+                                ELSE NULL END)='fail'
+                         AND COALESCE(
+                              CASE WHEN json_valid(finding.value)
+                                THEN json_extract(finding.value,'$.metric_id')
+                                ELSE NULL END, '') != ''
                     """
                     + where_unharvested
                     + " LIMIT 1"
