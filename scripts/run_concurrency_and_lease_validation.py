@@ -112,6 +112,26 @@ def copy_production_db(target_dir: Path) -> tuple[Path, Path, str]:
 
 def validate_concurrency(report: Report) -> None:
     print("\n== Concurrencia gobernada ==")
+    from triade.workers.concurrency import RunningTaskRegistry
+
+    # La política por defecto serializa todas las tareas que consumen modelo.
+    # Un test de solapamiento de candidatas independientes DEBE desactivar
+    # explícitamente ese guard de VRAM, sin modificar el runtime de producción.
+    default_registry = RunningTaskRegistry(ConcurrencySettings())
+    first_model = default_registry.try_admit(
+        "model-1", "self_improvement_evaluation", {"candidate_id": "cand-A"}
+    )
+    second_model = default_registry.try_admit(
+        "model-2", "self_improvement_evaluation", {"candidate_id": "cand-B"}
+    )
+    report.check(
+        "politica por defecto serializa inferencias para proteger VRAM",
+        first_model.admitted
+        and not second_model.admitted
+        and second_model.reason == "exclusive_key_held:resource:model",
+        second_model.reason,
+    )
+    default_registry.release("model-1")
     pool = GovernedTaskPool(
         ConcurrencySettings(
             enabled=True,
@@ -119,6 +139,7 @@ def validate_concurrency(report: Report) -> None:
             read_only_workers=4,
             evaluation_workers=2,
             critical_mutation_workers=1,
+            serialize_model_tasks=False,  # Aísla la exclusión por candidata.
         )
     )
     try:
