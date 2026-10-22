@@ -6,10 +6,11 @@ Uso:
   python upgrade_triade_580.py --root /content/Triade --repair-leases
 """
 from __future__ import annotations
-import argparse, datetime as dt, hashlib, json, os, shutil, sqlite3, sys, time
+import argparse, datetime as dt, json, sqlite3
 from pathlib import Path
 
 VERSION="5.8.0"
+# This tool is a diagnostic and optional recovery utility; it does not install code.
 
 def now(): return dt.datetime.now(dt.timezone.utc).isoformat()
 def connect(db):
@@ -37,15 +38,34 @@ def report(root):
     if h:
         out["latest_health"]={"snapshot_id":h[0].get("snapshot_id"),"state":h[0].get("state"),"reason":h[0].get("reason_json"),"created_at":h[0].get("created_at")}
         try: out["latest_health"]["metrics"]=json.loads(h[0].get("metrics_json") or "{}")
-        except Exception: out["latest_health"]["metrics"]={}
+        except (TypeError, ValueError): out["latest_health"]["metrics"]={}
+        try:
+            stamp=dt.datetime.fromisoformat(h[0]["created_at"].replace("Z","+00:00"))
+            if stamp.tzinfo is None: stamp=stamp.replace(tzinfo=dt.timezone.utc)
+            out["latest_health"]["snapshot_age_seconds"]=max(0.0,(dt.datetime.now(dt.timezone.utc)-stamp).total_seconds())
+        except (TypeError, ValueError, KeyError):
+            out["latest_health"]["snapshot_age_seconds"]=None
     w=q(c,"select * from worker_runs order by id desc limit 1")
-    if w: out["latest_worker"]=w[0]
+    if w:
+        out["latest_worker"]=w[0]
+        events=q(c,"""SELECT COALESCE(MAX(id),0) AS last_event_id,
+                             COUNT(*) AS total_events,
+                             COALESCE(SUM(CASE WHEN event_type='task_completed' THEN 1 ELSE 0 END),0) AS completed_events
+                      FROM worker_events WHERE run_ref=?""",(w[0]["run_ref"],))
+        if events and "error" not in events[0]:
+            out["worker_progress"]={"run_ref":w[0]["run_ref"], **events[0]}
     ev=q(c,"select role,provider,model_name,ok,error,quality_score,created_at from model_events order by id desc limit 10")
     out["recent_model_events"]=ev
     # Evidence-based findings
     h0=out.get("latest_health",{}); metrics=h0.get("metrics",{})
     if h0.get("state")=="stalled" or "queue_not_progressing" in str(h0.get("reason")): out["findings"].append("worker_queue_not_progressing")
-    if out.get("latest_worker",{}).get("summary_json")=="{\"iterations\": 0}": out["findings"].append("worker_reports_zero_iterations")
+    # Running workers initialise this summary with 0 and finalise it on exit.
+    # Do not label an active worker stalled solely from an unfinished summary.
+    if out.get("latest_worker",{}).get("summary_json")=='{"iterations": 0}':
+        if out["latest_worker"].get("status")=="running":
+            out["findings"].append("worker_summary_not_final")
+        else:
+            out["findings"].append("worker_reports_zero_iterations")
     if out["task_status"].get("pending",0): out["findings"].append("pending_tasks_exist")
     if out["task_status"].get("dead_letter",0): out["findings"].append("dead_letter_tasks_exist")
     if any(e.get("ok")==0 for e in ev): out["findings"].append("recent_model_event_failed")
@@ -56,17 +76,32 @@ def report(root):
     c.close(); return out
 
 def repair_leases(root):
-    db=root/"triade/memory/triade.db"; stamp=dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    backup=db.with_name(f"triade.db.pre_5_8_0_{stamp}"); shutil.copy2(db,backup)
+    """Explicit offline-only recovery with a consistent SQLite/WAL backup."""
+    db=root/"triade/memory/triade.db"
+    status=report(root)
+    health=status.get("latest_health",{})
+    age=health.get("snapshot_age_seconds")
+    heartbeat=health.get("metrics",{}).get("heartbeat_age_seconds")
+    if (status.get("latest_worker",{}).get("status")=="running"
+            and isinstance(age,(int,float)) and age<90
+            and isinstance(heartbeat,(int,float)) and heartbeat<90):
+        raise RuntimeError("Refusing lease repair while an active worker heartbeat is fresh. Stop the runtime safely first.")
+    stamp=dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ%f")
+    backup=db.with_name(f"triade.db.pre_5_8_0_{stamp}")
+    with sqlite3.connect(db) as source, sqlite3.connect(backup) as target:
+        source.backup(target)
+        if target.execute("PRAGMA integrity_check").fetchone()[0]!="ok":
+            raise RuntimeError("SQLite backup integrity check failed; leases untouched")
     changed=0
-    with sqlite3.connect(db) as c:
-        # Only release running tasks whose lease is explicitly expired; preserve all payloads.
+    with sqlite3.connect(db,timeout=20) as c:
+        c.execute("BEGIN IMMEDIATE")
         nowiso=now()
         rows=c.execute("select task_id from autonomous_tasks where status='running' and lease_expires_at is not null and lease_expires_at < ?",(nowiso,)).fetchall()
         for (tid,) in rows:
-            c.execute("update autonomous_tasks set status='pending',worker_id=null,lease_acquired_at=null,lease_expires_at=null,heartbeat_at=null,updated_at=?,last_error=? where task_id=?",(nowiso,"recovered_by_triade_5.8.0",tid)); changed+=1
+            c.execute("update autonomous_tasks set status='pending',worker_id=null,lease_acquired_at=null,lease_expires_at=null,heartbeat_at=null,updated_at=?,last_error=? where task_id=? AND status='running'",(nowiso,"recovered_by_triade_5.8.0",tid))
+            changed+=c.execute("SELECT changes()").fetchone()[0]
         c.commit()
-    return {"backup":str(backup),"requeued_expired_leases":changed,"timestamp":stamp}
+    return {"backup":str(backup),"backup_integrity":"ok","requeued_expired_leases":changed,"timestamp":stamp}
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument("--root",default="."); ap.add_argument("--repair-leases",action="store_true"); ap.add_argument("--output",default=None); a=ap.parse_args()
