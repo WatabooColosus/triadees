@@ -264,10 +264,9 @@ class TriadeRunner:
             run_id=str(getattr(input_packet, "run_id", "") or "run"),
             candidate_ids=candidate_ids or None,
         )
-        if injection.block:
-            if isinstance(contexto, dict):
-                contexto["verified_knowledge_block"] = injection.block
-                contexto["verified_knowledge_ids"] = injection.injected_ids
+        if injection.block and isinstance(contexto, dict):
+            contexto["verified_knowledge_block"] = injection.block
+            contexto["verified_knowledge_ids"] = injection.injected_ids
         injector.persist(injection)
         return injection
 
