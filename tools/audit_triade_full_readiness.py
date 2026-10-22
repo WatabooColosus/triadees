@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Read-only Tríade Ω evidence audit for an offline Colab/Drive SQLite snapshot.
 
 This does not operate the runtime, mutate tables, promote neurons, or infer
@@ -12,6 +11,7 @@ import datetime as dt
 import hashlib
 import json
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -75,7 +75,7 @@ def audit(database: Path, *, fingerprint: bool = False, now: dt.datetime | None 
         "gaps": [],
         "full_certification": "not_established",
     }
-    with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=10) as conn:
+    with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=10)) as conn:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA query_only=ON")
         integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
