@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Tríade 5.8.0: non-invasive progress acceptance gate.
 
 Do not use the unfinished worker_runs.summary_json while a daemon is running:
