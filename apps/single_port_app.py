@@ -10,6 +10,7 @@ El HTML vive en apps/ui_html.py.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import threading
@@ -289,8 +290,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         print(f"DEBUG: LIFE_PULSE._continuous_thread = {LIFE_PULSE._continuous_thread}", file=sys.stderr, flush=True)
         print(f"DEBUG: LIFE_PULSE.continuous_run_enabled = {LIFE_PULSE.continuous_run_enabled}", file=sys.stderr, flush=True)
         
-        import time
-        time.sleep(2)
+        await asyncio.sleep(2)
         
         snap = LIFE_PULSE.snapshot()
         print(f"DEBUG: After start - continuous_runner: {snap.get('continuous_runner')}", file=sys.stderr, flush=True)
