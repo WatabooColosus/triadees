@@ -62,7 +62,7 @@ def main() -> int:
     processes = []
     for value in (263, 307):
         command = [sys.executable,"-m","scripts.run_admission_learned_persistence","--child-input",str(value)]
-        process = subprocess.run(command,cwd=ROOT,text=True,capture_output=True,timeout=300)
+        process = subprocess.run(command,cwd=ROOT,text=True,capture_output=True,timeout=300,check=False)
         lines = [line for line in process.stdout.splitlines() if line.startswith("PERSISTENCE_RESULT=")]
         processes.append({"command":command,"exit_code":process.returncode,
                           "result":json.loads(lines[-1].split("=",1)[1]) if lines else None,
