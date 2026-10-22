@@ -74,7 +74,7 @@ print('\n=== metabolic_cycle table exists? ===')
 try:
     rows = conn.execute('SELECT COUNT(*) FROM metabolic_cycle').fetchone()[0]
     print(f'Count: {rows}')
-except:
+except sqlite3.Error:
     print('Table does not exist')
 
 conn.close()
