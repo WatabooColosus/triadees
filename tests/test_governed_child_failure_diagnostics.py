@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import ClassVar
 
 from triade.runtime.governed_task_executor import (
     CHILD_EXECUTION_ERRORS,
@@ -43,7 +44,7 @@ class _CustomDomainError(Exception):
 class _Task:
     """Debe vivir a nivel de módulo: `spawn` no puede picklear clases locales."""
 
-    payload = {"target": "artifact.json"}
+    payload: ClassVar[dict[str, str]] = {"target": "artifact.json"}
 
 
 def test_attribute_error_is_captured_and_logged(tmp_path: Path) -> None:
