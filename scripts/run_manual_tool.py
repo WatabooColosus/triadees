@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Lanzador explícito para diagnósticos manuales de Tríade.
 
 No forma parte del worker continuo. Sólo ejecuta herramientas de diagnóstico
