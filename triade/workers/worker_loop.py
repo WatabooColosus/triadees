@@ -241,8 +241,14 @@ class WorkerLoop:
         # que un diagnóstico válido quedara en `blocked` en runners limpios,
         # antes incluso de alcanzar el handler y su whitelist.
         "goal_safe_command",
+        # La planificación de Central es determinista: registra un plan
+        # candidato, pero NO realiza inferencia ni promueve memoria estable.
+        "central_learning_observation",
         "learning_candidate_generation",
         "learning_candidate_deduplication",
+        # Sin una sonda medible se cierra como no_op. Si sí hay sonda,
+        # el handler comprueba Ollama y devuelve deferred sin gastar intentos.
+        "learning_evidence_generation",
         "neural_learning_distribution",
         "neuron_education_cycle",
     }
@@ -1466,7 +1472,8 @@ class WorkerLoop:
         )
 
         if (
-            blood_policy.get("degraded")
+            not config.dry_run
+            and blood_policy.get("degraded")
             and task.task_type not in self.TASKS_WITHOUT_BLOOD
         ):
             result = {
