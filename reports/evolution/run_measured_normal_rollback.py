@@ -31,7 +31,7 @@ def main() -> int:
     if hashlib.sha256(original).hexdigest() != recovery["baseline_sha256"]:
         raise ValueError("baseline_backup_changed")
     db = case.parent / "learning.db"
-    source = json.loads((ROOT / "reports/evolution/admission_productive_use_latest.json").read_text())
+    json.loads((ROOT / "reports/evolution/admission_productive_use_latest.json").read_text())
     candidate_id = ""
     if not candidate_id:
         prior = json.loads((ROOT / "reports/evolution/productive_learning_chain_v3.json").read_text())
