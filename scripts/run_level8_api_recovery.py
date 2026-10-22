@@ -29,7 +29,7 @@ def main():
     deadline=start+120;after=None
     while time.monotonic()<deadline:
         try:
-            status,deep=get('/health/deep');_,hb=get('/api/runtime/heartbeat')
+            status,_deep=get('/health/deep');_,hb=get('/api/runtime/heartbeat')
             newpid=int(hb.get('runtime_pid',0))
             if newpid and newpid!=pid and hb.get('workers_active') is True and psutil.Process(newpid).ppid()==parent.pid:
                 after={'status':status,'pid':newpid};break
