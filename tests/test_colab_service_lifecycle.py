@@ -85,7 +85,11 @@ def test_restart_survives_reloading_manager(tmp_path: Path, monkeypatch) -> None
         fake,
         "net_connections",
         lambda kind: (
-            [SimpleNamespace(pid=4321, status="LISTEN", laddr=SimpleNamespace(port=8010))]
+            [
+                SimpleNamespace(
+                    pid=4321, status="LISTEN", laddr=SimpleNamespace(port=8010)
+                )
+            ]
             if not terminated
             else []
         ),
