@@ -47,12 +47,13 @@ def _fence_legacy_index(namespace: dict[str, Any], index: Path) -> None:
 
     @functools.wraps(old)
     def fenced(path: str | Path, payload: dict[str, Any]) -> Any:
-        if Path(path).resolve() == index.resolve():
-            if not isinstance(payload, dict) or payload.get('guard') != GUARD_VERSION:
-                raise RuntimeError(
-                    'CONTINUIDAD_PROTEGIDA: escritura de índice por escritor '
-                    'anterior bloqueada; los snapshots previos siguen intactos'
-                )
+        if Path(path).resolve() == index.resolve() and (
+            not isinstance(payload, dict) or payload.get('guard') != GUARD_VERSION
+        ):
+            raise RuntimeError(
+                'CONTINUIDAD_PROTEGIDA: escritura de índice por escritor '
+                'anterior bloqueada; los snapshots previos siguen intactos'
+            )
         return old(path, payload)
 
     fenced._triade_index_fenced = True
@@ -78,7 +79,7 @@ def _load_guard() -> Any:
     if not callable(getattr(module, 'install', None)) or not callable(
         getattr(module, 'safe_snapshot', None)
     ):
-        raise RuntimeError('Módulo guardián sin instalación segura')
+        raise TypeError('Módulo guardián sin instalación segura')
     return module
 
 
@@ -99,12 +100,15 @@ def execute() -> dict[str, Any]:
         raise RuntimeError('CONTINUIDAD_PROTEGIDA: índice de otra identidad')
     for table, old_value in (old_index.get('counts') or {}).items():
         now_value = db.get('counts', {}).get(table)
-        if isinstance(old_value, int) and isinstance(now_value, int):
-            if now_value < old_value:
-                raise RuntimeError(
-                    f'CONTINUIDAD_PROTEGIDA: Bodega actual regresó en {table}; '
-                    'no se cambia nada'
-                )
+        if (
+            isinstance(old_value, int)
+            and isinstance(now_value, int)
+            and now_value < old_value
+        ):
+            raise RuntimeError(
+                f'CONTINUIDAD_PROTEGIDA: Bodega actual regresó en {table}; '
+                'no se cambia nada'
+            )
 
     old_threads = _savers()
     namespaces: list[dict[str, Any]] = []
