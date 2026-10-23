@@ -187,7 +187,7 @@ def decide_work_mode(
         allowed_mode = "light_background"
         reasons.append(f"Hardware tier {tier}. Máximo light_background.")
     # --- Balanced por hardware medium ---
-    elif tier == "medium":
+    elif tier == "medium" and not slow_full_eligible:
         allowed_mode = "balanced_background"
         reasons.append(
             f"Hardware tier {tier} con AC y Ollama OK. Máximo balanced_background."
