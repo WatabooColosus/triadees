@@ -236,7 +236,9 @@ class ServiceHealth:
                 ):
                     if table in tables:
                         learning_counts[label] = int(
-                            conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+                            conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[
+                                0
+                            ]
                         )
                 if "autonomous_tasks" in tables:
                     learning_counts["education_tasks_completed"] = int(
@@ -256,9 +258,9 @@ class ServiceHealth:
         # Only explicitly continuity-critical deployments require encryption.
         # Report this independently of worker scheduling, even after log
         # deduplication. A configured but invalid or exposed key is also unsafe.
-        require_backup = os.getenv("TRIADE_REQUIRE_ENCRYPTED_BACKUP", "0").strip().lower() in {
-            "1", "true", "yes", "on"
-        }
+        require_backup = os.getenv(
+            "TRIADE_REQUIRE_ENCRYPTED_BACKUP", "0"
+        ).strip().lower() in {"1", "true", "yes", "on"}
         if require_backup or metrics.get("backup_key_fault_observed"):
             try:
                 from triade.memory.encrypted_backup import EncryptedBackup
