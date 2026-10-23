@@ -61,19 +61,21 @@ def _image_from_live_sqlite(db: Path, image: Path) -> None:
     """
     if image.exists() or image.with_name(image.name + "-wal").exists():
         raise FileExistsError("CONTINUIDAD_PROTEGIDA: destino temporal reutilizado")
-    with contextlib.closing(sqlite3.connect(
-        "file:" + str(db.resolve()) + "?mode=ro", uri=True, timeout=30
-    )) as source:
-        with contextlib.closing(sqlite3.connect(image, timeout=30)) as copy:
-            source.backup(copy, pages=256, sleep=0.1)
-            checkpoint = copy.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
-            if checkpoint is not None and checkpoint[0] != 0:
-                raise RuntimeError("CONTINUIDAD_PROTEGIDA: checkpoint de copia ocupado")
-            mode = copy.execute("PRAGMA journal_mode=DELETE").fetchone()[0]
-            if str(mode).lower() != "delete":
-                raise RuntimeError("CONTINUIDAD_PROTEGIDA: journal_mode no consolidado")
-            if copy.execute("PRAGMA quick_check").fetchone()[0] != "ok":
-                raise RuntimeError("CONTINUIDAD_PROTEGIDA: integridad de imagen")
+    with (
+        contextlib.closing(
+            sqlite3.connect("file:" + str(db.resolve()) + "?mode=ro", uri=True, timeout=30)
+        ) as source,
+        contextlib.closing(sqlite3.connect(image, timeout=30)) as copy,
+    ):
+        source.backup(copy, pages=256, sleep=0.1)
+        checkpoint = copy.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        if checkpoint is not None and checkpoint[0] != 0:
+            raise RuntimeError("CONTINUIDAD_PROTEGIDA: checkpoint de copia ocupado")
+        mode = copy.execute("PRAGMA journal_mode=DELETE").fetchone()[0]
+        if str(mode).lower() != "delete":
+            raise RuntimeError("CONTINUIDAD_PROTEGIDA: journal_mode no consolidado")
+        if copy.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+            raise RuntimeError("CONTINUIDAD_PROTEGIDA: integridad de imagen")
     if image.with_name(image.name + "-wal").exists():
         raise RuntimeError("CONTINUIDAD_PROTEGIDA: WAL no cerrado en copia")
 
@@ -83,7 +85,7 @@ def _archive_old_index(index: Path, store: Path) -> None:
         return
     archive_dir = store / "index_history_guarded"
     archive_dir.mkdir(parents=True, exist_ok=True)
-    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%S%fZ")
     dest = archive_dir / ("active-before-" + stamp + ".json")
     fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
@@ -93,7 +95,7 @@ def _archive_old_index(index: Path, store: Path) -> None:
             f.flush()
             os.fsync(f.fileno())
         if dest.read_bytes() != content:
-            raise IOError("El índice histórico no se archivó correctamente")
+            raise OSError("El índice histórico no se archivó correctamente")
     except BaseException:
         dest.unlink(missing_ok=True)
         raise
@@ -134,7 +136,7 @@ def safe_snapshot(coordinator: Any, *, force: bool = False) -> dict[str, Any]:
             raise OSError("Espacio insuficiente en Drive; no se publica el índice")
         name = (
             "memoria-guardada-"
-            + dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+            + dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%S%fZ")
             + ".sqlite3"
         )
         dest = coordinator.STORE / name
@@ -144,15 +146,15 @@ def safe_snapshot(coordinator: Any, *, force: bool = False) -> dict[str, Any]:
         try:
             shutil.copyfile(image, staging)
             if coordinator.digest(staging) != checksum:
-                raise IOError("SHA256 de copia remota no coincide")
+                raise OSError("SHA256 de copia remota no coincide")
             uploaded = coordinator.inspect_db(staging)
             _assert_matching_image(saved, uploaded, "imagen-en-Drive")
             os.replace(staging, dest)
             if coordinator.digest(dest) != checksum:
-                raise IOError("Imagen final en Drive no coincide")
+                raise OSError("Imagen final en Drive no coincide")
             uploaded = coordinator.inspect_db(dest)
             _assert_matching_image(saved, uploaded, "archivo-final")
-            moment = dt.datetime.now(dt.timezone.utc).isoformat()
+            moment = dt.datetime.now(dt.UTC).isoformat()
             metadata = {
                 "sha256": checksum, "size": dest.stat().st_size,
                 "created_at": moment, "kind": "sqlite_wal_closed_verified",
