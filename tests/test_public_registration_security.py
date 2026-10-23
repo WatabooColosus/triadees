@@ -85,6 +85,7 @@ def test_smtp_failure_removes_only_new_account(
 
     def failure(email: str, token: str) -> None:
         raise EmailDeliveryUnavailable("smtp_delivery_unavailable")
+
     monkeypatch.setattr(
         "triade.security.email_delivery.send_verification_email", failure
     )
