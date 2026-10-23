@@ -116,9 +116,16 @@ def propose_from_measured_failures(
         ):
             skip("signal_has_no_verified_regression_origin")
             continue
+        # JSON booleans are Python ints: float(True) == 1.0 is not evidence.
+        raw_confidence = payload.get("confidence")
+        if isinstance(raw_confidence, bool) or not isinstance(
+            raw_confidence, (int, float, str)
+        ):
+            skip("signal_has_no_measurable_confidence")
+            continue
         try:
-            confidence = float(payload.get("confidence"))
-        except (TypeError, ValueError):
+            confidence = float(raw_confidence)
+        except ValueError:
             skip("signal_has_no_measurable_confidence")
             continue
         if not math.isfinite(confidence) or confidence < min_confidence():

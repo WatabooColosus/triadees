@@ -157,3 +157,30 @@ def test_signal_without_regression_evidence_never_makes_proposal(tmp_path: Path)
     assert result["proposals_created"] == 0
     assert result["skipped"][0]["reason"] == "signal_has_no_verified_regression_origin"
     assert proposals(db) == []
+
+
+def test_boolean_or_structured_confidence_cannot_authorize_proposal(tmp_path: Path):
+    db = tmp_path / "invalid_confidence.db"
+    learner = FailureLearningLoop(db)
+    for index in range(1, 6):
+        record_real_shaped_regression(db, f"r{index}")
+    assert learner.harvest(limit=20)["proposal_readiness"]["proposals_created"] == 0
+    register_spec(db)
+
+    with sqlite3.connect(db) as conn:
+        row = conn.execute(
+            "SELECT signal_id, payload_json FROM improvement_signals WHERE status='open'"
+        ).fetchone()
+        assert row is not None
+        signal_id, payload_json = row
+        payload = json.loads(payload_json)
+        for invalid_confidence in (True, False, None, {}, []):
+            payload["confidence"] = invalid_confidence
+            conn.execute(
+                "UPDATE improvement_signals SET payload_json=? WHERE signal_id=?",
+                (json.dumps(payload), signal_id),
+            )
+            outcome = propose_from_measured_failures(db)
+            assert outcome["proposals_created"] == 0
+            assert outcome["skipped"][0]["reason"] == "signal_has_no_measurable_confidence"
+            assert proposals(db) == []
