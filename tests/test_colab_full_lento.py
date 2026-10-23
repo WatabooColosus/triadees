@@ -7,8 +7,17 @@ externo debe limitar concurrencia e intervalos de trabajo.
 from triade.core.resource_governor import decide_work_mode
 
 
-def probe(*, load=4.75, free_ram=10.63, free_disk=181.0, vram=15.0,
-          temperature="ok", battery=None, ac=True, cpu_count=2):
+def probe(
+    *,
+    load=4.75,
+    free_ram=10.63,
+    free_disk=181.0,
+    vram=15.0,
+    temperature="ok",
+    battery=None,
+    ac=True,
+    cpu_count=2,
+):
     return {
         "limits": {
             "ram_available_gb": free_ram,
@@ -66,9 +75,7 @@ def test_slow_full_never_overrides_critical_thermal(monkeypatch):
 
 def test_slow_full_never_overrides_high_thermal(monkeypatch):
     monkeypatch.setenv("TRIADE_SLOW_FULL_LOCAL", "1")
-    decision = decide_work_mode(
-        probe(temperature="high"), BLOOD, "full_local_guarded"
-    )
+    decision = decide_work_mode(probe(temperature="high"), BLOOD, "full_local_guarded")
     assert decision["effective_mode"] == "observe_only"
 
 
@@ -90,7 +97,11 @@ def test_slow_full_respects_critical_ram_and_disk(monkeypatch):
 
 def test_slow_full_needs_ollama_reasoner(monkeypatch):
     monkeypatch.setenv("TRIADE_SLOW_FULL_LOCAL", "1")
-    not_ready = {"status": "degraded_no_ollama", "can_reason": False, "can_embed": False}
+    not_ready = {
+        "status": "degraded_no_ollama",
+        "can_reason": False,
+        "can_embed": False,
+    }
     decision = decide_work_mode(probe(load=1.0), not_ready, "full_local_guarded")
     assert decision["can_nourish_neurons"] is False
     assert decision["can_consolidate_stable"] is False
