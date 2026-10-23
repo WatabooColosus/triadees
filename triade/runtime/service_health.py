@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -183,19 +184,93 @@ class ServiceHealth:
                         ):
                             reasons.append("worker_cycle_stalled")
                 if "worker_events" in tables:
-                    repeated = conn.execute(
-                        "SELECT COUNT(*) FROM worker_events "
-                        "WHERE status IN ('error','failed') "
-                        "AND julianday(created_at)>=julianday('now','-15 minutes')"
-                    ).fetchone()[0]
-                    metrics["recent_repeated_errors"] = int(repeated)
+                    event_columns = {
+                        str(row[1])
+                        for row in conn.execute("PRAGMA table_info(worker_events)")
+                    }
+                    if "task_type" in event_columns:
+                        recent = conn.execute(
+                            """SELECT
+                              COUNT(*) AS total,
+                              COALESCE(SUM(CASE WHEN task_type IN
+                                ('mission_planner.backup_key_missing',
+                                 'mission_planner.backup_key_degraded')
+                              THEN 1 ELSE 0 END), 0) AS backup_faults
+                            FROM worker_events
+                            WHERE status IN ('error','failed')
+                              AND julianday(created_at)>=julianday('now','-15 minutes')"""
+                        ).fetchone()
+                        backup_faults = int(recent["backup_faults"])
+                        repeated = int(recent["total"]) - backup_faults
+                        metrics["recent_backup_key_errors"] = backup_faults
+                    else:
+                        repeated = int(
+                            conn.execute(
+                                "SELECT COUNT(*) FROM worker_events "
+                                "WHERE status IN ('error','failed') "
+                                "AND julianday(created_at)>=julianday('now','-15 minutes')"
+                            ).fetchone()[0]
+                        )
+                    # A missing backup key is a capability fault. Do not
+                    # misclassify repeated planner warnings as worker crashes.
+                    metrics["recent_repeated_errors"] = repeated
                     if repeated >= 5:
                         reasons.append("repeated_worker_errors")
+                # Expose learning OUTCOMES separately from scheduler completions.
+                # A completed education task is not evidence of applied learning.
+                learning_counts: dict[str, int] = {}
+                for table, label in (
+                    ("neuron_education_applications", "education_applications"),
+                    ("neuron_education_sessions", "education_sessions"),
+                    ("trainable_adapters", "trainable_adapters"),
+                    ("metabolic_cycle", "metabolic_cycles"),
+                ):
+                    if table in tables:
+                        learning_counts[label] = int(
+                            conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+                        )
+                if "autonomous_tasks" in tables:
+                    learning_counts["education_tasks_completed"] = int(
+                        conn.execute(
+                            "SELECT COUNT(*) FROM autonomous_tasks "
+                            "WHERE task_type='neuron_education_cycle' "
+                            "AND status='completed'"
+                        ).fetchone()[0]
+                    )
+                if learning_counts:
+                    metrics["measured_outcomes"] = learning_counts
         except (sqlite3.Error, OSError) as exc:
             metrics["sqlite_error"] = type(exc).__name__
             reasons.append("sqlite_unavailable_or_locked")
             db_critical = True
 
+        # Only explicitly continuity-critical deployments require encryption.
+        # Report this independently of worker scheduling, even after log
+        # deduplication. A configured but invalid or exposed key is also unsafe.
+        require_backup = os.getenv("TRIADE_REQUIRE_ENCRYPTED_BACKUP", "0").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
+        if require_backup or metrics.get("recent_backup_key_errors", 0):
+            try:
+                from triade.memory.encrypted_backup import EncryptedBackup
+
+                key_status = EncryptedBackup.key_status()
+                metrics["encrypted_backup"] = {
+                    "required": require_backup,
+                    "configured": bool(key_status.get("configured")),
+                    "source": key_status.get("source"),
+                    "usable": False,
+                }
+                if not key_status.get("configured"):
+                    reasons.append("encrypted_backup_key_missing")
+                else:
+                    try:
+                        EncryptedBackup._fernet()
+                        metrics["encrypted_backup"]["usable"] = True
+                    except (OSError, ImportError, ValueError, RuntimeError, TypeError):
+                        reasons.append("encrypted_backup_key_invalid")
+            except (OSError, ImportError, ValueError, RuntimeError, TypeError):
+                reasons.append("encrypted_backup_status_unavailable")
         resources = build_resource_probe()
         metrics["resources"] = resources
         if float(resources.get("disk", {}).get("free_gb") or 0) < self.disk_critical_gb:
