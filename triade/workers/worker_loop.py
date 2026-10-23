@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import shutil
 import threading
@@ -3772,8 +3773,10 @@ class WorkerLoop:
             # prediction from the already measured outcome contaminates Brier
             # and ECE calibration. Only predictions made before execution may
             # be closed with this result by their originating runtime path.
-        except Exception:  # metacognition is auxiliary to the measured result
-            pass
+        except Exception:  # noqa: BLE001 - optional metacognition isolation boundary
+            logging.getLogger(__name__).exception(
+                "Tríade: optional metacognition failed; keeping measured exercise result"
+            )
         # Close the loop in the same worker cycle: the exercise has already
         # written neural activity and a verification report, so the recorder
         # can measure and attach it without waiting for the next scheduler run.
