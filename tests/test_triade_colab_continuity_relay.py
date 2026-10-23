@@ -3,17 +3,33 @@ import json
 import sys
 import threading
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import FunctionType, ModuleType, SimpleNamespace
 
 import pytest
 
 from scripts import triade_colab_continuity_relay as handover
 
 
+def _legacy_atomic_json(path, data):
+    return data
+
+
+def _legacy_snapshot_once():
+    return atomic_json('/tmp/triade-legacy', {'counts': {'autonomous_tasks': 0}})
+
+
+def _legacy_saver_worker():
+    while not STOP.wait(50):
+        snapshot_once()
+
+
 def _legacy_thread():
     old = {'threading': threading, 'STOP': threading.Event()}
-    # Constant fixture models stale Colab globals; never uses user input.
-    exec('''\ndef snapshot_once():\n    return atomic_json('/tmp/triade-legacy', {'counts': {'autonomous_tasks': 0}})\ndef atomic_json(path, data):\n    return data\ndef worker():\n    while not STOP.wait(50):\n        snapshot_once()\n''', old)  # noqa: S102
+    # Give real functions independent global namespaces without executing
+    # dynamically supplied source strings. This simulates a stale notebook.
+    old['atomic_json'] = FunctionType(_legacy_atomic_json.__code__, old)
+    old['snapshot_once'] = FunctionType(_legacy_snapshot_once.__code__, old)
+    old['worker'] = FunctionType(_legacy_saver_worker.__code__, old)
     t = threading.Thread(target=old['worker'], name=handover.SAVER_NAME, daemon=True)
     t.start()
     return t, old
