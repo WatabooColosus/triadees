@@ -1,4 +1,5 @@
 """Regression: only one owner lineage, one immutable encrypted backup key."""
+
 from __future__ import annotations
 
 import hashlib
@@ -44,12 +45,15 @@ def test_identity_key_unique_reusable_and_never_plaintext_in_drive(
 
 def test_wrong_password_cannot_rekey(tmp_path: Path) -> None:
     db, index, drive, local = _scope(tmp_path)
-    previous = unlock_or_create(db, index, drive, local, "long unique secret recovery words")
+    previous = unlock_or_create(
+        db, index, drive, local, "long unique secret recovery words"
+    )
     with pytest.raises(RuntimeError, match="incorrecta"):
         unlock_or_create(db, index, drive, local, "another private recovery phrase")
-    assert json.loads(Path(previous["vault_file"]).read_text())["lineage"] == previous[
-        "identity_lineage"
-    ]
+    assert (
+        json.loads(Path(previous["vault_file"]).read_text())["lineage"]
+        == previous["identity_lineage"]
+    )
 
 
 def test_mismatched_live_bodega_blocks_identity_key(tmp_path: Path) -> None:
