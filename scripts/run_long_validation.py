@@ -20,7 +20,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import psutil
 import sqlite3
 import subprocess
 import time
@@ -29,6 +28,8 @@ import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+import psutil
 
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "triade/memory/triade.db"
