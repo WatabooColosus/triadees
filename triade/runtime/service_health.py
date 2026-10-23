@@ -251,12 +251,19 @@ class ServiceHealth:
                         ).fetchone()[0]
                     )
                 if "neuron_education_sessions" in tables:
-                    learning_counts["prepared_lessons"] = int(
-                        conn.execute(
-                            "SELECT COUNT(*) FROM neuron_education_sessions "
-                            "WHERE state='lesson_prepared'"
-                        ).fetchone()[0]
-                    )
+                    session_columns = {
+                        str(column[1])
+                        for column in conn.execute(
+                            "PRAGMA table_info(neuron_education_sessions)"
+                        )
+                    }
+                    if "state" in session_columns:
+                        learning_counts["prepared_lessons"] = int(
+                            conn.execute(
+                                "SELECT COUNT(*) FROM neuron_education_sessions "
+                                "WHERE state='lesson_prepared'"
+                            ).fetchone()[0]
+                        )
                 if learning_counts:
                     metrics["measured_outcomes"] = learning_counts
                     # A scheduler completion is not education. With prepared
