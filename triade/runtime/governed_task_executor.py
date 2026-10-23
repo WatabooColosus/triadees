@@ -78,7 +78,8 @@ def _append_stderr(stderr_path: str, text: str) -> None:
     `with`; un traceback de excepción se escribe en el fd 2 real del proceso.
     """
     try:
-        Path(stderr_path).open("a", encoding="utf-8").write(text)
+        with Path(stderr_path).open("a", encoding="utf-8") as logfile:
+            logfile.write(text)
     except OSError:
         pass
 
