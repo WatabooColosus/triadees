@@ -262,3 +262,35 @@ def test_todo_tipo_con_cadencia_declarada_tiene_productor(tmp_path) -> None:
         "tipos con cadencia declarada que MissionPlanner nunca planifica, "
         f"así que sólo podrían llegar por el fallback: {sin_productor}"
     )
+
+
+def test_missing_backup_key_is_reported_once_per_hour_not_each_cycle(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Backup failure remains auditable without false worker-error storms."""
+    from triade.memory.encrypted_backup import EncryptedBackup
+
+    db = make_db(tmp_path)
+    monkeypatch.setattr(
+        EncryptedBackup,
+        "key_status",
+        classmethod(
+            lambda cls: {
+                "configured": False,
+                "source": "none",
+                "path": None,
+                "path_exists": False,
+                "path_readable": False,
+            }
+        ),
+    )
+    planner = MissionPlanner(db_path=db)
+    planner.plan_cycle(run_ref="first")
+    planner.plan_cycle(run_ref="second")
+    with sqlite3.connect(db) as conn:
+        errors = conn.execute(
+            """SELECT COUNT(*) FROM worker_events
+               WHERE task_type='mission_planner.backup_key_missing'
+                 AND event_type='internal_error'"""
+        ).fetchone()[0]
+    assert errors == 1
