@@ -36,9 +36,20 @@ def evaluate(before: dict, after: dict) -> dict:
 
     old_id = numeric(old_progress.get("last_event_id"), 0)
     new_id = numeric(new_progress.get("last_event_id"), 0)
-    worker_event_advanced = (
-        new_id > old_id and bool(new_progress.get("run_ref"))
-        and new_progress.get("run_ref") == worker.get("run_ref")
+    old_run = old_progress.get("run_ref")
+    new_run = new_progress.get("run_ref")
+    old_completed = numeric(old_progress.get("completed_events"), 0)
+    new_completed = numeric(new_progress.get("completed_events"), 0)
+    # A heartbeat, telemetry entry, or mere task transition is not completion.
+    # Handle both an uninterrupted run and a genuine worker restart.
+    completed_event_advanced = (
+        bool(new_run) and new_run == worker.get("run_ref")
+        and new_id > old_id
+        and (
+            (new_completed > old_completed)
+            if new_run == old_run
+            else (new_completed > 0)
+        )
     )
     old_transition = (before.get("latest_health") or {}).get("metrics", {}).get("last_task_transition_at")
     new_transition = metrics.get("last_task_transition_at")
@@ -53,14 +64,16 @@ def evaluate(before: dict, after: dict) -> dict:
         "heartbeat_fresh": numeric(metrics.get("heartbeat_age_seconds")) < 45,
         "worker_running": worker.get("status") == "running",
         "health_not_stalled": health.get("state") not in (None, "stalled", "unhealthy"),
-        "real_progress": worker_event_advanced or transition_advanced or completed_advanced,
+        "real_progress": completed_event_advanced or completed_advanced,
     }
     return {
         "version": "5.8.0",
         "checks": checks,
         "pass": all(checks.values()),
         "observed_progress": {
-            "worker_event_advanced": worker_event_advanced,
+            "completed_worker_event_advanced": completed_event_advanced,
+            "old_completed_worker_events": old_completed,
+            "new_completed_worker_events": new_completed,
             "transition_advanced": transition_advanced,
             "completed_advanced": completed_advanced,
             "previous_worker_event_id": old_id,
