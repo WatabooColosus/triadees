@@ -5,6 +5,9 @@ import os
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from triade.db import sqlite3
+from triade.security.email_delivery import registration_delivery_status
+
 from triade.security.distributed_auth import DistributedAuthUnavailable
 from triade.security.public_auth import PublicAuthStore
 
@@ -48,14 +51,29 @@ def login(payload: LoginRequest) -> dict[str, object]:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
 
 
+@router.get("/registration-status")
+def registration_status() -> dict[str, object]:
+    status = registration_delivery_status()
+    return {
+        "available": status["available"],
+        "verification": "email",
+        "reason": status["reason"],
+    }
+
+
 @router.post("/register")
-def register(payload: RegisterRequest) -> dict[str, object]:
+def register(payload: RegisterRequest, request: Request) -> dict[str, object]:
     try:
-        return store().register_email(payload.email, payload.password)
+        peer = request.client.host if request.client else "unknown"
+        return store().register_email(payload.email, payload.password, client_host=peer)
+    except PermissionError as exc:
+        raise HTTPException(status_code=429, detail="registration_rate_limited") from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(status_code=400, detail="registration_unavailable") from exc
 
 
 @router.post("/verify-email")
