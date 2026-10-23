@@ -49,6 +49,13 @@ def test_colab_slow_full_with_measured_cpu_pressure(monkeypatch):
     assert "FULL lento" in decision["reason"]
 
 
+def test_colab_slow_full_remains_full_after_cpu_pressure_recovers(monkeypatch):
+    monkeypatch.setenv("TRIADE_SLOW_FULL_LOCAL", "1")
+    decision = decide_work_mode(probe(load=1.0), BLOOD, "full_local_guarded")
+    assert decision["effective_mode"] == "full_local_guarded"
+    assert decision["can_nourish_neurons"] is True
+
+
 def test_high_load_without_opt_in_still_cools_down(monkeypatch):
     monkeypatch.delenv("TRIADE_SLOW_FULL_LOCAL", raising=False)
     decision = decide_work_mode(probe(), BLOOD, "full_local_guarded")
