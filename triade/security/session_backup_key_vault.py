@@ -4,6 +4,7 @@ Vault contains only a password-wrapped Fernet key. Plaintext key exists in
 private Colab runtime memory/file; never commit/export/print it. Lost old keys
 cannot be recovered and existing backups must remain untouched.
 """
+
 from __future__ import annotations
 
 import base64
@@ -29,14 +30,18 @@ def _lineage(db_path: Path) -> str:
             raise RuntimeError("SQLite no supera la prueba de integridad")
         owners = [str(row[0]) for row in db.execute("SELECT user_id FROM auth_users")]
     if len(owners) != 1:
-        raise RuntimeError("Se necesita una sola cuenta propietaria; identidades múltiples bloqueadas")
+        raise RuntimeError(
+            "Se necesita una sola cuenta propietaria; identidades múltiples bloqueadas"
+        )
     return hashlib.sha256("\n".join(sorted(owners)).encode()).hexdigest()[:16]
 
 
 def _wrap_key(passphrase: str, salt: bytes) -> bytes:
     if not passphrase or len(passphrase) < 14:
         raise ValueError("La frase de recuperación debe tener al menos 14 caracteres")
-    key = Scrypt(salt=salt, length=32, n=2**15, r=8, p=1).derive(passphrase.encode("utf-8"))
+    key = Scrypt(salt=salt, length=32, n=2**15, r=8, p=1).derive(
+        passphrase.encode("utf-8")
+    )
     return base64.urlsafe_b64encode(key)
 
 
@@ -51,7 +56,9 @@ def _private_local_file(path: Path, secret: bytes) -> None:
         raise RuntimeError("No se admite enlace simbólico para la clave")
     if path.exists():
         if not hmac.compare_digest(path.read_bytes(), secret):
-            raise RuntimeError("Existe otra clave local para esta identidad; no se reemplaza")
+            raise RuntimeError(
+                "Existe otra clave local para esta identidad; no se reemplaza"
+            )
         path.chmod(0o600)
         return
     fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -81,11 +88,15 @@ def unlock_or_create(
     db_path = Path(db_path)
     continuity_index = Path(continuity_index)
     if not continuity_index.is_file():
-        raise RuntimeError("Falta active.json de continuidad; sin selección segura de identidad")
+        raise RuntimeError(
+            "Falta active.json de continuidad; sin selección segura de identidad"
+        )
     active = json.loads(continuity_index.read_text(encoding="utf-8"))
     lineage = _lineage(db_path)
     if lineage != active.get("lineage"):
-        raise RuntimeError("La identidad de la SQLite no coincide con la sesión única del Drive")
+        raise RuntimeError(
+            "La identidad de la SQLite no coincide con la sesión única del Drive"
+        )
     vault_dir = Path(drive_vault_dir)
     if not vault_dir.parent.is_dir():
         raise RuntimeError("No se encuentra la continuidad montada en Drive")
@@ -120,7 +131,9 @@ def unlock_or_create(
     else:
         document = json.loads(vault_path.read_text(encoding="utf-8"))
         if document.get("lineage") != lineage or document.get("version") != VERSION:
-            raise RuntimeError("Identidad o versión del vault no coincide; no se rota ni modifica")
+            raise RuntimeError(
+                "Identidad o versión del vault no coincide; no se rota ni modifica"
+            )
         if document.get("kdf") != "scrypt-n32768-r8-p1":
             raise RuntimeError("KDF de vault inesperado: revisión manual requerida")
         salt = base64.b64decode(document["salt"], validate=True)
@@ -131,7 +144,9 @@ def unlock_or_create(
                 document["wrapped_key"].encode("ascii")
             )
         except InvalidToken as exc:
-            raise RuntimeError("Contraseña de recuperación incorrecta o vault alterado") from exc
+            raise RuntimeError(
+                "Contraseña de recuperación incorrecta o vault alterado"
+            ) from exc
         if not hmac.compare_digest(_fingerprint(secret), document["key_fingerprint"]):
             raise RuntimeError("Huella de clave distinta; vault no confiable")
     # Fernet constructor requires valid base64 32-byte secret.
