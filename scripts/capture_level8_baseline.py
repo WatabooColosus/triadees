@@ -9,6 +9,7 @@ import sys
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from urllib.error import URLError
 from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +49,7 @@ def capture():
         try:
             with urlopen("http://127.0.0.1:8010" + path, timeout=10) as response:
                 report["endpoints"][path] = {"http_status": response.status, "body": json.load(response)}
-        except Exception as exc:
+        except (URLError, OSError, ValueError, TimeoutError) as exc:
             report["endpoints"][path] = {"error": str(exc)}
     gpu = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total,memory.used,temperature.gpu", "--format=csv,noheader,nounits"], capture_output=True, text=True, check=False)
     report["gpu"] = {"exit_code": gpu.returncode, "measurement": gpu.stdout.strip()}
