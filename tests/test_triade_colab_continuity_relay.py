@@ -23,6 +23,14 @@ def _legacy_saver_worker():
         snapshot_once()
 
 
+# Static definitions for the legacy notebook's global symbol names. The test
+# rebinds each function to an isolated namespace through FunctionType, so the
+# worker never touches these module-level bindings.
+STOP = threading.Event()
+atomic_json = _legacy_atomic_json
+snapshot_once = _legacy_snapshot_once
+
+
 def _legacy_thread():
     old = {'threading': threading, 'STOP': threading.Event()}
     # Give real functions independent global namespaces without executing
