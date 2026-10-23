@@ -267,3 +267,33 @@ def test_scheduler_completions_do_not_inflate_applied_learning(
     assert evidence["education_tasks_completed"] == 1
     assert evidence["education_applications"] == 0
     assert evidence["trainable_adapters"] == 0
+
+
+def test_backup_fault_remains_visible_after_log_throttling(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Backup fault cannot disappear from health 15 minutes after its only log."""
+    from triade.memory.encrypted_backup import EncryptedBackup
+
+    db = _db(tmp_path)
+    _heartbeat(db)
+    monkeypatch.setattr(
+        EncryptedBackup,
+        "key_status",
+        classmethod(lambda cls: {"configured": False, "source": "none"}),
+    )
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            """INSERT INTO worker_events
+               (id,event_type,status,created_at,task_type)
+               VALUES (1,'internal_error','error',datetime('now','-30 minutes'),
+               'mission_planner.backup_key_missing')"""
+        )
+    health = ServiceHealth(db).inspect(
+        process_running=True, ollama_probe=_OLLAMA_OK
+    )
+    assert health.state == "degraded"
+    assert "encrypted_backup_key_missing" in health.reasons
+    assert "repeated_worker_errors" not in health.reasons
+    assert health.metrics["recent_repeated_errors"] == 0
+    assert health.metrics["backup_key_fault_observed"] is True
