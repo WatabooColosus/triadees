@@ -3,6 +3,7 @@
 Start only from the owner's trusted Colab notebook. This module never opens
 HTTP listeners or exports row contents. Stops when the Colab kernel stops.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -159,9 +160,7 @@ def _database(path: Path) -> dict[str, Any]:
                             "SELECT status, COUNT(*) FROM autonomous_tasks GROUP BY status"
                         )
                     }
-            result["quick_check"] = conn.execute(
-                "PRAGMA quick_check(1)"
-            ).fetchone()[0]
+            result["quick_check"] = conn.execute("PRAGMA quick_check(1)").fetchone()[0]
     except (sqlite3.Error, OSError) as exc:
         result["error_type"] = type(exc).__name__
     return result
@@ -275,9 +274,10 @@ def start_monitor(
 ) -> dict[str, Any]:
     """Idempotent background sampling in current kernel (not a cloud daemon)."""
     folder = Path(destination)
-    if str(folder).startswith("/content/drive/") and not Path(
-        "/content/drive/MyDrive"
-    ).is_dir():
+    if (
+        str(folder).startswith("/content/drive/")
+        and not Path("/content/drive/MyDrive").is_dir()
+    ):
         raise RuntimeError("Monta Google Drive antes de activar la auditoría")
     folder.mkdir(parents=True, exist_ok=True)
     interval = max(60, int(interval_seconds))
@@ -304,9 +304,7 @@ def start_monitor(
             name="triade-live-aggregate-monitor",
             daemon=True,
         )
-        _MONITOR.update(
-            {"thread": thread, "stop": stop_event, "folder": folder}
-        )
+        _MONITOR.update({"thread": thread, "stop": stop_event, "folder": folder})
         thread.start()
     return {
         "status": "active",

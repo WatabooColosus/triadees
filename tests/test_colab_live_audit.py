@@ -1,4 +1,5 @@
 """Colab telemetry tests: isolated SQLite fixtures, no real Drive/network."""
+
 from __future__ import annotations
 
 import json
@@ -90,6 +91,4 @@ def test_monitor_duplicate_call_and_stop(tmp_path: Path, monkeypatch) -> None:
 
 def test_no_false_boolean_delta() -> None:
     counters = {"worker_events": 0, "not_a_count": True, "missing": None}
-    assert audit._counters({"database": {"tables": counters}}) == {
-        "worker_events": 0
-    }
+    assert audit._counters({"database": {"tables": counters}}) == {"worker_events": 0}
