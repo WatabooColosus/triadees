@@ -44,8 +44,8 @@ class EncryptedBackup:
         # ganar si apunta a un fichero real; de lo contrario seguimos con la
         # ubicación canónica del repositorio para que el proceso no quede
         # degradado por una variable obsoleta.
-        if configured:
-            return configured
+        if configured and Path(configured).expanduser().is_file():
+            return str(Path(configured).expanduser())
         from triade.core.runtime_scope import is_test_runtime
 
         roots = (
@@ -61,9 +61,11 @@ class EncryptedBackup:
                 )
             except (OSError, ValueError, TypeError, AttributeError):
                 continue
-            if value:
+            if value and Path(str(value)).expanduser().is_file():
                 return str(Path(value).expanduser())
-        return ""
+        # A configured path that no longer exists remains visible in health
+        # diagnostics. Never invent a new encryption key or silently rotate it.
+        return str(Path(configured).expanduser()) if configured else ""
 
     @classmethod
     def key_configured(cls) -> bool:

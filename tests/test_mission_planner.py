@@ -262,3 +262,94 @@ def test_todo_tipo_con_cadencia_declarada_tiene_productor(tmp_path) -> None:
         "tipos con cadencia declarada que MissionPlanner nunca planifica, "
         f"así que sólo podrían llegar por el fallback: {sin_productor}"
     )
+
+
+def test_missing_backup_key_is_reported_once_per_hour_not_each_cycle(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Backup failure remains auditable without false worker-error storms."""
+    from triade.memory.encrypted_backup import EncryptedBackup
+
+    db = make_db(tmp_path)
+    monkeypatch.setattr(
+        EncryptedBackup,
+        "key_status",
+        classmethod(
+            lambda cls: {
+                "configured": False,
+                "source": "none",
+                "path": None,
+                "path_exists": False,
+                "path_readable": False,
+            }
+        ),
+    )
+    planner = MissionPlanner(db_path=db)
+    planner.plan_cycle(run_ref="first")
+    planner.plan_cycle(run_ref="second")
+    with sqlite3.connect(db) as conn:
+        errors = conn.execute(
+            """SELECT COUNT(*) FROM worker_events
+               WHERE task_type='mission_planner.backup_key_missing'
+                 AND event_type='internal_error'"""
+        ).fetchone()[0]
+    assert errors == 1
+
+
+def test_prepared_lesson_needs_a_new_verified_neuron_activation(
+    tmp_path: Path,
+) -> None:
+    """No task loops on lesson_prepared alone; actual evaluated practice wakes it."""
+    db = tmp_path / "education-planner.sqlite3"
+    with sqlite3.connect(db) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE neurons(id INTEGER PRIMARY KEY, status TEXT, domain TEXT);
+            CREATE TABLE neuron_competencies(
+                neuron_id INTEGER, domain TEXT, next_review TEXT
+            );
+            CREATE TABLE neuron_education_sessions(
+                session_id TEXT PRIMARY KEY, neuron_id INTEGER, state TEXT,
+                baseline_score REAL, created_at TEXT
+            );
+            CREATE TABLE neuron_education_applications(
+                session_id TEXT, run_id TEXT
+            );
+            CREATE TABLE neuron_activity(
+                neuron_id INTEGER, run_id TEXT, activated INTEGER, created_at TEXT
+            );
+            CREATE TABLE verification_reports(
+                run_id TEXT, coherence_score REAL, memory_score REAL,
+                safety_score REAL, usefulness_score REAL, traceability_score REAL
+            );
+            INSERT INTO neurons VALUES(11,'experimental','salud');
+            INSERT INTO neuron_competencies VALUES(11,'salud','2099-01-01');
+            INSERT INTO neuron_education_sessions
+                VALUES('lesson-11',11,'lesson_prepared',NULL,'2026-10-20 00:00:00');
+            """
+        )
+    planner = MissionPlanner(db_path=db)
+    # Session status alone is not new evidence. The prior planner enqueued
+    # this task indefinitely, 319 completions with no measured application.
+    assert planner._plan_neuron_education() == []
+
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT INTO neuron_activity VALUES(11,'run-evidence-1',1,"
+            "'2026-10-21 00:00:00')"
+        )
+        conn.execute(
+            "INSERT INTO verification_reports VALUES("
+            "'run-evidence-1',0.8,0.8,0.8,0.8,0.8)"
+        )
+    planned = planner._plan_neuron_education()
+    assert len(planned) == 1
+    assert planned[0].task_type == "neuron_education_cycle"
+    assert planned[0].payload["resolution_ready"] is True
+
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT INTO neuron_education_applications "
+            "VALUES('lesson-11','run-evidence-1')"
+        )
+    assert planner._plan_neuron_education() == []

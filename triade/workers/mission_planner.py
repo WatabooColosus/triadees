@@ -151,21 +151,7 @@ class MissionPlanner:
                 )
             )
         else:
-            record_internal_error(
-                "mission_planner.backup_key_missing"
-                if backup_key_status.get("source") == "none"
-                else "mission_planner.backup_key_degraded",
-                RuntimeError(
-                    "backup degradado: falta TRIADE_BACKUP_KEY o "
-                    "TRIADE_BACKUP_KEY_FILE; no se planifica copia cifrada"
-                ),
-                payload={
-                    "module": __name__,
-                    "function": "plan_cycle",
-                    "backup_key_status": backup_key_status,
-                },
-                db_path=self.db_path,
-            )
+            self._record_missing_backup_key(backup_key_status, run_ref=run_ref)
 
         tasks.sort(key=lambda t: t.priority)
         deduplicated: list[PlannedTask] = []
@@ -187,6 +173,51 @@ class MissionPlanner:
             tasks = tasks[:15]
 
         return tasks
+
+    def _record_missing_backup_key(
+        self, backup_key_status: dict[str, Any], *, run_ref: str | None
+    ) -> None:
+        """Keep backup loss visible without turning every scheduler tick into an error.
+
+        The missing encryption key is a *persistent capability fault*, not a
+        distinct worker failure every 20 seconds. Emit an auditable event on
+        the first observation and at most once per hour afterwards. Runtime
+        health checks the capability independently, so throttling cannot
+        turn an unavailable encrypted backup into a healthy service.
+        """
+        scope = (
+            "mission_planner.backup_key_missing"
+            if backup_key_status.get("source") == "none"
+            else "mission_planner.backup_key_degraded"
+        )
+        try:
+            with closing(self._connect()) as conn:
+                recent = conn.execute(
+                    """SELECT 1 FROM worker_events
+                    WHERE task_type=? AND event_type='internal_error'
+                    AND julianday(created_at) >= julianday('now', '-60 minutes')
+                    ORDER BY id DESC LIMIT 1""",
+                    (scope,),
+                ).fetchone()
+            if recent:
+                return
+        except sqlite3.Error:
+            # Missing/corrupted event storage must not silence the fault.
+            pass
+        record_internal_error(
+            scope,
+            RuntimeError(
+                "backup degradado: falta TRIADE_BACKUP_KEY o "
+                "TRIADE_BACKUP_KEY_FILE; no se planifica copia cifrada"
+            ),
+            run_id=run_ref,
+            payload={
+                "module": __name__,
+                "function": "plan_cycle",
+                "backup_key_status": backup_key_status,
+            },
+            db_path=self.db_path,
+        )
 
     def _plan_internal_curriculum_exercises(self) -> list[PlannedTask]:
         """Ejercicios internos medibles para asignaciones experimentales.
@@ -601,7 +632,7 @@ class MissionPlanner:
                     ).fetchone()
                 due_neurons = int(row["cnt"] or 0) if row else 0
                 resolvable_sessions = 0
-                pending_sessions = 0
+                measurable_pending_sessions = 0
                 if {
                     "neuron_education_sessions",
                     "neuron_education_applications",
@@ -617,11 +648,35 @@ class MissionPlanner:
                         (MIN_APPLIED_RUNS,),
                     ).fetchone()
                     resolvable_sessions = int(ready["cnt"] or 0) if ready else 0
-                    pending = conn.execute(
-                        "SELECT COUNT(*) cnt FROM neuron_education_sessions WHERE state='lesson_prepared'"
-                    ).fetchone()
-                    pending_sessions = int(pending["cnt"] or 0) if pending else 0
-            if due_neurons or resolvable_sessions or pending_sessions:
+                    # A prepared lesson is NOT evidence of fresh practice.
+                    # Only schedule another education cycle if a real, verified
+                    # neuron run exists after the lesson and has not been
+                    # recorded as an application yet. Otherwise the old planner
+                    # scheduled empty runs every 20 seconds indefinitely.
+                    if {"neuron_activity", "verification_reports"}.issubset(tables):
+                        pending = conn.execute(
+                            """SELECT COUNT(DISTINCT s.session_id) cnt
+                            FROM neuron_education_sessions s
+                            JOIN neuron_activity na ON na.neuron_id=s.neuron_id
+                              AND na.activated=1
+                              AND datetime(na.created_at)>datetime(s.created_at)
+                            JOIN verification_reports vr ON vr.run_id=na.run_id
+                            WHERE s.state='lesson_prepared'
+                              AND (vr.coherence_score IS NOT NULL
+                                OR vr.memory_score IS NOT NULL
+                                OR vr.safety_score IS NOT NULL
+                                OR vr.usefulness_score IS NOT NULL
+                                OR vr.traceability_score IS NOT NULL)
+                              AND NOT EXISTS (
+                                SELECT 1 FROM neuron_education_applications a
+                                WHERE a.session_id=s.session_id
+                                  AND a.run_id=na.run_id
+                              )"""
+                        ).fetchone()
+                        measurable_pending_sessions = (
+                            int(pending["cnt"] or 0) if pending else 0
+                        )
+            if due_neurons or resolvable_sessions or measurable_pending_sessions:
                 reasons = []
                 if due_neurons:
                     reasons.append(
@@ -631,9 +686,10 @@ class MissionPlanner:
                     reasons.append(
                         f"{resolvable_sessions} sesiones tienen {MIN_APPLIED_RUNS}+ runs medidos y requieren resolución"
                     )
-                if pending_sessions:
+                if measurable_pending_sessions:
                     reasons.append(
-                        f"{pending_sessions} lecciones pendientes requieren entrenamiento continuo"
+                        f"{measurable_pending_sessions} lecciones con práctica real "
+                        "verificada pendiente de registro"
                     )
                 return [
                     PlannedTask(
@@ -665,9 +721,9 @@ class MissionPlanner:
                         # No debe esperar el intervalo adaptativo del ciclo.
                         payload={
                             "resolution_ready": bool(
-                                resolvable_sessions or pending_sessions
+                                resolvable_sessions or measurable_pending_sessions
                             ),
-                            "education_training": bool(pending_sessions),
+                            "education_training": bool(measurable_pending_sessions),
                         },
                     )
                 ]
