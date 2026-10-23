@@ -289,21 +289,11 @@ def test_learning_health_requires_real_neuron_activity_not_only_completed_tasks(
     db = _db(tmp_path)
     _heartbeat(db)
     with sqlite3.connect(db) as conn:
-        conn.execute(
-            "CREATE TABLE neuron_education_sessions (state TEXT)"
-        )
-        conn.execute(
-            "CREATE TABLE neuron_activity (id INTEGER PRIMARY KEY)"
-        )
-        conn.execute(
-            "CREATE TABLE verification_reports (id INTEGER PRIMARY KEY)"
-        )
-        conn.execute(
-            "INSERT INTO neuron_education_sessions VALUES('lesson_prepared')"
-        )
-        conn.execute(
-            "INSERT INTO verification_reports VALUES(1)"
-        )
+        conn.execute("CREATE TABLE neuron_education_sessions (state TEXT)")
+        conn.execute("CREATE TABLE neuron_activity (id INTEGER PRIMARY KEY)")
+        conn.execute("CREATE TABLE verification_reports (id INTEGER PRIMARY KEY)")
+        conn.execute("INSERT INTO neuron_education_sessions VALUES('lesson_prepared')")
+        conn.execute("INSERT INTO verification_reports VALUES(1)")
         conn.execute(
             "INSERT INTO autonomous_tasks "
             "(task_id,task_type,status,created_at,updated_at) "
@@ -320,7 +310,5 @@ def test_learning_health_requires_real_neuron_activity_not_only_completed_tasks(
 
     with sqlite3.connect(db) as conn:
         conn.execute("INSERT INTO neuron_activity VALUES(1)")
-    recovered = ServiceHealth(db).inspect(
-        process_running=True, ollama_probe=_OLLAMA_OK
-    )
+    recovered = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
     assert "education_neuron_activity_missing" not in recovered.reasons
