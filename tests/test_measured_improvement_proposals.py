@@ -122,7 +122,7 @@ def test_unregistered_or_ambiguous_destination_blocks_proposals(tmp_path: Path):
 
 def test_signal_without_regression_evidence_never_makes_proposal(tmp_path: Path):
     db = tmp_path / "real_shaped.db"
-    learner = FailureLearningLoop(db)
+    FailureLearningLoop(db)  # Explicitly initialise isolated SQLite schema.
     register_spec(db)
     with sqlite3.connect(db) as conn:
         conn.execute(
