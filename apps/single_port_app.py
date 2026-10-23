@@ -426,14 +426,16 @@ async def public_guarded_mode(request: Request, call_next):
         response = await call_next(request)
         response.headers["X-Triade-Local-Auth"] = "disabled-for-local-testing"
         return response
-    # Production must never fall back to unauthenticated APIs by omission.
-    default_guarded = "0" if is_test_runtime() else "1"
-    guarded = os.getenv("TRIADE_PUBLIC_GUARDED", default_guarded).strip().lower() in {
+    # In production authentication is mandatory regardless of an old
+    # TRIADE_PUBLIC_GUARDED=0 setting. Only the isolated test runtime
+    # may opt in/out to preserve safe unit-test fixtures.
+    test_guarded = os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower() in {
         "1",
         "true",
         "yes",
         "on",
     }
+    guarded = not is_test_runtime() or test_guarded
     public_paths = {
         "/api/auth/login",
         "/api/auth/register",
