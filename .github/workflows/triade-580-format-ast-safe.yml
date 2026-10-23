@@ -46,8 +46,23 @@ jobs:
                   ["git", "show", f"HEAD:{path}"], text=True
               )
               current = pathlib.Path(path).read_text(encoding="utf-8")
-              before = ast.dump(ast.parse(previous, filename=path), include_attributes=False)
-              after = ast.dump(ast.parse(current, filename=path), include_attributes=False)
+              # Ruff may reflow docstrings without touching executable code.
+              # Retain every other AST node and attribute value exactly.
+              def executable_ast(source: str) -> str:
+                  tree = ast.parse(source, filename=path)
+                  for node in ast.walk(tree):
+                      if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                          if (
+                              node.body
+                              and isinstance(node.body[0], ast.Expr)
+                              and isinstance(node.body[0].value, ast.Constant)
+                              and isinstance(node.body[0].value.value, str)
+                          ):
+                              node.body[0].value.value = "<normalized-docstring>"
+                  return ast.dump(tree, include_attributes=False)
+
+              before = executable_ast(previous)
+              after = executable_ast(current)
               if before != after:
                   raise RuntimeError(f"AST mismatch from formatter: {path}")
           print(f"AST_IDENTICAL_FORMATTED_PYTHON_FILES={len(modified)}")
