@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,14 @@ from .contracts import WorkerRunConfig
 from .state_store import WorkerStateStore
 from .task_queue import WorkerTaskQueue
 from .worker_loop import WorkerLoop
+
+
+def _slow_full_task_limit() -> int:
+    """FULL lento preserva el pool gobernado, pero despacha una tarea por vez."""
+    enabled = os.getenv("TRIADE_SLOW_FULL_LOCAL", "0").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+    return 1 if enabled else 3
 
 
 class WorkerBackgroundService:
@@ -54,6 +63,7 @@ class WorkerBackgroundService:
             # cuarentena mientras otra escribe el mismo cierre. El servicio
             # real mantiene el pool gobernado.
             concurrency_enabled=not dry_run,
+            max_concurrent_tasks=_slow_full_task_limit(),
         )
         return loop.run(config)
 
@@ -83,6 +93,7 @@ class WorkerBackgroundService:
             lock_file=str(self.lock_file),
             stop_file=str(self.stop_file),
             concurrency_enabled=True,
+            max_concurrent_tasks=_slow_full_task_limit(),
         )
         return loop.run(config)
 
