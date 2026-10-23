@@ -17,7 +17,7 @@ from typing import Any, ClassVar
 
 from triade.core.contracts import utc_now
 from triade.db import sqlite3
-from triade.models.ollama_client import OllamaClient
+from triade.models.model_provider import ModelProvider
 
 log = logging.getLogger(__name__)
 
@@ -368,7 +368,7 @@ class Central:
 
     def __init__(
         self,
-        model_client: OllamaClient | None = None,
+        model_client: ModelProvider | None = None,
         central_model: str = "qwen2.5:3b-instruct",
     ) -> None:
         self.model_client = model_client

@@ -17,7 +17,7 @@ from triade.hypothalamus.senses import SystemSenses, SystemSnapshot
 from triade.hypothalamus.vice_virtue import ViceVirtueState
 from triade.memory.hypothalamus_store import EmotionalState, HypothalamusStateStore
 from triade.memory.relational_modulation import RelationalModulationStore
-from triade.models.ollama_client import OllamaClient
+from triade.models.model_provider import ModelProvider
 
 from .contracts import InputPacket, RiskLevel, SignalPacket, Urgency
 
@@ -42,7 +42,7 @@ class Hypothalamus:
 
     def __init__(
         self,
-        model_client: OllamaClient | None = None,
+        model_client: ModelProvider | None = None,
         model_name: str = "qwen2.5:3b-instruct",
         state_store: HypothalamusStateStore | None = None,
         db_path: str | None = None,

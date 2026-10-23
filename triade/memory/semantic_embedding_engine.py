@@ -11,6 +11,7 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Any, ClassVar
 
+from triade.models.model_provider import ModelProvider
 from triade.models.ollama_client import EmbeddingResult, OllamaClient
 
 from .semantic_store import SemanticMemoryStore
@@ -94,7 +95,7 @@ class SemanticEmbeddingEngine:
     def __init__(
         self,
         store: SemanticMemoryStore | None = None,
-        client: OllamaClient | None = None,
+        client: ModelProvider | None = None,
         preferred_models: list[str] | None = None,
         use_local_fallback: bool = True,
     ) -> None:
