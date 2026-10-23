@@ -51,9 +51,11 @@ def _open_snapshot(path: Path, target: Path) -> dict[str, Any]:
         if not path.is_file() or path.resolve() == target.resolve():
             raise ValueError("missing_or_invalid_sqlite_source")
         # No immutable=1, because a live WAL database must be read consistently.
-        with sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=10) as src:
-            with sqlite3.connect(target) as copy:
-                src.backup(copy)
+        with (
+            sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=10) as src,
+            sqlite3.connect(target) as copy,
+        ):
+            src.backup(copy)
     return extra
 
 
