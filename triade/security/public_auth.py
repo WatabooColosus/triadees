@@ -14,8 +14,8 @@ from urllib.parse import urlparse
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from email_validator import EmailNotValidError, validate_email
 from cryptography.fernet import Fernet
+from email_validator import EmailNotValidError, validate_email
 
 from triade.db import sqlite3
 from triade.security.distributed_auth import RedisPublicAuthBackend
