@@ -281,3 +281,46 @@ def test_backup_fault_remains_visible_after_log_throttling(
     assert "repeated_worker_errors" not in health.reasons
     assert health.metrics["recent_repeated_errors"] == 0
     assert health.metrics["backup_key_fault_observed"] is True
+
+
+def test_learning_health_requires_real_neuron_activity_not_only_completed_tasks(
+    tmp_path: Path,
+) -> None:
+    db = _db(tmp_path)
+    _heartbeat(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE neuron_education_sessions (state TEXT)"
+        )
+        conn.execute(
+            "CREATE TABLE neuron_activity (id INTEGER PRIMARY KEY)"
+        )
+        conn.execute(
+            "CREATE TABLE verification_reports (id INTEGER PRIMARY KEY)"
+        )
+        conn.execute(
+            "INSERT INTO neuron_education_sessions VALUES('lesson_prepared')"
+        )
+        conn.execute(
+            "INSERT INTO verification_reports VALUES(1)"
+        )
+        conn.execute(
+            "INSERT INTO autonomous_tasks "
+            "(task_id,task_type,status,created_at,updated_at) "
+            "VALUES ('education-run','neuron_education_cycle','completed',"
+            "datetime('now'),datetime('now'))"
+        )
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
+    metrics = health.metrics["measured_outcomes"]
+    assert metrics["education_tasks_completed"] == 1
+    assert metrics["neuron_activations_recorded"] == 0
+    assert metrics["verification_reports"] == 1
+    assert "education_neuron_activity_missing" in health.reasons
+    assert health.state == "degraded"
+
+    with sqlite3.connect(db) as conn:
+        conn.execute("INSERT INTO neuron_activity VALUES(1)")
+    recovered = ServiceHealth(db).inspect(
+        process_running=True, ollama_probe=_OLLAMA_OK
+    )
+    assert "education_neuron_activity_missing" not in recovered.reasons
