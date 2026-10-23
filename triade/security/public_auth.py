@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+from email_validator import EmailNotValidError, validate_email
 from cryptography.fernet import Fernet
 
 from triade.db import sqlite3
@@ -83,38 +84,95 @@ class PublicAuthStore:
             raise RuntimeError("TRIADE_AUTH_VAULT_KEY requerida para guardar API keys")
         return Fernet(raw.encode())
 
+    @staticmethod
+    def normalize_email(address: str) -> str:
+        if len(address) > 254 or "\r" in address or "\n" in address:
+            raise ValueError("valid_email_required")
+        try:
+            return validate_email(
+                address.strip(), check_deliverability=False
+            ).normalized.lower()
+        except EmailNotValidError as exc:
+            raise ValueError("valid_email_required") from exc
+
+    def _register_rate_limit(self, email: str, client_host: str) -> None:
+        """Per-address and per-remote-peer quotas; never trust X-Forwarded-For.
+
+        Store only SHA-256 identifiers in an existing audit table. BEGIN
+        IMMEDIATE makes read+write atomic across Colab worker threads.
+        """
+        peer_hash = hashlib.sha256(client_host.encode()).hexdigest()
+        email_hash = hashlib.sha256(email.encode()).hexdigest()
+        window_start = datetime.fromtimestamp(time.time() - 3600, UTC).isoformat()
+        limits = (
+            (f"signup:email:{email_hash}", 5),
+            (f"signup:peer:{peer_hash}", 30),
+        )
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            for actor, maximum in limits:
+                used = conn.execute(
+                    "SELECT COUNT(*) FROM auth_audit WHERE actor=? "
+                    "AND action='registration_attempt' AND created_at>=?",
+                    (actor, window_start),
+                ).fetchone()[0]
+                if used >= maximum:
+                    raise PermissionError("registration_rate_limited")
+            timestamp = datetime.now(UTC).isoformat()
+            for actor, _ in limits:
+                conn.execute(
+                    "INSERT INTO auth_audit "
+                    "(actor,tenant_id,action,outcome,detail,created_at) "
+                    "VALUES (?,NULL,'registration_attempt','attempt','protected',?)",
+                    (actor, timestamp),
+                )
+
     def register_email(
-        self, email: str, password: str, *, tenant_id: str = "local"
+        self, email: str, password: str, *, tenant_id: str = "local",
+        client_host: str = "unknown",
     ) -> dict[str, str]:
-        email = email.strip().lower()
-        if "@" not in email or len(password) < 12:
-            raise ValueError("valid_email_and_strong_password_required")
-        result = self.create_user(email, password, "viewer", tenant_id)
+        from triade.security.email_delivery import (
+            registration_delivery_status,
+            send_verification_email,
+        )
+
+        # SMTP readiness is checked BEFORE any user is written or hashed.
+        delivery = registration_delivery_status()
+        if not delivery["available"]:
+            raise RuntimeError(str(delivery["reason"]))
+        email = self.normalize_email(email)
+        if not 12 <= len(password) <= 1024 or not password.strip():
+            raise ValueError("strong_password_required")
+        self._register_rate_limit(email, client_host)
+        try:
+            result = self.create_user(email, password, "viewer", tenant_id)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("registration_unavailable_or_email_exists") from exc
         token = secrets.token_urlsafe(32)
         now = datetime.now(UTC)
-        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
-            conn.execute(
-                "INSERT INTO auth_email_identities VALUES (?, ?, NULL, ?, ?, ?)",
-                (
-                    result["user_id"],
-                    email,
-                    hashlib.sha256(token.encode()).hexdigest(),
-                    now.timestamp() + 900,
-                    now.isoformat(),
-                ),
-            )
-        from triade.security.email_delivery import send_verification_email
-
         try:
+            with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+                conn.execute(
+                    "INSERT INTO auth_email_identities VALUES (?, ?, NULL, ?, ?, ?)",
+                    (
+                        result["user_id"],
+                        email,
+                        hashlib.sha256(token.encode()).hexdigest(),
+                        now.timestamp() + 900,
+                        now.isoformat(),
+                    ),
+                )
             send_verification_email(email, token)
         except Exception:
+            # Remove ONLY the just-created identity, on every transport error.
             with sqlite3.connect(self.db_path, timeout=30.0) as conn:
                 conn.execute(
                     "DELETE FROM auth_email_identities WHERE user_id=?",
                     (result["user_id"],),
                 )
                 conn.execute(
-                    "DELETE FROM auth_users WHERE user_id=?", (result["user_id"],)
+                    "DELETE FROM auth_users WHERE user_id=?",
+                    (result["user_id"],),
                 )
             raise
         return {
@@ -222,6 +280,7 @@ class PublicAuthStore:
         }
 
     def authenticate(self, username: str, password: str) -> dict[str, Any]:
+        username = username.strip().lower() if "@" in username else username
         now = time.time()
         with sqlite3.connect(self.db_path, timeout=30.0) as conn:
             conn.row_factory = sqlite3.Row
