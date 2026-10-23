@@ -87,6 +87,9 @@ def test_missing_tables_are_not_treated_as_zero_or_pass(tmp_path: Path) -> None:
     assert summary["checks"]["historical_task_activity_observed"] is False
 
 
+# Re-run complete release checks after AST-equivalent formatter output.
+
+
 def test_unknown_file_refuses_to_create_database(tmp_path: Path) -> None:
     path = tmp_path / "absent.db"
     with pytest.raises(FileNotFoundError):
