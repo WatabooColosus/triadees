@@ -443,7 +443,7 @@ class InternalRuntimeSupervisor:
                             run_id=self.runtime_id,
                             db_path=self.db_path,
                         )
-                    except Exception:  # noqa: BLE001 - logger is the last fallback
+                    except Exception:  # logger is the last fallback
                         logging.getLogger(__name__).exception(
                             "Tríade supervisor could not persist an internal error"
                         )
