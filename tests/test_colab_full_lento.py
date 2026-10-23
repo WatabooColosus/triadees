@@ -94,3 +94,12 @@ def test_slow_full_needs_ollama_reasoner(monkeypatch):
     decision = decide_work_mode(probe(load=1.0), not_ready, "full_local_guarded")
     assert decision["can_nourish_neurons"] is False
     assert decision["can_consolidate_stable"] is False
+
+
+def test_worker_pool_serial_in_slow_full(monkeypatch):
+    from triade.workers.background_service import _slow_full_task_limit
+
+    monkeypatch.setenv("TRIADE_SLOW_FULL_LOCAL", "1")
+    assert _slow_full_task_limit() == 1
+    monkeypatch.delenv("TRIADE_SLOW_FULL_LOCAL", raising=False)
+    assert _slow_full_task_limit() == 3
