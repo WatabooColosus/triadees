@@ -194,9 +194,7 @@ def test_backup_fault_is_distinct_from_worker_crashes(
     monkeypatch.setattr(
         EncryptedBackup,
         "key_status",
-        classmethod(
-            lambda cls: {"configured": False, "source": "none"}
-        ),
+        classmethod(lambda cls: {"configured": False, "source": "none"}),
     )
     with sqlite3.connect(db) as conn:
         for event_id in range(1, 7):
@@ -207,9 +205,7 @@ def test_backup_fault_is_distinct_from_worker_crashes(
                    'mission_planner.backup_key_missing')""",
                 (event_id,),
             )
-    health = ServiceHealth(db).inspect(
-        process_running=True, ollama_probe=_OLLAMA_OK
-    )
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
     assert health.state == "degraded"
     assert "encrypted_backup_key_missing" in health.reasons
     assert "repeated_worker_errors" not in health.reasons
@@ -231,38 +227,28 @@ def test_missing_backup_key_is_detected_without_worker_error_log(
         "key_status",
         classmethod(lambda cls: {"configured": False, "source": "none"}),
     )
-    health = ServiceHealth(db).inspect(
-        process_running=True, ollama_probe=_OLLAMA_OK
-    )
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
     assert health.state == "degraded"
     assert "encrypted_backup_key_missing" in health.reasons
     assert health.metrics["encrypted_backup"]["usable"] is False
 
 
-def test_scheduler_completions_do_not_inflate_applied_learning(
-    tmp_path: Path
-) -> None:
+def test_scheduler_completions_do_not_inflate_applied_learning(tmp_path: Path) -> None:
     db = _db(tmp_path)
     _heartbeat(db)
     with sqlite3.connect(db) as conn:
         conn.execute(
             "CREATE TABLE neuron_education_applications (id INTEGER PRIMARY KEY)"
         )
-        conn.execute(
-            "CREATE TABLE neuron_education_sessions (id INTEGER PRIMARY KEY)"
-        )
-        conn.execute(
-            "CREATE TABLE trainable_adapters (id INTEGER PRIMARY KEY)"
-        )
+        conn.execute("CREATE TABLE neuron_education_sessions (id INTEGER PRIMARY KEY)")
+        conn.execute("CREATE TABLE trainable_adapters (id INTEGER PRIMARY KEY)")
         conn.execute(
             "INSERT INTO autonomous_tasks "
             "(task_id,task_type,status,created_at,updated_at) "
             "VALUES ('educated-run', 'neuron_education_cycle', 'completed', "
             "datetime('now'), datetime('now'))"
         )
-    health = ServiceHealth(db).inspect(
-        process_running=True, ollama_probe=_OLLAMA_OK
-    )
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
     evidence = health.metrics["measured_outcomes"]
     assert evidence["education_tasks_completed"] == 1
     assert evidence["education_applications"] == 0
@@ -289,9 +275,7 @@ def test_backup_fault_remains_visible_after_log_throttling(
                VALUES (1,'internal_error','error',datetime('now','-30 minutes'),
                'mission_planner.backup_key_missing')"""
         )
-    health = ServiceHealth(db).inspect(
-        process_running=True, ollama_probe=_OLLAMA_OK
-    )
+    health = ServiceHealth(db).inspect(process_running=True, ollama_probe=_OLLAMA_OK)
     assert health.state == "degraded"
     assert "encrypted_backup_key_missing" in health.reasons
     assert "repeated_worker_errors" not in health.reasons
