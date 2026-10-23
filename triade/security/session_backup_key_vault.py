@@ -12,12 +12,13 @@ import hashlib
 import hmac
 import json
 import os
-import sqlite3
 from pathlib import Path
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+
+from triade.db import sqlite3
 
 VERSION = 1
 
