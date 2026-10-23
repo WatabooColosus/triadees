@@ -19,6 +19,7 @@ from triade.core.neuron_formation_pipeline import form_candidate
 from triade.neurons.competency_store import utc_now
 from triade.neurons.learning_router import NeuralLearningRouter, _tokens
 
+
 def _require_insert_id(row_id: int | None) -> int:
     if row_id is None:
         raise RuntimeError("SQLite did not return the inserted event ID")
