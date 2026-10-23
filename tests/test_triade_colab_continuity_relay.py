@@ -12,7 +12,8 @@ from scripts import triade_colab_continuity_relay as handover
 
 def _legacy_thread():
     old = {'threading': threading, 'STOP': threading.Event()}
-    exec('''\ndef snapshot_once():\n    return atomic_json('/tmp/triade-legacy', {'counts': {'autonomous_tasks': 0}})\ndef atomic_json(path, data):\n    return data\ndef worker():\n    while not STOP.wait(50):\n        snapshot_once()\n''', old)
+    # Constant fixture models stale Colab globals; never uses user input.
+    exec('''\ndef snapshot_once():\n    return atomic_json('/tmp/triade-legacy', {'counts': {'autonomous_tasks': 0}})\ndef atomic_json(path, data):\n    return data\ndef worker():\n    while not STOP.wait(50):\n        snapshot_once()\n''', old)  # noqa: S102
     t = threading.Thread(target=old['worker'], name=handover.SAVER_NAME, daemon=True)
     t.start()
     return t, old
