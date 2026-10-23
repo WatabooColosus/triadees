@@ -20,10 +20,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import psutil
 import sqlite3
 import subprocess
 import time
-import psutil
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime
