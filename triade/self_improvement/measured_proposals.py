@@ -61,8 +61,11 @@ def propose_from_measured_failures(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )
         }
-        if not {"neuron_specifications", "improvement_signals", "improvement_proposals"} <= tables:
+        if not {"improvement_signals", "improvement_proposals"} <= tables:
             return result
+        # La ausencia de una tabla de especificaciones no es una razón para
+        # abandonar el diagnóstico en silencio: abajo se registrará como
+        # no_unique_authorized_neuron_specification, sin insertar ninguna fila.
         signals = [
             dict(row)
             for row in conn.execute(
@@ -71,13 +74,17 @@ def propose_from_measured_failures(
                 "ORDER BY created_at, signal_id LIMIT 30"
             )
         ]
-        specifications = [
-            dict(row)
-            for row in conn.execute(
-                "SELECT neuron_id, version, state, payload_json "
-                "FROM neuron_specifications WHERE state='specified'"
-            )
-        ]
+        specifications = (
+            [
+                dict(row)
+                for row in conn.execute(
+                    "SELECT neuron_id, version, state, payload_json "
+                    "FROM neuron_specifications WHERE state='specified'"
+                )
+            ]
+            if "neuron_specifications" in tables
+            else []
+        )
         existing = {
             str(row[0])
             for row in conn.execute(
