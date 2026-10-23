@@ -96,13 +96,12 @@ function AccessGate({ onEnter }: { onEnter: (token: string | null) => void }) {
   const [token, setToken] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  const [registration, setRegistration] = useState<{available: boolean; reason: string} | null>(null)
+  const [registration, setRegistration] = useState<{mode: string; available: boolean; reason: string} | null>(null)
   useEffect(() => {
-    if (mode !== 'register') return
     api('/api/auth/registration-status').then(setRegistration).catch(() => {
-      setRegistration({available: false, reason: 'registration_status_unavailable'})
+      setRegistration({mode: 'closed', available: false, reason: 'registration_status_unavailable'})
     })
-  }, [mode])
+  }, [])
   useEffect(() => {
     const incoming = new URLSearchParams(window.location.search).get('verify')
     if (incoming) { setToken(incoming); setMode('verify'); window.history.replaceState({}, '', '/') }
@@ -111,7 +110,7 @@ function AccessGate({ onEnter }: { onEnter: (token: string | null) => void }) {
     setBusy(true); setMessage('')
     try {
       if (mode === 'register') {
-        if (registration?.available === false) throw new Error('smtp_not_configured')
+        if (registration?.available !== true) throw new Error(registration?.reason || 'registration_closed')
         await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password }) })
         setMessage('Cuenta pendiente. Revisa tu correo, copia el código y pulsa «Verificar correo». Caduca en 15 minutos.')
         setMode('verify')
@@ -127,9 +126,11 @@ function AccessGate({ onEnter }: { onEnter: (token: string | null) => void }) {
     } catch (error: any) {
       const detail = String(error?.message || '')
       setMessage(
-        detail.includes('smtp_') || detail.includes('registration_status_unavailable')
-          ? 'El registro por correo aún no está habilitado. El administrador debe configurar un servidor SMTP con TLS. Si es la primera instalación, el propietario puede crear su cuenta desde la consola protegida de Colab.'
-          : detail.includes('registration_rate_limited')
+        detail.includes('registration_closed')
+          ? 'El registro público está cerrado. Accede con la cuenta administradora habilitada en Tríade.'
+          : detail.includes('smtp_') || detail.includes('registration_status_unavailable')
+            ? 'El registro no está disponible: un administrador debe habilitar la verificación por correo con SMTP seguro.'
+            : detail.includes('registration_rate_limited')
             ? 'Demasiados intentos de registro. Vuelve a intentarlo más tarde.'
             : detail.includes('valid_email_required')
               ? 'Introduce una dirección de correo válida.'
@@ -147,12 +148,17 @@ function AccessGate({ onEnter }: { onEnter: (token: string | null) => void }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}><div style={{ width: 42, height: 42, borderRadius: 12, display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg,var(--accent),#a855f7)', fontWeight: 800 }}>Ω</div><div><h1 style={{ fontSize: 22 }}>Entrar a Tríade</h1><p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Motor local protegido</p></div></div>
       {mode !== 'verify' && <><label style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 6 }}>Correo</label><input value={email} onChange={e => setEmail(e.target.value.trim())} type="email" autoComplete="email" style={fieldStyle} placeholder="tu@correo.com" /><label style={{ display: 'block', color: 'var(--text-secondary)', margin: '14px 0 6px' }}>Contraseña</label><input value={password} onChange={e => setPassword(e.target.value)} type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} style={fieldStyle} placeholder="Mínimo 12 caracteres" />{mode === 'register' && <small style={{ display: 'block', marginTop: 6, color: 'var(--text-muted)' }}>Usa al menos 12 caracteres.</small>}</>}
       {mode === 'verify' && <><label style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 6 }}>Código de verificación</label><input value={token} onChange={e => setToken(e.target.value)} style={fieldStyle} placeholder="Pega el código recibido por correo" /></>}
-      {mode === 'register' && registration?.available === false && <p role="status" style={{ marginTop: 14, padding: 10, borderRadius: 9, background: 'var(--accent-glow)', color: 'var(--text-secondary)', fontSize: 13 }}>Registro por correo no configurado. Para permitir nuevos usuarios se necesita SMTP seguro; el propietario inicial se crea en la consola de administración.</p>}
+      {mode === 'login' && registration?.mode === 'closed' && <p role="status" style={{ marginTop: 14, fontSize: 12, color: 'var(--text-muted)' }}>Acceso privado: registro público deshabilitado.</p>}
+      {mode === 'register' && registration?.available === false && <p role="status" style={{ marginTop: 14, padding: 10, borderRadius: 9, background: 'var(--accent-glow)', color: 'var(--text-secondary)', fontSize: 13 }}>{registration.reason === 'registration_closed' ? 'El registro público está cerrado.' : 'La verificación de correos no está disponible todavía.'}</p>
       {message && <p role="status" style={{ marginTop: 14, color: 'var(--yellow)', fontSize: 13 }}>{message}</p>}
       <button disabled={busy || (mode === 'register' && registration?.available === false)} onClick={submit} style={{ width: '100%', marginTop: 20, padding: '11px 14px', border: 0, borderRadius: 9, background: 'var(--accent)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>{busy ? 'Procesando…' : mode === 'login' ? 'Iniciar sesión' : mode === 'register' ? 'Crear cuenta' : 'Verificar correo'}</button>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 16, fontSize: 12 }}>
          <button onClick={() => { setMode('verify'); setMessage('') }} style={linkStyle}>Verificar correo</button>
-         <button onClick={() => { setMode(mode === 'register' ? 'login' : 'register'); setMessage('') }} style={linkStyle}>{mode === 'register' ? 'Ya tengo cuenta' : 'Registrarme'}</button>
+         {mode === 'register' || mode === 'verify'
+           ? <button onClick={() => { setMode('login'); setMessage('') }} style={linkStyle}>Ya tengo cuenta</button>
+           : registration?.available === true
+             ? <button onClick={() => { setMode('register'); setMessage('') }} style={linkStyle}>Registrarme</button>
+             : null}
        </div>
     </section>
   </main>
