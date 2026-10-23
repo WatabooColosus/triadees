@@ -4,6 +4,7 @@ Protege el proceso que ya corre, sin parar la API ni tocar la DB origen.
 Se instala en el coordinador en memoria y crea una copia SQLite WAL-safe,
 auditada contra Bodega, index anterior e imagen publicada en Drive.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -20,17 +21,22 @@ from typing import Any
 
 # Counters that must never go backwards without explicit forensic review.
 MONOTONE = (
-    "neurons", "autonomous_tasks", "neuron_education_sessions",
-    "neuron_education_applications", "metabolic_cycle", "auth_users",
-    "auth_email_identities", "worker_runs", "governed_research_runs",
+    "neurons",
+    "autonomous_tasks",
+    "neuron_education_sessions",
+    "neuron_education_applications",
+    "metabolic_cycle",
+    "auth_users",
+    "auth_email_identities",
+    "worker_runs",
+    "governed_research_runs",
 )
 
 
 def _reject_regression(now: dict[str, Any], before: dict[str, Any], label: str) -> None:
     for name in MONOTONE:
         recent, previous = now.get(name), before.get(name)
-        if (isinstance(recent, int) and isinstance(previous, int)
-                and recent < previous):
+        if isinstance(recent, int) and isinstance(previous, int) and recent < previous:
             raise RuntimeError(
                 f"CONTINUIDAD_PROTEGIDA: {label}: {name} "
                 f"{previous} -> {recent}; ningún índice sustituido"
@@ -63,7 +69,9 @@ def _image_from_live_sqlite(db: Path, image: Path) -> None:
         raise FileExistsError("CONTINUIDAD_PROTEGIDA: destino temporal reutilizado")
     with (
         contextlib.closing(
-            sqlite3.connect("file:" + str(db.resolve()) + "?mode=ro", uri=True, timeout=30)
+            sqlite3.connect(
+                "file:" + str(db.resolve()) + "?mode=ro", uri=True, timeout=30
+            )
         ) as source,
         contextlib.closing(sqlite3.connect(image, timeout=30)) as copy,
     ):
@@ -126,7 +134,9 @@ def safe_snapshot(coordinator: Any, *, force: bool = False) -> dict[str, Any]:
             raise RuntimeError("Identidad alterada al respaldar")
         _reject_regression(saved["counts"], live["counts"], "copia-origen")
         if existing:
-            _reject_regression(saved["counts"], existing.get("counts", {}), "copia-index")
+            _reject_regression(
+                saved["counts"], existing.get("counts", {}), "copia-index"
+            )
         checksum = coordinator.digest(image)
         if existing and not force and checksum == existing.get("sha256"):
             expected = existing.get("counts", {})
@@ -156,8 +166,10 @@ def safe_snapshot(coordinator: Any, *, force: bool = False) -> dict[str, Any]:
             _assert_matching_image(saved, uploaded, "archivo-final")
             moment = dt.datetime.now(dt.UTC).isoformat()
             metadata = {
-                "sha256": checksum, "size": dest.stat().st_size,
-                "created_at": moment, "kind": "sqlite_wal_closed_verified",
+                "sha256": checksum,
+                "size": dest.stat().st_size,
+                "created_at": moment,
+                "kind": "sqlite_wal_closed_verified",
                 "source_git": coordinator.engine.repo_status(),
                 "not_a_complete_external_memory_restore": True,
                 "verified_image_counts": saved["counts"],
@@ -171,8 +183,10 @@ def safe_snapshot(coordinator: Any, *, force: bool = False) -> dict[str, Any]:
             _assert_matching_image(saved, verified["info"], "validador-final")
             _archive_old_index(coordinator.INDEX, coordinator.STORE)
             manifest = {
-                "file": name, "sha256": checksum,
-                "lineage": saved["lineage"], "counts": saved["counts"],
+                "file": name,
+                "sha256": checksum,
+                "lineage": saved["lineage"],
+                "counts": saved["counts"],
                 "created_at": moment,
                 "source_git": metadata["source_git"],
                 "external_memory_included": False,
@@ -181,12 +195,16 @@ def safe_snapshot(coordinator: Any, *, force: bool = False) -> dict[str, Any]:
             coordinator.atomic_json(coordinator.INDEX, manifest)
             assert coordinator.INDEX.is_file()
             check_index = json.loads(coordinator.INDEX.read_text(encoding="utf-8"))
-            if (check_index.get("sha256") != checksum
-                    or check_index.get("counts") != saved["counts"]):
+            if (
+                check_index.get("sha256") != checksum
+                or check_index.get("counts") != saved["counts"]
+            ):
                 raise RuntimeError("Índice protegido no supera lectura posterior")
             return {
-                "status": "saved", "file": name,
-                "counts": saved["counts"], "sha256_prefix": checksum[:12],
+                "status": "saved",
+                "file": name,
+                "counts": saved["counts"],
+                "sha256_prefix": checksum[:12],
                 "lineage": saved["lineage"],
                 "previous_index_archived": existing is not None,
             }
@@ -202,10 +220,12 @@ def install(*, publish_one: bool = True) -> dict[str, Any]:
         print("Guardián WAL ya instalado; se conserva la versión en memoria.")
         replacement = original
     else:
+
         @functools.wraps(original)
         def replacement(*, force: bool = False) -> dict[str, Any]:
             with coordinator.BACKUP_MUTEX:
                 return safe_snapshot(coordinator, force=force)
+
         replacement._triade_verified_continuity = True
         coordinator.snapshot_once = replacement
         print("Guardián de continuidad activo para respaldos manuales y periódicos.")
