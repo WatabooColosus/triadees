@@ -420,11 +420,15 @@ async def public_guarded_mode(request: Request, call_next):
     # Este bypass es deliberadamente explícito y sólo está pensado para el
     # runtime local de pruebas. La superficie pública debe seguir usando
     # sesiones cuando TRIADE_LOCAL_NO_AUTH no esté activado.
-    if local_no_auth:
+    from triade.core.runtime_scope import is_test_runtime
+
+    if local_no_auth and is_test_runtime():
         response = await call_next(request)
         response.headers["X-Triade-Local-Auth"] = "disabled-for-local-testing"
         return response
-    guarded = os.getenv("TRIADE_PUBLIC_GUARDED", "0").strip().lower() in {
+    # Production must never fall back to unauthenticated APIs by omission.
+    default_guarded = "0" if is_test_runtime() else "1"
+    guarded = os.getenv("TRIADE_PUBLIC_GUARDED", default_guarded).strip().lower() in {
         "1",
         "true",
         "yes",
@@ -433,6 +437,7 @@ async def public_guarded_mode(request: Request, call_next):
     public_paths = {
         "/api/auth/login",
         "/api/auth/register",
+        "/api/auth/registration-status",
         "/api/auth/verify-email",
         "/health",
         "/healthz",
