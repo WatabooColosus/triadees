@@ -119,9 +119,7 @@ def stop_owned(
         raise RuntimeError("La API no terminó ordenadamente; sin SIGKILL") from exc
     for _ in range(10):
         if not any(
-            conn.status == psutil.CONN_LISTEN
-            and conn.laddr
-            and conn.laddr.port == port
+            conn.status == psutil.CONN_LISTEN and conn.laddr and conn.laddr.port == port
             for conn in psutil.net_connections(kind="inet")
         ):
             state_file.unlink(missing_ok=True)
