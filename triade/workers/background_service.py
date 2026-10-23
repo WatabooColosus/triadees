@@ -18,7 +18,10 @@ from .worker_loop import WorkerLoop
 def _slow_full_task_limit() -> int:
     """FULL lento preserva el pool gobernado, pero despacha una tarea por vez."""
     enabled = os.getenv("TRIADE_SLOW_FULL_LOCAL", "0").strip().lower() in {
-        "1", "true", "yes", "on"
+        "1",
+        "true",
+        "yes",
+        "on",
     }
     return 1 if enabled else 3
 
