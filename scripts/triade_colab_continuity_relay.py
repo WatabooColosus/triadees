@@ -30,7 +30,7 @@ def _source_globals(thread: threading.Thread) -> dict[str, Any]:
     target = getattr(thread, '_target', None)
     namespace = getattr(target, '__globals__', None)
     if not isinstance(namespace, dict):
-        raise RuntimeError('CONTINUIDAD_PROTEGIDA: hilo antiguo no inspeccionable')
+        raise TypeError('CONTINUIDAD_PROTEGIDA: hilo antiguo no inspeccionable')
     if not {'STOP', 'snapshot_once', 'atomic_json'}.issubset(namespace):
         raise RuntimeError('CONTINUIDAD_PROTEGIDA: escritor desconocido; no se detiene')
     stop = namespace['STOP']
@@ -47,8 +47,9 @@ def _fence_legacy_index(namespace: dict[str, Any], index: Path) -> None:
 
     @functools.wraps(old)
     def fenced(path: str | Path, payload: dict[str, Any]) -> Any:
-        if Path(path).resolve() == index.resolve() and (
-            not isinstance(payload, dict) or payload.get('guard') != GUARD_VERSION
+        if (
+            Path(path).resolve() == index.resolve()
+            and (not isinstance(payload, dict) or payload.get('guard') != GUARD_VERSION)
         ):
             raise RuntimeError(
                 'CONTINUIDAD_PROTEGIDA: escritura de índice por escritor '
@@ -100,11 +101,7 @@ def execute() -> dict[str, Any]:
         raise RuntimeError('CONTINUIDAD_PROTEGIDA: índice de otra identidad')
     for table, old_value in (old_index.get('counts') or {}).items():
         now_value = db.get('counts', {}).get(table)
-        if (
-            isinstance(old_value, int)
-            and isinstance(now_value, int)
-            and now_value < old_value
-        ):
+        if isinstance(old_value, int) and isinstance(now_value, int) and now_value < old_value:
             raise RuntimeError(
                 f'CONTINUIDAD_PROTEGIDA: Bodega actual regresó en {table}; '
                 'no se cambia nada'
