@@ -23,6 +23,7 @@ import os
 import sqlite3
 import subprocess
 import time
+import psutil
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime
@@ -74,8 +75,6 @@ def _proc_metrics() -> dict[str, Any]:
     """RSS y descriptores del proceso de la app, si está viva."""
     if os.name == "nt":
         try:
-            import psutil
-
             with urllib.request.urlopen(HEARTBEAT, timeout=10) as response:
                 heartbeat = json.load(response)
             pid = int(heartbeat.get("runtime_pid") or 0)
@@ -91,7 +90,7 @@ def _proc_metrics() -> dict[str, Any]:
                 "cpu_times": process.cpu_times()._asdict(),
                 "created_at": process.create_time(), "authority": "heartbeat_pid_and_process_command",
             }
-        except Exception as exc:
+        except (psutil.Error, urllib.error.URLError, OSError, ValueError, RuntimeError) as exc:
             return {"alive": False, "reason": f"{type(exc).__name__}: {exc}"}
     try:
         out = subprocess.run(
