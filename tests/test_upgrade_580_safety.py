@@ -143,3 +143,61 @@ def test_offline_lease_repair_has_consistent_wal_backup(tmp_path: Path) -> None:
             assert updated.execute("SELECT status FROM autonomous_tasks WHERE task_id='expired-task'").fetchone()[0] == "pending"
     finally:
         conn.close()
+
+
+
+def _live_acceptance_snapshot(
+    *,
+    event_id: int,
+    completed_events: int,
+    completed_tasks: int,
+    transition: str = "A",
+    run_ref: str = "worker-demo",
+) -> dict:
+    return {
+        "checks": {"sqlite_integrity": "ok"},
+        "latest_health": {
+            "state": "healthy",
+            "snapshot_age_seconds": 2,
+            "metrics": {
+                "heartbeat_age_seconds": 2,
+                "last_task_transition_at": transition,
+            },
+        },
+        "latest_worker": {"run_ref": run_ref, "status": "running"},
+        "worker_progress": {
+            "run_ref": run_ref,
+            "last_event_id": event_id,
+            "completed_events": completed_events,
+        },
+        "task_status": {"completed": completed_tasks},
+    }
+
+
+def test_acceptance_rejects_heartbeat_only_progress() -> None:
+    before = _live_acceptance_snapshot(
+        event_id=10, completed_events=4, completed_tasks=100,
+    )
+    after = _live_acceptance_snapshot(
+        event_id=11, completed_events=4, completed_tasks=100, transition="B",
+    )
+    result = evaluate(before, after)
+    assert result["observed_progress"]["transition_advanced"] is True
+    assert result["observed_progress"]["completed_worker_event_advanced"] is False
+    assert result["checks"]["real_progress"] is False
+    assert result["pass"] is False
+
+
+def test_acceptance_allows_proven_completion_after_worker_restart() -> None:
+    before = _live_acceptance_snapshot(
+        event_id=10, completed_events=4, completed_tasks=100,
+        run_ref="worker-before",
+    )
+    after = _live_acceptance_snapshot(
+        event_id=12, completed_events=1, completed_tasks=101,
+        run_ref="worker-after",
+    )
+    result = evaluate(before, after)
+    assert result["observed_progress"]["completed_worker_event_advanced"] is True
+    assert result["checks"]["real_progress"] is True
+    assert result["pass"] is True
