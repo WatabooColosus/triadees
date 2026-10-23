@@ -129,11 +129,7 @@ def decide_work_mode(
         )
 
     # --- Cooldown por batería crítica ---
-    if (
-        battery_pct is not None
-        and battery_pct < 15
-        and ac is not True
-    ):
+    if battery_pct is not None and battery_pct < 15 and ac is not True:
         allowed_mode = "cooldown"
         reasons.append(f"Batería crítica ({battery_pct}%) sin AC.")
         return _build_decision(
@@ -146,11 +142,7 @@ def decide_work_mode(
         )
 
     # --- Observe-only por batería baja ---
-    if (
-        battery_pct is not None
-        and battery_pct < 25
-        and ac is not True
-    ):
+    if battery_pct is not None and battery_pct < 25 and ac is not True:
         allowed_mode = "observe_only"
         reasons.append(f"Batería baja ({battery_pct}%) sin AC.")
     # La seguridad térmica tiene prioridad sobre la carga de CPU y sobre
@@ -180,7 +172,9 @@ def decide_work_mode(
             )
         else:
             allowed_mode = "cooldown"
-            reasons.append(f"Load average ({load_1min}) muy alto para {cpu_count} CPUs.")
+            reasons.append(
+                f"Load average ({load_1min}) muy alto para {cpu_count} CPUs."
+            )
     # --- Observación por falta de Ollama razonador ---
     elif not can_reason:
         allowed_mode = "light_background"
