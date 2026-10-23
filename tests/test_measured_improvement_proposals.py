@@ -183,5 +183,7 @@ def test_boolean_or_structured_confidence_cannot_authorize_proposal(tmp_path: Pa
             conn.commit()
             outcome = propose_from_measured_failures(db)
             assert outcome["proposals_created"] == 0
-            assert outcome["skipped"][0]["reason"] == "signal_has_no_measurable_confidence"
+            assert (
+                outcome["skipped"][0]["reason"] == "signal_has_no_measurable_confidence"
+            )
             assert proposals(db) == []
