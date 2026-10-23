@@ -39,7 +39,7 @@ _MONITOR: dict[str, Any] = {}
 
 
 def utc_now() -> str:
-    return dt.datetime.now(dt.timezone.utc).isoformat()
+    return dt.datetime.now(dt.UTC).isoformat()
 
 
 def project_root() -> Path:
@@ -187,6 +187,7 @@ def _resources() -> dict[str, Any]:
             capture_output=True,
             text=True,
             timeout=5,
+            check=False,
         )
         if proc.returncode == 0:
             result["gpu_summaries"] = proc.stdout.strip().splitlines()[:2]
