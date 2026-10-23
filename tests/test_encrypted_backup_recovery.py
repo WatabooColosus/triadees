@@ -180,3 +180,33 @@ def test_worker_backup_cooldown_is_blocked_without_false_completion(
     assert first["restore_drill"]["production_overwritten"] is False
     assert second["status"] == "blocked"
     assert second["reason"] == "backup_cooldown_active"
+
+
+def test_stale_inherited_backup_key_file_falls_back_to_existing_canonical(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only a real existing canonical key can supersede a stale env path."""
+    import json
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TRIADE_BACKUP_KEY", "")
+    monkeypatch.setenv(
+        "TRIADE_BACKUP_KEY_FILE", str(tmp_path / "removed_previous_key.key")
+    )
+    key_path = tmp_path / "working-existing.key"
+    key_path.write_bytes(Fernet.generate_key())
+    key_path.chmod(0o600)
+    anchor = tmp_path / "config" / "backup_key_location.json"
+    anchor.parent.mkdir(parents=True)
+    anchor.write_text(json.dumps({"key_file": str(key_path)}), encoding="utf-8")
+    assert EncryptedBackup._configured_key_file() == str(key_path)
+    assert EncryptedBackup.key_status()["configured"] is True
+    encrypted = EncryptedBackup._fernet().encrypt(b"known-test-signal")
+    assert EncryptedBackup._fernet().decrypt(encrypted) == b"known-test-signal"
+
+    # Never create or rotate a missing secret silently.
+    key_path.unlink()
+    assert EncryptedBackup._configured_key_file() == str(
+        tmp_path / "removed_previous_key.key"
+    )
+    assert EncryptedBackup.key_status()["configured"] is False
