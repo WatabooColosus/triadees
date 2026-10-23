@@ -97,8 +97,8 @@ def propose_from_measured_failures(
         sid = str(signal["signal_id"])
         capability = str(signal["capability_id"])
         metric = str(signal["metric_id"])
-        def skip(reason: str) -> None:
-            result["skipped"].append({"signal_id": sid, "reason": reason})
+        def skip(reason: str, *, signal_id: str = sid) -> None:
+            result["skipped"].append({"signal_id": signal_id, "reason": reason})
 
         if sid in existing:
             skip("proposal_already_exists_for_signal")
