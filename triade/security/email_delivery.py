@@ -40,6 +40,28 @@ def registration_delivery_status() -> dict[str, object]:
     return {"available": True, "reason": "ready"}
 
 
+def public_registration_status() -> dict[str, object]:
+    """Fail closed: registration is off until explicitly enabled by operator.
+
+    'verified_email' works with any syntactically valid address that can
+    receive the one-time code over the configured SMTP transport.
+    No unauthenticated administrative signup exists.
+    """
+    mode = os.getenv("TRIADE_REGISTRATION_MODE", "closed").strip().lower()
+    if mode != "verified_email":
+        return {
+            "mode": "closed",
+            "available": False,
+            "reason": "registration_closed",
+        }
+    delivery = registration_delivery_status()
+    return {
+        "mode": "verified_email",
+        "available": bool(delivery["available"]),
+        "reason": str(delivery["reason"]),
+    }
+
+
 def send_verification_email(email: str, token: str) -> None:
     status = registration_delivery_status()
     if not status["available"]:
