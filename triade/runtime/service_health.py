@@ -203,6 +203,15 @@ class ServiceHealth:
                         backup_faults = int(recent["backup_faults"])
                         repeated = int(recent["total"]) - backup_faults
                         metrics["recent_backup_key_errors"] = backup_faults
+                        metrics["backup_key_fault_observed"] = bool(
+                            conn.execute(
+                                """SELECT 1 FROM worker_events
+                                WHERE task_type IN
+                                  ('mission_planner.backup_key_missing',
+                                   'mission_planner.backup_key_degraded')
+                                LIMIT 1"""
+                            ).fetchone()
+                        )
                     else:
                         repeated = int(
                             conn.execute(
@@ -250,7 +259,7 @@ class ServiceHealth:
         require_backup = os.getenv("TRIADE_REQUIRE_ENCRYPTED_BACKUP", "0").strip().lower() in {
             "1", "true", "yes", "on"
         }
-        if require_backup or metrics.get("recent_backup_key_errors", 0):
+        if require_backup or metrics.get("backup_key_fault_observed"):
             try:
                 from triade.memory.encrypted_backup import EncryptedBackup
 
