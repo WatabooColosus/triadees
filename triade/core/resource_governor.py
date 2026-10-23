@@ -129,12 +129,7 @@ def decide_work_mode(
         )
 
     # --- Cooldown por batería crítica ---
-    if (
-        not slow_full_eligible
-        and battery_pct is not None
-        and battery_pct < 15
-        and ac is not True
-    ):
+    if battery_pct is not None and battery_pct < 15 and ac is not True:
         allowed_mode = "cooldown"
         reasons.append(f"Batería crítica ({battery_pct}%) sin AC.")
         return _build_decision(
@@ -147,25 +142,39 @@ def decide_work_mode(
         )
 
     # --- Observe-only por batería baja ---
-    if (
-        not slow_full_eligible
-        and battery_pct is not None
-        and battery_pct < 25
-        and ac is not True
-    ):
+    if battery_pct is not None and battery_pct < 25 and ac is not True:
         allowed_mode = "observe_only"
         reasons.append(f"Batería baja ({battery_pct}%) sin AC.")
-    # --- Cooldown por load average ---
-    elif load_1min is not None and load_1min > cpu_count * 2:
-        allowed_mode = "cooldown"
-        reasons.append(f"Load average ({load_1min}) muy alto para {cpu_count} CPUs.")
-    # --- Cooldown por temperatura ---
+    # La seguridad térmica tiene prioridad sobre la carga de CPU y sobre
+    # TRIADE_SLOW_FULL_LOCAL: FULL lento nunca debe anular una alarma térmica.
     elif thermal_status == "critical":
         allowed_mode = "cooldown"
         reasons.append("Temperatura crítica.")
     elif thermal_status == "high":
         allowed_mode = "observe_only"
         reasons.append("Temperatura elevada.")
+    # Una carga de arranque alta no debe apagar el aprendizaje y los workers
+    # cuando el propietario ha habilitado explícitamente FULL serializado.
+    # La carga extrema sí limita el trabajo a light_background (no bloqueo).
+    # El intervalo y la concurrencia real se limitan desde el arranque Colab.
+    elif load_1min is not None and load_1min > cpu_count * 2:
+        if slow_full_eligible and load_1min <= cpu_count * 4:
+            allowed_mode = "full_local_guarded"
+            reasons.append(
+                f"FULL lento bajo presión CPU ({load_1min}/{cpu_count}); "
+                "ejecución serializada por el operador, sin desactivar protecciones."
+            )
+        elif slow_full_eligible:
+            allowed_mode = "light_background"
+            reasons.append(
+                f"CPU extremadamente saturada ({load_1min}/{cpu_count}); "
+                "workers esenciales activos con carga reducida."
+            )
+        else:
+            allowed_mode = "cooldown"
+            reasons.append(
+                f"Load average ({load_1min}) muy alto para {cpu_count} CPUs."
+            )
     # --- Observación por falta de Ollama razonador ---
     elif not can_reason:
         allowed_mode = "light_background"
@@ -178,7 +187,7 @@ def decide_work_mode(
         allowed_mode = "light_background"
         reasons.append(f"Hardware tier {tier}. Máximo light_background.")
     # --- Balanced por hardware medium ---
-    elif tier == "medium":
+    elif tier == "medium" and not slow_full_eligible:
         allowed_mode = "balanced_background"
         reasons.append(
             f"Hardware tier {tier} con AC y Ollama OK. Máximo balanced_background."
