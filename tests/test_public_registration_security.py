@@ -18,6 +18,7 @@ from triade.security.public_auth import PublicAuthStore
 
 
 def smtp_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TRIADE_REGISTRATION_MODE", "verified_email")
     monkeypatch.setenv("TRIADE_SMTP_HOST", "smtp.example.test")
     monkeypatch.setenv("TRIADE_SMTP_FROM", "noreply@example.test")
     monkeypatch.setenv("TRIADE_SMTP_PORT", "587")
@@ -31,6 +32,7 @@ def count_users(db: Path) -> int:
 def test_missing_smtp_fails_before_creating_user(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    monkeypatch.setenv("TRIADE_REGISTRATION_MODE", "verified_email")
     monkeypatch.delenv("TRIADE_SMTP_HOST", raising=False)
     monkeypatch.delenv("TRIADE_SMTP_FROM", raising=False)
     monkeypatch.setenv("TRIADE_AUTH_DB_PATH", str(tmp_path / "auth.db"))
@@ -128,3 +130,39 @@ def test_tls_status_rejects_half_credentials(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("TRIADE_SMTP_USER", "mailer")
     monkeypatch.delenv("TRIADE_SMTP_PASSWORD", raising=False)
     assert registration_delivery_status()["reason"] == "smtp_credentials_incomplete"
+
+
+def test_closed_registration_even_with_working_smtp(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    smtp_ready(monkeypatch)
+    monkeypatch.setenv("TRIADE_REGISTRATION_MODE", "closed")
+    monkeypatch.setenv("TRIADE_AUTH_DB_PATH", str(tmp_path / "auth.db"))
+    client = TestClient(app)
+    status = client.get("/api/auth/registration-status")
+    assert status.status_code == 200
+    assert status.json()["mode"] == "closed"
+    assert status.json()["available"] is False
+    response = client.post(
+        "/api/auth/register",
+        json={"email": "public@example.org", "password": "strong-private-password-123"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "registration_closed"
+    assert count_users(tmp_path / "auth.db") == 0
+
+
+def test_owner_has_highest_api_role_while_signup_is_closed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("TRIADE_REGISTRATION_MODE", "closed")
+    db = tmp_path / "auth.db"
+    PublicAuthStore(db)
+    bootstrap(db, "principal@example.org", "strong-private-password-123")
+    store = PublicAuthStore(db)
+    token = store.authenticate("principal@example.org", "strong-private-password-123")[
+        "access_token"
+    ]
+    assert store.authorize(token, required_role="admin")["role"] == "admin"
+    assert store.authorize(token, required_role="operator")["role"] == "admin"
+    assert store.authorize(token, required_role="viewer")["role"] == "admin"
