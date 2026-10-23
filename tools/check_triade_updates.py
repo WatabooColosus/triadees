@@ -88,7 +88,7 @@ def main() -> None:
     with urllib.request.urlopen(URL, timeout=15) as response:
         remote = json.load(response)
     if not isinstance(remote, dict):
-        raise ValueError("release_manifest_must_be_object")
+        raise TypeError("release_manifest_must_be_object")
     head = git(root, "rev-parse", "HEAD")
     branch = str(remote.get("branch") or "")
     commit = str(remote.get("commit") or "")
