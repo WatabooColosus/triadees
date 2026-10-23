@@ -49,9 +49,13 @@ class LlamaCppClient:
         executable: str | None = None,
         timeout: int = 120,
     ) -> None:
-        self.base_url = (base_url or os.getenv("TRIADE_LLAMA_CPP_URL", "") or "").rstrip("/")
+        self.base_url = (
+            base_url or os.getenv("TRIADE_LLAMA_CPP_URL", "") or ""
+        ).rstrip("/")
         self.model_path = model_path or os.getenv("TRIADE_LLAMA_CPP_MODEL", "") or ""
-        self.executable = executable or os.getenv("TRIADE_LLAMA_CPP_BIN", "llama-cli") or "llama-cli"
+        self.executable = (
+            executable or os.getenv("TRIADE_LLAMA_CPP_BIN", "llama-cli") or "llama-cli"
+        )
         self.timeout = timeout
 
     def _prompt(self, prompt: str, system: str | None) -> str:

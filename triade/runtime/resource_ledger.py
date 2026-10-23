@@ -149,9 +149,7 @@ class _Usage:
 
 def _rusage(which: int | None = None) -> _Usage:
     if resource is not None:
-        usage = resource.getrusage(
-            which if which is not None else resource.RUSAGE_SELF
-        )
+        usage = resource.getrusage(which if which is not None else resource.RUSAGE_SELF)
         return _Usage(usage.ru_utime, usage.ru_stime, usage.ru_maxrss)
     # Windows no expone getrusage. thread_time cubre CPU por hilo y psutil aporta
     # el RSS del proceso sin introducir una dependencia obligatoria.
