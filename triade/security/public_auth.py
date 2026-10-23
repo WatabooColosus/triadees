@@ -136,14 +136,14 @@ class PublicAuthStore:
         client_host: str = "unknown",
     ) -> dict[str, str]:
         from triade.security.email_delivery import (
-            registration_delivery_status,
+            public_registration_status,
             send_verification_email,
         )
 
         # SMTP readiness is checked BEFORE any user is written or hashed.
-        delivery = registration_delivery_status()
-        if not delivery["available"]:
-            raise RuntimeError(str(delivery["reason"]))
+        registration = public_registration_status()
+        if not registration["available"]:
+            raise RuntimeError(str(registration["reason"]))
         email = self.normalize_email(email)
         if not 12 <= len(password) <= 1024 or not password.strip():
             raise ValueError("strong_password_required")
