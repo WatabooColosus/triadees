@@ -6,6 +6,7 @@ The password is entered with getpass and is never passed on the command line.
 Existing installations with any users refuse bootstrap to prevent privilege
 escalation by an operator with console access to a running database.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -22,7 +23,9 @@ from triade.security.public_auth import PublicAuthStore
 def bootstrap(db_path: Path, email: str, password: str) -> dict[str, str]:
     """Atomic creation of one owner account, verified via trusted local console."""
     if not db_path.is_file():
-        raise FileNotFoundError("La base de Tríade no existe; inicia el servidor primero")
+        raise FileNotFoundError(
+            "La base de Tríade no existe; inicia el servidor primero"
+        )
     normalized = PublicAuthStore.normalize_email(email)
     if not 12 <= len(password) <= 1024 or not password.strip():
         raise ValueError("strong_password_required")
@@ -41,7 +44,11 @@ def bootstrap(db_path: Path, email: str, password: str) -> dict[str, str]:
             "INSERT INTO auth_email_identities VALUES (?, ?, ?, NULL, NULL, ?)",
             (user_id, normalized, now, now),
         )
-    return {"status": "created", "role": "admin", "verification": "local_trusted_bootstrap"}
+    return {
+        "status": "created",
+        "role": "admin",
+        "verification": "local_trusted_bootstrap",
+    }
 
 
 def main() -> int:

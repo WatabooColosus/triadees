@@ -128,7 +128,11 @@ class PublicAuthStore:
                 )
 
     def register_email(
-        self, email: str, password: str, *, tenant_id: str = "local",
+        self,
+        email: str,
+        password: str,
+        *,
+        tenant_id: str = "local",
         client_host: str = "unknown",
     ) -> dict[str, str]:
         from triade.security.email_delivery import (

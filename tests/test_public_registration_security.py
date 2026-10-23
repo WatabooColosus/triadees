@@ -1,4 +1,5 @@
 """Register/verify/owner-bootstrap security contracts; no real SMTP or Colab writes."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -40,7 +41,10 @@ def test_missing_smtp_fails_before_creating_user(
     assert status.json()["available"] is False
     response = client.post(
         "/api/auth/register",
-        json={"email": "person@example.org", "password": "correct horse battery staple"},
+        json={
+            "email": "person@example.org",
+            "password": "correct horse battery staple",
+        },
     )
     assert response.status_code == 503
     assert response.json()["detail"] == "smtp_not_configured"
@@ -78,9 +82,12 @@ def test_smtp_failure_removes_only_new_account(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     smtp_ready(monkeypatch)
+
     def failure(email: str, token: str) -> None:
         raise EmailDeliveryUnavailable("smtp_delivery_unavailable")
-    monkeypatch.setattr("triade.security.email_delivery.send_verification_email", failure)
+    monkeypatch.setattr(
+        "triade.security.email_delivery.send_verification_email", failure
+    )
     store = PublicAuthStore(tmp_path / "auth.db")
     with pytest.raises(EmailDeliveryUnavailable):
         store.register_email("new@example.org", "correct horse battery staple")
@@ -101,7 +108,10 @@ def test_first_owner_bootstrap_is_local_single_use(tmp_path: Path) -> None:
     created = bootstrap(db, "owner@example.org", "correct horse battery staple")
     assert created["role"] == "admin"
     auth = PublicAuthStore(db)
-    assert auth.authenticate("owner@example.org", "correct horse battery staple")["role"] == "admin"
+    assert (
+        auth.authenticate("owner@example.org", "correct horse battery staple")["role"]
+        == "admin"
+    )
     with pytest.raises(PermissionError, match="bootstrap_refused_existing_accounts"):
         bootstrap(db, "second@example.org", "correct horse battery staple")
     with sqlite3.connect(db) as conn:

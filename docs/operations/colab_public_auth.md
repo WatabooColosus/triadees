@@ -96,15 +96,24 @@ nunca host, usuario, contraseña ni el código.
 import json, sqlite3, urllib.request
 from pathlib import Path
 
-print(json.loads(urllib.request.urlopen(
-    "http://127.0.0.1:8010/api/auth/registration-status",
-    timeout=5,
-).read()))
+print(
+    json.loads(
+        urllib.request.urlopen(
+            "http://127.0.0.1:8010/api/auth/registration-status",
+            timeout=5,
+        ).read()
+    )
+)
 db = Path("/content/Triade/triade/memory/triade.db")
 with sqlite3.connect(f"file:{db.resolve()}?mode=ro", uri=True) as conn:
     print("SQLite:", conn.execute("PRAGMA integrity_check").fetchone()[0])
-    for table in ("auth_users", "auth_email_identities", "auth_sessions",
-                  "worker_runs", "runtime_health_snapshots"):
+    for table in (
+        "auth_users",
+        "auth_email_identities",
+        "auth_sessions",
+        "worker_runs",
+        "runtime_health_snapshots",
+    ):
         print(table, conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0])
 ```
 

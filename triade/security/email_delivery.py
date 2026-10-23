@@ -3,6 +3,7 @@
 Open-source Python standard-library transport. Secrets only from the runtime
 environment, never API responses or Git-tracked configuration.
 """
+
 from __future__ import annotations
 
 import os

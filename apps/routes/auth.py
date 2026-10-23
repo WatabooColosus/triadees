@@ -66,7 +66,9 @@ def register(payload: RegisterRequest, request: Request) -> dict[str, object]:
         peer = request.client.host if request.client else "unknown"
         return store().register_email(payload.email, payload.password, client_host=peer)
     except PermissionError as exc:
-        raise HTTPException(status_code=429, detail="registration_rate_limited") from exc
+        raise HTTPException(
+            status_code=429, detail="registration_rate_limited"
+        ) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
