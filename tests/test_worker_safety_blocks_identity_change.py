@@ -7,8 +7,8 @@ from pathlib import Path
 
 from triade.learning.pipeline import LearningPipeline
 from triade.workers.contracts import WorkerRunConfig
-from triade.workers.worker_loop import WorkerLoop
 from triade.workers.task_queue import WorkerTaskQueue
+from triade.workers.worker_loop import WorkerLoop
 
 
 def test_worker_rejects_identity_change_candidate_without_touching_identity_core(
