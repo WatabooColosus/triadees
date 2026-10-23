@@ -8,11 +8,15 @@ autenticación es obligatoria por defecto; `TRIADE_LOCAL_NO_AUTH` es exclusiva
 del entorno aislado de pruebas.
 
 Autenticación propia implementada con FastAPI, SQLite, Argon2, tokens aleatorios
-revocables y expirables. No es un servicio de correo: para demostrar posesión de
-una dirección externa se necesita un servidor SMTP real con TLS. Se rechaza el
-registro cuando SMTP no está configurado; **jamás se devuelve el código de
-verificación por API**. Un servidor Mailpit sirve para pruebas, no verifica
-direcciones externas reales.
+revocables y expirables. De forma predeterminada, el registro de terceros está
+**cerrado** (`TRIADE_REGISTRATION_MODE=closed`): sólo permite iniciar sesión
+a cuentas creadas previamente por el administrador o mediante bootstrap local.
+
+Para abrir el registro a **cualquier dirección de correo válida** se debe
+activar explícitamente `TRIADE_REGISTRATION_MODE=verified_email` y configurar
+un servidor SMTP con TLS. Se rechaza el registro cuando SMTP no está listo;
+**jamás se devuelve el código de verificación por API**. Un servidor Mailpit
+sirve para pruebas, pero no demuestra posesión de direcciones externas reales.
 
 ## Primera cuenta (sin SMTP)
 
@@ -34,6 +38,9 @@ del clave, confirmacion
 ```
 
 - Sólo permite un propietario cuando `auth_users` está totalmente vacío.
+- El propietario recibe el rol máximo `admin` para las rutas y funciones
+  gobernadas de **esta instalación** (incluye operador y visor).
+  No concede permisos irrestrictos de Linux, Google Drive ni otras instancias.
 - Crea el registro con `admin` y `verified_at` sólo desde una consola ya
   autenticada del operador, no desde una petición pública.
 - Si el registro web falló por `smtp_not_configured`, el código nuevo no crea
@@ -49,6 +56,7 @@ Configura en memoria de Colab o en secretos privados del despliegue estas
 variables (no escribas valores secretos en celdas compartidas ni GitHub):
 
 ```text
+TRIADE_REGISTRATION_MODE=verified_email
 TRIADE_SMTP_HOST=<proveedor SMTP>
 TRIADE_SMTP_PORT=587
 TRIADE_SMTP_FROM=<remitente autorizado>
