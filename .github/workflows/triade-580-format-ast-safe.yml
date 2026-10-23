@@ -1,0 +1,64 @@
+name: Triade 5.8.0 AST-preserving Ruff formatting
+
+on:
+  push:
+    branches: [fix/triade-580-audit-safe-20261022]
+    paths:
+      - .github/workflows/triade-580-format-ast-safe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  format-with-ast-integrity:
+    if: github.ref == 'refs/heads/fix/triade-580-audit-safe-20261022'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install formatter
+        run: python -m pip install ruff
+      - name: Format all Python without changing runtime behavior
+        run: |
+          ruff format .
+          ruff check .
+          ruff format --check .
+          python -m compileall -q triade apps scripts tests
+      - name: Prove AST equivalence of every changed tracked file
+        run: |
+          python - <<'PY'
+          import ast
+          import pathlib
+          import subprocess
+
+          modified = subprocess.check_output(
+              ["git", "diff", "--name-only", "--diff-filter=M"],
+              text=True,
+          ).splitlines()
+          for path in modified:
+              if not path.endswith(".py"):
+                  raise RuntimeError(f"Formatter modified non-Python file: {path}")
+              previous = subprocess.check_output(
+                  ["git", "show", f"HEAD:{path}"], text=True
+              )
+              current = pathlib.Path(path).read_text(encoding="utf-8")
+              before = ast.dump(ast.parse(previous, filename=path), include_attributes=False)
+              after = ast.dump(ast.parse(current, filename=path), include_attributes=False)
+              if before != after:
+                  raise RuntimeError(f"AST mismatch from formatter: {path}")
+          print(f"AST_IDENTICAL_FORMATTED_PYTHON_FILES={len(modified)}")
+          PY
+          git diff --check
+      - name: Commit formatting only to unmerged repair branch
+        run: |
+          git config user.name 'triade-ast-format'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u -- '*.py'
+          if ! git diff --cached --quiet; then
+            git commit -m 'style(py): Ruff format with proven AST equivalence'
+            git push origin HEAD:fix/triade-580-audit-safe-20261022
+          fi
