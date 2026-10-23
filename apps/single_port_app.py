@@ -442,6 +442,8 @@ async def public_guarded_mode(request: Request, call_next):
         "/api/auth/registration-status",
         "/api/auth/verify-email",
         "/health",
+        "/health/live",
+        "/health/source",
         "/healthz",
         "/api/health",
         "/",
