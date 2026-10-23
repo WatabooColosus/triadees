@@ -25,7 +25,7 @@ def admission_curriculum(
     threshold = specification["certification_requirements"].get("success_rate_min")
     if not isinstance(threshold, (int, float)) or not 0 < threshold <= 1:
         raise ValueError("missing_predefined_certification_threshold")
-    cases = {}
+    cases: dict[str, list[dict[str, Any]]] = {}
     for split, values in (("training", (3, 7)), ("held_out", (34, 41, 52, 63, 79))):
         cases[split] = []
         for value in values:

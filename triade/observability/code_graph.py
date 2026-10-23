@@ -708,7 +708,10 @@ def _iter_launchers(root: Path, index: ModuleIndex) -> Iterator[tuple[str, str, 
         except OSError:
             continue
         launcher = source.relative_to(root).as_posix()
-        launch_patterns = (_MODULE_LAUNCH, _UVICORN_LAUNCH)
+        launch_patterns: tuple[re.Pattern[str], ...] = (
+            _MODULE_LAUNCH,
+            _UVICORN_LAUNCH,
+        )
         if source.suffix.lower() == ".ps1":
             launch_patterns = (*launch_patterns, _POWERSHELL_MODULE_LAUNCH)
         for launch_pattern in launch_patterns:

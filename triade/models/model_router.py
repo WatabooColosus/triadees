@@ -100,7 +100,7 @@ class ModelRouter:
         self.available_models = available_models or []
         self.hardware = hardware
         self.provider = (
-            provider or os.getenv("TRIADE_MODEL_PROVIDER", "ollama")
+            provider or os.getenv("TRIADE_MODEL_PROVIDER", "ollama") or "ollama"
         ).strip()
 
     def route(

@@ -27,7 +27,7 @@ def _windows_acl(script: str, path: Path) -> dict:
             text=True,
             timeout=15,
             check=False,
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise PermissionError("windows_file_acl_inspection_failed") from exc

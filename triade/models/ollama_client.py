@@ -526,13 +526,13 @@ def check_ollama_cognitive_health(
     selected_embedding = embedding.selected_model
     selected_lightweight = lightweight.selected_model
     if not models:
-        lightweight = os.getenv("TRIADE_LOW_RESOURCE_MODEL", "qwen2.5:1.5b")
-        selected_reasoning = lightweight
-        selected_coding = lightweight
+        fallback_model = os.getenv("TRIADE_LOW_RESOURCE_MODEL", "qwen2.5:1.5b")
+        selected_reasoning = fallback_model
+        selected_coding = fallback_model
         # Los embeddings siguen siendo opcionales y no se cuentan como el
         # modelo generativo residente del runtime low-resource.
         selected_embedding = "disabled:embedding-on-demand"
-        selected_lightweight = lightweight
+        selected_lightweight = fallback_model
 
     installed = set(models)
     reasoning_available = bool(health.get("ok")) and selected_reasoning in installed

@@ -59,10 +59,12 @@ def capture_source(root: Path) -> dict:
                 digest.update(name.encode())
                 digest.update(path.read_bytes())
         result.update(
-            git_sha=sha,
-            source_dirty=dirty,
-            source_hash=digest.hexdigest(),
-            status="CLEAN" if not dirty else "DIRTY",
+            {
+                "git_sha": sha,
+                "source_dirty": dirty,
+                "source_hash": digest.hexdigest(),
+                "status": "CLEAN" if not dirty else "DIRTY",
+            }
         )
     except (OSError, subprocess.SubprocessError) as exc:
         result["reason"] = type(exc).__name__
