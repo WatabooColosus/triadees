@@ -2,7 +2,6 @@
 
 from tools.check_triade_updates import decision
 
-
 SOURCE = "a" * 40
 BRANCH = "codex/triade-5.8.0-runtime-recovery"
 
