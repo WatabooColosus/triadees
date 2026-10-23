@@ -6,9 +6,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from triade.db import sqlite3
-from triade.security.email_delivery import registration_delivery_status
-
 from triade.security.distributed_auth import DistributedAuthUnavailable
+from triade.security.email_delivery import registration_delivery_status
 from triade.security.public_auth import PublicAuthStore
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
