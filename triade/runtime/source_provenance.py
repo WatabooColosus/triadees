@@ -6,6 +6,7 @@ import hashlib
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 SOURCE_PATHS = (
     "triade",
@@ -20,7 +21,10 @@ SOURCE_PATHS = (
 
 
 def capture_source(root: Path) -> dict:
-    result = {"captured_at": datetime.now(UTC).isoformat(), "status": "UNVERIFIED"}
+    result: dict[str, Any] = {
+        "captured_at": datetime.now(UTC).isoformat(),
+        "status": "UNVERIFIED",
+    }
     try:
 
         def git(*args: str) -> str:

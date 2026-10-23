@@ -181,8 +181,8 @@ def _cpu_propio() -> tuple[float, float, str]:
         return time.thread_time(), 0.0, "thread_clock"
     except (AttributeError, OSError):
         pass
-    uso = _rusage()
-    return uso.ru_utime, uso.ru_stime, "process"
+    process_usage = _rusage()
+    return process_usage.ru_utime, process_usage.ru_stime, "process"
 
 
 class ResourceMeasurementCollector:
