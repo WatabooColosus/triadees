@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from triade.db import sqlite3
 from triade.security.distributed_auth import DistributedAuthUnavailable
-from triade.security.email_delivery import registration_delivery_status
+from triade.security.email_delivery import public_registration_status
 from triade.security.public_auth import PublicAuthStore
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -52,8 +52,9 @@ def login(payload: LoginRequest) -> dict[str, object]:
 
 @router.get("/registration-status")
 def registration_status() -> dict[str, object]:
-    status = registration_delivery_status()
+    status = public_registration_status()
     return {
+        "mode": status["mode"],
         "available": status["available"],
         "verification": "email",
         "reason": status["reason"],
@@ -70,7 +71,8 @@ def register(payload: RegisterRequest, request: Request) -> dict[str, object]:
             status_code=429, detail="registration_rate_limited"
         ) from exc
     except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        code = 403 if str(exc) == "registration_closed" else 503
+        raise HTTPException(status_code=code, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except sqlite3.IntegrityError as exc:
