@@ -19,6 +19,12 @@ from triade.core.neuron_formation_pipeline import form_candidate
 from triade.neurons.competency_store import utc_now
 from triade.neurons.learning_router import NeuralLearningRouter, _tokens
 
+def _require_insert_id(row_id: int | None) -> int:
+    if row_id is None:
+        raise RuntimeError("SQLite did not return the inserted event ID")
+    return row_id
+
+
 ADMISSION_SCHEMA_VERSION = 2
 REQUIRED_SPEC_FIELDS = (
     "name",
@@ -287,7 +293,7 @@ class DomainAdmissionCoordinator:
                 "INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(NULL,?,'domain_training_completed',?,?)",
                 (formation["neuron_id"], json.dumps(outcome), utc_now()),
             )
-            outcome["event_id"] = int(cursor.lastrowid)
+            outcome["event_id"] = _require_insert_id(cursor.lastrowid)
         return outcome
 
     def certify(
@@ -354,7 +360,11 @@ class DomainAdmissionCoordinator:
             )
         started = time.monotonic()
         budget = float(curriculum["resource_profile"]["max_runtime_seconds"])
-        arms = {"baseline": [], "treatment": [], "negative_control": []}
+        arms: dict[str, list[dict[str, Any]]] = {
+            "baseline": [],
+            "treatment": [],
+            "negative_control": [],
+        }
         rss_peak_mb, calls = 0.0, 0
         import psutil
 
@@ -515,7 +525,7 @@ class DomainAdmissionCoordinator:
                 "INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(NULL,?,'domain_certification_completed',?,?)",
                 (neuron_id, json.dumps(outcome), utc_now()),
             )
-            outcome["event_id"] = int(cursor.lastrowid)
+            outcome["event_id"] = _require_insert_id(cursor.lastrowid)
         return outcome
 
     def form(self, event_id: int, *, correlation_id: str) -> dict[str, Any]:
@@ -593,7 +603,7 @@ class DomainAdmissionCoordinator:
                     "INSERT INTO neuron_education_events(session_id,neuron_id,event_type,payload_json,created_at) VALUES(NULL,?,'domain_candidate_formed',?,?)",
                     (neuron_id, json.dumps(receipt), utc_now()),
                 )
-                receipt["event_id"] = int(cursor.lastrowid)
+                receipt["event_id"] = _require_insert_id(cursor.lastrowid)
             else:
                 receipt["event_id"] = int(existing["id"])
         return receipt
@@ -748,4 +758,4 @@ class DomainAdmissionCoordinator:
                 VALUES(NULL,NULL,'domain_admission_requested',?,?)""",
                 (json.dumps(result, ensure_ascii=False), result["created_at"]),
             )
-            return {**result, "event_id": int(cursor.lastrowid)}
+            return {**result, "event_id": _require_insert_id(cursor.lastrowid)}

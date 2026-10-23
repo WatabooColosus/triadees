@@ -6,6 +6,7 @@ con sentence-transformers cuando Ollama no está disponible.
 
 from __future__ import annotations
 
+import importlib
 import logging
 from dataclasses import asdict, dataclass
 from typing import Any, ClassVar
@@ -45,8 +46,9 @@ class LocalEmbeddingProvider:
     def _load_model(self) -> Any:
         if self._model is None:
             try:
-                from sentence_transformers import SentenceTransformer
-
+                SentenceTransformer = importlib.import_module(
+                    "sentence_transformers"
+                ).SentenceTransformer
                 self._model = SentenceTransformer(self.model_name)
                 logger.info("Modelo de embedding local cargado: %s", self.model_name)
             except (

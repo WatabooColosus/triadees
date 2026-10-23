@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import importlib
 import json
 import math
 import os
@@ -136,9 +137,13 @@ class RealLoraTrainer:
         campaign_id: str | None = None,
         db_path: str | Path = "triade/memory/triade.db",
     ) -> dict[str, Any]:
-        import torch
-        from peft import LoraConfig, get_peft_model
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        torch = importlib.import_module("torch")
+        peft = importlib.import_module("peft")
+        transformers = importlib.import_module("transformers")
+        LoraConfig = peft.LoraConfig
+        get_peft_model = peft.get_peft_model
+        AutoModelForCausalLM = transformers.AutoModelForCausalLM
+        AutoTokenizer = transformers.AutoTokenizer
 
         if not torch.cuda.is_available():
             raise RuntimeError("LoRA real requiere CUDA en esta configuración")
@@ -342,7 +347,7 @@ class RealLoraTrainer:
         }
 
     def _evaluate_loss(self, model: Any, dataset: _Rows, pad_token_id: int) -> float:
-        import torch
+        torch = importlib.import_module("torch")
 
         if not len(dataset):
             return math.inf

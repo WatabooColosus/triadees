@@ -23,6 +23,7 @@ se rellena por defecto optimista.
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import shutil
@@ -215,7 +216,7 @@ def _windows_user_startup_snapshot() -> dict[str, Any]:
     if not _WINDOWS:
         return {"known": False, "autostart_enabled": None}
     try:
-        import winreg
+        winreg = importlib.import_module("winreg")
 
         with winreg.OpenKey(
             winreg.HKEY_CURRENT_USER,

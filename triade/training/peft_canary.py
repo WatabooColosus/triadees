@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import threading
 import time
@@ -56,9 +57,11 @@ class PeftCanaryServer:
         with self._lock:
             if self._loaded_adapter == str(path) and self._model is not None:
                 return self._model, self._tokenizer, path
-            import torch
-            from peft import PeftModel
-            from transformers import AutoModelForCausalLM, AutoTokenizer
+            torch = importlib.import_module("torch")
+            PeftModel = importlib.import_module("peft").PeftModel
+            transformers = importlib.import_module("transformers")
+            AutoModelForCausalLM = transformers.AutoModelForCausalLM
+            AutoTokenizer = transformers.AutoTokenizer
 
             manifest = json.loads(
                 (path / "triade_adapter_manifest.json").read_text(encoding="utf-8")
@@ -94,7 +97,7 @@ class PeftCanaryServer:
         started = time.monotonic()
         digest = hashlib.sha256(prompt.encode()).hexdigest()
         try:
-            import torch
+            torch = importlib.import_module("torch")
 
             model, tokenizer, path = self._load(adapter_path)
             rendered_prompt = prompt
@@ -207,7 +210,7 @@ class PeftCanaryServer:
         with cls._lock:
             cls._model = cls._tokenizer = cls._loaded_adapter = None
             try:
-                import torch
+                torch = importlib.import_module("torch")
 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()

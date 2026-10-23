@@ -20,7 +20,9 @@ def create_model_client(
     **kwargs: Any,
 ) -> ModelProvider:
     selected = (
-        (provider or os.getenv("TRIADE_MODEL_PROVIDER", "ollama")).strip().lower()
+        (provider or os.getenv("TRIADE_MODEL_PROVIDER", "ollama") or "ollama")
+        .strip()
+        .lower()
     )
     if selected in {"llama.cpp", "llamacpp", "llama_cpp"}:
         return LlamaCppClient(base_url=base_url, timeout=timeout, **kwargs)

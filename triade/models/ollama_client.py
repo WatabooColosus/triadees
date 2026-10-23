@@ -82,6 +82,8 @@ class OllamaClient:
     keep using template fallback without failing the run.
     """
 
+    provider: str = "ollama"
+
     def __init__(
         self,
         base_url: str = "http://127.0.0.1:11434",
