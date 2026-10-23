@@ -10,6 +10,7 @@ import pytest
 
 from tools.audit_triade_full_readiness import audit
 
+# Fixed observation time: test results must not depend on the CI runner clock.
 NOW = dt.datetime(2026, 10, 22, 23, 0, tzinfo=dt.UTC)
 
 
