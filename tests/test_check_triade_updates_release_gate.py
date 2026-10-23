@@ -1,4 +1,5 @@
 """Safety policy of the Colab update checker: never install an unreviewed tip."""
+
 from tools.check_triade_updates import decision
 
 
