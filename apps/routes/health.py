@@ -23,7 +23,11 @@ router = APIRouter(prefix="/health", tags=["health"])
 
 @router.get("/source")
 def loaded_source(request: Request) -> dict[str, Any]:
-    return getattr(request.app.state, "loaded_source_revision", {"status": "UNVERIFIED", "verified": False})
+    return getattr(
+        request.app.state,
+        "loaded_source_revision",
+        {"status": "UNVERIFIED", "verified": False},
+    )
 
 
 def _tcp_check(url: str | None, default_port: int) -> dict[str, Any]:

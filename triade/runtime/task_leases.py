@@ -909,7 +909,11 @@ class AutonomousTaskStore:
 
                 if not expired:
                     conn.commit()
-                    return {"status": "live_lease", "lease_expires_at": expires, **result}
+                    return {
+                        "status": "live_lease",
+                        "lease_expires_at": expires,
+                        **result,
+                    }
 
                 # Mismo motivo que en `recover_expired`: sin intentos, `recovered`
                 # es una vía muerta que además bloquea el dedup de su tipo.
@@ -949,7 +953,11 @@ class AutonomousTaskStore:
 
                 if not expired:
                     conn.commit()
-                    return {"status": "live_lease", "lease_expires_at": expires, **result}
+                    return {
+                        "status": "live_lease",
+                        "lease_expires_at": expires,
+                        **result,
+                    }
 
                 ref = str(row["result_ref"] or "")
                 has_artifact = ref and Path(ref).is_file()

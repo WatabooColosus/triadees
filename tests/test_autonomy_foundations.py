@@ -14,16 +14,19 @@ from triade.models.ollama_client import ModelResult
 from triade.workers.adaptive_scheduler import AdaptiveScheduler
 
 
-def test_safe_shell_never_exposes_environment_and_confines_workdir(tmp_path, monkeypatch):
+def test_safe_shell_never_exposes_environment_and_confines_workdir(
+    tmp_path, monkeypatch
+):
     from triade.core import safe_shell
+
     # tmp_path may be inside the real repository when --basetemp is local.
     # Define an explicit project/sibling boundary instead of assuming location.
-    project = tmp_path / 'project'
+    project = tmp_path / "project"
     project.mkdir()
-    outside = tmp_path / 'outside'
+    outside = tmp_path / "outside"
     outside.mkdir()
-    monkeypatch.setattr(safe_shell, 'PROJECT_ROOT', project)
-    monkeypatch.setattr(safe_shell, 'DB_PATH', tmp_path / 'shell-audit.db')
+    monkeypatch.setattr(safe_shell, "PROJECT_ROOT", project)
+    monkeypatch.setattr(safe_shell, "DB_PATH", tmp_path / "shell-audit.db")
     assert "env_keys" not in AUTONOMOUS_SAFE_EXTENSIONS
     result = run_autonomous("pwd", working_dir=outside)
     assert result["status"] == "blocked"

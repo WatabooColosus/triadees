@@ -4,6 +4,7 @@ This does not operate the runtime, mutate tables, promote neurons, or infer
 consciousness. Zero rows are reported as absent evidence, never filled in.
 The JSON contains aggregates rather than message contents or model prompts.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -17,12 +18,21 @@ from typing import Any
 
 # Tables are a fixed allowlist: no untrusted identifier interpolation.
 EVIDENCE_TABLES = (
-    "neurons", "neuron_education_sessions", "neuron_activity",
-    "triade_weight_events", "governed_research_runs",
-    "improvement_proposals", "improvement_canaries",
-    "federated_nodes", "trainable_adapters", "worker_runs",
-    "worker_events", "autonomous_tasks", "runtime_health_snapshots",
-    "metabolic_cycle", "neuron_missions",
+    "neurons",
+    "neuron_education_sessions",
+    "neuron_activity",
+    "triade_weight_events",
+    "governed_research_runs",
+    "improvement_proposals",
+    "improvement_canaries",
+    "federated_nodes",
+    "trainable_adapters",
+    "worker_runs",
+    "worker_events",
+    "autonomous_tasks",
+    "runtime_health_snapshots",
+    "metabolic_cycle",
+    "neuron_missions",
 )
 
 
@@ -38,7 +48,9 @@ def _age(timestamp: str | None, now: dt.datetime) -> float | None:
         return None
 
 
-def _rows(conn: sqlite3.Connection, sql: str, args: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+def _rows(
+    conn: sqlite3.Connection, sql: str, args: tuple[Any, ...] = ()
+) -> list[dict[str, Any]]:
     return [dict(row) for row in conn.execute(sql, args).fetchall()]
 
 
@@ -50,7 +62,9 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def audit(database: Path, *, fingerprint: bool = False, now: dt.datetime | None = None) -> dict[str, Any]:
+def audit(
+    database: Path, *, fingerprint: bool = False, now: dt.datetime | None = None
+) -> dict[str, Any]:
     """Inspect one file in SQLite read-only mode; no changes to its WAL."""
     database = database.resolve()
     if not database.is_file():
@@ -75,7 +89,9 @@ def audit(database: Path, *, fingerprint: bool = False, now: dt.datetime | None 
         "gaps": [],
         "full_certification": "not_established",
     }
-    with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=10)) as conn:
+    with closing(
+        sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=10)
+    ) as conn:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA query_only=ON")
         integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
@@ -94,7 +110,10 @@ def audit(database: Path, *, fingerprint: bool = False, now: dt.datetime | None 
         if "autonomous_tasks" in tables:
             result["task_states"] = {
                 str(row["status"]): row["n"]
-                for row in _rows(conn, "SELECT status, COUNT(*) AS n FROM autonomous_tasks GROUP BY status")
+                for row in _rows(
+                    conn,
+                    "SELECT status, COUNT(*) AS n FROM autonomous_tasks GROUP BY status",
+                )
             }
         if "worker_runs" in tables:
             runs = _rows(
@@ -123,21 +142,24 @@ def audit(database: Path, *, fingerprint: bool = False, now: dt.datetime | None 
                         "FROM worker_events WHERE run_ref=?",
                         (run["run_ref"],),
                     )[0]
-                    result["worker"].update({
-                        "events_in_run": int(ev["n"]),
-                        "completed_task_events_in_run": int(ev["completed"] or 0),
-                        "last_event_at": ev["last_at"],
-                        "last_event_age_seconds": _age(ev["last_at"], now),
-                        "unfinished_summary_despite_events": (
-                            run["status"] == "running"
-                            and summary.get("iterations") == 0
-                            and int(ev["n"]) > 0
-                        ),
-                    })
+                    result["worker"].update(
+                        {
+                            "events_in_run": int(ev["n"]),
+                            "completed_task_events_in_run": int(ev["completed"] or 0),
+                            "last_event_at": ev["last_at"],
+                            "last_event_age_seconds": _age(ev["last_at"], now),
+                            "unfinished_summary_despite_events": (
+                                run["status"] == "running"
+                                and summary.get("iterations") == 0
+                                and int(ev["n"]) > 0
+                            ),
+                        }
+                    )
         if "runtime_health_snapshots" in tables:
             health = _rows(
-                conn, "SELECT state, created_at, metrics_json "
-                "FROM runtime_health_snapshots ORDER BY snapshot_id DESC LIMIT 1"
+                conn,
+                "SELECT state, created_at, metrics_json "
+                "FROM runtime_health_snapshots ORDER BY snapshot_id DESC LIMIT 1",
             )
             if health:
                 snap = health[0]
@@ -162,14 +184,20 @@ def audit(database: Path, *, fingerprint: bool = False, now: dt.datetime | None 
                 str(row["result"]): row["n"] for row in states
             }
         if "triade_weight_events" in tables:
-            result["learning"]["weight_event_count"] = result["counts"]["triade_weight_events"]
+            result["learning"]["weight_event_count"] = result["counts"][
+                "triade_weight_events"
+            ]
 
     missing = [name for name, count in result["counts"].items() if count is None]
     absent = [
-        name for name in (
-            "improvement_proposals", "improvement_canaries",
-            "trainable_adapters", "federated_nodes",
-        ) if result["counts"][name] == 0
+        name
+        for name in (
+            "improvement_proposals",
+            "improvement_canaries",
+            "trainable_adapters",
+            "federated_nodes",
+        )
+        if result["counts"][name] == 0
     ]
     if integrity != "ok":
         result["gaps"].append("database_integrity_not_ok")
@@ -183,8 +211,8 @@ def audit(database: Path, *, fingerprint: bool = False, now: dt.datetime | None 
         result["task_states"].get("completed", 0) > 0
     )
     result["checks"]["historical_weight_updates_observed"] = (
-        (result["counts"].get("triade_weight_events") or 0) > 0
-    )
+        result["counts"].get("triade_weight_events") or 0
+    ) > 0
     result["checks"]["autonomous_self_improvement_circuit_certified"] = False
     result["checks"]["end_to_end_colab_upgrade_certified"] = False
     return result
@@ -193,7 +221,8 @@ def audit(database: Path, *, fingerprint: bool = False, now: dt.datetime | None 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--db", type=Path,
+        "--db",
+        type=Path,
         default=Path("/content/Triade/triade/memory/triade.db"),
     )
     parser.add_argument("--sha256", action="store_true", help="Hash the main DB file.")

@@ -9,6 +9,7 @@
   'specified' para la capacidad solicitada.
 No crea neuronas/especificaciones, no aprueba propuestas y no toca pesos.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -57,9 +58,7 @@ def propose_from_measured_failures(
         conn.row_factory = sqlite3.Row
         tables = {
             str(row[0])
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
         if not {"improvement_signals", "improvement_proposals"} <= tables:
             return result
@@ -87,9 +86,7 @@ def propose_from_measured_failures(
         )
         existing = {
             str(row[0])
-            for row in conn.execute(
-                "SELECT signal_id FROM improvement_proposals"
-            )
+            for row in conn.execute("SELECT signal_id FROM improvement_proposals")
         }
 
     for signal in signals:
@@ -97,6 +94,7 @@ def propose_from_measured_failures(
         sid = str(signal["signal_id"])
         capability = str(signal["capability_id"])
         metric = str(signal["metric_id"])
+
         def skip(reason: str, *, signal_id: str = sid) -> None:
             result["skipped"].append({"signal_id": signal_id, "reason": reason})
 
@@ -149,17 +147,13 @@ def propose_from_measured_failures(
             skip("no_unique_authorized_neuron_specification")
             continue
         spec = valid_targets[0]
-        proposal_id = (
-            "measured-" + hashlib.sha256(sid.encode("utf-8")).hexdigest()[:24]
-        )
+        proposal_id = "measured-" + hashlib.sha256(sid.encode("utf-8")).hexdigest()[:24]
         proposal = ImprovementProposal(
             proposal_id=proposal_id,
             signal_id=sid,
             hypothesis=learner.hypothesis_for(capability, metric),
             requested_capability=capability,
-            requires_human_approval=(
-                payload.get("risk_level") in {"high", "critical"}
-            ),
+            requires_human_approval=(payload.get("risk_level") in {"high", "critical"}),
             max_candidates=1,
             cooldown_seconds=3600,
             neuron_id=str(spec["neuron_id"]),

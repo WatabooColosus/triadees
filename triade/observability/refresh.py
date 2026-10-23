@@ -153,7 +153,7 @@ class GraphRefresher:
 
     def is_stale(self, stale_seconds: float | None = None) -> bool:
         """Sin artefacto también es caducado: hay que construirlo igual.
-        
+
         Si se pasa `stale_seconds`, usa ese umbral en lugar del configurado
         en el refrescador. Útil para endpoints que quieren TTL más agresivo
         (ej. deuda: 30 min vs estructura: 6h).
@@ -168,7 +168,9 @@ class GraphRefresher:
 
     # -- disparo ---------------------------------------------------------
 
-    def request(self, *, force: bool = False, stale_seconds: float | None = None) -> str:
+    def request(
+        self, *, force: bool = False, stale_seconds: float | None = None
+    ) -> str:
         """Pide una reconstrucción si hace falta. Nunca bloquea.
 
         Devuelve qué se decidió, y ese motivo viaja hasta la interfaz: quien

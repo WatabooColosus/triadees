@@ -101,8 +101,10 @@ _WEB_REQUEST = re.compile(
 
 def requests_web_research(text: str) -> bool:
     for match in _WEB_REQUEST.finditer(text):
-        prefix = text[:match.start()]
-        if not re.search(r"\b(?:no|sin|evita)\s+(?:\w+\s+){0,2}$", prefix, re.IGNORECASE):
+        prefix = text[: match.start()]
+        if not re.search(
+            r"\b(?:no|sin|evita)\s+(?:\w+\s+){0,2}$", prefix, re.IGNORECASE
+        ):
             return True
     return False
 
@@ -216,11 +218,15 @@ def guarded_web_research(
                 _wikipedia_sources(clean_query, timeout=timeout, max_sources=remaining)
             )
     return {
-        "status": "ok" if sources and provider != "curated_and_wikipedia_fallback" else "degraded",
+        "status": "ok"
+        if sources and provider != "curated_and_wikipedia_fallback"
+        else "degraded",
         "query": clean_query,
         "sources": sources,
         "source_count": len(sources),
-        "search_provider": provider if urls and sources else "curated_and_wikipedia_fallback",
+        "search_provider": provider
+        if urls and sources
+        else "curated_and_wikipedia_fallback",
         "policy": "explicit_request_public_http_no_javascript_evidence_only",
         "stable_memory_written": False,
     }
@@ -284,10 +290,25 @@ def _wikipedia_sources(
         excerpt = " ".join(str(page.get("extract") or "").split())[:1800]
         source_url = str(page.get("fullurl") or "")
         terms = set(re.findall(r"[a-záéíóúñ]{4,}", query.lower())) - {
-            "internet", "busca", "busques", "quiero", "fuente", "fuentes",
-            "donde", "dame", "actuales", "actual", "informacion", "información",
+            "internet",
+            "busca",
+            "busques",
+            "quiero",
+            "fuente",
+            "fuentes",
+            "donde",
+            "dame",
+            "actuales",
+            "actual",
+            "informacion",
+            "información",
         }
-        evidence_terms = set(re.findall(r"[a-záéíóúñ]{4,}", (str(page.get("title") or "") + " " + excerpt).lower()))
+        evidence_terms = set(
+            re.findall(
+                r"[a-záéíóúñ]{4,}",
+                (str(page.get("title") or "") + " " + excerpt).lower(),
+            )
+        )
         relevant = bool(terms) and len(terms & evidence_terms) / len(terms) > 0.5
         if excerpt and source_url and relevant:
             result.append(

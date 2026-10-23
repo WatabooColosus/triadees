@@ -14,8 +14,20 @@ def test_bootstrap_binding_rejects_dirty_or_changed_source(tmp_path):
     source.parent.mkdir()
     source.write_text("VALUE = 1\n")
     subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
-    subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@localhost",
-                    "commit", "-qm", "initial"], cwd=tmp_path, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@localhost",
+            "commit",
+            "-qm",
+            "initial",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
     before = capture_source(tmp_path)
     assert bind_loaded_source(before, capture_source(tmp_path))["verified"] is True
     source.write_text("VALUE = 2\n")

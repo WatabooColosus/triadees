@@ -56,7 +56,8 @@ def test_live_worker_progress_is_persisted_but_never_overwrites_final_summary(
     }
 
     store.finish_worker_run(
-        "worker-live", "completed",
+        "worker-live",
+        "completed",
         {"iterations": 4, "tasks_completed": 6, "tasks_blocked": 1},
     )
     assert not store.update_worker_progress(

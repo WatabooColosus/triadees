@@ -211,7 +211,9 @@ class TriadeRunner:
         if use_ollama:
             self.model_client = create_model_client(
                 self.model_provider,
-                base_url=self.ollama_base_url if self.model_provider == "ollama" else None,
+                base_url=self.ollama_base_url
+                if self.model_provider == "ollama"
+                else None,
                 timeout=self.ollama_timeout,
                 db_path=self.db_path,
             )
@@ -254,11 +256,15 @@ class TriadeRunner:
 
         injector = ProductionKnowledgeInjector(self.db_path)
         contexto = getattr(input_packet, "context", None)
-        candidate_ids = {
-            str(value)
-            for value in (contexto or {}).get("learning_candidate_ids", [])
-            if str(value).strip()
-        } if isinstance(contexto, dict) else set()
+        candidate_ids = (
+            {
+                str(value)
+                for value in (contexto or {}).get("learning_candidate_ids", [])
+                if str(value).strip()
+            }
+            if isinstance(contexto, dict)
+            else set()
+        )
         injection = injector.build(
             str(getattr(input_packet, "user_input", "") or ""),
             run_id=str(getattr(input_packet, "run_id", "") or "run"),
@@ -1139,7 +1145,11 @@ class TriadeRunner:
         from .guarded_web import web_failure_response
 
         web_failure = web_failure_response(input_packet.user_input, web_research)
-        if web_failure and output.status not in {"blocked", "pending_approval", "sandbox"}:
+        if web_failure and output.status not in {
+            "blocked",
+            "pending_approval",
+            "sandbox",
+        }:
             output.response = web_failure
             output.actions_taken.append("guarded_web_missing_evidence")
         output_gate["expression_cortex"] = {

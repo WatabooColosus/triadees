@@ -17,14 +17,17 @@ def manifest(*, channel="stable", requires_review=False, commit=SOURCE, branch=B
 
 
 def test_candidate_is_never_offered_as_installable():
-    result = decision(manifest(channel="stable-candidate", requires_review=True), head="b" * 40)
+    result = decision(
+        manifest(channel="stable-candidate", requires_review=True), head="b" * 40
+    )
     assert result["status"] == "review_required"
     assert result["update_available"] is False
 
 
 def test_claimed_stable_release_must_be_verified_against_branch():
     result = decision(
-        manifest(), head="b" * 40,
+        manifest(),
+        head="b" * 40,
         release_tree_verified=False,
         local_is_ancestor=True,
     )
@@ -34,7 +37,8 @@ def test_claimed_stable_release_must_be_verified_against_branch():
 
 def test_verified_fast_forward_is_offered():
     result = decision(
-        manifest(), head="b" * 40,
+        manifest(),
+        head="b" * 40,
         release_tree_verified=True,
         local_is_ancestor=True,
         remote_is_ancestor=False,
@@ -45,7 +49,8 @@ def test_verified_fast_forward_is_offered():
 
 def test_divergent_local_code_cannot_be_force_updated():
     result = decision(
-        manifest(), head="b" * 40,
+        manifest(),
+        head="b" * 40,
         release_tree_verified=True,
         local_is_ancestor=False,
         remote_is_ancestor=False,
@@ -56,7 +61,8 @@ def test_divergent_local_code_cannot_be_force_updated():
 
 def test_local_ahead_does_not_receive_old_release():
     result = decision(
-        manifest(), head="b" * 40,
+        manifest(),
+        head="b" * 40,
         release_tree_verified=True,
         local_is_ancestor=False,
         remote_is_ancestor=True,

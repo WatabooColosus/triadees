@@ -152,7 +152,7 @@ class OllamaClient:
         es lo que hacían todas las llamadas existentes.
         """
         if use_active_peft and response_format is not None:
-            raise ValueError('structured_output_not_supported_by_peft')
+            raise ValueError("structured_output_not_supported_by_peft")
         if use_active_peft:
             peft_result = self._generate_with_active_peft(
                 model, prompt, system=system, options=options
@@ -578,11 +578,11 @@ def check_ollama_cognitive_health(
     if not health.get("ok"):
         recommended_action = "Iniciar Ollama y confirmar que /api/tags responda."
     elif not embedding_available:
-        recommended_action = (
-            "Mantener embeddings bajo demanda; instalar un modelo sólo si la memoria disponible lo permite."
-        )
+        recommended_action = "Mantener embeddings bajo demanda; instalar un modelo sólo si la memoria disponible lo permite."
     elif not reasoning_available:
-        recommended_action = "Instalar el modelo ligero configurado en TRIADE_LOW_RESOURCE_MODEL."
+        recommended_action = (
+            "Instalar el modelo ligero configurado en TRIADE_LOW_RESOURCE_MODEL."
+        )
     else:
         recommended_action = "Ollama listo como motor cognitivo local."
 

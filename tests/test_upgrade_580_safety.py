@@ -2,6 +2,7 @@
 
 Only synthetic temporary SQLite databases are modified.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -53,9 +54,17 @@ def make_db(root: Path, *, fresh_heartbeat: bool = True) -> Path:
         )
         conn.execute(
             "INSERT INTO autonomous_tasks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ("expired-task", "pulse_check", "running", "old-worker",
-             "2000-01-01T00:00:00+00:00", "2000-01-01T00:01:00+00:00",
-             None, utc_now(), None),
+            (
+                "expired-task",
+                "pulse_check",
+                "running",
+                "old-worker",
+                "2000-01-01T00:00:00+00:00",
+                "2000-01-01T00:01:00+00:00",
+                None,
+                utc_now(),
+                None,
+            ),
         )
         conn.execute(
             "INSERT INTO worker_runs (run_ref,status,summary_json) VALUES (?,?,?)",
@@ -67,10 +76,17 @@ def make_db(root: Path, *, fresh_heartbeat: bool = True) -> Path:
         )
         conn.execute(
             "INSERT INTO runtime_health_snapshots (state,reason_json,metrics_json,created_at) VALUES (?,?,?,?)",
-            ("healthy", "[]", json.dumps({
-                "heartbeat_age_seconds": 2 if fresh_heartbeat else 500,
-                "last_task_transition_at": utc_now(),
-            }), utc_now()),
+            (
+                "healthy",
+                "[]",
+                json.dumps(
+                    {
+                        "heartbeat_age_seconds": 2 if fresh_heartbeat else 500,
+                        "last_task_transition_at": utc_now(),
+                    }
+                ),
+                utc_now(),
+            ),
         )
     return db
 
@@ -85,7 +101,9 @@ def test_running_worker_zero_summary_is_not_a_false_stall(tmp_path: Path) -> Non
     assert "worker_reports_zero_iterations" not in status["findings"]
 
 
-def test_acceptance_requires_observed_progress_not_finished_summary(tmp_path: Path) -> None:
+def test_acceptance_requires_observed_progress_not_finished_summary(
+    tmp_path: Path,
+) -> None:
     db = make_db(tmp_path)
     before = report(tmp_path)
     with sqlite3.connect(db) as conn:
@@ -117,7 +135,10 @@ def test_lease_repair_refuses_live_worker(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="active worker heartbeat"):
         repair_leases(tmp_path)
     with sqlite3.connect(db) as conn:
-        assert conn.execute("SELECT status FROM autonomous_tasks").fetchone()[0] == "running"
+        assert (
+            conn.execute("SELECT status FROM autonomous_tasks").fetchone()[0]
+            == "running"
+        )
     assert not list(db.parent.glob("triade.db.pre_5_8_0_*"))
 
 
@@ -128,8 +149,17 @@ def test_offline_lease_repair_has_consistent_wal_backup(tmp_path: Path) -> None:
         assert conn.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
         conn.execute(
             "INSERT INTO autonomous_tasks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ("pending-task", "pulse_check", "pending", None,
-             None, None, None, utc_now(), None),
+            (
+                "pending-task",
+                "pulse_check",
+                "pending",
+                None,
+                None,
+                None,
+                None,
+                utc_now(),
+                None,
+            ),
         )
         conn.commit()
         outcome = repair_leases(tmp_path)
@@ -137,13 +167,25 @@ def test_offline_lease_repair_has_consistent_wal_backup(tmp_path: Path) -> None:
         assert outcome["backup_integrity"] == "ok"
         with sqlite3.connect(outcome["backup"]) as backed_up:
             assert backed_up.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-            assert backed_up.execute("SELECT COUNT(*) FROM autonomous_tasks").fetchone()[0] == 2
-            assert backed_up.execute("SELECT status FROM autonomous_tasks WHERE task_id='expired-task'").fetchone()[0] == "running"
+            assert (
+                backed_up.execute("SELECT COUNT(*) FROM autonomous_tasks").fetchone()[0]
+                == 2
+            )
+            assert (
+                backed_up.execute(
+                    "SELECT status FROM autonomous_tasks WHERE task_id='expired-task'"
+                ).fetchone()[0]
+                == "running"
+            )
         with sqlite3.connect(db) as updated:
-            assert updated.execute("SELECT status FROM autonomous_tasks WHERE task_id='expired-task'").fetchone()[0] == "pending"
+            assert (
+                updated.execute(
+                    "SELECT status FROM autonomous_tasks WHERE task_id='expired-task'"
+                ).fetchone()[0]
+                == "pending"
+            )
     finally:
         conn.close()
-
 
 
 def _live_acceptance_snapshot(
@@ -176,10 +218,15 @@ def _live_acceptance_snapshot(
 
 def test_acceptance_rejects_heartbeat_only_progress() -> None:
     before = _live_acceptance_snapshot(
-        event_id=10, completed_events=4, completed_tasks=100,
+        event_id=10,
+        completed_events=4,
+        completed_tasks=100,
     )
     after = _live_acceptance_snapshot(
-        event_id=11, completed_events=4, completed_tasks=100, transition="B",
+        event_id=11,
+        completed_events=4,
+        completed_tasks=100,
+        transition="B",
     )
     result = evaluate(before, after)
     assert result["observed_progress"]["transition_advanced"] is True
@@ -190,11 +237,15 @@ def test_acceptance_rejects_heartbeat_only_progress() -> None:
 
 def test_acceptance_allows_proven_completion_after_worker_restart() -> None:
     before = _live_acceptance_snapshot(
-        event_id=10, completed_events=4, completed_tasks=100,
+        event_id=10,
+        completed_events=4,
+        completed_tasks=100,
         run_ref="worker-before",
     )
     after = _live_acceptance_snapshot(
-        event_id=12, completed_events=1, completed_tasks=101,
+        event_id=12,
+        completed_events=1,
+        completed_tasks=101,
         run_ref="worker-after",
     )
     result = evaluate(before, after)

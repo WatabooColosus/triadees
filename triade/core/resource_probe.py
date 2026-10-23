@@ -185,11 +185,7 @@ def _build_resource_probe_uncached() -> dict[str, Any]:
     }
 
     # Power
-    power = (
-        _linux_power()
-        if platform.system().lower() == "linux"
-        else probe_battery()
-    )
+    power = _linux_power() if platform.system().lower() == "linux" else probe_battery()
 
     # Thermal
     thermal = (

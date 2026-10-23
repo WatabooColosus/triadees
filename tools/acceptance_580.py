@@ -4,6 +4,7 @@ Do not use the unfinished worker_runs.summary_json while a daemon is running:
 that summary is initialised at iterations=0 and finalised only on exit.
 This gate requires evidence of real worker events or queue transitions.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -18,7 +19,9 @@ def snap(script: Path, root: Path) -> dict:
     """Read one JSON diagnostic; the diagnostic does not modify SQLite."""
     proc = subprocess.run(
         [sys.executable, str(script), "--root", str(root)],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     report, _ = json.JSONDecoder().raw_decode(proc.stdout.lstrip())
     return report
@@ -32,7 +35,11 @@ def evaluate(before: dict, after: dict) -> dict:
     new_progress = after.get("worker_progress") or {}
 
     def numeric(value, default=float("inf")):
-        return value if isinstance(value, (int, float)) and not isinstance(value, bool) else default
+        return (
+            value
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+            else default
+        )
 
     old_id = numeric(old_progress.get("last_event_id"), 0)
     new_id = numeric(new_progress.get("last_event_id"), 0)
@@ -43,7 +50,8 @@ def evaluate(before: dict, after: dict) -> dict:
     # A heartbeat, telemetry entry, or mere task transition is not completion.
     # Handle both an uninterrupted run and a genuine worker restart.
     completed_event_advanced = (
-        bool(new_run) and new_run == worker.get("run_ref")
+        bool(new_run)
+        and new_run == worker.get("run_ref")
         and new_id > old_id
         and (
             (new_completed > old_completed)
@@ -51,7 +59,11 @@ def evaluate(before: dict, after: dict) -> dict:
             else (new_completed > 0)
         )
     )
-    old_transition = (before.get("latest_health") or {}).get("metrics", {}).get("last_task_transition_at")
+    old_transition = (
+        (before.get("latest_health") or {})
+        .get("metrics", {})
+        .get("last_task_transition_at")
+    )
     new_transition = metrics.get("last_task_transition_at")
     transition_advanced = bool(new_transition and new_transition != old_transition)
     completed_before = numeric((before.get("task_status") or {}).get("completed"), 0)

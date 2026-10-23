@@ -25,16 +25,27 @@ def _rss_mb() -> float | None:
         return None
 
 
-def run(model: str | None = None, prompt: str = "Responde únicamente: OK") -> dict[str, Any]:
+def run(
+    model: str | None = None, prompt: str = "Responde únicamente: OK"
+) -> dict[str, Any]:
     provider = os.getenv("TRIADE_MODEL_PROVIDER", "ollama")
-    client = create_model_client(provider, timeout=int(os.getenv("TRIADE_MODEL_TIMEOUT", "120")))
+    client = create_model_client(
+        provider, timeout=int(os.getenv("TRIADE_MODEL_TIMEOUT", "120"))
+    )
     started = time.perf_counter()
     health = client.health()
     health_ms = round((time.perf_counter() - started) * 1000, 2)
-    selected = model or (health.get("models") or [os.getenv("TRIADE_LLAMA_CPP_MODEL", "unknown")])[0]
+    selected = (
+        model
+        or (health.get("models") or [os.getenv("TRIADE_LLAMA_CPP_MODEL", "unknown")])[0]
+    )
     before = _rss_mb()
     started = time.perf_counter()
-    result = client.generate(selected, prompt, options={"temperature": 0, "num_predict": 32}) if health.get("ok") else None
+    result = (
+        client.generate(selected, prompt, options={"temperature": 0, "num_predict": 32})
+        if health.get("ok")
+        else None
+    )
     latency_ms = round((time.perf_counter() - started) * 1000, 2)
     after = _rss_mb()
     return {
@@ -48,7 +59,9 @@ def run(model: str | None = None, prompt: str = "Responde únicamente: OK") -> d
         "generation_latency_ms": latency_ms,
         "rss_before_mb": before,
         "rss_after_mb": after,
-        "rss_delta_mb": round(after - before, 2) if before is not None and after is not None else None,
+        "rss_delta_mb": round(after - before, 2)
+        if before is not None and after is not None
+        else None,
         "tokens": getattr(result, "eval_count", None) if result else None,
         "error": getattr(result, "error", None) if result else health.get("error"),
     }

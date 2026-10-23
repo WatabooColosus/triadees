@@ -11,7 +11,15 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-STAGES = ("hardware", "metabolism", "hypothalamus", "central", "qualia", "crystal", "learning")
+STAGES = (
+    "hardware",
+    "metabolism",
+    "hypothalamus",
+    "central",
+    "qualia",
+    "crystal",
+    "learning",
+)
 
 
 @dataclass(slots=True)
@@ -26,7 +34,9 @@ class CognitiveCycleTrace:
     evidence_refs: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
-    def record_stage(self, stage: str, *, status: str, evidence_ref: str | None = None, **data: Any) -> None:
+    def record_stage(
+        self, stage: str, *, status: str, evidence_ref: str | None = None, **data: Any
+    ) -> None:
         if stage not in STAGES:
             raise ValueError(f"unknown cognitive stage: {stage}")
         entry = {"status": status, **data}

@@ -19,9 +19,13 @@ def create_model_client(
     db_path: str | Path | None = None,
     **kwargs: Any,
 ) -> ModelProvider:
-    selected = (provider or os.getenv("TRIADE_MODEL_PROVIDER", "ollama")).strip().lower()
+    selected = (
+        (provider or os.getenv("TRIADE_MODEL_PROVIDER", "ollama")).strip().lower()
+    )
     if selected in {"llama.cpp", "llamacpp", "llama_cpp"}:
         return LlamaCppClient(base_url=base_url, timeout=timeout, **kwargs)
     if selected != "ollama":
         raise ValueError(f"Proveedor de modelo no soportado: {selected}")
-    return OllamaClient(base_url=base_url or "http://127.0.0.1:11434", timeout=timeout, db_path=db_path)
+    return OllamaClient(
+        base_url=base_url or "http://127.0.0.1:11434", timeout=timeout, db_path=db_path
+    )

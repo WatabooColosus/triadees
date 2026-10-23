@@ -4,6 +4,7 @@ La actualización sólo debe ofrecerse después de promoción explícita de
 stable-candidate a stable, con manifiesto que coincida con el HEAD remoto.
 Una revisión pendiente no es una nueva versión instalable.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -50,8 +51,15 @@ def decision(
         or not SHA.fullmatch(commit)
         or not BRANCH.fullmatch(branch)
     ):
-        return {"status": "invalid_manifest", "relation": "unknown", "update_available": False}
-    if manifest.get("requires_review") is not False or manifest.get("channel") != "stable":
+        return {
+            "status": "invalid_manifest",
+            "relation": "unknown",
+            "update_available": False,
+        }
+    if (
+        manifest.get("requires_review") is not False
+        or manifest.get("channel") != "stable"
+    ):
         return {
             "status": "review_required",
             "relation": "candidate_not_released",
@@ -72,7 +80,11 @@ def decision(
             "update_available": False,
         }
     if local_is_ancestor is True:
-        return {"status": "ok", "relation": "fast_forward_available", "update_available": True}
+        return {
+            "status": "ok",
+            "relation": "fast_forward_available",
+            "update_available": True,
+        }
     return {
         "status": "manual_review_required",
         "relation": "unknown_or_diverged",
@@ -114,10 +126,16 @@ def main() -> None:
             # va después del commit de código que anuncia. Desde el release
             # únicamente se permiten cambios del propio manifiesto.
             changed = git(root, "diff", "--name-only", commit, tip)
-            if changed is not None and set(changed.splitlines()) <= {"releases/manifest.json"}:
+            if changed is not None and set(changed.splitlines()) <= {
+                "releases/manifest.json"
+            }:
                 release_tree_verified = True
-                older = git(root, "merge-base", "--is-ancestor", commit, head) is not None
-                newer = git(root, "merge-base", "--is-ancestor", head, commit) is not None
+                older = (
+                    git(root, "merge-base", "--is-ancestor", commit, head) is not None
+                )
+                newer = (
+                    git(root, "merge-base", "--is-ancestor", head, commit) is not None
+                )
     result = {
         **decision(
             remote,

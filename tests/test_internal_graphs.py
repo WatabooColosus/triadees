@@ -536,7 +536,8 @@ def test_recent_stage_activity_does_not_prove_correlated_handoff(monkeypatch):
     monkeypatch.setattr(graphs, "live_table_counts", lambda _: {t: 1 for t in tables})
     monkeypatch.setattr(graphs, "recent_activity", lambda *_: {t: True for t in tables})
     monkeypatch.setattr(
-        graphs, "_symbol_hits",
+        graphs,
+        "_symbol_hits",
         lambda *_: {stage: ["real_writer"] for stage, _, _ in graphs.VITAL_CHAIN},
     )
     nodes, edges = graphs.build_vital_chain_graph(REPO_ROOT)

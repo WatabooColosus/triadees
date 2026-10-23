@@ -621,9 +621,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "producción usa governed_research_runs; esta tabla sólo recibe "
             "filas si una herramienta legacy se ejecuta explícitamente."
         ),
-        evidence=(
-            "rows_present=autonomous_research_runs",
-        ),
+        evidence=("rows_present=autonomous_research_runs",),
     ),
     _contract(
         "table:engineering_evolution_events",
@@ -1760,126 +1758,98 @@ CONTRACTS: tuple[Contract, ...] = (
         "ON_DEMAND",
         decided_at="2026-10-04",
         reason="Despacho federado con presupuesto y evidencia. Parte del subsistema de federación que requiere un peer real (nodo federado). Sin peer, el módulo permanece inactivo correctamente.",
-        evidence=(
-            "module_inactive=triade/federation/dispatch.py",
-        ),
+        evidence=("module_inactive=triade/federation/dispatch.py",),
     ),
     _contract(
         "module:triade/federation/evidence_gate.py",
         "ON_DEMAND",
         decided_at="2026-10-04",
         reason="Validación local de evidencia federada y reputación. Requiere jobs federados completados, que sólo existen con un peer real.",
-        evidence=(
-            "module_inactive=triade/federation/evidence_gate.py",
-        ),
+        evidence=("module_inactive=triade/federation/evidence_gate.py",),
     ),
     _contract(
         "module:triade/federation/exchange.py",
         "ON_DEMAND",
         decided_at="2026-10-04",
         reason="Sobres federados autenticados (HMAC, idempotencia, anti-replay). Infraestructura de transporte que sólo se usa con un peer real.",
-        evidence=(
-            "module_inactive=triade/federation/exchange.py",
-        ),
+        evidence=("module_inactive=triade/federation/exchange.py",),
     ),
     _contract(
         "module:triade/federation/registry.py",
         "ON_DEMAND",
         decided_at="2026-10-04",
         reason="Registro local deny-by-default de nodos federados. Sin peer real, no hay nodos que registrar.",
-        evidence=(
-            "module_inactive=triade/federation/registry.py",
-        ),
+        evidence=("module_inactive=triade/federation/registry.py",),
     ),
     _contract(
         "module:triade/evaluation/memory_longitudinal.py",
         "TEST_ONLY",
         decided_at="2026-10-04",
         reason="Benchmark reproducible de memoria longitudinal gobernada. Módulo de evaluación/benchmark, no código productivo. Se ejecuta explícitamente vía script de fase.",
-        evidence=(
-            "module_inactive=triade/evaluation/memory_longitudinal.py",
-        ),
+        evidence=("module_inactive=triade/evaluation/memory_longitudinal.py",),
     ),
     _contract(
         "module:triade/evaluation/triadic_ablation.py",
         "TEST_ONLY",
         decided_at="2026-10-04",
         reason="Benchmark ablativo determinista del ciclo triádico. Módulo de evaluación/benchmark, no código productivo.",
-        evidence=(
-            "module_inactive=triade/evaluation/triadic_ablation.py",
-        ),
+        evidence=("module_inactive=triade/evaluation/triadic_ablation.py",),
     ),
     _contract(
         "module:triade/learning/autonomous_cycle.py",
         "ON_DEMAND",
         decided_at="2026-10-04",
         reason="Ciclo autónomo gobernado con baseline, transfer, rollback y receipt. Declarado SUBSISTEMA INACTIVO en el propio módulo: requiere migración 025, productor real, consumidor productivo, entrypoint vivo y prueba e2e. Sin conectar por diseño.",
-        evidence=(
-            "module_inactive=triade/learning/autonomous_cycle.py",
-        ),
+        evidence=("module_inactive=triade/learning/autonomous_cycle.py",),
     ),
     _contract(
         "module:triade/learning/context_selection_benchmark.py",
         "TEST_ONLY",
         decided_at="2026-10-04",
         reason="Experimento reproducible de selección de contexto aprendido. El propio módulo declara: 'Este módulo no activa una capacidad productiva nueva'. Es un benchmark versionado.",
-        evidence=(
-            "module_inactive=triade/learning/context_selection_benchmark.py",
-        ),
+        evidence=("module_inactive=triade/learning/context_selection_benchmark.py",),
     ),
     _contract(
         "module:triade/memory/longitudinal.py",
         "ON_DEMAND",
         decided_at="2026-10-04",
         reason="Memoria longitudinal gobernada. Declarado SUBSYSTEM_STATUS = 'inactive' con evidencia detallada: migración 021 nunca aplicada, sin consumidor productivo, sin entrypoint vivo. Para activar: aplicar migración, escribir productor/consumidor, conectar entrypoint, prueba e2e.",
-        evidence=(
-            "module_inactive=triade/memory/longitudinal.py",
-        ),
+        evidence=("module_inactive=triade/memory/longitudinal.py",),
     ),
     _contract(
         "module:triade/models/measured_orchestration.py",
         "ON_DEMAND",
         decided_at="2026-10-04",
         reason="Orquestación multi-modelo con decisiones explicables y adopción medida. Capacidad de routing por rol con umbrales de calidad/recursos. No conectada al runtime productivo; espera decisión de integración.",
-        evidence=(
-            "module_inactive=triade/models/measured_orchestration.py",
-        ),
+        evidence=("module_inactive=triade/models/measured_orchestration.py",),
     ),
     _contract(
         "module:triade/runtime/utility_ledger.py",
         "ON_DEMAND",
         decided_at="2026-10-04",
         reason="Ledger canónico que separa actividad, efecto, utilidad y aprendizaje. Parte del subsistema de verificación/certificación. No conectado al runtime productivo.",
-        evidence=(
-            "module_inactive=triade/runtime/utility_ledger.py",
-        ),
+        evidence=("module_inactive=triade/runtime/utility_ledger.py",),
     ),
     _contract(
         "module:triade/validation/runtime_long_run.py",
         "TEST_ONLY",
         decided_at="2026-10-04",
         reason="Monitor de duración wall-clock real para web, Ollama y SQLite. Herramienta de validación/monitoreo, no código productivo. Se ejecuta explícitamente vía scripts de fase.",
-        evidence=(
-            "module_inactive=triade/validation/runtime_long_run.py",
-        ),
+        evidence=("module_inactive=triade/validation/runtime_long_run.py",),
     ),
     _contract(
         "module:triade/verification/certification.py",
         "TEST_ONLY",
         decided_at="2026-10-04",
         reason="Generación de manifiesto TRIADE-VERIFY-v1 evidence-driven. Herramienta de certificación/evidencia, no código productivo. Se ejecuta explícitamente.",
-        evidence=(
-            "module_inactive=triade/verification/certification.py",
-        ),
+        evidence=("module_inactive=triade/verification/certification.py",),
     ),
     _contract(
         "module:triade/capabilities/metacognition.py",
         "HUMAN_GATED",
         decided_at="2026-10-04",
         reason="Predicción y calibración verificable de capacidades (CapabilityAwareness). Migración 023 existe. No conectado a entrypoint productivo; espera integración en el ciclo de gobernanza.",
-        evidence=(
-            "module_active=triade/capabilities/metacognition.py",
-        ),
+        evidence=("module_active=triade/capabilities/metacognition.py",),
     ),
     # ── Herramientas de operador: sin lanzador y así debe ser ────────
     #

@@ -30,22 +30,46 @@ TOOLS: dict[str, str] = {
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--list", action="store_true", help="mostrar herramientas permitidas")
-    parser.add_argument("--tool", choices=sorted(TOOLS), help="herramienta que se quiere ejecutar")
-    parser.add_argument("--execute", action="store_true", help="ejecutar; sin esto sólo se valida")
-    parser.add_argument("--timeout", type=int, default=900, help="tiempo máximo en segundos")
+    parser.add_argument(
+        "--list", action="store_true", help="mostrar herramientas permitidas"
+    )
+    parser.add_argument(
+        "--tool", choices=sorted(TOOLS), help="herramienta que se quiere ejecutar"
+    )
+    parser.add_argument(
+        "--execute", action="store_true", help="ejecutar; sin esto sólo se valida"
+    )
+    parser.add_argument(
+        "--timeout", type=int, default=900, help="tiempo máximo en segundos"
+    )
     args = parser.parse_args()
 
     if args.list or not args.tool:
-        print(json.dumps({name: str(ROOT / path) for name, path in TOOLS.items()}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {name: str(ROOT / path) for name, path in TOOLS.items()},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0 if args.list else 2
 
     relative = TOOLS[args.tool]
     target = ROOT / relative
     if not target.is_file():
-        print(json.dumps({"status": "error", "reason": "tool_missing", "tool": args.tool}), file=sys.stderr)
+        print(
+            json.dumps(
+                {"status": "error", "reason": "tool_missing", "tool": args.tool}
+            ),
+            file=sys.stderr,
+        )
         return 2
-    plan = {"status": "ready", "tool": args.tool, "script": relative, "execute_required": True}
+    plan = {
+        "status": "ready",
+        "tool": args.tool,
+        "script": relative,
+        "execute_required": True,
+    }
     if not args.execute:
         print(json.dumps(plan, ensure_ascii=False))
         return 0

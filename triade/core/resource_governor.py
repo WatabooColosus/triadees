@@ -50,7 +50,10 @@ def decide_work_mode(
     blood_ok = ollama_blood.get("status") in ("ok", "degraded_missing_models")
     vram_gb = float(resource_probe.get("gpu", {}).get("total_vram_gb") or 0.0)
     slow_full_requested = os.getenv("TRIADE_SLOW_FULL_LOCAL", "0").strip().lower() in {
-        "1", "true", "yes", "on"
+        "1",
+        "true",
+        "yes",
+        "on",
     }
     # Conserva margen real para Windows, la API y el navegador. Con 1 GB libre
     # el modelo puede ocupar el resto de la RAM mientras usa la GPU y provocar
@@ -96,9 +99,7 @@ def decide_work_mode(
     # --- Detención por RAM crítica ---
     elif ram_gb <= RAM_CRITICAL_GB:
         allowed_mode = "cooldown"
-        reasons.append(
-            f"RAM disponible muy baja ({ram_gb} GB). Cooldown forzado."
-        )
+        reasons.append(f"RAM disponible muy baja ({ram_gb} GB). Cooldown forzado.")
         return _build_decision(
             allowed_mode,
             requested_mode,
@@ -128,7 +129,12 @@ def decide_work_mode(
         )
 
     # --- Cooldown por batería crítica ---
-    if not slow_full_eligible and battery_pct is not None and battery_pct < 15 and ac is not True:
+    if (
+        not slow_full_eligible
+        and battery_pct is not None
+        and battery_pct < 15
+        and ac is not True
+    ):
         allowed_mode = "cooldown"
         reasons.append(f"Batería crítica ({battery_pct}%) sin AC.")
         return _build_decision(
@@ -141,7 +147,12 @@ def decide_work_mode(
         )
 
     # --- Observe-only por batería baja ---
-    if not slow_full_eligible and battery_pct is not None and battery_pct < 25 and ac is not True:
+    if (
+        not slow_full_eligible
+        and battery_pct is not None
+        and battery_pct < 25
+        and ac is not True
+    ):
         allowed_mode = "observe_only"
         reasons.append(f"Batería baja ({battery_pct}%) sin AC.")
     # --- Cooldown por load average ---
@@ -188,9 +199,7 @@ def decide_work_mode(
     if ram_ceiling is not None and WORK_MODE_RANK.get(
         allowed_mode, 0
     ) > WORK_MODE_RANK.get(ram_ceiling, 0):
-        reasons.append(
-            f"Tope de RAM aplicado: {allowed_mode} -> {ram_ceiling}."
-        )
+        reasons.append(f"Tope de RAM aplicado: {allowed_mode} -> {ram_ceiling}.")
         allowed_mode = ram_ceiling
 
     return _build_decision(

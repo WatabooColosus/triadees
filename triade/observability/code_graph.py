@@ -716,10 +716,17 @@ def _iter_launchers(root: Path, index: ModuleIndex) -> Iterator[tuple[str, str, 
                 resolved = index.resolve(match.group(1))
                 if resolved:
                     yield launcher, resolved, f"{launcher}: {match.group(0).strip()}"
-        if source.name == "triade_service_worker.ps1" and "scripts.serve_local_api" in text:
+        if (
+            source.name == "triade_service_worker.ps1"
+            and "scripts.serve_local_api" in text
+        ):
             target = "scripts/serve_local_api.py"
             if target in index.by_path:
-                yield launcher, target, f"{launcher}: PowerShell -m scripts.serve_local_api"
+                yield (
+                    launcher,
+                    target,
+                    f"{launcher}: PowerShell -m scripts.serve_local_api",
+                )
         for match in _SCRIPT_LAUNCH.finditer(text):
             candidate = match.group(1).lstrip("./")
             if candidate in index.by_path:

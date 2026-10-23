@@ -7,7 +7,9 @@ from triade.learning.pipeline import LearningPipeline
 from triade.workers.worker_loop import WorkerLoop
 
 
-def _setup_verified_candidates(tmp_path: Path, count: int = 3, *, runtime_verified: bool = True) -> list[str]:
+def _setup_verified_candidates(
+    tmp_path: Path, count: int = 3, *, runtime_verified: bool = True
+) -> list[str]:
     pipe = LearningPipeline(db_path=tmp_path / "triade.db")
     cids = []
     for i in range(count):
@@ -27,8 +29,15 @@ def _setup_verified_candidates(tmp_path: Path, count: int = 3, *, runtime_verifi
         cids.append(cid)
     if runtime_verified:
         from triade.core.runner import TriadeRunner
-        TriadeRunner(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runtime", use_ollama=False).run(
-            "Revisa el estado operativo con evidencia registrada", source="pytest", propose_neurons=False,
+
+        TriadeRunner(
+            db_path=tmp_path / "triade.db",
+            runs_dir=tmp_path / "runtime",
+            use_ollama=False,
+        ).run(
+            "Revisa el estado operativo con evidencia registrada",
+            source="pytest",
+            propose_neurons=False,
         )
     return cids
 
@@ -37,8 +46,14 @@ def test_worker_does_not_impersonate_human_approval_without_earned_trust(tmp_pat
     _setup_verified_candidates(tmp_path, 1, runtime_verified=False)
     loop = WorkerLoop(db_path=tmp_path / "triade.db", runs_dir=tmp_path / "runs")
     result = loop._stable_consolidation_review(
-        type("Task", (), {"id": 1, "task_type": "stable_consolidation_review", "to_dict": dict})(),
-        "no-human-approval", tmp_path / "review", type("Config", (), {"task_timeout":30.0, "dry_run":False})(),
+        type(
+            "Task",
+            (),
+            {"id": 1, "task_type": "stable_consolidation_review", "to_dict": dict},
+        )(),
+        "no-human-approval",
+        tmp_path / "review",
+        type("Config", (), {"task_timeout": 30.0, "dry_run": False})(),
     )
     assert result["consolidated"] == []
     assert result["stable_memory_written"] is False

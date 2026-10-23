@@ -1,4 +1,5 @@
 """Permission fixtures use the platform's real security authority."""
+
 import os
 
 from triade.security.file_privacy import (

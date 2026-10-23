@@ -1,4 +1,5 @@
 """SMTP delivery for account verification links."""
+
 from __future__ import annotations
 
 import os
@@ -18,11 +19,16 @@ def send_verification_email(email: str, token: str) -> None:
     msg["Subject"] = "Verifica tu cuenta de Tríade"
     msg["From"] = sender
     msg["To"] = email
-    msg.set_content(f"Verifica tu cuenta de Tríade abriendo este enlace:\n\n{link}\n\nCaduca en 15 minutos.")
+    msg.set_content(
+        f"Verifica tu cuenta de Tríade abriendo este enlace:\n\n{link}\n\nCaduca en 15 minutos."
+    )
     with smtplib.SMTP(host, port, timeout=20) as smtp:
         if os.getenv("TRIADE_SMTP_STARTTLS", "1").lower() not in {"0", "false", "no"}:
             smtp.starttls()
-        user, password = os.getenv("TRIADE_SMTP_USER", ""), os.getenv("TRIADE_SMTP_PASSWORD", "")
+        user, password = (
+            os.getenv("TRIADE_SMTP_USER", ""),
+            os.getenv("TRIADE_SMTP_PASSWORD", ""),
+        )
         if user:
             smtp.login(user, password)
         smtp.send_message(msg)

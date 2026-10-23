@@ -2,6 +2,7 @@
 
 All executions use a synthetic temporary database and a synthetic Blood report.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -23,7 +24,9 @@ def no_blood() -> dict:
     }
 
 
-def execute(tmp_path: Path, monkeypatch, task: WorkerTask, *, dry_run: bool = False) -> dict:
+def execute(
+    tmp_path: Path, monkeypatch, task: WorkerTask, *, dry_run: bool = False
+) -> dict:
     import triade.workers.worker_loop as worker_module
 
     monkeypatch.setattr(worker_module, "check_ollama_blood", no_blood)

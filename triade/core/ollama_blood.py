@@ -45,10 +45,14 @@ def check_ollama_blood(
     ok = bool(health.get("ok"))
 
     lightweight_model = os.getenv("TRIADE_LOW_RESOURCE_MODEL", "qwen2.5:1.5b").strip()
-    reasoning_preferences = ([lightweight_model] if lightweight_model else []) + REASONING_PREFERENCES
+    reasoning_preferences = (
+        [lightweight_model] if lightweight_model else []
+    ) + REASONING_PREFERENCES
     reasoning_model = _select_model(models, preferred_reasoning, reasoning_preferences)
     embedding_model = _select_embedding(models, preferred_embedding)
-    coder_preferences = ([lightweight_model] if lightweight_model else []) + CODER_PREFERENCES
+    coder_preferences = (
+        [lightweight_model] if lightweight_model else []
+    ) + CODER_PREFERENCES
     coder_model = _select_model(models, preferred_coder, coder_preferences)
 
     can_reason = ok and bool(reasoning_model)

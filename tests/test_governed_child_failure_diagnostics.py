@@ -50,9 +50,7 @@ class _Task:
 def test_attribute_error_is_captured_and_logged(tmp_path: Path) -> None:
     handler = _Handler(tmp_path / "x.db")
     artifact = tmp_path / "task"
-    outcome = GovernedTaskExecutor(
-        tmp_path / "quarantine"
-    ).execute_callable(
+    outcome = GovernedTaskExecutor(tmp_path / "quarantine").execute_callable(
         handler.raises_attribute_error,
         args=(None, "run-ref", str(artifact), None),
         timeout_seconds=60.0,
@@ -74,9 +72,7 @@ def test_attribute_error_is_captured_and_logged(tmp_path: Path) -> None:
 def test_custom_exception_is_captured_and_logged(tmp_path: Path) -> None:
     handler = _Handler(tmp_path / "x.db")
     artifact = tmp_path / "task"
-    outcome = GovernedTaskExecutor(
-        tmp_path / "quarantine"
-    ).execute_callable(
+    outcome = GovernedTaskExecutor(tmp_path / "quarantine").execute_callable(
         handler.raises_custom_error,
         args=(None, "run-ref", str(artifact), None),
         timeout_seconds=60.0,

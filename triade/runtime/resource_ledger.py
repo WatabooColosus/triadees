@@ -216,7 +216,9 @@ class ResourceMeasurementCollector:
                 + children_after.ru_utime
                 - self.children_before.ru_utime,
                 "seconds",
-                "time.thread_time (children excluded)" if not resource else f"resource.getrusage[{self.cpu_scope}]",
+                "time.thread_time (children excluded)"
+                if not resource
+                else f"resource.getrusage[{self.cpu_scope}]",
             ),
             "cpu_system": (
                 self_stime_after
@@ -224,12 +226,16 @@ class ResourceMeasurementCollector:
                 + children_after.ru_stime
                 - self.children_before.ru_stime,
                 "seconds",
-                "included in cpu_user (thread clock)" if not resource else f"resource.getrusage[{self.cpu_scope}]",
+                "included in cpu_user (thread clock)"
+                if not resource
+                else f"resource.getrusage[{self.cpu_scope}]",
             ),
             "peak_rss": (
                 float(max(self_after.ru_maxrss, children_after.ru_maxrss)) / 1024,
                 "MiB",
-                "psutil.memory_info.peak_wset" if not resource else "resource.getrusage",
+                "psutil.memory_info.peak_wset"
+                if not resource
+                else "resource.getrusage",
             ),
         }
         items = [

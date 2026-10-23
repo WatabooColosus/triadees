@@ -1,4 +1,5 @@
 """The mission planner must awaken real regression harvest even without candidates."""
+
 from __future__ import annotations
 
 import json
@@ -28,16 +29,19 @@ def test_real_regression_wakes_harvest_without_learning_queue(tmp_path: Path) ->
     db = tmp_path / "triade.db"
     WorkerStateStore(db)
     failed_report(
-        db, "measured-report",
-        [{
-            "status": "fail",
-            "metric_id": "coherence",
-            "severity": "high",
-            "baseline_score": 0.92,
-            "candidate_score": 0.75,
-            "absolute_delta": -0.17,
-            "reason": "regression",
-        }],
+        db,
+        "measured-report",
+        [
+            {
+                "status": "fail",
+                "metric_id": "coherence",
+                "severity": "high",
+                "baseline_score": 0.92,
+                "candidate_score": 0.75,
+                "absolute_delta": -0.17,
+                "reason": "regression",
+            }
+        ],
     )
     planner = MissionPlanner(db)
     work = planner._plan_unharvested_regressions()
@@ -55,7 +59,9 @@ def test_no_failing_metric_does_not_create_busy_loop(tmp_path: Path) -> None:
     db = tmp_path / "triade.db"
     WorkerStateStore(db)
     failed_report(
-        db, "not-an-actionable-failure", [{"status": "pass", "metric_id": "coherence"}],
+        db,
+        "not-an-actionable-failure",
+        [{"status": "pass", "metric_id": "coherence"}],
     )
     assert MissionPlanner(db)._plan_unharvested_regressions() == []
 
@@ -64,7 +70,6 @@ def test_empty_database_without_regressions_remains_idle(tmp_path: Path) -> None
     db = tmp_path / "triade.db"
     WorkerStateStore(db)
     assert MissionPlanner(db)._plan_unharvested_regressions() == []
-
 
 
 def test_malformed_findings_do_not_crash_or_trigger_harvest(tmp_path: Path) -> None:

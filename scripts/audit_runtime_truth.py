@@ -11,7 +11,9 @@ from typing import Any
 
 
 def audit(db_path: str | Path) -> dict[str, Any]:
-    with closing(sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)) as conn:
+    with closing(
+        sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
+    ) as conn:
         conn.row_factory = sqlite3.Row
         errors: list[dict[str, str]] = []
 

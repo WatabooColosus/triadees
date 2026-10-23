@@ -41,10 +41,13 @@ def test_la_base_por_defecto_es_un_modelo_realmente_servido():
     )
 
 
-@pytest.mark.parametrize("label,expected", [
-    ("qwen2.5:1.5b", "Qwen/Qwen2.5-1.5B-Instruct"),
-    ("qwen2.5:3b-instruct", "Qwen/Qwen2.5-3B-Instruct"),
-])
+@pytest.mark.parametrize(
+    "label,expected",
+    [
+        ("qwen2.5:1.5b", "Qwen/Qwen2.5-1.5B-Instruct"),
+        ("qwen2.5:3b-instruct", "Qwen/Qwen2.5-3B-Instruct"),
+    ],
+)
 def test_la_base_sale_del_modelo_que_responde(tmp_path, label, expected):
     """Se deriva de `models.roles.central`, no de una constante escrita a mano."""
     config = tmp_path / "triade.yml"

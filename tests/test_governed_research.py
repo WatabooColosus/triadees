@@ -6,17 +6,33 @@ from pathlib import Path
 from triade.research.governed import GovernedResearchWorker
 
 
-def test_first_curriculum_query_initializes_research_history_without_fake_runs(tmp_path):
+def test_first_curriculum_query_initializes_research_history_without_fake_runs(
+    tmp_path,
+):
     from triade.workers.contracts import WorkerRunConfig, WorkerTask
     from triade.workers.worker_loop import WorkerLoop
+
     db = tmp_path / "first.db"
-    loop = WorkerLoop(db_path=db, runs_dir=tmp_path / "runs",
-        lock_file=tmp_path / "lock", stop_file=tmp_path / "stop")
-    result = loop._research_curriculum(WorkerTask(task_type="research_curriculum"),
-        "first-query", tmp_path / "runs", WorkerRunConfig())
+    loop = WorkerLoop(
+        db_path=db,
+        runs_dir=tmp_path / "runs",
+        lock_file=tmp_path / "lock",
+        stop_file=tmp_path / "stop",
+    )
+    result = loop._research_curriculum(
+        WorkerTask(task_type="research_curriculum"),
+        "first-query",
+        tmp_path / "runs",
+        WorkerRunConfig(),
+    )
     assert result["reason"] == "no_neuronal_gap"
     with sqlite3.connect(db) as connection:
-        assert connection.execute("SELECT count(*) FROM governed_research_runs").fetchone()[0] == 0
+        assert (
+            connection.execute(
+                "SELECT count(*) FROM governed_research_runs"
+            ).fetchone()[0]
+            == 0
+        )
 
 
 def source(host: str, value: str = "yes", **extra):
@@ -40,8 +56,20 @@ def run(worker: GovernedResearchWorker):
 
 def test_topic_excerpts_do_not_claim_a_contradiction(tmp_path: Path) -> None:
     sources = [source("one.test"), source("two.test")]
-    sources[0]["claims"] = [{"key": "testing", "value": "A test case checks one behavior.", "claim_type": "relevant_excerpt"}]
-    sources[1]["claims"] = [{"key": "testing", "value": "Continuous integration runs a suite.", "claim_type": "relevant_excerpt"}]
+    sources[0]["claims"] = [
+        {
+            "key": "testing",
+            "value": "A test case checks one behavior.",
+            "claim_type": "relevant_excerpt",
+        }
+    ]
+    sources[1]["claims"] = [
+        {
+            "key": "testing",
+            "value": "Continuous integration runs a suite.",
+            "claim_type": "relevant_excerpt",
+        }
+    ]
     worker = GovernedResearchWorker(
         tmp_path / "research.db", lambda question, minimum: {"sources": sources}
     )

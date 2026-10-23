@@ -12,13 +12,16 @@ from typing import Any
 from triade.core.guarded_web import TRUSTED_RESEARCH_HOSTS
 
 
-def admission_curriculum(db_path: str | Path, candidate_id: str, specification: dict[str, Any]) -> dict[str, Any]:
+def admission_curriculum(
+    db_path: str | Path, candidate_id: str, specification: dict[str, Any]
+) -> dict[str, Any]:
     """Reserve transfer tasks before execution; never infer competence from IO.
 
     Only the existing independently attested procedural probe is supported.
     Other domains require a legitimate evaluator, rather than wildcard admission.
     """
     from triade.learning.knowledge_probe import build_transfer_probe
+
     threshold = specification["certification_requirements"].get("success_rate_min")
     if not isinstance(threshold, (int, float)) or not 0 < threshold <= 1:
         raise ValueError("missing_predefined_certification_threshold")
@@ -29,13 +32,28 @@ def admission_curriculum(db_path: str | Path, candidate_id: str, specification: 
             probe = build_transfer_probe(db_path, candidate_id, value)
             if probe is None:
                 raise ValueError("independent_transfer_evaluator_unavailable")
-            cases[split].append({"case_id": f"{split}:{value}", "input_value": value,
-                                 "question": probe.question, "reference": probe.expected})
-    manifest = {"version": 1, "candidate_id": candidate_id, "cases": cases,
-                "success_rate_min": float(threshold), "negative_control_required": True,
-                "regressions_max": 0, "resource_profile": specification["resource_profile"]}
-    manifest["sha256"] = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
+            cases[split].append(
+                {
+                    "case_id": f"{split}:{value}",
+                    "input_value": value,
+                    "question": probe.question,
+                    "reference": probe.expected,
+                }
+            )
+    manifest = {
+        "version": 1,
+        "candidate_id": candidate_id,
+        "cases": cases,
+        "success_rate_min": float(threshold),
+        "negative_control_required": True,
+        "regressions_max": 0,
+        "resource_profile": specification["resource_profile"],
+    }
+    manifest["sha256"] = hashlib.sha256(
+        json.dumps(manifest, sort_keys=True).encode()
+    ).hexdigest()
     return manifest
+
 
 #: Qué se busca para cada dominio. **Fuente única**: la usa quien investiga
 #: (`worker_loop._research_curriculum`) y quien selecciona material para la

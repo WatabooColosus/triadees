@@ -38,7 +38,13 @@ def database(path: Path) -> Path:
         conn.execute("INSERT INTO triade_weight_events VALUES (1)")
         conn.execute(
             "INSERT INTO worker_runs VALUES (1,?,?,?,?,?)",
-            ("test-worker", "running", "2026-10-22T22:40:00+00:00", None, '{"iterations": 0}'),
+            (
+                "test-worker",
+                "running",
+                "2026-10-22T22:40:00+00:00",
+                None,
+                '{"iterations": 0}',
+            ),
         )
         conn.execute(
             "INSERT INTO worker_events VALUES (1,?,?,?)",
@@ -61,7 +67,9 @@ def test_audit_reports_real_rows_not_imaginary_certification(tmp_path: Path) -> 
     assert len(summary["source"]["file_sha256"]) == 64
 
 
-def test_running_worker_with_events_discloses_unfinished_summary(tmp_path: Path) -> None:
+def test_running_worker_with_events_discloses_unfinished_summary(
+    tmp_path: Path,
+) -> None:
     summary = audit(database(tmp_path / "state.db"), now=NOW)
     assert summary["worker"]["completed_task_events_in_run"] == 1
     assert summary["worker"]["unfinished_summary_despite_events"] is True

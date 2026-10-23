@@ -126,7 +126,11 @@ class MissionPlanner:
         # planificar la copia; no se imprime ni se almacena la clave.
         from triade.core.runtime_scope import is_test_runtime
 
-        canonical_location = (Path.cwd() if is_test_runtime() else Path(__file__).resolve().parents[2]) / "config" / "backup_key_location.json"
+        canonical_location = (
+            (Path.cwd() if is_test_runtime() else Path(__file__).resolve().parents[2])
+            / "config"
+            / "backup_key_location.json"
+        )
         try:
             location = json.loads(canonical_location.read_text(encoding="utf-8"))
             canonical_key = Path(str(location.get("key_file", ""))).expanduser()
@@ -148,7 +152,9 @@ class MissionPlanner:
             )
         else:
             record_internal_error(
-                "mission_planner.backup_key_missing" if backup_key_status.get("source") == "none" else "mission_planner.backup_key_degraded",
+                "mission_planner.backup_key_missing"
+                if backup_key_status.get("source") == "none"
+                else "mission_planner.backup_key_degraded",
                 RuntimeError(
                     "backup degradado: falta TRIADE_BACKUP_KEY o "
                     "TRIADE_BACKUP_KEY_FILE; no se planifica copia cifrada"
@@ -304,8 +310,14 @@ class MissionPlanner:
                     reason=f"conocimiento consolidado {candidate_id} sin destino neuronal",
                     source="governed_neural_learning",
                     planner_score=0.85,
-                    payload={"candidate_id": candidate_id,
-                             **({"correlation_id": str(row["correlation_id"])} if row["correlation_id"] else {})},
+                    payload={
+                        "candidate_id": candidate_id,
+                        **(
+                            {"correlation_id": str(row["correlation_id"])}
+                            if row["correlation_id"]
+                            else {}
+                        ),
+                    },
                 )
             ]
         except MISSION_PLANNER_ERRORS as exc:
@@ -652,7 +664,9 @@ class MissionPlanner:
                         # consecuencia de un evento, no mantenimiento periódico.
                         # No debe esperar el intervalo adaptativo del ciclo.
                         payload={
-                            "resolution_ready": bool(resolvable_sessions or pending_sessions),
+                            "resolution_ready": bool(
+                                resolvable_sessions or pending_sessions
+                            ),
                             "education_training": bool(pending_sessions),
                         },
                     )
@@ -1067,7 +1081,8 @@ class MissionPlanner:
                                 THEN json_extract(finding.value,'$.metric_id')
                               ELSE NULL END)
                         )"""
-                    if "improvement_failure_lessons" in tables else ""
+                    if "improvement_failure_lessons" in tables
+                    else ""
                 )
                 sql = (
                     """SELECT report.report_id FROM regression_reports report,
@@ -1557,18 +1572,25 @@ class MissionPlanner:
                     ORDER BY e.id DESC LIMIT 10"""
                 ).fetchall()
                 from triade.neurons.domain_admission import _reusable
+
                 formation_task = None
                 training_task = None
                 for admission in admissions:
                     payload = json.loads(admission["payload_json"])
-                    if _reusable(payload, domain=payload["domain"],
-                                 correlation_id=payload["correlation_id"],
-                                 required_capability=payload["required_capability"]):
+                    if _reusable(
+                        payload,
+                        domain=payload["domain"],
+                        correlation_id=payload["correlation_id"],
+                        required_capability=payload["required_capability"],
+                    ):
                         formation_task = PlannedTask(
-                            task_type="neuron_candidate_formation", priority=28,
+                            task_type="neuron_candidate_formation",
+                            priority=28,
                             reason="Verified domain need requires governed candidate formation",
-                            payload={"admission_event_id": int(admission["id"]),
-                                     "correlation_id": payload["correlation_id"]},
+                            payload={
+                                "admission_event_id": int(admission["id"]),
+                                "correlation_id": payload["correlation_id"],
+                            },
                         )
                         break
                 formed = conn.execute(
@@ -1584,15 +1606,21 @@ class MissionPlanner:
                 ).fetchall()
                 for admission in formed:
                     payload = json.loads(admission["payload_json"])
-                    if _reusable(payload, domain=payload["domain"],
-                                 correlation_id=payload["correlation_id"],
-                                 required_capability=payload["required_capability"]):
+                    if _reusable(
+                        payload,
+                        domain=payload["domain"],
+                        correlation_id=payload["correlation_id"],
+                        required_capability=payload["required_capability"],
+                    ):
                         training_task = PlannedTask(
-                            task_type="neuron_candidate_formation", priority=5,
+                            task_type="neuron_candidate_formation",
+                            priority=5,
                             reason="Formed domain candidate requires executable curriculum",
-                            payload={"admission_event_id": int(admission["id"]),
-                                     "admission_phase": "training",
-                                     "correlation_id": payload["correlation_id"]},
+                            payload={
+                                "admission_event_id": int(admission["id"]),
+                                "admission_phase": "training",
+                                "correlation_id": payload["correlation_id"],
+                            },
                         )
                         break
                 trained = conn.execute(
@@ -1613,20 +1641,31 @@ class MissionPlanner:
                     from triade.neurons.domain_admission import (
                         DomainAdmissionCoordinator,
                     )
-                    certification_attempt = DomainAdmissionCoordinator(self.db_path).certification_attempt(int(admission["id"]))
+
+                    certification_attempt = DomainAdmissionCoordinator(
+                        self.db_path
+                    ).certification_attempt(int(admission["id"]))
                     if certification_attempt is None:
                         continue
-                    if _reusable(payload, domain=payload["domain"],
-                                 correlation_id=payload["correlation_id"],
-                                 required_capability=payload["required_capability"]):
-                        return [PlannedTask(
-                            task_type="neuron_candidate_formation", priority=5,
-                            reason="Trained domain candidate requires held-out certification",
-                            payload={"admission_event_id": int(admission["id"]),
-                                     "admission_phase": "certification",
-                                     "certification_attempt": certification_attempt,
-                                     "correlation_id": payload["correlation_id"]},
-                        )]
+                    if _reusable(
+                        payload,
+                        domain=payload["domain"],
+                        correlation_id=payload["correlation_id"],
+                        required_capability=payload["required_capability"],
+                    ):
+                        return [
+                            PlannedTask(
+                                task_type="neuron_candidate_formation",
+                                priority=5,
+                                reason="Trained domain candidate requires held-out certification",
+                                payload={
+                                    "admission_event_id": int(admission["id"]),
+                                    "admission_phase": "certification",
+                                    "certification_attempt": certification_attempt,
+                                    "correlation_id": payload["correlation_id"],
+                                },
+                            )
+                        ]
                 if training_task is not None:
                     return [training_task]
                 if formation_task is not None:

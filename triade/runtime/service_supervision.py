@@ -203,7 +203,9 @@ def _windows_task_snapshot() -> dict[str, Any]:
             "name": name,
             "known": True,
             "autostart_enabled": enabled and boot_enabled,
-            "action_arguments": root.findtext("t:Actions/t:Exec/t:Arguments", default="", namespaces=ns),
+            "action_arguments": root.findtext(
+                "t:Actions/t:Exec/t:Arguments", default="", namespaces=ns
+            ),
         }
     return {"name": None, "known": False, "autostart_enabled": None}
 
@@ -232,7 +234,9 @@ def _windows_user_startup_snapshot() -> dict[str, Any]:
         return {"known": False, "autostart_enabled": None}
 
 
-def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[str, Any]:
+def _windows_ownership(
+    task: dict[str, Any], listener_pid: int | None
+) -> dict[str, Any]:
     """Correlate a live direct supervisor with Scheduler process evidence."""
     result: dict[str, Any] = {"managed": None, "state": None, "last_result": None}
     if not task.get("known") or not listener_pid:
@@ -260,7 +264,9 @@ def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[s
     )
     try:
         snapshot = json.loads(raw or "{}")
-        result.update(state=snapshot.get("state"), last_result=snapshot.get("last_result"))
+        result.update(
+            state=snapshot.get("state"), last_result=snapshot.get("last_result")
+        )
         # Task Scheduler puede volver a `Ready` después de entregar el
         # supervisor a PowerShell; mientras la cadena viva conserve el script
         # exacto y la tarea declarada apunte al lanzador, `Ready` no significa
@@ -276,7 +282,9 @@ def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[s
         # de estar expuesto aunque su hijo directo siga ejecutando el worker.
         # Esa cadena (worker -> API), junto con la acción exacta declarada en
         # Task Scheduler, es evidencia suficiente y estable del vínculo.
-        supervisor_cmdline = " ".join(supervisor.cmdline()).casefold() if supervisor else ""
+        supervisor_cmdline = (
+            " ".join(supervisor.cmdline()).casefold() if supervisor else ""
+        )
         action_cmdline = str(task.get("action_arguments", "")).casefold()
         if (
             supervisor is not None
@@ -287,19 +295,27 @@ def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[s
             result.update(managed=True, supervisor_pid=supervisor.pid)
             return result
         if supervisor is None or supervisor.create_time() > api.create_time():
-            if snapshot.get("state") in {3, 4} and "start_triade_windows.ps1" in str(task.get("action_arguments", "")).casefold():
+            if (
+                snapshot.get("state") in {3, 4}
+                and "start_triade_windows.ps1"
+                in str(task.get("action_arguments", "")).casefold()
+            ):
                 result["managed"] = True
             return result
         if expected not in [str(arg).casefold() for arg in supervisor.cmdline()]:
-            if snapshot.get("state") in {3, 4} and "start_triade_windows.ps1" in str(
-                task.get("action_arguments", "")
-            ).casefold():
+            if (
+                snapshot.get("state") in {3, 4}
+                and "start_triade_windows.ps1"
+                in str(task.get("action_arguments", "")).casefold()
+            ):
                 result["managed"] = True
             return result
         if expected not in str(task.get("action_arguments", "")).casefold():
-            if snapshot.get("state") == 4 and "start_triade_windows.ps1" in str(
-                task.get("action_arguments", "")
-            ).casefold():
+            if (
+                snapshot.get("state") == 4
+                and "start_triade_windows.ps1"
+                in str(task.get("action_arguments", "")).casefold()
+            ):
                 result["managed"] = True
             return result
         # EnginePID puede ser taskeng.exe y no el hijo PowerShell directo.
@@ -341,7 +357,11 @@ def _windows_ownership(task: dict[str, Any], listener_pid: int | None) -> dict[s
         # completa con psutil. Si la tarea está Running, tiene la acción exacta
         # y existe un único listener, conservamos una conclusión verificable a
         # nivel de supervisor sin inventar un PID.
-        if snapshot.get("state") in {3, 4} and "start_triade_windows.ps1" in str(task.get("action_arguments", "")).casefold():
+        if (
+            snapshot.get("state") in {3, 4}
+            and "start_triade_windows.ps1"
+            in str(task.get("action_arguments", "")).casefold()
+        ):
             result["managed"] = True
     return result
 
@@ -368,9 +388,10 @@ def _windows_user_startup_ownership(
         commands = [" ".join(proc.cmdline()).casefold() for proc in chain]
         launcher = "start_triade_windows.ps1"
         worker = "triade_service_worker.ps1"
-        if any(worker in command for command in commands) and launcher in str(
-            startup.get("action_arguments", "")
-        ).casefold():
+        if (
+            any(worker in command for command in commands)
+            and launcher in str(startup.get("action_arguments", "")).casefold()
+        ):
             result.update(managed=True, supervisor_pid=chain[0].pid if chain else None)
         return result
     except (AttributeError, OSError, psutil.Error):
@@ -463,7 +484,9 @@ def build_service_supervision(
     if _WINDOWS and not windows_task.get("known"):
         ownership = _windows_user_startup_ownership(windows_startup, listener_pid)
     service_managed = (
-        bool(listener_pid) and listener_unit == unit if not _WINDOWS else ownership.get("managed")
+        bool(listener_pid) and listener_unit == unit
+        if not _WINDOWS
+        else ownership.get("managed")
     )
 
     started_at = _parse_timestamp(props.get("ExecMainStartTimestamp"))
@@ -495,7 +518,11 @@ def build_service_supervision(
         "unit_known": known,
         "service_managed": service_managed,
         "autostart_enabled": autostart_enabled,
-        "service_state": ownership.get("state") if _WINDOWS else props.get("ActiveState") if known else None,
+        "service_state": ownership.get("state")
+        if _WINDOWS
+        else props.get("ActiveState")
+        if known
+        else None,
         "service_substate": props.get("SubState") if known else None,
         "runtime_pid": listener_pid,
         "listener_pid_unit": listener_unit,
@@ -504,7 +531,11 @@ def build_service_supervision(
         "started_at": started_at,
         "uptime_seconds": _uptime_seconds(started_at),
         "restart_count": restart_count,
-        "last_result": ownership.get("last_result") if _WINDOWS else props.get("Result") if known else None,
+        "last_result": ownership.get("last_result")
+        if _WINDOWS
+        else props.get("Result")
+        if known
+        else None,
         "supervisor_pid": ownership.get("supervisor_pid"),
         "last_exit_status": props.get("ExecMainStatus") if known else None,
         "database": _db_path(),

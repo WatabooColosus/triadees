@@ -20,7 +20,9 @@ class NeuronEducationCycle:
         self.store = CompetencyStore(db_path)
         self.evidence = LearningEvidenceBridge(db_path)
 
-    def run_once(self, *, force: bool = False, target_neuron_id: int | None = None) -> dict[str, Any]:
+    def run_once(
+        self, *, force: bool = False, target_neuron_id: int | None = None
+    ) -> dict[str, Any]:
         """Ejecuta una lección; ``force`` sólo se usa ante material nuevo."""
         target = self._target(force=force, target_neuron_id=target_neuron_id)
         if target is None:
@@ -280,7 +282,9 @@ class NeuronEducationCycle:
         with self.store.connect() as conn:
             tables = {
                 str(r[0])
-                for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
             }
             if "learning_queue" not in tables:
                 return []

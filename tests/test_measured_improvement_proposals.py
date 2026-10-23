@@ -2,6 +2,7 @@
 
 All SQLite writes in this test are synthetic, isolated in tmp_path.
 """
+
 from __future__ import annotations
 
 import json
@@ -19,7 +20,9 @@ from triade.self_improvement.measured_proposals import propose_from_measured_fai
 CAPABILITY = "triade_vitality"
 
 
-def register_spec(db: Path, *, capability: str = CAPABILITY, neuron_id: str = "n1") -> None:
+def register_spec(
+    db: Path, *, capability: str = CAPABILITY, neuron_id: str = "n1"
+) -> None:
     store = NeuronSpecificationStore(db)
     spec = NeuronSpecification(
         neuron_id=neuron_id,
@@ -52,15 +55,19 @@ def record_real_shaped_regression(db: Path, report_id: str) -> None:
                 "candidate-" + report_id,
                 CAPABILITY,
                 "fail",
-                json.dumps([{
-                    "metric_id": "coherence",
-                    "severity": "high",
-                    "baseline_score": 0.9,
-                    "candidate_score": 0.7,
-                    "absolute_delta": -0.2,
-                    "status": "fail",
-                    "reason": "measured regression in synthetic gate",
-                }]),
+                json.dumps(
+                    [
+                        {
+                            "metric_id": "coherence",
+                            "severity": "high",
+                            "baseline_score": 0.9,
+                            "candidate_score": 0.7,
+                            "absolute_delta": -0.2,
+                            "status": "fail",
+                            "reason": "measured regression in synthetic gate",
+                        }
+                    ]
+                ),
             ),
         )
 
@@ -69,7 +76,8 @@ def proposals(db: Path) -> list[dict]:
     with sqlite3.connect(db) as conn:
         conn.row_factory = sqlite3.Row
         return [
-            dict(row) for row in conn.execute(
+            dict(row)
+            for row in conn.execute(
                 "SELECT proposal_id, signal_id, status, payload_json "
                 "FROM improvement_proposals ORDER BY proposal_id"
             )
@@ -128,14 +136,20 @@ def test_signal_without_regression_evidence_never_makes_proposal(tmp_path: Path)
         conn.execute(
             "INSERT INTO improvement_signals VALUES (?,?,?,?,?,?,?)",
             (
-                "manual-signal", CAPABILITY, "coherence", "open", 1.0,
-                json.dumps({
-                    "capability_id": CAPABILITY,
-                    "metric_id": "coherence",
-                    "confidence": 0.99,
-                    "risk_level": "low",
-                    "source_ref": "manual",
-                }),
+                "manual-signal",
+                CAPABILITY,
+                "coherence",
+                "open",
+                1.0,
+                json.dumps(
+                    {
+                        "capability_id": CAPABILITY,
+                        "metric_id": "coherence",
+                        "confidence": 0.99,
+                        "risk_level": "low",
+                        "source_ref": "manual",
+                    }
+                ),
                 1.0,
             ),
         )

@@ -20,7 +20,10 @@ class SignalBus:
         # El gobernador de workers puede emitir señales antes de que el hilo
         # del coordinador metabólico arranque. Garantizar aquí el esquema evita
         # perder ese primer recibo en bases nuevas o parcialmente migradas.
-        migration = Path(__file__).resolve().parent.parent / "memory/migrations/032_metabolic_core.sql"
+        migration = (
+            Path(__file__).resolve().parent.parent
+            / "memory/migrations/032_metabolic_core.sql"
+        )
         if migration.exists():
             with sqlite3.connect(self.db_path, timeout=2) as conn:
                 conn.executescript(migration.read_text(encoding="utf-8"))

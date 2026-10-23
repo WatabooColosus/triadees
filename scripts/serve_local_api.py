@@ -32,13 +32,16 @@ def watch_shutdown(server: uvicorn.Server, flag: Path, stop: threading.Event) ->
             return
 
 
-def serve(host: str = "0.0.0.0", port: int = 8010, shutdown_file: Path | None = None) -> None:
+def serve(
+    host: str = "0.0.0.0", port: int = 8010, shutdown_file: Path | None = None
+) -> None:
     if shutdown_file is not None:
         shutdown_file = shutdown_file.resolve()
         if not shutdown_file.is_relative_to(ROOT / "artifacts/service_logs"):
             raise ValueError("shutdown_file_outside_service_scope")
-    config = uvicorn.Config("apps.single_port_app:app", host=host, port=port,
-                            timeout_graceful_shutdown=30)
+    config = uvicorn.Config(
+        "apps.single_port_app:app", host=host, port=port, timeout_graceful_shutdown=30
+    )
     # bind_socket exits on collision, before Config.load imports the app.
     if sys.platform == "win32":
         listener = socket.socket(socket.AF_INET6 if ":" in host else socket.AF_INET)
@@ -53,17 +56,25 @@ def serve(host: str = "0.0.0.0", port: int = 8010, shutdown_file: Path | None = 
         listener = config.bind_socket()
     try:
         from triade.runtime.source_provenance import bind_loaded_source, capture_source
+
         before = capture_source(ROOT)
         config.load()
         from apps.single_port_app import app
+
         # Captured around app import. This snapshot does not silently update
         # when HEAD changes later while this process remains alive.
-        app.state.loaded_source_revision = bind_loaded_source(before, capture_source(ROOT))
+        app.state.loaded_source_revision = bind_loaded_source(
+            before, capture_source(ROOT)
+        )
         server = uvicorn.Server(config)
         stopped = threading.Event()
         monitor = None
         if shutdown_file is not None:
-            monitor = threading.Thread(target=watch_shutdown, args=(server, shutdown_file, stopped), daemon=True)
+            monitor = threading.Thread(
+                target=watch_shutdown,
+                args=(server, shutdown_file, stopped),
+                daemon=True,
+            )
             monitor.start()
         try:
             server.run(sockets=[listener])
@@ -79,6 +90,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8010)
-    parser.add_argument("--shutdown-file", type=Path, default=ROOT / "artifacts/service_logs/api.shutdown")
+    parser.add_argument(
+        "--shutdown-file",
+        type=Path,
+        default=ROOT / "artifacts/service_logs/api.shutdown",
+    )
     args = parser.parse_args()
     serve(host=args.host, port=args.port, shutdown_file=args.shutdown_file)

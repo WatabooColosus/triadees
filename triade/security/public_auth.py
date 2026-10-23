@@ -23,7 +23,10 @@ SCHEMA = Path(__file__).resolve().parent.parent / "memory/schemas.sql"
 MIGRATION = (
     Path(__file__).resolve().parent.parent / "memory/migrations/030_public_security.sql"
 )
-EMAIL_MIGRATION = Path(__file__).resolve().parent.parent / "memory/migrations/039_email_identity_vault.sql"
+EMAIL_MIGRATION = (
+    Path(__file__).resolve().parent.parent
+    / "memory/migrations/039_email_identity_vault.sql"
+)
 Role = Literal["viewer", "operator", "admin"]
 ROLE_LEVEL = {"viewer": 1, "operator": 2, "admin": 3}
 INJECTION_MARKERS = (
@@ -60,19 +63,29 @@ class PublicAuthStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.db_path, timeout=30.0) as conn:
             conn.execute("PRAGMA busy_timeout=30000")
-            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='auth_users'").fetchone() is None:
+            if (
+                conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='auth_users'"
+                ).fetchone()
+                is None
+            ):
                 conn.executescript(SCHEMA.read_text(encoding="utf-8"))
             conn.executescript(MIGRATION.read_text(encoding="utf-8"))
             conn.executescript(EMAIL_MIGRATION.read_text(encoding="utf-8"))
 
     @staticmethod
     def _vault() -> Fernet:
-        raw = os.getenv("TRIADE_AUTH_VAULT_KEY", "").strip() or os.getenv("TRIADE_BACKUP_KEY", "").strip()
+        raw = (
+            os.getenv("TRIADE_AUTH_VAULT_KEY", "").strip()
+            or os.getenv("TRIADE_BACKUP_KEY", "").strip()
+        )
         if not raw:
             raise RuntimeError("TRIADE_AUTH_VAULT_KEY requerida para guardar API keys")
         return Fernet(raw.encode())
 
-    def register_email(self, email: str, password: str, *, tenant_id: str = "local") -> dict[str, str]:
+    def register_email(
+        self, email: str, password: str, *, tenant_id: str = "local"
+    ) -> dict[str, str]:
         email = email.strip().lower()
         if "@" not in email or len(password) < 12:
             raise ValueError("valid_email_and_strong_password_required")
@@ -82,47 +95,106 @@ class PublicAuthStore:
         with sqlite3.connect(self.db_path, timeout=30.0) as conn:
             conn.execute(
                 "INSERT INTO auth_email_identities VALUES (?, ?, NULL, ?, ?, ?)",
-                (result["user_id"], email, hashlib.sha256(token.encode()).hexdigest(), now.timestamp() + 900, now.isoformat()),
+                (
+                    result["user_id"],
+                    email,
+                    hashlib.sha256(token.encode()).hexdigest(),
+                    now.timestamp() + 900,
+                    now.isoformat(),
+                ),
             )
         from triade.security.email_delivery import send_verification_email
+
         try:
             send_verification_email(email, token)
         except Exception:
             with sqlite3.connect(self.db_path, timeout=30.0) as conn:
-                conn.execute("DELETE FROM auth_email_identities WHERE user_id=?", (result["user_id"],))
-                conn.execute("DELETE FROM auth_users WHERE user_id=?", (result["user_id"],))
+                conn.execute(
+                    "DELETE FROM auth_email_identities WHERE user_id=?",
+                    (result["user_id"],),
+                )
+                conn.execute(
+                    "DELETE FROM auth_users WHERE user_id=?", (result["user_id"],)
+                )
             raise
-        return {"user_id": result["user_id"], "email": email, "status": "pending_verification", "delivery": "email"}
+        return {
+            "user_id": result["user_id"],
+            "email": email,
+            "status": "pending_verification",
+            "delivery": "email",
+        }
 
     def verify_email(self, token: str) -> dict[str, str]:
         digest = hashlib.sha256(token.strip().encode()).hexdigest()
         with sqlite3.connect(self.db_path, timeout=30.0) as conn:
-            row = conn.execute("SELECT user_id, email, verification_expires_at FROM auth_email_identities WHERE verification_hash=?", (digest,)).fetchone()
+            row = conn.execute(
+                "SELECT user_id, email, verification_expires_at FROM auth_email_identities WHERE verification_hash=?",
+                (digest,),
+            ).fetchone()
             if row is None or float(row[2]) < time.time():
                 raise PermissionError("invalid_or_expired_verification_token")
             now = datetime.now(UTC).isoformat()
-            conn.execute("UPDATE auth_email_identities SET verified_at=?, verification_hash=NULL, verification_expires_at=NULL WHERE user_id=?", (now, row[0]))
+            conn.execute(
+                "UPDATE auth_email_identities SET verified_at=?, verification_hash=NULL, verification_expires_at=NULL WHERE user_id=?",
+                (now, row[0]),
+            )
         return {"user_id": row[0], "email": row[1], "status": "verified"}
 
-    def put_api_key(self, user_id: str, provider: str, label: str, secret: str) -> dict[str, str]:
+    def put_api_key(
+        self, user_id: str, provider: str, label: str, secret: str
+    ) -> dict[str, str]:
         if not secret.strip() or not provider.strip() or not label.strip():
             raise ValueError("provider_label_and_secret_required")
         encrypted = self._vault().encrypt(secret.strip().encode()).decode()
         fingerprint = hashlib.sha256(secret.strip().encode()).hexdigest()[:16]
         key_id = f"key-{uuid.uuid4().hex}"
         with sqlite3.connect(self.db_path, timeout=30.0) as conn:
-            conn.execute("INSERT INTO auth_api_keys VALUES (?, ?, ?, ?, ?, ?, ?, NULL)", (key_id, user_id, provider.strip().lower(), label.strip(), encrypted, fingerprint, datetime.now(UTC).isoformat()))
-        return {"key_id": key_id, "provider": provider, "label": label, "fingerprint": fingerprint}
+            conn.execute(
+                "INSERT INTO auth_api_keys VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+                (
+                    key_id,
+                    user_id,
+                    provider.strip().lower(),
+                    label.strip(),
+                    encrypted,
+                    fingerprint,
+                    datetime.now(UTC).isoformat(),
+                ),
+            )
+        return {
+            "key_id": key_id,
+            "provider": provider,
+            "label": label,
+            "fingerprint": fingerprint,
+        }
 
     def list_api_keys(self, user_id: str) -> list[dict[str, str]]:
         with sqlite3.connect(self.db_path, timeout=30.0) as conn:
-            rows = conn.execute("SELECT key_id, provider, label, key_fingerprint, created_at FROM auth_api_keys WHERE user_id=? AND revoked_at IS NULL ORDER BY created_at DESC", (user_id,)).fetchall()
-        return [{"key_id": r[0], "provider": r[1], "label": r[2], "fingerprint": r[3], "created_at": r[4]} for r in rows]
+            rows = conn.execute(
+                "SELECT key_id, provider, label, key_fingerprint, created_at FROM auth_api_keys WHERE user_id=? AND revoked_at IS NULL ORDER BY created_at DESC",
+                (user_id,),
+            ).fetchall()
+        return [
+            {
+                "key_id": r[0],
+                "provider": r[1],
+                "label": r[2],
+                "fingerprint": r[3],
+                "created_at": r[4],
+            }
+            for r in rows
+        ]
 
     def audit_for_user(self, user_id: str) -> list[dict[str, str]]:
         with sqlite3.connect(self.db_path, timeout=30.0) as conn:
-            rows = conn.execute("SELECT action, outcome, detail, created_at FROM auth_audit WHERE actor=? ORDER BY id DESC LIMIT 100", (user_id,)).fetchall()
-        return [{"action": r[0], "outcome": r[1], "detail": r[2], "created_at": r[3]} for r in rows]
+            rows = conn.execute(
+                "SELECT action, outcome, detail, created_at FROM auth_audit WHERE actor=? ORDER BY id DESC LIMIT 100",
+                (user_id,),
+            ).fetchall()
+        return [
+            {"action": r[0], "outcome": r[1], "detail": r[2], "created_at": r[3]}
+            for r in rows
+        ]
 
     def create_user(
         self, username: str, password: str, role: Role, tenant_id: str
@@ -335,7 +407,14 @@ class PublicAuthStore:
         try:
             conn.execute(
                 "INSERT INTO auth_audit(actor,tenant_id,action,outcome,detail,created_at) VALUES (?,?,?,?,?,?)",
-                (actor, tenant_id, action, outcome, detail, datetime.now(UTC).isoformat()),
+                (
+                    actor,
+                    tenant_id,
+                    action,
+                    outcome,
+                    detail,
+                    datetime.now(UTC).isoformat(),
+                ),
             )
         except sqlite3.OperationalError:
             # Authentication must remain usable while a worker holds a short
@@ -360,4 +439,3 @@ def enforce_egress(url: str, allowed_hosts: set[str]) -> None:
         or parsed.hostname not in allowed_hosts
     ):
         raise PermissionError("network_egress_denied")
-
