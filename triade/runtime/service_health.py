@@ -231,6 +231,8 @@ class ServiceHealth:
                 for table, label in (
                     ("neuron_education_applications", "education_applications"),
                     ("neuron_education_sessions", "education_sessions"),
+                    ("neuron_activity", "neuron_activations_recorded"),
+                    ("verification_reports", "verification_reports"),
                     ("trainable_adapters", "trainable_adapters"),
                     ("metabolic_cycle", "metabolic_cycles"),
                 ):
@@ -248,8 +250,25 @@ class ServiceHealth:
                             "AND status='completed'"
                         ).fetchone()[0]
                     )
+                if "neuron_education_sessions" in tables:
+                    learning_counts["prepared_lessons"] = int(
+                        conn.execute(
+                            "SELECT COUNT(*) FROM neuron_education_sessions "
+                            "WHERE state='lesson_prepared'"
+                        ).fetchone()[0]
+                    )
                 if learning_counts:
                     metrics["measured_outcomes"] = learning_counts
+                    # A scheduler completion is not education. With prepared
+                    # lessons and no neuron activation evidence, the end-to-end
+                    # learning path is demonstrably unable to advance.
+                    if (
+                        learning_counts.get("prepared_lessons", 0) > 0
+                        and learning_counts.get("education_tasks_completed", 0) > 0
+                        and learning_counts.get("neuron_activations_recorded", 0) == 0
+                        and "neuron_activity" in tables
+                    ):
+                        reasons.append("education_neuron_activity_missing")
         except (sqlite3.Error, OSError) as exc:
             metrics["sqlite_error"] = type(exc).__name__
             reasons.append("sqlite_unavailable_or_locked")
