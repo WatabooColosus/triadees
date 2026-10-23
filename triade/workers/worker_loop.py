@@ -3773,7 +3773,7 @@ class WorkerLoop:
             # prediction from the already measured outcome contaminates Brier
             # and ECE calibration. Only predictions made before execution may
             # be closed with this result by their originating runtime path.
-        except Exception:  # noqa: BLE001 - optional metacognition isolation boundary
+        except Exception:  # optional metacognition isolation boundary
             logging.getLogger(__name__).exception(
                 "Tríade: optional metacognition failed; keeping measured exercise result"
             )
