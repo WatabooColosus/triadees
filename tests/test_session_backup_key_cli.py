@@ -52,6 +52,7 @@ def test_foreign_lineage_never_calls_vault(tmp_path, monkeypatch):
 
 def test_valid_owner_returns_only_public_fingerprint(tmp_path, monkeypatch):
     calls = []
+
     def fake_vault(db, index, drive, local, phrase):
         calls.append(phrase)
         return {
@@ -61,6 +62,7 @@ def test_valid_owner_returns_only_public_fingerprint(tmp_path, monkeypatch):
             "vault_encrypted": True,
             "wrapped_key": "secret-must-not-leak",
         }
+
     monkeypatch.setattr(cli, "unlock_or_create", fake_vault)
     data = cli.unlock(**_files(tmp_path))
     assert calls == ["secure phrase long enough"]
@@ -76,10 +78,16 @@ def test_main_missing_unlock_rejects_without_tty_prompt(tmp_path, monkeypatch):
     )
     paths = _files(tmp_path)
     argv = [
-        "--db", str(paths["db"]), "--index", str(paths["index"]),
-        "--drive-vault-dir", str(paths["drive_vault_dir"]),
-        "--local-private-dir", str(paths["local_private_dir"]),
-        "--confirm-lineage", paths["expected_lineage"],
+        "--db",
+        str(paths["db"]),
+        "--index",
+        str(paths["index"]),
+        "--drive-vault-dir",
+        str(paths["drive_vault_dir"]),
+        "--local-private-dir",
+        str(paths["local_private_dir"]),
+        "--confirm-lineage",
+        paths["expected_lineage"],
     ]
     with pytest.raises(SystemExit) as exc:
         cli.main(argv)
@@ -93,10 +101,17 @@ def test_main_non_tty_rejects_before_key_access(tmp_path, monkeypatch):
     )
     paths = _files(tmp_path)
     argv = [
-        "--unlock", "--db", str(paths["db"]), "--index", str(paths["index"]),
-        "--drive-vault-dir", str(paths["drive_vault_dir"]),
-        "--local-private-dir", str(paths["local_private_dir"]),
-        "--confirm-lineage", paths["expected_lineage"],
+        "--unlock",
+        "--db",
+        str(paths["db"]),
+        "--index",
+        str(paths["index"]),
+        "--drive-vault-dir",
+        str(paths["drive_vault_dir"]),
+        "--local-private-dir",
+        str(paths["local_private_dir"]),
+        "--confirm-lineage",
+        paths["expected_lineage"],
     ]
     with pytest.raises(SystemExit) as exc:
         cli.main(argv)
