@@ -14,6 +14,8 @@ from pathlib import Path
 
 from triade.security.session_backup_key_vault import unlock_or_create
 
+TRIADE_ENTRYPOINT_KIND = "administrative_on_demand"
+
 
 def unlock(
     *,
