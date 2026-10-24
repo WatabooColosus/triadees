@@ -160,6 +160,25 @@ class NeuronEducationResolver:
     ) -> None:
         if not self._has_table(conn, "neuron_education_events"):
             return
+        # A retry without new measured applications is still an abstention,
+        # not a new teaching outcome. Preserve the first receipt, and create
+        # another only when the decision-relevant evidence actually changes.
+        if event_type == "education_insufficient_evidence":
+            last = conn.execute(
+                "SELECT payload_json FROM neuron_education_events "
+                "WHERE session_id=? AND event_type=? ORDER BY id DESC LIMIT 1",
+                (session_id, event_type),
+            ).fetchone()
+            if last is not None:
+                try:
+                    previous = json.loads(last[0])
+                except (TypeError, ValueError):
+                    previous = None
+                relevant = ("baseline", "post", "applied_runs", "reason")
+                if isinstance(previous, dict) and all(
+                    previous.get(key) == payload.get(key) for key in relevant
+                ):
+                    return
         conn.execute(
             "INSERT INTO neuron_education_events (session_id,neuron_id,event_type,"
             "payload_json,created_at) VALUES (?,?,?,?,?)",
