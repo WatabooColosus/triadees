@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sqlite3
 import time
@@ -30,9 +31,25 @@ def database():
         }
 
 
-def main():
+def main(argv: list[str] | None = None):
+    parser = argparse.ArgumentParser(
+        description="Prueba manual DISRUPTIVA de recuperación: termina la API existente."
+    )
+    parser.add_argument(
+        "--confirm-runtime-pid",
+        type=int,
+        help="PID exacto de la API autorizado por el operador; obligatorio para terminarla",
+    )
+    args = parser.parse_args(argv)
+    if args.confirm_runtime_pid is None or args.confirm_runtime_pid <= 0:
+        parser.error(
+            "sin confirmación explícita del PID: no se consulta ni detiene la API"
+        )
     _, hb = get("/api/runtime/heartbeat")
     pid = int(hb["runtime_pid"])
+    if pid != args.confirm_runtime_pid:
+        raise RuntimeError("PID cambió o no coincide con la autorización; no se detiene")
+
     process = psutil.Process(pid)
     if "scripts.serve_local_api" not in process.cmdline():
         raise RuntimeError("refusing to kill an unrelated process")
@@ -43,6 +60,7 @@ def main():
         raise RuntimeError("expected existing supervisor not verified")
     prior = database()
     start = time.monotonic()
+    # No destructive action unless both the operator's PID and supervisor checks match.
     process.terminate()
     deadline = start + 120
     after = None
