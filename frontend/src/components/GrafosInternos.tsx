@@ -39,7 +39,7 @@ type LiveEvent = {
   node_id: string | null; action: string; status: string; evidence: string
 }
 type DebtEntry = {
-  count: number; sample: string[]; evidence: string
+  count: number; sample: string[]; items?: string[]; evidence: string
   classified?: Record<string, { classification?: string; reason?: string }>
   contract_broken?: Record<string, any>
 }
@@ -378,6 +378,8 @@ function TabBtn({ active, onClick, label }: { active: boolean; onClick: () => vo
 }
 
 function DebtPanel({ debt }: { debt: Debt | null }) {
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastRefresh, setLastRefresh] = useState<string | null>(null)
   if (!debt) return <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Midiendo…</p>
   if (debt.status !== 'measured') {
     return (
@@ -392,9 +394,6 @@ function DebtPanel({ debt }: { debt: Debt | null }) {
   const observed = debt.debt_items_total ?? 0
   const real = debt.debt_real_total ?? observed
   const classified = Math.max(0, observed - real)
-  const [refreshing, setRefreshing] = useState(false)
-  const [lastRefresh, setLastRefresh] = useState<string | null>(null)
-
   const handleForceRefresh = async () => {
     setRefreshing(true)
     try {
@@ -467,7 +466,7 @@ function DebtPanel({ debt }: { debt: Debt | null }) {
         <div key={name} style={{ padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
           <b>{name.replace(/_/g, ' ')}</b> — {realCount} real / {e.count} observado(s)
           <div style={{ color: 'var(--text-muted)', fontSize: 10, margin: '3px 0' }}>{e.evidence}</div>
-          {e.sample.map(s => {
+          {(e.items ?? e.sample).filter(s => !e.classified?.[s]).map(s => {
             const classification = e.classified?.[s]?.classification
             return (
               <div key={s} style={{ fontSize: 10, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
