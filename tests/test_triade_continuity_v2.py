@@ -47,7 +47,7 @@ def _fixture(tmp_path: Path, monkeypatch):
 
 
 def test_publish_never_writes_legacy_pointer(tmp_path: Path, monkeypatch):
-    db, drive, store = _fixture(tmp_path, monkeypatch)
+    db, drive, _store = _fixture(tmp_path, monkeypatch)
     legacy = drive / 'continuidad_runtime/v1/active.json'
     legacy.parent.mkdir(parents=True)
     legacy.write_text('invalid legacy pointer')
