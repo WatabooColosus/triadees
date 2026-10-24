@@ -20,9 +20,24 @@ from triade.db import sqlite3
 # These common intent words are not meaningful mission-level evidence.
 _STOPWORDS = frozenset(
     {
-        "para", "como", "quiero", "puedes", "hacer", "ayuda",
-        "sobre", "necesito", "donde", "cuando", "favor", "gracias",
-        "hola", "tengo", "estoy", "tienes", "debes", "algo",
+        "para",
+        "como",
+        "quiero",
+        "puedes",
+        "hacer",
+        "ayuda",
+        "sobre",
+        "necesito",
+        "donde",
+        "cuando",
+        "favor",
+        "gracias",
+        "hola",
+        "tengo",
+        "estoy",
+        "tienes",
+        "debes",
+        "algo",
     }
 )
 
@@ -32,7 +47,9 @@ def _as_utc(value: str) -> datetime | None:
         result = datetime.fromisoformat(value)
     except (ValueError, TypeError, AttributeError):
         return None
-    return result.replace(tzinfo=UTC) if result.tzinfo is None else result.astimezone(UTC)
+    return (
+        result.replace(tzinfo=UTC) if result.tzinfo is None else result.astimezone(UTC)
+    )
 
 
 class RealRunSignalIntake:
@@ -49,11 +66,15 @@ class RealRunSignalIntake:
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA foreign_keys=ON")
             tables = {
-                str(row[0]) for row in conn.execute(
+                str(row[0])
+                for row in conn.execute(
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 )
             }
-            if not {"runs", "neuron_missions", "neuron_evidence", "neuron_work_cycles"} <= tables:
+            if (
+                not {"runs", "neuron_missions", "neuron_evidence", "neuron_work_cycles"}
+                <= tables
+            ):
                 return {"status": "unsupported", "created": 0}
             missions: list[NeuronMission] = []
             for m in conn.execute(
@@ -65,7 +86,11 @@ class RealRunSignalIntake:
                     sources = json.loads(m["allowed_sources_json"] or "[]")
                 except (TypeError, ValueError):
                     continue
-                if not isinstance(sources, list) or "run" not in sources or m["neuron_id"] is None:
+                if (
+                    not isinstance(sources, list)
+                    or "run" not in sources
+                    or m["neuron_id"] is None
+                ):
                     continue
                 missions.append(
                     NeuronMission(
@@ -94,7 +119,9 @@ class RealRunSignalIntake:
                 run_id = str(run["run_id"] or "").strip()
                 observed_at = _as_utc(str(run["created_at"] or ""))
                 if (
-                    not run_id or len(run_id) > 150 or observed_at is None
+                    not run_id
+                    or len(run_id) > 150
+                    or observed_at is None
                     or observed_at > now + timedelta(minutes=2)
                     or now - observed_at > timedelta(hours=max_age_hours)
                 ):
@@ -136,9 +163,14 @@ class RealRunSignalIntake:
                         "(mission_id,neuron_id,evidence_type,source,content,"
                         "refs_json,score,created_at) VALUES(?,?,?,?,?,?,?,?)",
                         (
-                            mid, nid, "human_run_signal", "run",
+                            mid,
+                            nid,
+                            "human_run_signal",
+                            "run",
                             "Turno humano completado; señal de revisión, no aprendizaje",
-                            refs_json, 0.0, datetime.now(UTC).isoformat(),
+                            refs_json,
+                            0.0,
+                            datetime.now(UTC).isoformat(),
                         ),
                     )
                     created.append({"mission_id": mid, "run_ref": f"run:{run_id}"})
@@ -146,7 +178,9 @@ class RealRunSignalIntake:
                     break
             conn.commit()
             return {
-                "status": "signals_recorded" if created else "no_new_independent_signal",
+                "status": "signals_recorded"
+                if created
+                else "no_new_independent_signal",
                 "created": len(created),
                 "references": created,
                 "fact_verified": False,
