@@ -9,6 +9,7 @@ procesos. No sobreescribe active.json de v1 y no toca la Bodega origen.
 V2 no declara listo el arranque de Colab: el restaurador/boot también debe
 actualizarse explícitamente para usar y verificar este índice.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -74,6 +75,7 @@ def _coordinator():
     # Import only from the current kernel. This is a pure status/accessor use;
     # any failure stops before creating or overwriting a backup pointer.
     import sys
+
     c = sys.modules.get("triade_colab_oneclick_runtime")
     if c is None:
         raise RuntimeError("Ejecutar en mismo kernel que tiene el gestor de Tríade")
@@ -173,6 +175,7 @@ def run(*, publish: bool = False) -> dict[str, Any]:
     # Only v2 consumes this lock: old v1 writer cannot corrupt v2 index.
     STORE.mkdir(parents=True, exist_ok=True)
     import fcntl
+
     with (STORE / ".publisher.lock").open("a+b") as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         # Recheck after obtaining the interprocess v2 publisher lock.
