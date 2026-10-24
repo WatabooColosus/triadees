@@ -190,12 +190,11 @@ class ResourceMeasurementCollector:
         self.started_at = datetime.now(UTC).isoformat()
         self.started_wall = time.monotonic()
         self.self_utime_before, self.self_stime_before, self.cpu_scope = _cpu_propio()
-        # Los hijos siguen siendo del proceso: `RUSAGE_CHILDREN` no se desglosa
-        # por hilo. Un subproceso lanzado por otra tarea a la vez sigue cayendo
-        # aquí, pero son raros y acotados frente a la CPU propia.
-        self.children_before = (
-            _rusage(resource.RUSAGE_CHILDREN) if resource else _Usage()
-        )
+        # RUSAGE_CHILDREN es global al proceso. No puede cargarse a cada worker:
+        # cuando un subproceso termina, TODOS los collectors abiertos reclamarían
+        # su CPU como propia, inflando el presupuesto y degradando el organismo.
+        # Un proceso hijo solo puede imputarse al task que realmente lo lanzó
+        # mediante instrumentación explícita de ese subproceso.
 
     def finish(self) -> ResourceUsageReceipt:
         finished_at = datetime.now(UTC).isoformat()
@@ -212,20 +211,14 @@ class ResourceMeasurementCollector:
                 "time.monotonic",
             ),
             "cpu_user": (
-                self_utime_after
-                - self.self_utime_before
-                + children_after.ru_utime
-                - self.children_before.ru_utime,
+                self_utime_after - self.self_utime_before,
                 "seconds",
                 "time.thread_time (children excluded)"
                 if not resource
                 else f"resource.getrusage[{self.cpu_scope}]",
             ),
             "cpu_system": (
-                self_stime_after
-                - self.self_stime_before
-                + children_after.ru_stime
-                - self.children_before.ru_stime,
+                self_stime_after - self.self_stime_before,
                 "seconds",
                 "included in cpu_user (thread clock)"
                 if not resource
