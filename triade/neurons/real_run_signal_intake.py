@@ -29,7 +29,7 @@ _STOPWORDS = frozenset(
 
 def _as_utc(value: str) -> datetime | None:
     try:
-        result = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        result = datetime.fromisoformat(value)
     except (ValueError, TypeError, AttributeError):
         return None
     return result.replace(tzinfo=UTC) if result.tzinfo is None else result.astimezone(UTC)
