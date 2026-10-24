@@ -3,6 +3,7 @@
 The operator must explicitly select --unlock, pass the expected auth lineage,
 and enter a recovery phrase through a local TTY. No secrets appear in JSON output.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -31,9 +32,7 @@ def unlock(
         raise RuntimeError("Continuidad no protegida: no se desbloquea el vault")
     if payload.get("lineage") != expected_lineage:
         raise RuntimeError("Linaje no coincide con el autorizado")
-    result = unlock_or_create(
-        db, index, drive_vault_dir, local_private_dir, passphrase
-    )
+    result = unlock_or_create(db, index, drive_vault_dir, local_private_dir, passphrase)
     if result["identity_lineage"] != expected_lineage:
         raise RuntimeError("Vault no corresponde al linaje autorizado")
     # Never print the passphrase, wrapped key, key file bytes or environment.
@@ -48,7 +47,9 @@ def unlock(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--unlock", action="store_true", help="Aprobación manual explícita")
+    parser.add_argument(
+        "--unlock", action="store_true", help="Aprobación manual explícita"
+    )
     parser.add_argument("--db", type=Path, required=True)
     parser.add_argument("--index", type=Path, required=True)
     parser.add_argument("--drive-vault-dir", type=Path, required=True)
@@ -58,7 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.unlock:
         parser.error("Falta --unlock; no se generan ni recuperan claves")
     if not sys.stdin.isatty():
-        parser.error("Se requiere TTY privado; no se aceptan frases en CLI, log ni notebook")
+        parser.error(
+            "Se requiere TTY privado; no se aceptan frases en CLI, log ni notebook"
+        )
     phrase = getpass.getpass("Frase de recuperación (no visible): ")
     if len(phrase) < 14:
         parser.error("La frase debe tener por lo menos 14 caracteres")
