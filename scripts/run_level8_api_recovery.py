@@ -48,7 +48,9 @@ def main(argv: list[str] | None = None):
     _, hb = get("/api/runtime/heartbeat")
     pid = int(hb["runtime_pid"])
     if pid != args.confirm_runtime_pid:
-        raise RuntimeError("PID cambió o no coincide con la autorización; no se detiene")
+        raise RuntimeError(
+            "PID cambió o no coincide con la autorización; no se detiene"
+        )
 
     process = psutil.Process(pid)
     if "scripts.serve_local_api" not in process.cmdline():
