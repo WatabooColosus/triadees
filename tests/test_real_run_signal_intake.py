@@ -93,9 +93,12 @@ def test_completed_relevant_human_run_creates_only_nonlearning_signal(db: Path):
             "WHERE type='table' AND name='neuron_education_applications'"
         ).fetchone()
         if table:
-            assert conn.execute(
-                "SELECT COUNT(*) FROM neuron_education_applications"
-            ).fetchone()[0] == 0
+            assert (
+                conn.execute(
+                    "SELECT COUNT(*) FROM neuron_education_applications"
+                ).fetchone()[0]
+                == 0
+            )
 
 
 @pytest.mark.parametrize(
@@ -141,9 +144,7 @@ def test_old_human_run_is_not_replayed_on_restart(db: Path):
 
 def test_mission_disallowed_to_read_runs_is_not_awakened(db: Path):
     with sqlite3.connect(db) as conn:
-        conn.execute(
-            "UPDATE neuron_missions SET allowed_sources_json='[\"worker\"]'"
-        )
+        conn.execute("UPDATE neuron_missions SET allowed_sources_json='[\"worker\"]'")
     _run(db)
     assert RealRunSignalIntake(db).harvest()["created"] == 0
 
