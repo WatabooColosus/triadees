@@ -1432,8 +1432,11 @@ class MissionPlanner:
             # Worker-generated evidence never passes the independent-source gate.
             RealRunSignalIntake(self.db_path).harvest(limit=2)
             store = NeuronMissionStore(db_path=self.db_path)
-            missions = store.list_missions(status="experimental", limit=5)
-            missions.extend(store.list_missions(status="stable", limit=5))
+            # A fixed five-per-status cut hid half the ten stable missions
+            # observed in Bodega; a valid new signal on mission #10 could not
+            # reach the planner, even with correct evidence provenance.
+            missions = store.list_missions(status="experimental", limit=50)
+            missions.extend(store.list_missions(status="stable", limit=50))
             for m in missions:
                 with closing(self._connect()) as conn, conn:
                     evidence = conn.execute(
