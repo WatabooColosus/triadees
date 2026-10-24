@@ -155,3 +155,31 @@ def test_mission_planner_uses_real_signal_without_learning(db: Path):
     # Repeating a scheduler tick is idempotent, even if it reuses pending task.
     MissionPlanner(db)._plan_active_missions()
     assert len(_evidence(db)) == 1
+
+
+def test_planner_does_not_hide_stable_missions_after_first_five(db: Path):
+    store = NeuronMissionStore(db)
+    # Existing stable mission #1 is unrelated to the incoming human signal.
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "UPDATE neuron_missions SET allowed_sources_json='[\"worker\"]' WHERE id=1"
+        )
+    for number in range(2, 11):
+        store.create_mission(
+            NeuronMission(
+                neuron_id=1,
+                title=f"Misión auxiliar {number}",
+                mission="Observar recursos auxiliares",
+                status="stable",
+                allowed_sources=["worker"] if number < 10 else ["run"],
+            )
+        )
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "UPDATE neuron_missions SET title='Auditoría de seguridad',"
+            "mission='Analizar seguridad del sistema' WHERE id=10"
+        )
+    _run(db)
+    tasks = MissionPlanner(db)._plan_active_missions()
+    assert any(t.payload.get("mission_id") == 10 for t in tasks)
+    assert any(row[0] == 10 for row in _evidence(db))
