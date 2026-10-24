@@ -64,7 +64,7 @@ def _coordinator():
     if c is None:
         raise RuntimeError("Ejecutar en mismo kernel que tiene el gestor de Tríade")
     if not callable(getattr(c, "inspect_db", None)):
-        raise RuntimeError("Gestor sin verificador de identidad")
+        raise TypeError("Gestor sin verificador de identidad")
     if Path(c.DB).resolve() != (ROOT / "triade/memory/triade.db").resolve():
         raise RuntimeError("Ruta de Bodega inesperada; no publicar")
     return c
