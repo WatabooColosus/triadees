@@ -7,7 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from triade.observability.code_graph import _declared_entrypoint_kind
+
+def _declared_entrypoint_kind(tree: ast.Module, path: str) -> str | None:
+    # Keep this import local so Ruff/isort grouping does not depend on whether
+    # the repo is installed as an editable Python package on the CI runner.
+    from triade.observability.code_graph import _declared_entrypoint_kind as detect
+
+    return detect(tree, path)
 
 
 ROOT = Path(__file__).resolve().parents[1]
