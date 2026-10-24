@@ -36,9 +36,7 @@ def _source_globals(thread: threading.Thread) -> dict[str, Any]:
     # being a saver. Only recognize targets that actually reference the
     # continuity stop signal and snapshot callback. Otherwise fail closed.
     code = getattr(target, "__code__", None)
-    if code is None or not {"STOP", "wait", "snapshot_once"}.issubset(
-        code.co_names
-    ):
+    if code is None or not {"STOP", "wait", "snapshot_once"}.issubset(code.co_names):
         raise RuntimeError("CONTINUIDAD_PROTEGIDA: escritor desconocido; no se detiene")
     if not {"STOP", "snapshot_once", "atomic_json"}.issubset(namespace):
         raise RuntimeError("CONTINUIDAD_PROTEGIDA: escritor desconocido; no se detiene")
