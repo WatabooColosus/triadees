@@ -222,7 +222,7 @@ export function GrafosInternos() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 10, flex: 1, minHeight: 420 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 440px), 1fr))', gap: 10, flex: 1, minHeight: 420, minWidth: 0 }}>
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-surface)' }}>
           {view === 'debt'
             ? <DebtChart debt={debt} />
@@ -410,7 +410,7 @@ function DebtPanel({ debt }: { debt: Debt | null }) {
 
   return (
     <div style={{ fontSize: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
         <h3 style={{ fontSize: 13, margin: 0 }}>
           {real} elementos de deuda real · {observed} hallazgos observados
         </h3>
@@ -484,21 +484,45 @@ function DebtPanel({ debt }: { debt: Debt | null }) {
 function DebtChart({ debt }: { debt: Debt | null }) {
   if (!debt || debt.status !== 'measured') return null
   const entries = Object.entries(debt.items).sort((a, b) => b[1].count - a[1].count)
-  const realCount = (e: DebtEntry) => Math.max(0, e.count - Object.keys(e.classified || {}).length)
-  const max = Math.max(...entries.map(([, e]) => realCount(e)), 1)
+  const realCount = (entry: DebtEntry) => Math.max(0, entry.count - Object.keys(entry.classified || {}).length)
+  const max = Math.max(...entries.map(([, entry]) => realCount(entry)), 1)
+  const labels: Record<string, string> = {
+    tables_with_writer_and_no_rows: 'Tablas con escritor y sin registros',
+    entrypoints_without_launcher: 'Puntos de entrada sin lanzador',
+    modules_unreachable_from_entrypoint: 'Módulos no alcanzables desde entradas',
+    modules_imported_only_by_tests: 'Módulos importados solo por pruebas',
+    unexecuted_task_types: 'Tipos de tarea aún sin ejecución',
+    backup_protection_gaps: 'Brechas de protección de respaldos',
+  }
+
   return (
-    <svg style={{ width: '100%', height: '100%' }}>
-      {entries.map(([name, e], i) => (
-        <g key={name} transform={`translate(24,${28 + i * 46})`}>
-          {/* La longitud es el recuento, no una estimación. */}
-          <rect width={`${Math.max((realCount(e) / max) * 70, 0.5)}%`} height={26} rx={4}
-            fill={realCount(e) ? '#b03030' : '#1b7f4b'} />
-          <text x={8} y={18} fill="#fff" fontSize={12}>
-            {realCount(e)} real  {name.replace(/_/g, ' ')}
-          </text>
-        </g>
-      ))}
-    </svg>
+    <div role="list" aria-label="Deuda estructural por categoría"
+      style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 590, overflowY: 'auto' }}>
+      {entries.map(([name, entry]) => {
+        const real = realCount(entry)
+        const classified = Math.max(0, entry.count - real)
+        return (
+          <div key={name} role="listitem" style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+              gap: 12, flexWrap: 'wrap', fontSize: 12, marginBottom: 6 }}>
+              <span style={{ color: 'var(--text-primary)', overflowWrap: 'anywhere', flex: '1 1 200px' }}>
+                {labels[name] || name.replace(/_/g, ' ')}
+              </span>
+              <strong style={{ whiteSpace: 'nowrap', color: real ? 'var(--danger, #d66)' : 'var(--text-secondary)' }}>
+                {real} real · {classified} clasificado{classified === 1 ? '' : 's'}
+              </strong>
+            </div>
+            <div aria-label={"" + real + " elementos reales de " + entry.count + " observados"}
+              style={{ background: 'var(--border)', borderRadius: 999, height: 8, overflow: 'hidden' }}>
+              {real > 0 && <div style={{
+                width: (real / max * 100) + '%', height: '100%', background: 'var(--danger, #b03030)',
+                borderRadius: 999,
+              }} />}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
