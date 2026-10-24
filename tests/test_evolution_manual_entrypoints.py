@@ -6,7 +6,6 @@ import ast
 from pathlib import Path
 
 import pytest
-
 from triade.observability.code_graph import _declared_entrypoint_kind
 
 
