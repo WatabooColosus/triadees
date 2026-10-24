@@ -33,9 +33,15 @@ def test_repeated_insufficient_education_does_not_add_receipts():
     conn = _conn()
     try:
         resolver = NeuronEducationResolver(":memory:")
-        resolver._record_event(conn, "lesson-1", 13, "education_insufficient_evidence", _payload())
-        resolver._record_event(conn, "lesson-1", 13, "education_insufficient_evidence", _payload())
-        rows = conn.execute("SELECT payload_json FROM neuron_education_events").fetchall()
+        resolver._record_event(
+            conn, "lesson-1", 13, "education_insufficient_evidence", _payload()
+        )
+        resolver._record_event(
+            conn, "lesson-1", 13, "education_insufficient_evidence", _payload()
+        )
+        rows = conn.execute(
+            "SELECT payload_json FROM neuron_education_events"
+        ).fetchall()
         assert len(rows) == 1
         assert json.loads(rows[0][0])["applied_runs"] == 0
     finally:
@@ -46,10 +52,18 @@ def test_new_measured_runs_must_add_new_receipt():
     conn = _conn()
     try:
         resolver = NeuronEducationResolver(":memory:")
-        resolver._record_event(conn, "lesson-1", 13, "education_insufficient_evidence", _payload())
-        resolver._record_event(conn, "lesson-1", 13, "education_insufficient_evidence", _payload(1))
-        resolver._record_event(conn, "lesson-1", 13, "education_insufficient_evidence", _payload(1))
-        rows = conn.execute("SELECT payload_json FROM neuron_education_events").fetchall()
+        resolver._record_event(
+            conn, "lesson-1", 13, "education_insufficient_evidence", _payload()
+        )
+        resolver._record_event(
+            conn, "lesson-1", 13, "education_insufficient_evidence", _payload(1)
+        )
+        resolver._record_event(
+            conn, "lesson-1", 13, "education_insufficient_evidence", _payload(1)
+        )
+        rows = conn.execute(
+            "SELECT payload_json FROM neuron_education_events"
+        ).fetchall()
         assert [json.loads(x[0])["applied_runs"] for x in rows] == [0, 1]
     finally:
         conn.close()
@@ -59,11 +73,18 @@ def test_distinct_sessions_and_verified_decisions_are_never_deduplicated():
     conn = _conn()
     try:
         resolver = NeuronEducationResolver(":memory:")
-        resolver._record_event(conn, "lesson-1", 13, "education_insufficient_evidence", _payload())
-        resolver._record_event(conn, "lesson-2", 13, "education_insufficient_evidence", _payload())
+        resolver._record_event(
+            conn, "lesson-1", 13, "education_insufficient_evidence", _payload()
+        )
+        resolver._record_event(
+            conn, "lesson-2", 13, "education_insufficient_evidence", _payload()
+        )
         resolver._record_event(conn, "lesson-1", 13, "education_improved", _payload(5))
         resolver._record_event(conn, "lesson-1", 13, "education_improved", _payload(5))
-        assert conn.execute("SELECT COUNT(*) FROM neuron_education_events").fetchone()[0] == 4
+        assert (
+            conn.execute("SELECT COUNT(*) FROM neuron_education_events").fetchone()[0]
+            == 4
+        )
     finally:
         conn.close()
 
@@ -78,7 +99,12 @@ def test_corrupt_old_receipt_does_not_silence_new_evidence():
             "VALUES(?,?,?,?,?)",
             ("lesson-1", 13, "education_insufficient_evidence", "{broken", "test"),
         )
-        resolver._record_event(conn, "lesson-1", 13, "education_insufficient_evidence", _payload())
-        assert conn.execute("SELECT COUNT(*) FROM neuron_education_events").fetchone()[0] == 2
+        resolver._record_event(
+            conn, "lesson-1", 13, "education_insufficient_evidence", _payload()
+        )
+        assert (
+            conn.execute("SELECT COUNT(*) FROM neuron_education_events").fetchone()[0]
+            == 2
+        )
     finally:
         conn.close()
