@@ -116,3 +116,17 @@ def test_main_non_tty_rejects_before_key_access(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         cli.main(argv)
     assert exc.value.code == 2
+
+
+def test_administrative_declaration_is_visible_to_runtime_graph():
+    import ast
+    from pathlib import Path
+
+    from triade.observability.code_graph import _declared_entrypoint_kind
+
+    source = Path(cli.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    assert (
+        _declared_entrypoint_kind(tree, "scripts/session_backup_key_cli.py")
+        == "administrative_on_demand"
+    )
