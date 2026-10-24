@@ -85,11 +85,17 @@ def test_reject_unknown_saver_without_stopping(tmp_path):
         target=lambda: gate.wait(50), name=handover.SAVER_NAME, daemon=True
     )
     t.start()
-    with pytest.raises(RuntimeError, match="escritor desconocido|no inspeccionable"):
-        handover._source_globals(t)
-    assert not gate.is_set()
-    gate.set()
-    t.join(3)
+    try:
+        with pytest.raises(
+            RuntimeError, match="escritor desconocido|no inspeccionable"
+        ):
+            handover._source_globals(t)
+        assert not gate.is_set()
+    finally:
+        # Always dispose of the impostor even when an assertion fails: an
+        # orphan with SAVER_NAME would corrupt following single-writer tests.
+        gate.set()
+        t.join(3)
 
 
 def test_execute_replaces_stale_periodic_and_writes_guarded_index(
