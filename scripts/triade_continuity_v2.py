@@ -25,9 +25,15 @@ from typing import Any
 GUARD = "wal_closed_and_rows_verified_v2"
 LINEAGE = "90e9a51dd7ffef31"
 MONOTONE = (
-    "neurons", "autonomous_tasks", "neuron_education_sessions",
-    "neuron_education_applications", "metabolic_cycle", "auth_users",
-    "auth_email_identities", "worker_runs", "governed_research_runs",
+    "neurons",
+    "autonomous_tasks",
+    "neuron_education_sessions",
+    "neuron_education_applications",
+    "metabolic_cycle",
+    "auth_users",
+    "auth_email_identities",
+    "worker_runs",
+    "governed_research_runs",
 )
 ROOT = Path("/content/Triade_580_Limpia")
 DRIVE = Path("/content/drive/MyDrive/Triade")
@@ -43,16 +49,24 @@ def _hash(path: Path) -> str:
 def _inspect(path: Path, *, immutable: bool) -> dict[str, Any]:
     if not path.is_file():
         raise FileNotFoundError(str(path))
-    uri = path.resolve().as_uri() + ("?mode=ro&immutable=1" if immutable else "?mode=ro")
+    uri = path.resolve().as_uri() + (
+        "?mode=ro&immutable=1" if immutable else "?mode=ro"
+    )
     with contextlib.closing(sqlite3.connect(uri, uri=True, timeout=12)) as con:
         if con.execute("PRAGMA quick_check").fetchone()[0] != "ok":
             raise RuntimeError("Bodega o copia SQLite sin integridad")
         journal = str(con.execute("PRAGMA journal_mode").fetchone()[0]).lower()
-        tables = {str(x[0]) for x in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        tables = {
+            str(x[0])
+            for x in con.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
         absent = [name for name in MONOTONE if name not in tables]
         if absent:
             raise RuntimeError("Tablas requeridas ausentes: " + ",".join(absent))
-        counts = {t: int(con.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]) for t in MONOTONE}
+        counts = {
+            t: int(con.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0])
+            for t in MONOTONE
+        }
     return {"counts": counts, "journal_mode": journal}
 
 
@@ -79,7 +93,9 @@ def _identity(coordinator: Any, path: Path) -> dict[str, Any]:
     return info
 
 
-def _check_no_regression(new: dict[str, int], old: dict[str, int], *, label: str) -> None:
+def _check_no_regression(
+    new: dict[str, int], old: dict[str, int], *, label: str
+) -> None:
     for name in MONOTONE:
         if int(new[name]) < int(old[name]):
             raise RuntimeError(f"REGRESION {label}: {name} {old[name]} -> {new[name]}")
@@ -87,21 +103,31 @@ def _check_no_regression(new: dict[str, int], old: dict[str, int], *, label: str
 
 def _validate_pointer(coordinator: Any, pointer: Path) -> dict[str, Any]:
     data = json.loads(pointer.read_text(encoding="utf-8"))
-    if (data.get("guard") != GUARD or data.get("lineage") != LINEAGE or
-            data.get("schema") != "triade_verified_continuity_v2"):
+    if (
+        data.get("guard") != GUARD
+        or data.get("lineage") != LINEAGE
+        or data.get("schema") != "triade_verified_continuity_v2"
+    ):
         raise RuntimeError("Puntero v2 sin contrato protegido")
     name = data.get("file")
-    if not isinstance(name, str) or name != Path(name).name or not name.endswith(".sqlite3"):
+    if (
+        not isinstance(name, str)
+        or name != Path(name).name
+        or not name.endswith(".sqlite3")
+    ):
         raise RuntimeError("Nombre de imagen v2 inseguro")
     image = pointer.parent / name
     sidecar = image.with_suffix(".json")
     if not image.is_file() or not sidecar.is_file():
         raise RuntimeError("Archivos de v2 faltantes")
     meta = json.loads(sidecar.read_text(encoding="utf-8"))
-    if (meta.get("kind") != "sqlite_wal_closed_verified" or
-            meta.get("guard") != GUARD or meta.get("sha256") != data.get("sha256") or
-            int(meta.get("size", -1)) != image.stat().st_size or
-            _hash(image) != data.get("sha256")):
+    if (
+        meta.get("kind") != "sqlite_wal_closed_verified"
+        or meta.get("guard") != GUARD
+        or meta.get("sha256") != data.get("sha256")
+        or int(meta.get("size", -1)) != image.stat().st_size
+        or _hash(image) != data.get("sha256")
+    ):
         raise RuntimeError("Imagen v2 sin checksum o sidecar coherente")
     if image.with_name(image.name + "-wal").exists():
         raise RuntimeError("WAL sin cerrar dentro de v2")
@@ -113,7 +139,12 @@ def _validate_pointer(coordinator: Any, pointer: Path) -> dict[str, Any]:
         raise RuntimeError("Índice v2 y archivo no coinciden")
     if meta.get("verified_image_counts") != data.get("counts"):
         raise RuntimeError("Metadatos v2 y archivo no coinciden")
-    return {"file": name, "sha256": data["sha256"], "counts": check["counts"], "bytes": image.stat().st_size}
+    return {
+        "file": name,
+        "sha256": data["sha256"],
+        "counts": check["counts"],
+        "bytes": image.stat().st_size,
+    }
 
 
 def run(*, publish: bool = False) -> dict[str, Any]:
@@ -127,10 +158,14 @@ def run(*, publish: bool = False) -> dict[str, Any]:
     previous = _validate_pointer(c, INDEX) if INDEX.is_file() else None
     if previous:
         _check_no_regression(live_counts, previous["counts"], label="v2->Bodega")
-    preliminary = {"status": "preflight_only", "lineage": LINEAGE,
-                   "live_counts": live_counts, "prior_v2": previous,
-                   "legacy_active_trusted": False,
-                   "modifies_live_bodega": False}
+    preliminary = {
+        "status": "preflight_only",
+        "lineage": LINEAGE,
+        "live_counts": live_counts,
+        "prior_v2": previous,
+        "legacy_active_trusted": False,
+        "modifies_live_bodega": False,
+    }
     if not publish:
         print(json.dumps(preliminary, ensure_ascii=False, indent=2))
         return preliminary
@@ -144,8 +179,14 @@ def run(*, publish: bool = False) -> dict[str, Any]:
         previous = _validate_pointer(c, INDEX) if INDEX.is_file() else None
         with tempfile.TemporaryDirectory(prefix="triade-v2-", dir=ROOT) as folder:
             image = Path(folder) / "backup.sqlite3"
-            with (contextlib.closing(sqlite3.connect(Path(c.DB).resolve().as_uri() + "?mode=ro", uri=True, timeout=45)) as src,
-                  contextlib.closing(sqlite3.connect(image, timeout=45)) as dst):
+            with (
+                contextlib.closing(
+                    sqlite3.connect(
+                        Path(c.DB).resolve().as_uri() + "?mode=ro", uri=True, timeout=45
+                    )
+                ) as src,
+                contextlib.closing(sqlite3.connect(image, timeout=45)) as dst,
+            ):
                 src.backup(dst, pages=256, sleep=0.1)
                 checkpoint = dst.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
                 if checkpoint is not None and int(checkpoint[0]) != 0:
@@ -155,11 +196,18 @@ def run(*, publish: bool = False) -> dict[str, Any]:
                     raise RuntimeError("No se cerró WAL de imagen")
             observed = _inspect(image, immutable=True)
             validated = _identity(c, image)
-            if observed["journal_mode"] != "delete" or observed["counts"] != validated["counts"]:
+            if (
+                observed["journal_mode"] != "delete"
+                or observed["counts"] != validated["counts"]
+            ):
                 raise RuntimeError("Copia inconsistente")
-            _check_no_regression(observed["counts"], live_counts, label="origen->imagen")
+            _check_no_regression(
+                observed["counts"], live_counts, label="origen->imagen"
+            )
             if previous:
-                _check_no_regression(observed["counts"], previous["counts"], label="v2->imagen")
+                _check_no_regression(
+                    observed["counts"], previous["counts"], label="v2->imagen"
+                )
             if shutil.disk_usage(STORE).free < 2 * image.stat().st_size:
                 raise OSError("Drive no dispone de espacio suficiente")
             stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%S%fZ")
@@ -173,39 +221,68 @@ def run(*, publish: bool = False) -> dict[str, Any]:
                 checksum = _hash(image)
                 if _hash(staged) != checksum:
                     raise RuntimeError("Copia Drive no coincide")
-                if _inspect(staged, immutable=True) != observed or _identity(c, staged)["counts"] != observed["counts"]:
+                if (
+                    _inspect(staged, immutable=True) != observed
+                    or _identity(c, staged)["counts"] != observed["counts"]
+                ):
                     raise RuntimeError("Contenido Drive no coincide")
                 os.replace(staged, final)
                 manifest = {
-                    "schema": "triade_verified_continuity_v2", "guard": GUARD,
-                    "file": filename, "lineage": LINEAGE, "sha256": checksum,
-                    "counts": observed["counts"], "created_at": dt.datetime.now(dt.UTC).isoformat(),
+                    "schema": "triade_verified_continuity_v2",
+                    "guard": GUARD,
+                    "file": filename,
+                    "lineage": LINEAGE,
+                    "sha256": checksum,
+                    "counts": observed["counts"],
+                    "created_at": dt.datetime.now(dt.UTC).isoformat(),
                     "external_memory_included": False,
                     "not_complete_external_memory_restore": True,
                 }
-                meta = {"kind": "sqlite_wal_closed_verified", "guard": GUARD,
-                        "sha256": checksum, "size": final.stat().st_size,
-                        "verified_image_counts": observed["counts"]}
+                meta = {
+                    "kind": "sqlite_wal_closed_verified",
+                    "guard": GUARD,
+                    "sha256": checksum,
+                    "size": final.stat().st_size,
+                    "verified_image_counts": observed["counts"],
+                }
                 _atomic_json(final.with_suffix(".json"), meta)
                 # Verify all image bytes and rows *before* the pointer moves.
                 _validate_candidate(c, manifest, final, meta)
                 _atomic_json(INDEX, manifest)
                 _validate_pointer(c, INDEX)
-                print(json.dumps({"status": "published_v2_verified", "file": filename,
-                                  "counts": observed["counts"], "v1_untouched": True},
-                                 ensure_ascii=False, indent=2))
-                return {"status": "published_v2_verified", "file": filename,
-                        "counts": observed["counts"], "v1_untouched": True}
+                print(
+                    json.dumps(
+                        {
+                            "status": "published_v2_verified",
+                            "file": filename,
+                            "counts": observed["counts"],
+                            "v1_untouched": True,
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+                )
+                return {
+                    "status": "published_v2_verified",
+                    "file": filename,
+                    "counts": observed["counts"],
+                    "v1_untouched": True,
+                }
             finally:
                 staged.unlink(missing_ok=True)
 
 
-def _validate_candidate(c: Any, manifest: dict[str, Any], path: Path, meta: dict[str, Any]):
+def _validate_candidate(
+    c: Any, manifest: dict[str, Any], path: Path, meta: dict[str, Any]
+):
     if not path.is_file() or path.with_name(path.name + "-wal").exists():
         raise RuntimeError("Imagen candidata v2 no cerrada")
-    if (meta["sha256"] != _hash(path) or meta["size"] != path.stat().st_size or
-            manifest["counts"] != _inspect(path, immutable=True)["counts"] or
-            manifest["counts"] != _identity(c, path)["counts"]):
+    if (
+        meta["sha256"] != _hash(path)
+        or meta["size"] != path.stat().st_size
+        or manifest["counts"] != _inspect(path, immutable=True)["counts"]
+        or manifest["counts"] != _identity(c, path)["counts"]
+    ):
         raise RuntimeError("Imagen candidata v2 no validable")
 
 
