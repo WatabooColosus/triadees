@@ -32,6 +32,14 @@ def _source_globals(thread: threading.Thread) -> dict[str, Any]:
     namespace = getattr(target, "__globals__", None)
     if not isinstance(namespace, dict):
         raise TypeError("CONTINUIDAD_PROTEGIDA: hilo antiguo no inspeccionable")
+    # A thread can have the same NAME and incidental module globals without
+    # being a saver. Only recognize targets that actually reference the
+    # continuity stop signal and snapshot callback. Otherwise fail closed.
+    code = getattr(target, "__code__", None)
+    if code is None or not {"STOP", "wait", "snapshot_once"}.issubset(
+        code.co_names
+    ):
+        raise RuntimeError("CONTINUIDAD_PROTEGIDA: escritor desconocido; no se detiene")
     if not {"STOP", "snapshot_once", "atomic_json"}.issubset(namespace):
         raise RuntimeError("CONTINUIDAD_PROTEGIDA: escritor desconocido; no se detiene")
     stop = namespace["STOP"]
