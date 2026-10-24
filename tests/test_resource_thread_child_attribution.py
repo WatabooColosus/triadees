@@ -13,9 +13,7 @@ def test_process_global_child_cpu_cannot_be_billed_to_worker_thread(monkeypatch)
     """Another worker's subprocess must not move this task's CPU receipts."""
     cpu_samples = iter([(1.0, 0.2, "thread"), (1.05, 0.21, "thread")])
     monkeypatch.setattr(ledger, "_cpu_propio", lambda: next(cpu_samples))
-    monkeypatch.setattr(
-        ledger, "resource", SimpleNamespace(RUSAGE_CHILDREN=42)
-    )
+    monkeypatch.setattr(ledger, "resource", SimpleNamespace(RUSAGE_CHILDREN=42))
     # A process-wide child-CPU spike is deliberately unrelated to this thread.
     calls = 0
 
